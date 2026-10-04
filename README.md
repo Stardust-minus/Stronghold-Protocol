@@ -1,5 +1,7 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Covenant
 
+> **Stardust fork**：上游为 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)。本站部署、PRTS 门禁与静态分流见 [部署覆盖层](deploy/stardust/README.md) 和 [协同更新 SOP](deploy/stardust/UPDATE-SOP.md)。本 fork 的 `master` 是开发集成分支，推送不等于线上发布。
+
 《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或 1–4 人联机合作。
 
 ![version](https://img.shields.io/badge/version-0.1.1-2ea44f)

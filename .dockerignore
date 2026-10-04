@@ -21,3 +21,11 @@ scripts/service.env.cmd
 Thumbs.db
 .env
 .env.*
+# Site-specific runtime secrets and generated deployment bundles never enter the game build context.
+**/auth-secrets
+**/secrets
+**/tls
+**/gate.json
+**/*.pem
+**/*.key
+deploy/stardust/build

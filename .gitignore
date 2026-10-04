@@ -37,3 +37,18 @@ desktop.ini
 .idea/
 .vscode/
 .claude/
+
+# --- Stardust deployment: generated dependencies and private runtime material ---------------------
+deploy/stardust/auth/public/three.module.js
+deploy/stardust/auth/public/three.core.js
+deploy/stardust/auth/public/css3d.js
+deploy/stardust/auth/public/bender-regular.woff2
+deploy/stardust/build/
+deploy/stardust/**/tls/
+deploy/stardust/**/secrets/
+deploy/stardust/**/auth-secrets/
+**/gate.json
+*.pem
+*.key
+*.p12
+*.pfx

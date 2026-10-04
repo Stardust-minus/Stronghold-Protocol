@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#dce5fb">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="卫戍协议：盟约 · 私人访问终端">
+  <title>PRTS · 卫戍协议：盟约</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/_gate/assets/gate.css">
+  <script src="/_gate/assets/gate.js" defer></script>
+</head>
+<body data-authenticated="{{AUTHENTICATED}}" data-phase="idle" data-renderer="fallback" data-build="spatial-06">
+  <div id="ambient-field" aria-hidden="true"></div>
+  <canvas id="world" aria-hidden="true"></canvas>
+  <div id="spatial-dom"></div>
+  <div class="letterbox bar-top" aria-hidden="true"><span>PRTS / PRIVATE TERMINAL</span><span>STARDUST — 00</span></div>
+  <div class="letterbox bar-bottom" aria-hidden="true"><span>STRONGHOLD PROTOCOL</span><span>ACCESS CONTROL SYSTEM</span></div>
+
+  <div id="intro-scene" hidden aria-hidden="true">
+    <div class="intro-grain"></div>
+    <div class="signal-assembly">
+      <div class="signal-left"><span class="signal-hatch"></span><span class="signal-wire"></span><p>PRIVATE RHODES TERMINAL<br><b>STRONGHOLD PROTOCOL</b></p></div>
+      <div class="signal-core"><span class="signal-orbit orbit-one"></span><span class="signal-orbit orbit-two"></span><div class="signal-plaque"><span>卫戍协议</span><small>PRTS</small></div></div>
+      <div class="signal-right"><span class="signal-wire"></span><span class="signal-hatch"></span><div class="signal-grid"><span>P</span><span>R</span><span>T</span><span>S</span></div></div>
+    </div>
+    <p class="intro-caption">私人终端 · 访问认证</p>
+  </div>
+
+  <main id="plane-home">
+    <section id="terminal-plane" aria-labelledby="site-title">
+      <div class="fallback-anchors" aria-hidden="true"><i class="anchor a-tl"></i><i class="anchor a-tr"></i><i class="anchor a-bl"></i><i class="anchor a-br"></i></div>
+      <div id="login-scene" class="login-face">
+        <header class="wordboard">
+          <div class="wordboard-rule rule-top" aria-hidden="true"></div>
+          <div class="wordmark" aria-label="PRTS"><span class="glyph glyph-p">P</span><span class="glyph glyph-r">R</span><span class="glyph glyph-t">T</span><span class="glyph glyph-s">S</span></div>
+          <p class="wordmark-expansion">Private Rhodes Terminal</p>
+          <p class="service-title">TERMINAL SERVICE</p>
+          <div class="wordboard-rule rule-bottom" aria-hidden="true"></div>
+          <h1 id="site-title">卫戍协议：盟约</h1>
+        </header>
+        <div class="spine-rule" aria-hidden="true"></div>
+        <div class="control-board">
+          <div class="operator-row"><label class="field-heading" for="callsign">CALLSIGN <span>博士代号</span></label><div class="operator-frame physical-frame"><input id="callsign" type="text" form="login-form" required maxlength="12" autocomplete="nickname" spellcheck="false" aria-describedby="callsign-hint"><span class="visitor-tag" aria-hidden="true">01</span></div><p id="callsign-hint" class="callsign-hint">最多 12 字 · 同步为游戏昵称</p></div>
+          <form id="login-form" action="/_gate/login" method="post" {{LOGIN_HIDDEN}}>
+            <input type="hidden" name="csrf" value="{{CSRF}}">
+            <input type="hidden" name="next" value="{{NEXT}}">
+            <div class="password-row"><label class="field-heading" for="password">PASSWORD <span>访问口令</span></label><div class="password-frame physical-frame"><input id="password" name="password" type="password" required maxlength="256" autocomplete="current-password" autocapitalize="off" spellcheck="false" aria-describedby="login-message privacy-note"><button id="password-toggle" type="button" aria-pressed="false" aria-label="显示访问口令" hidden>显示</button></div></div>
+            <div class="action-row"><span class="enter-hint" aria-hidden="true">[ ENTER ]</span><button id="login-submit" type="submit"><span class="action-label">连接终端</span><span aria-hidden="true">↗</span></button></div>
+            <p id="login-message" class="response-message" role="status" aria-live="polite" aria-atomic="true">{{MESSAGE}}</p>
+          </form>
+          <section id="authorized-panel" {{STATUS_HIDDEN}} aria-labelledby="authorized-heading">
+            <p class="field-heading">AUTHENTICATION</p><h2 id="authorized-heading">IDENTIFIED</h2><p class="authorized-note">当前浏览器已获访问授权</p>
+            <a id="return-link" class="continue-link" href="{{NEXT}}"><span>继续进入终端</span><span aria-hidden="true">↗</span></a>
+            <form id="logout-form" action="/_gate/logout" method="post"><input type="hidden" name="csrf" value="{{CSRF}}"><button type="submit"><span class="action-label">退出访问授权</span></button></form>
+            <p id="status-message" class="response-message" role="status" aria-live="polite">{{MESSAGE}}</p>
+          </section>
+        </div>
+      </div>
+
+      <div id="success-scene" aria-hidden="true" hidden>
+        <div class="recognized-copy"><div class="access-legend"><span>ACCESS TERMINAL</span><i></i></div><div class="identified-band"><span>IDENTIFIED</span></div><div class="welcome-outline"><span>WELCOME</span></div></div>
+        <div class="credential"><span class="credential-tab">PRTS / 00</span><div class="credential-frame"><div class="credential-scan"></div><div class="credential-slashes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="credential-emblem"><span class="tower"></span><span>PRTS</span><small>ACCESS CONFIRMED</small></div></div><p id="credential-name" class="credential-name"></p></div>
+      </div>
+    </section>
+  </main>
+
+  <section id="entry-bridge" hidden aria-hidden="true">
+    <div class="portal-fallback"><span></span><span></span><span></span></div>
+    <div class="portal-card"><div class="portal-emblem"><span class="tower"></span><b>PRTS</b></div><div class="portal-text"><span>服务器</span><h2>STARDUST</h2><p><sup>#</sup>0</p></div></div>
+    <div class="portal-axis"><div class="progress-arm progress-left"><i></i></div><div class="progress-arm progress-right"><i></i></div><span class="progress-caption">ACCESS VERIFIED</span><span class="progress-meet"></span></div>
+  </section>
+
+  <div class="connection-strip" aria-hidden="true"><span class="connection-diamond"></span><p>访问权限已确认，正在进入终端……</p></div>
+  <p id="privacy-note" class="site-note">非官方同人站点 · 仅验证共享访问口令，不收集游戏账号密码</p>
+  <button id="intro-skip" type="button" hidden>跳过片头 <span>↗</span></button>
+  <a id="entry-skip" href="{{NEXT}}" hidden>立即进入 <span>↗</span></a>
+  <p id="entry-message" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>
