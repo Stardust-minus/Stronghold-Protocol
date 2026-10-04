@@ -1,7 +1,10 @@
 // Main-thread adapter for a server-streamed phase owned by one combat worker. Only views/results cross the boundary;
 // Match still owns players, watchers, phase transitions and settlement. At most one command is in flight per phase.
 import { TICK } from '../../sim/constants.js';
-import { INTERVAL_MS, GAME_SPEED, maxTicksPerInterval, snapFrame } from '../fields.js';
+import { INTERVAL_MS, GAME_SPEED, HARD_CAP_SECONDS, snapFrame } from '../fields.js';
+
+// Bound each FIFO worker turn, not the active game-time debt. At 2x this covers a 533 ms service cycle.
+export const MAX_WORKER_ADVANCE_TICKS = 32;
 
 /** Read-only view of the last accepted worker state, not a resumable simulation snapshot. */
 export class RemoteBattle {
@@ -75,7 +78,7 @@ export class WorkerFieldRunner {
     this.last = this.m.sched.now();
     try {
       this.inflight = true;
-      this.session = this.m.combatPool.create({ specs: this.fields.map((f) => f.spec), boss: this.boss, wireFrames: true }, {
+      this.session = this.m.combatPool.create({ specs: this.fields.map((f) => f.spec), boss: this.boss, wireFrames: true, coalesceFrames: true }, {
         onFailure: (e) => this._fail(e),
       });
       this.session.ready.then((out) => this._receive(out, true), (e) => this._fail(e));
@@ -100,6 +103,7 @@ export class WorkerFieldRunner {
   /** A pause holds a pre-pause in-flight reply without applying its frames, effects or settlement. */
   resume() {
     this.last = this.m.sched.now();
+    // Intentional pause boundary: discard pre-pause unsent debt as before, never simulate paused wall time.
     this.acc = 0;
     if (this.held && this.active) {
       const out = this.held;
@@ -114,9 +118,9 @@ export class WorkerFieldRunner {
     const dt = Math.max(0, now - this.last);
     this.last = now;
     const speed = Number.isFinite(this.m.gameSpeed) && this.m.gameSpeed > 0 ? this.m.gameSpeed : GAME_SPEED;
-    const cap = maxTicksPerInterval(speed);
-    // Keep elapsed time while a step/resync is in flight, but never build an unbounded catch-up backlog.
-    if (this.ready && !this.m.paused && !this.held) this.acc = Math.min(this.acc + dt / 1000 * speed, (cap + 1) * TICK);
+    // Active time remains owed even while the parent/worker queue is delayed. The phase hard cap bounds this
+    // scalar debt; the command budget below bounds work/frames and preserves fair FIFO turns, not elapsed time.
+    if (this.ready && !this.m.paused && !this.held) this.acc = Math.min(this.acc + dt / 1000 * speed, Math.max(0, HARD_CAP_SECONDS - this.time));
     if (this.inflight || !this.ready || this.held) return;
     // Controls are bounded by the phase's fields; nobody can enqueue a backlog of step or snapshot commands.
     if (this.controls.size) {
@@ -134,8 +138,8 @@ export class WorkerFieldRunner {
       this._request('state', { snapshotFields: [...new Set(this.resync.values())] });
       return;
     }
-    let n = Math.floor(this.acc / TICK + 1e-9);
-    if (n > cap) { n = cap; this.acc = 0; } else this.acc -= n * TICK;
+    const n = Math.min(Math.floor(this.acc / TICK + 1e-9), MAX_WORKER_ADVANCE_TICKS);
+    this.acc = Math.max(0, this.acc - n * TICK);
     if (n > 0) this._request('advance', { ticks: n, snapshotFields: this.fields.filter((f) => this._watchers(f.fieldId).length).map((f) => f.fieldId) });
   }
 
@@ -153,7 +157,12 @@ export class WorkerFieldRunner {
     if (initial) { this.ready = true; this.last = this.m.sched.now(); }
     if (this.m.paused) { this.held = out; return; }
     this.m.guard(() => {
-      try { this._apply(out); } catch (e) { this._fail(e); }
+      try {
+        this._apply(out);
+        // One reply can admit at most one new bounded command. No timer/microtask spin when there is no debt;
+        // the pool's existing FIFO still places this turn after other phases already waiting on the worker.
+        if (this.active && !this.m.paused) this._pump();
+      } catch (e) { this._fail(e); }
     });
   }
 
@@ -184,19 +193,22 @@ export class WorkerFieldRunner {
     for (const frame of out.frames || []) {
       const f = this.fields.find((x) => x.fieldId === frame.fieldId);
       if (!f) continue;
-      f.battle._meta = frame.meta || null;
-      f.battle._snapshot = frame.snapshot || null;
-      f.battle._metaWire = frame.metaWire || null;
-      f.battle._snapshotWire = frame.snapshotWire || null;
+      // Catch-up event-only frames retain their original gt/order without replacing a consistent cached view.
+      if (frame.snapshotWire || frame.snapshot) {
+        f.battle._meta = frame.meta || null;
+        f.battle._snapshot = frame.snapshot || null;
+        f.battle._metaWire = frame.metaWire || null;
+        f.battle._snapshotWire = frame.snapshotWire || null;
+      }
       for (const pid of this._watchers(f.fieldId)) {
         if (this.resync.get(pid) === f.fieldId) {
           // Rejoin at the newest consistent tick in this batch, never send a current meta then an older snapshot.
           if (latest.get(f.fieldId) === frame) { this._sendCached(pid, f); this.resync.delete(pid); }
           continue;
         }
-        if (frame.snapshotWire) {
+        if (frame.snapshotWire || frame.eventsWire) {
           if (frame.eventsWire) this.m.sendEncoded(pid, 'b.ev', frame.eventsWire);
-          this.m.sendEncoded(pid, 'b.snap', frame.snapshotWire);
+          if (frame.snapshotWire) this.m.sendEncoded(pid, 'b.snap', frame.snapshotWire);
         } else {
           if (frame.events?.length) this.m.sendTo(pid, { t: 'b.ev', fieldId: f.fieldId, gt: frame.snapshot.t, ev: frame.events });
           this.m.sendTo(pid, snapFrame(f.fieldId, frame.snapshot));
