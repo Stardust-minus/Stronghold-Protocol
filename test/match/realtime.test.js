@@ -18,7 +18,7 @@ import { getData } from '../../server/data.js';
 const DS = new DataSource(getData({ log: { warn() {}, error() {}, info() {} } }), null);
 
 class RealtimeMatch extends Match {
-  constructor(o) { super({ ...o, timerScale: 0.1, combatSpeed: 40 }); RealtimeMatch.last = this; }
+  constructor(o) { super({ ...o, clientCombat: true, timerScale: 0.1, combatSpeed: 40 }); RealtimeMatch.last = this; }
 }
 
 const errors = [];

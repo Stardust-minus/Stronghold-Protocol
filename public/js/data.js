@@ -16,7 +16,6 @@
 // `loadData(...)` to await, or the `useData(...)` hook to re-render when files arrive.
 
 import { useEffect, useReducer } from '../vendor/hooks.module.js';
-import { releaseResource, pinAssetManifest } from './release.js';
 
 /** Known data files (name → URL basename). Unknown names are allowed too (`/data/<name>.json`). */
 export const DATA_FILES = Object.freeze({
@@ -97,7 +96,7 @@ const transientFailure = (err) => {
  * @param {{ fetch?: typeof fetch, base?: string, retryDelays?: number[], wait?: (ms: number) => Promise<void> }} [opts]
  */
 export function createDataStore(opts = {}) {
-  const base = opts.base ?? releaseResource('/data/');
+  const base = opts.base ?? '/data/';
   const doFetch = opts.fetch || ((...a) => globalThis.fetch(...a));
   const retryDelays = Array.isArray(opts.retryDelays) ? opts.retryDelays : RETRY_DELAYS_MS;
   const wait = opts.wait || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -126,7 +125,7 @@ export function createDataStore(opts = {}) {
           if (!res || !res.ok) throw Object.assign(new Error(`HTTP ${res ? res.status : '???'}`), { status: res ? res.status : null });
           let json;
           try { json = await res.json(); } catch (err) { throw Object.assign(err instanceof Error ? err : new Error(String(err)), { badJson: true }); }
-          entry.value = name === 'assets' || name === 'local' ? pinAssetManifest(json) : json;
+          entry.value = json;
           entry.status = 'ready';
           break;
         } catch (err) {

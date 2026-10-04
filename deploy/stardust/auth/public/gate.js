@@ -32,7 +32,7 @@
     if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000-\u001f]/.test(value)) return null;
     try {
       const url = new URL(value, location.origin);
-      const page = ['/', '/index.html'].includes(url.pathname) || /^\/_release\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/public\/(?:index\.html)?$/.test(url.pathname);
+      const page = ['/', '/index.html'].includes(url.pathname);
       return url.origin === location.origin && page ? url.pathname + url.search : null;
     } catch { return null; }
   }

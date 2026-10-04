@@ -1,7 +1,9 @@
 FROM node@sha256:7fddd9ddeae8196abf4a3ef2de34e11f7b1a722119f91f28ddf1e99dcafdf114
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 UV_THREADPOOL_SIZE=2
 WORKDIR /app
-COPY server.mjs name-policy.mjs name-dictionary.mjs NAME-DICTIONARY-LICENSE.txt ./
+COPY server.mjs name-policy.mjs name-dictionary.mjs name-sensitive-dictionary.mjs \
+     name-filter-vendor.mjs name-filter-node.mjs NAME-DICTIONARY-LICENSE.txt \
+     NAME-FILTER-LICENSE.txt NAME-CATEGORIES-LICENSE.txt NAME-POLITICAL-LICENSE.txt ./
 COPY THREE-LICENSE.txt ./THREE-LICENSE.txt
 COPY public/ ./public/
 USER node

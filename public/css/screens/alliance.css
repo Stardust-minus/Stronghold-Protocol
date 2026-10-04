@@ -26,6 +26,7 @@
 .mode-card--match .mode-card__desc { max-width: none; font-size: .15rem; }
 .mode-card--match .mode-card__points { flex-direction: row; flex-wrap: wrap; gap: .04rem .15rem; margin-top: 0; font-size: .13rem; }
 .mode-card:disabled, .diff-card:disabled { cursor: default; }
+.diff-list[hidden] { display: none !important; }
 .mode-card:disabled:not(.is-selected) { opacity: .58; }
 .matchmaking { margin-top: .2rem; padding: .2rem .24rem; border: 1px solid var(--line-2); border-left: 3px solid var(--mint-700); background: rgba(13, 20, 17, .94); }
 .matchmaking > header { display: flex; align-items: center; gap: .1rem; color: var(--mint-400); }
@@ -37,9 +38,27 @@
 .matchmaking.is-offered { border-color: var(--mint-500); }
 .matchmaking.is-offered .matchmaking__status { color: var(--mint-400); }
 .matchmaking .matchmaking__reason { color: var(--amber); }
-.server-update { position: fixed; z-index: 65; left: 50%; top: .12rem; transform: translateX(-50%); max-width: min(92vw, 8rem); display: flex; flex-wrap: wrap; align-items: center; gap: .12rem; padding: .12rem .2rem; border: 1px solid var(--amber); color: var(--text-hi); background: rgba(22, 24, 19, .97); font-size: .15rem; }
-.server-update p { margin: 0; }
+.matchmaking__revival { margin: .12rem 0; padding: .12rem .15rem; background: rgba(23, 36, 30, .65); border-left: 2px solid var(--mint-700); font-size: .15rem; }
+.matchmaking__revival strong { color: var(--text-hi); }
+.matchmaking__revival p { font-size: .13rem; line-height: 1.6; }
+.matchmaking__revival > span { color: var(--mint-400); }
+.room-screen > [hidden] { display: none !important; }
+.room-matching { flex: 1; min-height: 0; padding: .2rem .6rem; }
+.room-matching__team { max-width: 9rem; margin-inline: auto; }
+.room-matching__team h2 { font-size: .3rem; margin: .1rem 0; }
+.room-matching__team p { color: var(--text-lo); font-size: .16rem; line-height: 1.6; }
+.room-matching__names { display: flex; flex-wrap: wrap; gap: .1rem .2rem; margin-top: .12rem; }
+.room-matching__names > span { display: flex; align-items: center; gap: .06rem; color: var(--text-md); font-size: .16rem; }
+.room-matching > .matchmaking { max-width: 9rem; margin-inline: auto; }
 @media (max-width: 900px) {
   .revival-vote { margin-inline: .22rem; grid-template-columns: minmax(0, 1fr); gap: .05rem; padding: .08rem .13rem; }
   .revival-vote__title .micro { display: none; }
+  .room-matching { padding-inline: max(.22rem, 16px); }
+  .room-matching__team, .room-matching > .matchmaking { max-width: none; }
+  .room-matching__team h2, .matchmaking h2 { font-size: max(.28rem, 18px); }
+  .room-matching__team p, .matchmaking p { font-size: max(.15rem, 12px); }
+  .room-matching__names, .matchmaking__revival { font-size: max(.15rem, 12px); }
+  .matchmaking__status { font-size: max(.17rem, 13px); }
+  .matchmaking__revival p, .matchmaking > small { font-size: max(.13rem, 11px); }
+  .matchmaking__actions .btn { min-height: 40px; font-size: max(.18rem, 13px); }
 }

@@ -15,7 +15,6 @@
 // /media/ response is unusable (a 404, or a 200 that is not audio at all — some static hosts answer a missing
 // path with the SPA's index.html).
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../../shared/media.js';
-import { releaseBase } from './release.js';
 
 const AUDIO_PATH = /^\/assets\/audio\/(.+)$/i;
 
@@ -37,9 +36,7 @@ export function mediaUrl(url, origin = globalThis.location?.origin) {
   // Cross-origin (or absolute while the page origin is unknown) stays untouched: that host serves its own media.
   const absolute = /^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith('//');
   if (origin ? u.origin !== origin : absolute) return url;
-  const base = releaseBase(u.pathname);
-  const path = u.pathname.slice(base.length);
-  const m = AUDIO_PATH.exec(base && path.startsWith('/public/') ? path.slice('/public'.length) : path);
+  const m = AUDIO_PATH.exec(u.pathname);
   if (!m) return url;
   let rest = m[1];
   const ext = AUDIO_EXTS.find((e) => rest.toLowerCase().endsWith(e));
@@ -47,6 +44,5 @@ export function mediaUrl(url, origin = globalThis.location?.origin) {
   rest = rest.slice(0, -ext.length);
   const segments = rest.split('/');
   if (!rest || segments.some((s) => !s || s === '.' || s === '..' || s.startsWith('.'))) return url;
-  const owner = base || releaseBase();
-  return `${owner}${owner ? '/public' : ''}${MEDIA_PREFIX}${rest}${u.search}`;
+  return `${MEDIA_PREFIX}${rest}${u.search}`;
 }

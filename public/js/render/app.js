@@ -119,9 +119,7 @@ import { IDENTITY, bossPrepField, tilesToDisp } from './prepfield.js';
 import { pickOnTile, pickBattle, hitRectAt } from './pick.js';
 import { promotionsOf } from './promote.js';
 
-import { releaseResource } from '../release.js';
-
-const VENDOR = { pixi: releaseResource('/vendor/pixi.min.js'), spine: releaseResource('/vendor/pixi-spine.js') };
+const VENDOR = { pixi: '/vendor/pixi.min.js', spine: '/vendor/pixi-spine.js' };
 const PIECE_DIRS = new Set(['UP', 'RIGHT', 'DOWN', 'LEFT']);
 /** Stored facing of a prep piece (m.private board pieces carry `dir`; bench pieces have none ⇒ undefined). */
 const pieceDirOf = (piece) => (typeof piece?.dir === 'string' && PIECE_DIRS.has(piece.dir.toUpperCase()) ? piece.dir.toUpperCase() : undefined);

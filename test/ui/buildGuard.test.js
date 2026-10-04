@@ -26,12 +26,12 @@ test('fetchBuild: the tag, or null when unreachable / not reported / too slow', 
   assert.ok(Date.now() - t0 < BUILD_FETCH_TIMEOUT_MS, 'gives up on its own timeout');
 });
 
-test('fetchBuild stays on its own release and never requests health or the current-release marker', async () => {
+test('fetchBuild requests only the single root marker, independent of page pathname', async () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'location');
   try {
     Object.defineProperty(globalThis, 'location', { configurable: true, value: { pathname: '/_release/old/public/' } });
     assert.equal(await fetchBuild(async url => {
-      assert.equal(url, '/_release/old/client-build');
+      assert.equal(url, '/client-build');
       return { ok: true, json: async () => ({ build: 'old-build' }) };
     }), 'old-build');
   } finally {
@@ -93,7 +93,7 @@ test('startBuildGuard: records this page\'s build in memory, reloads once on a N
   assert.equal(m.guard.stale(), true);
 });
 
-test('startBuildGuard: a NEW build that is then not served twice is dropped (rolling deploy / reverts)', async () => {
+test('startBuildGuard: a NEW build that is then not served twice is dropped (unstable build / reverts)', async () => {
   const m = manual();
   await new Promise((r) => setTimeout(r, 0));
   m.setBuild('bbb');

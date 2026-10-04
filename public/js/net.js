@@ -31,7 +31,6 @@
 
 import { PROTOCOL_VERSION, MATCHMAKING_VERSION, ERR_TEXT } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
-import { releaseBase } from './release.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
@@ -99,7 +98,7 @@ export function backoffDelay(attempt, rand = Math.random) {
  */
 export function defaultWsUrl(loc = globalThis.location) {
   if (!loc || !loc.host) return 'ws://localhost:3000/ws';
-  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}${releaseBase(loc.pathname)}/ws`;
+  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`;
 }
 
 const WS_OPEN = 1;

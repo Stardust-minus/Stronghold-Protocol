@@ -29,7 +29,15 @@ FROM deps AS build
 ARG FETCH_ASSETS=0
 COPY shared ./shared
 # Canonical offline name moderation, shared with the isolated auth image. No auth UI/secrets/game data.
-COPY deploy/stardust/auth/name-policy.mjs deploy/stardust/auth/name-dictionary.mjs deploy/stardust/auth/NAME-DICTIONARY-LICENSE.txt ./deploy/stardust/auth/
+COPY deploy/stardust/auth/name-policy.mjs \
+     deploy/stardust/auth/name-dictionary.mjs \
+     deploy/stardust/auth/name-sensitive-dictionary.mjs \
+     deploy/stardust/auth/name-filter-vendor.mjs \
+     deploy/stardust/auth/name-filter-node.mjs \
+     deploy/stardust/auth/NAME-DICTIONARY-LICENSE.txt \
+     deploy/stardust/auth/NAME-FILTER-LICENSE.txt \
+     deploy/stardust/auth/NAME-CATEGORIES-LICENSE.txt \
+     deploy/stardust/auth/NAME-POLITICAL-LICENSE.txt ./deploy/stardust/auth/
 COPY server ./server
 COPY tools ./tools
 COPY data ./data

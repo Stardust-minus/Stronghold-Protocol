@@ -1,12 +1,13 @@
+name: ark-proto
 services:
   ark-proto:
-    image: ark-proto:v012-workers-20261004
+    image: ${ARK_GAME_IMAGE:?load runtime.env}
     pull_policy: never
     container_name: ark-proto
     init: true
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3108:3000"
+      - "127.0.0.1:3120:3000"
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
@@ -28,3 +29,53 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  auth:
+    image: ${ARK_AUTH_IMAGE:?load runtime.env}
+    pull_policy: never
+    container_name: ark-proto-auth
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3141:3000"
+    volumes:
+      - /opt/ark-proto/auth-secrets/gate.json:/run/secrets/ark-gate.json:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+  ark-proto-assets:
+    image: ${ARK_ASSETS_IMAGE:?load runtime.env}
+    pull_policy: never
+    container_name: ark-proto-assets
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3130:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      ASSET_MANIFEST: /run/config/openi-assets.json
+      PREWARM: "1"
+    volumes:
+      - /opt/ark-proto/openi-resolver/openi-assets.json:/run/config/openi-assets.json:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

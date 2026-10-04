@@ -89,8 +89,7 @@ export function safeNext(value) {
     if (/[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.startsWith('//')
       || decoded.split('?')[0].split('/').some(segment => segment === '.' || segment === '..')) return '/';
     const url = new URL(value, ORIGIN);
-    const entry = ['/', '/index.html'].includes(url.pathname)
-      || /^\/_release\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/public\/(?:index\.html)?$/.test(url.pathname);
+    const entry = ['/', '/index.html'].includes(url.pathname);
     if (url.origin !== ORIGIN || !entry || url.hash) return '/';
     return url.pathname + url.search;
   } catch { return '/'; }

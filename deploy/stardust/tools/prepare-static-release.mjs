@@ -1,6 +1,6 @@
 // Offline, fail-closed preparation; does not activate a release or contact either production host.
 // Usage: node deploy/stardust/tools/prepare-static-release.mjs --release <fixed-id> --revision <40-hex>
-//          --out <NEW-directory> [--source <matched-app-directory>] [--game-release <rolling-id>]
+//          --out <NEW-directory> [--source <matched-app-directory>]
 // Verify copied/staged output: node deploy/stardust/tools/prepare-static-release.mjs --verify <directory>
 import { createHash } from 'node:crypto';
 import { chmod, copyFile, lstat, mkdir, readdir, readFile, realpath, rm, utimes, writeFile } from 'node:fs/promises';
@@ -32,17 +32,6 @@ const checksumText = (manifest) => checksumEntries(manifest).map(({ path, sha256
 function validateRelease(release, revision) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(release || '')) fail('Release must be a fixed, safe identifier (letters/digits/_/-; at most 96 characters)');
   if (!/^[a-f0-9]{40}$/.test(revision || '')) fail('Revision must be the full, fixed, lowercase 40-hex source commit');
-}
-
-function validateGameRelease(gameReleaseId) {
-  if (gameReleaseId !== undefined && (typeof gameReleaseId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(gameReleaseId))) {
-    fail('Game release must be a fixed, safe rolling identifier (letters/digits/_/-; at most 64 characters)');
-  }
-}
-
-function preactUrl(gameReleaseId) {
-  validateGameRelease(gameReleaseId);
-  return GAME_ORIGIN + (gameReleaseId === undefined ? '/vendor/preact.module.js' : `/_release/${gameReleaseId}/public/vendor/preact.module.js`);
 }
 
 function safePath(path) {
@@ -93,8 +82,8 @@ export function patchFonts(data) {
   return Buffer.from(src);
 }
 
-export function patchHooks(data, gameReleaseId) {
-  const target = preactUrl(gameReleaseId);
+export function patchHooks(data) {
+  const target = GAME_ORIGIN + '/vendor/preact.module.js';
   const src = data.toString('utf8');
   // npm's vendor adapter currently emits exactly one static sibling Preact import at the beginning.
   const matches = [...src.matchAll(/\bfrom\s*(["'])\.\/preact\.module\.js\1/g)];
@@ -142,7 +131,6 @@ export function mediaMappings(files, audioExts, prefix) {
 export function nginxIncludes(manifest, { staticRoot = STATIC_ROOT } = {}) {
   if (!isAbsolute(staticRoot) || !/^\/[a-zA-Z0-9_./-]+$/.test(staticRoot) || staticRoot.split('/').includes('..')) fail('Unsafe static root');
   validateRelease(manifest.release, manifest.sourceRevision);
-  validateGameRelease(manifest.gameReleaseId);
   const release = manifest.release;
   const prefix = `/releases/${release}/`;
   const variable = `ark_static_${hash(release).slice(0, 12)}_file`;
@@ -173,9 +161,8 @@ export function nginxIncludes(manifest, { staticRoot = STATIC_ROOT } = {}) {
 }
 
 /** Source must be the same pinned app export used for the game image; this tool does not export/build the game. */
-export async function prepareStaticRelease({ source = REPO, output, release, sourceRevision, gameReleaseId }) {
+export async function prepareStaticRelease({ source = REPO, output, release, sourceRevision }) {
   validateRelease(release, sourceRevision);
-  validateGameRelease(gameReleaseId);
   if (!output) fail('A NEW output directory is required');
   source = resolve(source); output = resolve(output);
   if (await realpath(source) !== source) fail('Source path must not traverse symlinks');
@@ -237,14 +224,13 @@ export async function prepareStaticRelease({ source = REPO, output, release, sou
     const expectedData = VENDOR_REWRITES[name] ? Buffer.from(rewriteBare(original.toString('utf8'), VENDOR_REWRITES[name])) : original;
     const current = await input('public/vendor/' + name);
     if (!current.equals(expectedData)) fail(`public/vendor/${name} differs from the locked installed package; regenerate vendor offline`);
-    if (name === 'hooks.module.js') patches.set('vendor/' + name, patchHooks(current, gameReleaseId));
+    if (name === 'hooks.module.js') patches.set('vendor/' + name, patchHooks(current));
   }
   for (const { path } of files) if (path.startsWith('vendor/') && !vendorNames.has(path)) fail(`Unexpected vendor/code file: ${path}`);
   if (!patches.has('vendor/hooks.module.js')) fail('Missing hooks vendor patch');
   const media = mediaMappings(files, AUDIO_EXTS, MEDIA_PREFIX);
   if (!media.length) fail('No extensionless audio routes found');
   const manifest = { schemaVersion: 1, release, sourceRevision, appVersion: pkg.version,
-    ...(gameReleaseId === undefined ? {} : { gameReleaseId }),
     preparerSha256: hash(await readFile(fileURLToPath(import.meta.url))),
     inputs: inputs.sort((a, b) => a.path.localeCompare(b.path, 'en')), patches: [],
     audioExtensions: [...AUDIO_EXTS], mediaPrefix: MEDIA_PREFIX, media, files: [], nginx: [] };
@@ -290,7 +276,6 @@ export async function verifyStaticRelease(output) {
   if (await realpath(output) !== output) fail('Output must not traverse symlinks');
   const manifest = JSON.parse(await readInput(output, 'release-manifest.json'));
   validateRelease(manifest.release, manifest.sourceRevision);
-  validateGameRelease(manifest.gameReleaseId);
   if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.files) || !manifest.files.length || !Array.isArray(manifest.audioExtensions) || !Array.isArray(manifest.nginx) || !/^[a-f0-9]{64}$/.test(manifest.preparerSha256)) fail('Unexpected release manifest');
   if (json(mediaMappings(manifest.files, manifest.audioExtensions, manifest.mediaPrefix)) !== json(manifest.media)) fail('Media mappings differ from the staged audio inventory');
   const prefix = `releases/${manifest.release}`;
@@ -305,10 +290,10 @@ export async function verifyStaticRelease(output) {
   if (hash(fontData) !== FONT_CSS_RELATIVE_SHA256) fail('Unexpected staged fonts.css; expected the reviewed relative six-URL output');
   const hooksData = await readInput(output, `${prefix}/vendor/hooks.module.js`);
   const hooks = hooksData.toString('utf8');
-  const expectedImport = `from"${preactUrl(manifest.gameReleaseId)}"`;
-  if (hooks.split(expectedImport).length !== 2) fail('Staged hooks Preact identity differs from gameReleaseId');
+  const expectedImport = `from"${GAME_ORIGIN}/vendor/preact.module.js"`;
+  if (hooks.split(expectedImport).length !== 2) fail('Staged hooks Preact identity differs from the root game URL');
   const originalHooks = Buffer.from(hooks.replace(expectedImport, 'from"./preact.module.js"'));
-  if (!patchHooks(originalHooks, manifest.gameReleaseId).equals(hooksData)) fail('Unexpected staged hooks import');
+  if (!patchHooks(originalHooks).equals(hooksData)) fail('Unexpected staged hooks import');
   if ((await readInput(output, 'SHA256SUMS')).toString('utf8') !== checksumText(manifest)) fail('SHA256SUMS differs from manifest');
   const nginxEntries = [];
   for (const [name, contents] of Object.entries(nginxIncludes(manifest))) {
@@ -323,11 +308,11 @@ async function cli(args) {
   const options = {};
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i];
-    if (!['--source', '--out', '--release', '--revision', '--game-release', '--verify'].includes(key) || !args[i + 1] || args[i + 1].startsWith('--') || options[key]) fail('Usage: --release <fixed-id> --revision <40-hex> --out <NEW-directory> [--source <matched-app-directory>] [--game-release <rolling-id>] OR --verify <directory>');
+    if (!['--source', '--out', '--release', '--revision', '--verify'].includes(key) || !args[i + 1] || args[i + 1].startsWith('--') || options[key]) fail('Usage: --release <fixed-id> --revision <40-hex> --out <NEW-directory> [--source <matched-app-directory>] OR --verify <directory>');
     options[key] = args[i + 1];
   }
   if (options['--verify'] && Object.keys(options).length !== 1) fail('--verify must be used alone');
-  const result = options['--verify'] ? await verifyStaticRelease(options['--verify']) : await prepareStaticRelease({ source: options['--source'], output: options['--out'], release: options['--release'], sourceRevision: options['--revision'], gameReleaseId: options['--game-release'] });
+  const result = options['--verify'] ? await verifyStaticRelease(options['--verify']) : await prepareStaticRelease({ source: options['--source'], output: options['--out'], release: options['--release'], sourceRevision: options['--revision'] });
   const stems = result.media.filter(({ requestedExtension }) => !requestedExtension).length;
   console.log(`${options['--verify'] ? 'Verified' : 'Prepared (STAGED, not active)'} ${result.release}: ${result.files.length} files, ${stems} extensionless audio routes (+${result.media.length - stems} explicit-extension aliases), app ${result.appVersion}, source ${result.sourceRevision}`);
 }

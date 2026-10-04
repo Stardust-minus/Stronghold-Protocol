@@ -243,9 +243,10 @@ export const C2S = {
   'room.leave': {},
   'room.ready': { ready: isBool },
   'room.voteRevival': { enable: isBool },
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v) },
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, $optional: ['party'] },
   'queue.cancel': { ticketId: isId },
-  'queue.accept': { ticketId: isId, offerId: isId },
+  // Public acceptance includes the player's explicit revival vote; neither omission nor coercion is allowed.
+  'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool },
   'room.setDifficulty': { difficulty: (v) => DIFFICULTIES.includes(v) },
   'room.addBot': {},
   'room.removeBot': { seat: (v) => isInt(v, 0, MAX_SEATS - 1) },
@@ -305,7 +306,7 @@ export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'room.state', 'room.closed',
   // Aggregate online identities and the requester's own matchmaking ticket (never other queue members).
-  'presence.state', 'queue.state', 'server.state',
+  'presence.state', 'queue.state',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)
   'm.unitStats',

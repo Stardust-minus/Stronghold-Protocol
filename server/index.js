@@ -45,7 +45,6 @@ import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
 import { CombatWorkerPool } from './match/combat/pool.js';
-import { backendRollingOptions, startBackendControl } from './rolling/backend.js';
 
 /** Repository root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -627,7 +626,6 @@ export async function startServer(opts = {}) {
   const host = opts.host ?? process.env.HOST ?? '0.0.0.0';
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new RangeError(`invalid PORT ${port}`);
   const log = opts.log || makeLogger(!!opts.quiet);
-  const rollingConfig = backendRollingOptions(opts);
   const combatWorkers = parseCombatWorkers(opts.combatWorkers ?? process.env.SP_COMBAT_WORKERS);
   const publicDir = opts.publicDir || path.join(ROOT, 'public');
   const dataDir = opts.dataDir || path.join(ROOT, 'data');
@@ -657,8 +655,6 @@ export async function startServer(opts = {}) {
   const startedAt = Date.now();
   // Capture this instance's served browser runtime once; another local test/release instance cannot replace it.
   const browserBuild = computeBuildTag(ROOT, publicDir);
-  let rollingControl = null;
-  const rollingHealth = () => ({ ok: !combatPool || combatPool.stats().status === 'ready', version: PROTOCOL_VERSION, app: APP_VERSION });
 
   const server = http.createServer((req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -683,7 +679,7 @@ export async function startServer(opts = {}) {
       const combat = combatPool ? { backend: 'workers', scope: 'server-streaming', ...combatPool.stats() } : { backend: 'inline', workers: 0 };
       const ok = !combatPool || (combat.status === 'ready' && combat.ready > 0);
       sendJson(req, res, ok ? 200 : 503, {
-        ok, version: PROTOCOL_VERSION, app: APP_VERSION, ...(rollingConfig ? { releaseId: rollingConfig.releaseId } : {}), uptimeSec: Math.round((Date.now() - startedAt) / 1000),
+        ok, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
         build: browserBuild,
         sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
         maxRooms: lobby.opts.maxRooms, combat,
@@ -729,7 +725,6 @@ export async function startServer(opts = {}) {
   });
 
   try {
-    rollingControl = await startBackendControl(rollingConfig, { lobby, health: rollingHealth });
     await new Promise((resolve, reject) => {
       const onError = (e) => { server.off('listening', onListening); reject(e); };
       const onListening = () => { server.off('error', onError); resolve(); };
@@ -740,7 +735,6 @@ export async function startServer(opts = {}) {
   } catch (e) {
     network.close(); // stop heartbeat/sweep timers of the half-built server
     lobby.shutdown('boot-failed');
-    await rollingControl?.close();
     await combatPool?.close();
     throw e;
   }
@@ -754,7 +748,6 @@ export async function startServer(opts = {}) {
   async function close() {
     if (closing) return closing;
     closing = (async () => {
-      await rollingControl?.close();
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       network.close();
       await combatPool?.close();
@@ -768,7 +761,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, rollingControl, close };
+  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, close };
 }
 
 // ---------------------------------------------------------------------------------------------------

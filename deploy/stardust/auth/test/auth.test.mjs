@@ -203,12 +203,13 @@ test('parallel derivations are bounded instead of creating an unbounded work que
   assert.ok(responses.every(r => [401, 429].includes(r.status)));
 });
 
-test('safeNext preserves exact rolling game entry routes but no code/assets or path traversal', () => {
-  for (const path of ['/_release/old/public/?room=ABCD', '/_release/r2_2026/public/index.html?room=ABCD&note=a%26b']) {
+test('safeNext keeps root invitations but rejects former rolling entries, code/assets and traversal', () => {
+  for (const path of ['/?room=ABCD', '/index.html?room=ABCD&note=a%26b']) {
     assert.equal(safeNext(path), path);
     assert.equal(gameDestination(path), path + '&_prts=1');
   }
-  for (const path of ['/_release/.old/public/', '/_release/old/public', '/_release/old/public/js/main.js',
+  for (const path of ['/_release/old/public/?room=ABCD', '/_release/r2_2026/public/index.html?room=ABCD&note=a%26b',
+    '/_release/.old/public/', '/_release/old/public', '/_release/old/public/js/main.js',
     '/_release/old/public/assets/', '/_release/old/private/', '/_release/old/public/../public/',
     '/_release/old/public/%2e%2e/public/', '/_release/' + 'a'.repeat(65) + '/public/',
     '/_release/old/public//evil.test', '/_release/old/public/?x=%0d%0a', '/_release/old/public/#hash']) {
@@ -226,9 +227,9 @@ test('login moderates callsign before issuing a session and never reflects a rej
     assert.deepEqual(await response.json(), { ok: false, message: '代号含有不适宜内容，请换一个昵称。', code: 'NAME_REJECTED', reason: 'sensitive' });
     assert.equal((await fetch(base + '/check')).status, 401);
   }
-  const valid = await post(base, p, { callsign: ' Ａｍｉｙａ ', next: '/_release/old/public/?room=ABCD' });
+  const valid = await post(base, p, { callsign: ' Ａｍｉｙａ ', next: '/?room=ABCD' });
   assert.equal(valid.status, 200);
-  assert.deepEqual(await valid.json(), { ok: true, next: '/_release/old/public/?room=ABCD', callsign: 'Amiya' });
+  assert.deepEqual(await valid.json(), { ok: true, next: '/?room=ABCD', callsign: 'Amiya' });
   assert.match(valid.headers.get('set-cookie'), /^__Host-ark_gate=/);
 });
 
@@ -271,10 +272,10 @@ test('authenticated profile rechecks legacy callsign using Origin and CSRF witho
   assert.equal(bad.headers.get('set-cookie'), null);
   assert.deepEqual(await bad.json(), { ok: false, message: '代号含有不适宜内容，请换一个昵称。', code: 'NAME_REJECTED', reason: 'sensitive' });
   assert.equal((await fetch(base + '/check', { headers: { Cookie: remembered.cookie } })).status, 204);
-  const good = await post(base, remembered, { callsign: ' Ａｍｉｙａ ', next: '/_release/old/public/?room=ABCD' }, {}, '/_gate/profile');
+  const good = await post(base, remembered, { callsign: ' Ａｍｉｙａ ', next: '/?room=ABCD' }, {}, '/_gate/profile');
   assert.equal(good.status, 200);
   assert.equal(good.headers.get('set-cookie'), null);
-  assert.deepEqual(await good.json(), { ok: true, next: '/_release/old/public/?room=ABCD', callsign: 'Amiya' });
+  assert.deepEqual(await good.json(), { ok: true, next: '/?room=ABCD', callsign: 'Amiya' });
   assert.equal((await post(base, p, {}, {}, '/_gate/profile')).status, 401);
   assert.equal((await post(base, remembered, { csrf: 'invalid' }, {}, '/_gate/profile')).status, 403);
   assert.equal((await post(base, remembered, {}, { Origin: 'https://evil.test' }, '/_gate/profile')).status, 403);

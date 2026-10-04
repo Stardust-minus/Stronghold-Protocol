@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
-import { revivalReason } from '../../public/js/ui/revival.js';
+import { revivalReason, RevivalVote } from '../../public/js/ui/revival.js';
+import { partyQueueReason } from '../../public/js/screens/room.js';
 import { queueActive, queueTime } from '../../public/js/ui/matchmaking.js';
 import { watchTarget } from '../../public/js/ui/gameLogic.js';
 import { PlayerAvatar } from '../../public/js/ui/gameComponents.js';
@@ -60,6 +61,31 @@ test('pending death is displayed as awaiting rescue, not finalized elimination',
   target.pendingDeath = false;
   assert.match(watchTarget(target, pub, 'p1').reason, /已被淘汰/);
   assert.ok(PlayerAvatar({ player: target }).props.class.includes('is-dead'));
+});
+
+test('party matching hints require a waiting coop, host, online humans and no AI', () => {
+  const room = { mode: 'coop', hostId: 'p1', inMatch: false, seats: [{ playerId: 'p1', connected: true }, { playerId: 'p2', connected: true }] };
+  assert.equal(partyQueueReason(room, 'p1'), null);
+  assert.match(partyQueueReason(room, 'p2'), /创建者/);
+  assert.match(partyQueueReason(room, 'p1', false), /连接中断/);
+  assert.match(partyQueueReason({ ...room, inMatch: true }, 'p1'), /等待/);
+  assert.match(partyQueueReason({ ...room, mode: 'solo' }, 'p1'), /等待/);
+  assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'bot', isBot: true }] }, 'p1'), /移除 AI/);
+  assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'p3', connected: false }] }, 'p1'), /所有队友/);
+});
+
+test('revival ballot displays server threshold and disables a lone human', () => {
+  const textOf = node => node == null ? '' : Array.isArray(node) ? node.map(textOf).join('') : typeof node !== 'object' ? String(node) : textOf(node.props?.children);
+  const room = { mode: 'coop', inMatch: false, seats: [{ playerId: 'p1' }, { playerId: 'p2' }, { playerId: 'p3' }], revival: { yes: 2, required: 2, enabled: true } };
+  assert.match(textOf(RevivalVote({ room, myId: 'p1', online: true })), /2 \/ 2 票赞成/);
+  const single = { ...room, seats: [{ playerId: 'p1' }, { playerId: 'bot', isBot: true }], revival: { yes: 0, required: 2, enabled: false } };
+  const view = RevivalVote({ room: single, myId: 'p1', online: true });
+  assert.match(textOf(view), /暂无可救援队友/);
+  const buttons = [];
+  const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node?.props) { if (node.props.onClick) buttons.push(node); visit(node.props.children); } };
+  visit(view);
+  assert.equal(buttons.length, 2);
+  assert.ok(buttons.every(node => node.props.disabled));
 });
 
 test('queue UI distinguishes pending vs allocated and clamps clocks', () => {

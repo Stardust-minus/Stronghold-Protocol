@@ -20,6 +20,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch } from '../store.js';
 import { difficultyInfo } from './lobby.js';
 import { RevivalVote } from '../ui/revival.js';
+import { MatchmakingPanel, queueActive } from '../ui/matchmaking.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -60,6 +61,17 @@ export function roomFacts(room, myId) {
     canStart: isHost && othersReady && !!mine,
     othersReady,
   };
+}
+
+/** Client hint only; the server independently validates every party member before queuing. */
+export function partyQueueReason(room, myId, online = true) {
+  if (!online) return '连接中断，请稍候重试';
+  if (room?.mode !== 'coop' || room.inMatch) return '仅等待中的好友同盟可组队匹配';
+  if (room.hostId !== myId) return '由同盟创建者发起组队匹配';
+  const seats = room.seats?.filter(Boolean) || [];
+  if (seats.some(s => s.isBot)) return '请先移除 AI 队友，公开匹配仅限真人';
+  if (!seats.length || seats.some(s => s.connected === false)) return '请等待所有队友连接后再匹配';
+  return null;
 }
 
 /** Invite link for a room code (current page URL with ?room=CODE). */
@@ -168,7 +180,8 @@ export function RoomScreen() {
   const room = useStore((s) => s.room);
   const me = useStore((s) => s.me, shallowEqual);
   const conn = useStore((s) => s.connection, shallowEqual);
-  const draining = useStore((s) => s.server?.draining === true);
+  const queue = useStore((s) => s.queue);
+  const queued = queueActive(queue);
   const [busy, setBusy] = useState(null);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
@@ -194,6 +207,8 @@ export function RoomScreen() {
 
   const toggleReady = () => run('ready', () => net.request('room.ready', { ready: !myReady }));
   const start = () => run('start', () => net.request('room.start', {}));
+  const queueReason = partyQueueReason(room, me.playerId, online);
+  const joinQueue = () => run('queue', () => net.request('queue.join', { difficulty: room.difficulty, party: true }));
   const addBot = () => run('add', () => net.request('room.addBot', {}));
   const removeBot = (seat) => run(`rm${seat}`, () => net.request('room.removeBot', { seat }));
   const setDifficulty = (difficulty) => run('diff', () => net.request('room.setDifficulty', { difficulty }));
@@ -251,7 +266,15 @@ export function RoomScreen() {
       </div>
     </header>
 
-    <main class=${`seats${coop ? '' : ' seats--solo'}`}>
+    ${queued ? html`<main class="room-matching screen__scroll">
+      <div class="room-matching__team"><${MicroLabel} tone="mint">PARTY MATCHMAKING<//>
+        <h2>${facts.humans.length} 人好友小队</h2>
+        <p>小队整体匹配，不拆散队友。任一成员取消即可返回此房间；匹配成功后各自确认一次，直接开始四人模拟。</p>
+        <div class="room-matching__names">${facts.humans.map(s => html`<span key=${s.playerId}><${Icon} name="user" />${s.name}</span>`)}</div>
+      </div>
+      <${MatchmakingPanel} queue=${queue} difficulty=${room.difficulty} online=${online} />
+    </main>` : null}
+    <main hidden=${queued} class=${`seats${coop ? '' : ' seats--solo'}`}>
       ${facts.seats.map((s, i) => html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
         myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} />`)}
       ${coop ? null : html`<aside class="solo-brief brackets">
@@ -266,10 +289,10 @@ export function RoomScreen() {
       </aside>`}
     </main>
 
-    <${RevivalVote} room=${room} myId=${me.playerId} online=${online} busy=${busy}
-      onVote=${(enable) => run('vote', () => net.request('room.voteRevival', { enable }))} />
+    ${queued ? null : html`<${RevivalVote} room=${room} myId=${me.playerId} online=${online} busy=${busy}
+      onVote=${(enable) => run('vote', () => net.request('room.voteRevival', { enable }))} />`}
 
-    <footer class="room-bar">
+    <footer hidden=${queued} class="room-bar">
       <div class="room-bar__left">
         <span class="room-bar__label">模拟难度<${MicroLabel}>DIFFICULTY<//></span>
         <${DifficultyPicker} room=${room} isHost=${facts.isHost} busy=${busy} onPick=${setDifficulty} />
@@ -286,9 +309,13 @@ export function RoomScreen() {
       </div>
       <div class="room-bar__right">
         <${LoadoutButton} from="room" size="lg" class="room-loadout" />
+        ${coop && facts.isHost ? html`<${Tooltip} text=${queueReason || '整队寻找同难度真人，确认后自动开局'}>
+          <${Button} variant="secondary" size="lg" icon="search" loading=${busy === 'queue'} disabled=${!!queueReason || !!busy}
+            onClick=${joinQueue}>组队匹配<//>
+        <//>` : null}
         ${facts.isHost
           ? html`<${Tooltip} text=${facts.canStart ? null : '仍有博士未准备就绪'}>
-              <${Button} variant="primary" size="xl" icon="play" loading=${busy === 'start'} disabled=${!facts.canStart || !online || draining} onClick=${start}>开始模拟<//>
+              <${Button} variant="primary" size="xl" icon="play" loading=${busy === 'start'} disabled=${!facts.canStart || !online} onClick=${start}>开始模拟<//>
             <//>`
           : html`<${Button} variant=${myReady ? 'primary' : 'secondary'} size="xl" icon=${myReady ? 'check' : 'hourglass'} active=${myReady}
               loading=${busy === 'ready'} disabled=${!online || !facts.mine} onClick=${toggleReady}>${myReady ? '已就绪' : '准备就绪'}<//>`}

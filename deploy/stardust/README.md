@@ -8,9 +8,17 @@
 - `upstream`：`git@github.com:sganggs/Stronghold-Protocol.git`。
 - 本 fork 的 `master` 是本站集成分支；功能分支验证后合并，不强推或改写已发布历史。
 - 固定本地工作目录：`/root/projects/Stronghold-Protocol`。旧 `/tmp` 工作目录只作历史参考，不再作为开发主目录。
-- 2026-10-04 已激活 `v012-workers-20261004`（上游 0.1.2 + 固定战斗 Worker 池 + `/media/` 静态适配），运行源码固定为 `2878299`。完整镜像/资源摘要和验收记录见 [发布记录](releases/v012-workers-20261004.json)；后续仅更新文档的 master 提交不代表运行镜像改变。上一版 `8cd6491` / `0.1.1` 保留供成对回滚。
+- 历史 2026-10-04 15:00 检查点：已激活 `v012-workers-20261004`（上游 0.1.2 + 固定战斗 Worker 池 + `/media/` 静态适配），运行源码固定为 `2878299`。完整镜像/资源摘要和验收记录见 [发布记录](releases/v012-workers-20261004.json)；后续仅更新文档的 master 提交不代表运行镜像改变。上一版 `8cd6491` / `0.1.1` 保留供成对回滚。
 - 15:00 +08 已按明确授权将 Worker 从 4 调到 6，镜像/资源未变；见 [运行配置记录](releases/v012-workers-20261004-workers6.json)。
 - 实际激活状态以两机 release 记录为准。checkout、合并与推送不自动授权部署；须完成同一 commit 的本地验收并取得上线授权，才能协调切换游戏与静态路由。
+
+## 当前部署：一个项目、三个服务
+
+2026-10-04 用户取消平滑更新后，普通入口恢复 `/`，Nginx 直接到单个游戏 3120；门禁 3141、OpenI 素材解析器 3130。固定容器名 `ark-proto` / `ark-proto-auth` / `ark-proto-assets`，同一个 Compose project `ark-proto`，不运行网关、备用游戏或蓝绿素材槽位。`runtime.env.example` 只是现有镜像坐标基线，不证明本地新修改已上线。
+
+三个服务配置均无 CPU/内存限额，PIDs/只读/安全设置保留。线上 cgroup 已热解除，但 Docker 元数据/旧 project labels 还需下次获授权 clean 重建统一；不得以仓库模板断言生产 metadata 已为 0。游戏重建会清除内存对局，更新前必须说明影响并获得窗口授权。
+
+唯一旧游戏 prefix `/_release/v012-alliance-20261004/` 临时兼容已打开页面，HTML 302 `/`、代码/WS 指同一个游戏；未知 prefix 拒绝，不生成新 prefix。root hooks adapter 直接游戏避免双 Preact；其余 vendor/字体仍宁夏，正常图片/音频通过 OpenI，故障仅同版本 fallback。历史 release 清单和 immutable 资源不删除。
 
 ## 内容
 
@@ -18,11 +26,11 @@
 |---|---|
 | `auth/` | 原生 Node 共享口令认证服务和主助手编写的 PRTS 前端 |
 | `auth/test/` | 不接触生产的认证、CSRF、限速及凭据文件权限测试 |
-| `compose.yaml` | 游戏目标配置；`SP_COMBAT=server`、6 Worker，无 CPU/内存硬上限，PIDs/安全限制保留 |
-| `compose.auth.yaml` | 独立门禁服务，保留 0.5 CPU / 256 MiB 限制 |
-| `compose.assets.yaml`、`openi-resolver/` | 独立公开素材签名缓存服务；只返回重定向，失败回退宁夏，不持有账户 Token |
+| `compose.yaml`、`runtime.env.example` | 单 project 三服务固定名字/端口；`SP_COMBAT=server`、6 Worker，三个服务均无 CPU/内存硬上限 |
+| `compose.auth.yaml` | 同 project 的门禁专用视图，只更新 auth，不新增项目/容器 |
+| `compose.assets.yaml`、`openi-resolver/` | 同 project 的素材专用视图/解析器；只返回重定向，失败回退宁夏，不持有账户 Token |
 | `Dockerfile.offline` | 使用已准备好的 `app/` 目录离线构建，需传入实际 commit/version |
-| `nginx/` | 嘉兴 OpenResty vhost 和开场导航 snippet |
+| `nginx/` | 基于实际 direct3120 的嘉兴 OpenResty vhost、正常 root 入口/解析器 snippets |
 | `static/` | 宁夏公开静态源 Nginx 与 Supervisor 配置，10 workers；CORS `*`，无凭据 |
 | `tools/prepare-auth-assets.mjs` | 从本仓库 lockfile 对应依赖和已安装字体准备 PRTS 的忽略文件 |
 | `tools/prepare-static-release.mjs` | 离线准备/校验素材、字体、vendor、音频 alias 和逐文件 SHA-256 清单 |
@@ -47,6 +55,18 @@ npm test
 凭据权限测试在非 root/Windows 下会跳过需 chown 的部分；认证协议测试仍运行。测试密码仅为代码中的明确测试值，不是生产口令。
 
 原生认证单独运行时要用测试配置文件，通过 `AUTH_SECRETS_FILE` 指定；不要读取生产秘密来做普通开发测试。生产改密工具仅通过 TTY 隐藏输入，秘密存放在仓库外，重建门禁不会重启游戏。
+
+## 简单 Nginx 的隔离验收
+
+`nginx/test/simple.test.mjs` 测试正式模板（仅替换本地端口、证书和路径），临时单个 Node24 fixture 内运行真实游戏/门禁/解析器，签名 API 仅注入 test-only reply，不请求公网或更改生产/系统服务。所有临时监听/容器自动清理，不是增加部署服务。
+
+```sh
+SIMPLE_NGINX_SMOKE=1 NGINX_BIN="$LOCAL_NGINX" \
+  node --test deploy/stardust/nginx/test/simple.test.mjs
+# 真正带Lua的OpenResty可额外设置 NGINX_HAS_LUA=1，测原presence聚合正文。
+```
+
+无 opt-in/binary 时 smoke 明确 skip。stock Nginx 无 Lua 时仅把测试配置的 presence 正文换为一个正常 content-phase proxy，仍验证其门禁和内部健康不外露；实际 OpenResty 聚合子测试明确 skip，不能以它冒称正式 OpenResty 完整验收。游戏/auth/resolver 运行时必须为 Node24；本机测试编排可使用其他 Node，但报告须区分两者。此测试覆盖 root/唯一旧prefix的HTTP/WS、PRTS marker、严格Origin、匿名门禁、公开CORS、OpenI两模式/同版本fallback及root hooks单身份，不代替主助手真实浏览器画面/交互验收。
 
 ## 离线构建约定
 

@@ -190,11 +190,10 @@ describe('HTML pages reference existing files', () => {
   }
   test('index.html boots main.js as a module and has the rotate hint', () => {
     const src = readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
-    assert.match(src, /<script type="module" src="js\/main\.js"[^>]*><\/script>/);
-    assert.equal(new URL('js/main.js', 'https://game.example/_release/r1/').pathname, '/_release/r1/js/main.js');
+    assert.match(src, /<script type="module" src="\/js\/main\.js"[^>]*><\/script>/);
     assert.match(src, /class="rotate-hint"/);
     assert.doesNotMatch(src, /https:\/\/fonts\.(googleapis|gstatic)\.com/);
-    assert.match(src, /href="fonts\/fonts\.css"/);
+    assert.match(src, /href="\/fonts\/fonts\.css"/);
   });
 });
 
@@ -1110,9 +1109,9 @@ describe('multi-device & browser compatibility (static)', () => {
   test('index.html: landscape viewport without page zoom, notch-aware, devices.css last, boot diagnostics', () => {
     const vp = index.match(/<meta name="viewport" content="([^"]+)"/)?.[1] || '';
     for (const k of ['width=device-width', 'initial-scale=1', 'maximum-scale=1', 'user-scalable=no', 'viewport-fit=cover']) assert.ok(vp.includes(k), `viewport has ${k}`);
-    const sheets = [...index.matchAll(/<link rel="stylesheet" href="(css\/[^"]+)"/g)].map((x) => x[1]);
-    assert.equal(sheets[sheets.length - 1], 'css/devices.css', 'devices.css is the last stylesheet');
-    for (const href of sheets) assert.ok(new URL(href, 'https://game.example/_release/r1/').pathname.startsWith('/_release/r1/css/'));
+    const sheets = [...index.matchAll(/<link rel="stylesheet" href="(\/css\/[^"]+)"/g)].map((x) => x[1]);
+    assert.equal(sheets[sheets.length - 1], '/css/devices.css', 'devices.css is the last stylesheet');
+    for (const href of sheets) assert.ok(href.startsWith('/css/'));
     assert.match(index, /<script nomodule>/, 'a browser without ES modules gets a message');
     assert.match(index, /onerror="window\.__spBootFail/, 'a module graph that cannot load gets a message');
     assert.match(index, /apple-mobile-web-app-capable/);

@@ -76,8 +76,8 @@ const MODE_CARDS = [
   },
   {
     id: 'match', name: '多人匹配', en: 'PUBLIC MATCHMAKING', icon: 'search',
-    desc: '寻找相同难度的博士，确认后组成四人同盟。',
-    points: ['4 名真人 · 不自动补 AI', '入场确认后投票、准备开局'],
+    desc: '寻找相同难度的博士，确认后组成四人同盟；也可从好友房组队匹配。',
+    points: ['4 名真人 · 不自动补 AI', '确认时选择复活规则 · 全员确认自动开局'],
   },
 ];
 
@@ -240,9 +240,7 @@ export function LobbyScreen() {
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
 
-  const draining = useStore((s) => s.server?.draining === true);
   const online = conn.status === 'online';
-  const accepting = online && !draining;
   const codeOk = CODE_RE.test(code);
 
   const pickMode = (m) => { setRoomMode(m); savePref('lobby.mode', m); };
@@ -251,7 +249,6 @@ export function LobbyScreen() {
   const run = async (kind, fn) => {
     if (inFlight.current) return;
     if (!online) { toast('尚未连接到服务器，请稍候', 'warn'); return; }
-    if (draining) { toast('此版本停止接收新局，请进入新版大厅', 'warn'); return; }
     inFlight.current = true;
     setBusy(kind);
     try { await fn(); } catch (err) { toastError(err); } finally {
@@ -310,7 +307,7 @@ export function LobbyScreen() {
           <div class="join-row">
             <${TextField} size="code" icon="key" value=${code} placeholder="输入同盟密钥 / 粘贴邀请链接"
               transform=${normalizeCode} onInput=${(v) => setCode(normalizeCode(v))} onEnter=${() => join()} />
-            <${Button} variant="amber" size="lg" icon="users" loading=${busy === 'join'} disabled=${!codeOk || !accepting || queued || !!busy} onClick=${() => join()}>加入同盟<//>
+            <${Button} variant="amber" size="lg" icon="users" loading=${busy === 'join'} disabled=${!codeOk || !online || queued || !!busy} onClick=${() => join()}>加入同盟<//>
           </div>
           <div class="join-foot">
             ${recent.length ? html`<span class="t-lo">最近的同盟</span>
@@ -323,12 +320,12 @@ export function LobbyScreen() {
 
       <section class="lobby-right">
         <div class="section-label"><span class="section-label__idx num">02</span>模拟难度<${MicroLabel}>DIFFICULTY<//></div>
-        <div class="diff-list">
+        <div class="diff-list" hidden=${queued}>
           ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${matching ? 'coop' : roomMode} difficulty=${d} selected=${(queued ? queue.difficulty : difficulty) === d} onSelect=${pickDifficulty} disabled=${queued || !!busy} />`)}
         </div>
-        ${matching ? html`<${MatchmakingPanel} queue=${queue} difficulty=${difficulty} online=${online} joining=${busy === 'create'} accepting=${!draining} onJoin=${create} />` : html`<div class="create-box">
+        ${matching ? html`<${MatchmakingPanel} queue=${queue} difficulty=${difficulty} online=${online} joining=${busy === 'create'} onJoin=${create} />` : html`<div class="create-box">
           <${Tooltip} block=${true} text=${online ? null : '正在连接服务器…'}>
-            <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!accepting} onClick=${create}>
+            <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!online} onClick=${create}>
               ${roomMode === 'solo' ? '开始独立模拟' : '创建同盟'}
             <//>
           <//>

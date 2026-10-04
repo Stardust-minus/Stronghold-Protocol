@@ -135,46 +135,25 @@ test('font generator emits the exact reviewed relative CSS without changing mani
     assert.equal(generated.files[font.name].woff2, `/fonts/${font.name}.woff2`);
   }
   assert.equal((await buildFonts(fontsDir, () => {})).css, generated.css);
-  assert.equal(new URL('./bender-regular.woff2', 'https://game.test/_release/game-r1/public/fonts/fonts.css').pathname,
-    '/_release/game-r1/public/fonts/bender-regular.woff2');
+  assert.equal(new URL('./bender-regular.woff2', 'https://static.test/releases/material-r1/fonts/fonts.css').pathname,
+    '/releases/material-r1/fonts/bender-regular.woff2');
 });
 
-test('rolling hooks select the exact game-origin release identity and invalid IDs fail before writing', async (t) => {
-  const input = Buffer.from('import{options as n}from"./preact.module.js";export const hooks=n;');
-  const rolling = patchHooks(input, 'game-r1').toString();
-  assert.equal(rolling, 'import{options as n}from"https://ark-proto.stardust.matce.cn/_release/game-r1/public/vendor/preact.module.js";export const hooks=n;');
-  assert.doesNotMatch(rolling, /from"\.\//);
-  const f = await fixture(t);
-  for (const id of ['', '../escape', 'game.r1', 'x?other=1', 'x%2fother', 'x'.repeat(65), null, 7]) {
-    assert.throws(() => patchHooks(input, id), /Game release must/);
-    await assert.rejects(prepareStaticRelease({ ...f, gameReleaseId: id }), /Game release must/);
-    await absent(f.output);
-  }
-  assert.throws(() => patchHooks(Buffer.from(rolling), 'game-r2'), /Unexpected hooks/);
-});
-
-test('rolling preparation accepts reviewed relative fonts and verifies the recorded hooks release, including CLI', async (t) => {
+test('root preparation accepts reviewed relative fonts and verifies root hooks identity, including CLI', async (t) => {
   const f = await fixture(t);
   await put(join(f.source, 'public/fonts/fonts.css'), patchFonts(Buffer.from(FONT_CSS)));
-  const manifest = await prepareStaticRelease({ ...f, gameReleaseId: 'game-r1' });
-  assert.equal(manifest.gameReleaseId, 'game-r1');
+  const manifest = await prepareStaticRelease(f);
   const fontPatch = manifest.patches.find(({ path }) => path === 'fonts/fonts.css');
-  assert.equal(fontPatch.beforeSha256, FONT_CSS_RELATIVE_SHA256); assert.equal(fontPatch.afterSha256, FONT_CSS_RELATIVE_SHA256);
+  assert.equal(fontPatch.beforeSha256, FONT_CSS_RELATIVE_SHA256);
+  assert.equal(fontPatch.afterSha256, FONT_CSS_RELATIVE_SHA256);
   const hooks = await readFile(join(f.output, 'releases', RELEASE, 'vendor/hooks.module.js'), 'utf8');
-  assert.match(hooks, /_release\/game-r1\/public\/vendor\/preact\.module\.js/);
+  assert.match(hooks, /from"https:\/\/ark-proto\.stardust\.matce\.cn\/vendor\/preact\.module\.js"/);
   assert.deepEqual(await verifyStaticRelease(f.output), manifest);
-  const metadata = join(f.output, 'release-manifest.json');
-  for (const id of ['game-r2', undefined, '../escape', null]) {
-    const altered = { ...manifest, gameReleaseId: id };
-    await put(metadata, JSON.stringify(altered));
-    await assert.rejects(verifyStaticRelease(f.output), /Preact identity|Game release must/);
-  }
-  await put(metadata, JSON.stringify(manifest));
-  const output2 = join(f.base, 'cli-rolling');
+  const output2 = join(f.base, 'cli-root');
   const cli = spawnSync(process.execPath, [join(REPO, 'deploy/stardust/tools/prepare-static-release.mjs'),
-    '--source', f.source, '--out', output2, '--release', RELEASE, '--revision', REVISION, '--game-release', 'game-r1'], { encoding: 'utf8' });
+    '--source', f.source, '--out', output2, '--release', RELEASE, '--revision', REVISION], { encoding: 'utf8' });
   assert.equal(cli.status, 0, cli.stderr);
-  assert.equal((await verifyStaticRelease(output2)).gameReleaseId, 'game-r1');
+  assert.deepEqual(await verifyStaticRelease(output2), manifest);
 });
 
 test('offline preparation copies only public resources, records hashes/patches and verifies reproducibly', async (t) => {

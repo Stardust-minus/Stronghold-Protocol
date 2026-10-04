@@ -365,7 +365,7 @@ test('untimed phases show no countdown: the "无倒计时" placeholder of Countd
   const css = readFileSync(path.join(ROOT, 'public/css/screens/loadout.css'), 'utf8');
   assert.match(css, /\.countdown\[aria-label="无倒计时"\]\s*\{\s*display:\s*none;/);
   const html = readFileSync(path.join(ROOT, 'public/index.html'), 'utf8');
-  assert.match(html, /<link rel="stylesheet" href="css\/screens\/loadout\.css" \/>/, 'loaded on every release page');
+  assert.match(html, /<link rel="stylesheet" href="\/css\/screens\/loadout\.css" \/>/, 'loaded on the root game page');
   // contract with ui/components.js: a missing deadline renders the Countdown with exactly that aria-label (or nothing)
   const comp = readFileSync(path.join(ROOT, 'public/js/ui/components.js'), 'utf8');
   const fn = comp.slice(comp.indexOf('export function Countdown'), comp.indexOf('export function Countdown') + 2500);

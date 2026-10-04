@@ -1,19 +1,22 @@
-// Canonical dependency-free nickname policy, reused by the game through shared/names.js.
-// Word-list data: pinned Shutterstock LDNOOBW en/zh, CC-BY-4.0; see name-dictionary.mjs
-// and NAME-DICTIONARY-LICENSE.txt. This is a bounded literal filter, not a semantic classifier.
-// To update: review upstream en/zh at a fixed commit, replace the literal snapshot + hashes,
-// review these exclusions/supplements, then run test/name-policy.test.js and both net/auth suites.
+// Canonical nickname adapter around the ACTUAL mint-filter@4.0.3 Aho–Corasick engine.
+// No custom detection algorithm. Auth/game use this same dependency-free offline module.
+// Licensed corpora: LDNOOBW en/zh (CC-BY-4.0), fwwdn categories + houbb politics (Apache-2.0).
+// See each dictionary module's pinned revisions/hashes and the accompanying license files.
+// Updates: vendor a fixed upstream version/category snapshot, retain provenance/licenses,
+// review only non-political false positives, then run name-policy + auth/net tests on Node24.
+// Coverage is dictionary-based, not a semantic classifier and never guaranteed exhaustive.
+import Mint from './name-filter-vendor.mjs';
 import { ENGLISH_TEXT, CHINESE_TEXT } from './name-dictionary.mjs';
+import { POLITICAL_TEXT, ADULT_TEXT, ILLEGAL_TEXT, TAGGED_POLITICAL_TEXT } from './name-sensitive-dictionary.mjs';
 
-export const NAME_POLICY_LIMITS = Object.freeze({ nameLength: 12, rawLength: 256, dictionaryEntries: 2048, wordLength: 64, dictionaryLength: 65536 });
+export const NAME_POLICY_LIMITS = Object.freeze({ nameLength: 12, rawLength: 256, dictionaryEntries: 8192, wordLength: 64, dictionaryLength: 262144 });
 export const NAME_REASON = Object.freeze({ SENSITIVE: 'sensitive', EMPTY: 'empty', TOO_LONG: 'too_long', INVALID_TYPE: 'invalid_type' });
 export const NAME_REJECTED_MESSAGE = '代号含有不适宜内容，请换一个昵称。';
 export const nameReasonMessage = reason => reason === NAME_REASON.SENSITIVE ? NAME_REJECTED_MESSAGE
   : reason === NAME_REASON.TOO_LONG ? '代号最多 12 字，请缩短后重试。' : '请输入有效的博士代号。';
 
-// These are exclusions of dictionary ENTRIES, not a name-level bypass: an otherwise acceptable
-// identity/body term next to an abusive term still fails. Single-character Chinese entries are
-// always excluded: ambiguous characters/surnames must never become substring bans.
+// Entry exclusions apply to the obscenity corpus ONLY, never the political category.
+// They cannot approve an entire name containing a different blocked term.
 export const NAME_DICTIONARY_EXCLUSIONS = Object.freeze({
   english: Object.freeze(['sex', 'sexy', 'sexual', 'sexuality', 'gay', 'lesbian', 'queer', 'homosexual', 'bisexual',
     'penis', 'vagina', 'clitoris', 'testicle', 'testicles', 'anus', 'breasts', 'nipple', 'nipples', 'sperm', 'scrotum', 'labia',
@@ -22,10 +25,8 @@ export const NAME_DICTIONARY_EXCLUSIONS = Object.freeze({
     '睾丸', '精液', '胸部', '生殖器', '肛门', '肛門', '处女', '包皮', '精子', '射精', '月经', '屁股',
     '交配', '外阴', '阴户', '阴核', '阴毛', '阴部', '阳具', '阳萎', '龟头', '卵子', '性器', '性无能',
     '九游', '私服', '激情', '后庭', '祖宗', '老母', '老二', '他妈', '你妈', '他娘', '你娘', '妈妈的', '你全家',
-    '同性恋', '同性戀', '异性恋', '異性戀', '双性恋', '雙性戀', '黑人', '白人', '中国', '中國', '日本', '台湾', '臺灣',
-    '法轮功', '法輪功', '天安门', '天安門', '六四', '八九六四']),
+    '同性恋', '同性戀', '异性恋', '異性戀', '双性恋', '雙性戀', '黑人', '白人', '中国', '中國', '日本', '台湾', '臺灣']),
 });
-// Small, explicit local supplements; the third-party dictionaries remain the primary corpus.
 export const NAME_DICTIONARY_SUPPLEMENTS = Object.freeze({
   english: Object.freeze(['kill yourself']),
   chinese: Object.freeze(['草你妈', '草你媽', '操你媽', '傻逼', '傻比', '傻屌', '狗日的', '日你妈', '日你媽', '去死吧', '杀你全家', '殺你全家']),
@@ -33,66 +34,43 @@ export const NAME_DICTIONARY_SUPPLEMENTS = Object.freeze({
 
 const LONE_SURROGATE_RE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
 const INVISIBLE_RE = /[\p{Default_Ignorable_Code_Point}\p{Cc}\p{Cf}]/gu;
-const SEPARATOR_RE = /[\p{White_Space}\p{P}\p{S}]/u;
+const SEPARATOR_RE = /[\p{White_Space}\p{P}\p{S}]/gu;
 const LATIN_WORD_RE = /[\p{Script=Latin}\p{N}\p{M}]/u;
 const COMPACTABLE_RE = /^[\p{L}\p{N}\p{M}\s]+$/u;
-// A very narrow lexical exemption avoids treating the ordinary possessive “妈妈的…” as an
-// insult. Mask only this harmless span, never approve the entire name (an appended insult fails).
-const NEUTRAL_CHINESE_SPANS = Object.freeze(['妈妈的']);
+const BOUNDARY = '\u0001'; // User-supplied controls are stripped before this adapter creates boundaries.
+export const categoryWords = text => text.replace(/^﻿/, '').split(/[,，\r\n]+/).map(word => word.trim()).filter(Boolean);
+const POLITICAL_WORDS = Object.freeze(categoryWords(POLITICAL_TEXT).concat(categoryWords(TAGGED_POLITICAL_TEXT)));
+const CHINESE_WORDS = Object.freeze(CHINESE_TEXT.trimEnd().split('\n').concat(categoryWords(ADULT_TEXT), categoryWords(ILLEGAL_TEXT)));
 
 function clean(raw) {
   return raw.normalize('NFKC').replace(LONE_SURROGATE_RE, '').replace(/\s+/g, ' ')
     .replace(INVISIBLE_RE, '').replace(/ {2,}/g, ' ').trim();
 }
-
-/** Legacy display sanitizer: still caps code points without splitting surrogate pairs. */
 export function sanitizeName(raw) {
   if (typeof raw !== 'string' || raw.length > NAME_POLICY_LIMITS.rawLength) return null;
   const value = [...clean(raw)].slice(0, NAME_POLICY_LIMITS.nameLength).join('').trim();
   return value || null;
 }
+const compact = text => text.replace(SEPARATOR_RE, '');
 
-function compactWithOffsets(text) {
-  let compact = '';
-  const starts = [], ends = [];
-  let offset = 0;
+// Encode Latin boundaries in both input and dictionary for the existing engine. No match scanning,
+// dynamic regexes or dictionary-derived expressions: Scunthorpe/Cass/class stay whole Latin words.
+function englishForm(text) {
+  let output = BOUNDARY, previous = null;
   for (const character of text) {
-    if (!SEPARATOR_RE.test(character)) {
-      compact += character;
-      // Offsets for every UTF-16 unit let literal includes/indexOf remain bounded and simple.
-      for (let i = 0; i < character.length; i++) { starts.push(offset); ends.push(offset + character.length); }
-    }
-    offset += character.length;
+    const latin = LATIN_WORD_RE.test(character);
+    if (previous !== null && latin !== previous) output += BOUNDARY;
+    output += character;
+    previous = latin;
   }
-  return { compact, starts, ends };
+  return output + BOUNDARY;
 }
 
-function latinBoundary(text, start, end) {
-  // CJK scripts are boundaries for English words; Latin letters/digits/marks are not.
-  const before = [...text.slice(0, start)].at(-1) || '';
-  const after = [...text.slice(end)].at(0) || '';
-  return !LATIN_WORD_RE.test(before) && !LATIN_WORD_RE.test(after);
-}
-
-function contains(text, word, english, offsets = null) {
-  let at = text.indexOf(word);
-  while (at !== -1) {
-    const start = offsets ? offsets.starts[at] : at;
-    const end = offsets ? offsets.ends[at + word.length - 1] : at + word.length;
-    if (!english || latinBoundary(offsets ? offsets.original : text, start, end)) return true;
-    at = text.indexOf(word, at + 1);
-  }
-  return false;
-}
-
-/**
- * Pure factory for reviewed local dictionaries/tests. All entries are literals, never regexes.
- * Limits are checked before normalization/compilation; no unbounded caches or request-time I/O.
- */
-export function createNamePolicy({ english = ENGLISH_TEXT.trimEnd().split('\n'), chinese = CHINESE_TEXT.trimEnd().split('\n'),
+/** Pure bounded adapter/factory; mint-filter performs ALL detection, with literal trie keys. */
+export function createNamePolicy({ english = ENGLISH_TEXT.trimEnd().split('\n'), chinese = CHINESE_WORDS, political = POLITICAL_WORDS,
   extraEnglish = NAME_DICTIONARY_SUPPLEMENTS.english, extraChinese = NAME_DICTIONARY_SUPPLEMENTS.chinese,
   ignoredEnglish = NAME_DICTIONARY_EXCLUSIONS.english, ignoredChinese = NAME_DICTIONARY_EXCLUSIONS.chinese } = {}) {
-  const groups = [english, chinese, extraEnglish, extraChinese, ignoredEnglish, ignoredChinese];
+  const groups = [english, chinese, political, extraEnglish, extraChinese, ignoredEnglish, ignoredChinese];
   if (groups.some(group => !Array.isArray(group)) || groups.reduce((n, group) => n + group.length, 0) > NAME_POLICY_LIMITS.dictionaryEntries) {
     throw new Error('Invalid name dictionary size');
   }
@@ -102,39 +80,34 @@ export function createNamePolicy({ english = ENGLISH_TEXT.trimEnd().split('\n'),
     length += word.length;
   }
   if (length > NAME_POLICY_LIMITS.dictionaryLength) throw new Error('Invalid name dictionary size');
-  const ignore = [new Set(ignoredEnglish.map(word => clean(word).toLowerCase())), new Set(ignoredChinese.map(word => clean(word).toLowerCase()))];
-  const seen = new Set(), words = [];
-  for (const [entries, englishMatch] of [[english.concat(extraEnglish), true], [chinese.concat(extraChinese), false]]) {
-    for (const raw of entries) {
-      const literal = clean(raw).toLowerCase();
-      if (!literal || (!englishMatch && [...literal].length < 2) || ignore[englishMatch ? 0 : 1].has(literal)) continue;
-      const key = `${englishMatch}:${literal}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      // Punctuation in dictionary entries stays literal: e.g. (a+)+$ can never become a regex
-      // or an over-broad single-letter compact match. Only letters/numbers/space compact.
-      const compact = COMPACTABLE_RE.test(literal) ? compactWithOffsets(literal).compact : null;
-      words.push({ literal, compact, english: englishMatch });
-    }
-  }
+  const exclusions = [new Set(ignoredEnglish.map(word => clean(word).toLowerCase())), new Set(ignoredChinese.map(word => clean(word).toLowerCase()))];
+  const prepare = (entries, ignore, isChinese = false) => [...new Set(entries.map(word => clean(word).toLowerCase())
+    .filter(word => word && (!isChinese || [...word].length >= 2) && !ignore.has(word)))];
+  const englishWords = prepare(english.concat(extraEnglish), exclusions[0]);
+  const chineseWords = prepare(chinese.concat(extraChinese), exclusions[1], true);
+  // Political categories are intact: no exclusions or name-level whitelist can bypass them.
+  const politicalWords = prepare(political, new Set());
+  const englishEngine = new Mint(englishWords.map(englishForm));
+  const englishCompactEngine = new Mint(englishWords.filter(word => COMPACTABLE_RE.test(word)).map(word => englishForm(compact(word))));
+  const chineseEngine = new Mint(chineseWords);
+  const chineseCompactEngine = new Mint(chineseWords.filter(word => COMPACTABLE_RE.test(word)).map(compact));
+  const politicalEngine = new Mint(politicalWords);
+  const politicalCompactEngine = new Mint(politicalWords.filter(word => COMPACTABLE_RE.test(word)).map(compact));
 
   return raw => {
     if (typeof raw !== 'string') return { ok: false, reason: NAME_REASON.INVALID_TYPE };
-    // Guard BEFORE NFKC/spreading/scanning; huge or invisible-padded strings cannot consume CPU.
     if (raw.length > NAME_POLICY_LIMITS.rawLength) return { ok: false, reason: NAME_REASON.TOO_LONG };
     const name = clean(raw);
     if (!name) return { ok: false, reason: NAME_REASON.EMPTY };
-    let text = name.toLowerCase();
-    for (const phrase of NEUTRAL_CHINESE_SPANS) text = text.replaceAll(phrase, ' ');
-    const offsets = { ...compactWithOffsets(text), original: text };
-    for (const word of words) {
-      if (contains(text, word.literal, word.english)
-        || (word.compact && contains(offsets.compact, word.compact, word.english, offsets))) {
-        // No matched term, submitted name or normalized rejected value leaves this function.
-        return { ok: false, reason: NAME_REASON.SENSITIVE };
-      }
+    const original = name.toLowerCase(), folded = compact(original);
+    // Never expose Mint.filter().words/text or a matched term to callers/logs.
+    if (!politicalEngine.verify(original) || !politicalCompactEngine.verify(folded)) return { ok: false, reason: NAME_REASON.SENSITIVE };
+    // Only this harmless possessive span is masked in the obscenity corpus, not the political corpus.
+    const text = original.replaceAll('妈妈的', ' ');
+    if (!chineseEngine.verify(text) || !chineseCompactEngine.verify(compact(text))
+      || !englishEngine.verify(englishForm(text)) || !englishCompactEngine.verify(englishForm(compact(text)))) {
+      return { ok: false, reason: NAME_REASON.SENSITIVE };
     }
-    // Wire-format limit is UTF-16 units (shared/protocol.js); do not truncate a rejected callsign.
     if (name.length > NAME_POLICY_LIMITS.nameLength) return { ok: false, reason: NAME_REASON.TOO_LONG };
     return { ok: true, name };
   };

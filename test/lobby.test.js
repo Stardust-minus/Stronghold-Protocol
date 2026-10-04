@@ -1369,8 +1369,8 @@ describe('match result replay', () => {
   }
 
   /** Frames of a resumed socket in arrival order (types + phase), after welcome. */
-  // Presence/queue/admission resyncs are independent of the room → final-public → result replay ordering.
-  const social = new Set(['welcome', 'pong', 'presence.state', 'server.state', 'queue.state']);
+  // Presence/queue resyncs are independent of the room → final-public → result replay ordering.
+  const social = new Set(['welcome', 'pong', 'presence.state', 'queue.state']);
   const order = (c) => c.log.filter((m) => !social.has(m.t)).map((m) => m.t + (m.t === 'm.public' ? `:${m.phase}` : ''));
 
   for (const unicast of [true, false]) {

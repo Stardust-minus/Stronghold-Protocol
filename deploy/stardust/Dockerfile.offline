@@ -10,8 +10,12 @@ WORKDIR /app
 COPY app/ /app/
 # Offline app exports must retain the same tiny canonical policy/data/license as the auth image.
 # Fail the build immediately if an older export omitted the deploy/stardust/auth moderation files.
-RUN test -s deploy/stardust/auth/NAME-DICTIONARY-LICENSE.txt \
- && node --input-type=module -e "import { moderateName } from './shared/names.js'; if (!moderateName('阿米娅').ok) process.exit(1)"
+RUN for file in name-policy.mjs name-dictionary.mjs name-sensitive-dictionary.mjs \
+      name-filter-vendor.mjs name-filter-node.mjs NAME-DICTIONARY-LICENSE.txt \
+      NAME-FILTER-LICENSE.txt NAME-CATEGORIES-LICENSE.txt NAME-POLITICAL-LICENSE.txt; do \
+      test -s "deploy/stardust/auth/$file" || exit 1; \
+    done \
+ && node --input-type=module -e "import { moderateName } from './shared/names.js'; import { NAME_FILTER_SOURCE } from './deploy/stardust/auth/name-filter-vendor.mjs'; if (NAME_FILTER_SOURCE.version !== '4.0.3' || !moderateName('阿米娅').ok) process.exit(1)"
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

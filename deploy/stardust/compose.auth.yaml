@@ -1,13 +1,14 @@
-name: ark-proto-auth
+# Optional auth-only view of the same project; prefer compose.yaml up -d --no-deps auth.
+name: ark-proto
 services:
   auth:
-    image: ark-proto-auth:20261003.6
+    image: ${ARK_AUTH_IMAGE:?load runtime.env}
     pull_policy: never
     container_name: ark-proto-auth
     init: true
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3109:3000"
+      - "127.0.0.1:3141:3000"
     volumes:
       - /opt/ark-proto/auth-secrets/gate.json:/run/secrets/ark-gate.json:ro
     read_only: true
@@ -16,8 +17,6 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 64
-    mem_limit: 256m
-    cpus: 0.5
     logging:
       driver: json-file
       options:

@@ -2,13 +2,12 @@
 
 ## Current development batch
 
-- `.claude/release-progress.md` records the latest user request to push/release this verified batch first and defer further main-thread offload. Check live match counts before the first disruptive installation; the last read showed significant activity, not an empty server.
-
-- Latest upstream sync is in progress: read `.claude/upstream-sync.md` for the retained feature checkpoint, resolved but uncommitted merge of `bdb0765`, and Linux-only validation scope. The user explicitly stopped Windows-specific adaptation/packaging.
-
-- Read `TODO-STARDUST.md` for the resumed batch: non-disruptive server updates, online player count, pregame revival voting / teammate revival, and public multiplayer matchmaking. Announcements were explicitly cancelled and replaced by revival. The user additionally requested server-authoritative displayed-name/callsign moderation, shared with the password-gate callsign entry. Complete and verify the whole batch before the planned low-traffic game-service restart. Do not prematurely deploy the separate pacing hotfix.
-- `.claude/alliance-progress.md` records the resumed batch's in-progress code, current user rules (state-preserving death cancellation, donor LP >=11), agent ownership and local tests. Read it before resuming; old exact-10/cleared-inventory revival tests are superseded.
-- `.claude/compact-handoff.md` records the pre-resume local/production checkpoint, including the still-unpublished game fix and the warming-only asset standby. It supersedes historical state in `.claude/worker-notes.md`. Repository templates are not proof of which production slot is active.
+- **LATEST CHECKPOINT:** read `.claude/simple-social-handoff.md` first for the completed/verified local fixes and the actual production resource-limit change. `.claude/emergency-simple-handoff.md` is the preceding production recovery history. Rolling/smooth game updates were explicitly cancelled. Keep Nginx → one game backend, entry `/`, WS `/ws`, and exactly three services (`ark-proto`, `ark-proto-auth`, `ark-proto-assets`). Remove the gateway, drain/control runtime and client release router rather than leaving dormant implementations.
+- The user resumed after compact on 2026-10-04: finish the actual open-source `mint-filter` nickname engine with licensed Chinese/political categories; remove auth/assets CPU and memory limits too; combine public-match confirmation and revival voting, auto-start after every player confirms. Preserve PIDs/read-only/security limits, the shared password gate and PRTS animations. Do not claim local fixes are deployed until the running images are verified.
+- Additional current requirements: revival needs a strict majority of real humans (2→2, 3→2, 4→3 votes; a lone human cannot enable teammate revival; AI does not vote). Waiting friend rooms may queue as intact parties to fill four real players. Party cancellation or allocation failure preserves the original friend room; no second waiting-room preparation after public-match acceptance.
+- Revival still cancels the lethal event without resetting operators, equipment, economy or state: an actual leak-free unite helper pays 10 LP only with LP >=11; the target returns at LP1 and can be rescued once per match.
+- Baseline master/origin `f01e6e2` already contains upstream `bdb0765`, pacing, online presence and the first alliance release. Development fixes are on `fix/simple-services-matchmaking`; uncommitted moderation/source changes must be retained. Windows-specific adaptation and further main-thread offload are out of this batch.
+- `TODO-STARDUST.md` is the current scope. Older `.claude/{compact-handoff,alliance-progress,upstream-sync,release-progress,worker-notes}.md` describe historical checkpoints and are not instructions to restart old deployment scripts or reinstate rolling services.
 
 ## Repository and deployment boundaries
 
@@ -24,7 +23,7 @@
 - PRTS/login frontend implementation and visual verification must be done by the main assistant, not delegated to a subagent. Read-only investigation and backend work are not prohibited.
 - Preserve the password gate, custom callsign, entry replay and animations unless explicitly asked to change them.
 - Public static resources are intentionally unsigned with `Access-Control-Allow-Origin: *`, without credentials. This does not authorize making game code/data/API/auth/WebSocket public.
-- Game runtime remains `SP_COMBAT=server`, `SP_VERIFY=off`. Do not silently restore removed game CPU/memory limits from an old Compose file.
+- Game runtime remains `SP_COMBAT=server`, `SP_VERIFY=off`, 6 Workers and maxRooms4096. All three services have no Docker CPU/memory hard limits; do not restore old caps. PIDs and security restrictions remain.
 - Do not commit or echo passwords, cookies, signing/verifier files, SSH/DNS credentials, certificates or private keys. Do not commit game art or generated vendor builds. Use explicit staging paths and review the staged diff before pushing.
 
 ## Local development and tests

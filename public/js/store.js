@@ -79,7 +79,6 @@ export const initialState = Object.freeze({
   session: { entered: false },
   room: null,
   presence: null,
-  server: { draining: false, releaseId: null },
   queue: { state: 'idle', ticketId: null },
   match: emptyMatch(),
   ticker: [],
