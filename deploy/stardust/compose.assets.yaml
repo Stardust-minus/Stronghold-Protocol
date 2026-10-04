@@ -1,17 +1,20 @@
+# Public runtime coordinates only; load the active assets-runtime.env explicitly.
+name: ${ARK_ASSETS_PROJECT:?load assets-runtime.env}
 services:
   ark-proto-assets:
-    image: ark-proto-assets:20261004.2
+    image: ${ARK_ASSETS_IMAGE:?load assets-runtime.env}
     pull_policy: never
-    container_name: ark-proto-assets
+    container_name: ${ARK_ASSETS_CONTAINER:?load assets-runtime.env}
     init: true
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3110:3000"
+      - "127.0.0.1:${ARK_ASSETS_PORT:?load assets-runtime.env}:3000"
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: "3000"
       ASSET_MANIFEST: /run/config/openi-assets.json
+      PREWARM: "1"
     volumes:
       - ./openi-resolver/openi-assets.json:/run/config/openi-assets.json:ro
     read_only: true

@@ -6,7 +6,7 @@
 - 对应游戏源码仍是 `2878299` / 0.1.2，宁夏完整回退资源仍是 `v012-workers-20261004`。这不是一次游戏更新。
 - 只镜像 **assets 美术、模型、Spine 和音频**。5515 个独立文件、354380317 字节，对应 9803 个精确请求路径（包括媒体别名）。
 - `vendor`、fonts/CSS、PRTS 图形库继续由宁夏发送正文。游戏 HTML/业务 JS/data/WS 和认证维持原路径，不公开新范围。
-- 嘉兴新增 `ark-proto-assets`，回环 `127.0.0.1:3110`；它只取签名并返回小型 302，文件正文由 OBS 直接发送。
+- 嘉兴使用蓝/绿两个素材服务槽位（回环 3110 / 3111），活动容器、项目、端口和镜像记录在服务器的 `assets-runtime.env` 与 active-release 中。它只取签名并返回小型 302，文件正文由 OBS 直接发送。
 - 新解析器单独限制 0.5 CPU / 192 MiB / 64 PIDs；这些不是游戏限额。游戏的 6 Worker、maxRooms 4096 和无限额配置不变。
 
 ## 上传与完整性
@@ -40,6 +40,7 @@ MP3 远端名映射为 `media/<stem>`，不带扩展名；所有对应的 `/asse
 - 同一文件/音频别名共用签名缓存，冷请求合并，近过期时后台刷新；提前 30 秒停止使用旧签名，失败时绝不返回过期链接。
 - OBS 未带 Origin 的响应没有 CORS 头且未设置 Vary。为兼容现有页面的普通图片、预加载、CSS 背景和 Canvas 混合用法，HTTP 跳转在不修改签名字段/对象路径/期限的基础上添加固定 `sp_request=display/cors` 缓存区分参数，并设置 `Vary: Origin, Sec-Fetch-Mode`。当前 Signature V2 链路已通过真实 GET、哈希和浏览器缓存验证；两种正常图片请求都走 OpenI，不按图片类型留在宁夏，也不需要修改/重启游戏。
 - 缓存隔离可能使同图保存两份浏览器缓存；它依赖平台继续接受该固定非签名参数，平台接口变化时必须重新验证。纯 302 服务看不到浏览器跟随后的所有 OSS 错误，不能宣称任意下游错误都会自动回退。
+- `PREWARM=1` 开启内置后台预热：启动后逐个预热所有独立文件，闲置文件也在刷新期限到来前续签；只获取签名，不下载素材正文。索引堆为每个文件保留一个期限，后台最多两个任务，前台队列优先，至少保留两个前台名额；所有路径/别名共用 singleflight。不会每隔一分钟无条件重签全部文件。
 - API 并发、排队、超时、重试及 429 退避有界；未知路径不请求平台。签名必须是指定 OBS 主机、指定对象路径和允许的查询字段。
 - 解析失败/队列满时，由解析器 302 到同版本宁夏。解析器宕机、连接/响应超时或 5xx 时，由 Nginx named location 做同样回退。
 - HEAD 使用宁夏回退，因为 OpenI 的 GET 签名不允许 HEAD；不要把一次 HEAD 403 当作 OBS GET 文件损坏。
@@ -50,7 +51,7 @@ MP3 远端名映射为 `media/<stem>`，不带扩展名；所有对应的 `/asse
 
 1. 完成上传器的远端库存核对和独立浏览器渲染验收，保存 generated manifest/checkpoint 在 Git 外。生成文件默认 0600；安装一份公开清单到 `/opt/ark-proto/openi-resolver/openi-assets.json`，权限 0644，供容器 UID 1000 只读挂载。
 2. 从固定 commit 离线构建 `openi-resolver/Dockerfile`，传入 `SOURCE_REVISION` 并记录镜像 ID；无需 npm、SDK、账户 Token 或美术文件进入镜像。
-3. 只启动 `compose.assets.yaml`，绝不对游戏 Compose 执行重建。先验证冷解析、同 URL 缓存复用、无扩展名音频、真实大小/哈希、CORS/Range、未知路径和健康隐私。
+3. 从 `assets-runtime.env.example` 生成一份不含凭据的槽位配置，指定**非活动**的容器/项目/端口及新镜像；使用 `docker compose --project-directory /opt/ark-proto --env-file <候选运行配置> -f <候选 compose.assets.yaml> up -d` 启动备用槽位，绝不对游戏 Compose 执行重建。等待容器内 `/healthz` 的 `warmComplete=true`、`prewarmRemaining=0`，不能只以 Docker healthy 代替缓存就绪。验证签名复用、音频、哈希、CORS/Range、混合图片缓存及健康隐私后，才更新 Nginx upstream 指向新槽位并保存活动 `assets-runtime.env`。旧槽位在确认稳定后停止、保留以便回退。不要原地重启唯一活动解析器造成全量冷启动。
 4. 备份实际 vhost 与新 snippet；新增 `ark_proto_assets_backend`，只把 `/assets/`、`/media/` 接到 `asset-resolver-location.conf`。不改变 fonts/vendor/PRTS/业务/认证/WS 路由。
 5. `nginx -t` 后平滑 reload，不重启游戏或认证。Nginx 不记录 Location、不跟随 OSS 302，Cookie/Authorization 等不进入解析器；只给浏览器返回签名能力。
 6. 正式浏览器复查完整贴图/Spine/音频、PRTS/昵称/热缓存，比较游戏/认证容器 ID、StartedAt、restart count，确保全部未变。

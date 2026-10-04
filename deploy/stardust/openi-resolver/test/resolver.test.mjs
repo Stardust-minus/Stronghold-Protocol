@@ -57,7 +57,7 @@ function make(t, { config = manifest(), fetchImpl = async () => response(signed(
 }
 async function native(t, options = {}) {
   const app = await startServer({ manifest: manifest(), host: '127.0.0.1', port: 0, clock: () => NOW,
-    maxRetries: 0, ...options });
+    maxRetries: 0, prewarm: false, ...options });
   t.after(() => app.close());
   return { ...app, base: 'http://127.0.0.1:' + app.server.address().port };
 }
@@ -102,7 +102,8 @@ test('manifest is strict, deduplicates aliases, and only allows public asset/med
   ];
   for (const value of bad) assert.throws(() => validateManifest(value), { message: 'CONFIG' });
   for (const options of [{ concurrency: 5 }, { maxQueue: 129 }, { timeoutMs: 6000 }, { skewMs: 0 },
-    { clock: 'invalid' }, { maxRetries: 2 }, { maxRetryDelayMs: 2001 }]) {
+    { clock: 'invalid' }, { maxRetries: 2 }, { maxRetryDelayMs: 2001 }, { prewarm: '1' },
+    { prewarmConcurrency: 3 }, { prewarm: true, concurrency: 3 }, { timers: {} }]) {
     assert.throws(() => new OpenIResolver({ manifest: manifest(), ...options }), { message: 'CONFIG' });
   }
 });
@@ -126,7 +127,8 @@ test('a cached exact capability is reused, with no client query or headers in th
   assert.equal(options.credentials, 'omit'); assert.deepEqual(options.headers, { Accept: '*/*' });
   assert.equal(options.signal.aborted, false);
   assert.deepEqual(resolver.health(), { hits: 20, misses: 1, refreshes: 0, failures: 0, fallbacks: 0, apiRequests: 1,
-    cache: 1, active: 0, queued: 0, entries: 1, files: 1 });
+    cache: 1, active: 0, queued: 0, entries: 1, files: 1, prewarmEnabled: false, prewarmActive: 0,
+    prewarmCompleted: 1, prewarmRemaining: 0, warmComplete: true });
 });
 
 test('all audio aliases singleflight by remote fileName, preserve extensionless OSS object URLs', async t => {
@@ -411,6 +413,22 @@ test('display, CORS, and fetch clients share one signature but use separate OBS 
   assert.equal(head.headers.location, config.fallbackBase + '/assets/a.png');
 });
 
+test('prewarmed native display and CORS redirects reuse one cached signature and expose counts only', async t => {
+  const config = manifest(); let calls = 0;
+  const app = await native(t, { manifest: config, prewarm: true, fetchImpl: () => { calls++; return response(signed(config)); } });
+  await until(() => app.resolver.health().warmComplete);
+  const display = await rawRequest(app.base, '/assets/a.png?sp_request=attacker', 'GET', { 'Sec-Fetch-Mode': 'no-cors' });
+  const cors = await rawRequest(app.base, '/assets/a.png', 'GET', { Origin: 'https://game.test', 'Sec-Fetch-Mode': 'cors' });
+  assert.equal(display.headers.location, signed(config) + '&sp_request=display');
+  assert.equal(cors.headers.location, signed(config) + '&sp_request=cors');
+  assert.equal(calls, 1); assert.equal(app.resolver.health().apiRequests, 1);
+  const health = await rawRequest(app.base, '/healthz');
+  const counts = JSON.parse(health.body);
+  assert.equal(counts.prewarmEnabled, true); assert.equal(counts.prewarmCompleted, 1);
+  assert.equal(counts.prewarmActive, 0); assert.equal(counts.prewarmRemaining, 0); assert.equal(counts.warmComplete, true);
+  assert.doesNotMatch(health.body, /https|Signature|AWSAccessKeyId|Expires|Cookie|test-only/i);
+});
+
 test('native fallback redirects remain no-store, CORS-public and exactly same-release', async t => {
   const config = manifest();
   const app = await native(t, { manifest: config, fetchImpl: () => response('https://evil.test/?loginToken=private') });
@@ -425,7 +443,7 @@ test('startServer loads a mounted JSON manifest and fails closed before listenin
   t.after(() => rm(fixture, { recursive: true, force: true }));
   const path = join(fixture, 'manifest.json'); const config = manifest();
   await writeFile(path, JSON.stringify(config));
-  const app = await startServer({ manifestPath: path, host: '127.0.0.1', port: 0, clock: () => NOW,
+  const app = await startServer({ manifestPath: path, host: '127.0.0.1', port: 0, clock: () => NOW, prewarm: false,
     fetchImpl: () => response(signed(config)) });
   t.after(() => app.close());
   assert.equal(app.server.address().address, '127.0.0.1');

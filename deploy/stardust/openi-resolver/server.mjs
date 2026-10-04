@@ -128,29 +128,112 @@ function cancelBody(response) {
 
 export default class OpenIResolver {
   #config; #fetch; #clock; #options; #rows = new Map(); #queue = []; #active = 0;
-  #running = new Set(); #timers = new Set(); #shutdown = new AbortController(); #closed = false; #blockedUntil = 0;
+  #running = new Set(); #timers = new Set(); #timerAPI; #shutdown = new AbortController(); #closed = false; #blockedUntil = 0;
+  #prewarmStarted = false; #prewarmActive = 0; #prewarmTimer = null; #warmHeap = [];
   #stats = { hits: 0, misses: 0, refreshes: 0, failures: 0, fallbacks: 0, apiRequests: 0 };
 
   constructor({ manifest, fetchImpl = globalThis.fetch, clock = Date.now, concurrency = 4, maxQueue = 128,
     timeoutMs = 5000, queueTimeoutMs = timeoutMs, skewMs = 30000, refreshMarginMs = 120000,
     refreshJitterMs = 30000, maxRetries = 1, retryBaseMs = 250, maxRetryDelayMs = 2000,
-    failureBaseMs = 1000, maxFailureDelayMs = 30000 } = {}) {
+    failureBaseMs = 1000, maxFailureDelayMs = 30000, prewarm = false, prewarmConcurrency = 2,
+    timers = { setTimeout, clearTimeout } } = {}) {
     this.#config = validateManifest(manifest);
-    if (typeof fetchImpl !== 'function' || typeof clock !== 'function') fail('CONFIG');
-    this.#fetch = fetchImpl; this.#clock = clock;
+    if (typeof fetchImpl !== 'function' || typeof clock !== 'function' || typeof prewarm !== 'boolean' ||
+      typeof timers?.setTimeout !== 'function' || typeof timers?.clearTimeout !== 'function') fail('CONFIG');
+    this.#fetch = fetchImpl; this.#clock = clock; this.#timerAPI = timers;
     this.#options = { concurrency: integer(concurrency, 1, 4), maxQueue: integer(maxQueue, 0, 128),
       timeoutMs: integer(timeoutMs, 1, 5000), queueTimeoutMs: integer(queueTimeoutMs, 1, 5000),
       skewMs: integer(skewMs, 30000, 60000), refreshMarginMs: integer(refreshMarginMs, 0, 300000),
       refreshJitterMs: integer(refreshJitterMs, 0, 60000), maxRetries: integer(maxRetries, 0, 1),
       retryBaseMs: integer(retryBaseMs, 1, 2000), maxRetryDelayMs: integer(maxRetryDelayMs, 1, 2000),
-      failureBaseMs: integer(failureBaseMs, 1, 30000), maxFailureDelayMs: integer(maxFailureDelayMs, 1, 60000) };
-    if (maxRetryDelayMs < retryBaseMs || maxFailureDelayMs < failureBaseMs) fail('CONFIG');
+      failureBaseMs: integer(failureBaseMs, 1, 30000), maxFailureDelayMs: integer(maxFailureDelayMs, 1, 60000),
+      prewarm, prewarmConcurrency: integer(prewarmConcurrency, 1, 2) };
+    if (maxRetryDelayMs < retryBaseMs || maxFailureDelayMs < failureBaseMs ||
+      (prewarm && concurrency - prewarmConcurrency < 2)) fail('CONFIG');
   }
 
   #valid(value) { return value && value.expiresAt > this.#clock() + this.#options.skewMs; }
   health() {
-    return { ...this.#stats, cache: [...this.#rows.values()].filter(row => this.#valid(row.value)).length,
-      active: this.#active, queued: this.#queue.length, entries: this.#config.entries.size, files: this.#config.files.size };
+    let cache = 0;
+    for (const row of this.#rows.values()) if (this.#valid(row.value)) cache++;
+    return { ...this.#stats, cache,
+      active: this.#active, queued: this.#queue.length, entries: this.#config.entries.size, files: this.#config.files.size,
+      prewarmEnabled: this.#options.prewarm, prewarmActive: this.#prewarmActive,
+      prewarmCompleted: cache, prewarmRemaining: this.#config.files.size - cache, warmComplete: cache === this.#config.files.size };
+  }
+  #row(fileName) {
+    let row = this.#rows.get(fileName);
+    if (!row) {
+      row = { value: null, pending: null, retryAt: 0, failures: 0, prewarmAt: 0, warmItem: null };
+      this.#rows.set(fileName, row);
+    }
+    return row;
+  }
+
+  // Explicit lifecycle: construction/import never fetches. startServer calls this only after listen succeeds.
+  startPrewarm() {
+    if (!this.#options.prewarm || this.#prewarmStarted || this.#closed) return;
+    this.#prewarmStarted = true;
+    for (const fileName of this.#config.files.keys()) this.#planWarm(fileName, this.#row(fileName));
+    this.#wakePrewarm();
+  }
+  // Indexed min-heap: at most one deadline per known file, removed while its singleflight is pending.
+  #warmSwap(a, b) {
+    [this.#warmHeap[a], this.#warmHeap[b]] = [this.#warmHeap[b], this.#warmHeap[a]];
+    this.#warmHeap[a].index = a; this.#warmHeap[b].index = b;
+  }
+  #warmUp(index) {
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+      if (this.#warmHeap[parent].due <= this.#warmHeap[index].due) break;
+      this.#warmSwap(parent, index); index = parent;
+    }
+    return index;
+  }
+  #warmDown(index) {
+    for (;;) {
+      const left = index * 2 + 1, right = left + 1;
+      let next = index;
+      if (left < this.#warmHeap.length && this.#warmHeap[left].due < this.#warmHeap[next].due) next = left;
+      if (right < this.#warmHeap.length && this.#warmHeap[right].due < this.#warmHeap[next].due) next = right;
+      if (next === index) break;
+      this.#warmSwap(index, next); index = next;
+    }
+  }
+  #removeWarm(row) {
+    const item = row.warmItem;
+    if (!item || item.index < 0) return;
+    const index = item.index, last = this.#warmHeap.pop();
+    item.index = -1;
+    if (last !== item) {
+      this.#warmHeap[index] = last; last.index = index;
+      this.#warmDown(this.#warmUp(index));
+    }
+  }
+  #planWarm(fileName, row) {
+    if (!this.#prewarmStarted || this.#closed || row.pending) return;
+    const item = row.warmItem ||= { fileName, row, index: -1, due: 0 };
+    this.#removeWarm(row);
+    item.due = Math.max(row.retryAt, row.prewarmAt);
+    item.index = this.#warmHeap.length; this.#warmHeap.push(item); this.#warmUp(item.index);
+  }
+  #wakePrewarm() {
+    if (this.#prewarmTimer !== null) { this.#clear(this.#prewarmTimer); this.#prewarmTimer = null; }
+    if (!this.#prewarmStarted || this.#closed || this.#queue.length || !this.#warmHeap.length ||
+      this.#active >= this.#options.concurrency || this.#prewarmActive >= this.#options.prewarmConcurrency) return;
+    const delay = Math.max(0, Math.max(this.#warmHeap[0].due, this.#blockedUntil) - this.#clock());
+    // Cap distant Retry-After timers to Node's timer range, checking the absolute deadline again on wake.
+    this.#prewarmTimer = this.#timer(() => { this.#prewarmTimer = null; this.#pumpPrewarm(); }, Math.min(delay, 2147483647));
+    this.#prewarmTimer?.unref?.();
+  }
+  #pumpPrewarm() {
+    while (!this.#closed && !this.#queue.length && this.#active < this.#options.concurrency &&
+      this.#prewarmActive < this.#options.prewarmConcurrency && this.#warmHeap.length &&
+      this.#clock() >= this.#blockedUntil && this.#warmHeap[0].due <= this.#clock()) {
+      const { fileName, row } = this.#warmHeap[0];
+      this.#schedule(fileName, row, true);
+    }
+    this.#wakePrewarm();
   }
   #fallback(entry) {
     this.#stats.fallbacks++;
@@ -162,8 +245,7 @@ export default class OpenIResolver {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) return { status: 405 };
     if (method === 'OPTIONS') return { status: 204 };
     if (method === 'HEAD' || this.#closed) return this.#fallback(entry);
-    let row = this.#rows.get(entry.fileName);
-    if (!row) { row = { value: null, pending: null, retryAt: 0, failures: 0 }; this.#rows.set(entry.fileName, row); }
+    const row = this.#row(entry.fileName);
     if (this.#valid(row.value)) {
       this.#stats.hits++;
       if (this.#clock() >= row.value.refreshAt) this.#schedule(entry.fileName, row);
@@ -175,35 +257,39 @@ export default class OpenIResolver {
   }
 
   #timer(callback, delay) {
-    const timer = setTimeout(() => { this.#timers.delete(timer); callback(); }, delay);
+    const timer = this.#timerAPI.setTimeout(() => { this.#timers.delete(timer); callback(); }, delay);
     this.#timers.add(timer);
     return timer;
   }
-  #clear(timer) { clearTimeout(timer); this.#timers.delete(timer); }
-  #schedule(fileName, row) {
+  #clear(timer) { this.#timerAPI.clearTimeout(timer); this.#timers.delete(timer); }
+  #schedule(fileName, row, background = false) {
     if (row.pending) return row.pending;
     if (this.#closed || this.#clock() < Math.max(row.retryAt, this.#blockedUntil)) return Promise.resolve(null);
+    this.#removeWarm(row);
     let settle;
     row.pending = new Promise(resolve => { settle = resolve; });
     const pending = row.pending;
-    const task = { fileName, row, settle, done: false, timer: null };
+    const task = { fileName, row, settle, background, done: false, timer: null };
     if (this.#active < this.#options.concurrency) this.#start(task);
-    else if (this.#queue.length < this.#options.maxQueue) {
+    else if (!background && this.#queue.length < this.#options.maxQueue) {
       this.#queue.push(task);
       task.timer = this.#timer(() => {
         this.#queue.splice(this.#queue.indexOf(task), 1);
         this.#finish(task, null);
       }, this.#options.queueTimeoutMs);
     } else this.#finish(task, null);
+    this.#wakePrewarm();
     return pending;
   }
   #finish(task, value) {
     if (task.done) return;
     task.done = true;
-    if (task.timer) this.#clear(task.timer);
+    if (task.timer !== null) this.#clear(task.timer);
     if (value && !this.#closed) {
       task.row.value = { ...value, refreshAt: value.expiresAt - this.#options.skewMs - this.#options.refreshMarginMs -
         jitter(task.fileName, this.#options.refreshJitterMs) };
+      // A valid but unusually short/reused capability can already be refresh-due: never busy-spin on it.
+      task.row.prewarmAt = Math.max(task.row.value.refreshAt, this.#clock() + 1000);
       task.row.failures = 0; task.row.retryAt = 0;
     } else if (!this.#closed) {
       this.#stats.failures++; task.row.failures++;
@@ -212,10 +298,13 @@ export default class OpenIResolver {
     }
     task.row.pending = null;
     task.settle(value);
+    this.#planWarm(task.fileName, task.row);
+    this.#wakePrewarm();
   }
   #start(task) {
-    if (task.timer) this.#clear(task.timer);
+    if (task.timer !== null) this.#clear(task.timer);
     this.#active++;
+    if (task.background) this.#prewarmActive++;
     if (task.row.value) this.#stats.refreshes++;
     const work = this.#run(task);
     this.#running.add(work);
@@ -228,7 +317,10 @@ export default class OpenIResolver {
     } catch { this.#finish(task, null); }
     finally {
       this.#active--;
+      if (task.background) this.#prewarmActive--;
+      // Foreground jobs always drain first; background jobs never occupy this bounded queue.
       while (!this.#closed && this.#active < this.#options.concurrency && this.#queue.length) this.#start(this.#queue.shift());
+      this.#wakePrewarm();
     }
   }
   async #pause(delay) {
@@ -299,6 +391,7 @@ export default class OpenIResolver {
     this.#shutdown.abort(new ResolverError('CLOSED'));
     for (const task of this.#queue.splice(0)) this.#finish(task, null);
     for (const timer of this.#timers) this.#clear(timer);
+    this.#prewarmTimer = null; this.#warmHeap.length = 0;
     await Promise.allSettled([...this.#running]);
     this.#rows.clear();
   }
@@ -315,7 +408,12 @@ function send(response, method, status, headers = {}, body = '') {
 export async function startServer(options = {}) {
   const { manifestPath = process.env.ASSET_MANIFEST || DEFAULT_MANIFEST,
     host = process.env.HOST || '127.0.0.1', port = process.env.PORT === undefined ? 3000 : Number(process.env.PORT),
-    manifest: supplied, ...resolverOptions } = options;
+    manifest: supplied, prewarm: suppliedPrewarm, ...resolverOptions } = options;
+  let prewarm = suppliedPrewarm;
+  if (prewarm === undefined) {
+    if (process.env.PREWARM !== undefined && !['0', '1'].includes(process.env.PREWARM)) fail('CONFIG');
+    prewarm = process.env.PREWARM === '1';
+  }
   if (typeof host !== 'string' || !isIP(host) || (options.port === undefined && process.env.PORT !== undefined &&
     !/^[1-9]\d{0,4}$/.test(process.env.PORT))) fail('CONFIG');
   integer(port, options.port === 0 ? 0 : 1, 65535);
@@ -327,7 +425,7 @@ export async function startServer(options = {}) {
       manifest = JSON.parse(data.toString('utf8'));
     } catch { fail('CONFIG'); }
   }
-  const resolver = new OpenIResolver({ manifest, ...resolverOptions });
+  const resolver = new OpenIResolver({ manifest, ...resolverOptions, prewarm });
   const server = http.createServer({ maxHeaderSize: 8192, headersTimeout: 10000, requestTimeout: 15000, keepAliveTimeout: 5000 },
     (request, response) => {
       void (async () => {
@@ -369,6 +467,7 @@ export async function startServer(options = {}) {
       server.listen(port, host, () => { server.removeListener('error', reject); done(); });
     });
   } catch { await resolver.close(); fail('LISTEN'); }
+  resolver.startPrewarm();
   let closing;
   return { server, resolver, close() {
     closing ||= (async () => {
