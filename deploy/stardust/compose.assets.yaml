@@ -1,0 +1,31 @@
+services:
+  ark-proto-assets:
+    image: ark-proto-assets:20261004.1
+    pull_policy: never
+    container_name: ark-proto-assets
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3110:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      ASSET_MANIFEST: /run/config/openi-assets.json
+    volumes:
+      - ./openi-resolver/openi-assets.json:/run/config/openi-assets.json:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    cpus: "0.50"
+    mem_limit: 192m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
