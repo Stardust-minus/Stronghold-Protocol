@@ -85,6 +85,7 @@
 // phase outside its battles (soloUntimed); the co-op strategy draft has ONE countdown — BAND_TURN_SECONDS per turn,
 // published as m.public.deadline — AI seats pick at once and a turn that runs out takes the highlighted strategy
 // (g.bandFocus → timeoutBand); g.unitStats answers m.unitStats: the stats the board's units start their next battle with.
+//   opts.revivalEnabled  locked pregame vote result (strict true enables SETTLE death cancellation; donor >=11, cost 10 LP)
 //   opts.clientCombat  default true (env SP_COMBAT=server → false: the legacy server-run + snapshot streaming mode)
 //   opts.verify        'off' | 'sample' | 'all' (env SP_VERIFY, default 'off'): re-simulate accepted client results
 //                      ('sample': ~1 in 8, in a later callback, mismatches logged; 'all': before accepting — the
@@ -187,6 +188,9 @@ const BOSS_RESULT_GRACE_MS = 6000;
 const BOSS_MIN_CLEAR_GS = 5;
 const BOSS_LP_BURST = 10;
 const BOSS_LP_PER_GS = 1;
+const REVIVAL_COST = 10;
+const REVIVAL_MIN_DONOR_LP = 11;
+const REVIVAL_WINDOW_SECONDS = 15;
 const OK = Object.freeze({ ok: true });
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 const fail = (error, detail) => (detail ? { error, detail } : { error });
@@ -275,6 +279,10 @@ export class Match {
      * next match of the room (the same socket, the same field ids) never names a battle of this match.
      */
     this.battlePrefix = `${this.seed.toString(36)}${Number.isInteger(opts.matchNo) && opts.matchNo > 0 ? `-${opts.matchNo.toString(36)}` : ''}`;
+    /** Locked pregame rule; only the lobby counts the human votes. */
+    this.revivalEnabled = opts.revivalEnabled === true;
+    /** SETTLE-only rescue state: { round, eligible: Set<playerId>, windowOpen, deadline }. */
+    this._revival = null;
     this._progressTimer = null;
     this._bossClock = null;
     this._lastPoolAt = -Infinity;
@@ -492,7 +500,7 @@ export class Match {
    */
   _quit(ps) {
     this.maybeEndInfo();
-    if (!ps.alive) return;
+    if (!ps.alive && !ps.pendingDeath) return;
     const phase = this.phase;
     const d = this.draft;
     if (phase === PHASE.BAND_DRAFT && d && !d.picks[ps.playerId]) {
@@ -514,8 +522,7 @@ export class Match {
         try { f.battle.forceEnd('left'); } catch (e) { this.reportError('quit forceEnd', e); }
       }
     }
-    ps.lp = 0;
-    ps.eliminate(passedRound);
+    this._finalizeDeath(ps, { round: passedRound, notify: false });
     this.tickerText(`${ps.name}博士中途退出了模拟`, FLOW_TICKER_PRIORITY);
     if (this.bossWaves && (phase === PHASE.ROUND_START || phase === PHASE.SP_DRAFT || phase === PHASE.PREP)) {
       // before the boss fight: pair the players left again (the prep preview shows the new partner / template); a
@@ -536,6 +543,7 @@ export class Match {
 
   dispose() {
     if (this.disposed) return;
+    this._finalizePendingDeaths({ notify: false });
     this.disposed = true;
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } }
     this._stopClientCombat();
@@ -802,6 +810,7 @@ export class Match {
   }
 
   publicView() {
+    const revivalOpen = this.revivalWindowOpen();
     const v = {
       t: 'm.public',
       phase: this.phase,
@@ -825,6 +834,16 @@ export class Match {
       combatMode: this.clientCombat ? 'client' : 'server',
       // solo pause (g.pause, DESIGN §14): the battle, its field clock and every deadline are frozen while true
       paused: !!this.paused,
+      revival: {
+        enabled: this.revivalEnabled,
+        cost: REVIVAL_COST,
+        minDonorLp: REVIVAL_MIN_DONOR_LP,
+        windowOpen: revivalOpen,
+        deadline: revivalOpen ? this._revival.deadline : 0,
+        matchId: this.battlePrefix,
+        round: this.round,
+        eligible: revivalOpen ? this.order.filter((ps) => this.revivalDonorEligible(ps)).map((ps) => ps.playerId) : [],
+      },
       players: this.order.map((ps) => ({
         playerId: ps.playerId,
         seat: ps.seat,
@@ -832,6 +851,9 @@ export class Match {
         isBot: ps.isBot,
         connected: ps.isBot || (ps.connected && !ps.left),
         alive: ps.alive,
+        left: ps.left,
+        revived: ps.revived,
+        pendingDeath: ps.pendingDeath,
         lp: Math.max(0, ps.lp),
         bandId: ps.bandId,
         shopLevel: ps.shop.level,
@@ -842,7 +864,7 @@ export class Match {
         // this round's in-battle gains included once the COMBAT phase ended (PlayerState.bondsView); [] once eliminated —
         // nobody can watch an eliminated player (g.watch refuses them, they have no field) and the result screen reads
         // m.result's own bonds, so their layers would only cost every m.public bytes for the rest of the match
-        bonds: ps.alive ? bondList(this.gd, ps.bondsView()) : [],
+        bonds: ps.alive || ps.pendingDeath ? bondList(this.gd, ps.bondsView()) : [],
         fieldId: this.fieldOf(ps),
         status: this.statusOf(ps),
         autoplay: ps.autoplay,
@@ -967,6 +989,7 @@ export class Match {
       case 'g.reward': return ps.pickReward(msg.idx);
       case 'g.choice': return this.pickCard(ps, msg.idx);
       case 'g.ready': return ps.setReady(!!msg.ready);
+      case 'g.revive': return this.revive(ps, msg);
       case 'g.emote': return this.emote(ps, msg.id);
       case 'g.watch': return this.watch(ps, msg.fieldId);
       case 'g.autoplay': return this.setAutoplay(ps, !!msg.on);
@@ -1369,11 +1392,13 @@ export class Match {
   }
 
   startRound(r) {
+    this._finalizePendingDeaths(); // also protects forced/cancelled transitions that bypass afterSettle
     this.phase = PHASE.ROUND_START;
     this.round = r;
     this.fields = [];
     this.watchers.clear();
     this.unitePlan = null;
+    this._revival = null;
     this.sp = null;
     this.wave = null;
     this.bossWaves = null;
@@ -1846,7 +1871,9 @@ export class Match {
       this._collectSimErrors(f, res);
       for (const pid of f.players) {
         const pp = res.perPlayer && res.perPlayer[pid];
-        this.lastResults.set(pid, pp || { killed: 0, total: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, unitsEnd: [], unitStats: [] });
+        const normalResult = pp || { killed: 0, total: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, unitsEnd: [], unitStats: [] };
+        // Keep the full field's provenance: a synthetic fallback must never qualify a rescue donor.
+        this.lastResults.set(pid, res.synthetic || !pp ? { ...normalResult, synthetic: true } : normalResult);
         // the views show the layers the battle reached until settle() makes them persistent (DESIGN §20.15)
         const ps = this.players.get(pid);
         const gains = pp && pp.layerGains && typeof pp.layerGains === 'object' ? pp.layerGains : null;
@@ -2733,7 +2760,90 @@ export class Match {
   // ===================================================================================================
   // SETTLE
 
+  /** The actual field, not a perfect own battle alone, grants this round's rescue qualification. */
+  _revivalHelpers(plan, uniteResult) {
+    const eligible = new Set();
+    if (!this.revivalEnabled || this.phase !== PHASE.UNITE || !plan || plan !== this.unitePlan
+      || !uniteResult || uniteResult.synthetic || !['cleared', 'timeout'].includes(uniteResult.reason)) return eligible;
+    const field = this.fields.find((f) => f.kind === 'unite' && !f.live);
+    if (!field) return eligible;
+    for (const ps of plan.helpers) {
+      const normal = this.lastResults.get(ps.playerId);
+      if (this.players.get(ps.playerId) !== ps || !field.players.includes(ps.playerId)
+        || !uniteResult.perPlayer?.[ps.playerId] || !normal || normal.synthetic || normal.perfect === false
+        || (normal.leaked || []).some((l) => l && l.counted !== false)) continue;
+      eligible.add(ps.playerId);
+    }
+    return eligible;
+  }
+
+  revivalWindowOpen() {
+    const state = this._revival;
+    return !!(this.revivalEnabled && !this.ended && !this.disposed && this.phase === PHASE.SETTLE
+      && this.teamLp == null && state && state.windowOpen && state.round === this.round && this.sched.now() < state.deadline);
+  }
+
+  revivalDonorEligible(ps) {
+    return !!(ps && !ps.isBot && !ps.left && ps.alive && Number.isFinite(ps.lp) && ps.lp >= REVIVAL_MIN_DONOR_LP
+      && this._revival?.round === this.round && this._revival.eligible.has(ps.playerId));
+  }
+
+  revivalTargetEligible(ps) { return !!(ps && ps.pendingDeath && !ps.alive && !ps.left && !ps.revived); }
+
+  /** Defer cleanup, never snapshot/recreate the player's operators, economy or effect state. */
+  _deferDeath(ps) {
+    ps.lp = 0;
+    ps.alive = false;
+    ps.pendingDeath = true;
+    ps.dirty();
+    this.toast(ps, 'warn', '你的目标生命值耗尽，等待救援');
+  }
+
+  /** The single irreversible cleanup path; an already-finalized death cannot return copies twice. */
+  _finalizeDeath(ps, { round = this.round, notify = true } = {}) {
+    if (!ps.alive && !ps.pendingDeath) return false;
+    ps.lp = 0;
+    ps.eliminate(round);
+    if (notify) {
+      this.toast(ps, 'error', '你的目标生命值耗尽，已被淘汰');
+      this.tickerText(`${ps.name}博士的目标生命值已耗尽`, FLOW_TICKER_PRIORITY);
+    }
+    return true;
+  }
+
+  _finalizePendingDeaths({ notify = true } = {}) {
+    if (this._revival) this._revival.windowOpen = false;
+    for (const ps of this.order) if (ps.pendingDeath) this._finalizeDeath(ps, { notify });
+  }
+
+  revive(ps, msg) {
+    if (!this.revivalEnabled) return fail(ERR.WRONG_PHASE, 'revival-disabled');
+    if (!this.revivalWindowOpen()) return fail(ERR.WRONG_PHASE, 'revival-window-closed');
+    if (msg.matchId !== this.battlePrefix) return fail(ERR.BAD_TARGET, 'stale-match');
+    if (!Number.isInteger(msg.round) || msg.round !== this.round) return fail(ERR.WRONG_PHASE, 'stale-round');
+    if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);
+    if (!ps.alive) return fail(ERR.ELIMINATED);
+    if (!this.revivalDonorEligible(ps)) return fail(ERR.BAD_TARGET, ps.lp < REVIVAL_MIN_DONOR_LP ? 'revival-lp-insufficient' : 'revival-not-helper');
+    const target = this.players.get(msg.playerId);
+    if (target && !target.alive && !target.pendingDeath && !target.left && !target.revived) return fail(ERR.BAD_TARGET, 'revival-target-finalized');
+    if (target === ps || !this.revivalTargetEligible(target)) return fail(ERR.BAD_TARGET, 'revival-target-ineligible');
+    // Claim usage before any updates/hooks/views: another donor's duplicate request cannot spend twice.
+    target.revived = true;
+    target.alive = true;
+    target.pendingDeath = false;
+    target.lp = 1;
+    ps.lp -= REVIVAL_COST; // >=11 before payment: the donor always keeps at least 1 LP
+    ps.stats.lpLost += REVIVAL_COST;
+    // Bonds depend on the unchanged holdings; teammate effects read alivePlayers dynamically. No reset/reroll/hooks.
+    target.dirty();
+    ps.dirty();
+    this.markPublic();
+    return OK;
+  }
+
   settle(plan, uniteResult) {
+    if (this.disposed || this.ended || (this.phase !== PHASE.COMBAT && this.phase !== PHASE.UNITE)) return;
+    const eligible = this._revivalHelpers(plan, uniteResult);
     this.phase = PHASE.SETTLE;
     this.runner = null;
     this._stopClientCombat();
@@ -2782,18 +2892,20 @@ export class Match {
       this.dispatch(ps, 'onBattleResult', { result: r, lpLoss: loss, perfect: counted === 0 && r.perfect !== false, unite: uniteResult || null });
       ps.recompute();
     }
+    this._revival = { round: this.round, eligible, windowOpen: false, deadline: 0 };
+    const canRescue = this.revivalEnabled && this.teamLp == null && this.order.some((ps) => this.revivalDonorEligible(ps));
     for (const ps of alive) {
       if (ps.lp <= 0) {
-        ps.lp = 0;
-        ps.eliminate(this.round);
-        this.toast(ps, 'error', '你的目标生命值耗尽，已被淘汰');
-        this.tickerText(`${ps.name}博士的目标生命值已耗尽`, FLOW_TICKER_PRIORITY);
+        if (canRescue && ps.alive && !ps.revived && !ps.left) this._deferDeath(ps);
+        else this._finalizeDeath(ps);
       }
     }
     this.fields = [];
     this.watchers.clear();
+    const rescue = canRescue && this.order.some((ps) => this.revivalTargetEligible(ps));
+    this.setDeadline(rescue ? REVIVAL_WINDOW_SECONDS : DELAYS.SETTLE / 1000, () => this.afterSettle(), { silent: !rescue && this.soloUntimed });
+    if (rescue) { this._revival.windowOpen = true; this._revival.deadline = this.deadline; }
     this.markPublic();
-    this.setDeadline(DELAYS.SETTLE / 1000, () => this.afterSettle(), { silent: this.soloUntimed });
   }
 
   /**
@@ -2820,6 +2932,7 @@ export class Match {
   }
 
   afterSettle() {
+    this._finalizePendingDeaths();
     if (!this.alivePlayers().length) { this.finish({ victory: false, reason: 'eliminated' }); return; }
     this.startRound(this.round + 1);
   }
@@ -3082,6 +3195,7 @@ export class Match {
   finish({ victory, hiddenCleared = false, reason = 'defeat' }) {
     if (this.ended || this.disposed) return;
     this.ended = true;
+    this._finalizePendingDeaths();
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } this.runner = null; }
     this._stopClientCombat();
     this.cancel(this._phaseTimer);

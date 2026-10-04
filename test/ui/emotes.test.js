@@ -348,7 +348,14 @@ describe('public/js/ui/emotes.js helpers', () => {
     assert.deepEqual(links, [{ rel: 'stylesheet', href: EMOTE_CSS_HREF }]);
     assert.equal(ensureEmoteCss(undefined), false);
     assert.ok(existsSync(path.join(ROOT, 'public', EMOTE_CSS_HREF)));
-    assert.match(readFileSync(path.join(ROOT, 'public/index.html'), 'utf8'), /href="\/css\/emotes\.css"/);
+    const index = readFileSync(path.join(ROOT, 'public/index.html'), 'utf8');
+    const href = /href="([^"]*css\/emotes\.css)"/.exec(index)?.[1];
+    assert.equal(href, 'css/emotes.css', 'relative stylesheet stays inside the page release');
+    assert.equal(new URL(href, 'https://game.example/').pathname, '/css/emotes.css');
+    assert.equal(new URL(href, 'https://game.example/_release/v1/').pathname, '/_release/v1/css/emotes.css');
+    let selector;
+    assert.equal(ensureEmoteCss({ head: doc.head, querySelector: (s) => { selector = s; return {}; } }), false);
+    assert.equal(selector, 'link[rel="stylesheet"][href$="css/emotes.css"]', 'both relative and release-prefixed links are detected');
   });
 
   test('emote UI never renders an emote label as text (aria-label only)', () => {

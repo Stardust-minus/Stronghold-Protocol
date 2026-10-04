@@ -43,7 +43,7 @@
         </header>
         <div class="spine-rule" aria-hidden="true"></div>
         <div class="control-board">
-          <div class="operator-row"><label class="field-heading" for="callsign">CALLSIGN <span>博士代号</span></label><div class="operator-frame physical-frame"><input id="callsign" type="text" form="login-form" required maxlength="12" autocomplete="nickname" spellcheck="false" aria-describedby="callsign-hint"><span class="visitor-tag" aria-hidden="true">01</span></div><p id="callsign-hint" class="callsign-hint">最多 12 字 · 同步为游戏昵称</p></div>
+          <div class="operator-row"><label class="field-heading" for="callsign">CALLSIGN <span>博士代号</span></label><div class="operator-frame physical-frame"><input id="callsign" name="callsign" type="text" form="login-form" required maxlength="12" autocomplete="nickname" spellcheck="false" aria-describedby="callsign-hint"><span class="visitor-tag" aria-hidden="true">01</span></div><p id="callsign-hint" class="callsign-hint">最多 12 字 · 同步为游戏昵称</p></div>
           <form id="login-form" action="/_gate/login" method="post" {{LOGIN_HIDDEN}}>
             <input type="hidden" name="csrf" value="{{CSRF}}">
             <input type="hidden" name="next" value="{{NEXT}}">

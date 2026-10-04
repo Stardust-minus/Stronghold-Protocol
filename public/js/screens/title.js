@@ -182,6 +182,7 @@ const STATUS_TEXT = {
 export function TitleScreen() {
   const conn = useStore((s) => s.connection, shallowEqual);
   const pendingJoin = useStore((s) => s.ui.pendingJoin);
+  const nameRejected = conn.lastError?.code === 'NAME_REJECTED';
   const [name, setName] = useState(() => store.get().me.name || identity.loadName() || '');
   const assetsSettled = useData('assets');
   const assets = data.get('assets');
@@ -251,7 +252,7 @@ export function TitleScreen() {
         </div>` : null}
         <${TextField} label="博士代号" micro="CALLSIGN" size="lg" icon="user" value=${name} maxLength=${NAME_MAX_LEN}
           placeholder="输入你的代号（最多 ${NAME_MAX_LEN} 字）" autoFocus=${!touchUi}
-          onInput=${setName} onEnter=${start} />
+          onInput=${setName} onEnter=${start} invalid=${nameRejected} hint=${nameRejected ? conn.lastError.text : null} />
         <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" disabled=${!valid} onClick=${start}>开始<//>
         <div class="title-conn">
           <span class=${`status-dot ${dotClass}`}></span>

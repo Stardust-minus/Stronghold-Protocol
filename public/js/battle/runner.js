@@ -63,6 +63,7 @@
 // (test/match/runner.test.js drives it under Node).
 
 import { net as appNet } from '../net.js';
+import { releaseResource } from '../release.js';
 import { store as appStore } from '../store.js';
 import { unitStatsEntry, fxForm } from '../../../shared/protocol.js';
 
@@ -127,7 +128,7 @@ function deepFreeze(root) {
  * Browser sim loader: the /sim/ modules + the data files (own frozen copies — the server's data is frozen too, so a
  * content bug that writes into a record fails identically on both sides).
  */
-export async function loadBrowserSim({ base = '/sim/', dataBase = '/data/', fetchFn = (...a) => globalThis.fetch(...a) } = {}) {
+export async function loadBrowserSim({ base = releaseResource('/sim/'), dataBase = releaseResource('/data/'), fetchFn = (...a) => globalThis.fetch(...a) } = {}) {
   const [spec, simdata, support] = await Promise.all([
     import(`${base}spec.js`), import(`${base}simdata.js`), import(`${base}content/support/index.js`),
   ]);

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -43,9 +44,11 @@ function deferred() {
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 async function until(predicate) {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
     if (predicate()) return;
-    await tick();
+    // Native prewarm is timer-driven; fast setImmediate spins can finish before its first 1 ms timer.
+    await new Promise(resolve => setTimeout(resolve, 1));
   }
   assert.fail('Expected asynchronous work to finish');
 }
@@ -386,6 +389,31 @@ test('native GET/HEAD/OPTIONS, health, method errors and exact-path rejections h
   assert.equal(rejected.status, 404);
   assert.equal((await rawRequest(app.base, '/healthz', 'OPTIONS')).status, 405);
   await app.close(); await app.close();
+});
+
+test('material metadata hashes exact mounted manifest bytes without exposing health across the Docker bridge', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'sp-material-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const bytes = Buffer.from(JSON.stringify(manifest(), null, 3) + '\n\n');
+  const manifestPath = join(dir, 'manifest.json'); await writeFile(manifestPath, bytes);
+  const app = await startServer({ manifestPath, host: '127.0.0.1', port: 0, prewarm: false });
+  t.after(() => app.close());
+  const base = 'http://127.0.0.1:' + app.server.address().port;
+  const identity = await rawRequest(base, '/_material');
+  const expected = { release: manifest().release, manifestHash: createHash('sha256').update(bytes).digest('hex') };
+  assert.equal(identity.status, 200); assert.equal(identity.headers['cache-control'], 'no-store');
+  assert.deepEqual(JSON.parse(identity.body), expected);
+  assert.doesNotMatch(identity.body, /https|Signature|AWSAccessKeyId|Cookie|entries|cache/);
+  assert.equal((await rawRequest(base, '/_material', 'HEAD')).body, '');
+  assert.equal((await rawRequest(base, '/_material', 'POST')).status, 405);
+  const bridge = await new Promise(resolve => app.server.emit('request', {
+    url: '/_material', method: 'GET', headers: {}, socket: { remoteAddress: '172.18.0.1' },
+  }, { writeHead(status) { this.status = status; }, end(body) { resolve({ status: this.status, body }); } }));
+  assert.equal(bridge.status, 200); assert.deepEqual(JSON.parse(bridge.body), expected);
+  const health = await new Promise(resolve => app.server.emit('request', {
+    url: '/healthz', method: 'GET', headers: { 'x-forwarded-for': '127.0.0.1' }, socket: { remoteAddress: '172.18.0.1' },
+  }, { writeHead(status) { this.status = status; }, end() { resolve(this.status); } }));
+  assert.equal(health, 404);
 });
 
 test('display, CORS, and fetch clients share one signature but use separate OBS cache keys', async t => {

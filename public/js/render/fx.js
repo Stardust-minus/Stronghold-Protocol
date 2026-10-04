@@ -34,6 +34,7 @@
 // (adaptive load level ≥ 2), and trails yield to bursts near the particle cap (SOFT_CAP).
 
 import { fxAtlas } from './textures.js';
+import { releaseResource } from '../release.js';
 import { DMG_STYLE, dmgStyleKey, HIT_TINT, PROJ, COLORS } from './style.js';
 
 /**
@@ -54,7 +55,7 @@ export function setSimProjectileSpeeds(table, boomerangReturn = null) {
   if (Number(boomerangReturn) > 0) simSpeeds.boomerangReturn = Number(boomerangReturn);
 }
 if (typeof window !== 'undefined' && typeof window.location?.origin === 'string') {
-  import('/sim/constants.js').then((m) => { if (m?.PROJECTILE_SPEEDS) setSimProjectileSpeeds(m.PROJECTILE_SPEEDS, m.BOOMERANG_RETURN_SPEED); }, () => {});
+  import(releaseResource('/sim/constants.js')).then((m) => { if (m?.PROJECTILE_SPEEDS) setSimProjectileSpeeds(m.PROJECTILE_SPEEDS, m.BOOMERANG_RETURN_SPEED); }, () => {});
 }
 /**
  * Tiles per game second of a projectile kind ('boomerangReturn': a boomerang's way back): the sim's value, else

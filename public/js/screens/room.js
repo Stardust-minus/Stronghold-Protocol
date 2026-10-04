@@ -13,11 +13,13 @@ import {
   html, Button, Icon, MicroLabel, PingPill, AvatarFrame, DifficultyTag, DifficultyIcon, Tooltip, confirmDialog, doctorNo,
 } from '../ui/components.js';
 import { toast, toastError } from '../ui/toasts.js';
+import { copyText } from '../ui/clipboard.js';
 import { GuideButton } from '../ui/guide.js';
 import { LoadoutButton } from './loadout.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch } from '../store.js';
 import { difficultyInfo } from './lobby.js';
+import { RevivalVote } from '../ui/revival.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -68,35 +70,12 @@ export function inviteLink(code) {
 }
 
 /**
- * Copy text to the clipboard (async API with a textarea fallback for insecure contexts).
+ * Copy text to the clipboard (async API with a textarea fallback for insecure contexts). Moved to ui/clipboard.js so
+ * 干员调配 can use it without importing this screen (which imports loadout.js): re-exported here for existing callers.
  * @param {string} text
  * @returns {Promise<boolean>}
  */
-export async function copyText(text) {
-  try {
-    if (globalThis.navigator?.clipboard && globalThis.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch { /* fall through */ }
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    // 16 px: iOS zooms into smaller focused fields; `readonly` keeps the keyboard away
-    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;font-size:16px';
-    document.body.appendChild(ta);
-    ta.select();
-    // iOS Safari ignores select() on a textarea: an explicit range is what it copies (LAN play over http has no
-    // navigator.clipboard, so this path is the one iPhones / iPads take)
-    try { ta.setSelectionRange(0, ta.value.length); } catch { /* ignore */ }
-    const ok = document.execCommand('copy');
-    ta.remove();
-    return ok;
-  } catch {
-    return false;
-  }
-}
+export { copyText };
 
 function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot }) {
   const coop = room.mode !== 'solo';
@@ -189,6 +168,7 @@ export function RoomScreen() {
   const room = useStore((s) => s.room);
   const me = useStore((s) => s.me, shallowEqual);
   const conn = useStore((s) => s.connection, shallowEqual);
+  const draining = useStore((s) => s.server?.draining === true);
   const [busy, setBusy] = useState(null);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
@@ -286,6 +266,9 @@ export function RoomScreen() {
       </aside>`}
     </main>
 
+    <${RevivalVote} room=${room} myId=${me.playerId} online=${online} busy=${busy}
+      onVote=${(enable) => run('vote', () => net.request('room.voteRevival', { enable }))} />
+
     <footer class="room-bar">
       <div class="room-bar__left">
         <span class="room-bar__label">模拟难度<${MicroLabel}>DIFFICULTY<//></span>
@@ -305,7 +288,7 @@ export function RoomScreen() {
         <${LoadoutButton} from="room" size="lg" class="room-loadout" />
         ${facts.isHost
           ? html`<${Tooltip} text=${facts.canStart ? null : '仍有博士未准备就绪'}>
-              <${Button} variant="primary" size="xl" icon="play" loading=${busy === 'start'} disabled=${!facts.canStart || !online} onClick=${start}>开始模拟<//>
+              <${Button} variant="primary" size="xl" icon="play" loading=${busy === 'start'} disabled=${!facts.canStart || !online || draining} onClick=${start}>开始模拟<//>
             <//>`
           : html`<${Button} variant=${myReady ? 'primary' : 'secondary'} size="xl" icon=${myReady ? 'check' : 'hourglass'} active=${myReady}
               loading=${busy === 'ready'} disabled=${!online || !facts.mine} onClick=${toggleReady}>${myReady ? '已就绪' : '准备就绪'}<//>`}

@@ -1,0 +1,39 @@
+# LOCAL CANDIDATE ONLY. Gateway binds 127.0.0.1 itself: a bridge port publish WILL NOT work.
+# Host networking reaches game/resolver host-loopback mappings, like the existing Nginx.
+name: ark-rolling-gateway-candidate
+services:
+  gateway:
+    image: ${ARK_GATEWAY_IMAGE:?set the newly built application image tag or digest}
+    pull_policy: never
+    user: "1000:1000"
+    init: true
+    restart: unless-stopped
+    network_mode: host
+    command: ["node", "server/rolling/gateway.js"]
+    environment:
+      NODE_ENV: production
+      SP_ROLLING_CONFIG: /run/ark-rolling/gateway.json
+    volumes:
+      - type: bind
+        source: ${ARK_ROLLING_PRIVATE_DIR:?manually prepare dedicated UID1000 mode0700 directory}
+        target: /run/ark-rolling
+        bind:
+          create_host_path: false
+    # The reused game's /healthz image healthcheck is wrong for this metadata-private gateway.
+    healthcheck:
+      disable: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+# gateway.json starts on unused 3190, NOT current production 3108. First installation at 3108
+# requires a separately authorized empty-game maintenance window; no automatic stop/cutover here.

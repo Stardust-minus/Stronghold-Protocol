@@ -190,10 +190,11 @@ describe('HTML pages reference existing files', () => {
   }
   test('index.html boots main.js as a module and has the rotate hint', () => {
     const src = readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
-    assert.match(src, /<script type="module" src="\/js\/main\.js"[^>]*><\/script>/);
+    assert.match(src, /<script type="module" src="js\/main\.js"[^>]*><\/script>/);
+    assert.equal(new URL('js/main.js', 'https://game.example/_release/r1/').pathname, '/_release/r1/js/main.js');
     assert.match(src, /class="rotate-hint"/);
     assert.doesNotMatch(src, /https:\/\/fonts\.(googleapis|gstatic)\.com/);
-    assert.match(src, /href="\/fonts\/fonts\.css"/);
+    assert.match(src, /href="fonts\/fonts\.css"/);
   });
 });
 
@@ -426,7 +427,7 @@ describe('net.js', () => {
   });
 
   test('connect without a name → connected + ping; setName → hello with token & version', async () => {
-    const { PROTOCOL_VERSION } = await import(pathToFileURL(path.join(ROOT, 'shared/constants.js')).href);
+    const { PROTOCOL_VERSION, MATCHMAKING_VERSION } = await import(pathToFileURL(path.join(ROOT, 'shared/constants.js')).href);
     const { net, ws, statuses } = await makeNet();
     net.connect();
     assert.equal(net.status, 'connecting');
@@ -435,7 +436,7 @@ describe('net.js', () => {
     assert.ok(ws().last('ping'), 'latency probe before hello');
     net.setName('  凯尔希  ');
     const hello = ws().last('hello');
-    assert.deepEqual({ ...hello, rid: 0 }, { t: 'hello', rid: 0, name: '凯尔希', version: PROTOCOL_VERSION, token: 'tok-1' });
+    assert.deepEqual({ ...hello, rid: 0 }, { t: 'hello', rid: 0, name: '凯尔希', version: PROTOCOL_VERSION, matchmakingVersion: MATCHMAKING_VERSION, token: 'tok-1' });
     assert.equal(net.status, 'handshaking');
     ws().recv({ t: 'welcome', rid: hello.rid, playerId: 'p_1', token: 't', name: '凯尔希', serverNow: Date.now() });
     assert.equal(net.status, 'online');
@@ -1109,8 +1110,9 @@ describe('multi-device & browser compatibility (static)', () => {
   test('index.html: landscape viewport without page zoom, notch-aware, devices.css last, boot diagnostics', () => {
     const vp = index.match(/<meta name="viewport" content="([^"]+)"/)?.[1] || '';
     for (const k of ['width=device-width', 'initial-scale=1', 'maximum-scale=1', 'user-scalable=no', 'viewport-fit=cover']) assert.ok(vp.includes(k), `viewport has ${k}`);
-    const sheets = [...index.matchAll(/<link rel="stylesheet" href="(\/css\/[^"]+)"/g)].map((x) => x[1]);
-    assert.equal(sheets[sheets.length - 1], '/css/devices.css', 'devices.css is the last stylesheet');
+    const sheets = [...index.matchAll(/<link rel="stylesheet" href="(css\/[^"]+)"/g)].map((x) => x[1]);
+    assert.equal(sheets[sheets.length - 1], 'css/devices.css', 'devices.css is the last stylesheet');
+    for (const href of sheets) assert.ok(new URL(href, 'https://game.example/_release/r1/').pathname.startsWith('/_release/r1/css/'));
     assert.match(index, /<script nomodule>/, 'a browser without ES modules gets a message');
     assert.match(index, /onerror="window\.__spBootFail/, 'a module graph that cannot load gets a message');
     assert.match(index, /apple-mobile-web-app-capable/);

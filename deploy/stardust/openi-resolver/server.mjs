@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { resolve } from 'node:path';
@@ -418,17 +419,27 @@ export async function startServer(options = {}) {
     !/^[1-9]\d{0,4}$/.test(process.env.PORT))) fail('CONFIG');
   integer(port, options.port === 0 ? 0 : 1, 65535);
   let manifest = supplied;
+  // For file-backed production instances this hashes the EXACT mounted bytes, including whitespace.
+  // Programmatic fixtures have no source file and hash their explicit JSON representation instead.
+  let manifestBytes = supplied ? Buffer.from(JSON.stringify(supplied)) : null;
   if (!manifest) {
     try {
-      const data = await readFile(manifestPath);
-      if (data.length > 16 * 1024 * 1024) fail('CONFIG');
-      manifest = JSON.parse(data.toString('utf8'));
+      manifestBytes = await readFile(manifestPath);
+      if (manifestBytes.length > 16 * 1024 * 1024) fail('CONFIG');
+      manifest = JSON.parse(manifestBytes.toString('utf8'));
     } catch { fail('CONFIG'); }
   }
+  const material = { release: manifest.release, manifestHash: createHash('sha256').update(manifestBytes).digest('hex') };
   const resolver = new OpenIResolver({ manifest, ...resolverOptions, prewarm });
   const server = http.createServer({ maxHeaderSize: 8192, headersTimeout: 10000, requestTimeout: 15000, keepAliveTimeout: 5000 },
     (request, response) => {
       void (async () => {
+        // Metadata-only identity for the gate-internal rolling router across a Docker port mapping.
+        // Nginx and the gateway MUST NOT publish this endpoint. It exposes no health/state/signatures.
+        if (request.url === '/_material') {
+          if (!['GET', 'HEAD'].includes(request.method)) return send(response, request.method, 405, { Allow: 'GET, HEAD' });
+          return send(response, request.method, 200, { 'Content-Type': 'application/json' }, JSON.stringify(material));
+        }
         if (request.url.split('?', 1)[0] === '/healthz') {
           if (!loopback(request.socket.remoteAddress)) return send(response, request.method, 404);
           if (!['GET', 'HEAD'].includes(request.method)) return send(response, request.method, 405, { Allow: 'GET, HEAD' });

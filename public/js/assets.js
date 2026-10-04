@@ -38,6 +38,8 @@
 // so it can be unit tested without a browser. Helpers never throw on unknown ids — they return null and the
 // caller falls back (docs/ASSETS.md "Other fallbacks").
 
+import { releaseResource, pinAssetManifest } from './release.js';
+
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' && v ? v : null);
 const get = (o, k) => (isObj(o) && Object.hasOwn(o, k) ? o[k] : undefined);
@@ -644,12 +646,12 @@ const transientFetch = (err) => {
  */
 export function createAssets(options) {
   const opts = options && typeof options === 'object' ? options : {};
-  const url = opts.url || '/data/assets.json';
-  const localUrl = opts.localUrl || '/data/local-assets.json';
-  let localPromise = isObj(opts.localManifest) ? Promise.resolve(opts.localManifest) : null;
-  let localManifest = isObj(opts.localManifest) ? opts.localManifest : null;
+  const url = opts.url || releaseResource('/data/assets.json');
+  const localUrl = opts.localUrl || releaseResource('/data/local-assets.json');
+  let localManifest = isObj(opts.localManifest) ? pinAssetManifest(opts.localManifest) : null;
+  let localPromise = localManifest ? Promise.resolve(localManifest) : null;
   const doFetch = opts.fetch || ((...a) => globalThis.fetch(...a));
-  let manifest = isObj(opts.manifest) ? opts.manifest : null;
+  let manifest = isObj(opts.manifest) ? pinAssetManifest(opts.manifest) : null;
   let readyPromise = manifest ? Promise.resolve(manifest) : null;
   const loadImage = opts.loadImage || loadImageElement;
   const images = new Map(); // url → { promise, value }
@@ -672,8 +674,8 @@ export function createAssets(options) {
   /** Adopt a manifest (fetched or seeded): resolves `ready()`, stops the background tries, tells the listeners. */
   function adopt(m) {
     if (manifest || !isObj(m)) return false;
-    manifest = m;
-    readyPromise = Promise.resolve(m);
+    manifest = pinAssetManifest(m);
+    readyPromise = Promise.resolve(manifest);
     backoffN = 0;
     if (backoffTimer != null) { timers.clear(backoffTimer); backoffTimer = null; }
     notify('manifest');
@@ -776,7 +778,7 @@ export function createAssets(options) {
           const res = await doFetch(localUrl, { cache: 'no-cache' });
           if (!res || !res.ok) return localManifest;
           const json = await res.json();
-          if (!localManifest && isObj(json) && isObj(json.groups)) { localManifest = json; notify('local'); }
+          if (!localManifest && isObj(json) && isObj(json.groups)) { localManifest = pinAssetManifest(json); notify('local'); }
         } catch { /* optional art: absent */ }
         return localManifest;
       })();
@@ -796,8 +798,8 @@ export function createAssets(options) {
     /** The same for the optional local-client manifest (data.js 'local'; `{ groups }`), unless one is known. */
     seedLocal(lm) {
       if (localManifest || !isObj(lm) || !isObj(lm.groups)) return false;
-      localManifest = lm;
-      localPromise = Promise.resolve(lm);
+      localManifest = pinAssetManifest(lm);
+      localPromise = Promise.resolve(localManifest);
       notify('local');
       return true;
     },

@@ -518,8 +518,13 @@ test('workers: queued force controls cannot overtake a running advance or create
 });
 
 test('workers: disconnected and switched resync requests are pruned instead of starving advance', { timeout: 10_000 }, async (t) => {
-  const h = await readyControlled(t, { mode: 'coop', humans: 2 });
+  let clock = 1000;
+  const h = await readyControlled(t, { mode: 'coop', humans: 2, now: () => clock });
   const { m, pool, runner } = h;
+  m.sched.clearInterval(runner.interval);
+  runner.interval = null;
+  clock += 100;
+  runner._pump();
   const advance = await pool.next('advance');
   m._sendField('p_0', 'n:p_0');
   m.onDisconnect('p_0');
@@ -527,17 +532,25 @@ test('workers: disconnected and switched resync requests are pruned instead of s
   runner.requestField('p_1', 'n:p_0');
   m.watchers.set('p_1', 'n:p_1');
   const at = pool.sessions[0].commands.length;
+  clock += 100;
   await pool.deliver(advance);
   const next = await pool.next('advance');
   assert.equal(pool.sessions[0].commands[at].op, 'advance');
   assert.equal(runner.resync.size, 0);
+  clock += 100;
   await pool.deliver(next);
+  // Reply-driven catch-up can already have another advance in flight when reconnect arrives.
+  // This manual transport must deliver it, rather than waiting forever for a state behind it.
+  const catchingUp = await pool.next('advance');
+  const fieldsBefore = h.sent.filter(([pid, msg]) => pid === 'p_0' && msg.t === 'm.field').length;
   m.onReconnect('p_0');
   assert.equal(runner.resync.get('p_0'), 'n:p_0');
-  const state = await pool.next('state');
-  await pool.deliver(state);
+  await pool.deliver(catchingUp);
+  // A fresh frame can satisfy the resync itself; otherwise the next bounded command fetches state.
+  if (runner.resync.has('p_0')) await pool.deliver(await pool.next('state'));
   assert.equal(runner.resync.size, 0);
-  assert.ok(h.sent.some(([pid, msg]) => pid === 'p_0' && msg.t === 'm.field'));
+  assert.ok(h.sent.filter(([pid, msg]) => pid === 'p_0' && msg.t === 'm.field').length > fieldsBefore);
+  assert.equal(pool.maxInflight, 1);
 });
 
 for (const hidden of [false, true]) {

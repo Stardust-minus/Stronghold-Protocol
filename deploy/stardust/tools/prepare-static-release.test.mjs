@@ -11,7 +11,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { request } from 'node:http';
 import { VENDOR_FILES, VENDOR_REWRITES, rewriteBare } from '../../../tools/vendor.mjs';
 import { AUDIO_EXTS } from '../../../shared/media.js';
-import { AUDIO_MIME, FONT_CSS_SHA256, patchFonts, patchHooks, mediaMappings, nginxIncludes,
+import { buildFonts, FONTS } from '../../../tools/assets/fonts.mjs';
+import { AUDIO_MIME, FONT_CSS_SHA256, FONT_CSS_RELATIVE_SHA256, patchFonts, patchHooks, mediaMappings, nginxIncludes,
   prepareStaticRelease, verifyStaticRelease } from './prepare-static-release.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -105,7 +106,11 @@ test('exact current font CSS and single-instance hooks patches reject drift', ()
   assert.equal((patched.match(/url\('\.\//g) || []).length, 6);
   assert.doesNotMatch(patched, /url\('\/fonts\//);
   assert.throws(() => patchFonts(Buffer.from(FONT_CSS + '\n')), /Unexpected fonts/);
-  assert.throws(() => patchFonts(Buffer.from(patched)), /Unexpected fonts/);
+  assert.equal(sha256(patched), FONT_CSS_RELATIVE_SHA256);
+  assert.equal(patchFonts(Buffer.from(patched)).toString(), patched, 'reviewed relative output is idempotent');
+  for (const drift of [patched + '\n', patched.replace('400', '500'), patched.replace('./bender-regular.woff2', './other.woff2')]) {
+    assert.throws(() => patchFonts(Buffer.from(drift)), /Unexpected fonts/);
+  }
   const hooks = patchHooks(Buffer.from('import{options as n}from"./preact.module.js";export const hooks=n;')).toString();
   assert.match(hooks, /from"https:\/\/ark-proto\.stardust\.matce\.cn\/vendor\/preact\.module\.js"/);
   for (const bad of ['import{options as n}from"preact";', hooks,
@@ -113,6 +118,63 @@ test('exact current font CSS and single-instance hooks patches reject drift', ()
     'import{options as n}from"./preact.module.js";import{h}from"./other.js";']) {
     assert.throws(() => patchHooks(Buffer.from(bad)), /Unexpected hooks/);
   }
+});
+
+test('font generator emits the exact reviewed relative CSS without changing manifest URL semantics', async (t) => {
+  const f = await fixture(t);
+  const fontsDir = join(f.base, 'generated-fonts');
+  const sfnt = Buffer.alloc(84, 0);
+  sfnt.writeUInt32BE(0x4f54544f, 0); sfnt.writeUInt16BE(1, 4);
+  sfnt.write('head', 12, 'latin1'); sfnt.writeUInt32BE(28, 20); sfnt.writeUInt32BE(54, 24);
+  for (const font of FONTS) await put(join(fontsDir, `${font.name}.${font.ext}`), sfnt);
+  const generated = await buildFonts(fontsDir, () => {});
+  assert.deepEqual(generated.errors, []); assert.equal(sha256(generated.css), FONT_CSS_RELATIVE_SHA256);
+  assert.equal(generated.css, patchFonts(Buffer.from(FONT_CSS)).toString());
+  for (const font of FONTS) {
+    assert.equal(generated.files[font.name].original, `/fonts/${font.name}.${font.ext}`);
+    assert.equal(generated.files[font.name].woff2, `/fonts/${font.name}.woff2`);
+  }
+  assert.equal((await buildFonts(fontsDir, () => {})).css, generated.css);
+  assert.equal(new URL('./bender-regular.woff2', 'https://game.test/_release/game-r1/public/fonts/fonts.css').pathname,
+    '/_release/game-r1/public/fonts/bender-regular.woff2');
+});
+
+test('rolling hooks select the exact game-origin release identity and invalid IDs fail before writing', async (t) => {
+  const input = Buffer.from('import{options as n}from"./preact.module.js";export const hooks=n;');
+  const rolling = patchHooks(input, 'game-r1').toString();
+  assert.equal(rolling, 'import{options as n}from"https://ark-proto.stardust.matce.cn/_release/game-r1/public/vendor/preact.module.js";export const hooks=n;');
+  assert.doesNotMatch(rolling, /from"\.\//);
+  const f = await fixture(t);
+  for (const id of ['', '../escape', 'game.r1', 'x?other=1', 'x%2fother', 'x'.repeat(65), null, 7]) {
+    assert.throws(() => patchHooks(input, id), /Game release must/);
+    await assert.rejects(prepareStaticRelease({ ...f, gameReleaseId: id }), /Game release must/);
+    await absent(f.output);
+  }
+  assert.throws(() => patchHooks(Buffer.from(rolling), 'game-r2'), /Unexpected hooks/);
+});
+
+test('rolling preparation accepts reviewed relative fonts and verifies the recorded hooks release, including CLI', async (t) => {
+  const f = await fixture(t);
+  await put(join(f.source, 'public/fonts/fonts.css'), patchFonts(Buffer.from(FONT_CSS)));
+  const manifest = await prepareStaticRelease({ ...f, gameReleaseId: 'game-r1' });
+  assert.equal(manifest.gameReleaseId, 'game-r1');
+  const fontPatch = manifest.patches.find(({ path }) => path === 'fonts/fonts.css');
+  assert.equal(fontPatch.beforeSha256, FONT_CSS_RELATIVE_SHA256); assert.equal(fontPatch.afterSha256, FONT_CSS_RELATIVE_SHA256);
+  const hooks = await readFile(join(f.output, 'releases', RELEASE, 'vendor/hooks.module.js'), 'utf8');
+  assert.match(hooks, /_release\/game-r1\/public\/vendor\/preact\.module\.js/);
+  assert.deepEqual(await verifyStaticRelease(f.output), manifest);
+  const metadata = join(f.output, 'release-manifest.json');
+  for (const id of ['game-r2', undefined, '../escape', null]) {
+    const altered = { ...manifest, gameReleaseId: id };
+    await put(metadata, JSON.stringify(altered));
+    await assert.rejects(verifyStaticRelease(f.output), /Preact identity|Game release must/);
+  }
+  await put(metadata, JSON.stringify(manifest));
+  const output2 = join(f.base, 'cli-rolling');
+  const cli = spawnSync(process.execPath, [join(REPO, 'deploy/stardust/tools/prepare-static-release.mjs'),
+    '--source', f.source, '--out', output2, '--release', RELEASE, '--revision', REVISION, '--game-release', 'game-r1'], { encoding: 'utf8' });
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.equal((await verifyStaticRelease(output2)).gameReleaseId, 'game-r1');
 });
 
 test('offline preparation copies only public resources, records hashes/patches and verifies reproducibly', async (t) => {

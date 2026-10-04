@@ -45,8 +45,8 @@ releases/<release>/
 
 当前明确的分发适配（仅修改新静态副本，必须记录补丁及修改后哈希）：
 
-- `fonts/fonts.css`：`url('/fonts/…')` 改为 `url('./…')`，让跨域后的 CSS 相对最终 URL 找到字体。
-- `vendor/hooks.module.js`：导入 Preact 的路径统一为 `https://ark-proto.stardust.matce.cn/vendor/preact.module.js`。主游戏也从这个原始 URL 导入，防止重定向后的 hooks 相对新域名再次实例化一份 Preact。该路径返回小型重定向，库正文仍来自宁夏。
+- `fonts/fonts.css`：新生成器直接输出 `url('./…')`；原始 manifest URL 仍为 `/fonts/…`。准备器只接受两种已审查的完整六-URL CSS 摘要：legacy 根路径输入会转换，新相对路径输入精确幂等。不会因为任意 CSS 看起来是相对 URL 就放行；跨域后和 rolling `/public/fonts/` 下均按 CSS 最终 URL 找字体。
+- `vendor/hooks.module.js`：传统单版本准备默认统一为 `https://ark-proto.stardust.matce.cn/vendor/preact.module.js`，保持旧发布兼容。**滚动发布必须传 `--game-release <gateway-game-id>`**，导入改为 `https://ark-proto.stardust.matce.cn/_release/<gateway-game-id>/public/vendor/preact.module.js`，与主游戏同一 release 原始 URL 一致，防止 hooks 重定向到宁夏后相对导入产生第二份 Preact。库正文仍来自匹配的宁夏 release；不能继续用全局 `/vendor/preact…` 补丁宣称两个版本模块身份固定。
 - `/media/`：嘉兴只重定向到新 release 的 `/media/`，宁夏用准备时生成的精确文件 alias 供给正文。**客户端请求的无扩展名 URL 最终仍无扩展名**，不得再次重定向到 `.mp3` 等后缀。每个音频 stem 同时生成 `shared/media.js` 的 `AUDIO_EXTS` 所列后缀入口：请求后缀有文件时优先该文件，否则按共享扩展名顺序回退；Content-Type 始终由实际选中文件决定。不是开放任意路径/任意扩展名的文件解析器，也不另建一份音频目录。
 - 不盲目批量替换所有字符串或 URL。上游若调整 import 结构，现有适配条件不匹配时停止，重新分析并浏览器验收；不能忽略失败继续发布。
 - Three.js 的相对 module/core 引用以及字体 CORS 必须验收。当前公开静态源按用户要求使用 Access-Control-Allow-Origin: *，不启用 Allow-Credentials；还应从无关站点测试匿名 fetch、字体和 Canvas 读取。此设置不代表当前 Preact 适配版 vendor 对所有第三方站点通用。任何 import path 补丁都是发布单元的一部分，不是可丢失的临时修改。
@@ -66,9 +66,12 @@ node deploy/stardust/tools/prepare-static-release.mjs \
   --source "$APP_EXPORT" --revision "$SOURCE_REVISION" \
   --release "$STATIC_RELEASE" --out "$STAGE"
 node deploy/stardust/tools/prepare-static-release.mjs --verify "$STAGE"
+# 滚动版本必须使用新的 STAGE，并在准备命令中额外传入下面参数：
+# --game-release "$GAME_RELEASE_ID"
+# GAME_RELEASE_ID 是 gateway registry 的游戏 ID，不一定等于 STATIC_RELEASE/material/mirror ID。
 ```
 
-工具先校验 manifest 中所有本地资源存在且非空，核对 package/package-lock、已安装依赖版本/lock integrity 和 vendor 源文件字节。公开副本仅来自 assets/fonts/vendor：拒绝未知字体、未知 vendor、assets 中的业务代码、点路径、软/硬链接及非普通文件；不会复制 public/js、业务 CSS、data 或认证目录。两个补丁 fail closed：fonts.css 必须匹配当前完整六 URL 模板的摘要；hooks 必须是唯一的已知 Preact import。若上游变动导致条件失败，重新审查适配器，不能跳过校验。
+工具先校验 manifest 中所有本地资源存在且非空，核对 package/package-lock、已安装依赖版本/lock integrity 和 vendor 源文件字节。公开副本仅来自 assets/fonts/vendor：拒绝未知字体、未知 vendor、assets 中的业务代码、点路径、软/硬链接及非普通文件；不会复制 public/js、业务 CSS、data 或认证目录。两个补丁 fail closed：fonts.css 必须匹配已审查的 legacy 或精确相对路径六 URL 模板摘要；hooks 必须是唯一的已知 Preact import，滚动模式固定导向 `gameReleaseId` 的游戏 origin URL。若上游变动导致条件失败，重新审查适配器，不能跳过校验。
 
 生成目录：
 
@@ -83,7 +86,7 @@ node deploy/stardust/tools/prepare-static-release.mjs --verify "$STAGE"
   nginx/game-static-locations.conf     替换嘉兴 TLS server 的四个资源 location
 ```
 
-清单 `schemaVersion: 1` 记录 release/sourceRevision/appVersion、准备器 SHA-256、源输入摘要、补丁前后摘要、共享音频 prefix/扩展名顺序、每个公开文件的 path/bytes/SHA-256、每个音频 URL 的 requestedExtension/实际文件/实际 MIME，以及四个 include 的摘要。`--verify` 校验精确库存（额外文件也拒绝）、文件哈希、音频映射和生成配置。清单与配置不放入 `/srv/ark-static/releases/<release>/{assets,fonts,vendor}/`；精确 URI whitelist 即使目录中误入其他文件也不对外供给。
+清单 `schemaVersion: 1` 记录 release/sourceRevision/appVersion、滚动模式下的 gameReleaseId、准备器 SHA-256、源输入摘要、补丁前后摘要、共享音频 prefix/扩展名顺序、每个公开文件的 path/bytes/SHA-256、每个音频 URL 的 requestedExtension/实际文件/实际 MIME，以及四个 include 的摘要。`--verify` 校验精确库存（额外文件也拒绝）、文件哈希、音频映射和生成配置，并验证字体是精确已审查相对输出、hooks 的唯一原始 import URL 与记录的 gameReleaseId（或 legacy 默认）一致；只改 metadata 中的游戏 ID 不能通过。清单与配置不放入 `/srv/ark-static/releases/<release>/{assets,fonts,vendor}/`；精确 URI whitelist 即使目录中误入其他文件也不对外供给。
 
 本地测试：
 
@@ -104,6 +107,10 @@ NGINX_BIN="$LOCAL_NGINX" NGINX_MIME_TYPES="$LOCAL_MIME_TYPES" \
 启用 OpenI 签名解析后，宁夏仍是完整回退源及 fonts/vendor/PRTS 的正文源，不能省略上述准备。另按 `OPENI.md` 上传同一批已校验的 assets 到新 immutable mirror 前缀，生成/验证同版本 resolver manifest；音频远端名保持无扩展名。记录解析器代码/镜像 ID、清单 SHA-256、平台前缀和 fallback release。
 
 资源解析与游戏是独立发布线。只改变同字节素材的供应源时，只启动/更新 `compose.assets.yaml` 并平滑更新 Nginx，不能顺带重建游戏。游戏版本升级时则必须协调切换新的游戏、宁夏 fallback、OpenI mirror 和解析清单；旧静态准备器生成的四路直跳模板不能盲目覆盖现用 `/assets/`、`/media/` 解析路由。上传/签名能力不涉及 fonts/vendor/PRTS 的搬回嘉兴，也不允许把账户 Token 部署到前端或公开日志。
+
+### Rolling 的本地候选接入
+
+新增 `deploy/stardust/rolling/` Compose/env/registry/Nginx **候选文件**及真实隔离 TLS HTTP/WS smoke，入口与运行方法见 [ROLLING.md 本地候选部署接入](ROLLING.md#本地候选部署接入未激活)。它们不覆盖现用配置、不固定当前未提交源码的 release revision、不激活镜像；gateway 用 host network，游戏端口仅映射127.0.0.1，专用控制目录由同 UID1000 手工准备0700/文件0600。首装3108仍需空局且明确授权；新名字策略 auth 与新 `/_material` resolver 必须配套准备，旧 v3/仓库3111模板不可代替 live3110 基线。进一步的主线程 CPU profile/实际 offload 可作为后续独立版本，不应混入未经验证的发布代码。候选文件本身不构成上线授权；每次切换仍须核对当前对局、确认首次升级影响并取得对应维护窗口授权。
 
 ## 四、预更新：只上传新版本，不改变线上
 

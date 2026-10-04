@@ -32,7 +32,8 @@
     if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000-\u001f]/.test(value)) return null;
     try {
       const url = new URL(value, location.origin);
-      return url.origin === location.origin && ['/', '/index.html'].includes(url.pathname) ? url.pathname + url.search : null;
+      const page = ['/', '/index.html'].includes(url.pathname) || /^\/_release\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/public\/(?:index\.html)?$/.test(url.pathname);
+      return url.origin === location.origin && page ? url.pathname + url.search : null;
     } catch { return null; }
   }
   function cleanCallsign(raw) {
@@ -176,6 +177,17 @@
     introTimer = setTimeout(() => finishIntro(false), 1880);
   }
 
+  function rejectCallsign(result, node) {
+    if (result?.code !== 'NAME_REJECTED') return false;
+    autoAllowed = false;
+    callsign.disabled = false;
+    callsign.setAttribute('aria-invalid', 'true');
+    callsign.focus();
+    setPhase('error');
+    tell(node, typeof result.message === 'string' ? result.message : '博士代号包含不合适的内容，请换一个。');
+    return true;
+  }
+
   async function continueSession(automatic = false) {
     if (pending || committed || (automatic && !autoAllowed)) return;
     const next = entryPath(returnLink.getAttribute('href')) || '/';
@@ -184,10 +196,13 @@
     pending = true; callsign.disabled = true; returnLink.setAttribute('aria-disabled', 'true');
     const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(next, { method: 'HEAD', credentials: 'same-origin', cache: 'no-store', redirect: 'manual', signal: controller.signal });
-      if (response.ok && (!automatic || autoAllowed)) enter(next, name);
+      const payload = new URLSearchParams({ csrf: form.elements.csrf.value, next, callsign: name });
+      const response = await fetch('/_gate/profile', { method: 'POST', headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store', body: payload, signal: controller.signal });
+      const result = await response.json().catch(() => null);
+      if (rejectCallsign(result, statusMessage)) return;
+      if (response.ok && result?.ok === true && typeof result.callsign === 'string' && (!automatic || autoAllowed)) enter(result.next, result.callsign);
       else if (response.status === 401 || response.status === 303) location.replace('/login?next=' + encodeURIComponent(next));
-      else tell(statusMessage, '暂时无法进入终端，请稍后重试。');
+      else tell(statusMessage, typeof result?.message === 'string' ? result.message : '暂时无法进入终端，请稍后重试。');
     } catch { tell(statusMessage, '连接失败，请检查网络后重试。'); }
     finally { clearTimeout(timeout); pending = false; if (!committed) { callsign.disabled = false; returnLink.removeAttribute('aria-disabled'); } }
   }
@@ -215,6 +230,7 @@
           retryAt = Date.now() + Math.min(wait, 86400) * 1000;
           setPhase('error'); tell(message, `验证请求过于频繁，请 ${Math.ceil(wait)} 秒后重试。`); return;
         }
+        if (rejectCallsign(result, message)) return;
         if (!response.ok || result?.ok !== true) {
           setPhase('error');
           tell(message, typeof result?.message === 'string' ? result.message : '验证服务暂时不可用，请稍后再试。');
@@ -225,7 +241,8 @@
         input.value = ''; input.type = 'password'; toggle.textContent = '显示'; toggle.setAttribute('aria-pressed', 'false');
         if (!next) { setPhase('error'); tell(message, '访问已获授权，请刷新此页后继续。'); return; }
         tell(message, '访问权限已确认。', 'success');
-        enter(next, name);
+        if (typeof result.callsign !== 'string' || !result.callsign) { setPhase('error'); tell(message, '代号校验未完成，请刷新后重试。'); return; }
+        enter(next, result.callsign);
       } catch (error) {
         if (!committed) { setPhase('error'); tell(message, error.name === 'AbortError' ? '验证请求超时，请重试。' : '无法连接认证服务，请检查网络。'); }
         else navigate();

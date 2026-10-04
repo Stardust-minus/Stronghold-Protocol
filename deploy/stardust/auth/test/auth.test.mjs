@@ -29,7 +29,7 @@ async function page(base, next = '/', existing = '') {
   return { r, html, cookie, csrf };
 }
 async function post(base, session, extra = {}, headers = {}, path = '/_gate/login') {
-  return fetch(base + path, { method: 'POST', redirect: 'manual', headers: { Origin: ORIGIN, Accept: 'application/json', Cookie: session.cookie, ...headers }, body: new URLSearchParams({ csrf: session.csrf, password, next: '/', ...extra }) });
+  return fetch(base + path, { method: 'POST', redirect: 'manual', headers: { Origin: ORIGIN, Accept: 'application/json', Cookie: session.cookie, ...headers }, body: new URLSearchParams({ csrf: session.csrf, password, callsign: '阿米娅', next: '/', ...extra }) });
 }
 
 test('credentials validate and reject weak or malformed configuration', async () => {
@@ -104,7 +104,7 @@ test('valid login, cookie check, persistence, and browser logout', async t => {
   const p = await page(base);
   const r = await post(base, p, { next: '/?room=ABCD&foo=a%26b' });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, next: '/?room=ABCD&foo=a%26b' });
+  assert.deepEqual(await r.json(), { ok: true, next: '/?room=ABCD&foo=a%26b', callsign: '阿米娅' });
   const auth = r.headers.get('set-cookie');
   assert.match(auth, /Max-Age=604800/);
   assert.match(auth, /^__Host-ark_gate=/);
@@ -201,4 +201,82 @@ test('parallel derivations are bounded instead of creating an unbounded work que
   const responses = await Promise.all(Array.from({ length: 8 }, () => post(base, p, { password: 'wrong' })));
   assert.ok(responses.some(r => r.status === 429));
   assert.ok(responses.every(r => [401, 429].includes(r.status)));
+});
+
+test('safeNext preserves exact rolling game entry routes but no code/assets or path traversal', () => {
+  for (const path of ['/_release/old/public/?room=ABCD', '/_release/r2_2026/public/index.html?room=ABCD&note=a%26b']) {
+    assert.equal(safeNext(path), path);
+    assert.equal(gameDestination(path), path + '&_prts=1');
+  }
+  for (const path of ['/_release/.old/public/', '/_release/old/public', '/_release/old/public/js/main.js',
+    '/_release/old/public/assets/', '/_release/old/private/', '/_release/old/public/../public/',
+    '/_release/old/public/%2e%2e/public/', '/_release/' + 'a'.repeat(65) + '/public/',
+    '/_release/old/public//evil.test', '/_release/old/public/?x=%0d%0a', '/_release/old/public/#hash']) {
+    assert.equal(safeNext(path), '/');
+  }
+});
+
+test('login moderates callsign before issuing a session and never reflects a rejected value', async t => {
+  const base = await start(t, { limiter: new AttemptLimiter({ perIP: 100, global: 100 }) });
+  const p = await page(base);
+  for (const callsign of ['傻逼', '傻​逼', 'ＦＵＣＫ', 'f.u.c.k', 'ＮＩＧＧＥＲ', '操你妈']) {
+    const response = await post(base, p, { callsign });
+    assert.equal(response.status, 400);
+    assert.equal(response.headers.get('set-cookie'), null);
+    assert.deepEqual(await response.json(), { ok: false, message: '代号含有不适宜内容，请换一个昵称。', code: 'NAME_REJECTED', reason: 'sensitive' });
+    assert.equal((await fetch(base + '/check')).status, 401);
+  }
+  const valid = await post(base, p, { callsign: ' Ａｍｉｙａ ', next: '/_release/old/public/?room=ABCD' });
+  assert.equal(valid.status, 200);
+  assert.deepEqual(await valid.json(), { ok: true, next: '/_release/old/public/?room=ABCD', callsign: 'Amiya' });
+  assert.match(valid.headers.get('set-cookie'), /^__Host-ark_gate=/);
+});
+
+test('callsign rejection cannot bypass Origin, CSRF, password verification or attempt limits', async t => {
+  const base = await start(t, { limiter: new AttemptLimiter({ perIP: 2 }) });
+  const p = await page(base), rejectedName = 'ＦＵＣＫ';
+  assert.equal((await post(base, p, { callsign: rejectedName }, { Origin: 'https://evil.test' })).status, 403);
+  assert.equal((await post(base, p, { callsign: rejectedName, csrf: 'invalid' })).status, 403);
+  const badPassword = await post(base, p, { callsign: rejectedName, password: 'incorrect' });
+  assert.equal(badPassword.status, 401);
+  assert.equal(Object.hasOwn(await badPassword.json(), 'code'), false);
+  assert.equal((await post(base, p, { callsign: rejectedName })).status, 400);
+  assert.equal((await post(base, p)).status, 429);
+});
+
+test('missing/empty/oversized/duplicate callsign fails without a placeholder identity', async t => {
+  const base = await start(t); const p = await page(base);
+  for (const callsign of ['', '͏​‮', 'x'.repeat(13), '​'.repeat(300)]) {
+    const response = await post(base, p, { callsign });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, 'NAME_REJECTED');
+    assert.equal(response.headers.get('set-cookie'), null);
+  }
+  const fields = new URLSearchParams({ password, csrf: p.csrf, next: '/' });
+  const missing = await fetch(base + '/_gate/login', { method: 'POST', headers: { Origin: ORIGIN, Accept: 'application/json', Cookie: p.cookie }, body: fields });
+  assert.equal(missing.status, 400);
+  assert.equal((await missing.json()).code, 'NAME_REJECTED');
+  fields.append('callsign', '阿米娅'); fields.append('callsign', '凯尔希');
+  const duplicate = await fetch(base + '/_gate/login', { method: 'POST', headers: { Origin: ORIGIN, Accept: 'application/json', Cookie: p.cookie }, body: fields });
+  assert.equal(duplicate.status, 400);
+});
+
+test('authenticated profile rechecks legacy callsign using Origin and CSRF without changing its session', async t => {
+  const base = await start(t), p = await page(base);
+  const auth = SESSION_COOKIE + '=' + signToken('session', validateSecrets(secrets).signingKey);
+  const remembered = { ...p, cookie: p.cookie + '; ' + auth };
+  assert.equal((await fetch(base + '/check', { headers: { Cookie: remembered.cookie } })).status, 204);
+  const bad = await post(base, remembered, { callsign: '傻​逼' }, {}, '/_gate/profile');
+  assert.equal(bad.status, 400);
+  assert.equal(bad.headers.get('set-cookie'), null);
+  assert.deepEqual(await bad.json(), { ok: false, message: '代号含有不适宜内容，请换一个昵称。', code: 'NAME_REJECTED', reason: 'sensitive' });
+  assert.equal((await fetch(base + '/check', { headers: { Cookie: remembered.cookie } })).status, 204);
+  const good = await post(base, remembered, { callsign: ' Ａｍｉｙａ ', next: '/_release/old/public/?room=ABCD' }, {}, '/_gate/profile');
+  assert.equal(good.status, 200);
+  assert.equal(good.headers.get('set-cookie'), null);
+  assert.deepEqual(await good.json(), { ok: true, next: '/_release/old/public/?room=ABCD', callsign: 'Amiya' });
+  assert.equal((await post(base, p, {}, {}, '/_gate/profile')).status, 401);
+  assert.equal((await post(base, remembered, { csrf: 'invalid' }, {}, '/_gate/profile')).status, 403);
+  assert.equal((await post(base, remembered, {}, { Origin: 'https://evil.test' }, '/_gate/profile')).status, 403);
+  assert.equal((await fetch(base + '/_gate/profile')).status, 404);
 });

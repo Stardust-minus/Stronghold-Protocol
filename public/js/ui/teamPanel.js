@@ -22,6 +22,7 @@ import { EmoteBubble } from './emotes.js';
 import { STATUS_META, sortedPlayers } from './gameLogic.js';
 import { MissTag, uniteRemaining } from './hud.js';
 import { localAsset } from '../data.js';
+import { ReviveAction, RevivalNotice } from './revival.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -85,10 +86,11 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
     setOpenPid((cur) => (cur === p.playerId ? null : p.playerId));
   };
   return html`<aside class=${cx('team', compact && 'team--compact')} aria-label="同盟成员">
+    <${RevivalNotice} pub=${pub} />
     ${players.map((p) => {
       const self = p.playerId === myId;
-      const status = p.alive === false ? 'dead' : p.status;
-      const meta = STATUS_META[status] || STATUS_META.acting;
+      const status = p.pendingDeath ? 'rescue' : p.alive === false ? 'dead' : p.status;
+      const meta = p.pendingDeath ? { ...STATUS_META.deciding, text: '等待救援' } : STATUS_META[status] || STATUS_META.acting;
       const watched = watching && (watching === p.fieldId || watching === `n:${p.playerId}`);
       const bubble = bubbles?.get(p.playerId);
       const offline = p.connected === false && !p.isBot;
@@ -96,7 +98,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
       const back = !!observe && self && observe.observing;
       const title = observe ? (self ? (observe.observing ? '返回战场' : '你自己') : `查看 ${p.name} 的战场`) : (self ? '查看自己的阵地' : `查看 ${p.name} 的阵地`);
       const lp = rowLp(p, pub, self ? selfLive : null, { uniteLocal, cap });
-      return html`<div key=${p.playerId} class=${cx('team__row', self && 'is-self', watched && 'is-watched', p.alive === false && 'is-dead', open && 'is-open')}>
+      return html`<div key=${p.playerId} class=${cx('team__row', self && 'is-self', watched && 'is-watched', p.alive === false && !p.pendingDeath && 'is-dead', p.pendingDeath && 'is-pending', open && 'is-open')}>
         <button type="button" class="team__btn" onClick=${() => click(p, self)} title=${title} aria-expanded=${observe && !self ? String(open) : undefined}>
           <${PlayerAvatar} player=${p} self=${self} />
           <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>
@@ -118,6 +120,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
             <//>
             ${watched && !self ? html`<span class="team__eye" title="正在查看"><${GIcon} name="eye" /></span>` : null}
           </div>
+          <${ReviveAction} pub=${pub} myId=${myId} target=${p} />
           ${open ? html`<button type="button" class="btn btn--primary btn--sm team__ob"
             onClick=${() => { setOpenPid(null); onWatch(p); }}><span class="btn__label">前往查看</span></button>` : null}
           ${back ? html`<button type="button" class="btn btn--secondary btn--sm team__back"

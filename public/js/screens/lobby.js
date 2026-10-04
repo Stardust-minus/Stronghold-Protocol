@@ -16,6 +16,7 @@ import { LoadoutButton } from './loadout.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { getConfig, getMode, getStage, useData } from '../data.js';
+import { OnlinePlayers, MatchmakingPanel, queueActive } from '../ui/matchmaking.js';
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
 export const MODE_TEXT = {
@@ -72,6 +73,11 @@ const MODE_CARDS = [
     id: 'coop', name: '同盟模拟', en: 'ALLIANCE SIMULATION', icon: 'users',
     desc: `与至多 ${MAX_SEATS - 1} 名博士组成同盟，共享干员池，联防协作抵御敌潮。`,
     points: [`1–${MAX_SEATS} 名博士 · 可由 AI 队友补位`, '联防阶段 · 最终攻势合并生命值'],
+  },
+  {
+    id: 'match', name: '多人匹配', en: 'PUBLIC MATCHMAKING', icon: 'search',
+    desc: '寻找相同难度的博士，确认后组成四人同盟。',
+    points: ['4 名真人 · 不自动补 AI', '入场确认后投票、准备开局'],
   },
 ];
 
@@ -177,8 +183,8 @@ function TipsPanel() {
   </div>`;
 }
 
-function ModeCard({ card, selected, onSelect }) {
-  return html`<button type="button" class=${`mode-card brackets${selected ? ' is-selected' : ''}`} onClick=${() => onSelect(card.id)}
+function ModeCard({ card, selected, onSelect, disabled = false }) {
+  return html`<button type="button" disabled=${disabled} class=${`mode-card brackets${card.id === 'match' ? ' mode-card--match' : ''}${selected ? ' is-selected' : ''}`} onClick=${() => onSelect(card.id)}
       aria-pressed=${selected ? 'true' : 'false'}>
     <span class="mode-card__bg" aria-hidden="true"></span>
     <span class="mode-card__icon"><${Icon} name=${card.icon} /></span>
@@ -192,10 +198,10 @@ function ModeCard({ card, selected, onSelect }) {
   </button>`;
 }
 
-function DifficultyCard({ roomMode, difficulty, selected, onSelect }) {
+function DifficultyCard({ roomMode, difficulty, selected, onSelect, disabled = false }) {
   const info = difficultyInfo(roomMode, difficulty);
   return html`<button type="button" class=${`diff-card${selected ? ' is-selected' : ''}`}
-      style=${`--d-color:${DIFFICULTY_COLORS[difficulty]}`} onClick=${() => onSelect(difficulty)} aria-pressed=${selected ? 'true' : 'false'}>
+      style=${`--d-color:${DIFFICULTY_COLORS[difficulty]}`} disabled=${disabled} onClick=${() => onSelect(difficulty)} aria-pressed=${selected ? 'true' : 'false'}>
     <span class="diff-card__bar" aria-hidden="true"></span>
     <span class="diff-card__head">
       <${DifficultyIcon} difficulty=${difficulty} class="diff-card__glyph" />
@@ -216,7 +222,13 @@ export function LobbyScreen() {
   const me = useStore((s) => s.me, shallowEqual);
   const conn = useStore((s) => s.connection, shallowEqual);
   useData('config');
-  const [roomMode, setRoomMode] = useState(() => (loadPref('lobby.mode', 'coop') === 'solo' ? 'solo' : 'coop'));
+  const queue = useStore((s) => s.queue);
+  const queued = queueActive(queue);
+  const [roomMode, setRoomMode] = useState(() => {
+    const mode = loadPref('lobby.mode', 'coop');
+    return ['solo', 'coop', 'match'].includes(mode) ? mode : 'coop';
+  });
+  const matching = roomMode === 'match' || queued;
   const [difficulty, setDifficulty] = useState(() => {
     const d = loadPref('lobby.difficulty', 'FUNNY');
     return DIFFICULTIES.includes(d) ? d : 'FUNNY';
@@ -228,7 +240,9 @@ export function LobbyScreen() {
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
 
+  const draining = useStore((s) => s.server?.draining === true);
   const online = conn.status === 'online';
+  const accepting = online && !draining;
   const codeOk = CODE_RE.test(code);
 
   const pickMode = (m) => { setRoomMode(m); savePref('lobby.mode', m); };
@@ -237,6 +251,7 @@ export function LobbyScreen() {
   const run = async (kind, fn) => {
     if (inFlight.current) return;
     if (!online) { toast('尚未连接到服务器，请稍候', 'warn'); return; }
+    if (draining) { toast('此版本停止接收新局，请进入新版大厅', 'warn'); return; }
     inFlight.current = true;
     setBusy(kind);
     try { await fn(); } catch (err) { toastError(err); } finally {
@@ -244,13 +259,17 @@ export function LobbyScreen() {
       if (alive.current) setBusy(null);
     }
   };
-  const create = () => run('create', () => net.request('room.create', { mode: roomMode, difficulty }));
+  const create = () => run('create', () => matching
+    ? net.request('queue.join', { difficulty })
+    : net.request('room.create', { mode: roomMode, difficulty }));
   const join = (c = code) => {
+    if (queued) { toast('请先取消多人匹配，再加入好友同盟', 'warn'); return; }
     const k = normalizeCode(c);
     if (!CODE_RE.test(k)) { toast(`同盟密钥为 ${ROOM_CODE_LEN} 位字母或数字`, 'warn'); return; }
     run('join', () => net.request('room.join', { code: k }));
   };
   const backToTitle = () => {
+    if (queued) { toast('请先取消多人匹配再返回', 'warn'); return; }
     identity.setEntered(false);
     store.set((s) => ({ session: { ...s.session, entered: false } }));
   };
@@ -260,6 +279,7 @@ export function LobbyScreen() {
       <div class="topbar__left">
         <${Button} variant="ghost" size="sm" icon="chevronLeft" onClick=${backToTitle} title="返回标题">返回<//>
         <${PingPill} ms=${conn.ping} online=${online} />
+        <${OnlinePlayers} />
       </div>
       <div class="topbar__center">
         <${MicroLabel} tone="mint">SIMULATION PROTOCOL SELECT<//>
@@ -282,7 +302,7 @@ export function LobbyScreen() {
       <section class="lobby-left">
         <div class="section-label"><span class="section-label__idx num">01</span>模拟方式<${MicroLabel}>MODE<//></div>
         <div class="mode-cards">
-          ${MODE_CARDS.map((c) => html`<${ModeCard} key=${c.id} card=${c} selected=${roomMode === c.id} onSelect=${pickMode} />`)}
+          ${MODE_CARDS.map((c) => html`<${ModeCard} key=${c.id} card=${c} selected=${(matching ? 'match' : roomMode) === c.id} onSelect=${pickMode} disabled=${queued || !!busy} />`)}
         </div>
 
         <div class="section-label"><span class="section-label__idx num">03</span>加入同盟<${MicroLabel}>JOIN WITH ALLIANCE KEY<//></div>
@@ -290,7 +310,7 @@ export function LobbyScreen() {
           <div class="join-row">
             <${TextField} size="code" icon="key" value=${code} placeholder="输入同盟密钥 / 粘贴邀请链接"
               transform=${normalizeCode} onInput=${(v) => setCode(normalizeCode(v))} onEnter=${() => join()} />
-            <${Button} variant="amber" size="lg" icon="users" loading=${busy === 'join'} disabled=${!codeOk || !online} onClick=${() => join()}>加入同盟<//>
+            <${Button} variant="amber" size="lg" icon="users" loading=${busy === 'join'} disabled=${!codeOk || !accepting || queued || !!busy} onClick=${() => join()}>加入同盟<//>
           </div>
           <div class="join-foot">
             ${recent.length ? html`<span class="t-lo">最近的同盟</span>
@@ -304,11 +324,11 @@ export function LobbyScreen() {
       <section class="lobby-right">
         <div class="section-label"><span class="section-label__idx num">02</span>模拟难度<${MicroLabel}>DIFFICULTY<//></div>
         <div class="diff-list">
-          ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${roomMode} difficulty=${d} selected=${difficulty === d} onSelect=${pickDifficulty} />`)}
+          ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${matching ? 'coop' : roomMode} difficulty=${d} selected=${(queued ? queue.difficulty : difficulty) === d} onSelect=${pickDifficulty} disabled=${queued || !!busy} />`)}
         </div>
-        <div class="create-box">
+        ${matching ? html`<${MatchmakingPanel} queue=${queue} difficulty=${difficulty} online=${online} joining=${busy === 'create'} accepting=${!draining} onJoin=${create} />` : html`<div class="create-box">
           <${Tooltip} block=${true} text=${online ? null : '正在连接服务器…'}>
-            <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!online} onClick=${create}>
+            <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!accepting} onClick=${create}>
               ${roomMode === 'solo' ? '开始独立模拟' : '创建同盟'}
             <//>
           <//>
@@ -317,7 +337,7 @@ export function LobbyScreen() {
               ? html`<span>${roomMode === 'solo' ? '创建后即可开始模拟' : '创建后可邀请好友或添加 AI 队友'}</span>`
               : html`<${Spinner} size="sm" label="CONNECTING" />`}
           </div>
-        </div>
+        </div>`}
       </section>
     </div>
   </div>`;

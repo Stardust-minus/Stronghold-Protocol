@@ -1,0 +1,61 @@
+# LOCAL CANDIDATE ONLY. Auth/resolver remain separate from every game and the gateway.
+# Requires NEW auth (shared name policy) and NEW resolver (/_material); old auth/v3 are not substitutes.
+name: ark-rolling-sidecars-${SP_RELEASE_ID:?choose a new immutable release ID}
+services:
+  auth:
+    image: ${ARK_AUTH_IMAGE:?set a new name-policy auth image}
+    pull_policy: never
+    user: "1000:1000"
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ARK_AUTH_PORT:?choose an unused staging port}:3000"
+    environment:
+      AUTH_SECRETS_FILE: /run/secrets/ark-gate.json
+    volumes:
+      - type: bind
+        source: ${ARK_AUTH_SECRETS_FILE:?provide the existing private gate file outside checkout}
+        target: /run/secrets/ark-gate.json
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: "0.50"
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+  assets:
+    image: ${ARK_ASSETS_IMAGE:?set a new material-metadata resolver image, not v3}
+    pull_policy: never
+    user: "1000:1000"
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ARK_ASSETS_PORT:?choose a new per-release loopback port}:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      ASSET_MANIFEST: /run/config/openi-assets.json
+      PREWARM: "1"
+    volumes:
+      - type: bind
+        source: ${ARK_ASSET_MANIFEST:?provide this release's verified private manifest}
+        target: /run/config/openi-assets.json
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=8m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: "0.50"
+    mem_limit: 192m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}

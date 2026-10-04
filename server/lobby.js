@@ -58,11 +58,12 @@
 //     and refuses it afterwards (WRONG_PHASE: the match's loadout is locked, the stored one applies to the next match).
 
 import { randomBytes, randomInt } from 'node:crypto';
-import { ERR, MAX_SEATS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
+import { ERR, MAX_SEATS, ROOM_CODE_LEN, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
+import { Matchmaking } from './matchmaking.js';
 
 /** Room code alphabet: uppercase letters without I and O (and no digits, so no 0/1). */
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -75,6 +76,7 @@ export const LOBBY_DEFAULTS = Object.freeze({
   maxMatchesPerAddr: 8,   // matches started from one client network that may run at once (0 = unlimited)
   resyncMinGapMs: 1000,   // heavy resyncs (match state / result replay) per session at most this often on repeated hellos
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
+  matchmaking: null,           // bounded queue options; defaults live in matchmaking.js
 });
 
 /** Official `singleReconnectTime` (s) when the data lacks it (constData, research 01 §1). */
@@ -115,6 +117,11 @@ export class Room {
     /** @type {{ live: boolean, ended: boolean, disposed: boolean, match: any } | null} */
     this.matchCtx = null;
     this.matchCount = 0;
+    this.revivalLocked = null;
+    this.source = 'private';
+    // Public rooms charge every participant's network, not a rotating/randomly selected host alone.
+    this.ownerKeys = null;
+    this.matchKeys = null;
     /** @type {any} summary passed to onEnd by the last match */
     this.lastSummary = null;
     /**
@@ -142,6 +149,12 @@ export class Room {
   /** Humans that have not departed, in seat order. @returns {Seat[]} */
   activeHumans() { return this.seats.filter((s) => s && !s.isBot && !s.left); }
 
+  revivalState() {
+    if (this.revivalLocked) return { ...this.revivalLocked };
+    const yes = this.activeHumans().filter((s) => s.revivalVote === true).length;
+    return { yes, required: 3, enabled: this.mode === 'coop' && yes >= 3 };
+  }
+
   /** `room.state` frame (DESIGN §8.1) plus `inMatch`. */
   toState() {
     return {
@@ -151,8 +164,10 @@ export class Room {
       mode: this.mode,
       difficulty: this.difficulty,
       inMatch: !!this.match,
+      source: this.source,
+      revival: this.revivalState(),
       seats: this.seats.map((s) => (s
-        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
+        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left, revivalVote: s.isBot ? null : s.revivalVote ?? null }
         : null)),
     };
   }
@@ -188,6 +203,17 @@ export class Lobby {
     this.resyncTimers = new Map();
     /** per-network limit warnings: at most one log line per 10 s (the rest are counted) */
     this.limitLog = { at: -Infinity, suppressed: 0 };
+    this.draining = false;
+    this.releaseId = null;
+    this.online = new Map();
+    this.presenceSeq = 0;
+    this.presenceTimer = null;
+    this.presencePublishedAt = -Infinity;
+    this.queue = new Matchmaking({
+      now, options: this.opts.matchmaking || {}, send: sendSession,
+      available: (s) => this.isOnline(s) && !this.roomOf(s),
+      allocate: (sessions, difficulty) => this.allocateMatchmadeRoom(sessions, difficulty),
+    });
   }
 
   /** @param {string} code @returns {Room | null} */
@@ -202,7 +228,68 @@ export class Lobby {
       if (r.match) matches++;
       for (const s of r.seats) if (s && !s.left) (s.isBot ? bots++ : humans++);
     }
-    return { rooms: this.rooms.size, matches, humans, bots };
+    return { rooms: this.rooms.size, matches, humans, bots, online: this.online.size, queued: this.queue.size, draining: this.draining };
+  }
+
+  /** Retire only without live players or retained room/result ownership; roomless offline identities need no game state. */
+  getRollingStatus() {
+    const base = this.stats();
+    let retainedSessions = 0;
+    for (const session of this.registry.all()) if (session.roomCode || session.pendingResult || session.notice) retainedSessions++;
+    let matchOnline = 0;
+    let queueOnline = 0;
+    for (const session of this.online.values()) {
+      if (!this.isOnline(session)) continue;
+      if (this.queue.has(session)) queueOnline++;
+      else if (this.roomOf(session)?.match) matchOnline++;
+    }
+    return {
+      draining: this.draining, currentReleaseId: this.releaseId, rooms: base.rooms, matches: base.matches,
+      sessions: this.registry.size, retainedSessions, queued: this.queue.size, online: this.online.size,
+      lobbyOnline: this.online.size - matchOnline - queueOnline, matchOnline, queueOnline,
+      canRetire: this.draining && this.rooms.size === 0 && retainedSessions === 0 && this.online.size === 0 && this.queue.size === 0,
+    };
+  }
+
+  isOnline(session) {
+    return !!session?.connected && session.ws?.readyState === 1 && this.registry.byId(session.playerId) === session;
+  }
+
+  presenceState() { return { t: 'presence.state', online: this.online.size, seq: this.presenceSeq, serverNow: this.now() }; }
+  serverState() { return { t: 'server.state', draining: this.draining, releaseId: this.releaseId }; }
+
+  presenceChanged(session, connected) {
+    const changed = connected ? !this.online.has(session.playerId) : this.online.has(session.playerId);
+    if (connected) this.online.set(session.playerId, session);
+    else this.online.delete(session.playerId);
+    if (!changed) return;
+    this.presenceSeq++;
+    if (this.presenceTimer != null) return;
+    this.presenceTimer = setTimeout(() => this.publishPresence(), Math.max(0, this.presencePublishedAt + 1000 - this.now()));
+    this.presenceTimer.unref?.();
+  }
+
+  publishPresence() {
+    if (this.presenceTimer != null) clearTimeout(this.presenceTimer);
+    this.presenceTimer = null;
+    this.presencePublishedAt = this.now();
+    const frame = encode(this.presenceState());
+    for (const session of this.online.values()) if (this.isOnline(session)) sendRaw(session.ws, frame);
+  }
+
+  /** Admission-only drain; releaseId names the current destination, not this process's immutable backend identity. */
+  setDraining(value, releaseId = this.releaseId) {
+    if (typeof value !== 'boolean' || (releaseId != null && (typeof releaseId !== 'string' || !/^[A-Za-z0-9_.-]{1,64}$/.test(releaseId)))) {
+      throw new TypeError('invalid draining state');
+    }
+    const changed = value !== this.draining || releaseId !== this.releaseId;
+    this.draining = value;
+    this.releaseId = releaseId;
+    this.queue.setDraining(value);
+    if (changed) {
+      const frame = encode(this.serverState());
+      for (const session of this.online.values()) if (this.isOnline(session)) sendRaw(session.ws, frame);
+    }
   }
 
   // ---------------------------------------------------------------------------------------------------
@@ -215,6 +302,10 @@ export class Lobby {
    * @param {{ resumed: boolean, repeat: boolean }} info
    */
   onHello(session, { resumed, repeat }) {
+    this.presenceChanged(session, this.isOnline(session));
+    sendSession(session, this.presenceState());
+    sendSession(session, this.serverState());
+    this.queue.sync(session);
     if (!resumed && !repeat) return;
     const room = this.roomOf(session);
     if (!room) {
@@ -255,6 +346,10 @@ export class Lobby {
       case 'room.join': return this.join(session, msg);
       case 'room.leave': return this.leave(session);
       case 'room.ready': return this.ready(session, msg);
+      case 'room.voteRevival': return this.voteRevival(session, msg);
+      case 'queue.join': return this.queue.join(session, msg);
+      case 'queue.cancel': return this.queue.cancel(session, msg);
+      case 'queue.accept': return this.queue.accept(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
       case 'room.addBot': return this.addBot(session);
       case 'room.removeBot': return this.removeBot(session, msg);
@@ -268,6 +363,9 @@ export class Lobby {
 
   /** The session's socket closed. @param {import('./net.js').Session} session */
   onDisconnect(session) {
+    if (this.isOnline(session)) return; // an obsolete socket must not detach its replacement
+    this.presenceChanged(session, false);
+    this.queue.remove(session, 'disconnected');
     this.clearResync(session.playerId); // the next resume resyncs immediately
     const room = this.roomOf(session);
     // a solo run may be resumed within singleReconnectTime (24 h); everything else keeps the registry's window
@@ -282,6 +380,8 @@ export class Lobby {
 
   /** The session's reconnect window elapsed (already removed from the registry). */
   onExpire(session) {
+    this.presenceChanged(session, false);
+    this.queue.remove(session, 'expired');
     session.notice = null;
     session.pendingResult = null;
     this.clearResync(session.playerId);
@@ -296,6 +396,10 @@ export class Lobby {
    * @param {string} [reason]
    */
   shutdown(reason = 'shutdown') {
+    this.queue.close();
+    if (this.presenceTimer != null) clearTimeout(this.presenceTimer);
+    this.presenceTimer = null;
+    this.online.clear();
     for (const room of [...this.rooms.values()]) this.disposeRoom(room, reason);
     for (const t of this.graceTimers.values()) clearTimeout(t);
     this.graceTimers.clear();
@@ -308,14 +412,16 @@ export class Lobby {
   // ---------------------------------------------------------------------------------------------------
 
   create(session, { mode, difficulty }) {
+    if (this.draining) return fail(ERR.MAINTENANCE);
+    if (this.queue.has(session)) return fail(ERR.QUEUED);
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (this.rooms.size >= this.opts.maxRooms) return fail(ERR.INTERNAL, 'too many rooms');
     const key = session.limitKey || null;
     if (key && this.opts.maxRoomsPerAddr > 0) {
       // The room being left disappears with this create when the creator is its only human.
-      const leaving = cur && cur.ownerKey === key && cur.activeHumans().length === 1 ? 1 : 0;
-      if (this.countRooms((r) => r.ownerKey === key) - leaving >= this.opts.maxRoomsPerAddr) {
+      const leaving = cur && this.roomCharges(cur, key) && cur.activeHumans().length === 1 ? 1 : 0;
+      if (this.countRooms((r) => this.roomCharges(r, key)) - leaving >= this.opts.maxRoomsPerAddr) {
         this.limitWarn(`room limit (${this.opts.maxRoomsPerAddr}) reached for ${session.addr}`);
         return fail(ERR.RATE, 'too many rooms from your network');
       }
@@ -342,6 +448,11 @@ export class Lobby {
     if (!room) return fail(ERR.ROOM_NOT_FOUND);
     const cur = this.roomOf(session);
     if (cur === room) { this.sendState(room, session); return OK; }
+    if (this.draining) return fail(ERR.MAINTENANCE);
+    if (this.queue.has(session)) return fail(ERR.QUEUED);
+    if (room.source === 'matchmaking' && session.matchmakingVersion !== MATCHMAKING_VERSION) {
+      return fail(ERR.BAD_MSG, 'matchmaking version required; refresh the page');
+    }
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (room.match) return fail(ERR.ROOM_STARTED);
     if (room.mode === 'solo') return fail(ERR.ROOM_FULL, 'solo room');
@@ -374,6 +485,18 @@ export class Lobby {
       seat.ready = ready;
       this.broadcastState(room);
     }
+    return OK;
+  }
+
+  voteRevival(session, { enable }) {
+    if (typeof enable !== 'boolean') return fail(ERR.BAD_MSG);
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    if (room.mode !== 'coop') return fail(ERR.WRONG_PHASE, 'revival voting requires a cooperative room');
+    const seat = room.seatOf(session.playerId);
+    this.dropReplay(room, session.playerId);
+    if (seat.revivalVote !== enable) { seat.revivalVote = enable; this.broadcastState(room); }
     return OK;
   }
 
@@ -423,6 +546,7 @@ export class Lobby {
   }
 
   start(session) {
+    if (this.draining) return fail(ERR.MAINTENANCE);
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
@@ -436,11 +560,19 @@ export class Lobby {
       return fail(ERR.BAD_MSG, 'invalid seat configuration');
     }
     const key = session.limitKey || null;
-    if (key && this.opts.maxMatchesPerAddr > 0 && this.countRooms((r) => !!r.match && r.matchKey === key) >= this.opts.maxMatchesPerAddr) {
-      this.limitWarn(`match limit (${this.opts.maxMatchesPerAddr}) reached for ${session.addr}`);
-      return fail(ERR.RATE, 'too many running matches from your network');
+    const keys = room.ownerKeys ? new Set(room.ownerKeys) : new Set();
+    if (key) keys.add(key);
+    if (room.ownerKeys) for (const s of humans) {
+      const memberKey = this.registry.byId(s.playerId)?.limitKey;
+      if (memberKey) keys.add(memberKey);
     }
-    return this.startMatch(room, key);
+    if (this.opts.maxMatchesPerAddr > 0) for (const network of keys) {
+      if (this.countRooms((r) => !!r.match && this.matchCharges(r, network)) >= this.opts.maxMatchesPerAddr) {
+        this.limitWarn(`match limit (${this.opts.maxMatchesPerAddr}) reached for public/private room network`);
+        return fail(ERR.RATE, 'too many running matches from your network');
+      }
+    }
+    return this.startMatch(room, key, room.ownerKeys ? keys : null);
   }
 
   /**
@@ -472,12 +604,53 @@ export class Lobby {
     return OK;
   }
 
+  roomCharges(room, key) { return room.ownerKey === key || !!room.ownerKeys?.has(key); }
+  matchCharges(room, key) { return room.matchKey === key || !!room.matchKeys?.has(key); }
+
+  /** Commit all four seats together; no create/join side effects and no broadcast before every pointer is assigned. */
+  allocateMatchmadeRoom(sessions, difficulty) {
+    if (this.draining) return fail(ERR.MAINTENANCE);
+    if (sessions.length !== MAX_SEATS || new Set(sessions.map((s) => s.playerId)).size !== MAX_SEATS) return fail(ERR.BAD_TARGET);
+    const first = this.queue.entries.get(sessions[0].playerId);
+    const offer = first?.offerId ? this.queue.offers.get(first.offerId) : null;
+    if (!offer || offer.deadline <= this.now()) return fail(ERR.BAD_TARGET, 'expired matchmaking offer');
+    for (const session of sessions) {
+      const entry = this.queue.entries.get(session.playerId);
+      if (!this.isOnline(session) || this.roomOf(session) || session.matchmakingVersion !== MATCHMAKING_VERSION
+        || !entry?.accepted || entry.offerId !== offer.id || entry.difficulty !== difficulty || !offer.entries.includes(entry)) {
+        return fail(ERR.WRONG_PHASE, 'matchmaking participant unavailable');
+      }
+    }
+    if (this.rooms.size >= this.opts.maxRooms) return fail(ERR.RATE, 'too many rooms');
+    const keys = new Set(sessions.map((s) => s.limitKey).filter(Boolean));
+    for (const key of keys) {
+      if (this.opts.maxRoomsPerAddr > 0 && this.countRooms((r) => this.roomCharges(r, key)) >= this.opts.maxRoomsPerAddr) {
+        return fail(ERR.RATE, 'too many rooms from your network');
+      }
+      if (this.opts.maxMatchesPerAddr > 0 && this.countRooms((r) => !!r.match && this.matchCharges(r, key)) >= this.opts.maxMatchesPerAddr) {
+        return fail(ERR.RATE, 'too many running matches from your network');
+      }
+    }
+    const code = this.genCode();
+    if (!code) return fail(ERR.INTERNAL, 'no room code available');
+    const room = new Room(code, 'coop', difficulty, this.now());
+    room.source = 'matchmaking';
+    room.ownerKeys = keys;
+    room.ownerKey = sessions[0].limitKey || null;
+    room.hostId = sessions[0].playerId;
+    room.seats = sessions.map((s, i) => this.humanSeat(i, s));
+    this.rooms.set(code, room);
+    for (const session of sessions) { session.roomCode = code; session.notice = null; session.pendingResult = null; }
+    return { code, publish: () => this.broadcastState(room) };
+  }
+
   // ---------------------------------------------------------------------------------------------------
   // Match wiring
   // ---------------------------------------------------------------------------------------------------
 
   /** @param {Room} room @param {string | null} [key] per-network limit key of the starter */
-  startMatch(room, key = null) {
+  startMatch(room, key = null, keys = null) {
+    const revival = room.revivalState();
     const host = room.seatOf(room.hostId);
     if (host) host.ready = true;
     const seats = room.seats.filter(Boolean).map((s) => ({
@@ -495,6 +668,7 @@ export class Lobby {
         mode: room.mode,
         difficulty: room.difficulty,
         modeId: modeIdFor(room.mode, room.difficulty),
+        revivalEnabled: revival.enabled,
         seats,
         seed,
         // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
@@ -512,6 +686,8 @@ export class Lobby {
       room.match = match;
       room.matchCtx = ctx;
       room.matchKey = key;
+      room.matchKeys = keys;
+      room.revivalLocked = Object.freeze(revival);
       room.replay = null;
       room.matchCount++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
@@ -519,7 +695,7 @@ export class Lobby {
       match.start();
     } catch (e) {
       this.log.error(`[lobby] ${room.code} match failed to start`, e);
-      if (room.matchCtx === ctx) { room.match = null; room.matchCtx = null; room.matchKey = null; }
+      if (room.matchCtx === ctx) { room.match = null; room.matchCtx = null; room.matchKey = null; room.matchKeys = null; room.revivalLocked = null; }
       this.disposeMatchCtx(ctx);
       this.broadcastState(room);
       return fail(ERR.INTERNAL, 'match failed to start');
@@ -535,6 +711,8 @@ export class Lobby {
     room.match = null;
     room.matchCtx = null;
     room.matchKey = null;
+    room.matchKeys = null;
+    room.revivalLocked = null;
     room.replay = this.buildReplay(room, ctx);
     setImmediate(() => this.disposeMatchCtx(ctx));
     this.log.info(`[lobby] ${room.code} match #${room.matchCount} ended`);
@@ -543,6 +721,7 @@ export class Lobby {
       if (!s || s.isBot) continue;
       if (s.left) { room.seats[i] = null; continue; }
       s.ready = false;
+      s.revivalVote = null;
       if (!s.connected) this.startGrace(room, s);
     }
     const host = room.hostId ? room.seatOf(room.hostId) : null;
@@ -737,7 +916,7 @@ export class Lobby {
   humanSeat(idx, session) {
     return {
       seat: idx, playerId: session.playerId, name: session.name, isBot: false, ready: false, connected: session.connected, left: false,
-      loadout: session.loadout || null,
+      loadout: session.loadout || null, revivalVote: null,
     };
   }
 
@@ -812,6 +991,8 @@ export class Lobby {
     room.match = null;
     room.matchCtx = null;
     room.matchKey = null;
+    room.matchKeys = null;
+    room.revivalLocked = null;
     room.replay = null;
     for (const s of room.seats) {
       if (!s || s.isBot) continue;

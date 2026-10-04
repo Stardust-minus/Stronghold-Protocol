@@ -1,5 +1,15 @@
 # Stardust fork working guidance
 
+## Current development batch
+
+- `.claude/release-progress.md` records the latest user request to push/release this verified batch first and defer further main-thread offload. Check live match counts before the first disruptive installation; the last read showed significant activity, not an empty server.
+
+- Latest upstream sync is in progress: read `.claude/upstream-sync.md` for the retained feature checkpoint, resolved but uncommitted merge of `bdb0765`, and Linux-only validation scope. The user explicitly stopped Windows-specific adaptation/packaging.
+
+- Read `TODO-STARDUST.md` for the resumed batch: non-disruptive server updates, online player count, pregame revival voting / teammate revival, and public multiplayer matchmaking. Announcements were explicitly cancelled and replaced by revival. The user additionally requested server-authoritative displayed-name/callsign moderation, shared with the password-gate callsign entry. Complete and verify the whole batch before the planned low-traffic game-service restart. Do not prematurely deploy the separate pacing hotfix.
+- `.claude/alliance-progress.md` records the resumed batch's in-progress code, current user rules (state-preserving death cancellation, donor LP >=11), agent ownership and local tests. Read it before resuming; old exact-10/cleared-inventory revival tests are superseded.
+- `.claude/compact-handoff.md` records the pre-resume local/production checkpoint, including the still-unpublished game fix and the warming-only asset standby. It supersedes historical state in `.claude/worker-notes.md`. Repository templates are not proof of which production slot is active.
+
 ## Repository and deployment boundaries
 
 - `origin` is the user-owned Stardust-minus/Stronghold-Protocol fork; `upstream` is sganggs/Stronghold-Protocol.

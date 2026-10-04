@@ -34,6 +34,7 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
@@ -44,6 +45,7 @@ import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
 import { CombatWorkerPool } from './match/combat/pool.js';
+import { backendRollingOptions, startBackendControl } from './rolling/backend.js';
 
 /** Repository root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -118,6 +120,70 @@ const LONG_CACHE = 'public, max-age=86400';          // 1 day
 const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';
 const LONG_CACHE_DIRS = ['assets', 'fonts', 'vendor']; // first path segment under public/
 const MAX_URL_LENGTH = 4096;
+
+// ---------------------------------------------------------------------------------------------------
+// build tag — the "your page is stale" signal (public/js/ui/buildGuard.js)
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * The files that make up the runtime the BROWSER loads. A change in any of them is a new build: an already-open page
+ * keeps the modules it imported at load time (ES modules live in the page's module map for its whole lifetime), so
+ * without this signal a deployed fix could never reach a player who does not reload — a client-only battle fix
+ * shipped exactly that way and stayed invisible on a page that had been opened before the deploy.
+ *
+ * `server/`, `data/` and `shared/` are deliberately NOT in here: this process read them once at startup, so when they
+ * change without a restart the server still runs the old simulation and data — a page that reloaded into the new files
+ * would be out of step with the server that validates its battles (and DEPLOY.md restarts the server for every update).
+ */
+export const BUILD_INPUTS = Object.freeze(['public/index.html', 'public/js', 'public/css']);
+
+/** Names the static server never serves: dot files (`.DS_Store`, `.main.js.swp`) and editor backups (`main.js~`). */
+const isIgnoredBuildName = (name) => name.startsWith('.') || name.endsWith('~');
+
+/** @type {{ tag: string|null }|null} */
+let buildCache = null;
+
+/** Every file under `abs` (or `abs` itself), as `[relative path, size, mtimeMs]`, sorted by path. Missing → []. */
+function buildEntries(abs, rel, out) {
+  let stat;
+  try { stat = fs.statSync(abs); } catch { return; }
+  if (stat.isFile()) { out.push([rel, stat.size, stat.mtimeMs]); return; }
+  if (!stat.isDirectory()) return;
+  let names;
+  try { names = fs.readdirSync(abs, { withFileTypes: true }); } catch { return; }
+  for (const d of names.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    if (isIgnoredBuildName(d.name)) continue;
+    const child = path.join(abs, d.name);
+    const childRel = rel ? `${rel}/${d.name}` : d.name;
+    if (d.isDirectory()) buildEntries(child, childRel, out);
+    else if (d.isFile()) { try { const s = fs.statSync(child); out.push([childRel, s.size, s.mtimeMs]); } catch { /* ignore */ } }
+  }
+}
+
+/** Short hash of the served browser runtime (size + mtime of every BUILD_INPUTS file); null when nothing is readable. */
+export function computeBuildTag(root = ROOT, publicDir = path.join(root, 'public')) {
+  const out = [];
+  for (const rel of BUILD_INPUTS) buildEntries(path.join(publicDir, rel.slice('public/'.length)), rel, out);
+  if (!out.length) return null;
+  out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const h = createHash('sha1');
+  for (const [rel, size, mtime] of out) h.update(`${rel}\0${size}\0${Math.floor(mtime)}\n`);
+  return h.digest('hex').slice(0, 12);
+}
+
+/**
+ * Cached helper for single-runtime tooling/tests. HTTP servers capture their own tag at startup, rather than sharing
+ * this cache across instances. The tag stays fixed for a running instance; re-reading the tree on a timer would
+ * let a half-finished deploy — or a file that changed while the process kept running — move the tag under a page.
+ * @param {string} [root] used by the first call only (tests)
+ */
+export function buildTag(root = ROOT) {
+  if (buildCache === null) buildCache = { tag: computeBuildTag(root) };
+  return buildCache.tag;
+}
+
+/** Drop the helper cache: the next `buildTag()` re-reads the tree (does not alter running HTTP instances). */
+export function resetBuildTag() { buildCache = null; }
 
 const gzipAsync = promisify(zlib.gzip);
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
@@ -561,6 +627,7 @@ export async function startServer(opts = {}) {
   const host = opts.host ?? process.env.HOST ?? '0.0.0.0';
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new RangeError(`invalid PORT ${port}`);
   const log = opts.log || makeLogger(!!opts.quiet);
+  const rollingConfig = backendRollingOptions(opts);
   const combatWorkers = parseCombatWorkers(opts.combatWorkers ?? process.env.SP_COMBAT_WORKERS);
   const publicDir = opts.publicDir || path.join(ROOT, 'public');
   const dataDir = opts.dataDir || path.join(ROOT, 'data');
@@ -581,13 +648,17 @@ export async function startServer(opts = {}) {
   if (netOptions.trustProxy == null) netOptions.trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
   const registry = new SessionRegistry({ reconnectWindowMs: netOptions.reconnectWindowMs ?? NET_DEFAULTS.reconnectWindowMs });
   const lobbyOptions = {};
-  for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs']) {
+  for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs', 'matchmaking']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
   const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, options: lobbyOptions });
   const network = new Network({ registry, handler: lobby, log, options: netOptions });
   const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
   const startedAt = Date.now();
+  // Capture this instance's served browser runtime once; another local test/release instance cannot replace it.
+  const browserBuild = computeBuildTag(ROOT, publicDir);
+  let rollingControl = null;
+  const rollingHealth = () => ({ ok: !combatPool || combatPool.stats().status === 'ready', version: PROTOCOL_VERSION, app: APP_VERSION });
 
   const server = http.createServer((req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -612,10 +683,16 @@ export async function startServer(opts = {}) {
       const combat = combatPool ? { backend: 'workers', scope: 'server-streaming', ...combatPool.stats() } : { backend: 'inline', workers: 0 };
       const ok = !combatPool || (combat.status === 'ready' && combat.ready > 0);
       sendJson(req, res, ok ? 200 : 503, {
-        ok, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
+        ok, version: PROTOCOL_VERSION, app: APP_VERSION, ...(rollingConfig ? { releaseId: rollingConfig.releaseId } : {}), uptimeSec: Math.round((Date.now() - startedAt) / 1000),
+        build: browserBuild,
         sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
         maxRooms: lobby.opts.maxRooms, combat,
       });
+      return;
+    }
+    if (parts.rawPath === '/client-build') {
+      // Public-to-authenticated-clients marker only; never expose the internal health/session counters.
+      sendJson(req, res, 200, { build: browserBuild });
       return;
     }
     await serveStatic(req, res, parts.rawPath, parts.query);
@@ -652,6 +729,7 @@ export async function startServer(opts = {}) {
   });
 
   try {
+    rollingControl = await startBackendControl(rollingConfig, { lobby, health: rollingHealth });
     await new Promise((resolve, reject) => {
       const onError = (e) => { server.off('listening', onListening); reject(e); };
       const onListening = () => { server.off('error', onError); resolve(); };
@@ -661,6 +739,8 @@ export async function startServer(opts = {}) {
     });
   } catch (e) {
     network.close(); // stop heartbeat/sweep timers of the half-built server
+    lobby.shutdown('boot-failed');
+    await rollingControl?.close();
     await combatPool?.close();
     throw e;
   }
@@ -674,6 +754,7 @@ export async function startServer(opts = {}) {
   async function close() {
     if (closing) return closing;
     closing = (async () => {
+      await rollingControl?.close();
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       network.close();
       await combatPool?.close();
@@ -687,7 +768,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, close };
+  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, rollingControl, close };
 }
 
 // ---------------------------------------------------------------------------------------------------

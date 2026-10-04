@@ -282,7 +282,7 @@ test('css: the section reuses the card\'s .dstats / .drange / .rgrid, sized for 
   for (const c of ['.dstats-wrap', '.dstats', '.dstat', '.dstat__k', '.dstat__v', '.drange', '.rgrid', '.rgrid-all']) {
     assert.ok(new RegExp(`(^|\\n)${c.replace('.', '\\.')}[ ,{]`).test(panels), `${c} is defined in game-panels.css`);
   }
-  assert.match(read('public/index.html'), /<link rel="stylesheet" href="\/css\/screens\/game-panels\.css" \/>/);
+  assert.match(read('public/index.html'), /<link rel="stylesheet" href="css\/screens\/game-panels\.css" \/>/);
 });
 
 test('特性 follows the chosen module also when the skill or the module differs from the default (cloned record)', async () => {

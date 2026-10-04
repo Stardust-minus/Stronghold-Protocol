@@ -28,6 +28,8 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean -
 FROM deps AS build
 ARG FETCH_ASSETS=0
 COPY shared ./shared
+# Canonical offline name moderation, shared with the isolated auth image. No auth UI/secrets/game data.
+COPY deploy/stardust/auth/name-policy.mjs deploy/stardust/auth/name-dictionary.mjs deploy/stardust/auth/NAME-DICTIONARY-LICENSE.txt ./deploy/stardust/auth/
 COPY server ./server
 COPY tools ./tools
 COPY data ./data
@@ -48,6 +50,7 @@ WORKDIR /app
 COPY --from=deps /app/package.json ./package.json
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/shared ./shared
+COPY --from=build /app/deploy/stardust/auth ./deploy/stardust/auth
 COPY --from=build /app/server ./server
 COPY --from=build /app/data ./data
 COPY --from=build /app/public ./public

@@ -29,8 +29,9 @@
 // Shared modules are imported relatively: in the browser '../../shared/x.js' from /js/ resolves
 // to /shared/x.js (URL resolution clamps at the root); under Node it resolves to <repo>/shared.
 
-import { PROTOCOL_VERSION, ERR_TEXT } from '../../shared/constants.js';
+import { PROTOCOL_VERSION, MATCHMAKING_VERSION, ERR_TEXT } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
+import { releaseBase } from './release.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
@@ -98,7 +99,7 @@ export function backoffDelay(attempt, rand = Math.random) {
  */
 export function defaultWsUrl(loc = globalThis.location) {
   if (!loc || !loc.host) return 'ws://localhost:3000/ws';
-  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`;
+  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}${releaseBase(loc.pathname)}/ws`;
 }
 
 const WS_OPEN = 1;
@@ -361,7 +362,7 @@ export class Net {
   _sendHello() {
     if (!this.name) return;
     const rid = this._nextRid();
-    const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION };
+    const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION, matchmakingVersion: MATCHMAKING_VERSION };
     let token = null;
     try { token = this.getToken(); } catch { token = null; }
     if (typeof token === 'string' && token.length > 0 && token.length <= 64) msg.token = token;
@@ -401,6 +402,7 @@ export class Net {
     this._clearTimer('_helloTimer', 'clearTimeout');
     this._helloRid = null;
     this.lastError = new NetError(msg.code, msg.msg, msg.detail);
+    if (msg.code === 'NAME_REJECTED') this.name = null; // wait for an explicit corrected name, not endless rejected reconnects
     this._setStatus('connected');
     // Queued requests can't be sent without a session.
     this._failPending('OFFLINE', true);

@@ -1,0 +1,45 @@
+/* Stardust alliance controls. Keep the existing mint tactical UI, without obscuring combat. */
+.revival-vote { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .06rem .22rem; margin: 0 .6rem .18rem; padding: .13rem .2rem; border: 1px solid var(--line-2); border-left: 3px solid var(--mint-700); background: rgba(13, 20, 17, .94); font-size: .15rem; }
+.revival-vote__title { display: flex; align-items: center; gap: .08rem; }
+.revival-vote__title > .icon { color: var(--mint-400); }
+.revival-vote__rules { color: var(--text-lo); line-height: 1.5; margin: 0; }
+.revival-vote__rules b { color: var(--text-hi); }
+.revival-vote__actions { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: .1rem; }
+.revival-vote__actions > span { margin-right: auto; }
+.revival-vote > small { grid-column: 1 / -1; color: var(--text-dim); font-size: .12rem; line-height: 1.5; }
+.team-rescue { pointer-events: auto; max-width: 2.75rem; display: flex; flex-wrap: wrap; align-items: center; gap: .04rem .12rem; padding: .1rem .12rem; color: var(--mint-400); background: rgba(13, 26, 21, .95); border-left: 2px solid var(--mint-500); font-size: .14rem; }
+.team-rescue > strong { display: flex; gap: .06rem; align-items: center; }
+.team-rescue > small { flex-basis: 100%; font-size: .12rem; color: var(--text-lo); }
+.team-rescue-action { display: flex; flex-direction: column; align-items: flex-start; gap: .02rem; margin-top: .04rem; max-width: 1.8rem; }
+.team-rescue-action > small { color: var(--text-dim); font-size: .11rem; line-height: 1.35; }
+.team-rescue-action .btn { min-height: .32rem; }
+.team__row.is-pending .team__name { color: var(--amber); }
+.pavatar__rescue { position: absolute; right: -.04rem; bottom: -.04rem; width: .28rem; height: .28rem; display: grid; place-items: center; background: var(--amber); color: var(--bg-0); }
+.pavatar__rescue .icon { width: .19rem; height: .19rem; }
+.online-players { display: inline-flex; align-items: center; gap: .06rem; color: var(--text-lo); font-size: .14rem; white-space: nowrap; }
+.online-players .icon { width: .19rem; height: .19rem; color: var(--mint-500); }
+.mode-card--match { grid-column: 1 / -1; min-height: 0; padding: .18rem .24rem; flex-direction: row; align-items: center; gap: .18rem; }
+.mode-card--match .mode-card__icon { flex: none; width: .6rem; height: .6rem; }
+.mode-card--match .mode-card__icon .icon { width: .3rem; height: .3rem; }
+.mode-card--match .mode-card__name { font-size: .3rem; }
+.mode-card--match .mode-card__text { gap: .05rem; }
+.mode-card--match .mode-card__desc { max-width: none; font-size: .15rem; }
+.mode-card--match .mode-card__points { flex-direction: row; flex-wrap: wrap; gap: .04rem .15rem; margin-top: 0; font-size: .13rem; }
+.mode-card:disabled, .diff-card:disabled { cursor: default; }
+.mode-card:disabled:not(.is-selected) { opacity: .58; }
+.matchmaking { margin-top: .2rem; padding: .2rem .24rem; border: 1px solid var(--line-2); border-left: 3px solid var(--mint-700); background: rgba(13, 20, 17, .94); }
+.matchmaking > header { display: flex; align-items: center; gap: .1rem; color: var(--mint-400); }
+.matchmaking h2 { font-size: .28rem; font-weight: 700; margin: .08rem 0 .04rem; }
+.matchmaking p { font-size: .15rem; color: var(--text-lo); margin: .05rem 0; }
+.matchmaking__status { font-size: .17rem; color: var(--text-md); margin: .12rem 0; }
+.matchmaking__actions { display: flex; flex-wrap: wrap; gap: .12rem; margin-bottom: .12rem; }
+.matchmaking > small { display: block; font-size: .13rem; color: var(--text-dim); line-height: 1.55; }
+.matchmaking.is-offered { border-color: var(--mint-500); }
+.matchmaking.is-offered .matchmaking__status { color: var(--mint-400); }
+.matchmaking .matchmaking__reason { color: var(--amber); }
+.server-update { position: fixed; z-index: 65; left: 50%; top: .12rem; transform: translateX(-50%); max-width: min(92vw, 8rem); display: flex; flex-wrap: wrap; align-items: center; gap: .12rem; padding: .12rem .2rem; border: 1px solid var(--amber); color: var(--text-hi); background: rgba(22, 24, 19, .97); font-size: .15rem; }
+.server-update p { margin: 0; }
+@media (max-width: 900px) {
+  .revival-vote { margin-inline: .22rem; grid-template-columns: minmax(0, 1fr); gap: .05rem; padding: .08rem .13rem; }
+  .revival-vote__title .micro { display: none; }
+}

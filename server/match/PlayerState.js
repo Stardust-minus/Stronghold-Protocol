@@ -100,6 +100,10 @@ export class PlayerState {
     this.isBot = !!seat.isBot;
     this.connected = this.isBot ? true : !!seat.connected;
     this.left = false;
+    /** Once-per-match rescue usage; never reset by death, round start or reconnect. */
+    this.revived = false;
+    /** Current SETTLE death awaiting rescue; holds the original state until rescued or finalized. */
+    this.pendingDeath = false;
     this.autoplay = false;
     this.alive = true;
     this.lp = 0;
@@ -1490,6 +1494,7 @@ export class PlayerState {
   }
 
   eliminate(round) {
+    this.pendingDeath = false;
     this.alive = false;
     this.ready = false;
     this.eliminatedRound = round;
@@ -1616,6 +1621,7 @@ export class PlayerState {
       playerId: this.playerId,
       seat: this.seat,
       alive: this.alive,
+      pendingDeath: this.pendingDeath,
       lp: this.lp,
       funds: this.funds,
       bandId: this.bandId,

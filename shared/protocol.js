@@ -236,12 +236,16 @@ const target = (v) => {
 /** @type {Record<string, Record<string, (v:any)=>boolean> & { $optional?: string[] }>} */
 export const C2S = {
   // session & lobby
-  hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6), $optional: ['token', 'version'] },
+  hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6), matchmakingVersion: isId, $optional: ['token', 'version', 'matchmakingVersion'] },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v) },
   'room.join': { code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.leave': {},
   'room.ready': { ready: isBool },
+  'room.voteRevival': { enable: isBool },
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v) },
+  'queue.cancel': { ticketId: isId },
+  'queue.accept': { ticketId: isId, offerId: isId },
   'room.setDifficulty': { difficulty: (v) => DIFFICULTIES.includes(v) },
   'room.addBot': {},
   'room.removeBot': { seat: (v) => isInt(v, 0, MAX_SEATS - 1) },
@@ -271,6 +275,7 @@ export const C2S = {
   'g.reward': { idx: (v) => isInt(v, 0, 5) },
   'g.choice': { idx: (v) => isInt(v, 0, 5) },
   'g.ready': { ready: isBool },
+  'g.revive': { playerId: isId, round: (v) => isInt(v, 1, 1000), matchId: isId },
   'g.emote': { id: (v) => EMOTES.includes(v) },
   'g.watch': { fieldId: (v) => isStr(v, 32) },
   'g.autoplay': { on: isBool },
@@ -299,6 +304,8 @@ export const C2S = {
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'room.state', 'room.closed',
+  // Aggregate online identities and the requester's own matchmaking ticket (never other queue members).
+  'presence.state', 'queue.state', 'server.state',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)
   'm.unitStats',

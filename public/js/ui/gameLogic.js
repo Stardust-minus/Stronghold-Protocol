@@ -295,6 +295,7 @@ export function cycleField(fields, current, dir = 1) {
  */
 export function watchTarget(p, pub, myId) {
   if (!isObj(p)) return { reason: '无效的目标' };
+  if (p.pendingDeath) return { reason: '该队友正在等待救援，暂时无法查看其阵地' };
   if (p.alive === false) return { reason: '该队友已被淘汰，无法查看其阵地' };
   const combat = isCombatPhase(pub?.phase);
   const fieldId = (combat && typeof p.fieldId === 'string' && p.fieldId) || ownFieldId(p.playerId);

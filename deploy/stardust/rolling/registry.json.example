@@ -1,0 +1,26 @@
+{
+  "releases": [{
+    "id": "candidate-a",
+    "port": 3120,
+    "controlSocket": "/run/ark-rolling/candidate-a.sock",
+    "assetResolver": {
+      "port": 3130,
+      "materialReleaseId": "material-candidate-a",
+      "mirrorReleaseId": "openi-candidate-a",
+      "manifestHash": "REPLACE_WITH_SHA256_OF_EXACT_VERIFIED_MOUNTED_MANIFEST_BYTES",
+      "ossOrigin": "https://obs.cn-south-222.ai.pcl.cn",
+      "ossPathPrefix": "/REPLACE_BUCKET/REPLACE_DATASET_UUID/releases/openi-candidate-a/",
+      "fallbackBase": "https://ark-asset.hanabi-ai.cn:25442/releases/material-candidate-a/"
+    },
+    "staticRoutes": {
+      "fonts": {
+        "materialReleaseId": "material-candidate-a",
+        "redirectBase": "https://ark-asset.hanabi-ai.cn:25442/releases/material-candidate-a/fonts/"
+      },
+      "vendor": {
+        "materialReleaseId": "material-candidate-a",
+        "redirectBase": "https://ark-asset.hanabi-ai.cn:25442/releases/material-candidate-a/vendor/"
+      }
+    }
+  }]
+}

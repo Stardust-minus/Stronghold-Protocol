@@ -78,11 +78,14 @@ export const initialState = Object.freeze({
   me: { playerId: null, name: '', token: null },
   session: { entered: false },
   room: null,
+  presence: null,
+  server: { draining: false, releaseId: null },
+  queue: { state: 'idle', ticketId: null },
   match: emptyMatch(),
   ticker: [],
   emotes: [],
   clock: { offset: 0, rtt: null, synced: false },
-  ui: { pendingJoin: null, restoring: false },
+  ui: { pendingJoin: null, restoring: false, buildStale: false },
 });
 
 /** The app-wide store singleton. */

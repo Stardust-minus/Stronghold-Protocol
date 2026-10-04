@@ -45,6 +45,9 @@ import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
 import { installLoadoutSync } from './ui/loadoutSync.js';
+import { startBuildGuard } from './ui/buildGuard.js';
+import { ServerUpdateNotice, installReleasePresence } from './ui/serverUpdate.js';
+import { releaseBase } from './release.js';
 
 const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
@@ -137,6 +140,10 @@ function onWelcome(msg) {
   const prev = store.get();
   const prevId = prev.me.playerId;
   const name = typeof msg.name === 'string' && msg.name ? msg.name : prev.me.name;
+  if (name) {
+    identity.saveName(name);
+    try { localStorage.setItem('ark.callsign', name); } catch { /* storage may be unavailable */ }
+  }
   store.set({ me: { playerId: msg.playerId ?? null, name, token: typeof msg.token === 'string' ? msg.token : null } });
   welcomeAt = Date.now();
 
@@ -145,6 +152,7 @@ function onWelcome(msg) {
     // expired on it): whatever we showed before is gone — back to the lobby cleanly and say why.
     const notice = sessionResetNotice(prev, msg.playerId);
     backToLobby();
+    store.set({ queue: { state: 'idle', ticketId: null }, presence: null });
     if (notice) toast(notice, 'warn', { ttl: 7000 });
   } else if (prev.room || prev.match.public) {
     // Resumed session: the server re-pushes room/match state; drop whatever it doesn't.
@@ -188,6 +196,8 @@ const CLOSE_REASON = {
 };
 
 function wireNet() {
+  const stopPresence = installReleasePresence();
+  globalThis.addEventListener('pagehide', stopPresence, { once: true });
   net.on('status', (snap) => {
     const cur = store.get().connection;
     store.set({
@@ -199,7 +209,16 @@ function wireNet() {
   });
   net.on('clock', (c) => store.set({ clock: { offset: c.offset, rtt: c.rtt, synced: c.synced } }));
   net.on('welcome', onWelcome);
-  net.on('helloError', (err) => toastError(err));
+  net.on('presence.state', (msg) => { if (!releaseBase()) store.set({ presence: payload(msg) }); });
+  net.on('server.state', (msg) => store.set({ server: payload(msg) }));
+  net.on('queue.state', (msg) => store.set({ queue: payload(msg) }));
+  net.on('helloError', (err) => {
+    if (err.code === 'NAME_REJECTED') {
+      identity.setEntered(false);
+      store.set({ session: { entered: false } }); // retain room/token: correcting a legacy name must not abandon its game
+    }
+    toastError(err);
+  });
   net.on('replaced', () => toast('该身份已在其他页面登录，本页已断开', 'warn', { ttl: 6000 }));
   net.on('unhandledError', (err) => toastError(err));
   net.on('room.state', onRoomState);
@@ -271,6 +290,7 @@ function App() {
     <div class="app-bg" aria-hidden="true"></div>
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     <${ConnectionBanner} />
+    <${ServerUpdateNotice} />
     <${ToastHost} />
     <${UiHosts} />
     <${GuideHost} />
@@ -351,6 +371,18 @@ async function boot() {
     setTimeout(() => splash.remove(), 300);
   }
   globalThis.__SP__ = { store, net, data, version: 1 };
+  // A page keeps the modules it imported at load time for its whole lifetime, so a deploy cannot reach an open tab
+  // (ui/buildGuard.js): watch the owning release's `/client-build` marker (not private health). Outside a match the page reloads itself; during a match the guard says
+  // so instead (the connection banner offers 刷新页面) and reloads once the match — settlement screen included — is over,
+  // so a running game is never thrown away.
+  try {
+    startBuildGuard({
+      inMatch: () => selectRoute(store.get()) === 'game',
+      onStale: ({ waiting }) => { if (waiting) store.patch('ui', { buildStale: true }); },
+    });
+  } catch (err) {
+    console.warn('[app] build guard failed to start', err);
+  }
 }
 
 boot().catch((err) => {

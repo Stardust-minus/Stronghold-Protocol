@@ -67,8 +67,10 @@ export async function buildFonts(fontsDir, log = console.log) {
     }
     files[f.name] = entry;
     const srcs = [];
-    if (entry.woff2) srcs.push(`url('${entry.woff2}') format('woff2')`);
-    srcs.push(`url('${entry.original}') format('${f.ext === 'ttf' ? 'truetype' : 'opentype'}')`);
+    // CSS is served both locally under a release prefix and from the immutable static origin.
+    // Keep manifest URLs root-relative, but resolve faces next to fonts.css rather than the site root.
+    if (entry.woff2) srcs.push(`url('./${f.name}.woff2') format('woff2')`);
+    srcs.push(`url('./${f.name}.${f.ext}') format('${f.ext === 'ttf' ? 'truetype' : 'opentype'}')`);
     faces.push(`@font-face {\n  font-family: '${f.family}';\n  font-style: ${f.style};\n  font-weight: ${f.weight};\n` +
       `  font-display: swap;\n  src: ${srcs.join(',\n       ')};\n}`);
   }

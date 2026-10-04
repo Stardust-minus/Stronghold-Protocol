@@ -1,6 +1,8 @@
 // Shared enums & constants (server + browser). Pure ESM, no Node APIs.
 
 export const PROTOCOL_VERSION = 1;
+/** Public matchmaking capability/data contract; bump when queued clients cannot share a match. */
+export const MATCHMAKING_VERSION = 'alliance-1';
 /** Release version shown to players (title screen, server banner, /healthz). Kept equal to package.json "version"
  * (test/version.test.js); PROTOCOL_VERSION above is the separate wire-format number. */
 export const APP_VERSION = '0.1.2';
@@ -114,6 +116,7 @@ export const ANIM = Object.freeze({ IDLE: 0, MOVE: 1, ATTACK: 2, SKILL: 3, DIE: 
 
 export const ERR = Object.freeze({
   BAD_MSG: 'BAD_MSG',             // malformed / unknown message
+  NAME_REJECTED: 'NAME_REJECTED', // displayed nickname/callsign failed moderation
   RATE: 'RATE',                   // rate limited
   NOT_IN_ROOM: 'NOT_IN_ROOM',
   ROOM_NOT_FOUND: 'ROOM_NOT_FOUND',
@@ -133,15 +136,19 @@ export const ERR = Object.freeze({
   ALREADY: 'ALREADY',
   TEMP_NOT_EMPTY: 'TEMP_NOT_EMPTY',
   ELIMINATED: 'ELIMINATED',
+  QUEUED: 'QUEUED',               // leave matchmaking before creating/joining a private room
+  MAINTENANCE: 'MAINTENANCE',     // draining instance: existing matches continue
   INTERNAL: 'INTERNAL',
 });
 
 export const ERR_TEXT = {
-  BAD_MSG: '无效的请求', RATE: '操作过于频繁', NOT_IN_ROOM: '你不在房间中', ROOM_NOT_FOUND: '未找到该同盟密钥对应的房间',
+  BAD_MSG: '无效的请求', NAME_REJECTED: '代号含有不适宜内容或格式无效，请换一个昵称。',
+  RATE: '操作过于频繁', NOT_IN_ROOM: '你不在房间中', ROOM_NOT_FOUND: '未找到该同盟密钥对应的房间',
   ROOM_FULL: '房间已满', ROOM_STARTED: '模拟已开始', NOT_HOST: '只有房主可以操作', NOT_READY: '仍有玩家未就绪',
   WRONG_PHASE: '当前阶段无法进行该操作', NO_FUNDS: '资金不足', HAND_FULL: '整备区已满', BOARD_FULL: '已达到部署上限',
   BAD_TILE: '无法部署在该位置', BAD_TARGET: '无效的目标', SOLD_OUT: '已售出', MAX_LEVEL: '调度中心已达最高等级',
   NOT_YOUR_TURN: '尚未轮到你', ALREADY: '已完成该操作', TEMP_NOT_EMPTY: '临时整备区不为空', ELIMINATED: '你已被淘汰',
+  QUEUED: '正在匹配中，请先取消匹配', MAINTENANCE: '服务器正在更新，当前对局不受影响，请稍后开始新模拟',
   INTERNAL: '服务器内部错误',
 };
 

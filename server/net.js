@@ -38,7 +38,9 @@
 import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { C2S, validateC2S } from '../shared/protocol.js';
-import { ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
+import { ERR, ERR_TEXT, PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../shared/constants.js';
+import { moderateName } from '../shared/names.js';
+export { sanitizeName } from '../shared/names.js';
 
 /** Tunables (all overridable through the Network / SessionRegistry constructors). */
 export const NET_DEFAULTS = Object.freeze({
@@ -62,7 +64,7 @@ export const NET_DEFAULTS = Object.freeze({
  * Intents that also draw from the per-connection heavy bucket: g.watch (its reply is a large state resend, m.field) and
  * room.loadout (a ≤ 160-entry map validated against the game data; the client debounces its edits).
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'queue.join']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -109,6 +111,8 @@ export class Session {
     this.addr = '?';
     /** @type {string | null} per-network limit key of the latest connection (null = not limited), see clientAddress */
     this.limitKey = null;
+    /** Explicit hello capability; legacy clients without it cannot enter public matchmaking. */
+    this.matchmakingVersion = null;
     /**
      * @type {number | null} lobby-owned extension of the reconnect window for this session (ms; null = the registry's
      * window). A solo run keeps its session resumable for the official `singleReconnectTime` (24 h) — see lobby.js.
@@ -323,29 +327,6 @@ export function errorMsg(code, rid, detail) {
   if (validRid(rid)) m.rid = rid;
   if (detail) m.detail = String(detail).slice(0, 120);
   return m;
-}
-
-// ---------------------------------------------------------------------------------------------------
-// Names
-// ---------------------------------------------------------------------------------------------------
-
-// Control chars, zero-width & bidi controls, BOM.
-const STRIP_RANGES = [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]];
-const hexEscape = (n) => '\\u' + n.toString(16).padStart(4, '0');
-const STRIP_RE = new RegExp('[' + STRIP_RANGES.map(([a, b]) => (a === b ? hexEscape(a) : `${hexEscape(a)}-${hexEscape(b)}`)).join('') + ']', 'g');
-const LONE_SURROGATE_RE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
-
-/**
- * Normalize a nickname: strip control/invisible characters and lone surrogates, collapse whitespace,
- * trim, cap at NAME_MAX_LEN code points. Returns null when nothing printable remains.
- * @param {unknown} raw
- * @returns {string | null}
- */
-export function sanitizeName(raw) {
-  if (typeof raw !== 'string') return null;
-  let s = raw.normalize('NFC').replace(LONE_SURROGATE_RE, '').replace(/\s+/g, ' ').replace(STRIP_RE, '').replace(/ {2,}/g, ' ').trim();
-  s = [...s].slice(0, NAME_MAX_LEN).join('').trim();
-  return s.length > 0 ? s : null;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -627,8 +608,15 @@ export class Network {
       this.reply(conn, errorMsg(ERR.BAD_MSG, rid, `version mismatch: server ${PROTOCOL_VERSION}`));
       return;
     }
-    const name = sanitizeName(msg.name);
-    if (!name) { this.reply(conn, errorMsg(ERR.BAD_MSG, rid, 'bad field name')); return; }
+    if (msg.matchmakingVersion != null && msg.matchmakingVersion !== MATCHMAKING_VERSION) {
+      this.reply(conn, errorMsg(ERR.BAD_MSG, rid, 'matchmaking version mismatch'));
+      return;
+    }
+    // Validate before looking up a reconnect token, detaching another socket or mutating a session.
+    // A legacy rejected name keeps its identity/token intact until the owner submits a valid name.
+    const checked = moderateName(msg.name);
+    if (!checked.ok) { this.reply(conn, errorMsg(ERR.NAME_REJECTED, rid, checked.reason)); return; }
+    const name = checked.name;
 
     let session = conn.session;
     let resumed = false;
@@ -651,6 +639,7 @@ export class Network {
     session.lastSeen = now;
     session.addr = conn.ip;
     session.limitKey = conn.key;
+    session.matchmakingVersion = msg.matchmakingVersion ?? null;
 
     const welcome = { t: 'welcome', playerId: session.playerId, token: session.token, name: session.name, serverNow: now, version: PROTOCOL_VERSION, resumed };
     if (validRid(rid)) welcome.rid = rid;

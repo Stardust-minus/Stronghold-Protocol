@@ -543,7 +543,7 @@ describe('websocket lobby', () => {
     assert.equal(st.difficulty, 'HARD');
     assert.equal(st.inMatch, false);
     assert.equal(st.seats.length, MAX_SEATS);
-    assert.deepEqual(st.seats[0], { seat: 0, playerId: host.id, name: 'Host', isBot: false, ready: false, connected: true });
+    assert.deepEqual(st.seats[0], { seat: 0, playerId: host.id, name: 'Host', isBot: false, ready: false, connected: true, revivalVote: null });
     assert.deepEqual(st.seats.slice(1), [null, null, null]);
 
     const guest = await pool.player('Guest');
@@ -762,7 +762,7 @@ describe('websocket lobby', () => {
     assert.equal(w.token, guest.token);
     const restored = await back.waitFor('room.state');
     assert.equal(restored.code, st.code);
-    assert.deepEqual(seatOf(restored, guest.id), { seat: 1, playerId: guest.id, name: 'Guest2', isBot: false, ready: true, connected: true });
+    assert.deepEqual(seatOf(restored, guest.id), { seat: 1, playerId: guest.id, name: 'Guest2', isBot: false, ready: true, connected: true, revivalVote: null });
     await host.waitFor('room.state', (s) => seatOf(s, guest.id)?.connected === true);
 
     // an unknown token just creates a new identity
@@ -1369,7 +1369,9 @@ describe('match result replay', () => {
   }
 
   /** Frames of a resumed socket in arrival order (types + phase), after welcome. */
-  const order = (c) => c.log.filter((m) => m.t !== 'welcome' && m.t !== 'pong').map((m) => m.t + (m.t === 'm.public' ? `:${m.phase}` : ''));
+  // Presence/queue/admission resyncs are independent of the room → final-public → result replay ordering.
+  const social = new Set(['welcome', 'pong', 'presence.state', 'server.state', 'queue.state']);
+  const order = (c) => c.log.filter((m) => !social.has(m.t)).map((m) => m.t + (m.t === 'm.public' ? `:${m.phase}` : ''));
 
   for (const unicast of [true, false]) {
     test(`a human disconnected when the match ends gets room.state, the final m.public and m.result on resume (${unicast ? 'per-player' : 'broadcast'} result)`, async () => {
@@ -1441,7 +1443,8 @@ describe('match result replay', () => {
     await back.terminate();
     const again = await pool.connect();
     await again.hello('Guest', guest.token);
-    await again.expectNone(null, (m) => m.t !== 'welcome', 300);
+    await again.waitFor('queue.state', (m) => m.state === 'idle');
+    await again.expectNone(null, (m) => !social.has(m.t), 300);
   });
 
   test('real Match: a human who is away when the match finishes gets its m.result on resume', async () => {

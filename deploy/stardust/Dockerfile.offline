@@ -8,6 +8,10 @@ RUN test -n "${SOURCE_REVISION}" && test -n "${APP_VERSION}"
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 SP_COMBAT=server SP_VERIFY=off TRUST_PROXY=auto
 WORKDIR /app
 COPY app/ /app/
+# Offline app exports must retain the same tiny canonical policy/data/license as the auth image.
+# Fail the build immediately if an older export omitted the deploy/stardust/auth moderation files.
+RUN test -s deploy/stardust/auth/NAME-DICTIONARY-LICENSE.txt \
+ && node --input-type=module -e "import { moderateName } from './shared/names.js'; if (!moderateName('阿米娅').ok) process.exit(1)"
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

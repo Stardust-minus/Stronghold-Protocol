@@ -13,7 +13,7 @@
 //            merge: audit.js checks it per merge)
 //   bonds    ps.bonds equals a fresh computeBonds() (every mutation recomputed them); every bond's layers 0 … BOND_LAYER_CAP
 //   shop     slot count follows the rolled layout; ids known; banned chess never offered by the shop / rewards
-//   elim.    an eliminated player owns nothing (board, hand, temp, shop, offers, bounties, funds)
+//   elim.    a finalized eliminated player owns nothing; a valid SETTLE pending death retains checked holdings
 //   match    phase known; teamLp / boss pool within range; combat fields match the alive players
 
 import { PHASE, BOND_LAYER_CAP } from '../../shared/constants.js';
@@ -60,7 +60,12 @@ export function collectViolations(m, { limit = 25 } = {}) {
       if (!(Number.isFinite(v) && v >= 0 && (!(BOND_LAYER_CAP > 0) || v <= BOND_LAYER_CAP))) fail(`${id}: ${b} layers ${v}`);
     }
 
-    if (!ps.alive) {
+    // Only an unresolved, never-revived current SETTLE death may retain its original holdings.
+    const pending = ps.pendingDeath === true && !ps.alive && ps.lp === 0 && !ps.left && !ps.revived
+      && m.revivalEnabled === true && m.phase === PHASE.SETTLE && m.teamLp == null && !m.ended && !m.disposed
+      && m._revival?.round === m.round && m._revival.windowOpen === true;
+    if (ps.pendingDeath && !pending) fail(`${id}: invalid pending death`);
+    if (!ps.alive && !pending) {
       if (ps.board.size) fail(`${id}: eliminated but keeps ${ps.board.size} board pieces`);
       if (ps.hand.some(Boolean) || ps.temp.some(Boolean)) fail(`${id}: eliminated but keeps hand/temp pieces`);
       if (ps.shop.slots.length || ps.offers.length || ps.bounties.length) fail(`${id}: eliminated but keeps shop/offers/bounties`);
@@ -139,8 +144,8 @@ export function collectViolations(m, { limit = 25 } = {}) {
     } catch (e) {
       fail(`${id}: computeBonds threw ${e && e.message}`);
     }
-    // shop
-    if (ps.alive) {
+    // Pending holdings receive the same complete shop/reward checks as a living player's holdings.
+    if (ps.alive || pending) {
       const layout = ps.shop.layout;
       if (layout && ps.shop.slots.length !== layout.chess + layout.item) fail(`${id}: ${ps.shop.slots.length} shop slots for layout ${layout.chess}+${layout.item}`);
       ps.shop.slots.forEach((s, i) => {

@@ -13,7 +13,9 @@
 import { resolveUvTable } from './atlas.js';
 import { parseObj } from './obj.js';
 
-export const THREE_URL = '/vendor/three.module.js';
+import { releaseResource, pinAssetManifest } from '../../release.js';
+
+export const THREE_URL = releaseResource('/vendor/three.module.js');
 
 let threePromise = null;
 /** Dynamic import of the vendored three.js ESM build (browser only); null when unavailable. */
@@ -86,7 +88,7 @@ async function fetchText(url) {
   try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.text() : null; } catch { return null; }
 }
 async function fetchJson(url) {
-  try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch { return null; }
+  try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? pinAssetManifest(await r.json()) : null; } catch { return null; }
 }
 
 /**

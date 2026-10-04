@@ -5,6 +5,7 @@ import { isIP } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { moderateName, nameReasonMessage } from './name-policy.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const derive = promisify(scrypt);
@@ -85,9 +86,12 @@ export function safeNext(value) {
   if (typeof value !== 'string' || value.length > 2048 || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000- \u007f]/.test(value)) return '/';
   try {
     const decoded = decodeURIComponent(value);
-    if (/[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.startsWith('//')) return '/';
+    if (/[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.startsWith('//')
+      || decoded.split('?')[0].split('/').some(segment => segment === '.' || segment === '..')) return '/';
     const url = new URL(value, ORIGIN);
-    if (url.origin !== ORIGIN || !['/', '/index.html'].includes(url.pathname) || url.hash) return '/';
+    const entry = ['/', '/index.html'].includes(url.pathname)
+      || /^\/_release\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/public\/(?:index\.html)?$/.test(url.pathname);
+    if (url.origin !== ORIGIN || !entry || url.hash) return '/';
     return url.pathname + url.search;
   } catch { return '/'; }
 }
@@ -167,7 +171,7 @@ async function readForm(req) {
   });
   const form = new URLSearchParams(body);
   for (const key of form.keys()) {
-    if (!['password', 'csrf', 'next'].includes(key) || form.getAll(key).length !== 1) throw new InputError(400, '请求格式不正确。');
+    if (!['password', 'csrf', 'next', 'callsign'].includes(key) || form.getAll(key).length !== 1) throw new InputError(400, '请求格式不正确。');
   }
   return form;
 }
@@ -189,9 +193,9 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
     const html = template.replace(/\{\{([A-Z_]+)\}\}/g, (_, key) => escapeHTML(values[key] ?? ''));
     send(req, res, status, html, 'text/html; charset=utf-8');
   }
-  function fail(req, res, status, message, next = '/', retryAfter = null) {
+  function fail(req, res, status, message, next = '/', retryAfter = null, rejection = null) {
     if (retryAfter) res.setHeader('Retry-After', String(retryAfter));
-    if (wantsJSON(req)) send(req, res, status, JSON.stringify({ ok: false, message, ...(retryAfter ? { retryAfter } : {}) }), 'application/json; charset=utf-8');
+    if (wantsJSON(req)) send(req, res, status, JSON.stringify({ ok: false, message, ...(retryAfter ? { retryAfter } : {}), ...(rejection || {}) }), 'application/json; charset=utf-8');
     else render(req, res, status, next, message);
   }
 
@@ -216,7 +220,7 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
       }
       return send(req, res, 404, 'Not found');
     }
-    if (!['/_gate/login', '/_gate/logout'].includes(path)) return send(req, res, 404, 'Not found');
+    if (!['/_gate/login', '/_gate/logout', '/_gate/profile'].includes(path)) return send(req, res, 404, 'Not found');
     if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return send(req, res, 405, 'Method not allowed'); }
     const fetchSite = req.headers['sec-fetch-site'];
     if (req.headers.origin !== ORIGIN || (fetchSite && fetchSite !== 'same-origin')) return fail(req, res, 403, '请求来源无效，请在本站刷新后重试。');
@@ -240,6 +244,16 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
       res.writeHead(303, { Location: '/login' });
       return res.end();
     }
+    if (path === '/_gate/profile') {
+      // A remembered access cookie is not approval of a stale localStorage callsign. Every entry
+      // validates the new name, with the same Origin/CSRF checks, without changing the access token.
+      if (!authenticated(req)) return fail(req, res, 401, '访问授权已过期，请重新登录。', next);
+      const checked = moderateName(form.get('callsign'));
+      if (!checked.ok) return fail(req, res, 400, nameReasonMessage(checked.reason), next, null, { code: 'NAME_REJECTED', reason: checked.reason });
+      if (wantsJSON(req)) return send(req, res, 200, JSON.stringify({ ok: true, next, callsign: checked.name }), 'application/json; charset=utf-8');
+      res.writeHead(303, { Location: gameDestination(next) });
+      return res.end();
+    }
     const password = form.get('password');
     if (!password || password.length > 256 || Buffer.byteLength(password) > 512) return fail(req, res, 400, '请输入有效的访问口令。', next);
     const forwarded = req.headers['x-real-ip'];
@@ -252,8 +266,12 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
     try { hash = await derive(password, keys.salt, 32, KDF); }
     finally { activeKDF--; }
     if (!equal(hash, keys.hash)) return fail(req, res, 401, '访问口令不正确，请重新输入。', next);
+    // Keep password verification/CSRF/rate-limit ordering unchanged. No access cookie is minted
+    // until BOTH credentials and the displayed name pass; rejected values are never reflected.
+    const checked = moderateName(form.get('callsign'));
+    if (!checked.ok) return fail(req, res, 400, nameReasonMessage(checked.reason), next, null, { code: 'NAME_REJECTED', reason: checked.reason });
     res.setHeader('Set-Cookie', cookie(SESSION_COOKIE, signToken('session', keys.signingKey, now()), SESSION_TTL));
-    if (wantsJSON(req)) return send(req, res, 200, JSON.stringify({ ok: true, next }), 'application/json; charset=utf-8');
+    if (wantsJSON(req)) return send(req, res, 200, JSON.stringify({ ok: true, next, callsign: checked.name }), 'application/json; charset=utf-8');
     res.writeHead(303, { Location: gameDestination(next) });
     res.end();
   }
