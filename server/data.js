@@ -93,6 +93,14 @@ export function getData({ dir = DATA_DIR, log = console } = {}) {
   return singleton;
 }
 
+/** Worker bootstrap: install transferred full data before importing simulation/content modules. */
+export function initializeData(data) {
+  if (!data || typeof data !== 'object') throw new TypeError('full game data required');
+  if (singleton && singleton !== data) throw new Error('game data singleton already initialized');
+  if (!singleton) singleton = deepFreeze(data);
+  return singleton;
+}
+
 /** Drop the singleton so the next getData() reloads (tests / hot reload). */
 export function resetData() { singleton = null; }
 

@@ -43,6 +43,7 @@ import { Lobby } from './lobby.js';
 import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
+import { CombatWorkerPool } from './match/combat/pool.js';
 
 /** Repository root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -522,6 +523,15 @@ export function parseTrustProxy(v) {
   return 'auto';
 }
 
+/** Opt-in fixed combat pool. Zero keeps the synchronous backend; malformed configuration must fail before listening. */
+export function parseCombatWorkers(value) {
+  if (value == null || value === '') return 0;
+  if (typeof value !== 'number' && typeof value !== 'string') throw new RangeError('SP_COMBAT_WORKERS must be an integer from 0 to 32');
+  const s = String(value).trim();
+  if (!/^(0|[1-9]\d*)$/.test(s) || Number(s) > 32) throw new RangeError('SP_COMBAT_WORKERS must be an integer from 0 to 32');
+  return Number(s);
+}
+
 function makeLogger(quiet) {
   if (quiet) return noopLog;
   return {
@@ -551,12 +561,18 @@ export async function startServer(opts = {}) {
   const host = opts.host ?? process.env.HOST ?? '0.0.0.0';
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new RangeError(`invalid PORT ${port}`);
   const log = opts.log || makeLogger(!!opts.quiet);
+  const combatWorkers = parseCombatWorkers(opts.combatWorkers ?? process.env.SP_COMBAT_WORKERS);
   const publicDir = opts.publicDir || path.join(ROOT, 'public');
   const dataDir = opts.dataDir || path.join(ROOT, 'data');
   const sharedDir = opts.sharedDir || path.join(ROOT, 'shared');
 
   // The process-wide singleton serves the default data dir; a custom dir (tests) gets its own copy.
   const data = opts.dataDir ? loadData(dataDir, { log }) : getData({ dir: dataDir, log });
+  const combatPool = combatWorkers ? new CombatWorkerPool({ size: combatWorkers, data, log }) : null;
+  if (combatPool) {
+    try { await combatPool.start(); } catch (e) { await combatPool.close(); throw e; }
+    log.info(`[combat] fixed worker pool ready (${combatWorkers} workers; server streaming only)`);
+  }
   const netOptions = {};
   for (const k of ['reconnectWindowMs', 'heartbeatMs', 'helloTimeoutMs', 'ratePerSec', 'rateBurst', 'maxConnections', 'abuseDropsPerSec',
     'maxConnectionsPerAddr', 'heavyPerSec', 'heavyBurst', 'trustProxy']) {
@@ -568,7 +584,7 @@ export async function startServer(opts = {}) {
   for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
-  const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, options: lobbyOptions });
+  const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, options: lobbyOptions });
   const network = new Network({ registry, handler: lobby, log, options: netOptions });
   const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
   const startedAt = Date.now();
@@ -593,9 +609,12 @@ export async function startServer(opts = {}) {
       return;
     }
     if (parts.rawPath === '/healthz') {
-      sendJson(req, res, 200, {
-        ok: true, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
+      const combat = combatPool ? { backend: 'workers', scope: 'server-streaming', ...combatPool.stats() } : { backend: 'inline', workers: 0 };
+      const ok = !combatPool || (combat.status === 'ready' && combat.ready > 0);
+      sendJson(req, res, ok ? 200 : 503, {
+        ok, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
         sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
+        maxRooms: lobby.opts.maxRooms, combat,
       });
       return;
     }
@@ -642,6 +661,7 @@ export async function startServer(opts = {}) {
     });
   } catch (e) {
     network.close(); // stop heartbeat/sweep timers of the half-built server
+    await combatPool?.close();
     throw e;
   }
   server.on('error', (e) => log.error('[http] server error', e));
@@ -656,6 +676,7 @@ export async function startServer(opts = {}) {
     closing = (async () => {
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       network.close();
+      await combatPool?.close();
       await new Promise((resolve) => {
         server.close(() => resolve());
         server.closeIdleConnections?.();
@@ -666,7 +687,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, close };
+  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, close };
 }
 
 // ---------------------------------------------------------------------------------------------------

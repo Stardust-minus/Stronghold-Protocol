@@ -70,7 +70,7 @@ export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 /** Tunables. */
 export const LOBBY_DEFAULTS = Object.freeze({
   lobbyGraceMs: 60_000,   // disconnected humans keep their lobby seat this long
-  maxRooms: 1000,
+  maxRooms: 4096,
   maxRoomsPerAddr: 16,    // rooms created from one client network that may exist at once (0 = unlimited)
   maxMatchesPerAddr: 8,   // matches started from one client network that may run at once (0 = unlimited)
   resyncMinGapMs: 1000,   // heavy resyncs (match state / result replay) per session at most this often on repeated hellos
@@ -171,7 +171,8 @@ export class Lobby {
    *   options?: Partial<typeof LOBBY_DEFAULTS>,
    * }} opts
    */
-  constructor({ registry, log = noopLog, MatchClass = DefaultMatch, getData = defaultGetData, now = Date.now, seedFn, options = {} }) {
+  constructor({ registry, log = noopLog, MatchClass = DefaultMatch, getData = defaultGetData, now = Date.now, seedFn, combatPool = null, options = {} }) {
+    this.combatPool = combatPool;
     this.registry = registry;
     this.log = log;
     this.MatchClass = MatchClass;
@@ -499,9 +500,11 @@ export class Lobby {
         // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
         matchNo: room.matchCount + 1,
         data: this.safeData(),
+        combatPool: this.combatPool,
         log: this.log,
         now: this.now,
         send: (playerId, msg) => (ctx.live ? this.matchSend(room, ctx, playerId, msg) : false),
+        sendEncoded: (playerId, type, data) => (ctx.live ? this.sendEncodedToPlayer(room, playerId, type, data) : false),
         broadcast: (msg) => { if (ctx.live) this.matchBroadcast(room, ctx, msg); },
         onEnd: (summary) => this.onMatchEnd(room, ctx, summary),
       });
@@ -864,6 +867,16 @@ export class Lobby {
     const droppable = isDroppable(msg);
     for (const session of this.memberSessions(room)) sendRaw(session.ws, data, { droppable });
     return data;
+  }
+
+  /** Only live battle frames use this path: result replay still goes through matchSend/matchBroadcast. */
+  sendEncodedToPlayer(room, playerId, type, data) {
+    if (room.disposed || !['m.field', 'b.snap', 'b.ev'].includes(type) || typeof data !== 'string') return false;
+    const seat = room.seatOf(playerId);
+    if (!seat || seat.isBot || seat.left) return false;
+    const session = this.registry.byId(playerId);
+    if (!session?.connected || session.roomCode !== room.code) return false;
+    return sendRaw(session.ws, data, { droppable: type === 'b.snap' });
   }
 
   /** Match unicast. @returns {boolean} */

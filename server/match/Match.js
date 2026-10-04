@@ -141,6 +141,7 @@ import {
 } from './fields.js';
 import { buildBattleSpec, createBattleFromSpec, resultDigest, compactResult as compactForVerify, battleProgress, uniteLeft } from '../sim/spec.js';
 import { CreditPool } from './finalAssault.js';
+import { RemoteBattle, WorkerFieldRunner } from './combat/runner.js';
 import { buildResult } from './results.js';
 import { botPrepBeginSteps, botPrepEndSteps, botPickBand, botPickCard } from './bot.js';
 
@@ -253,6 +254,9 @@ export class Match {
     /** client-side combat (DESIGN §14) — see the header */
     this.clientCombat = opts.clientCombat != null ? !!opts.clientCombat : envClientCombat();
     this.verifyMode = parseVerify(opts.verify ?? env('SP_VERIFY'));
+    // Workers are opt-in at server startup; virtual/custom simulators and client-authoritative combat stay inline.
+    this.combatPool = opts.combatPool && !this.clientCombat && !this.sched.virtual && this.BattleClass === Battle
+      ? opts.combatPool : null;
     /** wall-clock ms per slice of a server-run normal / 联防 field (virtual time: at once) */
     this.headlessSliceMs = Number.isFinite(opts.headlessSliceMs) && opts.headlessSliceMs > 0 ? opts.headlessSliceMs : this.sched.virtual ? Infinity : HEADLESS_SLICE_MS;
     this.verifyStats = { checked: 0, mismatches: 0, rejected: 0, takeovers: 0 };
@@ -673,6 +677,17 @@ export class Match {
     try { return !!this.sendFn(playerId, msg); } catch (e) { this.reportError('send', e); return false; }
   }
 
+  /** Worker-produced protocol frames are encoded once off-thread, then reused for every permitted recipient. */
+  sendEncoded(playerId, type, data) {
+    if (this.disposed || !['m.field', 'b.snap', 'b.ev'].includes(type) || typeof data !== 'string') return false;
+    const ps = this.players.get(playerId);
+    if (!ps || ps.isBot || ps.left) return false;
+    try {
+      if (typeof this.opts.sendEncoded === 'function') return !!this.opts.sendEncoded(playerId, type, data);
+      return this.sendTo(playerId, JSON.parse(data)); // capture-only fixtures / embedding without an encoded transport
+    } catch (e) { this.reportError('send encoded', e); return false; }
+  }
+
   broadcast(msg) {
     if (this.disposed) return;
     try { this.broadcastFn(msg); } catch (e) { this.reportError('broadcast', e); }
@@ -907,6 +922,7 @@ export class Match {
   _sendField(playerId, fieldId) {
     const f = this.fields.find((x) => x.fieldId === fieldId);
     if (f) {
+      if (f.remote) { f.battle.runner?.requestField(playerId, fieldId); return; }
       let meta;
       try { meta = f.battle.fieldMeta(); } catch (e) { this.reportError('fieldMeta', e); return; }
       this.sendTo(playerId, { t: 'm.field', ...meta, fieldId: f.fieldId, kind: f.kind, live: !!f.live });
@@ -1106,6 +1122,7 @@ export class Match {
     if (this._bossClockOn && !this._bossClock && (this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE)) {
       this._bossClock = this.later(BOSS_CLOCK_MS, () => this._bossClockTick());
     }
+    if (this.runner?.remote) this.runner.resume();
     this.markPublic();
   }
 
@@ -1738,6 +1755,13 @@ export class Match {
 
   _normalBattle(ps) { return this.newBattle(this._normalOpts(ps)); }
 
+  /** Main-thread effects build the input once; only its data-only spec travels to the worker. */
+  _remoteField(opts, players) {
+    const spec = buildBattleSpec({ ...opts, content: this.battleContent,
+      boss: this.bossPool ? { poolHp: this.bossPool.hp, poolMax: this.bossPool.maxHp } : null });
+    return { remote: true, fieldId: spec.fieldId, kind: spec.kind, players, spec, battle: new RemoteBattle(spec), live: true };
+  }
+
   /** Battle options of a player's normal field (after the onBattleStart handlers). */
   _normalOpts(ps) {
     const wave = this.wave;
@@ -1782,12 +1806,14 @@ export class Match {
     this.phase = PHASE.COMBAT;
     const alive = this.alivePlayers();
     this.lastResults = new Map();
-    this.fields = alive.map((ps) => ({ fieldId: `n:${ps.playerId}`, kind: 'normal', players: [ps.playerId], battle: this._normalBattle(ps), live: true }));
+    this.fields = alive.map((ps) => this.combatPool ? this._remoteField(this._normalOpts(ps), [ps.playerId])
+      : { fieldId: `n:${ps.playerId}`, kind: 'normal', players: [ps.playerId], battle: this._normalBattle(ps), live: true });
     const limit = this.wave ? this.wave.timeLimit : 60;
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
+    const Runner = this.combatPool ? WorkerFieldRunner : FieldRunner;
+    this.runner = new Runner(this, this.fields, { onDone: (runner) => this.combatDone(runner) });
     this._defaultWatch();
     this.markPublic();
-    this.runner = new FieldRunner(this, this.fields, { onDone: (runner) => this.combatDone(runner) });
     this.runner.start();
   }
 
@@ -1850,14 +1876,15 @@ export class Match {
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
     const limit = this.wave ? this.wave.timeLimit : 60;
-    const battle = this.newBattle(this._uniteOpts(plan, limit));
-    this.fields = [{ fieldId: 'u', kind: 'unite', players: plan.helpers.map((p) => p.playerId), battle, live: true }];
+    const opts = this._uniteOpts(plan, limit);
+    const players = plan.helpers.map((p) => p.playerId);
+    this.fields = [this.combatPool ? this._remoteField(opts, players)
+      : { fieldId: 'u', kind: 'unite', players, battle: this.newBattle(opts), live: true }];
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
-    this._defaultWatch();
-    this.markPublic();
     this.tickerText(`联防阶段：${plan.helpers.map((p) => p.name).join('、')} 迎战突破防线的敌人`, FLOW_TICKER_PRIORITY);
     this._uniteLeftKey = null;
-    this.runner = new FieldRunner(this, this.fields, {
+    const Runner = this.combatPool ? WorkerFieldRunner : FieldRunner;
+    this.runner = new Runner(this, this.fields, {
       onTick: (runner) => this._uniteTick(runner),
       onDone: (runner) => {
         if (this.phase !== PHASE.UNITE) return;
@@ -1869,6 +1896,8 @@ export class Match {
         this.later(this.scaled(DELAYS.COMBAT_END), () => this.settle(plan, res));
       },
     });
+    this._defaultWatch();
+    this.markPublic();
     this.runner.start();
   }
 
@@ -2001,6 +2030,7 @@ export class Match {
     else if (this.phase === PHASE.COMBAT) {
       const f = this.fields.find((x) => x && x.kind === 'normal' && Array.isArray(x.players) && x.players.includes(ps.playerId));
       if (f && f.cc) n = f.done && f.result ? counted(f.result.perPlayer && f.result.perPlayer[ps.playerId]) : Number(f.progress && f.progress.leaks) || 0;
+      else if (f?.remote) n = f.battle.progress?.leaks || 0;
       else if (f && f.battle) { try { n = battleProgress(f.battle).leaks; } catch { n = 0; } }
     }
     const loss = Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(n) || 0)));
@@ -2039,7 +2069,8 @@ export class Match {
         const sample = timelineAt(f.timeline, this._fieldElapsed(f));
         live = sample && sample[3] && typeof sample[3] === 'object' ? sample[3] : null;
       } else live = f.progress && f.progress.left && typeof f.progress.left === 'object' ? f.progress.left : null;
-    } else if (f && f.battle) {
+    } else if (f?.remote) live = f.battle.left;
+    else if (f && f.battle) {
       try { live = uniteLeft(f.battle); } catch { live = null; }
     }
     if (!this._uniteBounds || this._uniteBounds.plan !== plan) this._uniteBounds = { plan, bounds: uniteBillBounds(plan.leaked, this.gd) };
@@ -2051,9 +2082,9 @@ export class Match {
   /** Server-run 联防 (streaming mode): refresh m.public about once a game second when a leaker's count moved. */
   _uniteTick(runner) {
     const f = runner && runner.fields ? runner.fields[0] : null;
-    if (!f || !f.battle || runner.ticks % 30 !== 0) return;
+    if (!f || !f.battle || (runner.remote ? !runner.secondTick : runner.ticks % 30 !== 0)) return;
     let key = '';
-    try { key = JSON.stringify(uniteLeft(f.battle)); } catch { key = ''; }
+    try { key = JSON.stringify(f.remote ? f.battle.left : uniteLeft(f.battle)); } catch { key = ''; }
     if (key === this._uniteLeftKey) return;
     this._uniteLeftKey = key;
     this.markPublic();
@@ -2866,6 +2897,7 @@ export class Match {
         bossId,
       };
       if (this.clientCombat) return { fieldId, kind: hidden ? 'hidden' : 'boss', players: g.map((p) => p.playerId), opts: bopts, battle: null, live: true };
+      if (this.combatPool) return this._remoteField(bopts, g.map((p) => p.playerId));
       const battle = this.newBattle(bopts);
       try {
         battle.on('enemyLeak', (ctx) => this._bossLeak(ctx && ctx.enemy), { priority: -1000, owner: 'match' });
@@ -2882,12 +2914,16 @@ export class Match {
     this.deadline = this.sched.instant || !levelTime ? 0 : onClock(levelTime);
     this.overtimeAt = this.sched.instant ? 0 : onClock(this.gd.bossOvertimeAfterReal);
     if (this.clientCombat) { this._startFinalClient(hidden); return; }
-    this._defaultWatch();
-    this.markPublic();
-    this.runner = new FieldRunner(this, this.fields, {
+    const Runner = this.combatPool ? WorkerFieldRunner : FieldRunner;
+    this.runner = new Runner(this, this.fields, {
       onTick: (runner) => this._bossTick(runner),
       onDone: (runner) => this._finalDone(runner, hidden),
+      boss: { maxHp: pool.maxHp, hp: pool.hp, teamLp: this.teamLp, overtimeApplied: 0,
+        combatTimeScale: this.gd.combatTimeScale, bossOvertimeAfterReal: this.gd.bossOvertimeAfterReal,
+        bossOvertimeDrainReal: this.gd.bossOvertimeDrainReal },
     });
+    this._defaultWatch();
+    this.markPublic();
     this.runner.start();
   }
 
@@ -2976,6 +3012,12 @@ export class Match {
   }
 
   _bossTick(runner) {
+    if (runner.remote) {
+      // The worker already applied overtime and terminal ordering; only publish the accepted mirror here.
+      if (runner.publicTick) this.markPublic();
+      if (runner.secondTick) this.flush();
+      return;
+    }
     this._applyOvertime(runner.time);
     if (this.teamLp <= 0 && this.bossPool.hp > 0) runner.forceAll('forced');
     // client-side combat with every boss field on the server: humans that reconnect / watch run display replicas
