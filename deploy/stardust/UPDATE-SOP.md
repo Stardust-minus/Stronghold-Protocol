@@ -2,7 +2,7 @@
 
 适用：ark-proto.stardust.matce.cn 游戏、独立 PRTS 门禁，以及 ark-asset.hanabi-ai.cn:25442 静态源。
 
-正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。当前下一次发布目标是 0.1.2 与完成后的 Worker/其他本站改动配套验收后协调上线，提交、合并与推送都不代表允许重启生产。
+正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。0.1.2 + Worker 的已激活发布单元见下方记录；此后每次更新都须配套验收及取得明确上线授权，提交、合并与推送不代表允许重启生产。
 
 ## 一、发布单元与不可违反的边界
 
@@ -14,7 +14,7 @@
 4. 该版本的资源 manifest、package-lock、部署适配补丁及准备工具摘要。
 5. 嘉兴 vhost 中上述四个资源路径指向的同一个静态 release。
 
-目前基线：游戏 `8cd6491e435f0a0355077b6162d1b17b77baa19e` / `0.1.1`，镜像 `ark-proto:8cd6491-20261003`，静态目录 `releases/8cd6491/`。
+当前已激活：游戏源码 `2878299fb3b5e5b361177ed3e79e24efaab6d98e` / `0.1.2`，镜像 `ark-proto:v012-workers-20261004`，静态目录 `releases/v012-workers-20261004/`，4 Worker、maxRooms 4096。详见 `releases/v012-workers-20261004.json`。上一完整回滚单元：`8cd6491e435f0a0355077b6162d1b17b77baa19e` / `0.1.1`、镜像 `ark-proto:8cd6491-20261003`、静态目录 `releases/8cd6491/`。
 
 **不能只 git pull、只换游戏镜像，或只覆写素材目录。** 已上线的版本目录为 immutable，哪怕补丁只改一个字节，也应采用新目录后缀（例如 `<commit>-r2`），不要让长期缓存拿到同一 URL 的不同内容。
 
@@ -61,7 +61,7 @@ releases/<release>/
 `deploy/stardust/tools/prepare-static-release.mjs` 不联网、不改源文件、不激活 release。`APP_EXPORT` 必须是与新游戏镜像相同的固定 app 导出目录，包含已核对的本地依赖/vendor/素材；`SOURCE_REVISION` 为该源码完整 40 位 commit。工具记录调用方提供的 revision 和输入摘要，**不能把带未提交改动的 checkout 自动证明为该 commit**。`STAGE` 必须是不存在的新目录，已有目录（即使为空）也拒绝覆盖。仓库内输出仅允许放在已忽略的 `deploy/stardust/build/` 下。
 
 ```sh
-# STATIC_RELEASE 为新 immutable ID；下一次拟使用 v012-workers-20261004，不代表它已 active。
+# STATIC_RELEASE 必须使用新 immutable ID；v012-workers-20261004 已发布，不能复用/覆盖。
 node deploy/stardust/tools/prepare-static-release.mjs \
   --source "$APP_EXPORT" --revision "$SOURCE_REVISION" \
   --release "$STATIC_RELEASE" --out "$STAGE"

@@ -1,0 +1,36 @@
+{
+  "release": "v012-workers-20261004",
+  "activatedAt": "2026-10-04T14:36:12+08:00",
+  "appVersion": "0.1.2",
+  "sourceRevision": "2878299fb3b5e5b361177ed3e79e24efaab6d98e",
+  "upstreamRevision": "9d404199df76f862eff7385b82f952ab0498f4c5",
+  "imageTag": "ark-proto:v012-workers-20261004",
+  "imageId": "sha256:2f660058f9287f8c0fa7991dc8a8671031693bad7411a1113e08c8e2ca09fa11",
+  "staticRelease": "v012-workers-20261004",
+  "staticManifestSha256": "d9acfbd77dc02b54676d2d7d25c24a6e8c44021490676c1e178cf849894981a4",
+  "staticFiles": 5529,
+  "mediaStems": 536,
+  "mediaExplicitAliases": 3752,
+  "combatMode": "server",
+  "verifyMode": "off",
+  "combatWorkers": 4,
+  "maxRooms": 4096,
+  "gameCpuMemoryLimits": false,
+  "prtsLibrariesRelease": "prts-libs-20261004",
+  "authImageUnchanged": "ark-proto-auth:20261003.6",
+  "verification": {
+    "node": "24.14.0",
+    "fullTestsPass": 3537,
+    "fullTestsSkip": 14,
+    "fullTestsFail": 0,
+    "isolatedNginxTestsPass": 11,
+    "publicStaticChecksPass": 30,
+    "productionTwoBrowserCombatReconnectSettlement": true
+  },
+  "rollback": {
+    "imageTag": "ark-proto:8cd6491-20261003",
+    "staticRelease": "8cd6491",
+    "removeMediaRedirect": true,
+    "restoresLostMatches": false
+  }
+}
