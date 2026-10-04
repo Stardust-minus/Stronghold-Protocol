@@ -99,6 +99,12 @@ NGINX_BIN="$LOCAL_NGINX" NGINX_MIME_TYPES="$LOCAL_MIME_TYPES" \
 
 静态配置需保留已测试的 `map_hash_bucket_size 512` / `map_hash_max_size 8192`，否则完整长路径库存可在 `nginx -t` 时失败或报警。`$asset_cache` map 的 `volatile` 也必须保留：Range filter 可能在初次 200 headers 后产生 416；重新求值确保最终带 `no-store`（其优先级高于此前已追加的 immutable/max-age）。普通 403/404 则只带 no-store。`$asset_cors_origin` 状态 map 同样不能省略：该静态 Range 416 保留初次 CORS header，因此第二次 filter 不再追加 ACAO，避免 `*, *` 导致浏览器拒绝 CORS；其他正常/错误响应仍提供单个 `*`。
 
+### OpenI 素材镜像接点
+
+启用 OpenI 签名解析后，宁夏仍是完整回退源及 fonts/vendor/PRTS 的正文源，不能省略上述准备。另按 `OPENI.md` 上传同一批已校验的 assets 到新 immutable mirror 前缀，生成/验证同版本 resolver manifest；音频远端名保持无扩展名。记录解析器代码/镜像 ID、清单 SHA-256、平台前缀和 fallback release。
+
+资源解析与游戏是独立发布线。只改变同字节素材的供应源时，只启动/更新 `compose.assets.yaml` 并平滑更新 Nginx，不能顺带重建游戏。游戏版本升级时则必须协调切换新的游戏、宁夏 fallback、OpenI mirror 和解析清单；旧静态准备器生成的四路直跳模板不能盲目覆盖现用 `/assets/`、`/media/` 解析路由。上传/签名能力不涉及 fonts/vendor/PRTS 的搬回嘉兴，也不允许把账户 Token 部署到前端或公开日志。
+
 ## 四、预更新：只上传新版本，不改变线上
 
 1. 将游戏镜像导入嘉兴的新标签，不修改现用 Compose。

@@ -44,6 +44,10 @@ deploy/stardust/auth/public/three.core.js
 deploy/stardust/auth/public/css3d.js
 deploy/stardust/auth/public/bender-regular.woff2
 deploy/stardust/build/
+deploy/stardust/openi-resolver/openi-assets.json
+*.upload.checkpoint.json
+**/.openi/
+**/.modelscope/
 deploy/stardust/**/tls/
 deploy/stardust/**/secrets/
 deploy/stardust/**/auth-secrets/

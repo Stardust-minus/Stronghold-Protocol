@@ -20,11 +20,13 @@
 | `auth/test/` | 不接触生产的认证、CSRF、限速及凭据文件权限测试 |
 | `compose.yaml` | 游戏目标配置；`SP_COMBAT=server`、6 Worker，无 CPU/内存硬上限，PIDs/安全限制保留 |
 | `compose.auth.yaml` | 独立门禁服务，保留 0.5 CPU / 256 MiB 限制 |
+| `compose.assets.yaml`、`openi-resolver/` | 独立公开素材签名缓存服务；只返回重定向，失败回退宁夏，不持有账户 Token |
 | `Dockerfile.offline` | 使用已准备好的 `app/` 目录离线构建，需传入实际 commit/version |
 | `nginx/` | 嘉兴 OpenResty vhost 和开场导航 snippet |
 | `static/` | 宁夏公开静态源 Nginx 与 Supervisor 配置，10 workers；CORS `*`，无凭据 |
 | `tools/prepare-auth-assets.mjs` | 从本仓库 lockfile 对应依赖和已安装字体准备 PRTS 的忽略文件 |
 | `tools/prepare-static-release.mjs` | 离线准备/校验素材、字体、vendor、音频 alias 和逐文件 SHA-256 清单 |
+| `tools/openi-assets.py`、`OPENI.md` | 素材镜像上传/校验、无扩展名音频映射、签名缓存及无游戏重启的接入流程 |
 | `WORKERS.md` | Worker 边界、故障策略、回退、健康指标与本机性能样本 |
 | `UPDATE-SOP.md` | 游戏、素材、字体、vendor 的配套更新、验收及回滚步骤 |
 
