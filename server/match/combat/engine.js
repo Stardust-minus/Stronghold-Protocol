@@ -1,5 +1,5 @@
 // A phase, not a field, is the isolation boundary: all boss fields share HP, LP and tick ordering.
-import { FieldRunner, DeadBattle, HARD_CAP_SECONDS, snapFrame } from '../fields.js';
+import { FieldRunner, DeadBattle, HARD_CAP_SECONDS, MAX_TICKS_PER_INTERVAL, snapFrame } from '../fields.js';
 import { SharedBossPool } from '../finalAssault.js';
 import { GameData, COMBAT_TIME_SCALE, DEFAULTS } from '../gamedata.js';
 import { createBattleFromSpec, battleProgress, uniteLeft } from '../../sim/spec.js';
@@ -19,7 +19,7 @@ class EngineRunner extends FieldRunner {
 }
 
 export class CombatEngine {
-  constructor({ specs, boss = null, wireFrames = false }, { data, log = QUIET, BattleClass } = {}) {
+  constructor({ specs, boss = null, wireFrames = false, coalesceFrames = false }, { data, log = QUIET, BattleClass } = {}) {
     if (!Array.isArray(specs) || specs.length > 4) throw new TypeError('specs must contain at most four fields');
     const ids = new Set();
     for (const s of specs) {
@@ -30,6 +30,8 @@ export class CombatEngine {
     const ds = combatData(data);
     this.log = log;
     this.wireFrames = wireFrames === true;
+    this.coalesceFrames = this.wireFrames && coalesceFrames === true;
+    this.coalescing = false;
     this.disposed = false;
     this.frames = [];
     this.effects = [];
@@ -147,11 +149,12 @@ export class CombatEngine {
     if (this.watched.has(f.fieldId) || !f.live) this._frame(f, events);
   }
 
-  _begin(snapshotFields = []) {
+  _begin(snapshotFields = [], coalescing = false) {
     if (this.disposed) throw new Error('combat engine disposed');
     if (!Array.isArray(snapshotFields)) throw new TypeError('snapshotFields must be an array');
     this.watched = new Set(snapshotFields);
     this.frames = [];
+    this.coalescing = this.coalesceFrames && coalescing;
   }
 
   _output({ state = false, final = false } = {}) {
@@ -187,7 +190,18 @@ export class CombatEngine {
     });
     // Frames were already detached at their individual tick boundaries; don't clone their heavy unit
     // arrays a second time here (postMessage will perform the one necessary cross-thread copy).
-    dto.frames = this.frames;
+    if (this.coalescing) {
+      // A delayed command may cover several snapshot intervals. Keep every ordered event wire (including
+      // spawn UnitInfo and its original gt), but only the last consistent snapshot/meta pair per field.
+      // Do not merge/re-time events or change simulation/effect/result ordering to smooth the transport.
+      const latest = new Map();
+      const events = [];
+      for (const frame of this.frames) {
+        latest.set(frame.fieldId, { ...frame, eventsWire: null });
+        if (frame.eventsWire) events.push({ fieldId: frame.fieldId, eventsWire: frame.eventsWire });
+      }
+      dto.frames = [...events, ...latest.values()];
+    } else dto.frames = this.frames;
     this.effects = [];
     this.frames = [];
     return dto;
@@ -195,7 +209,7 @@ export class CombatEngine {
 
   advance(ticks, { snapshotFields = [] } = {}) {
     if (!Number.isInteger(ticks) || ticks < 0 || ticks > MAX_ADVANCE_TICKS) throw new RangeError(`ticks must be 0..${MAX_ADVANCE_TICKS}`);
-    this._begin(snapshotFields);
+    this._begin(snapshotFields, ticks > MAX_TICKS_PER_INTERVAL);
     for (let i = 0; i < ticks && !this.runner.done; i++) {
       this.runner._tick();
       if (this.runner.time >= HARD_CAP_SECONDS) this.runner._forceAll('timeout');

@@ -14,7 +14,7 @@ import { buildNormalWave } from '../../server/match/waves.js';
 import { planUnite } from '../../server/match/unite.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { CombatEngine } from '../../server/match/combat/engine.js';
-import { WorkerFieldRunner, RemoteBattle } from '../../server/match/combat/runner.js';
+import { WorkerFieldRunner, RemoteBattle, MAX_WORKER_ADVANCE_TICKS } from '../../server/match/combat/runner.js';
 import { FakeBattle } from './fakeBattle.js';
 import { DATA, give, legalTileFor } from './harness.js';
 import { TestClient } from '../helpers/wsClient.js';
@@ -298,7 +298,7 @@ async function readyControlled(t, opts = {}) {
   return { ...h, pool, runner };
 }
 
-test('workers: deterministic pacing retains below-cap latency and resync time, caps backlog and discards pause catch-up', async (t) => {
+test('workers: deterministic pacing retains active time through latency/resync, bounds turns and discards pause catch-up', async (t) => {
   let clock = 1000;
   const h = await readyControlled(t, { now: () => clock });
   const { m, pool, runner } = h;
@@ -334,14 +334,17 @@ test('workers: deterministic pacing retains below-cap latency and resync time, c
   assert.equal(runner.ticks, 12);
 
   pump(interval);
-  pump(60_000); // A blocked worker cannot turn a long stall into an unbounded catch-up queue.
+  pump(1000); // A delayed worker leaves sixty active ticks owed, without creating another queued command.
   assert.equal(pool.queue.length, 1);
   await pool.deliver();
-  pump();
-  assert.equal(advances().at(-1), 8, '2x catch-up is capped at eight ticks');
+  assert.equal(advances().at(-1), MAX_WORKER_ADVANCE_TICKS, 'reply immediately admits one bounded catch-up turn');
+  assert.equal(pool.queue.length, 1);
+  await pool.deliver();
+  assert.equal(advances().at(-1), 60 - MAX_WORKER_ADVANCE_TICKS, 'remaining active debt is retained, not discarded');
   await pool.deliver();
   pump();
-  assert.equal(pool.queue.length, 0, 'excess backlog was discarded, not carried into repeated capped commands');
+  assert.equal(runner.ticks, 74, 'all active wall time was actually simulated');
+  assert.equal(pool.queue.length, 0, 'no spin or extra command once the debt is drained');
 
   pump(interval);
   assert.equal(advances().at(-1), 2);
