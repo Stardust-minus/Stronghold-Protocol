@@ -13,7 +13,7 @@ services:
       PORT: "3000"
       SP_COMBAT: server
       SP_VERIFY: "off"
-      SP_COMBAT_WORKERS: "4"
+      SP_COMBAT_WORKERS: "6"
       TRUST_PROXY: auto
     read_only: true
     tmpfs:

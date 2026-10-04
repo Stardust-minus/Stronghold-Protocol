@@ -9,6 +9,7 @@
 - 本 fork 的 `master` 是本站集成分支；功能分支验证后合并，不强推或改写已发布历史。
 - 固定本地工作目录：`/root/projects/Stronghold-Protocol`。旧 `/tmp` 工作目录只作历史参考，不再作为开发主目录。
 - 2026-10-04 已激活 `v012-workers-20261004`（上游 0.1.2 + 固定战斗 Worker 池 + `/media/` 静态适配），运行源码固定为 `2878299`。完整镜像/资源摘要和验收记录见 [发布记录](releases/v012-workers-20261004.json)；后续仅更新文档的 master 提交不代表运行镜像改变。上一版 `8cd6491` / `0.1.1` 保留供成对回滚。
+- 15:00 +08 已按明确授权将 Worker 从 4 调到 6，镜像/资源未变；见 [运行配置记录](releases/v012-workers-20261004-workers6.json)。
 - 实际激活状态以两机 release 记录为准。checkout、合并与推送不自动授权部署；须完成同一 commit 的本地验收并取得上线授权，才能协调切换游戏与静态路由。
 
 ## 内容
@@ -17,7 +18,7 @@
 |---|---|
 | `auth/` | 原生 Node 共享口令认证服务和主助手编写的 PRTS 前端 |
 | `auth/test/` | 不接触生产的认证、CSRF、限速及凭据文件权限测试 |
-| `compose.yaml` | 游戏目标配置；`SP_COMBAT=server`、4 Worker，无 CPU/内存硬上限，PIDs/安全限制保留 |
+| `compose.yaml` | 游戏目标配置；`SP_COMBAT=server`、6 Worker，无 CPU/内存硬上限，PIDs/安全限制保留 |
 | `compose.auth.yaml` | 独立门禁服务，保留 0.5 CPU / 256 MiB 限制 |
 | `Dockerfile.offline` | 使用已准备好的 `app/` 目录离线构建，需传入实际 commit/version |
 | `nginx/` | 嘉兴 OpenResty vhost 和开场导航 snippet |
@@ -85,4 +86,4 @@ git merge --no-ff upstream/master
 
 ## Worker 开发状态
 
-固定池已实现，`SP_COMBAT_WORKERS=0` 保留原后端，生产目标为 4 Worker；不引入 Redis，不改变前端协议。`maxRooms` 默认 4096。确定性、Boss 共享池、暂停在途回包、动态元数据重连、退出/取消、迟到消息、线程故障与关闭均有专门测试。详细范围、故障行为和容量限制见 [WORKERS.md](WORKERS.md)，实际线上启用状态仍须核对 release 记录及 `/healthz`。
+固定池已实现，`SP_COMBAT_WORKERS=0` 保留原后端，生产目标为 6 Worker；不引入 Redis，不改变前端协议。`maxRooms` 默认 4096。确定性、Boss 共享池、暂停在途回包、动态元数据重连、退出/取消、迟到消息、线程故障与关闭均有专门测试。详细范围、故障行为和容量限制见 [WORKERS.md](WORKERS.md)，实际线上启用状态仍须核对 release 记录及 `/healthz`。

@@ -8,10 +8,11 @@
 environment:
   SP_COMBAT: server
   SP_VERIFY: "off"
-  SP_COMBAT_WORKERS: "4"
+  SP_COMBAT_WORKERS: "6"
 ```
 
 - `SP_COMBAT_WORKERS` 默认 `0`：保持原单线程实现。接受 `0..32` 的整数，格式错误在监听端口前报错。
+- 当前生产配置为 6 Worker（2026-10-04 15:00 +08 从 4 调整）；下方性能表仍是原 0/1/2/4 对照样本，不是 6 Worker 的测量结果。
 - 固定池由服务器启动时创建、Lobby 注入每个 Match；线程被全部房间共用，不是每个房间创建线程。
 - 一整个战斗阶段的所有 field 始终在同一个 Worker，包括共享 Boss HP、团队 LP、超时扣血和同 tick 的结束顺序。不同阶段可重新分配。
 - 虚拟时钟、自定义 BattleClass、客户端权威战斗及其验证/接管仍走原路径。准备阶段预览和机器人布局试算也仍在主线程；不能把这一改动理解为整个游戏逻辑全部并行。

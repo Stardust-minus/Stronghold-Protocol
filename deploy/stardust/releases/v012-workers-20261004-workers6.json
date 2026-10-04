@@ -1,0 +1,13 @@
+{
+  "kind": "runtime-configuration-change",
+  "release": "v012-workers-20261004",
+  "appliedAt": "2026-10-04T15:00:30+08:00",
+  "sourceRevisionUnchanged": "2878299fb3b5e5b361177ed3e79e24efaab6d98e",
+  "imageTagUnchanged": "ark-proto:v012-workers-20261004",
+  "previousCombatWorkers": 4,
+  "combatWorkers": 6,
+  "maxRooms": 4096,
+  "readyWorkersVerified": 6,
+  "gameRecreated": true,
+  "authAndStaticServicesRestarted": false
+}
