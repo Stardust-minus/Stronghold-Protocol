@@ -362,7 +362,7 @@ test('native GET/HEAD/OPTIONS, health, method errors and exact-path rejections h
   const get = await rawRequest(app.base, '/assets/audio/test_audio.mp3?loginToken=ignored', 'GET', {
     Cookie: 'private-cookie=test-only', Authorization: 'Bearer test-only-private', Range: 'bytes=0-1', 'X-Forwarded-For': '203.0.113.1',
   });
-  assert.equal(get.status, 302); assert.equal(get.headers.location, signed(config)); assert.equal(get.body, '');
+  assert.equal(get.status, 302); assert.equal(get.headers.location, signed(config) + '&sp_request=display'); assert.equal(get.body, '');
   assert.equal(get.headers['cache-control'], 'no-store'); assert.equal(get.headers['access-control-allow-origin'], '*');
   assert.equal(get.headers['access-control-allow-credentials'], undefined);
   assert.deepEqual(calls[0][1].headers, { Accept: '*/*' });
@@ -384,6 +384,31 @@ test('native GET/HEAD/OPTIONS, health, method errors and exact-path rejections h
   assert.equal(rejected.status, 404);
   assert.equal((await rawRequest(app.base, '/healthz', 'OPTIONS')).status, 405);
   await app.close(); await app.close();
+});
+
+test('display, CORS, and fetch clients share one signature but use separate OBS cache keys', async t => {
+  const config = manifest(); let calls = 0;
+  const app = await native(t, { manifest: config, fetchImpl: () => { calls++; return response(signed(config)); } });
+  const display = await rawRequest(app.base, '/assets/a.png?sp_request=attacker', 'GET', { 'Sec-Fetch-Mode': 'no-cors' });
+  const cors = await rawRequest(app.base, '/assets/a.png', 'GET', { Origin: 'https://game.test', 'Sec-Fetch-Mode': 'cors' });
+  const fetch = await rawRequest(app.base, '/assets/a.png', 'GET', { 'Sec-Fetch-Mode': 'cors' });
+  const again = await rawRequest(app.base, '/assets/a.png', 'GET');
+  assert.equal(display.headers.location, signed(config) + '&sp_request=display');
+  assert.equal(cors.headers.location, signed(config) + '&sp_request=cors');
+  assert.equal(fetch.headers.location, cors.headers.location);
+  assert.equal(again.headers.location, display.headers.location);
+  for (const result of [display, cors, fetch, again]) {
+    assert.equal(result.status, 302);
+    assert.equal(new URL(result.headers.location).origin, config.ossOrigin);
+    assert.equal(result.headers.vary, 'Origin, Sec-Fetch-Mode');
+    assert.equal(result.headers['cache-control'], 'no-store');
+    const url = new URL(result.headers.location);
+    url.searchParams.delete('sp_request');
+    assert.deepEqual([...url.searchParams], [...new URL(signed(config)).searchParams]);
+  }
+  assert.equal(calls, 1); assert.equal(app.resolver.health().apiRequests, 1);
+  const head = await rawRequest(app.base, '/assets/a.png', 'HEAD', { Origin: 'https://game.test' });
+  assert.equal(head.headers.location, config.fallbackBase + '/assets/a.png');
 });
 
 test('native fallback redirects remain no-store, CORS-public and exactly same-release', async t => {

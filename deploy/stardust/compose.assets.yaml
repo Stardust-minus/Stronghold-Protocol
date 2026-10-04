@@ -1,6 +1,6 @@
 services:
   ark-proto-assets:
-    image: ark-proto-assets:20261004.1
+    image: ark-proto-assets:20261004.2
     pull_policy: never
     container_name: ark-proto-assets
     init: true

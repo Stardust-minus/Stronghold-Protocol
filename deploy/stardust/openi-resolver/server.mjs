@@ -336,11 +336,20 @@ export async function startServer(options = {}) {
           if (!['GET', 'HEAD'].includes(request.method)) return send(response, request.method, 405, { Allow: 'GET, HEAD' });
           return send(response, request.method, 200, { 'Content-Type': 'application/json' }, JSON.stringify(resolver.health()));
         }
-        const headers = { 'Access-Control-Allow-Origin': '*' };
+        const headers = { 'Access-Control-Allow-Origin': '*', Vary: 'Origin, Sec-Fetch-Mode' };
         if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return send(response, request.method, 405,
           { ...headers, Allow: 'GET, HEAD, OPTIONS' });
         const result = await resolver.resolve(request.url, request.method);
-        if (result.location) headers.Location = result.location;
+        if (result.location) {
+          headers.Location = result.location;
+          if (!result.fallback) {
+            // OBS omits ACAO without Origin and does not send Vary. Isolate browser cache entries for display-only
+            // images and CORS readers, including old clients, without changing any signed field or object bytes.
+            // The approved Signature V2 origin accepts this fixed cache-only parameter (verified by live probes).
+            const cors = request.headers['sec-fetch-mode'] === 'cors' || !!request.headers.origin;
+            headers.Location += cors ? '&sp_request=cors' : '&sp_request=display';
+          }
+        }
         if (result.status === 204) Object.assign(headers, {
           'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
           'Access-Control-Allow-Headers': 'Range, If-Range, If-None-Match, If-Modified-Since',
