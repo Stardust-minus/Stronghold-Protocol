@@ -1,0 +1,86 @@
+# Stardust 部署覆盖层
+
+本目录版本化维护本站的认证/PRTS、Nginx、公开静态源和协同发布流程，不改变上游的项目目录结构。代码遵循仓库 GPL-3.0-or-later；第三方库按原许可证，游戏素材仍受根目录 NOTICE/THIRD-PARTY-NOTICES 的限制。
+
+## 仓库与生产是两件事
+
+- `origin`：`git@github.com:Stardust-minus/Stronghold-Protocol.git`。
+- `upstream`：`git@github.com:sganggs/Stronghold-Protocol.git`。
+- 本 fork 的 `master` 是本站集成分支；功能分支验证后合并，不强推或改写已发布历史。
+- 固定本地工作目录：`/root/projects/Stronghold-Protocol`。旧 `/tmp` 工作目录只作历史参考，不再作为开发主目录。
+- 本目录初始化时，线上仍运行 `8cd6491` / `0.1.1`；配置文件记录这条已验证的部署基线，**不是要求 checkout 或 push 后立即上线**。
+- 用户要求等下一个大版本更新窗口，再把上游、Worker 及其他本站改动一起验收发布。未经新的上线授权，不修改远端配置、不重建游戏/认证容器。
+
+## 内容
+
+| 路径 | 用途 |
+|---|---|
+| `auth/` | 原生 Node 共享口令认证服务和主助手编写的 PRTS 前端 |
+| `auth/test/` | 不接触生产的认证、CSRF、限速及凭据文件权限测试 |
+| `compose.yaml` | 游戏部署基线；`SP_COMBAT=server`，无 CPU/内存硬上限，PIDs/安全限制保留 |
+| `compose.auth.yaml` | 独立门禁服务，保留 0.5 CPU / 256 MiB 限制 |
+| `Dockerfile.offline` | 使用已准备好的 `app/` 目录离线构建，需传入实际 commit/version |
+| `nginx/` | 嘉兴 OpenResty vhost 和开场导航 snippet |
+| `static/` | 宁夏公开静态源 Nginx 与 Supervisor 配置，10 workers；CORS `*`，无凭据 |
+| `tools/prepare-auth-assets.mjs` | 从本仓库 lockfile 对应依赖和已安装字体准备 PRTS 的忽略文件 |
+| `UPDATE-SOP.md` | 游戏、素材、字体、vendor 的配套更新、验收及回滚步骤 |
+
+## 本地准备与测试
+
+根目录先完成上游依赖/素材准备；素材必须在可联网机器准备，不在国内生产机临时下载。已经有完整素材时不要重复运行联网 setup。
+
+```sh
+npm ci
+# 按上游说明准备本地素材，至少包含 public/fonts/bender-regular.woff2。
+node deploy/stardust/tools/prepare-auth-assets.mjs
+node --test deploy/stardust/auth/test/*.test.mjs
+npm test
+```
+
+`prepare-auth-assets.mjs` 不联网：从 `node_modules/three` 生成带 MIT 说明的 Three.js/Core/CSS3D 文件，并复制 Bender 字体。生成文件已忽略，不提交第三方构建产物或游戏美术。
+
+凭据权限测试在非 root/Windows 下会跳过需 chown 的部分；认证协议测试仍运行。测试密码仅为代码中的明确测试值，不是生产口令。
+
+原生认证单独运行时要用测试配置文件，通过 `AUTH_SECRETS_FILE` 指定；不要读取生产秘密来做普通开发测试。生产改密工具仅通过 TTY 隐藏输入，秘密存放在仓库外，重建门禁不会重启游戏。
+
+## 离线构建约定
+
+游戏离线构建上下文是一个**新生成目录**，包含完整的 `app/`（依赖、vendor、素材都已校验）以及本目录的 `Dockerfile.offline`，不是直接对仓库根目录执行该 Dockerfile。
+
+```sh
+# 在已经准备并校验好的构建目录中执行；值必须与其 app/ 内容一致。
+docker build --network=none --pull=false \
+  --build-arg SOURCE_REVISION="$SOURCE_REVISION" \
+  --build-arg APP_VERSION="$APP_VERSION" \
+  -f Dockerfile.offline -t "$IMAGE_TAG" .
+```
+
+认证镜像的上下文为 `deploy/stardust/auth/`，构建前先生成依赖文件。镜像不包含秘密配置。
+
+## 追上游
+
+```sh
+git fetch origin
+git fetch upstream --tags
+git switch -c sync/upstream-YYYYMMDD origin/master
+git merge --no-ff upstream/master
+# 处理冲突、检查下列接点、跑测试后，再合并回本 fork master。
+```
+
+必须检查：数据/素材 manifest、lockfile/vendor、`/assets` 及新的资源路由、`/ws`、昵称/重连约定、认证外层接点，以及模拟/Worker 改动。
+
+**特别注意**：原作者在 `8cd6491` 之后增加了 `/media/` 无扩展名音频路由。仅合并源码不等于静态分流已经兼容；下一次发布前必须审查该路由与 `shared` 映射，更新静态接入和验收用例，不能让音频悄悄重新走嘉兴正文出口。
+
+先准备同 commit 的游戏和静态资源，按 SOP 协同切换；回滚同样成对进行。PRTS 基础库独立版本化，不跟游戏每次更新强制变化。
+
+## 安全与公开范围
+
+禁止提交：真实密码、会话 Cookie、scrypt verifier/签名密钥、SSH/DNS API 凭据、私钥、证书、ACME 账户、日志、带用户信息的截图或生产数据导出。`.gitignore` 和 `.dockerignore` 是辅助，不替代提交前人工检查。
+
+静态源公开的是 assets/fonts/vendor 和 PRTS 的稳定图形库/字体。CORS `*` 不意味着游戏 API、WebSocket 或认证开放；也不保证当前带 Preact 导入适配的 vendor 对其他部署完全通用。
+
+证书目前是手动 DNS-01，材料在仓库外，没有自动续期。不要将持有域名 A 记录或当次 TXT 当成自动续期方案。
+
+## Worker 开发状态
+
+固定战斗 Worker 池已获准开展本地开发，但本次部署覆盖层入库时**尚未实现、未上线**。要求：保留单线程回退，不引入 Redis，不改前端协议；测试确定性、boss 共享池、暂停、重连、退出/取消和迟到消息。不要在配置中添加尚未实现的 Worker 环境变量。

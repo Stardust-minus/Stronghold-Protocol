@@ -1,0 +1,29 @@
+services:
+  ark-proto:
+    image: ark-proto:8cd6491-20261003
+    pull_policy: never
+    container_name: ark-proto
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3108:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      SP_COMBAT: server
+      SP_VERIFY: "off"
+      TRUST_PROXY: auto
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
