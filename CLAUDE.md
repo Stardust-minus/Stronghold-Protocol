@@ -5,7 +5,7 @@
 - `origin` is the user-owned Stardust-minus/Stronghold-Protocol fork; `upstream` is sganggs/Stronghold-Protocol.
 - This fork's `master` is the integration branch. Develop on a feature/sync branch first; merge without rewriting published history. Commit/push only when requested.
 - Development checkout: `/root/projects/Stronghold-Protocol`. Deployment customizations live in `deploy/stardust/`; read its README and UPDATE-SOP before any release work.
-- A commit, merge or push is not deployment authorization. The user has asked to wait for the next major-version maintenance window before combining upstream, Worker and other changes and restarting production. Never interrupt active games as a side effect of local development.
+- A commit, merge or push is not deployment authorization. The next intended rollout combines upstream 0.1.2, the completed Worker work and the matching deployment/static adapters. Finish local verification first and obtain the user's release-window confirmation before restarting production. Never interrupt active games as a side effect of local development.
 - The game keeps rooms, sessions and matches in process memory. Recreating it loses them. Auth and static services are separate; do not restart the game to change their files.
 - Game image, assets, fonts and vendor must be a matched release. Upload and verify the new immutable static directory before a coordinated game release; rollback both sides together. Review new upstream resource routes, including `/media/`, rather than assuming `/assets/` remains the only path.
 

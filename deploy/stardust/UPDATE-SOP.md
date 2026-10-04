@@ -2,7 +2,7 @@
 
 适用：ark-proto.stardust.matce.cn 游戏、独立 PRTS 门禁，以及 ark-asset.hanabi-ai.cn:25442 静态源。
 
-正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。用户要求等下一个大版本更新窗口再协调上线，提交、合并与推送都不代表允许重启生产。
+正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。当前下一次发布目标是 0.1.2 与完成后的 Worker/其他本站改动配套验收后协调上线，提交、合并与推送都不代表允许重启生产。
 
 ## 一、发布单元与不可违反的边界
 
