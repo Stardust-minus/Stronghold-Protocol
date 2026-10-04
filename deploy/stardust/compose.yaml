@@ -1,6 +1,6 @@
 services:
   ark-proto:
-    image: ark-proto:8cd6491-20261003
+    image: ark-proto:v012-workers-20261004
     pull_policy: never
     container_name: ark-proto
     init: true
@@ -13,6 +13,7 @@ services:
       PORT: "3000"
       SP_COMBAT: server
       SP_VERIFY: "off"
+      SP_COMBAT_WORKERS: "4"
       TRUST_PROXY: auto
     read_only: true
     tmpfs:

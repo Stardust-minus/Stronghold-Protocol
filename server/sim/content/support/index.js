@@ -42,6 +42,13 @@ export function gameData() {
   }
   return DATA;
 }
+/** Install a full, immutable data set once at thread bootstrap (never switch data between battles). */
+export function initializeGameData(data) {
+  if (!data || typeof data !== 'object' || !Object.isFrozen(data)) throw new TypeError('immutable full game data required');
+  if (DATA && DATA !== data) throw new Error('game data already initialized with a different dataset');
+  DATA = data;
+  return DATA;
+}
 /** Tests only: swap the data object (null → reload the singleton). Also drops derived caches. */
 export function setGameData(d) { DATA = d ?? null; CORE = null; }
 
