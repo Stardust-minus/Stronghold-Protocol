@@ -1,6 +1,20 @@
 # Stardust 当前开发 TODO
 
-更新时间：2026-10-04。本轮在 `fix/simple-services-matchmaking` 完成简单架构、开源昵称检测、小队复活共识及好友整队匹配。**本地实现/验收不等于上线**；生产仍为 f01e6e2 alliance 基线，本轮仅热解除 auth/assets 的实际 CPU/内存限额，未重启游戏、未提交或推送。
+更新时间：2026-10-05。线上已经是 `d71fb2d` / `v012-simple-20261004`，三服务单 project、无 CPU/内存 cap；真实发布记录见 `deploy/stardust/releases/v012-simple-20261004.json`。
+
+## 新批次：官方 0.1.3 / 救援诊断 / 默认无片头
+
+- [x] 核实官方 `v0.1.3` 固定提交 `a0a5419eb875fb24de62e4dfb32b78cfcb3090be`，在独立同步分支完成冲突处理，保留本站功能与安全边界。
+- [x] 上游观战/kick 与 party 原子转移、观战不投票不占队列席、Worker 真观战流/重连兼容回归。
+- [x] 实际六 Worker、四真人 WS 和浏览器验证 LP11救援；具体用户报告局原因未复现，不能宣称已修好。增加权威不可用原因与明确文案，不放宽规则或资源清理。
+- [x] auth 片头/进入转场默认关闭，显式 per-browser opt-in；默认不下载场景库，口令/CSRF/昵称/profile验证保留，真实桌面/手机验收通过。
+- [x] 最终 Node24 Linux canonical：3925 tests，3909 pass、16 skip、0 fail/cancel；实际整队、观战/kick、准备余款确认、Worker重连浏览器通过。
+- [x] D71正式CPU profile保存：混合场景非idle bot rehearsal76.54%、经济/布局17.60%；正式战斗仍6worker，不宣称新offload已做。
+- [ ] 本批次正式提交/推送/配套发布按用户指令办理；本地验证不代表已上线，当前线上仍D71。
+- [ ] 后续优先布局重复分配/缓存、纯候选trial有界低优先级offload（主线程仍管RNG/UID/cardpool/经济/提交），在0.1.3基线复验，不新增gateway或服务。
+- [ ] 不整树移植第三方fork；官方013已有ART清单8秒保护，核心数据超时、queue预热、慢载入诊断和可靠取消仍可后续补充。
+
+以下保留 **D71发布前的历史验收清单**，未勾选的发布/元数据状态不覆盖上述实际发布记录；不要重复旧activation或恢复caps。
 
 ## 已完成的本地修正
 

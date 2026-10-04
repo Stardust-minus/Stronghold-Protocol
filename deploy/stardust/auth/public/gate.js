@@ -16,6 +16,11 @@
   let introTimer = 0, handoffTimer = 0, assembleTimer = 0, pending = false, committed = false, navigation = false;
   let destination = '/', entryTimers = [], retryAt = 0;
   let autoAllowed = authed && location.pathname === '/entry', autoStarted = false;
+  const animationToggle = $('intro-enabled');
+  let animations = false, sceneLoading = false;
+  try { animations = localStorage.getItem('ark.prts.animations') === '1'; } catch {}
+  body.dataset.animations = animations ? 'on' : 'off';
+  if (animationToggle) animationToggle.checked = animations;
 
   function gameLink(value) {
     const url = new URL(entryPath(value) || '/', location.origin);
@@ -117,6 +122,7 @@
     if (!safe || committed) return;
     committed = true; destination = safe;
     applyIdentity(name);
+    if (!animations || motion.matches) { finishIntro(true); navigate(); return; }
     // The hard deadline exists before any optional visual operation can throw.
     entryTimers.push(setTimeout(navigate, 4100));
     try {
@@ -170,12 +176,28 @@
     toggle.setAttribute('aria-label', show ? '隐藏访问口令' : '显示访问口令');
   });
 
-  const initialError = !authed && message.textContent.trim();
-  if (initialError) setPhase('error');
-  else if (!motion.matches && intro && introSkip) {
+  function startIntro() {
+    if (!animations || motion.matches || !intro || !introSkip || pending || committed || phase === 'error') return;
     intro.hidden = false; introSkip.hidden = false; setPhase('intro');
     introTimer = setTimeout(() => finishIntro(false), 1880);
   }
+  animationToggle?.addEventListener('change', () => {
+    if (pending || committed) { animationToggle.checked = animations; return; }
+    autoAllowed = false;
+    animations = animationToggle.checked;
+    body.dataset.animations = animations ? 'on' : 'off';
+    try { localStorage.setItem('ark.prts.animations', animations ? '1' : '0'); } catch {}
+    if (animations) { loadScene(); startIntro(); }
+    else {
+      finishIntro(true);
+      try { scene?.dispose(); } catch {}
+      scene = null;
+      restorePlane();
+    }
+  });
+  const initialError = !authed && message.textContent.trim();
+  if (initialError) setPhase('error');
+  else startIntro();
 
   function rejectCallsign(result, node) {
     if (result?.code !== 'NAME_REJECTED') return false;
@@ -272,17 +294,27 @@
     });
   }
 
-  queueMicrotask(maybeAutoEnter);
-  import('/_gate/assets/scene.js').then(module => {
-    scene = module.createTerminalScene({ canvas: $('world'), plane: $('terminal-plane'), home: $('plane-home'), dom: $('spatial-dom'), reduced: motion.matches });
-    scene.setPhase(phase, performance.now() - phaseTime);
-  }).catch(() => {
+  function restorePlane() {
     const plane = $('terminal-plane');
     if (plane.parentNode !== $('plane-home')) $('plane-home').appendChild(plane);
     for (const key of ['position', 'transform', 'pointerEvents', 'userSelect', 'display', 'margin']) plane.style[key] = '';
     $('spatial-dom').hidden = true; body.dataset.renderer = 'fallback'; body.dataset.spatial = 'false';
-    if (!committed && phase === 'intro') finishIntro(false);
-  });
+  }
+  function loadScene() {
+    if (!animations || motion.matches || scene || sceneLoading || navigation) return;
+    sceneLoading = true;
+    import('/_gate/assets/scene.js').then(module => {
+      if (!animations || navigation) return;
+      $('spatial-dom').hidden = false;
+      scene = module.createTerminalScene({ canvas: $('world'), plane: $('terminal-plane'), home: $('plane-home'), dom: $('spatial-dom'), reduced: motion.matches });
+      scene.setPhase(phase, performance.now() - phaseTime);
+    }).catch(() => {
+      restorePlane();
+      if (!committed && phase === 'intro') finishIntro(false);
+    }).finally(() => { sceneLoading = false; });
+  }
+  queueMicrotask(maybeAutoEnter);
+  loadScene();
   window.addEventListener('pagehide', () => { clearTimeout(introTimer); clearTimeout(handoffTimer); clearTimeout(assembleTimer); clearEntry(); scene?.dispose(); });
   window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 })();

@@ -41,6 +41,22 @@ test('revival UI rejects already used, departed, alive and self targets', () => 
   assert.match(revivalReason(pub, 'p1', 'p1', true, 1000), /队友/);
 });
 
+test('finalized rescue UI explains the authoritative cause instead of calling every death settled', () => {
+  const pub = fixture(); pub.players[1].pendingDeath = false;
+  for (const [reason, message] of [['no-helper', /无人.*参与联防/], ['donor-lp', /不足 11/],
+    ['window-expired', /15 秒.*已结束/], ['window-closed', /救援阶段已结束/], ['already-used', /次数已用完/],
+    ['left', /主动退出/], ['match-ended', /模拟已结束/], ['disabled', /未开启/]]) {
+    pub.players[1].revivalUnavailableReason = reason;
+    assert.match(revivalReason(pub, 'p1', 'p2', true, 1000), message);
+  }
+  for (const reason of [undefined, null, 'unknown', 'constructor', '__proto__']) {
+    pub.players[1].revivalUnavailableReason = reason;
+    assert.match(revivalReason(pub, 'p1', 'p2', true, 1000), /淘汰已结算/);
+  }
+  pub.players[1].pendingDeath = true;
+  assert.equal(revivalReason(pub, 'p1', 'p2', true, 1000), null, 'old diagnostic cannot disable a current pending rescue');
+});
+
 test('revival UI disables expiry, wrong phase, dead donor, disabled rule and lost transport', () => {
   const pub = fixture();
   assert.match(revivalReason(pub, 'p1', 'p2', false, 1000), /连接中断/);

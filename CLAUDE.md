@@ -2,6 +2,8 @@
 
 ## Current development batch
 
+- **NEW LOCAL BATCH (2026-10-05):** `.claude/upstream013-handoff.md` records official v0.1.3 (`a0a5419`) synchronization, spectator/kick/party and Worker integration, authoritative rescue-unavailability diagnostics, and auth intro/entry animations defaulting OFF with explicit opt-in. These changes are locally verified, not yet deployed. Production remains the D71 release below. `.claude/main-offload-next.md` holds real D71 CPU-profile findings and a future offload design; no new offload was implemented.
+
 - **LATEST CHECKPOINT:** read `.claude/simple-release-progress.md` first. The user authorized pushing/restarting, and `v012-simple-20261004` / runtime source `d71fb2d` was successfully activated at 2026-10-04 23:45:44 +08. The formal record is `deploy/stardust/releases/v012-simple-20261004.json`. `.claude/simple-social-handoff.md` and `.claude/emergency-simple-handoff.md` are preceding history, not the current deployment state. Rolling/smooth game updates were explicitly cancelled. Keep Nginx → one game backend, entry `/`, WS `/ws`, and exactly three services (`ark-proto`, `ark-proto-auth`, `ark-proto-assets`). Remove the gateway, drain/control runtime and client release router rather than leaving dormant implementations.
 - The user resumed after compact on 2026-10-04: finish the actual open-source `mint-filter` nickname engine with licensed Chinese/political categories; remove auth/assets CPU and memory limits too; combine public-match confirmation and revival voting, auto-start after every player confirms. Preserve PIDs/read-only/security limits, the shared password gate and PRTS animations. Do not claim local fixes are deployed until the running images are verified.
 - Additional current requirements: revival needs a strict majority of real humans (2→2, 3→2, 4→3 votes; a lone human cannot enable teammate revival; AI does not vote). Waiting friend rooms may queue as intact parties to fill four real players. Party cancellation or allocation failure preserves the original friend room; no second waiting-room preparation after public-match acceptance.
@@ -21,7 +23,7 @@
 ## User-specific constraints
 
 - PRTS/login frontend implementation and visual verification must be done by the main assistant, not delegated to a subagent. Read-only investigation and backend work are not prohibited.
-- Preserve the password gate, custom callsign, entry replay and animations unless explicitly asked to change them.
+- Preserve the password gate, custom callsign and optional PRTS design. The user's 2026-10-05 instruction makes auth intro/entry animations OFF by default; explicit per-browser opt-in may replay them. Do not restore mandatory replay from older guidance.
 - Public static resources are intentionally unsigned with `Access-Control-Allow-Origin: *`, without credentials. This does not authorize making game code/data/API/auth/WebSocket public.
 - Game runtime remains `SP_COMBAT=server`, `SP_VERIFY=off`, 6 Workers and maxRooms4096. All three services have no Docker CPU/memory hard limits; do not restore old caps. PIDs and security restrictions remain.
 - Do not commit or echo passwords, cookies, signing/verifier files, SSH/DNS credentials, certificates or private keys. Do not commit game art or generated vendor builds. Use explicit staging paths and review the staged diff before pushing.

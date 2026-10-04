@@ -131,7 +131,7 @@ export class WorkerFieldRunner {
     }
     if (this.m.paused) return;
     for (const [pid, fid] of this.resync) {
-      const ps = this.m.players.get(pid);
+      const ps = this.m.players.get(pid) || this.m.spectators.get(pid);
       if (!ps?.connected || ps.left || this.m.watchers.get(pid) !== fid) this.resync.delete(pid);
     }
     if (this.resync.size) {
@@ -228,7 +228,7 @@ export class WorkerFieldRunner {
 
   _watchers(fieldId) {
     return this.m.watchersOf(fieldId).filter((pid) => {
-      const ps = this.m.players.get(pid);
+      const ps = this.m.players.get(pid) || this.m.spectators.get(pid);
       return ps && ps.connected && !ps.left;
     });
   }

@@ -242,6 +242,68 @@ for (const hidden of [false, true]) {
   });
 }
 
+test('workers: real unite carries operator/summon state and reached layers, then preserves pending-death rescue settlement', { timeout: 15_000 }, async (t) => {
+  const pool = await realPool(t, 1);
+  const pair = [fixture(t, { humans: 2, revivalEnabled: true }), fixture(t, { pool, humans: 2, revivalEnabled: true })];
+  const completions = [];
+  for (const { m } of pair) {
+    const [target, donor] = m.order;
+    target.lp = 1; donor.lp = 11;
+    deploy(m, target, ['chess_char_1_10_a']);
+    deploy(m, donor, ['chess_char_6_11_a']); // 缪尔赛思 and her board 流形
+    const op = [...donor.board.values()].find((p) => p.kind === 'chess');
+    const token = donor.newPiece('token', 'token_10030_mlyss_wtrman', { ownerUid: op.uid });
+    const tile = [...donor.summonRange(token)].find((key) => {
+      const [r, c] = key.split(',').map(Number);
+      return !donor.board.has(key) && donor._legal(token, r, c);
+    });
+    assert.ok(tile, 'a legal 流形 tile inside its owner range');
+    donor.board.set(tile, token);
+    donor.recompute();
+    donor.layers.sargonShip = 12;
+    donor.pendingLayerGains = { sargonShip: 3 };
+    donor.recompute();
+    m.wave = { ...m.wave, timeLimit: 4 };
+    const leaker = emptyPerPlayer(), helper = emptyPerPlayer();
+    leaker.perfect = false;
+    leaker.leaked = [{ enemyKey: m.wave.spawns[0].enemyKey, counted: true, lpr: 1, mods: { hpMul: 1e6 } }];
+    helper.layerGains = { sargonShip: 3 };
+    helper.unitsEnd = [
+      { uid: op.uid, hpPct: 0.5, sp: 3, skillActive: true, alive: true },
+      { uid: token.uid, hpPct: 0.3, sp: 40, skillActive: false, alive: true },
+    ];
+    // The preceding own-field reports are seeded fixtures; 联防 itself uses the real Battle in the real worker.
+    m.lastResults.set(target.playerId, leaker); m.lastResults.set(donor.playerId, helper);
+    const plan = planUnite(m, m.lastResults);
+    assert.deepEqual(plan.helpers.map((p) => p.playerId), [donor.playerId]);
+    completions.push(captureSettlement(m));
+    m.startUnite(plan);
+    const input = m.combatPool ? m.fields[0].spec.players[0] : m.fields[0].battle.opts.players[0];
+    assert.deepEqual(input.units.find((u) => u.uid === op.uid).carryState, { hpPct: 0.5, sp: 3 });
+    assert.deepEqual(input.units.find((u) => u.uid === token.uid).carryState, { sp: 40 });
+    assert.equal(input.bonds.sargonShip.layers, 15);
+  }
+  const [inline, worker] = await Promise.all(completions);
+  assert.deepEqual(worker, inline, 'full internal result, carry and lethal settlement stay identical');
+  assert.equal(worker.uniteResult.synthetic, undefined);
+  assert.equal(worker.uniteResult.errors, 0);
+  assert.ok(['cleared', 'timeout'].includes(worker.uniteResult.reason));
+  const pp = worker.uniteResult.perPlayer.p_1;
+  assert.ok(pp.unitsEnd.some((u) => u.defId === 'token_10030_mlyss_wtrman'), 'worker retains the summon end state');
+  for (const { m, logs } of pair) {
+    const [target, donor] = m.order;
+    assert.equal(target.pendingDeath, true);
+    assert.ok(target.board.size > 0, 'pending death has not returned or wiped holdings');
+    assert.equal(donor.layers.sargonShip, 15, 'normal layer gains settle only once');
+    assert.equal(m.publicView().revival.windowOpen, true);
+    assert.deepEqual(m.publicView().revival.eligible, [donor.playerId]);
+    assert.deepEqual(m.handle(donor.playerId, { t: 'g.revive', playerId: target.playerId, matchId: m.battlePrefix, round: m.round }), { ok: true });
+    assert.equal(target.lp, 1); assert.equal(target.pendingDeath, false); assert.equal(target.alive, true);
+    assert.equal(donor.lp, 1);
+    assert.deepEqual(logs.errors, []);
+  }
+});
+
 // A worker-like transport with real DTO construction, but explicit delivery. Computing before returning
 // the promise reproduces an already-executed worker command whose message has not reached Match yet.
 class ControlledPool {
@@ -791,6 +853,66 @@ test('workers: encoded transport preserves room/seat admission, connection and b
   h.m.dispose();
   assert.equal(h.m.sendEncoded('p_0', 'b.snap', wires['b.snap']), false);
   assert.equal(transportCalls, 1, 'Match also rejects result and unauthorized sends before the encoded callback');
+});
+
+test('workers: a real WS spectator receives encoded live/resync frames without player authority or private state', { timeout: 15_000 }, async (t) => {
+  const logs = captureLog();
+  class StreamingMatch extends Match {
+    constructor(o) { super({ ...o, clientCombat: false, verify: 'off', timerScale: 0.02, combatSpeed: 2, botRehearsal: 0 }); }
+  }
+  const srv = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 1, MatchClass: StreamingMatch, seedFn: () => 731, log: logs.log });
+  const clients = [];
+  t.after(async () => { await Promise.all(clients.map((c) => c.terminate())); await srv.close(); });
+  const connect = async (name, token) => {
+    const c = await TestClient.connect(`ws://127.0.0.1:${srv.port}/ws`); clients.push(c);
+    const welcome = await c.hello(name, token); c.id = welcome.playerId; c.token = welcome.token;
+    return c;
+  };
+  const ok = async (c, msg) => assert.equal((await c.request(msg)).t, 'ok', msg.t);
+  const host = await connect('房主'), observer = await connect('观战');
+  await ok(host, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
+  const roomState = await host.waitFor('room.state');
+  await ok(observer, { t: 'room.spectate', code: roomState.code });
+  await ok(host, { t: 'room.start' });
+  await ok(host, { t: 'g.infoReady' });
+  await host.waitFor('m.public', (m) => m.phase === 'BAND_DRAFT');
+  await ok(host, { t: 'g.band', bandId: 'band_bldsk' });
+  await host.waitFor('m.public', (m) => m.phase === 'PREP');
+  const room = srv.lobby.getRoom(roomState.code), m = room.match;
+  assert.equal(m.order.length, 1);
+  assert.equal(m.soloUntimed, true, 'a spectator does not make a second human player');
+  assert.equal(m.revivalEnabled, false);
+  m.wave = { ...m.wave, timeLimit: 90, spawns: [{ ...m.wave.spawns[0], time: 0.2, count: 1, interval: 0 }] };
+  const encoded = [], send = m.opts.sendEncoded;
+  m.opts.sendEncoded = (pid, type, wire) => { encoded.push({ pid, type, wire }); return send(pid, type, wire); };
+  await ok(host, { t: 'g.ready', ready: true });
+  await observer.waitFor('m.field', (f) => !f.prep);
+  const snapshot = await observer.waitFor('b.snap', (s) => s.gt > 0);
+  await observer.waitFor('b.ev');
+  assert.ok(m.runner instanceof WorkerFieldRunner);
+  assert.equal(m.players.has(observer.id), false);
+  assert.ok(m.fields.every((f) => !f.players.includes(observer.id)));
+  assert.equal((await observer.request({ t: 'g.revive', playerId: host.id, round: 1, matchId: m.battlePrefix })).code, 'SPECTATOR');
+  await observer.terminate();
+  const resumed = await connect('观战', observer.token);
+  assert.equal(resumed.id, observer.id);
+  assert.equal((await resumed.waitFor('room.state')).spectators[0].connected, true);
+  const meta = await resumed.waitFor('m.field', (f) => !f.prep);
+  const snap = await resumed.waitFor('b.snap');
+  assert.equal(meta.fieldId, snapshot.fieldId);
+  assert.ok(snap.gt >= snapshot.gt);
+  assert.equal(resumed.log.filter((x) => x.t === 'm.field' || x.t === 'b.snap')[0].t, 'm.field');
+  assert.equal(srv.lobby.stats().online, 2);
+  for (const c of [observer, resumed]) assert.ok(!c.log.some((x) => ['m.private', 'm.toast', 'm.unitStats', 'b.start'].includes(x.t)));
+  for (const type of ['m.field', 'b.snap', 'b.ev']) assert.ok(encoded.some((x) => x.pid === observer.id && x.type === type));
+  await ok(host, { t: 'room.removeSpectator', playerId: resumed.id });
+  assert.equal((await resumed.waitFor('room.closed')).reason, 'kicked');
+  const at = encoded.filter((x) => x.pid === resumed.id).length;
+  await delay(100);
+  assert.equal(encoded.filter((x) => x.pid === resumed.id).length, at, 'removed spectators receive no worker frames');
+  assert.equal(m.spectators.has(resumed.id), false);
+  assert.equal(m.watchers.has(resumed.id), false);
+  assert.deepEqual(logs.errors, []);
 });
 
 test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdown and worker teardown', { timeout: 30_000 }, async (t) => {

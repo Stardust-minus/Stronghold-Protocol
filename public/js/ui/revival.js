@@ -27,6 +27,17 @@ export function RevivalVote({ room, myId, online, busy, onVote }) {
   </section>`;
 }
 
+const UNAVAILABLE = Object.freeze({
+  disabled: '本局未开启复活',
+  'no-helper': '本轮无人满足未漏怪且实际参与联防的救援资格',
+  'donor-lp': '本轮合格联防队友的生命值均不足 11，无法支付救援',
+  'window-expired': '本次 15 秒救援窗口已结束，死亡已结算',
+  'window-closed': '救援阶段已结束，死亡已结算',
+  'already-used': '队友本局复活次数已用完',
+  left: '队友已主动退出',
+  'match-ended': '本局模拟已结束，无法救援',
+});
+
 /** A UI hint only: every predicate is independently rechecked by the authority. */
 export function revivalReason(pub, myId, targetId, online = true, now = serverNow()) {
   const rule = pub?.revival;
@@ -37,7 +48,8 @@ export function revivalReason(pub, myId, targetId, online = true, now = serverNo
   if (!target || target.playerId === myId || target.alive !== false) return '只能复活已死亡的队友';
   if (target.left) return '队友已主动退出';
   if (target.revived) return '本局复活次数已用完';
-  if (!target.pendingDeath) return '淘汰已结算，无法再抵消死亡';
+  if (!target.pendingDeath) return Object.hasOwn(UNAVAILABLE, target.revivalUnavailableReason)
+    ? UNAVAILABLE[target.revivalUnavailableReason] : '淘汰已结算，无法再抵消死亡';
   if (pub.phase !== PHASE.SETTLE || !rule.windowOpen || !(rule.deadline > now)) return '等待联防结算后的救援窗口';
   if (!me?.alive || me.left || me.isBot) return '只有存活玩家可以提供救援';
   if (!(me.lp >= 11)) return '至少需要 11 点生命值（支付 10 点）';

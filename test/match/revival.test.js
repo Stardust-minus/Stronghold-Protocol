@@ -217,6 +217,53 @@ test('rich pending state and every actual object survive rescue without reroll, 
   assertValid(m);
 });
 
+for (const outcome of ['rescued', 'timeout']) test(`upstream gift survives pending death ${outcome} and is delivered once as the original elite`, (t) => {
+  const cid = Object.values(DATA.chess).find((c) => c.visible && !c.isGolden && c.tier === 3 && c.goldenId
+    && (c.garrisonIds || []).every((id) => DATA.garrisons[id].eventType === 'IN_BATTLE')).chessId;
+  const gid = DATA.chess[cid].goldenId;
+  const s = richPending(t, { beforeSettle: ({ target }) => target.effects.push({
+    id: 'merge-gift', key: 'effect:builtin_gift', hidden: true, battle: false,
+    params: { toPlayerId: 'p_2', chessId: gid, bonds: DATA.chess[cid].bonds },
+  }) });
+  const receiver = s.ps('p_2'), before = s.m.pool.left(cid);
+  assert.ok(s.target.effects.some((e) => e.id === 'merge-gift'));
+  assert.equal(receiver.allChess().filter((p) => p.id === gid).length, 0);
+  if (outcome === 'rescued') assert.deepEqual(rescue(s), { ok: true });
+  s.runTo(PHASE.PREP, 2);
+  assert.equal(s.target.alive, outcome === 'rescued');
+  assert.equal(s.cleanup.count, outcome === 'rescued' ? 0 : 1);
+  assert.equal(s.target.effects.some((e) => e.id === 'merge-gift'), false);
+  const got = receiver.allChess().filter((p) => p.id === gid);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].poolCopies, 3);
+  assert.equal(s.m.pool.left(cid), before - 3);
+  assertValid(s.m);
+});
+
+test('upstream prep-end deferred items stay equipped through pending death/rescue and merge only at the next prep', (t) => {
+  const HAMMER = 'chess_item_2_03_e_a', GOLDEN = 'chess_item_2_03_e_b';
+  let carrier, equipped, pending;
+  const s = richPending(t, { beforeSettle: ({ target }) => {
+    carrier = [...target.board.values()].find((p) => p.kind === 'chess');
+    equipped = target.newPiece('item', HAMMER); carrier.items.push(equipped);
+    pending = target.acquireItem(HAMMER, { silent: true, deferMerge: true });
+    assert.ok(pending && pending.deferMerge);
+  } });
+  const before = s.target.stats.itemMerges;
+  assert.equal(s.target.find(equipped.uid).area, 'equipped');
+  assert.ok(s.target.find(pending.uid));
+  assert.deepEqual(rescue(s), { ok: true });
+  assert.equal(s.target.find(equipped.uid).area, 'equipped');
+  assert.equal(s.target.stats.itemMerges, before);
+  s.runTo(PHASE.PREP, 2);
+  assert.equal(s.target.stats.itemMerges, before + 1);
+  assert.equal(s.target.find(equipped.uid), null);
+  assert.equal(s.target.find(pending.uid), null);
+  assert.equal([...s.target.hand, ...s.target.temp].filter((p) => p?.id === GOLDEN).length, 1);
+  assert.equal(s.cleanup.count, 0);
+  assertValid(s.m);
+});
+
 test('timeout finalizes an unrescued pending death exactly once before next-round income/pairing', (t) => {
   const s = richPending(t), { m, target } = s;
   const pieces = [...target.board.values(), ...target.hand.filter(Boolean), ...target.temp.filter(Boolean)].filter((p) => p.kind === 'chess');
