@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { damageNumber, damageRows, acceptDamageSnapshot } from '../../public/js/ui/damageBoard.js';
+import { damageNumber, damageRows, damageShare, acceptDamageSnapshot } from '../../public/js/ui/damageBoard.js';
 import { emptyMatch } from '../../public/js/store.js';
 
 const packet = (round = 2, status = 'live') => ({ matchId: 'game', round, status, owners: [
@@ -40,9 +40,34 @@ test('unavailable client/hidden-group data is not mislabeled zero damage and num
 
 test('scoreboard defaults collapsed and shares the actual current-view owner with the bond strip', () => {
   const component = readFileSync(new URL('../../public/js/ui/damageBoard.js', import.meta.url), 'utf8');
-  assert.match(component, /useState\(false\)/);
-  assert.match(component, /snapshot\.status === 'frozen'/);
+  assert.match(component, /open = false/);
+  assert.match(component, /snapshot\?\.status === 'frozen'/);
   const game = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');
+  assert.match(game, /\[damageOpen, setDamageOpen\] = useState\(false\)/);
   assert.match(game, /<\$\{DamageBoard\} snapshot=\$\{damage\} ownerId=\$\{strip\.ownerId\}/);
   assert.match(readFileSync(new URL('../../public/index.html', import.meta.url), 'utf8'), /\/css\/screens\/damage-board\.css/);
+});
+
+test('damage shares are bounded and preserve the server snapshot', () => {
+  assert.equal(damageShare(25, 100), 25);
+  assert.equal(damageShare(250, 100), 100);
+  for (const [damage, total] of [[-1, 10], [Infinity, 10], [10, 0], [10, Infinity], [NaN, 1]]) assert.equal(damageShare(damage, total), 0);
+});
+
+test('the report lives beside toolbar controls and cannot remain expanded over the emote picker', () => {
+  const game = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');
+  const corner = game.slice(game.indexOf('<div class="gm__corner">'), game.indexOf('${drawer ? html`<${EnemyDrawer}'));
+  assert.match(corner, /<\$\{DamageBoard\}/);
+  assert.ok(corner.includes('setEmoteOpen(open); if (open) setDamageOpen(false)'));
+  assert.ok(corner.includes('setDamageOpen(open); if (open) setEmoteOpen(false)'));
+  assert.match(game, /else if \(L\.damageOpen\) setDamageOpen\(false\)/);
+});
+
+test('expanded rows reuse manifest avatars, accessible exact-value tooltips and numeric shares', () => {
+  const component = readFileSync(new URL('../../public/js/ui/damageBoard.js', import.meta.url), 'utf8');
+  assert.ok(component.indexOf('src=${chessAvatarUrl(manifest, chess)}') > component.indexOf('open ? html`'));
+  assert.match(component, /<\$\{Tooltip\} text=\$\{detail\}/);
+  assert.match(component, /tabIndex="0" aria-label=\$\{detail\}/);
+  assert.match(component, /share\.toFixed\(1\)/);
+  assert.match(component, /aria-label="输出统计"/);
 });

@@ -10,9 +10,9 @@
   <title>PRTS · 卫戍协议：盟约</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/_gate/assets/gate.css">
-  <script src="/_gate/assets/gate.js" defer></script>
+  <script src="/_gate/assets/gate.js?v=spatial-07" defer></script>
 </head>
-<body data-authenticated="{{AUTHENTICATED}}" data-phase="idle" data-renderer="fallback" data-build="spatial-06">
+<body data-authenticated="{{AUTHENTICATED}}" data-phase="idle" data-renderer="fallback" data-build="spatial-07">
   <div id="ambient-field" aria-hidden="true"></div>
   <canvas id="world" aria-hidden="true"></canvas>
   <div id="spatial-dom"></div>
@@ -57,7 +57,7 @@
             <form id="logout-form" action="/_gate/logout" method="post"><input type="hidden" name="csrf" value="{{CSRF}}"><button type="submit"><span class="action-label">退出访问授权</span></button></form>
             <p id="status-message" class="response-message" role="status" aria-live="polite">{{MESSAGE}}</p>
           </section>
-          <label class="animation-choice"><input id="intro-enabled" type="checkbox"><span>播放片头与进入动画<small>默认关闭 · 可选</small></span></label>
+          <label class="animation-choice"><input id="intro-enabled" type="checkbox"><span>播放片头动画<small>默认关闭 · 其他动效保留</small></span></label>
         </div>
       </div>
 

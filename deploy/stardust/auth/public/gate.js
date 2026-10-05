@@ -2,7 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const body = document.body;
-  if (body.dataset.build !== 'spatial-06') { location.reload(); return; }
+  if (body.dataset.build !== 'spatial-07') { location.reload(); return; }
   const form = $('login-form'), logout = $('logout-form'), input = $('password');
   const callsign = $('callsign'), credentialName = $('credential-name');
   const message = $('login-message'), statusMessage = $('status-message');
@@ -16,11 +16,14 @@
   let introTimer = 0, handoffTimer = 0, assembleTimer = 0, pending = false, committed = false, navigation = false;
   let destination = '/', entryTimers = [], retryAt = 0;
   let autoAllowed = authed && location.pathname === '/entry', autoStarted = false;
-  const animationToggle = $('intro-enabled');
-  let animations = false, sceneLoading = false;
-  try { animations = localStorage.getItem('ark.prts.animations') === '1'; } catch {}
-  body.dataset.animations = animations ? 'on' : 'off';
-  if (animationToggle) animationToggle.checked = animations;
+  const introToggle = $('intro-enabled');
+  let introEnabled = false, sceneLoading = false;
+  try {
+    const saved = localStorage.getItem('ark.prts.intro');
+    introEnabled = saved === '1' || (saved === null && localStorage.getItem('ark.prts.animations') === '1');
+  } catch {}
+  body.dataset.intro = introEnabled ? 'on' : 'off';
+  if (introToggle) introToggle.checked = introEnabled;
 
   function gameLink(value) {
     const url = new URL(entryPath(value) || '/', location.origin);
@@ -83,6 +86,14 @@
     try { scene?.setPhase(value); } catch { try { scene?.dispose(); } catch {} scene = null; }
   }
   function tell(node, text, type = 'error') { if (node) { node.textContent = text; node.dataset.status = type; } }
+  function assembleTerminal() {
+    clearTimeout(assembleTimer);
+    delete body.dataset.introSkipped;
+    if (intro) intro.hidden = true;
+    if (introSkip) introSkip.hidden = true;
+    setPhase(motion.matches ? 'idle' : 'assembling');
+    if (!motion.matches) assembleTimer = setTimeout(() => { if (phase === 'assembling') setPhase('idle'); }, 1240);
+  }
   function finishIntro(instant = true) {
     clearTimeout(introTimer); clearTimeout(handoffTimer); clearTimeout(assembleTimer);
     if (!['intro', 'handoff', 'assembling'].includes(phase)) {
@@ -99,10 +110,7 @@
       setPhase('handoff');
       handoffTimer = setTimeout(() => {
         if (phase !== 'handoff') return;
-        if (intro) intro.hidden = true;
-        if (introSkip) introSkip.hidden = true;
-        setPhase('assembling');
-        assembleTimer = setTimeout(() => { if (phase === 'assembling') setPhase('idle'); }, 1240);
+        assembleTerminal();
       }, 700);
     }
   }
@@ -122,11 +130,12 @@
     if (!safe || committed) return;
     committed = true; destination = safe;
     applyIdentity(name);
-    if (!animations || motion.matches) { finishIntro(true); navigate(); return; }
+    if (motion.matches) { finishIntro(true); navigate(); return; }
     // The hard deadline exists before any optional visual operation can throw.
     entryTimers.push(setTimeout(navigate, 4100));
     try {
       finishIntro(true);
+      delete body.dataset.introSkipped;
       entrySkip.href = gameLink(safe); entrySkip.hidden = false;
       tell(announcer, '访问权限已确认。正在进入终端，可立即进入以跳过动画。', 'success');
       if (motion.matches || !face || !success || !bridge) { navigate(); return; }
@@ -153,6 +162,7 @@
   function onMotionChange() {
     try { scene?.setReduced(motion.matches); } catch { try { scene?.dispose(); } catch {} scene = null; }
     if (motion.matches) { finishIntro(true); if (committed) navigate(); }
+    else loadScene();
   }
   motion.addEventListener?.('change', onMotionChange);
   introSkip?.addEventListener('click', () => finishIntro(true));
@@ -177,27 +187,25 @@
   });
 
   function startIntro() {
-    if (!animations || motion.matches || !intro || !introSkip || pending || committed || phase === 'error') return;
+    if (!introEnabled || motion.matches || !intro || !introSkip || pending || committed || phase === 'error') return;
+    clearTimeout(introTimer); clearTimeout(handoffTimer); clearTimeout(assembleTimer);
+    delete body.dataset.introSkipped;
     intro.hidden = false; introSkip.hidden = false; setPhase('intro');
     introTimer = setTimeout(() => finishIntro(false), 1880);
   }
-  animationToggle?.addEventListener('change', () => {
-    if (pending || committed) { animationToggle.checked = animations; return; }
+  introToggle?.addEventListener('change', () => {
+    if (pending || committed) { introToggle.checked = introEnabled; return; }
     autoAllowed = false;
-    animations = animationToggle.checked;
-    body.dataset.animations = animations ? 'on' : 'off';
-    try { localStorage.setItem('ark.prts.animations', animations ? '1' : '0'); } catch {}
-    if (animations) { loadScene(); startIntro(); }
-    else {
-      finishIntro(true);
-      try { scene?.dispose(); } catch {}
-      scene = null;
-      restorePlane();
-    }
+    introEnabled = introToggle.checked;
+    body.dataset.intro = introEnabled ? 'on' : 'off';
+    try { localStorage.setItem('ark.prts.intro', introEnabled ? '1' : '0'); } catch {}
+    if (introEnabled) startIntro();
+    else { finishIntro(true); assembleTerminal(); }
   });
   const initialError = !authed && message.textContent.trim();
   if (initialError) setPhase('error');
-  else startIntro();
+  else if (introEnabled && !motion.matches) startIntro();
+  else assembleTerminal();
 
   function rejectCallsign(result, node) {
     if (result?.code !== 'NAME_REJECTED') return false;
@@ -301,10 +309,10 @@
     $('spatial-dom').hidden = true; body.dataset.renderer = 'fallback'; body.dataset.spatial = 'false';
   }
   function loadScene() {
-    if (!animations || motion.matches || scene || sceneLoading || navigation) return;
+    if (motion.matches || scene || sceneLoading || navigation) return;
     sceneLoading = true;
     import('/_gate/assets/scene.js').then(module => {
-      if (!animations || navigation) return;
+      if (motion.matches || navigation) return;
       $('spatial-dom').hidden = false;
       scene = module.createTerminalScene({ canvas: $('world'), plane: $('terminal-plane'), home: $('plane-home'), dom: $('spatial-dom'), reduced: motion.matches });
       scene.setPhase(phase, performance.now() - phaseTime);
