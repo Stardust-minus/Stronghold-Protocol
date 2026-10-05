@@ -95,9 +95,9 @@ export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, 
   const sharedScope = boss ? '同场玩家本轮累计' : '各自行动 + 联防';
   const heading = score?.shared ? `${sharedTitle} · ${score.groups.length} 人` : score?.groups[0]?.name || ownerName || '当前视角';
   return html`<aside class=${`damage-board${open ? ' is-open' : ''}`} aria-label="干员输出统计">
-    <button type="button" class="damage-board__toggle" aria-label="输出统计" title="输出统计" aria-controls="damage-report"
+    <button type="button" class="gm__gear tapx damage-board__toggle" aria-label="输出统计" title="输出统计" aria-controls="damage-report"
       aria-expanded=${String(open)} onClick=${() => onToggle?.(!open)}>
-      <${Icon} name="sword" /><span>输出统计</span><${Icon} name=${open ? 'chevronDown' : 'chevronUp'} />
+      <${Icon} name="sword" />
     </button>
     ${open ? html`<section id="damage-report" class="damage-board__panel" aria-label=${`${heading}的伤害排行`}>
       <header>

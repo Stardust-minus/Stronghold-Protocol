@@ -1,8 +1,7 @@
 /* The report shares the bottom toolbar; the emote picker and report are mutually exclusive. */
 .damage-board { position: relative; flex: none; pointer-events: auto; color: var(--text-hi); }
-.damage-board__toggle { display: flex; align-items: center; gap: .08rem; height: .56rem; min-height: 32px; padding: .07rem .12rem; border: 1px solid var(--line-2); background: rgba(13, 20, 17, .94); color: var(--text-lo); font: inherit; font-size: max(.15rem, 12px); cursor: pointer; }
-.damage-board__toggle:hover, .damage-board.is-open .damage-board__toggle { color: var(--text-hi); border-color: var(--mint-700); }
-.damage-board__toggle > .icon { width: .2rem; height: .2rem; min-width: 14px; min-height: 14px; }
+.damage-board__toggle { padding: 0; cursor: pointer; }
+.damage-board.is-open .damage-board__toggle { color: var(--mint-400); border-color: var(--mint-700); }
 .damage-board__toggle:focus-visible, .damage-board__close:focus-visible, .damage-board__row:focus-visible, .damage-board__rules > summary:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 2px; }
 .damage-board__panel { position: absolute; z-index: 12; bottom: calc(100% + .12rem); left: -1.1rem; display: flex; flex-direction: column; width: clamp(300px, 4.6rem, 380px); max-width: calc(100vw - 32px); max-height: calc(100dvh - 100px); padding: .16rem; border: 1px solid var(--line-3); border-top: 2px solid var(--mint-700); background: var(--bg-1); box-shadow: 0 .12rem .3rem rgba(0, 0, 0, .35); font-size: max(.14rem, 12px); }
 .damage-board__panel > header { display: flex; flex: none; align-items: center; gap: .1rem; }
@@ -57,7 +56,6 @@
 .damage-board__rules > p { margin: .06rem 0 0; }
 @media (max-width: 900px) {
   .damage-board__toggle { width: max(.56rem, 32px); padding: 0; justify-content: center; }
-  .damage-board__toggle > span, .damage-board__toggle > .icon:last-child { display: none; }
   /* Keep the report clear of avatars and within the viewport, including short landscape screens. */
   .damage-board__panel { position: fixed; left: max(100px, 1.75rem); right: 16px; bottom: calc(.24rem + max(.56rem, 32px) + .12rem); width: auto; max-width: 320px; max-height: calc(100dvh - .24rem - max(.56rem, 32px) - .12rem - 16px); padding: 12px; }
 }

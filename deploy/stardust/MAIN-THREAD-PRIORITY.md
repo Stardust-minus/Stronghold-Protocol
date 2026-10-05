@@ -4,6 +4,16 @@
 
 本工具和 systemd 单元属于**游戏宿主机**，不是第四个应用容器。仓库中的模板不代表生产已经安装、启用或重启。当前线上手动 nice=-20 与未来启动默认策略分开记录；停用 watcher 不会自动恢复已经成功设置的主线程。
 
+## 固定部署 profile（2026-10-06）
+
+CLI只接受固定 `prod|beta|core`，不能指定任意容器、地址、端口或Worker数。配置缺省仍`prod`，旧调用兼容；systemd三个单元均明确`--profile`并要求与root配置一致，初始错配在获取锁或调度操作前拒绝，运行中reload也不能跨profile。
+
+- `prod`：原嘉兴ark-proto namespace，6combat+1trial/7个Worker，单`127.0.0.1:3120`；以下旧默认门槛保持。
+- `beta`：ark-proto-beta project/name，service ark-proto，12+2/14个Worker，精确`127.0.0.1:3220`及`10.253.77.2:3220`两项绑定，loopback健康检查。
+- `core`：未来杭州正式ark-proto namespace，12+2/14，3120同样双绑定；只准备，不随Beta部署安装或启用。
+
+绑定按精确无序集合比较，额外/重复/通配地址拒绝；各profile有固定独立锁、事件过滤、health/线程/输出门槛。Beta/core详细要求见[BETA-SOP.md](BETA-SOP.md)，Beta manager托管生命周期时不能同时启用持锁的独立priority watcher。所有profile仍只有Main=-20、其他线程0；boot hook不代表已经安装。
+
 ## 为什么不改 Node 启动命令
 
 `nice -20 node ...` 会让启动期 Worker/V8/libuv 线程继承负 nice，而且受限容器本身不能提升到负 nice。本方案保持 Node 用户、`cap_drop: ALL`、no-new-privileges、只读文件系统、PIDs128 和无 CPU/内存硬限额；不授予容器 CAP_SYS_NICE，不改变游戏代码、6个正式/1个试战 Worker 或其他服务。

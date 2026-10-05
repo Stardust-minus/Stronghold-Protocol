@@ -45,7 +45,7 @@ import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
 import { CombatWorkerPool } from './match/combat/pool.js';
-import { createHealthMetrics, PERFORMANCE_UNAVAILABLE } from './healthMetrics.js';
+import { createHealthMetrics, PERFORMANCE_UNAVAILABLE, serverLoadState } from './healthMetrics.js';
 
 /** Repository root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -682,7 +682,8 @@ export async function startServer(opts = {}) {
   const startedAt = Date.now();
   try {
     lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, trialPool, options: lobbyOptions });
-    network = new Network({ registry, handler: lobby, log, options: netOptions });
+    network = new Network({ registry, handler: lobby, log, options: netOptions,
+      getLoadState: () => serverLoadState(healthMetrics?.snapshot?.()) });
     serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
     // Capture this instance's served browser runtime once; another local test/release instance cannot replace it.
     browserBuild = computeBuildTag(ROOT, publicDir);

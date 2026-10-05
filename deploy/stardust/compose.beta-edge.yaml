@@ -1,0 +1,54 @@
+name: ark-proto-beta
+services:
+  auth:
+    image: ${ARK_AUTH_IMAGE:?load the fixed beta runtime.env}
+    pull_policy: never
+    container_name: ark-proto-beta-auth
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3241:3000"
+    environment:
+      AUTH_PROFILE: beta
+    volumes:
+      - /opt/ark-proto-beta/auth-secrets/gate.json:/run/secrets/ark-gate.json:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+  ark-proto-assets:
+    image: ${ARK_ASSETS_IMAGE:?load the fixed beta runtime.env}
+    pull_policy: never
+    container_name: ark-proto-beta-assets
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3230:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      ASSET_MANIFEST: /run/config/openi-assets.json
+      PREWARM: "0"
+    volumes:
+      - /opt/ark-proto-beta/openi-resolver/openi-assets.json:/run/config/openi-assets.json:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

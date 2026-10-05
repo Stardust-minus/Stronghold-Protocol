@@ -10,6 +10,7 @@ import { moderateName, nameReasonMessage } from './name-policy.mjs';
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const derive = promisify(scrypt);
 export const ORIGIN = 'https://ark-proto.stardust.matce.cn';
+const PROFILE_ORIGINS = Object.freeze({ prod: ORIGIN, beta: 'https://ark-proto-beta.stardust.matce.cn' });
 export const SESSION_COOKIE = '__Host-ark_gate';
 export const CSRF_COOKIE = '__Host-ark_gate_csrf';
 export const SESSION_TTL = 7 * 86400;
@@ -82,21 +83,27 @@ export function cookieValue(header, name) {
   return hits.length === 1 ? hits[0].slice(name.length + 1) : null;
 }
 
-export function safeNext(value) {
+function profileOrigin(profile) {
+  if (typeof profile !== 'string' || !Object.hasOwn(PROFILE_ORIGINS, profile)) throw new Error('Invalid AUTH_PROFILE: expected prod or beta');
+  return PROFILE_ORIGINS[profile];
+}
+
+export function safeNext(value, profile = 'prod') {
+  const origin = profileOrigin(profile);
   if (typeof value !== 'string' || value.length > 2048 || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000- \u007f]/.test(value)) return '/';
   try {
     const decoded = decodeURIComponent(value);
     if (/[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.startsWith('//')
       || decoded.split('?')[0].split('/').some(segment => segment === '.' || segment === '..')) return '/';
-    const url = new URL(value, ORIGIN);
+    const url = new URL(value, origin);
     const entry = ['/', '/index.html'].includes(url.pathname);
-    if (url.origin !== ORIGIN || !entry || url.hash) return '/';
+    if (url.origin !== origin || !entry || url.hash) return '/';
     return url.pathname + url.search;
   } catch { return '/'; }
 }
 
-export function gameDestination(value) {
-  const url = new URL(safeNext(value), ORIGIN);
+export function gameDestination(value, profile = 'prod') {
+  const url = new URL(safeNext(value, profile), profileOrigin(profile));
   url.searchParams.set('_prts', '1');
   return url.pathname + url.search;
 }
@@ -175,7 +182,9 @@ async function readForm(req) {
   return form;
 }
 
-export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000), limiter = new AttemptLimiter(), publicDir = join(ROOT, 'public') } = {}) {
+export function createGate({ secrets, profile = 'prod', now = () => Math.floor(Date.now() / 1000), limiter = new AttemptLimiter(), publicDir = join(ROOT, 'public') } = {}) {
+  const origin = profileOrigin(profile);
+  const trustedHost = new URL(origin).host;
   const keys = validateSecrets(secrets);
   const template = readFileSync(join(publicDir, 'login.html'), 'utf8');
   const assets = new Map([...ASSETS].map(([name, type]) => [name, { type, data: readFileSync(join(publicDir, name)) }]));
@@ -188,7 +197,7 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
     if (!verifyToken(csrf, 'csrf', keys.signingKey, now())) csrf = signToken('csrf', keys.signingKey, now());
     // Every render refreshes the browser expiry, while the signature still bounds server-side validity.
     res.setHeader('Set-Cookie', cookie(CSRF_COOKIE, csrf, CSRF_TTL));
-    const values = { NEXT: gameDestination(next), CSRF: csrf, MESSAGE: message, AUTHENTICATED: String(authed), LOGIN_HIDDEN: authed ? 'hidden' : '', STATUS_HIDDEN: authed ? '' : 'hidden' };
+    const values = { NEXT: gameDestination(next, profile), CSRF: csrf, MESSAGE: message, AUTHENTICATED: String(authed), LOGIN_HIDDEN: authed ? 'hidden' : '', STATUS_HIDDEN: authed ? '' : 'hidden' };
     const html = template.replace(/\{\{([A-Z_]+)\}\}/g, (_, key) => escapeHTML(values[key] ?? ''));
     send(req, res, status, html, 'text/html; charset=utf-8');
   }
@@ -201,9 +210,14 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
   async function handle(req, res) {
     headers(res);
     if (!req.url || req.url.length > 8192 || !req.url.startsWith('/') || req.url.startsWith('//')) return send(req, res, 400, 'Bad request');
-    const url = new URL(req.url, ORIGIN);
-    if (url.origin !== ORIGIN) return send(req, res, 400, 'Bad request');
+    const url = new URL(req.url, origin);
+    if (url.origin !== origin) return send(req, res, 400, 'Bad request');
     const path = url.pathname;
+    // Only the local health probe may use a loopback Host; forwarded Host is never trusted.
+    const localProbe = ['GET', 'HEAD'].includes(req.method) && req.url === '/healthz'
+      && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)
+      && [`127.0.0.1:${req.socket.localPort}`, `[::1]:${req.socket.localPort}`].includes(req.headers.host);
+    if (req.headersDistinct.host?.length !== 1 || (req.headers.host !== trustedHost && !localProbe)) return send(req, res, 400, 'Bad request');
     if (['GET', 'HEAD'].includes(req.method)) {
       if (path === '/healthz') return send(req, res, 200, '{"ok":true}', 'application/json');
       if (path === '/check') {
@@ -222,7 +236,7 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
     if (!['/_gate/login', '/_gate/logout', '/_gate/profile'].includes(path)) return send(req, res, 404, 'Not found');
     if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return send(req, res, 405, 'Method not allowed'); }
     const fetchSite = req.headers['sec-fetch-site'];
-    if (req.headers.origin !== ORIGIN || (fetchSite && fetchSite !== 'same-origin')) return fail(req, res, 403, '请求来源无效，请在本站刷新后重试。');
+    if (req.headers.origin !== origin || (fetchSite && fetchSite !== 'same-origin')) return fail(req, res, 403, '请求来源无效，请在本站刷新后重试。');
     let form;
     try { form = await readForm(req); }
     catch (error) {
@@ -232,7 +246,7 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
       }
       throw error;
     }
-    const next = safeNext(form.get('next') || '/');
+    const next = safeNext(form.get('next') || '/', profile);
     const csrf = cookieValue(req.headers.cookie, CSRF_COOKIE);
     if (!csrf || !form.get('csrf') || !equal(csrf, form.get('csrf')) || !verifyToken(csrf, 'csrf', keys.signingKey, now())) {
       return fail(req, res, 403, '认证页面已过期，请刷新后重试。', next);
@@ -250,7 +264,7 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
       const checked = moderateName(form.get('callsign'));
       if (!checked.ok) return fail(req, res, 400, nameReasonMessage(checked.reason), next, null, { code: 'NAME_REJECTED', reason: checked.reason });
       if (wantsJSON(req)) return send(req, res, 200, JSON.stringify({ ok: true, next, callsign: checked.name }), 'application/json; charset=utf-8');
-      res.writeHead(303, { Location: gameDestination(next) });
+      res.writeHead(303, { Location: gameDestination(next, profile) });
       return res.end();
     }
     const password = form.get('password');
@@ -271,7 +285,7 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
     if (!checked.ok) return fail(req, res, 400, nameReasonMessage(checked.reason), next, null, { code: 'NAME_REJECTED', reason: checked.reason });
     res.setHeader('Set-Cookie', cookie(SESSION_COOKIE, signToken('session', keys.signingKey, now()), SESSION_TTL));
     if (wantsJSON(req)) return send(req, res, 200, JSON.stringify({ ok: true, next, callsign: checked.name }), 'application/json; charset=utf-8');
-    res.writeHead(303, { Location: gameDestination(next) });
+    res.writeHead(303, { Location: gameDestination(next, profile) });
     res.end();
   }
 
@@ -293,11 +307,13 @@ export function createGate({ secrets, now = () => Math.floor(Date.now() / 1000),
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const profile = process.env.AUTH_PROFILE ?? 'prod';
+  profileOrigin(profile);
   const filename = process.env.AUTH_SECRETS_FILE || '/run/secrets/ark-gate.json';
   const port = Number(process.env.PORT || 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT');
   const secrets = JSON.parse(readFileSync(filename, 'utf8'));
-  const server = createGate({ secrets });
+  const server = createGate({ secrets, profile });
   server.listen(port, process.env.HOST || '0.0.0.0', () => console.log(`ark-proto access gate listening on ${port}`));
   for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => {
     server.close(() => process.exit(0));

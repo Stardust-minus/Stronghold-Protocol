@@ -178,6 +178,18 @@ test('scoreboard defaults collapsed, keeps the single-owner fallback and receive
   assert.match(readFileSync(new URL('../../public/index.html', import.meta.url), 'utf8'), /\/css\/screens\/damage-board\.css/);
 });
 
+test('damage toggle is one icon with the same compact control and touch target classes', () => {
+  const component = readFileSync(new URL('../../public/js/ui/damageBoard.js', import.meta.url), 'utf8');
+  const toggle = component.match(/<button[^]*?damage-board__toggle[^]*?<\/button>/)?.[0];
+  assert.ok(toggle);
+  assert.match(toggle, /gm__gear tapx damage-board__toggle/);
+  assert.equal([...toggle.matchAll(/<\$\{Icon\}/g)].length, 1);
+  assert.doesNotMatch(toggle, /<span>|chevron/);
+  assert.match(toggle, /aria-expanded/);
+  const css = readFileSync(new URL('../../public/css/screens/damage-board.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /\.damage-board__toggle > \.icon:last-child/);
+});
+
 test('damage shares are bounded and preserve the server snapshot', () => {
   assert.equal(damageShare(25, 100), 25);
   assert.equal(damageShare(250, 100), 100);

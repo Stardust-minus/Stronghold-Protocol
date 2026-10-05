@@ -4,6 +4,12 @@
 
 正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。0.1.2 + Worker 的历史发布单元见下方记录；此后每次更新都须配套验收及取得明确上线授权，提交、合并与推送不代表允许重启生产。
 
+## 杭州/Beta准备与正式切换分开
+
+用户2026-10-06要求先准备独立杭州Beta和版本化业务JS/CSS本地供给，详 [BETA-SOP.md](BETA-SOP.md)。Beta拥有独立backend/会话/门禁签名/Origin/vhost，不能把Beta域名指向正式进程或绕过密码门禁。更大的12+2 Worker与`beta`/`core`宿主profile均须逐池及实际线程核对，原`prod`仍6+1。WG发布端口涉及Docker DNAT/FORWARD，精确隔离及重建fail-closed不可只用INPUT/绑定地址代替。
+
+正式更新+服务器切换只留UTC+8每天05:00–08:00低谷并取得具体执行指令；本地测试、Beta上线、提交推送、用户睡觉或时间到窗口都不是自动正式激活许可。以下旧单机步骤不能直接在新机照搬；保留现用配置并按实际目标合并，配套材料与回退仍遵循本SOP。
+
 ## 当前简单架构（2026-10-04 取消平滑更新）
 
 - 只有一个 Compose project `ark-proto`、三个固定服务/容器：游戏 `ark-proto`（127.0.0.1:3120）、门禁 `ark-proto-auth`（3141）、素材解析器 `ark-proto-assets`（3130）。Nginx 直接接游戏，普通入口 `/`、WebSocket `/ws`；不再运行网关、备用游戏实例或蓝绿素材槽位。

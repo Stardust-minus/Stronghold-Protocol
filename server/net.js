@@ -37,7 +37,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
-import { C2S, validateC2S } from '../shared/protocol.js';
+import { C2S, validateC2S, normalizeServerLoad } from '../shared/protocol.js';
 import { ERR, ERR_TEXT, PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { moderateName } from '../shared/names.js';
 export { sanitizeName } from '../shared/names.js';
@@ -481,14 +481,16 @@ export class Network {
    *   handler: { onHello?: Function, onMessage: Function, onDisconnect?: Function, onExpire?: Function },
    *   log?: { info: Function, warn: Function, error: Function, debug?: Function },
    *   now?: () => number,
+   *   getLoadState?: () => string,
    *   options?: Partial<typeof NET_DEFAULTS>,
    * }} opts
    */
-  constructor({ registry, handler, log = noopLog, now = Date.now, options = {} }) {
+  constructor({ registry, handler, log = noopLog, now = Date.now, getLoadState = null, options = {} }) {
     this.registry = registry;
     this.handler = handler;
     this.log = log;
     this.now = now;
+    this.getLoadState = typeof getLoadState === 'function' ? getLoadState : null;
     this.opts = { ...NET_DEFAULTS, ...options };
     /** @type {Map<import('ws').WebSocket, Connection>} */
     this.conns = new Map();
@@ -575,6 +577,10 @@ export class Network {
 
     if (msg.t === 'ping') {
       const pong = { t: 'pong', c: msg.c, s: now };
+      if (this.getLoadState) {
+        try { pong.loadState = normalizeServerLoad(this.getLoadState()); }
+        catch { pong.loadState = 'unknown'; } // diagnostics cannot interrupt heartbeat replies
+      }
       if (validRid(rid)) pong.rid = rid;
       this.reply(conn, pong);
       return;

@@ -1,0 +1,21 @@
+[Unit]
+Description=Ark isolated Beta game backend and scoped WG lease
+After=docker.service
+Requires=docker.service
+ConditionPathExists=/sys/class/net/ark-wg-test
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Nice=0
+ExecStart=/usr/bin/python3 -B /opt/ark-proto-beta/main-priority/current/game-backend-manager.py --profile beta --config /opt/ark-proto-beta/main-priority/config.json --action serve
+ExecStopPost=/usr/bin/python3 -B /opt/ark-proto-beta/main-priority/current/game-backend-manager.py --profile beta --config /opt/ark-proto-beta/main-priority/config.json --action stop
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

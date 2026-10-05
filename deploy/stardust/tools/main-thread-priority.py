@@ -25,6 +25,8 @@ IMAGE = re.compile(r'sha256:[0-9a-f]{64}')
 DOCKER = ['/usr/bin/docker', '--host=unix:///var/run/docker.sock']
 DOCKER_ENV = {'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LC_ALL': 'C'}
 LOCK = '/run/ark-main-thread-priority.lock'
+BETA_LOCK = '/run/ark-beta-main-thread-priority.lock'
+CORE_LOCK = '/run/ark-core-main-thread-priority.lock'
 
 
 class Refused(Exception):
@@ -44,16 +46,31 @@ class Config:
     approved_images: tuple
     nice: int = DEFAULT_NICE
     startup_timeout_seconds: int = 90
-    # Tests inject isolated targets; the CLI cannot override production selectors.
+    # Tests inject isolated targets; parsed config exposes only the three fixed profiles.
     project: str = 'ark-proto'
     service: str = 'ark-proto'
     container_name: str = 'ark-proto'
     health_port: int = 3120
+    profile: str = 'prod'
+    combat_workers: int = 6
+    trial_workers: int = 1
+    publish_ips: tuple = ('127.0.0.1',)
+
+    @property
+    def worker_count(self):
+        return self.combat_workers + self.trial_workers
+
+    @property
+    def lock_path(self):
+        return {'prod': LOCK, 'beta': BETA_LOCK, 'core': CORE_LOCK}[self.profile]
 
     @classmethod
     def parse(cls, value):
-        if not isinstance(value, dict) or set(value) - {'nice', 'startup_timeout_seconds', 'approved_images'}:
+        if not isinstance(value, dict) or set(value) - {'profile', 'nice', 'startup_timeout_seconds', 'approved_images'}:
             raise Refused('invalid config keys')
+        profile = value.get('profile', 'prod')
+        if not isinstance(profile, str) or profile not in ('prod', 'beta', 'core'):
+            raise Refused('profile must be prod, beta or core')
         nice = value.get('nice', DEFAULT_NICE)
         timeout = value.get('startup_timeout_seconds', 90)
         if type(nice) is not int or nice not in (0, DEFAULT_NICE):
@@ -73,6 +90,13 @@ class Config:
             if not isinstance(image_id, str) or not IMAGE.fullmatch(image_id):
                 raise Refused('immutable image ID required')
             pairs.append((revision, image_id))
+        if profile == 'beta':
+            return cls(tuple(pairs), nice, timeout, project='ark-proto-beta', service='ark-proto',
+                       container_name='ark-proto-beta', health_port=3220, profile='beta',
+                       combat_workers=12, trial_workers=2, publish_ips=('127.0.0.1', '10.253.77.2'))
+        if profile == 'core':
+            return cls(tuple(pairs), nice, timeout, profile='core', combat_workers=12, trial_workers=2,
+                       publish_ips=('127.0.0.1', '10.253.77.2'))
         return cls(tuple(pairs), nice, timeout)
 
 
@@ -152,18 +176,25 @@ def validate_info(info, image, config):
         raise Refused('container security baseline mismatch')
     if any(info.get(key) != 0 for key in ('cpu_quota', 'nano_cpus', 'memory')) or info.get('cpuset') != '':
         raise Refused('container resource baseline mismatch')
-    if info.get('ports') != [{'HostIp': '127.0.0.1', 'HostPort': str(config.health_port)}]:
-        raise Refused('loopback health mapping mismatch')
+    ports = info.get('ports')
+    expected = {(ip, str(config.health_port)) for ip in config.publish_ips}
+    if (not isinstance(ports, list) or len(ports) != len(expected)
+            or any(not isinstance(port, dict) or set(port) != {'HostIp', 'HostPort'}
+                   or not isinstance(port['HostIp'], str) or not isinstance(port['HostPort'], str) for port in ports)
+            or {(port['HostIp'], port['HostPort']) for port in ports} != expected):
+        raise Refused('fixed health mapping mismatch')
 
 
-def health_ready(value):
+def health_ready(value, config=None):
     if not isinstance(value, dict):
         return False
+    combat_workers = config.combat_workers if config is not None else 6
+    trial_workers = config.trial_workers if config is not None else 1
     combat, trial = value.get('combat'), value.get('trial')
     return (value.get('ok') is True and value.get('maxRooms') == 4096
-            and isinstance(combat, dict) and combat.get('status') == 'ready' and combat.get('ready') == 6
-            and combat.get('workers') == 6 and isinstance(trial, dict) and trial.get('status') == 'ready'
-            and trial.get('ready') == 1 and trial.get('workers') == 1)
+            and isinstance(combat, dict) and combat.get('status') == 'ready' and combat.get('ready') == combat_workers
+            and combat.get('workers') == combat_workers and isinstance(trial, dict) and trial.get('status') == 'ready'
+            and trial.get('ready') == trial_workers and trial.get('workers') == trial_workers)
 
 
 @dataclass(frozen=True)
@@ -198,12 +229,13 @@ class Snapshot:
         return next(thread for thread in self.threads if thread.tid == self.generation.main_pid)
 
 
-def validate_threads(snapshot):
+def validate_threads(snapshot, config=None):
     main = snapshot.main
     if main.name != 'MainThread' or main.nice not in (0, DEFAULT_NICE) or main.policy not in (os.SCHED_OTHER, os.SCHED_OTHER | RESET_ON_FORK):
         raise Refused('unexpected main-thread policy')
-    if sum(thread.name == 'WorkerThread' for thread in snapshot.threads) != 7:
-        raise NotReady('seven workers required')
+    worker_count = config.worker_count if config is not None else 7
+    if sum(thread.name == 'WorkerThread' for thread in snapshot.threads) != worker_count:
+        raise NotReady(f'exactly {worker_count} workers required')
     if any(thread.nice != 0 or thread.policy != os.SCHED_OTHER for thread in snapshot.threads if thread.tid != main.tid):
         raise Refused('unexpected helper-thread policy')
 
@@ -285,8 +317,8 @@ class System:
                 value = json.loads(raw)
         except (OSError, ValueError):
             raise NotReady('health response unavailable') from None
-        if not health_ready(value):
-            raise NotReady('combat6 and trial1 not ready')
+        if not health_ready(value, self.config):
+            raise NotReady(f'combat{self.config.combat_workers} and trial{self.config.trial_workers} not ready')
 
     def snapshot(self, target, ready=True):
         try:
@@ -305,7 +337,7 @@ class System:
             snapshot = Snapshot(generation, tuple(threads))
             if ready:
                 self.health()
-                validate_threads(snapshot)
+                validate_threads(snapshot, self.config)
             # Detect restart/recreation while collecting proc and health replies.
             if self.inspect(target) != info or proc_stat(self.read(f'/proc/{pid}/stat'))['start_ticks'] != start:
                 raise Refused('container generation changed')
@@ -404,7 +436,8 @@ class Helper:
                 'main_start_ticks': generation.main_start, 'container_started_at': generation.started_at,
                 'main_nice': final.main.nice, 'scheduler': 'SCHED_OTHER',
                 'reset_on_fork': bool(final.main.policy & RESET_ON_FORK),
-                'other_threads': len(final.threads) - 1, 'combat_ready': 6, 'trial_ready': 1,
+                'other_threads': len(final.threads) - 1,
+                'combat_ready': self.config.combat_workers, 'trial_ready': self.config.trial_workers,
                 'configured': thread_state(final) == desired, 'changed': bool(operations)}
 
 
@@ -443,17 +476,26 @@ def stop_stream(stream):
 
 
 class Watcher:
-    def __init__(self, config_loader, system_factory=System, popen=subprocess.Popen, sleep=time.sleep, clock=time.monotonic):
+    def __init__(self, config_loader, system_factory=System, popen=subprocess.Popen, sleep=time.sleep,
+                 clock=time.monotonic, profile=None):
         self.config_loader, self.system_factory, self.popen, self.sleep = config_loader, system_factory, popen, sleep
-        self.clock = clock
+        self.clock, self.profile = clock, profile
+
+    def load_config(self):
+        config = self.config_loader()
+        if self.profile is None:
+            self.profile = config.profile
+        if config.profile != self.profile:
+            raise Refused('config profile changed; restart the matching policy unit')
+        return config
 
     def handle(self, target):
         try:
-            config = self.config_loader()
+            config = self.load_config()
             deadline = self.clock() + config.startup_timeout_seconds
             for attempt in range(3):
                 if attempt:
-                    config = self.config_loader()
+                    config = self.load_config()
                 remaining = math.ceil(deadline - self.clock())
                 if remaining <= 0:
                     raise Refused('policy application deadline exceeded')
@@ -474,7 +516,7 @@ class Watcher:
             emit('policy-skipped', reason='host scheduling or proc access failed')
 
     def cycle(self):
-        config = self.config_loader()
+        config = self.load_config()
         since = datetime.now(timezone.utc).isoformat()
         stream = self.popen(events_command(config, since), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                             text=True, env=DOCKER_ENV, start_new_session=True)
@@ -503,6 +545,8 @@ class Watcher:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True)
+    parser.add_argument('--profile', choices=('prod', 'beta', 'core'),
+                        help='require a matching fixed config profile; never override config selectors')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--check', action='store_true', help='read-only check; exit2 if policy is not applied')
     mode.add_argument('--watch', action='store_true', help='watch local Docker starts and apply policy')
@@ -518,13 +562,15 @@ def main():
         signal.signal(number, stop)
     try:
         config = load_config(args.config)
+        if args.profile is not None and config.profile != args.profile:
+            raise Refused('config profile does not match requested fixed profile')
         if args.check:
             result = Helper(System(config)).run(config.container_name, check=True)
             emit('policy-checked', **result)
             return 0 if result['configured'] else 2
-        with runtime_lock():
+        with runtime_lock(config.lock_path):
             if args.watch:
-                Watcher(lambda: load_config(args.config)).run()
+                Watcher(lambda: load_config(args.config), profile=config.profile).run()
             else:
                 emit('policy-applied', **Helper(System(config)).run(config.container_name))
         return 0

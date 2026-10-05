@@ -1,0 +1,43 @@
+# Prepared candidate only. Never start this on Jiaxing or as a side effect of Beta setup.
+name: ark-proto
+services:
+  ark-proto:
+    image: ${ARK_GAME_IMAGE:?load the approved fixed core runtime.env}
+    pull_policy: never
+    container_name: ark-proto
+    init: true
+    restart: "no"
+    ports:
+      - "127.0.0.1:3120:3000"
+      - "10.253.77.2:3120:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      SP_COMBAT: server
+      SP_VERIFY: "off"
+      SP_COMBAT_WORKERS: "12"
+      SP_TRIAL_WORKERS: "2"
+      TRUST_PROXY: auto
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    networks:
+      default:
+        ipv4_address: 172.30.241.10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.241.0/24

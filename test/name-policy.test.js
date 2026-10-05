@@ -191,24 +191,41 @@ test('auth login and remembered profile reject political category names without 
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const page = await fetch(base + '/login');
+  // Node24 fetch intentionally discards an overridden Host; the local proxy fixture needs real HTTP headers.
+  const request = (path, { method = 'GET', headers = {}, body = null } = {}) => new Promise((resolve, reject) => {
+    const encoded = body?.toString();
+    const req = http.request(base + path, { method, headers: { Host: new URL(ORIGIN).host, ...headers,
+      ...(encoded != null ? { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(encoded) } : {}) } }, res => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString(), responseHeaders = new Headers();
+        for (const [key, values] of Object.entries(res.headers)) for (const value of [values].flat()) if (value != null) responseHeaders.append(key, value);
+        resolve({ status: res.statusCode, headers: responseHeaders, text: async () => text, json: async () => JSON.parse(text) });
+      });
+      res.on('error', reject);
+    });
+    req.on('error', reject); req.end(encoded);
+  });
+  const page = await request('/login');
+  assert.equal(page.status, 200);
   const csrf = (await page.text()).match(/name="csrf" value="([^"]+)"/)[1];
   const csrfCookie = page.headers.get('set-cookie').split(';')[0];
-  const post = (path, cookie, callsign) => fetch(base + path, { method: 'POST', headers: {
+  const post = (path, cookie, callsign) => request(path, { method: 'POST', headers: {
     Origin: ORIGIN, Accept: 'application/json', Cookie: cookie }, body: new URLSearchParams({ csrf, password, callsign, next: '/' }) });
   const term = politicalWords.find(word => word.length <= NAME_MAX_LEN);
   const badLogin = await post('/_gate/login', csrfCookie, [...term].join('​'));
   assert.equal(badLogin.status, 400);
   assert.equal(badLogin.headers.get('set-cookie'), null);
   assert.deepEqual(await badLogin.json(), { ok: false, message: '代号含有不适宜内容，请换一个昵称。', code: 'NAME_REJECTED', reason: 'sensitive' });
-  assert.equal((await fetch(base + '/check')).status, 401);
+  assert.equal((await request('/check')).status, 401);
   const sessionCookie = SESSION_COOKIE + '=' + signToken('session', validateSecrets(secrets).signingKey);
   const remembered = csrfCookie + '; ' + sessionCookie;
   const badProfile = await post('/_gate/profile', remembered, [...term].join('.'));
   assert.equal(badProfile.status, 400);
   assert.equal(badProfile.headers.get('set-cookie'), null);
   assert.equal((await badProfile.json()).reason, 'sensitive');
-  assert.equal((await fetch(base + '/check', { headers: { Cookie: remembered } })).status, 204);
+  assert.equal((await request('/check', { headers: { Cookie: remembered } })).status, 204);
   const repaired = await post('/_gate/profile', remembered, '阿米娅');
   assert.equal(repaired.status, 200);
   assert.equal((await repaired.json()).callsign, '阿米娅');

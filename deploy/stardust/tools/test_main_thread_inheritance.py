@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+from contextlib import ExitStack
 from dataclasses import replace
 
 SPEC = importlib.util.spec_from_file_location('main_thread_priority', Path(__file__).with_name('main-thread-priority.py'))
@@ -20,38 +21,55 @@ ROOT = Path(__file__).resolve().parents[3]
 IMAGE_TAG = 'ark-proto:v013-ui-20261005'
 
 
+def fixture_config(image, profile, name, port):
+    # Direct test-only injection. Config.parse/production CLI never accept these overrides.
+    config = m.Config.parse({'profile': profile, 'approved_images': [
+        {'revision': image['revision'], 'image_id': image['id']}]})
+    ips = ('127.0.0.1', '127.0.0.2') if profile == 'beta' else ('127.0.0.1',)
+    return replace(config, container_name=name, project=name, health_port=port,
+                   publish_ips=ips, startup_timeout_seconds=30)
+
+
 @unittest.skipUnless(os.environ.get('SP_PRIORITY_INHERITANCE') == '1', 'explicit local host-root opt-in required')
 class InheritanceTests(unittest.TestCase):
-    def run_fixture(self, kind):
+    def run_fixture(self, kind, profile='prod'):
         self.assertEqual(os.geteuid(), 0)
-        name = f'ark-localtest-priority-{kind}-{os.getpid()}'
+        name = f'ark-localtest-priority-{profile}-{kind}-{os.getpid()}'
         purpose = 'ark-main-priority-inheritance'
         # This image is the Node24/dependency provider, not a claim about mounted source revision.
         raw = subprocess.check_output(m.DOCKER + ['image', 'inspect', '--format', m.formatter(m.IMAGE_FIELDS), IMAGE_TAG], env=m.DOCKER_ENV, text=True)
         image = json.loads(raw)
         fixture = f'deploy/stardust/tools/fixtures/main-thread-{kind}.{"mjs" if kind == "game" else "cjs"}'
-        with socket.socket() as reserved:
-            reserved.bind(('127.0.0.1', 0))
-            port = reserved.getsockname()[1]
-        config = m.Config(((image['revision'], image['id']),), container_name=name,
-                          project=name, health_port=port, startup_timeout_seconds=30)
+        config = fixture_config(image, profile, name, 0)
+        with ExitStack() as reservations:
+            for ip in config.publish_ips:
+                reserved = reservations.enter_context(socket.socket())
+                reserved.bind((ip, config.health_port))
+                if config.health_port == 0:
+                    config = replace(config, health_port=reserved.getsockname()[1])
+        port = config.health_port
         cmd = m.DOCKER + ['create', '--pull=never', '--name', name, '--init', '--read-only',
                          '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=128',
                          '--label', 'purpose=' + purpose, '--label', 'com.docker.compose.project=' + name,
                          '--label', 'com.docker.compose.service=ark-proto', '--tmpfs', '/tmp:rw,nosuid,size=16m',
-                         '--mount', f'type=bind,src={ROOT},dst=/app,readonly', '--workdir', '/app',
-                         '-p', f'127.0.0.1:{port}:3000', '-e', 'SP_COMBAT=server', '-e', 'SP_VERIFY=off',
-                         '-e', 'SP_COMBAT_WORKERS=6', '-e', 'SP_TRIAL_WORKERS=1',
-                         '--entrypoint', 'node', IMAGE_TAG, fixture]
+                         '--mount', f'type=bind,src={ROOT},dst=/app,readonly', '--workdir', '/app']
+        for ip in config.publish_ips:
+            cmd.extend(['-p', f'{ip}:{port}:3000'])
+        cmd.extend(['-e', 'SP_COMBAT=server', '-e', 'SP_VERIFY=off',
+                    '-e', f'SP_PRIORITY_FIXTURE_PROFILE={profile}',
+                    '-e', f'SP_COMBAT_WORKERS={config.combat_workers}', '-e', f'SP_TRIAL_WORKERS={config.trial_workers}',
+                    '--entrypoint', 'node', IMAGE_TAG, fixture])
         cid = None
-        with tempfile.NamedTemporaryFile(mode='w', dir=ROOT / '.cache/stardust', prefix=f'main-priority-{kind}-', suffix='.json', delete=False) as evidence:
-            result = {'fixture': kind, 'provider_revision': image['revision'], 'mounted_working_tree': True,
+        with tempfile.NamedTemporaryFile(mode='w', dir=ROOT / '.cache/stardust', prefix=f'main-priority-{profile}-{kind}-', suffix='.json', delete=False) as evidence:
+            result = {'fixture': kind, 'profile': profile, 'combat_workers': config.combat_workers,
+                      'trial_workers': config.trial_workers, 'publish_ips': config.publish_ips,
+                      'provider_revision': image['revision'], 'mounted_working_tree': True,
                       'evidence': evidence.name, 'removed': False}
             try:
                 cid = subprocess.check_output(cmd, env=m.DOCKER_ENV, text=True).strip()
                 subprocess.run(m.DOCKER + ['start', cid], env=m.DOCKER_ENV, check=True, stdout=subprocess.DEVNULL)
                 raw = subprocess.check_output(m.DOCKER + ['port', cid, '3000/tcp'], env=m.DOCKER_ENV, text=True).strip()
-                self.assertEqual(raw, f'127.0.0.1:{port}')
+                self.assertCountEqual(raw.splitlines(), [f'{ip}:{port}' for ip in config.publish_ips])
                 system = m.System(config)
                 helper = m.Helper(system)
                 before = helper.wait_ready(cid)
@@ -59,15 +77,24 @@ class InheritanceTests(unittest.TestCase):
                 self.assertNotEqual(before.generation.init_pid, before.generation.main_pid)
                 ready = self.marker(cid, 'ready')
                 self.assertEqual(ready['node'], 'v24.14.0')
+                self.assertEqual(ready['profile'], profile)
+                self.assertEqual((ready['combatWorkers'], ready['trialWorkers']),
+                                 (config.combat_workers, config.trial_workers))
+                self.assertEqual(sum(thread.name == 'WorkerThread' for thread in before.threads), config.worker_count)
                 if kind == 'lazy':
                     self.assertEqual(ready['libuvBefore'], 0, 'fixture must prove threadpool was absent before boosting')
                 result['applied'] = helper.run(cid)
                 self.assertTrue(result['applied']['configured'])
+                self.assertEqual((result['applied']['combat_ready'], result['applied']['trial_ready']),
+                                 (config.combat_workers, config.trial_workers))
                 self.assertEqual(os.getpriority(os.PRIO_PROCESS, before.generation.init_pid), 0)
                 os.kill(before.generation.main_pid, signal.SIGUSR2)
                 event = self.marker(cid, 'replaced' if kind == 'game' else 'created')
                 result['birth'] = event
+                self.assertEqual(event['profile'], profile)
                 if kind == 'game':
+                    self.assertEqual((event['combatReady'], event['trialReady']),
+                                     (config.combat_workers, config.trial_workers))
                     self.assertEqual(event['newWorkerNice'], 0)
                     self.assertEqual(event['combatReplacements'], 1)
                     self.assertEqual(event['trialReplacements'], 1)
@@ -97,16 +124,18 @@ class InheritanceTests(unittest.TestCase):
 from dataclasses import replace
 spec = importlib.util.spec_from_file_location('policy', sys.argv[1])
 m = importlib.util.module_from_spec(spec); sys.modules[spec.name] = m; spec.loader.exec_module(m)
-config = m.Config(((sys.argv[2], sys.argv[3]),), container_name=sys.argv[4], project=sys.argv[4], health_port=int(sys.argv[5]), startup_timeout_seconds=15)
+config = m.Config.parse({'profile': sys.argv[7], 'approved_images': [{'revision': sys.argv[2], 'image_id': sys.argv[3]}]})
+config = replace(config, container_name=sys.argv[4], project=sys.argv[4], health_port=int(sys.argv[5]), startup_timeout_seconds=15,
+                 publish_ips=('127.0.0.1', '127.0.0.2') if config.profile == 'beta' else ('127.0.0.1',))
 def stop(*args): raise m.Stopped()
 signal.signal(signal.SIGTERM, stop)
 try:
-    with m.runtime_lock(sys.argv[6]): m.Watcher(lambda: config).run()
+    with m.runtime_lock(sys.argv[6]): m.Watcher(lambda: config, profile=config.profile).run()
 except m.Stopped: pass
 '''
                     with tempfile.NamedTemporaryFile(mode='w+', dir=ROOT / '.cache/stardust', prefix='main-priority-watch-', suffix='.log', delete=False) as log, tempfile.TemporaryDirectory() as locks:
                         watch = subprocess.Popen([sys.executable, '-B', '-c', code, str(Path(__file__).with_name('main-thread-priority.py')),
-                            image['revision'], image['id'], name, str(port), str(Path(locks) / 'lock')],
+                            image['revision'], image['id'], name, str(port), str(Path(locks) / 'lock'), profile],
                             stdout=log, stderr=log, start_new_session=True)
                         try:
                             result['watch_log'] = log.name
@@ -141,7 +170,8 @@ except m.Stopped: pass
                     subprocess.run(m.DOCKER + ['rm', '-f', cid], check=True, stdout=subprocess.DEVNULL, env=m.DOCKER_ENV)
                     result['removed'] = True
                 json.dump(result, evidence, indent=2)
-                print(json.dumps({'fixture': kind, 'evidence': evidence.name, 'removed': result['removed']}), flush=True)
+                print(json.dumps({'fixture': kind, 'profile': profile, 'evidence': evidence.name,
+                                  'removed': result['removed']}), flush=True)
 
     def assert_owned(self, cid, name, purpose):
         raw = subprocess.check_output(m.DOCKER + ['container', 'inspect', '--format',
@@ -161,7 +191,9 @@ except m.Stopped: pass
                     and record.get('main_start_ticks') == snapshot.generation.main_start for record in records)
                 if completed and snapshot.main.nice == -20 and snapshot.main.policy == m.RESET_ON_FORK:
                     return {'container_id': cid, 'main_pid': snapshot.main.tid, 'main_nice': -20,
-                            'reset_on_fork': True, 'other_threads_zero': True}
+                            'reset_on_fork': True, 'other_threads_zero': True,
+                            'combat_ready': system.config.combat_workers, 'trial_ready': system.config.trial_workers,
+                            'worker_threads': sum(thread.name == 'WorkerThread' for thread in snapshot.threads)}
             except m.NotReady:
                 pass
             time.sleep(0.1)
@@ -191,6 +223,12 @@ except m.Stopped: pass
 
     def test_late_libuv_birth_and_restart(self):
         self.run_fixture('lazy')
+
+    def test_actual_twelve_plus_two_worker_birth_replacement_and_restart(self):
+        self.run_fixture('game', 'beta')
+
+    def test_beta_late_libuv_birth_and_restart(self):
+        self.run_fixture('lazy', 'beta')
 
 
 if __name__ == '__main__':

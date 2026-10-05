@@ -754,6 +754,12 @@
 .ping--medium { --pc: var(--amber); }
 .ping--high { --pc: var(--red-premium); }
 .ping--off { --pc: var(--text-dim); }
+.latency-status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .06rem; max-width: 100%; }
+.server-load { --lc: var(--text-dim); display: inline-flex; align-items: center; gap: .04rem; color: var(--text-lo); font-size: max(.12rem, 10px); line-height: 1.2; white-space: nowrap; }
+.server-load > i { width: max(.06rem, 5px); height: max(.06rem, 5px); flex: none; border-radius: 50%; background: var(--lc); }
+.server-load--normal { --lc: var(--mint-400); }
+.server-load--busy { --lc: var(--amber); }
+.server-load--overloaded { --lc: var(--red-premium); }
 
 /* ---- difficulty tag ---------------------------------------------------------------------------------- */
 .dtag { --d-color: var(--amber); display: inline-flex; align-items: center; gap: .06rem; color: var(--d-color); font-weight: 700; font-size: .18rem; letter-spacing: .04em; white-space: nowrap; }

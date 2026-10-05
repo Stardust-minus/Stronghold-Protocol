@@ -21,6 +21,19 @@ function emptySnapshot(status) {
 
 export const PERFORMANCE_UNAVAILABLE = emptySnapshot('unavailable');
 
+/** A cached main-thread pressure hint, not total machine CPU or Worker capacity. */
+export function serverLoadState(snapshot, now = Date.now()) {
+  const elu = snapshot?.mainThread?.eventLoopUtilization;
+  const p95 = snapshot?.mainThread?.eventLoopDelayMs?.p95;
+  const at = snapshot?.sampledAt;
+  if (snapshot?.status !== 'ready' || !Number.isFinite(snapshot.windowMs) || snapshot.windowMs <= 0
+      || !Number.isFinite(at) || !Number.isFinite(now) || now < at || now - at > SAMPLE_MS * 3
+      || !Number.isFinite(elu) || elu < 0 || elu > 1 || !Number.isFinite(p95) || p95 < 0) return 'unknown';
+  if (p95 >= 100 || (elu >= .95 && p95 >= 50)) return 'overloaded';
+  if (elu >= .85 || p95 >= 40) return 'busy';
+  return 'normal';
+}
+
 /** Injectable built-in readers/timers keep window and lifecycle tests deterministic. */
 export function createHealthMetrics({
   log = console,

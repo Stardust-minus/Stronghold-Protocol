@@ -12,6 +12,12 @@
 - 15:00 +08 已按明确授权将 Worker 从 4 调到 6，镜像/资源未变；见 [运行配置记录](releases/v012-workers-20261004-workers6.json)。
 - 实际激活状态以两机 release 记录为准。checkout、合并与推送不自动授权部署；须完成同一 commit 的本地验收并取得上线授权，才能协调切换游戏与静态路由。
 
+## 独立 Beta 准备（不替换正式服）
+
+杭州/Beta的候选规范见 [BETA-SOP.md](BETA-SOP.md)。新增Beta game/edge Compose、Beta-only vhost与私有JS/CSS落盘工具，独立房间、队列、Cookie签名及门禁Origin。`prod` 优先级profile保持嘉兴6+1/单loopback；`beta` 为12+2/3220双绑定；`core`仅未来杭州正式迁移候选12+2/3120双绑定。准备/测试/推送不意味着Beta或正式已激活；以实际验收记录为准。
+
+正式服务仍维持下述单backend架构。Beta是用户明确要求的长期独立验收环境，不恢复rolling/drain或按版本分流。
+
 ## 当前部署：一个项目、三个服务
 
 2026-10-04 用户取消平滑更新后，普通入口恢复 `/`，Nginx 直接到单个游戏 3120；门禁 3141、OpenI 素材解析器 3130。固定容器名 `ark-proto` / `ark-proto-auth` / `ark-proto-assets`，同一个 Compose project `ark-proto`，不运行网关、备用游戏或蓝绿素材槽位。`runtime.env.example` 只是现有镜像坐标基线，不证明本地新修改已上线。

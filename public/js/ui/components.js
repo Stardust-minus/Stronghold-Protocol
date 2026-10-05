@@ -762,15 +762,22 @@ export function doctorNo(id) {
 
 /**
  * Latency pill ("58ms"), coloured by research 06 §3.4 tiers (<60 mint, <200 amber, else red).
- * @param {{ ms?: number|null, online?: boolean, class?: string }} props
+ * @param {{ ms?: number|null, online?: boolean, loadState?: string, class?: string }} props
  */
-export function PingPill({ ms, online = true, class: cls }) {
+export function PingPill({ ms, online = true, loadState, class: cls }) {
   const ok = online && Number.isFinite(ms);
   const tier = !ok ? 'off' : ms < 60 ? 'low' : ms < 200 ? 'medium' : 'high';
-  return html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? `当前延迟 ${ms}ms` : '未连接'}>
+  const ping = html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? `当前延迟 ${ms}ms` : '未连接'}>
     <${Icon} name=${ok ? 'signal' : 'wifiOff'} class="ping__icon" />
     <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>
   </span>`;
+  if (loadState === undefined) return ping;
+  const labels = { unknown: '未知', normal: '正常', busy: '繁忙', overloaded: '拥堵' };
+  const state = online && typeof loadState === 'string' && Object.hasOwn(labels, loadState) ? loadState : 'unknown';
+  return html`<span class="latency-status">${ping}<span class=${`server-load server-load--${state}`} role="status"
+    aria-label=${`服务器负载${labels[state]}`} title="最近采样的游戏主线程响应压力；不是网络延迟或整机 CPU 占用">
+    <i aria-hidden="true" /><span>负载${labels[state]}</span>
+  </span></span>`;
 }
 
 /**

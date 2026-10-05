@@ -30,7 +30,7 @@
 // to /shared/x.js (URL resolution clamps at the root); under Node it resolves to <repo>/shared.
 
 import { PROTOCOL_VERSION, MATCHMAKING_VERSION, ERR_TEXT } from '../../shared/constants.js';
-import { validateC2S } from '../../shared/protocol.js';
+import { validateC2S, normalizeServerLoad } from '../../shared/protocol.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
@@ -140,6 +140,7 @@ export class Net {
     this.attempt = 0;          // consecutive failed connection attempts
     this.retryAt = 0;          // epoch ms of the next reconnect attempt (0 = none)
     this.ping = null;          // last RTT in ms
+    this.loadState = 'unknown'; // cached server main-thread pressure, independent of network RTT
     this.lastError = null;     // last NetError relevant to the connection (e.g. hello rejected)
     this.clockOffset = 0;
     this.clockSynced = false;
@@ -194,7 +195,7 @@ export class Net {
   /** Snapshot of the connection state (what the 'status' event carries). */
   snapshot() {
     return {
-      status: this.status, attempt: this.attempt, retryAt: this.retryAt, ping: this.ping,
+      status: this.status, attempt: this.attempt, retryAt: this.retryAt, ping: this.ping, loadState: this.loadState,
       lastError: this.lastError ? { code: this.lastError.code, text: this.lastError.message } : null,
       playerId: this.playerId,
     };
@@ -202,6 +203,7 @@ export class Net {
 
   _setStatus(status) {
     this.status = status;
+    if (status !== 'online' && status !== 'connected') this.loadState = 'unknown';
     this._emit('status', this.snapshot());
   }
 
@@ -342,6 +344,7 @@ export class Net {
       ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
     }
     this.ws = null;
+    this.loadState = 'unknown';
     this._unansweredSince = null;
     this._clearTimer('_pingTimer', 'clearInterval');
     this._clearTimer('_helloTimer', 'clearTimeout');
@@ -602,6 +605,7 @@ export class Net {
     const rtt = now - c;
     if (!(rtt >= 0 && rtt < 60000)) return;
     this.ping = Math.round(rtt);
+    this.loadState = normalizeServerLoad(msg.loadState);
     if (Number.isFinite(msg.s)) this._addClockSample(msg.s + rtt / 2 - now, rtt);
     this._emit('ping', this.ping);
     this._emit('status', this.snapshot());

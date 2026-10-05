@@ -3,6 +3,10 @@
 
 import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } from './constants.js';
 
+/** Public response-pressure hint; never carries raw host/process diagnostics. */
+export const SERVER_LOAD_STATES = Object.freeze(['unknown', 'normal', 'busy', 'overloaded']);
+export const normalizeServerLoad = value => typeof value === 'string' && SERVER_LOAD_STATES.includes(value) ? value : 'unknown';
+
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
 const isStr = (v, max = 64) => typeof v === 'string' && v.length <= max;
