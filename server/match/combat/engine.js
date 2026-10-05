@@ -4,6 +4,9 @@ import { SharedBossPool } from '../finalAssault.js';
 import { GameData, COMBAT_TIME_SCALE, DEFAULTS } from '../gamedata.js';
 import { createBattleFromSpec, battleProgress, uniteLeft } from '../../sim/spec.js';
 import { combatData } from './data.js';
+import { damageFrame, emptyDamageRows } from '../../sim/damageBoard.js';
+
+export const DAMAGE_INTERVAL_MS = 1000;
 
 export const MAX_ADVANCE_TICKS = 1024;
 const QUIET = Object.freeze({ error() {}, warn() {}, info() {} });
@@ -19,7 +22,8 @@ class EngineRunner extends FieldRunner {
 }
 
 export class CombatEngine {
-  constructor({ specs, boss = null, wireFrames = false, coalesceFrames = false }, { data, log = QUIET, BattleClass } = {}) {
+  constructor({ specs, boss = null, wireFrames = false, coalesceFrames = false, damageBoard = false },
+    { data, log = QUIET, BattleClass, now = () => performance.now() } = {}) {
     if (!Array.isArray(specs) || specs.length > 4) throw new TypeError('specs must contain at most four fields');
     const ids = new Set();
     for (const s of specs) {
@@ -29,6 +33,8 @@ export class CombatEngine {
     if (specs.some((s) => s.kind === 'boss' || s.kind === 'hidden') && !boss) throw new TypeError('shared boss config required');
     const ds = combatData(data);
     this.log = log;
+    this.damageBoard = damageBoard === true;
+    this.now = now;
     this.wireFrames = wireFrames === true;
     this.coalesceFrames = this.wireFrames && coalesceFrames === true;
     this.coalescing = false;
@@ -55,7 +61,9 @@ export class CombatEngine {
       this.pool.hp = Math.max(0, Math.min(maxHp, finite(boss.hp, maxHp)));
     }
     this.fields = specs.map((spec) => {
-      const f = { fieldId: spec.fieldId, kind: spec.kind, players: (spec.players || []).map((p) => p.playerId), battle: null };
+      const f = { fieldId: spec.fieldId, kind: spec.kind, round: spec.round,
+        players: (spec.players || []).map((p) => p.playerId), battle: null };
+      if (this.damageBoard) { f.damageRows = emptyDamageRows(spec); f.damageAt = -Infinity; }
       try {
         f.battle = createBattleFromSpec(spec, ds, { sharedBoss: this.pool, BattleClass, logger: log });
       } catch (e) {
@@ -157,7 +165,27 @@ export class CombatEngine {
     this.coalescing = this.coalesceFrames && coalescing;
   }
 
+  _damage(f, now, force = false) {
+    if (!force && (f.damageFinal || now - f.damageAt < DAMAGE_INTERVAL_MS)) return null;
+    try { if (typeof f.battle.damageRows === 'function') f.damageRows = f.battle.damageRows(); }
+    catch (e) { this._error(`field ${f.fieldId} damageRows`, e); }
+    f.damageAt = now;
+    f.damageFinal = !f.live;
+    const frame = damageFrame(f, f.damageRows);
+    return this.wireFrames ? { fieldId: f.fieldId, damageWire: JSON.stringify(frame), gt: frame.gt }
+      : structuredClone({ fieldId: f.fieldId, damageRows: f.damageRows, gt: frame.gt });
+  }
+
   _output({ state = false, final = false } = {}) {
+    const damageFrames = [];
+    if (this.damageBoard) {
+      const now = this.now();
+      // All owners feed the round ledger even if nobody watched their field. Real time, not 2x game time.
+      for (const f of this.fields) {
+        const frame = this._damage(f, now, state || final || (!f.live && !f.damageFinal));
+        if (frame) damageFrames.push(frame);
+      }
+    }
     // forceAll in onTick can finish after the ordinary emit point. Always return a current terminal frame,
     // even with no watchers, and do not reuse an earlier frame whose boss state/meta is now stale.
     for (const f of this.fields) {
@@ -178,11 +206,13 @@ export class CombatEngine {
         time: Number(b.time) || 0, tickCount: Number(b.tickCount) || 0,
         killed: Number(b.killed) || 0, total: Number(b.total) || 0,
         progress, left, errors: this.diagnostics.get(f.fieldId), ...(result ? { result } : {}),
+        ...(this.damageBoard && !f.live ? { damageRows: f.damageRows } : {}),
       };
     });
     const dto = structuredClone({
       ticks: this.runner.ticks, time: this.runner.time, done: this.runner.done,
       fields, effects: this.effects,
+      ...(this.damageBoard ? { damageFrames } : {}),
       boss: this.boss ? {
         maxHp: this.pool.maxHp, hp: this.pool.hp, byPlayer: [...this.pool.byPlayer],
         teamLp: this.boss.teamLp, overtimeApplied: this.boss.overtimeApplied,

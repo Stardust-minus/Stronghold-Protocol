@@ -9,10 +9,37 @@
 - [x] 实际六 Worker、四真人 WS 和浏览器验证 LP11救援；具体用户报告局原因未复现，不能宣称已修好。增加权威不可用原因与明确文案，不放宽规则或资源清理。
 - [x] auth 片头/进入转场默认关闭，显式 per-browser opt-in；默认不下载场景库，口令/CSRF/昵称/profile验证保留，真实桌面/手机验收通过。
 - [x] 最终 Node24 Linux canonical：3925 tests，3909 pass、16 skip、0 fail/cancel；实际整队、观战/kick、准备余款确认、Worker重连浏览器通过。
-- [x] D71正式CPU profile保存：混合场景非idle bot rehearsal76.54%、经济/布局17.60%；正式战斗仍6worker，不宣称新offload已做。
-- [ ] 本批次正式提交/推送/配套发布按用户指令办理；本地验证不代表已上线，当前线上仍D71。
-- [ ] 后续优先布局重复分配/缓存、纯候选trial有界低优先级offload（主线程仍管RNG/UID/cardpool/经济/提交），在0.1.3基线复验，不新增gateway或服务。
-- [ ] 不整树移植第三方fork；官方013已有ART清单8秒保护，核心数据超时、queue预热、慢载入诊断和可靠取消仍可后续补充。
+- [x] D71正式CPU profile保存：混合场景非idle bot rehearsal76.54%、经济/布局17.60%；正式战斗在6 Worker。它是选优化目标的依据，不是下述v0.1.3收益基线。
+- [x] 上述0.1.3/auth/救援诊断已本地合并提交为 `902a37d`，没有推送或部署；master/origin仍 `60244df`。
+- [ ] 不整树移植第三方fork；官方013已有ART清单8秒保护，核心数据超时、queue预热、慢载入诊断和可靠取消仅作后续建议，尚未另行实施。
+
+## 最新本地批次：实际主线程减负 / 局内输出榜
+
+当前分支 `perf/main-thread-relief-013`，base `902a37d`。详细证据见 `.claude/perf-relief-progress.md` 与 `.claude/damage-board-progress.md`，不是旧待实施计划。
+
+- [x] 布局评分复用 prefix 和 dense scratch，保持候选/浮点顺序、RNG/UID/最终布局；165项回归通过，两组同v0.1.3工作量主线程CPU下降2.4–2.9%。
+- [x] 纯候选trial实际接入现有六Worker的有界低优先RPC；正式combat/cleanup优先，32tick/约4ms切片，原64tick剪枝不变；生命周期/输入指纹取消、迟到结果拒绝与完整候选inline故障fallback完成。真实Match集成166项通过。
+- [x] 两组mixed同工作量对照：96 jobs / 288候选 / 883456ticks / 336购买；主线程CPU下降64–69%，但进程总CPU增加56–72%，准备总时长增加约2–6%。响应尾延迟与时间债务改善；不是总CPU节省或AI提速，不能推算任意生产规模容量。
+- [x] 输出榜默认收起，随当前/队友视角显示干员实际HP伤害；普通战斗+联防累计，下一轮PREP冻结上一轮，正式战斗开始才清零。召唤物归root干员，装置/其他单列，不计盾/过量/友伤。
+- [x] Worker约1Hz聚合、终态/重连强制新鲜；主线程绝对账本融合；Boss分组隐私、clientCombat unavailable、迟到包/换局防护齐全。后端269项、前端及相关225项通过。
+- [x] 主助手真实四Chrome完成5步验收，无控制台错误；桌面/窄屏截图已看，小屏面板避开队友头像后重测通过。浏览器报告的damagePackets字段未赋值，不作为网络包计数证据。
+- [x] 最终Node24 Linux组合：4001 tests / 308 suites，3985 pass、16 skip、0 fail/cancel；日志 `.cache/stardust/perf-score-canonical-final.log`。旧spectator白名单精准适配新m.damage，私密字段递归检查完整保留。
+- [x] compact后核对ID/name/purpose并清理本机 `ark-damage-board-local` 临时容器，不触线上、镜像或卷。
+- [ ] 性能/输出榜及本次收尾文档仍未提交；后续提交/推送/配套发布仅按用户新指令办理。0.1.3、auth默认关、诊断、性能、计分板均未上线，生产仍D71。
+
+### 进一步总 CPU 降耗：独立试算池（2026-10-05）
+
+详见 `.claude/trial-pool-progress.md`；用户已批准保留六个正式combat Worker，另用1–2个专用trial Worker，并顺带处理相关冗余开销。
+
+- [x] 独立role试算池、Worker内部分片、自驱动任务、低频有界进度/终态、取消与截止/停滞监测接通；生产不暗中借用正式combat池。
+- [x] summary不复制完整试算结果、可信输入复用、未发送时不构造进度DTO、stream路径不重复指纹；候选数/seed/64tick剪枝/评分与主线程权威不变。
+- [x] server配置0/1/2、server-worker默认1、worker0不启动、独立health及启动失败清理/降级。core39项、接入51项、main配置7项专项通过；额外静态并发复核未发现实质bug。
+- [x] 真实四Chrome分别验证6+1/6+2，每侧真实3候选/6282ticks完成；无页面错误或试算fallback，计分板live/切视角/冻结/重连/清零通过。转场结束后的截图已由main查看。
+- [x] 新完整Linux Node24回归：4056tests，4040pass、16skip、0fail/cancel；日志 `.cache/stardust/trial-pool-canonical-final.log`，本机测试容器均清理。
+- [x] 八个有效固定输入对照及两次独立Worker profile完成：96jobs/288候选/883456ticks、逐候选评分/赢家、正式24份终态输出榜均一致。默认6+1以成本优先：本阶段process CPU较shared6少30.35%，但批次完成约慢20%；6+2较6+1多6.54% CPU/约173MiB峰RSS，批次约快46.4%。这是trial-only+真实combat/WS，不含经济/规划/最终落子/Match指纹等，不能当完整PREP或生产容量结论。
+- [x] 原自然PREP的2池步数漂移已定位到共享rngBots消费交错改变候选布局，不是Worker算错；两实际输入各自跨片/1/2Worker重放14/14通过。未为基准改生产RNG/时序，原失败和原始证据保留。
+- [x] Worker活跃采样剩余主要是simulation；updateEnemy/_tickBuffs/advanceRoute/_checkBlock等留作后续有失效设计的优化依据，不把RPC次数或Profiler采样百分比当完整CPU归因。全部本轮测试/测量容器已清理。
+- [ ] 未提交/推送/部署，线上仍D71；正式部署模板与远端配置未改变。
 
 以下保留 **D71发布前的历史验收清单**，未勾选的发布/元数据状态不覆盖上述实际发布记录；不要重复旧activation或恢复caps。
 

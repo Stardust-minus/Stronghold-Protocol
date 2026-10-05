@@ -43,6 +43,7 @@ import { resolveProfile } from './professions.js';
 import { unitInfo, snapshotUnits } from './snapshot.js';
 import { toDataSource, normalizeRoute, normalizeStage, normalizeToken, normalizeEnemy } from './simdata.js';
 import { installContent, setupUnitKit } from './content/index.js';
+import { damageRows } from './damageBoard.js';
 
 const DEFAULT_RECTS = { normal: GEO.NORMAL_RECT, unite: GEO.UNITE_RECT, boss: GEO.BOSS_RECT, hidden: GEO.BOSS_RECT };
 let hookSeq = 0;
@@ -570,6 +571,9 @@ export class Battle {
     if (this.sharedBoss) res.bossHpLeft = Math.max(0, this.sharedBoss.hp);
     return res;
   }
+
+  /** Optional public damage view; deliberately not part of the default/trial result path. */
+  damageRows() { return damageRows(this); }
 
   /** BattleResult (valid once finished; a provisional result before). */
   result() {
@@ -2398,6 +2402,8 @@ export class Battle {
   fieldMeta() {
     return {
       fieldId: this.fieldId, kind: this.kind, rect: { ...this.rect }, stageId: this.stageId,
+      players: this.players.map((p) => p.playerId),
+      sides: Object.fromEntries(this.players.map((p) => [p.playerId, p.half])),
       units: this.units.filter((u) => (u.alive && u.deployed && !u.hidden) || this.isDown(u)).map(unitInfo),
     };
   }

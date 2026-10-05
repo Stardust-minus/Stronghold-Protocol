@@ -15,6 +15,7 @@ services:
       SP_COMBAT: server
       SP_VERIFY: "off"
       SP_COMBAT_WORKERS: "6"
+      SP_TRIAL_WORKERS: "${SP_TRIAL_WORKERS:-1}"
       TRUST_PROXY: auto
     read_only: true
     tmpfs:

@@ -155,7 +155,12 @@ import { buildBattleSpec, createBattleFromSpec, resultDigest, compactResult as c
 import { CreditPool } from './finalAssault.js';
 import { RemoteBattle, WorkerFieldRunner } from './combat/runner.js';
 import { buildResult } from './results.js';
+import { createDamageBoard } from './damageBoard.js';
+import { emptyDamageRows } from '../sim/damageBoard.js';
+
+const DAMAGE_PUBLIC_MS = 1000;
 import { botPrepBeginSteps, botPrepEndSteps, botPickBand, botPickCard } from './bot.js';
+import { canUseWorkerRehearsal, rehearsalFingerprint } from './combat/rehearsal.js';
 
 const BOT_REHEARSAL_DEFAULT = 3;
 /** Wall-clock ms of bot layout rehearsal per scheduler callback (real time; virtual time runs it in one go). */
@@ -276,6 +281,9 @@ export class Match {
     // Workers are opt-in at server startup; virtual/custom simulators and client-authoritative combat stay inline.
     this.combatPool = opts.combatPool && !this.clientCombat && !this.sched.virtual && this.BattleClass === Battle
       ? opts.combatPool : null;
+    // Both pools are process-owned loans. A Match only closes its jobs, never either shared pool.
+    this.trialPool = opts.trialPool && !this.clientCombat && !this.sched.virtual && this.BattleClass === Battle
+      ? opts.trialPool : null;
     /** wall-clock ms per slice of a server-run normal / 联防 field (virtual time: at once) */
     this.headlessSliceMs = Number.isFinite(opts.headlessSliceMs) && opts.headlessSliceMs > 0 ? opts.headlessSliceMs : this.sched.virtual ? Infinity : HEADLESS_SLICE_MS;
     this.verifyStats = { checked: 0, mismatches: 0, rejected: 0, takeovers: 0 };
@@ -294,6 +302,12 @@ export class Match {
      * next match of the room (the same socket, the same field ids) never names a battle of this match.
      */
     this.battlePrefix = `${this.seed.toString(36)}${Number.isInteger(opts.matchNo) && opts.matchNo > 0 ? `-${opts.matchNo.toString(36)}` : ''}`;
+    this.damageBoard = createDamageBoard(this.battlePrefix);
+    this._damageDirty = false;
+    this._damageTimer = null;
+    this._damageAt = -Infinity;
+    this._damageSampleAt = -Infinity;
+    this._damageSent = new Map();
     /** Locked pregame rule; only the lobby counts the human votes. */
     this.revivalEnabled = opts.revivalEnabled === true;
     /** SETTLE-only rescue state: { round, eligible: Set<playerId>, windowOpen, deadline }. */
@@ -507,6 +521,7 @@ export class Match {
     } else if (this.lastResultMsg) {
       this.sendTo(playerId, { ...this.lastResultMsg, playerId });
     }
+    this._sendDamageTo(playerId);
   }
 
   /**
@@ -546,6 +561,7 @@ export class Match {
     const ps = this.players.get(playerId);
     if (!ps || ps.isBot || ps.left || this.disposed) return;
     this.guard(() => {
+      this._cancelBotPrep(ps);
       ps.left = true;
       ps.connected = false;
       ps.autoplay = false;
@@ -568,6 +584,7 @@ export class Match {
    * (alive × 25 %). Rounds passed = the rounds the player had survived when leaving.
    */
   _quit(ps) {
+    this._cancelBotPrep(ps);
     this.maybeEndInfo();
     if (!ps.alive && !ps.pendingDeath) return;
     const phase = this.phase;
@@ -612,8 +629,10 @@ export class Match {
 
   dispose() {
     if (this.disposed) return;
+    this._freezeDamage(false);
     this._finalizePendingDeaths({ notify: false, reason: 'match-ended' });
     this.disposed = true;
+    for (const ps of this.order) this._cancelBotPrep(ps);
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } }
     this._stopClientCombat();
     for (const h of this._timers) { try { this.sched.clearTimeout(h); } catch { /* ignore */ } }
@@ -756,7 +775,7 @@ export class Match {
 
   /** Worker-produced protocol frames are encoded once off-thread, then reused for every permitted recipient. */
   sendEncoded(playerId, type, data) {
-    if (this.disposed || !['m.field', 'b.snap', 'b.ev'].includes(type) || typeof data !== 'string') return false;
+    if (this.disposed || !['m.field', 'b.snap', 'b.ev', 'b.damage', 'm.damage'].includes(type) || typeof data !== 'string') return false;
     const ps = this.players.get(playerId) || this.spectators.get(playerId);
     if (!ps || ps.isBot || ps.left) return false;
     try {
@@ -813,6 +832,112 @@ export class Match {
       }
     }
     if (this._pubDirty || forcePublic) this._maybeSendPublic(forcePublic);
+    if (this._damageDirty) this._flushDamage();
+  }
+
+  // ---- public actual-damage ledger (server authority only)
+
+  _beginDamage(phase) {
+    this.cancel(this._damageTimer);
+    this._damageTimer = null;
+    // A forced phase replacement may reuse the same round/field ids; only its new field objects may write scores.
+    if (phase !== 'unite' && this.damageBoard.round === this.round && this.damageBoard.phase === phase) {
+      const previous = this.damageBoard.freeze();
+      this.damageBoard = createDamageBoard(this.battlePrefix);
+      this.damageBoard.previousRound = previous;
+    }
+    this.damageBoard.startCombat(this.round, phase, this.order);
+    this._damageSampleAt = -Infinity;
+    this._damageSent.clear();
+    this._damageDirty = true;
+    if (!this.clientCombat) for (const f of this.fields) {
+      this._onDamageRows(f, emptyDamageRows(f.spec || f.battle?.opts || { players: f.players.map((playerId) => ({ playerId })) }));
+    }
+    this._sampleDamage(true);
+  }
+
+  /** Worker callbacks replace tiny absolute rows once per batch; no damage events/results are scanned here. */
+  _onDamageRows(f, rows, { final = null } = {}) {
+    if (this.clientCombat || this.disposed || this.ended || !this.fields.includes(f)
+      || f.kind !== this.damageBoard.phase || this.round !== this.damageBoard.round) return false;
+    if (this.damageBoard.replaceField({ matchId: this.battlePrefix, round: this.round, phase: f.kind,
+      kind: f.kind, fieldId: f.fieldId, gt: f.remote ? f.battle._damageGt ?? f.battle.time : f.battle.time || 0,
+      owners: rows?.owners, final: final ?? (!f.live || !!f.battle.finished) })) this._damageDirty = true;
+    return false; // Match sends the complete permitted round ledger, not per-field raw-score broadcasts.
+  }
+
+  /** Inline FieldRunner samples at real-time cadence; remote fields only expose already accepted worker rows. */
+  _sampleDamage(force = false, final = false) {
+    if (this.clientCombat || this.damageBoard.status !== 'live') return;
+    const now = this.sched.now();
+    if (!force && (this.paused || now - this._damageSampleAt < DAMAGE_PUBLIC_MS)) return;
+    this._damageSampleAt = now;
+    for (const f of this.fields) {
+      if (!force && f.remote) continue;
+      if (typeof f.battle?.damageRows !== 'function') continue;
+      try { this._onDamageRows(f, f.battle.damageRows(), { final: final ? true : null }); }
+      catch (e) { this.reportError('damage rows', e); }
+    }
+  }
+
+  _damagePacket() {
+    const packet = this.damageBoard.packet();
+    // Browser-authoritative results are not a trusted operator meter. Preserve their existing combat authority.
+    return packet && this.clientCombat ? { ...packet, owners: [], available: false } : packet;
+  }
+
+  _damageView(ps, packet) {
+    // Same restriction as watch(): fighting boss players may never see the other group's operator statistics.
+    // A frozen score remains restricted while boss fields are displayed; no-field PREP follows prep scouting rules.
+    if (ps.alive && (this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE)) {
+      const own = this.fields.find((f) => f.players.includes(ps.playerId));
+      if (own) return { ...packet, owners: packet.owners.filter((row) => own.players.includes(row.playerId)) };
+    }
+    return packet;
+  }
+
+  _sendDamageTo(playerId) {
+    const ps = this.players.get(playerId) || this.spectators.get(playerId);
+    const packet = this._damagePacket();
+    if (!ps?.connected || ps.left || !packet) return;
+    const wire = JSON.stringify(this._damageView(ps, packet));
+    if (this.sendEncoded(playerId, 'm.damage', wire)) this._damageSent.set(playerId, wire);
+  }
+
+  _flushDamage(force = false) {
+    if (this.disposed || (!force && !this._damageDirty)) return;
+    const now = this.sched.now();
+    if (!force && now - this._damageAt < DAMAGE_PUBLIC_MS) {
+      if (!this._damageTimer) this._damageTimer = this.later(Math.max(1, DAMAGE_PUBLIC_MS - (now - this._damageAt)), () => {
+        this._damageTimer = null;
+        this._flushDamage();
+      });
+      return;
+    }
+    this.cancel(this._damageTimer);
+    this._damageTimer = null;
+    this._damageDirty = false;
+    this._damageAt = now;
+    const packet = this._damagePacket();
+    if (!packet) return;
+    const wires = new Map();
+    for (const ps of this._viewers()) {
+      if (!ps.connected) continue;
+      const own = ps.alive && (this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE) ? this.fieldOf(ps) : null;
+      const key = own || 'all';
+      let wire = wires.get(key);
+      if (!wire) { wire = JSON.stringify(this._damageView(ps, packet)); wires.set(key, wire); }
+      if (!force && this._damageSent.get(ps.playerId) === wire) continue;
+      if (this.sendEncoded(ps.playerId, 'm.damage', wire)) this._damageSent.set(ps.playerId, wire);
+    }
+  }
+
+  _freezeDamage(send = true) {
+    this._sampleDamage(true, true);
+    if (this.damageBoard.freeze()) this._damageDirty = true;
+    this.cancel(this._damageTimer);
+    this._damageTimer = null;
+    if (send) this._flushDamage(true);
   }
 
   _sendPrivate(ps, force) {
@@ -882,6 +1007,7 @@ export class Match {
     const revivalOpen = this.revivalWindowOpen();
     const v = {
       t: 'm.public',
+      matchId: this.battlePrefix,
       phase: this.phase,
       round: this.round,
       lastRound: this.gd.lastRound,
@@ -1038,13 +1164,15 @@ export class Match {
     const dest = changed ? watchers : (to ? [to] : []);
     if (!dest.length) return;
     const meta = this.prepFieldMeta(ps);
-    for (const pid of dest) this.sendTo(pid, meta);
+    for (const pid of dest) { this.sendTo(pid, meta); this._sendDamageTo(pid); }
   }
 
   _sendField(playerId, fieldId) {
     const f = this.fields.find((x) => x.fieldId === fieldId);
     if (f) {
-      if (f.remote) { f.battle.runner?.requestField(playerId, fieldId); return; }
+      if (f.remote) { f.battle.runner?.requestField(playerId, fieldId); this._sendDamageTo(playerId); return; }
+      this._sampleDamage(true);
+      this._sendDamageTo(playerId);
       let meta;
       try { meta = f.battle.fieldMeta(); } catch (e) { this.reportError('fieldMeta', e); return; }
       this.sendTo(playerId, { t: 'm.field', ...meta, fieldId: f.fieldId, kind: f.kind, live: !!f.live });
@@ -1053,7 +1181,7 @@ export class Match {
     }
     if (typeof fieldId === 'string' && fieldId.startsWith('n:')) {
       const target = this.players.get(fieldId.slice(2));
-      if (target && target.alive) this.sendTo(playerId, this.prepFieldMeta(target));
+      if (target && target.alive) { this.sendTo(playerId, this.prepFieldMeta(target)); this._sendDamageTo(playerId); }
     }
   }
 
@@ -1145,6 +1273,7 @@ export class Match {
     ps.autoplay = on;
     this.markPublic();
     if (on) this.kickBot(ps);
+    else this._cancelBotPrep(ps);
     return OK;
   }
 
@@ -1220,6 +1349,8 @@ export class Match {
       if (f.doneTimer) { this.cancel(f.doneTimer); f.doneTimer = null; f.rearmRelease = true; }
     }
     if (this._bossClock) { this.cancel(this._bossClock); this._bossClock = null; }
+    this._sampleDamage(true);
+    this._flushDamage(true);
     this.markPublic();
     return OK;
   }
@@ -1493,11 +1624,13 @@ export class Match {
   }
 
   startRound(r) {
+    this._freezeDamage(false); // PREP retains the completed scope; never reset scores when boards change.
     this._finalizePendingDeaths(); // also protects forced/cancelled transitions that bypass afterSettle
     this.phase = PHASE.ROUND_START;
     this.round = r;
     this.fields = [];
     this.watchers.clear();
+    this._flushDamage(true); // no-field prep may view the complete frozen scope, including a former boss group
     this.unitePlan = null;
     this._revival = null;
     this.sp = null;
@@ -1761,31 +1894,84 @@ export class Match {
    * rng draws, same decisions); in virtual time (botSliceMs unbounded) each stage runs at once. The prep ending first
    * (deadline) or a newer schedule for the seat drops the job (a step never leaves a transient board behind).
    */
+  _cancelBotPrep(ps) {
+    ps._botPrepToken = (ps._botPrepToken || 0) + 1;
+    ps._botPrepWork?.cancel();
+  }
+
   scheduleBotPrep(ps, i = 0) {
-    const round = this.round;
-    const token = (ps._botPrepToken = (ps._botPrepToken || 0) + 1);
-    const valid = () => this.phase === PHASE.PREP && this.round === round && ps.alive && !ps.ready && ps.botControlled && ps._botPrepToken === token;
+    this._cancelBotPrep(ps);
+    const round = this.round, token = ps._botPrepToken;
     const bounded = Number.isFinite(this.botSliceMs);
     const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    /** Step a generator until done or the slice budget is used; `then(value)` once it is done (null on an error). */
+    const warn = (message, e) => this.log.warn?.(`[match ${this.roomCode}] bot ${ps.playerId} ${message}${e ? `: ${e.message ?? e}` : ''}`);
+    const work = {
+      timer: null, gen: null, job: null, cancelled: false, fingerprint: null, wave: null,
+      verify: this.botRehearsal > 0 && canUseWorkerRehearsal(this),
+      // Identify the explicit comparison adapter before planning, not only after work.job exists.
+      legacy: typeof this.trialPool?.runTrial !== 'function' && typeof this.trialPool?.createTrial === 'function',
+      cancel: () => {
+        if (work.cancelled) return;
+        work.cancelled = true;
+        if (ps._botPrepWork === work) ps._botPrepWork = null;
+        this.cancel(work.timer); work.timer = null;
+        try { work.gen?.return(); } catch { /* cancellation can be triggered by Ready inside this generator */ }
+        work.gen = null;
+        const job = work.job; work.job = null;
+        try { Promise.resolve(job?.close?.()).catch((e) => warn('rehearsal cleanup failed', e)); }
+        catch (e) { warn('rehearsal cleanup failed', e); }
+      },
+    };
+    ps._botPrepWork = work;
+    const valid = () => !this.disposed && !this.ended && !work.cancelled && ps._botPrepWork === work &&
+      this.phase === PHASE.PREP && this.round === round && ps.alive && !ps.left && !ps.ready && ps.botControlled && ps._botPrepToken === token;
+    const fresh = () => !work.verify || work.fingerprint === null ||
+      (this.wave === work.wave && rehearsalFingerprint(this, ps) === work.fingerprint);
+    const capture = () => {
+      if (work.verify) { work.wave = this.wave; work.fingerprint = rehearsalFingerprint(this, ps); }
+    };
+    const stale = () => {
+      // Owner input changed externally. Never apply a proposal for the former holdings, nor repeat economy/RNG.
+      const job = work.job; work.job = null;
+      Promise.resolve(job?.close?.()).catch((e) => warn('rehearsal cleanup failed', e));
+      try { work.gen?.return(); } catch { /* already yielded */ }
+      work.gen = null; work.verify = false; work.fingerprint = null;
+      warn('rehearsal discarded after own inputs changed');
+      if (valid()) end(null); else work.cancel();
+    };
+    const defer = (ms, fn) => {
+      work.timer = this.later(ms, () => {
+        work.timer = null;
+        if (!valid()) { work.cancel(); return; }
+        // Preserve legacy comparison's original defer + drive/slice checks, including the planning stage.
+        // Dedicated streaming jobs only fingerprint at drive/slice entry, not twice in this callback.
+        if (work.legacy && !fresh()) { stale(); return; }
+        fn();
+      });
+    };
+    /** Only synchronous .next() owns the worker-enabled context. One-shot helpers and virtual/custom fixtures do not. */
     const drive = (gen, label, then) => {
-      const t0 = now();
-      let r = null;
+      if (!valid()) { work.cancel(); return; }
+      if (!fresh()) { stale(); return; }
+      const t0 = now(), owner = this._workerBotPrepOwner;
+      let r = null, failure = null;
+      work.gen = gen;
+      if (work.verify) this._workerBotPrepOwner = ps;
       try {
         do r = gen.next(); while (!r.done && !(bounded && now() - t0 >= this.botSliceMs));
-      } catch (e) {
-        this.reportError(`bot ${ps.playerId}${label}`, e);
-        then(null);
-        return;
-      }
-      if (r.done) { then(r.value); return; }
-      this.later(0, () => { if (valid()) drive(gen, label, then); });
+      } catch (e) { failure = e; }
+      finally { this._workerBotPrepOwner = owner; }
+      if (!valid()) { work.cancel(); return; }
+      // Expected default/winning layout mutations are captured after OUR atomic slice. The next callback checks
+      // this signature before advancing: gifts/equip/moves between candidate collection and default placement
+      // cannot be blindly accepted by capturing a fresh signature for old inputs at the first RPC call.
+      capture();
+      if (failure) { this.reportError(`bot ${ps.playerId}${label}`, failure); work.gen = null; then(null); return; }
+      if (r.done) { work.gen = null; then(r.value); return; }
+      defer(0, () => drive(gen, label, then));
     };
     const ready = () => {
-      if (!ps.ready) {
-        ps.resolveTemp();
-        ps.setReady(true);
-      }
+      if (valid()) { ps.resolveTemp(); ps.setReady(true); }
     };
     const end = (job) => {
       let gen = null;
@@ -1793,27 +1979,67 @@ export class Match {
       if (!gen) { ready(); return; }
       drive(gen, '', ready);
     };
-    this.later(this.scaled(DELAYS.BOT_ACTION + i * DELAYS.BOT_STAGGER), () => {
-      if (!valid()) return;
+    defer(this.scaled(DELAYS.BOT_ACTION + i * DELAYS.BOT_STAGGER), () => {
       drive(botPrepBeginSteps(this, ps), '', (job) => {
         if (!job) { end(null); return; }
+        work.job = job;
+        const complete = () => { if (bounded || job.remote) defer(0, () => end(job)); else end(job); };
         const slice = () => {
-          if (!valid()) return;
+          if (!valid()) { work.cancel(); return; }
+          if (!fresh()) { stale(); return; }
+          if (job.streamed && !job.inline) {
+            // Dedicated workers own their bounded internal slices. Main wakes only for low-frequency progress
+            // and completion, never once per 32 ticks. All these callbacks are new asynchronous boundaries.
+            const remaining = this.deadline ? this.deadline - this.sched.now() : 30_000;
+            if (remaining <= 0) { work.cancel(); return; }
+            const check = () => {
+              if (!valid() || (this.deadline && this.sched.now() >= this.deadline)) { work.cancel(); return false; }
+              if (!fresh()) { stale(); return false; }
+              return true;
+            };
+            job.start({ timeoutMs: Math.min(30_000, remaining),
+              onReady: () => this.guard(check), onProgress: () => this.guard(check) }).then(
+              () => this.guard(() => { if (check()) complete(); }),
+              (e) => this.guard(() => {
+                if (!check()) return;
+                // True cancellation/shutdown is not a worker fault and cannot restart a discarded search.
+                if (e.code === 'SESSION_CLOSED' || e.code === 'POOL_CLOSED') { work.cancel(); return; }
+                warn('rehearsal RPC failed; restarting all frozen candidates inline', e);
+                try { job.fallback(this.data); defer(0, slice); }
+                catch (fallbackError) { this.reportError(`bot ${ps.playerId} rehearsal fallback`, fallbackError); end(null); }
+              }));
+            return;
+          }
+          if (job.remote && !job.streamed) {
+            job.advance().then((done) => this.guard(() => {
+              if (!valid()) { work.cancel(); return; }
+              if (!fresh()) { stale(); return; }
+              if (done) complete(); else defer(0, slice);
+            }), (e) => this.guard(() => {
+              if (!valid()) { work.cancel(); return; }
+              if (!fresh()) { stale(); return; }
+              if (!job.inline) {
+                warn('rehearsal RPC failed; restarting all frozen candidates inline', e);
+                try { job.fallback(this.data); defer(0, slice); return; }
+                catch (fallbackError) { e = fallbackError; }
+              }
+              this.reportError(`bot ${ps.playerId} rehearsal fallback`, e);
+              end(null);
+            }));
+            return;
+          }
           let done = true;
           try { done = job.run(this.botSliceMs); } catch (e) { this.reportError(`bot ${ps.playerId} rehearsal`, e); }
-          if (done) { if (bounded) this.later(0, () => { if (valid()) end(job); }); else end(job); }
-          else this.later(0, slice);
+          if (done) complete(); else defer(0, slice);
         };
-        // bounded slices start in a callback of their own (the economy + default layout above already used this one)
-        if (bounded) this.later(0, slice);
-        else slice();
+        if (bounded || job.remote) defer(0, slice); else slice();
       });
     });
   }
 
   onReadyChanged(ps) {
+    if (ps.ready) this._cancelBotPrep(ps);
     this.markPublic();
-    void ps;
     this.maybeEndPrep();
   }
 
@@ -1843,6 +2069,7 @@ export class Match {
 
   endPrep() {
     if (this.phase !== PHASE.PREP) return;
+    for (const ps of this.order) this._cancelBotPrep(ps);
     this.setDeadline(0);
     const alive = this.alivePlayers();
     for (const ps of alive) this.dispatch(ps, 'onPrepEnd', { round: this.round });
@@ -1943,10 +2170,14 @@ export class Match {
     this.lastResults = new Map();
     this.fields = alive.map((ps) => this.combatPool ? this._remoteField(this._normalOpts(ps), [ps.playerId])
       : { fieldId: `n:${ps.playerId}`, kind: 'normal', players: [ps.playerId], battle: this._normalBattle(ps), live: true });
+    this._beginDamage('normal');
     const limit = this.wave ? this.wave.timeLimit : 60;
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     const Runner = this.combatPool ? WorkerFieldRunner : FieldRunner;
-    this.runner = new Runner(this, this.fields, { onDone: (runner) => this.combatDone(runner) });
+    this.runner = new Runner(this, this.fields, {
+      onTick: (runner) => { if (!runner.remote) this._sampleDamage(); },
+      onDone: (runner) => this.combatDone(runner),
+    });
     this._defaultWatch();
     this.markPublic();
     this.runner.start();
@@ -1975,6 +2206,8 @@ export class Match {
   /** Every normal field has its result: record them, then 联防 or SETTLE. */
   _finishCombat(resultOf) {
     if (this.phase !== PHASE.COMBAT) return;
+    this._sampleDamage(true, true); // save normal totals before the unite phase replaces these Battle objects
+    this._flushDamage(true);
     this._stopClientCombat();
     for (const f of this.fields) {
       const res = resultOf(f);
@@ -2017,6 +2250,7 @@ export class Match {
     const players = plan.helpers.map((p) => p.playerId);
     this.fields = [this.combatPool ? this._remoteField(opts, players)
       : { fieldId: 'u', kind: 'unite', players, battle: this.newBattle(opts), live: true }];
+    this._beginDamage('unite');
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     this.tickerText(`联防阶段：${plan.helpers.map((p) => p.name).join('、')} 迎战突破防线的敌人`, FLOW_TICKER_PRIORITY);
     this._uniteLeftKey = null;
@@ -2026,6 +2260,8 @@ export class Match {
       onDone: (runner) => {
         if (this.phase !== PHASE.UNITE) return;
         const res = runner.resultOf(this.fields[0]);
+        this._sampleDamage(true, true);
+        this._flushDamage(true);
         this._collectSimErrors(this.fields[0], res);
         this.fields[0].live = false;
         this.deadline = 0;
@@ -2218,6 +2454,7 @@ export class Match {
 
   /** Server-run 联防 (streaming mode): refresh m.public about once a game second when a leaker's count moved. */
   _uniteTick(runner) {
+    if (!runner.remote) this._sampleDamage();
     const f = runner && runner.fields ? runner.fields[0] : null;
     if (!f || !f.battle || (runner.remote ? !runner.secondTick : runner.ticks % 30 !== 0)) return;
     let key = '';
@@ -2429,6 +2666,8 @@ export class Match {
     const limit = this.wave ? this.wave.timeLimit : 60;
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     this._launch(fields);
+    this._beginDamage('normal');
+    this._flushDamage(true);
     // every fighting human runs its own field; eliminated humans (and spectator seats) keep watching (research 09 §3.1
     // "Keep-watching auto-observes the first available field", switching freely with 前往查看): a replica of the first field
     for (const f of fields) for (const pid of f.players) {
@@ -2456,6 +2695,8 @@ export class Match {
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     this.watchers.clear();
     this._launch([f]);
+    this._beginDamage('unite');
+    this._flushDamage(true);
     // helpers and everyone else (as observers, spectator seats included) simulate the same 联防 spec locally
     for (const ps of this._viewers()) {
       this.watchers.set(ps.playerId, 'u');
@@ -2618,6 +2859,7 @@ export class Match {
     }
     this.watchers.set(ps.playerId, f.fieldId);
     this.sendTo(ps.playerId, this._startMsg(f, ps.playerId, { watch: !f.players.includes(ps.playerId) }));
+    this._sendDamageTo(ps.playerId);
     return OK;
   }
 
@@ -2989,6 +3231,7 @@ export class Match {
 
   settle(plan, uniteResult) {
     if (this.disposed || this.ended || (this.phase !== PHASE.COMBAT && this.phase !== PHASE.UNITE)) return;
+    this._freezeDamage(); // before LP/death/board cleanup and fields clearing
     const eligible = this._revivalHelpers(plan, uniteResult);
     this.phase = PHASE.SETTLE;
     this.runner = null;
@@ -3167,6 +3410,7 @@ export class Match {
       } catch (e) { this.reportError('boss leak hook', e); }
       return { fieldId, kind: hidden ? 'hidden' : 'boss', players: g.map((p) => p.playerId), battle, live: true };
     });
+    this._beginDamage(hidden ? 'hidden' : 'boss');
     this.overtimeApplied = 0;
     // HUD: the boss level's countdown (maxPlayTime, 120 real s — the battle goes on past it) and the moment the
     // overtime drain starts (150 real s), both on the field clock
@@ -3174,7 +3418,7 @@ export class Match {
     const levelTime = this.gd.bossLevelTime(this.round);
     this.deadline = this.sched.instant || !levelTime ? 0 : onClock(levelTime);
     this.overtimeAt = this.sched.instant ? 0 : onClock(this.gd.bossOvertimeAfterReal);
-    if (this.clientCombat) { this._startFinalClient(hidden); return; }
+    if (this.clientCombat) { this._flushDamage(true); this._startFinalClient(hidden); return; }
     const Runner = this.combatPool ? WorkerFieldRunner : FieldRunner;
     this.runner = new Runner(this, this.fields, {
       onTick: (runner) => this._bossTick(runner),
@@ -3279,6 +3523,7 @@ export class Match {
       if (runner.secondTick) this.flush();
       return;
     }
+    this._sampleDamage();
     this._applyOvertime(runner.time);
     if (this.teamLp <= 0 && this.bossPool.hp > 0) runner.forceAll('forced');
     // client-side combat with every boss field on the server: humans that reconnect / watch run display replicas
@@ -3293,6 +3538,7 @@ export class Match {
   /** Every boss field is over: stats, bounties, then the Hidden Core or RESULT. */
   _finishFinal(hidden, resultOf) {
     if (this.phase !== (hidden ? PHASE.HIDDEN_CORE : PHASE.FINAL_ASSAULT)) return;
+    this._freezeDamage();
     this._stopClientCombat();
     for (const f of this.fields) {
       const res = resultOf(f);
@@ -3342,7 +3588,9 @@ export class Match {
 
   finish({ victory, hiddenCleared = false, reason = 'defeat' }) {
     if (this.ended || this.disposed) return;
+    this._freezeDamage();
     this.ended = true;
+    for (const ps of this.order) this._cancelBotPrep(ps);
     this._finalizePendingDeaths();
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } this.runner = null; }
     this._stopClientCombat();

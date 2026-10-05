@@ -72,6 +72,7 @@ import { useFieldView } from '../ui/fieldHost.js';
 import { TopBar, liveLp, ownLeaks, uniteRemaining, tempInfo, tempReadyReason } from '../ui/hud.js';
 import { BondStrip, BondPopup } from '../ui/bondStrip.js';
 import { TeamPanel } from '../ui/teamPanel.js';
+import { DamageBoard } from '../ui/damageBoard.js';
 import { ShopBar } from '../ui/shopBar.js';
 import { DetailPanel, resolveDetail } from '../ui/detailPanel.js';
 import { RewardOverlay } from '../ui/rewardOverlay.js';
@@ -1133,6 +1134,7 @@ function MatchScreen() {
     field, layers, layer, who: watchWho, bondLayers: battleState?.bondLayers || null,
   });
   const stripFid = strip.fieldId;
+  const damage = useStore((s) => s.match.damage);
   const liveLayers = (combat || settleMode) && battleState?.bondLayers ? battleState.bondLayers : null;
   // the observing pill names the player whose bonds the strip shows (the same teammate as the strip's "👁 name" tag)
   const observingName = cc && combat && watchedFid ? (!strip.self && stripFid === watchedFid ? strip.name : (players.find((p) => p.fieldId === watchedFid || ownFieldId(p.playerId) === watchedFid)?.name || '队友')) : null;
@@ -1237,6 +1239,7 @@ function MatchScreen() {
         observe=${cc ? { canObserve: (p) => observeTarget(p, pub, myId, { observing: watchingOther, ownDone: localDone }), observing: watchingOther, onBack: backHome } : null} />
 
       <div class="gm__effects"><${EffectsList} effects=${priv?.effects} /></div>
+      <${DamageBoard} snapshot=${damage} ownerId=${strip.ownerId} ownerName=${strip.name || players.find(p => p.playerId === strip.ownerId)?.name} />
 
       ${watchingOther && !combat ? html`<div class="gm__watching" role="status">
         <${GIcon} name="eye" /><span>正在查看 <b>${watchedName}</b> 的阵地（只读）</span>

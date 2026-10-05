@@ -221,9 +221,15 @@ test('workers: coalesced in-flight resync sends only newest matching metadata/sn
   const before = h.frames.length;
   await pool.deliver();
   const received = h.frames.slice(before).filter(([, , wire]) => JSON.parse(wire).fieldId === 'n:p0');
-  assert.deepEqual(received, [['p0', 'm.field', latest.metaWire], ['p0', 'b.snap', latest.snapshotWire]]);
+  assert.deepEqual(received.filter(([, type]) => type !== 'b.damage'),
+    [['p0', 'm.field', latest.metaWire], ['p0', 'b.snap', latest.snapshotWire]]);
   assert.equal(h.runner.resync.size, 0);
   assert.equal(h.fields[0].battle.snapshot().t, JSON.parse(latest.snapshotWire).gt);
+  assert.equal(h.commands.at(-1)[0], 'state', 'a coalesced advance cannot satisfy fresh damage resync with an old 1Hz sample');
+  await pool.deliver();
+  const score = JSON.parse(h.frames.filter(([, type, wire]) => type === 'b.damage' && JSON.parse(wire).fieldId === 'n:p0').at(-1)[2]);
+  assert.equal(score.gt, h.fields[0].battle.time);
+  assert.equal(score.owners[0].total, pool.engine.fields[0].battle.damageRows().owners[0].total);
   assert.deepEqual(h.failures, []);
 });
 

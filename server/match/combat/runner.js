@@ -2,6 +2,7 @@
 // Match still owns players, watchers, phase transitions and settlement. At most one command is in flight per phase.
 import { TICK } from '../../sim/constants.js';
 import { INTERVAL_MS, GAME_SPEED, HARD_CAP_SECONDS, snapFrame } from '../fields.js';
+import { damageFrame, emptyDamageRows } from '../../sim/damageBoard.js';
 
 // Bound each FIFO worker turn, not the active game-time debt. At 2x this covers a 533 ms service cycle.
 export const MAX_WORKER_ADVANCE_TICKS = 32;
@@ -24,9 +25,20 @@ export class RemoteBattle {
     this._snapshot = null;
     this._metaWire = null;
     this._snapshotWire = null;
+    this._damageRows = emptyDamageRows(spec);
+    this._damageWire = null;
+    this._damageGt = 0;
+    this.round = spec.round;
     this.runner = null;
   }
   result() { return this._result; }
+  damageRows() {
+    if (!this._damageRows && this._damageWire) {
+      const { owners } = JSON.parse(this._damageWire);
+      this._damageRows = { owners };
+    }
+    return this._damageRows;
+  }
   fieldMeta() { return this._meta || (this._metaWire ? JSON.parse(this._metaWire) : null); }
   snapshot() {
     if (this._snapshot || !this._snapshotWire) return this._snapshot;
@@ -67,6 +79,7 @@ export class WorkerFieldRunner {
     this.acc = 0;
     this.last = 0;
     this.resync = new Map();
+    this.damageResync = new Map();
     this.controls = new Map();
     for (const f of fields) f.battle.runner = this;
   }
@@ -78,7 +91,8 @@ export class WorkerFieldRunner {
     this.last = this.m.sched.now();
     try {
       this.inflight = true;
-      this.session = this.m.combatPool.create({ specs: this.fields.map((f) => f.spec), boss: this.boss, wireFrames: true, coalesceFrames: true }, {
+      this.session = this.m.combatPool.create({ specs: this.fields.map((f) => f.spec), boss: this.boss,
+        wireFrames: true, coalesceFrames: true, damageBoard: true }, {
         onFailure: (e) => this._fail(e),
       });
       this.session.ready.then((out) => this._receive(out, true), (e) => this._fail(e));
@@ -90,6 +104,7 @@ export class WorkerFieldRunner {
     this.stopped = true;
     this._release();
     this.resync.clear();
+    this.damageResync.clear();
     this.controls.clear();
     this.held = null;
   }
@@ -130,11 +145,11 @@ export class WorkerFieldRunner {
       return;
     }
     if (this.m.paused) return;
-    for (const [pid, fid] of this.resync) {
+    for (const pending of [this.resync, this.damageResync]) for (const [pid, fid] of pending) {
       const ps = this.m.players.get(pid) || this.m.spectators.get(pid);
-      if (!ps?.connected || ps.left || this.m.watchers.get(pid) !== fid) this.resync.delete(pid);
+      if (!ps?.connected || ps.left || this.m.watchers.get(pid) !== fid) pending.delete(pid);
     }
-    if (this.resync.size) {
+    if (this.resync.size || this.damageResync.size) {
       this._request('state', { snapshotFields: [...new Set(this.resync.values())] });
       return;
     }
@@ -189,6 +204,21 @@ export class WorkerFieldRunner {
       this.m.overtimeApplied = out.boss.overtimeApplied;
       this.m._syncTeamLp();
     }
+    // This cache is independent of snapshot cadence/coalescing; the next snapshot must not erase a score.
+    const damageFields = [];
+    for (const frame of out.damageFrames || []) {
+      const f = this.fields.find((x) => x.fieldId === frame.fieldId);
+      if (!f) throw new Error('combat worker returned unknown damage field');
+      f.battle._damageWire = frame.damageWire || null;
+      f.battle._damageRows = frame.damageRows || null;
+      f.battle._damageGt = frame.gt;
+      if (frame.gt === f.battle.time) for (const [pid, fid] of this.damageResync) {
+        if (fid === f.fieldId) this.damageResync.delete(pid);
+      }
+      // Match may consume the absolute rows for its complete round ledger, suppressing field-only sends.
+      const consumed = this.m._onDamageRows?.(f, f.battle.damageRows()) === false;
+      if (!consumed) damageFields.push(f);
+    }
     const latest = new Map((out.frames || []).map((frame) => [frame.fieldId, frame]));
     for (const frame of out.frames || []) {
       const f = this.fields.find((x) => x.fieldId === frame.fieldId);
@@ -215,6 +245,7 @@ export class WorkerFieldRunner {
         }
       }
     }
+    for (const f of damageFields) for (const pid of this._watchers(f.fieldId)) this._sendDamageCached(pid, f);
     // Batch boundaries need not land exactly on a tick divisible by 30.
     this.publicTick = Math.floor(before / 6) !== Math.floor(this.ticks / 6);
     this.secondTick = Math.floor(before / 30) !== Math.floor(this.ticks / 30);
@@ -233,22 +264,33 @@ export class WorkerFieldRunner {
     });
   }
 
+  _sendDamageCached(pid, f) {
+    const b = f.battle;
+    if (b._damageWire) this.m.sendEncoded(pid, 'b.damage', b._damageWire);
+    else if (b._damageRows) this.m.sendTo(pid, damageFrame(f, b._damageRows));
+  }
+
   _sendCached(pid, f) {
     const b = f.battle;
     if (b._metaWire && b._snapshotWire) {
       this.m.sendEncoded(pid, 'm.field', b._metaWire);
       this.m.sendEncoded(pid, 'b.snap', b._snapshotWire);
+      this._sendDamageCached(pid, f);
       return true;
     }
     if (!b._meta || !b._snapshot) return false;
     this.m.sendTo(pid, { t: 'm.field', ...b._meta, fieldId: f.fieldId, kind: f.kind, live: !!f.live });
     this.m.sendTo(pid, snapFrame(f.fieldId, b._snapshot));
+    this._sendDamageCached(pid, f);
     return true;
   }
 
   requestField(pid, fieldId) {
     const f = this.fields.find((x) => x.fieldId === fieldId);
     if (!f || this.stopped || this.m.disposed || this.m.ended) return;
+    // A pending advance may satisfy the snapshot resync but carry a previous 1Hz damage sample.
+    // Keep one bounded state request owed independently, even after that snapshot removed the watcher entry.
+    if (!this.done) this.damageResync.set(pid, fieldId);
     if (this.done || this.m.paused) {
       if (this._sendCached(pid, f)) return;
     }

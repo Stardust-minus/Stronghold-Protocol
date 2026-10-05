@@ -597,6 +597,14 @@ export function parseCombatWorkers(value) {
   return Number(s);
 }
 
+export function parseTrialWorkers(value) {
+  if (value == null || value === '') return 1;
+  if (typeof value !== 'number' && typeof value !== 'string') throw new RangeError('SP_TRIAL_WORKERS must be an integer from 0 to 2');
+  const s = String(value).trim();
+  if (!/^[0-2]$/.test(s)) throw new RangeError('SP_TRIAL_WORKERS must be an integer from 0 to 2');
+  return Number(s);
+}
+
 function makeLogger(quiet) {
   if (quiet) return noopLog;
   return {
@@ -612,7 +620,7 @@ function makeLogger(quiet) {
  * @param {{
  *   port?: number, host?: string, quiet?: boolean, log?: object,
  *   publicDir?: string, dataDir?: string, sharedDir?: string,
- *   MatchClass?: Function, seedFn?: () => number,
+ *   MatchClass?: Function, seedFn?: () => number, combatWorkers?: number, trialWorkers?: number,
  *   lobbyGraceMs?: number, reconnectWindowMs?: number, heartbeatMs?: number, helloTimeoutMs?: number,
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
@@ -627,6 +635,11 @@ export async function startServer(opts = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new RangeError(`invalid PORT ${port}`);
   const log = opts.log || makeLogger(!!opts.quiet);
   const combatWorkers = parseCombatWorkers(opts.combatWorkers ?? process.env.SP_COMBAT_WORKERS);
+  const trialSetting = opts.trialWorkers ?? process.env.SP_TRIAL_WORKERS;
+  const requestedTrials = parseTrialWorkers(trialSetting);
+  // Explicit trial settings also support programmatic server-mode Match subclasses. Worker0 remains inline.
+  const trialWorkers = combatWorkers && (trialSetting != null && trialSetting !== '' || String(process.env.SP_COMBAT || '').toLowerCase() === 'server')
+    ? requestedTrials : 0;
   const publicDir = opts.publicDir || path.join(ROOT, 'public');
   const dataDir = opts.dataDir || path.join(ROOT, 'data');
   const sharedDir = opts.sharedDir || path.join(ROOT, 'shared');
@@ -634,9 +647,23 @@ export async function startServer(opts = {}) {
   // The process-wide singleton serves the default data dir; a custom dir (tests) gets its own copy.
   const data = opts.dataDir ? loadData(dataDir, { log }) : getData({ dir: dataDir, log });
   const combatPool = combatWorkers ? new CombatWorkerPool({ size: combatWorkers, data, log }) : null;
+  let trialPool = null, trialStartupFailed = false;
+  const closePools = () => Promise.all([trialPool?.close(), combatPool?.close()]);
   if (combatPool) {
-    try { await combatPool.start(); } catch (e) { await combatPool.close(); throw e; }
+    try { await combatPool.start(); } catch (e) { await closePools(); throw e; }
     log.info(`[combat] fixed worker pool ready (${combatWorkers} workers; server streaming only)`);
+  }
+  if (trialWorkers) {
+    try {
+      trialPool = new CombatWorkerPool({ role: 'trial', size: trialWorkers, data, log });
+      await trialPool.start();
+      log.info(`[trial] dedicated rehearsal pool ready (${trialWorkers} workers)`);
+    } catch (e) {
+      try { await trialPool?.close(); } catch (closeError) { await combatPool?.close(); throw closeError; }
+      trialPool = null;
+      trialStartupFailed = true;
+      log.warn?.(`[trial] worker startup failed; rehearsal stays inline: ${e.message}`);
+    }
   }
   const netOptions = {};
   for (const k of ['reconnectWindowMs', 'heartbeatMs', 'helloTimeoutMs', 'ratePerSec', 'rateBurst', 'maxConnections', 'abuseDropsPerSec',
@@ -649,12 +676,20 @@ export async function startServer(opts = {}) {
   for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs', 'matchmaking']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
-  const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, options: lobbyOptions });
-  const network = new Network({ registry, handler: lobby, log, options: netOptions });
-  const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
+  let lobby, network, serveStatic, browserBuild;
   const startedAt = Date.now();
-  // Capture this instance's served browser runtime once; another local test/release instance cannot replace it.
-  const browserBuild = computeBuildTag(ROOT, publicDir);
+  try {
+    lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, trialPool, options: lobbyOptions });
+    network = new Network({ registry, handler: lobby, log, options: netOptions });
+    serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
+    // Capture this instance's served browser runtime once; another local test/release instance cannot replace it.
+    browserBuild = computeBuildTag(ROOT, publicDir);
+  } catch (e) {
+    network?.close();
+    lobby?.shutdown('boot-failed');
+    await closePools();
+    throw e;
+  }
 
   const server = http.createServer((req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -678,11 +713,13 @@ export async function startServer(opts = {}) {
     if (parts.rawPath === '/healthz') {
       const combat = combatPool ? { backend: 'workers', scope: 'server-streaming', ...combatPool.stats() } : { backend: 'inline', workers: 0 };
       const ok = !combatPool || (combat.status === 'ready' && combat.ready > 0);
+      const trial = trialPool ? { backend: 'workers', scope: 'bot-rehearsal', ...trialPool.stats() }
+        : { backend: 'inline', scope: 'bot-rehearsal', workers: 0, status: trialStartupFailed ? 'degraded' : 'disabled' };
       sendJson(req, res, ok ? 200 : 503, {
         ok, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
         build: browserBuild,
         sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
-        maxRooms: lobby.opts.maxRooms, combat,
+        maxRooms: lobby.opts.maxRooms, combat, trial,
       });
       return;
     }
@@ -735,7 +772,7 @@ export async function startServer(opts = {}) {
   } catch (e) {
     network.close(); // stop heartbeat/sweep timers of the half-built server
     lobby.shutdown('boot-failed');
-    await combatPool?.close();
+    await closePools();
     throw e;
   }
   server.on('error', (e) => log.error('[http] server error', e));
@@ -750,7 +787,7 @@ export async function startServer(opts = {}) {
     closing = (async () => {
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       network.close();
-      await combatPool?.close();
+      await closePools();
       await new Promise((resolve) => {
         server.close(() => resolve());
         server.closeIdleConnections?.();
@@ -761,7 +798,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, close };
+  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, trialPool, close };
 }
 
 // ---------------------------------------------------------------------------------------------------

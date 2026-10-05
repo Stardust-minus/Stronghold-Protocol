@@ -46,6 +46,7 @@ import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
 import { installLoadoutSync } from './ui/loadoutSync.js';
 import { startBuildGuard } from './ui/buildGuard.js';
+import { acceptDamageSnapshot } from './ui/damageBoard.js';
 
 const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
@@ -224,6 +225,11 @@ function wireNet() {
   net.on('m.public', (msg) => { matchAt = Date.now(); store.patch('match', { public: payload(msg) }); maybeFinishRestore(); });
   net.on('m.private', (msg) => { matchAt = Date.now(); store.patch('match', { private: payload(msg) }); });
   net.on('m.field', (msg) => store.patch('match', { field: payload(msg) }));
+  net.on('m.damage', (msg) => {
+    const s = store.get(), view = s.match.public;
+    const damage = acceptDamageSnapshot(s.match.damage, payload(msg), view?.matchId || view?.revival?.matchId);
+    if (damage !== s.match.damage) store.patch('match', { damage });
+  });
   net.on('m.result', (msg) => store.patch('match', { result: payload(msg) }));
   net.on('m.toast', (msg) => {
     const kind = ['info', 'success', 'warn', 'error'].includes(msg.kind) ? msg.kind : 'info';

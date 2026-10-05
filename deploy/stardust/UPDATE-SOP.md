@@ -8,10 +8,10 @@
 
 - 只有一个 Compose project `ark-proto`、三个固定服务/容器：游戏 `ark-proto`（127.0.0.1:3120）、门禁 `ark-proto-auth`（3141）、素材解析器 `ark-proto-assets`（3130）。Nginx 直接接游戏，普通入口 `/`、WebSocket `/ws`；不再运行网关、备用游戏实例或蓝绿素材槽位。
 - `compose.yaml` 是完整视图；`compose.auth.yaml` / `compose.assets.yaml` 是同 project、同 service key/container_name 的服务专用视图，不是另一个项目。使用同一份 `runtime.env`，只更新对应服务，禁止为更新创建第四个服务。
-- 三个服务均不配置 CPU/内存硬限额；游戏保持 6 Worker、maxRooms 4096，保留 PIDs、只读文件系统与安全选项。生产 cgroup 已热解除限制，但旧容器 Docker 元数据/labels 可能仍是之前的值；下次经授权 clean 重建才统一，不能声称 metadata 已全部为 0。
+- 三个服务均不配置 CPU/内存硬限额；游戏保持6个正式combat Worker、maxRooms4096，保留PIDs、只读与安全选项。D71 / v012-simple 已在2026-10-04 23:45 +08统一重建，metadata CPU/内存为0、project为ark-proto；每次仍须实时inspect确认。0.1.3新模板另外显式配置SP_TRIAL_WORKERS=1（可0/1/2），是进程内独立试算线程，不增加服务/后端。
 - `/_release/v012-alliance-20261004/` 仅是已打开页面的临时兼容路径：HTML 302 到 `/`，代码和 WS 仍接同一个游戏。未知 prefix 404，不再创建新的游戏 release URL；`/_server/presence` 仅由 Nginx 内部读取单后端健康并输出聚合人数，不暴露健康详情。
 - 游戏重建会丢失内存中的房间/对局/会话；没有平滑迁移、drain、私有控制 socket 或跨版本恢复。保持游戏在线时的普通断线重连不受此代码清理影响。
-- 此文档是下次获授权发布的操作要求，不代表本地未提交代码已经部署；本轮源码清理不执行生产动作。
+- 此文档说明获授权发布的操作要求，不代表任何本地工作树已经部署；每次以固定commit、实时配置和验收后的release记录为准。
 
 ## 一、发布单元与不可违反的边界
 
@@ -135,7 +135,8 @@ NGINX_BIN="$LOCAL_NGINX" NGINX_MIME_TYPES="$LOCAL_MIME_TYPES" \
 5. 该方案不是跨主机原子事务，也不承诺旧客户端与新服务器混用兼容。需要通知客户端刷新，重新加载新业务代码/数据。仅协议版本号不变不能证明兼容。
 6. 修改 Nginx 必须先 `nginx -t` 后 `nginx -s reload`。不要为了更新静态路由重启游戏或认证容器；真正升级游戏代码才重建游戏。
 7. 除非 PRTS 本身发布，否则保留其独立基础库版本和 CSP，不改变密码、签名密钥或开场动画。
-8. 当前三个服务 Compose 均已删除 CPU/内存限额，后续不能拿旧配置覆盖恢复；热解除 cgroup 不等于 Docker metadata 已更新，下次获授权 clean 重建才统一。PIDs 与安全选项保留。
+8. 当前三个服务Compose均无CPU/内存限额，D71已完成metadata统一；后续不能拿旧配置覆盖恢复限制。PIDs与安全选项保留，切换后同时核对Docker metadata和实际健康。游戏combat.ready仍为6，默认trial.ready为1，两个池分别检查。
+9. 三个服务健康schema不同，禁止用all(health.ok)统判：game与auth要求HTTP200且ok:true；assets须在容器内部loopback访问/healthz，核对HTTP200、合法JSON及files等清单计数，不要求不存在的ok字段。宿主机经Docker端口转发访问assets健康可能因非容器loopback而404，不据此回滚。输出具体失败服务/状态/字段；不要重演D71首轮因schema误判而回滚的事故。
 
 ## 六、上线验收清单
 
@@ -144,7 +145,7 @@ NGINX_BIN="$LOCAL_NGINX" NGINX_MIME_TYPES="$LOCAL_MIME_TYPES" \
 - 登录 HTML、CSRF、POST 授权和退出、游戏数据与代码不能因分流变成公开缓存；无效 Cookie、匿名代码请求仍被拒绝。
 - 新静态 origin 只能提供公开资源，不含私钥、认证文件、源代码目录、上传接口。
 - 字体/基础库/美术的最终 URL 指向正确 release；音频无扩展名请求的最终 URL 仍为同 release 的 `/media/<stem>`，不变成 `.mp3` 等后缀，且请求后缀入口的优先/回退行为与实际 MIME 一致；没有另一版本目录、404、MIME 或 CORS 错误。
-- 热缓存再次进入时 Three.js 大文件来自浏览器缓存；开场仍播放，不用跳过动画来节省流量。
+- 按用户2026-10-05要求，auth片头与进入动画默认关闭，首次/已授权重入仍完成身份与CSRF/profile校验后直接进入；默认不加载Three/scene。用户显式勾选动画时保留PRTS效果，热缓存基础库命中正常；不要恢复旧的强制重播要求。
 - 双人邀请、刷新重连、server 模式真实对局、棋盘与一次实际购买通过；只清理测试自己的房间。
 - 留存浏览器结果、截图、文件清单、配置备份、切换时间和健康信息；不记录密码/Cookie/私钥。
 

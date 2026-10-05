@@ -16,7 +16,9 @@
 
 2026-10-04 用户取消平滑更新后，普通入口恢复 `/`，Nginx 直接到单个游戏 3120；门禁 3141、OpenI 素材解析器 3130。固定容器名 `ark-proto` / `ark-proto-auth` / `ark-proto-assets`，同一个 Compose project `ark-proto`，不运行网关、备用游戏或蓝绿素材槽位。`runtime.env.example` 只是现有镜像坐标基线，不证明本地新修改已上线。
 
-三个服务配置均无 CPU/内存限额，PIDs/只读/安全设置保留。线上 cgroup 已热解除，但 Docker 元数据/旧 project labels 还需下次获授权 clean 重建统一；不得以仓库模板断言生产 metadata 已为 0。游戏重建会清除内存对局，更新前必须说明影响并获得窗口授权。
+三个服务配置均无 CPU/内存限额，PIDs/只读/安全设置保留。D71 / `v012-simple-20261004` 已在 2026-10-04 23:45 +08 完成三服务统一重建，CPU/内存 metadata 为0、project均为ark-proto；更新前仍以实时inspect核对。游戏重建会清除内存对局，更新前必须说明影响并获得窗口授权。
+
+0.1.3发布模板保持6个正式战斗Worker，新增独立 `SP_TRIAL_WORKERS=1`（0=主线程试算，1=成本优先默认，2=较短试算排队）。它们是同一游戏进程内的线程，不是额外服务。健康接口分列 `combat` 与 `trial`，不能把正式ready读成7/8；试算故障可降级inline，不把它误报成整个游戏不可用。模板不代表已上线，实际版本以release记录和运行镜像为准。
 
 唯一旧游戏 prefix `/_release/v012-alliance-20261004/` 临时兼容已打开页面，HTML 302 `/`、代码/WS 指同一个游戏；未知 prefix 拒绝，不生成新 prefix。root hooks adapter 直接游戏避免双 Preact；其余 vendor/字体仍宁夏，正常图片/音频通过 OpenI，故障仅同版本 fallback。历史 release 清单和 immutable 资源不删除。
 
@@ -26,7 +28,7 @@
 |---|---|
 | `auth/` | 原生 Node 共享口令认证服务和主助手编写的 PRTS 前端 |
 | `auth/test/` | 不接触生产的认证、CSRF、限速及凭据文件权限测试 |
-| `compose.yaml`、`runtime.env.example` | 单 project 三服务固定名字/端口；`SP_COMBAT=server`、6 Worker，三个服务均无 CPU/内存硬上限 |
+| `compose.yaml`、`runtime.env.example` | 单 project 三服务固定名字/端口；server模式、6个正式Worker和默认1个独立试算Worker，三个服务均无CPU/内存硬上限 |
 | `compose.auth.yaml` | 同 project 的门禁专用视图，只更新 auth，不新增项目/容器 |
 | `compose.assets.yaml`、`openi-resolver/` | 同 project 的素材专用视图/解析器；只返回重定向，失败回退宁夏，不持有账户 Token |
 | `Dockerfile.offline` | 使用已准备好的 `app/` 目录离线构建，需传入实际 commit/version |

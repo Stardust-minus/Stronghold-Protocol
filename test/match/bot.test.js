@@ -2,7 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
-import { fieldModel, planLayout, rehearse, rangeTiles, REHEARSAL_VARIANTS, LAYOUT_PARAMS, botPickCard, botPickBand } from '../../server/match/bot.js';
+import { Layout, fieldModel, planLayout, rehearse, rangeTiles, REHEARSAL_VARIANTS, LAYOUT_PARAMS, botPickCard, botPickBand } from '../../server/match/bot.js';
+import { createRng } from '../../server/sim/rng.js';
 import { FIELD, canPlace, placeClass, parseKey } from '../../server/match/board.js';
 import { makeMatch, checkInvariants, give, DATA } from './harness.js';
 
@@ -328,4 +329,83 @@ test('band pick: alone, the bot avoids a band that withholds the first rounds\' 
   }
   assert.ok(counts.solo <= 1, `solo picks 老鲤 ${counts.solo}/60`);
   assert.ok(counts.coop >= 1, `co-op may pick it (${counts.coop}/60)`);
+});
+
+// Independent pre-cache formula: preserve addition/subtraction order, not just an epsilon-close score.
+function referenceLayoutValue(model, p, units) {
+  const cover = new Map(), healCover = new Map(), blockAt = new Map();
+  for (const u of units) {
+    for (const k of u.cover) {
+      const e = cover.get(k) || { g: 0, a: 0 };
+      if (u.ground) e.g += u.dps;
+      if (u.air) e.a += u.dps;
+      cover.set(k, e);
+      if (u.heal) healCover.set(k, (healCover.get(k) || 0) + 1);
+    }
+  }
+  for (const u of units) if (u.block > 0 && model.ground.has(u.key)) blockAt.set(u.key, (blockAt.get(u.key) || 0) + u.block);
+  let total = 0;
+  for (const rt of model.routes) {
+    let exp = 0, lastBlock = -Infinity;
+    for (let i = 0; i < rt.tiles.length; i++) {
+      const k = rt.tiles[i];
+      let t = rt.tileTime + (i < 2 && rt.dwell ? rt.dwell : 0);
+      if (!rt.fly && blockAt.has(k)) {
+        const fresh = i - lastBlock >= p.spread;
+        t += p.hold * blockAt.get(k) * (fresh ? 1 : p.secondHold) * (1 + p.healHold * Math.min(2, healCover.get(k) || 0));
+        lastBlock = i;
+      }
+      const c = cover.get(k);
+      if (c) exp += t * (rt.fly ? c.a : c.g);
+    }
+    total += rt.n * (1 - Math.exp(-exp / (p.kill * rt.hp)));
+  }
+  for (const u of units) if (!u.block && model.ground.has(u.key)) total -= p.roadPenalty * model.ground.get(u.key).flow;
+  return total;
+}
+
+test('layout scoring cache: exact legacy scores, repeated routes, air/ground, blockers, heals and trial isolation', () => {
+  const rng = createRng(81013);
+  const keys = Array.from({ length: 16 }, (_, i) => `${9 + i % 4},${2 + Math.floor(i / 4)}`);
+  const unit = () => ({ key: keys[Math.floor(rng() * keys.length)], dps: rng() * 1234.56789,
+    ground: rng() > 0.2, air: rng() > 0.4, block: rng() > 0.6 ? 1 + Math.floor(rng() * 3) : 0,
+    heal: rng() > 0.7, cover: new Set(keys.filter(() => rng() > 0.5)) });
+  for (let n = 0; n < 80; n++) {
+    const model = { ground: new Map(keys.filter(() => rng() > 0.3).map(k => [k, { flow: rng() * 5 }])),
+      routes: Array.from({ length: 4 }, (_, i) => ({ tiles: Array.from({ length: 18 }, () => keys[Math.floor(rng() * keys.length)]),
+        fly: i % 2 === 0, tileTime: 0.4 + rng() * 4, dwell: rng(), n: 1 + Math.floor(rng() * 10), hp: 1 + rng() * 10000 })) };
+    const layout = new Layout(model, { ...LAYOUT_PARAMS, ...REHEARSAL_VARIANTS[n % REHEARSAL_VARIANTS.length] });
+    layout.units = Array.from({ length: n % 9 }, unit);
+    const prepared = layout.prepare();
+    const before = referenceLayoutValue(model, layout.p, layout.units);
+    assert.equal(layout.value(null, prepared), before);
+    for (let c = 0; c < 12; c++) {
+      const trial = unit(), expected = referenceLayoutValue(model, layout.p, [...layout.units, trial]);
+      assert.equal(layout.value(trial, prepared), expected, `cached case ${n}/${c}`);
+      assert.equal(layout.value(trial), expected, `uncached case ${n}/${c}`);
+      assert.equal(layout.value(null, prepared), before, 'a trial never mutates the prepared prefix');
+    }
+  }
+});
+
+test('layout planning cache: same plan, direction and RNG; prefix built once per piece rather than per candidate', () => {
+  const h = soloBot({ seed: 3, fake: true }).start();
+  h.run(() => h.m.phase === PHASE.PREP && h.m.round === 2);
+  const m = h.m, ps = m.order[0], pieces = ps.allChess().slice(0, ps.deployCap);
+  const prepare = Layout.prototype.prepare;
+  let builds = 0;
+  Layout.prototype.prepare = function () { builds++; return prepare.call(this); };
+  try {
+    const rng = m.rngBots.state();
+    const cached = planLayout(m, ps, pieces), after = m.rngBots.state();
+    const cachedBuilds = builds;
+    assert.equal(cachedBuilds, pieces.length, 'only one committed-prefix build per piece');
+    m.rngBots = createRng(rng); builds = 0;
+    const uncached = planLayout(m, ps, pieces, undefined, { cacheScoring: false });
+    assert.deepEqual([...cached], [...uncached]);
+    assert.deepEqual([...cached.dirs], [...uncached.dirs]);
+    assert.equal(m.rngBots.state(), after);
+    assert.ok(builds > cachedBuilds * 10, `${builds} uncached vs ${cachedBuilds} cached builds`);
+    checkInvariants(m);
+  } finally { Layout.prototype.prepare = prepare; m.dispose(); }
 });

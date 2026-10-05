@@ -1,0 +1,27 @@
+/* Compact damage report: explicit opt-in expansion, never blocks the shop or the field when folded. */
+.damage-board { position: absolute; left: .24rem; bottom: .82rem; z-index: 12; pointer-events: auto; width: max-content; max-width: calc(100% - .48rem); color: var(--text-hi); }
+.damage-board__toggle { display: flex; align-items: center; gap: .08rem; min-height: max(.36rem, 32px); padding: .07rem .12rem; border: 1px solid var(--line-2); background: rgba(13, 20, 17, .94); color: var(--text-lo); font: inherit; font-size: max(.15rem, 12px); cursor: pointer; }
+.damage-board__toggle:hover, .damage-board.is-open .damage-board__toggle { color: var(--mint-400); border-color: var(--mint-700); }
+.damage-board__toggle > .icon { width: .18rem; height: .18rem; min-width: 14px; min-height: 14px; }
+.damage-board__toggle:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 3px; }
+.damage-board__panel { position: absolute; bottom: calc(100% + .06rem); left: 0; width: min(3.6rem, calc(100vw - .48rem)); min-width: min(240px, calc(100vw - 32px)); padding: .13rem .15rem; border: 1px solid var(--mint-700); background: rgba(13, 20, 17, .97); box-shadow: 0 .12rem .3rem rgba(0, 0, 0, .28); font-size: max(.14rem, 12px); }
+.damage-board__panel > header { display: flex; justify-content: space-between; align-items: center; gap: .12rem; }
+.damage-board__panel > header > div { display: flex; flex-direction: column; gap: .04rem; min-width: 0; }
+.damage-board__panel strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.damage-board__total { font-size: max(.25rem, 20px); color: var(--mint-400); white-space: nowrap; }
+.damage-board__phase { margin: .09rem 0; color: var(--text-dim); font-size: max(.12rem, 11px); }
+.damage-board__rows { max-height: min(2.5rem, 38dvh); margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.damage-board__rows > li { margin: 0 0 .11rem; }
+.damage-board__row { display: flex; align-items: center; gap: .07rem; }
+.damage-board__rank { width: .2rem; min-width: 15px; color: var(--text-dim); }
+.damage-board__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.damage-board__value { color: var(--text-hi); }
+.damage-board__bar { height: max(.035rem, 3px); margin-top: .04rem; background: rgba(77, 130, 109, .14); overflow: hidden; }
+.damage-board__bar > i { display: block; height: 100%; width: 100%; background: var(--mint-700); transform-origin: left; transition: transform .16s ease; }
+.damage-board__empty { padding-block: .14rem; color: var(--text-dim); }
+.damage-board__panel > small { display: block; margin-top: .08rem; color: var(--text-dim); font-size: max(.11rem, 10px); line-height: 1.5; }
+@media (max-width: 900px) {
+  /* Keep teammate avatars reachable on short landscape screens while the report is expanded. */
+  .damage-board__panel { left: calc(100% + .08rem); bottom: 0; width: min(320px, calc(100vw - 130px)); min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .damage-board__bar > i { transition: none; } }

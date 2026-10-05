@@ -85,6 +85,8 @@ import { withBounties, isFlyKey } from './waves.js';
 import { mitigate } from '../sim/damage.js';
 import { HOVER_KEYS } from '../sim/content/enemies.js';
 import { attackRangeGrid, loadoutRecord, resolveRecordLoadout } from '../../shared/loadoutRecord.js';
+import { canUseWorkerRehearsal, createWorkerRehearsal } from './combat/rehearsal.js';
+import { snapshotTrialInput } from './combat/trial.js';
 
 /**
  * Drive a step generator (planLayoutSteps, createRehearsalSteps, arrangeSteps, botPrepBeginSteps …) to its end in one
@@ -857,49 +859,79 @@ export const LAYOUT_PARAMS = Object.freeze({ hold: 4, kill: 1.5, secondHold: 0.5
  * blockers (1 + healHold) ×) and takes the DPS of every unit whose range covers that tile (flyers: anti-air only).
  * Value = Σρ n × (1 − e^(−exposure / (kill × hp))) — the expected enemies killed.
  */
-class Layout {
+export class Layout {
   constructor(model, params) {
     this.model = model;
     this.p = params;
     this.units = []; // { rec, key, dps, air, ground, block, heal, cover: Set }
   }
 
-  value() {
-    const { routes } = this.model;
-    const p = this.p;
-    const cover = new Map(); // key → { g: dps on ground, a: dps on air }
-    const healCover = new Map();
+  /** Aggregate the committed prefix once for one piece's synchronous candidate search (never across a yield). */
+  prepare() {
+    const index = new Map();
+    const routes = this.model.routes.map(rt => ({ rt, slots: rt.tiles.map(k => {
+      if (!index.has(k)) index.set(k, index.size);
+      return index.get(k);
+    }) }));
+    const arrays = () => ({ g: new Float64Array(index.size), a: new Float64Array(index.size),
+      heals: new Float64Array(index.size), blocks: new Float64Array(index.size), covered: new Uint8Array(index.size) });
+    const base = arrays();
     for (const u of this.units) {
       for (const k of u.cover) {
-        const e = cover.get(k) || { g: 0, a: 0 };
-        if (u.ground) e.g += u.dps;
-        if (u.air) e.a += u.dps;
-        cover.set(k, e);
-        if (u.heal) healCover.set(k, (healCover.get(k) || 0) + 1);
+        const i = index.get(k);
+        if (i === undefined) continue; // off-route coverage contributes no exposure
+        if (u.ground) base.g[i] += u.dps;
+        if (u.air) base.a[i] += u.dps;
+        if (u.heal) base.heals[i]++;
+        base.covered[i] = 1;
       }
     }
-    const blockAt = new Map();
-    for (const u of this.units) if (u.block > 0 && this.model.ground.has(u.key)) blockAt.set(u.key, (blockAt.get(u.key) || 0) + u.block);
+    for (const u of this.units) if (u.block > 0 && this.model.ground.has(u.key)) {
+      const i = index.get(u.key);
+      if (i !== undefined) base.blocks[i] += u.block;
+    }
+    return { index, routes, base, work: arrays() };
+  }
+
+  value(candidate = null, prepared = null) {
+    const p = this.p;
+    const { index, routes, base, work } = prepared || this.prepare();
+    // Reset from the immutable prefix, not by subtracting a previous trial (which could drift in floating point).
+    work.g.set(base.g); work.a.set(base.a); work.heals.set(base.heals);
+    work.blocks.set(base.blocks); work.covered.set(base.covered);
+    if (candidate) {
+      for (const k of candidate.cover) {
+        const i = index.get(k);
+        if (i === undefined) continue;
+        if (candidate.ground) work.g[i] += candidate.dps;
+        if (candidate.air) work.a[i] += candidate.dps;
+        if (candidate.heal) work.heals[i]++;
+        work.covered[i] = 1;
+      }
+      if (candidate.block > 0 && this.model.ground.has(candidate.key)) {
+        const i = index.get(candidate.key);
+        if (i !== undefined) work.blocks[i] += candidate.block;
+      }
+    }
     let total = 0;
-    for (const rt of routes) {
+    for (const { rt, slots } of routes) {
       let exp = 0;
       let lastBlock = -Infinity;
-      for (let i = 0; i < rt.tiles.length; i++) {
-        const k = rt.tiles[i];
+      for (let i = 0; i < slots.length; i++) {
+        const j = slots[i];
         let t = rt.tileTime + (i < 2 && rt.dwell ? rt.dwell : 0);
-        if (!rt.fly && blockAt.has(k)) {
-          // a blocker right behind another one mostly holds what slipped past; a separate line holds again
+        if (!rt.fly && work.blocks[j] > 0) {
           const fresh = i - lastBlock >= p.spread;
-          t += p.hold * blockAt.get(k) * (fresh ? 1 : p.secondHold) * (1 + p.healHold * Math.min(2, healCover.get(k) || 0));
+          t += p.hold * work.blocks[j] * (fresh ? 1 : p.secondHold) * (1 + p.healHold * Math.min(2, work.heals[j]));
           lastBlock = i;
         }
-        const c = cover.get(k);
-        if (c) exp += t * (rt.fly ? c.a : c.g);
+        if (work.covered[j]) exp += t * (rt.fly ? work.a[j] : work.g[j]);
       }
       total += rt.n * (1 - Math.exp(-exp / (p.kill * rt.hp)));
     }
-    // ranged units standing on a road block and get hit: a small penalty per road tile they occupy
+    // Keep the legacy per-unit subtraction order too: subtracting one pre-summed penalty could change ties.
     for (const u of this.units) if (!u.block && this.model.ground.has(u.key)) total -= p.roadPenalty * this.model.ground.get(u.key).flow;
+    if (candidate && !candidate.block && this.model.ground.has(candidate.key)) total -= p.roadPenalty * this.model.ground.get(candidate.key).flow;
     return total;
   }
 }
@@ -933,7 +965,7 @@ export function planLayout(m, ps, pieces, params = LAYOUT_PARAMS, opts = {}) {
 }
 
 /** planLayout as a step generator: yields after each placed piece (Match slices a bot's prep, see botPrepBeginSteps). */
-export function* planLayoutSteps(m, ps, pieces, params = LAYOUT_PARAMS, { occupied = new Set(), recOf = null } = {}) {
+export function* planLayoutSteps(m, ps, pieces, params = LAYOUT_PARAMS, { occupied = new Set(), recOf = null, cacheScoring = true } = {}) {
   const model = fieldModel(m, ps);
   const map = ps.deployMap();
   const rec = recOf || ((p) => (p.kind === 'token' ? m.gd.token(p.id) : rangeRec(ps, m.gd.chess(p.id))));
@@ -955,6 +987,8 @@ export function* planLayoutSteps(m, ps, pieces, params = LAYOUT_PARAMS, { occupi
     const preferHigh = cls === 'all' && basePositionClass(r0) === 'melee';
     let bestHigh = null;
     let bestHighV = -Infinity;
+    // Only the committed scoring prefix is cached; placement, owner range, loadout and occupied tiles stay live.
+    const scoring = cacheScoring ? layout.prepare() : null;
     for (const [r, c] of legalTiles(map, cls)) {
       const k = tileKey(r, c);
       if (taken.has(k) || (within && !within.has(k))) continue;
@@ -966,9 +1000,7 @@ export function* planLayoutSteps(m, ps, pieces, params = LAYOUT_PARAMS, { occupi
         const sig = `${u.atkMul}|${[...u.cover].sort().join(' ')}`;
         if (seen.has(sig)) continue;
         seen.add(sig);
-        layout.units.push(u);
-        const v = layout.value() + noise;
-        layout.units.pop();
+        const v = layout.value(u, scoring) + noise;
         if (v > bestV) { bestV = v; best = [k, r, c, dir]; }
         if (preferHigh && map.get(k) === 'ranged' && [...u.cover].some((ck) => model.ground.has(ck)) && v > bestHighV) {
           bestHighV = v;
@@ -1045,6 +1077,10 @@ export function* createRehearsalSteps(m, ps, chosen, plans) {
   const cands = distinct.slice(0, m.botRehearsal);
   const byUid = new Map(chosen.map((p) => [p.uid, p]));
   const battles = [];
+  const candidates = [];
+  const cap = Math.ceil(((wave.timeLimit || 60) + 5) * 30);
+  // Only Match's scheduled prep driver enters this synchronous context. Public one-shot helpers remain inline.
+  let remote = m._workerBotPrepOwner === ps && canUseWorkerRehearsal(m);
   for (const plan of cands) {
     const saved = [...ps.board.entries()];
     // the candidate's directions are set on the pieces while its input is taken; restored exactly afterwards
@@ -1055,12 +1091,25 @@ export function* createRehearsalSteps(m, ps, chosen, plans) {
       for (const [uid, k] of plan) { const p = byUid.get(uid); if (p) { p.dir = planDir(plan, uid); ps.board.set(k, p); } }
       ps.recompute();
       const spawns = withBounties(m.gd, m.round, wave, ps.bounties, ps.playerId).map((sp) => ({ ...sp, ownerPlayerId: ps.playerId }));
-      battles.push(m.newBattle({
+      const opts = {
         seed: deriveSeed(m.seed, `rehearse:${m.round}:${ps.seat}`), kind: 'normal', modeId: m.modeId, round: m.round,
         stageId: m.stageId, rect: { ...GEO.NORMAL_RECT }, timeLimit: wave.timeLimit, players: [ps.battleInput({ side: 'L', colOffset: 0 })],
         spawns: m._sanitizeSpawns(spawns, ps.playerId), routes: wave.routes, sharedBoss: null,
         flags: { layerGainsEnabled: false, ...m.gd.dp }, fieldId: `r:${ps.playerId}`, enemyOverrides: wave.overrides, waveId: wave.templateId,
-      }));
+      };
+      // Freeze HERE, while the candidate board/directions are installed, before restoring or yielding. In
+      // particular effects.params/data and wave overrides must not alias later candidates or live match state.
+      if (remote) {
+        try { candidates.push(snapshotTrialInput({ playerId: ps.playerId, candidates: [{ ...opts, content: m.battleContent }], cap }).candidates[0]); }
+        catch (e) {
+          // Refuse executable/uncloneable inputs on the wire, but do not silently shrink the search. Rebuild
+          // preceding frozen candidates locally and continue the SAME original inline scorer for every plan.
+          m.log.warn?.(`[match ${m.roomCode}] bot rehearsal snapshot rejected; continuing all candidates inline: ${e.message}`);
+          remote = false;
+          for (const frozen of candidates) battles.push(m.newBattle(frozen));
+          battles.push(m.newBattle(opts));
+        }
+      } else battles.push(m.newBattle(opts));
     } catch (e) {
       failed = true;
       m.log.warn?.(`[match ${m.roomCode}] bot rehearsal failed: ${e && e.message}`);
@@ -1070,10 +1119,10 @@ export function* createRehearsalSteps(m, ps, chosen, plans) {
       for (const [k, p] of saved) ps.board.set(k, p);
       ps.recompute();
     }
-    if (failed) break;
+    if (failed) { if (remote) return null; break; }
     yield;
   }
-  const cap = Math.ceil(((wave.timeLimit || 60) + 5) * 30);
+  if (remote) return createWorkerRehearsal(m.trialPool, { playerId: ps.playerId, chosen, plans: cands, candidates, cap });
   let i = 0;
   let t = 0;
   let bestScore = -Infinity;

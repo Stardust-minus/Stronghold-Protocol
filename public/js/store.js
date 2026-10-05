@@ -70,7 +70,7 @@ export function createStore(initial) {
 }
 
 /** Fresh (empty) match slice. */
-export const emptyMatch = () => ({ public: null, private: null, field: null, result: null, battle: null });
+export const emptyMatch = () => ({ public: null, private: null, field: null, result: null, battle: null, damage: null });
 
 /** Initial app state (exported for tests and resets). */
 export const initialState = Object.freeze({

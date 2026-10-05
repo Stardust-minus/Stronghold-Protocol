@@ -20,7 +20,8 @@ import { buildDeployMap, canPlace as boardCanPlace, legalTiles, positionClass, p
 import { GLADIIA_HOK_Y } from '../../shared/highGround.js';
 import { ERR } from '../../shared/constants.js';
 import { DATA, makeMatch, give, giveItem, checkInvariants, chessOfTier } from './harness.js';
-import { botPrep, planLayout, fieldModel } from '../../server/match/bot.js';
+import { botPrep, planLayout, fieldModel, LAYOUT_PARAMS, REHEARSAL_VARIANTS } from '../../server/match/bot.js';
+import { createRng } from '../../server/sim/rng.js';
 import { placementContext, canPlace as clientCanPlace, boardTargets, deployMap as clientDeployMap } from '../../public/js/ui/gameLogic.js';
 import { makeBattle } from '../helpers/battleHarness.js';
 
@@ -510,4 +511,83 @@ test('高台 bots: everyone else stays on the road; elite 歌蕾蒂娅 + HOK-Y m
   assert.equal(refused.get(elite.uid), undefined, 'no module: a 高台 is not a fallback');
   assert.equal(move(m, elite.uid, board(10, 4)).error, ERR.BAD_TILE);
   m.dispose();
+});
+
+function cachedPlanParity(m, ps, pieces, occupied = new Set()) {
+  const state = () => JSON.stringify({ board: [...ps.board], hand: ps.hand, temp: ps.temp, pool: m.pool.snapshot(),
+    funds: ps.funds, lp: ps.lp, uidSeq: m.uidSeq, loadout: ps.loadout, layers: ps.layers });
+  const before = state();
+  let first;
+  for (const variant of REHEARSAL_VARIANTS) {
+    const params = { ...LAYOUT_PARAMS, ...variant }, rng = m.rngBots.state();
+    const cached = planLayout(m, ps, pieces, params, { occupied }), after = m.rngBots.state();
+    m.rngBots = createRng(rng);
+    const uncached = planLayout(m, ps, pieces, params, { occupied, cacheScoring: false });
+    assert.deepEqual([...cached], [...uncached], 'same tiles and order');
+    assert.deepEqual([...cached.dirs], [...uncached.dirs], 'same directions');
+    assert.equal(m.rngBots.state(), after, 'same draws, including rejected directions');
+    assert.equal(state(), before, 'planning does not mutate board, equipment, pool, economy or UID');
+    first ??= cached;
+  }
+  return first;
+}
+
+test('layout scoring cache: v013 HOK-Y qualification, equip/board/direction changes and terrain overrides are not cached', () => {
+  const { m, ps } = prep(HIGH_STAGE, 11);
+  try {
+    const glad = give(m, ps, GLAD_E), ulpia = give(m, ps, 'chess_char_5_05_a');
+    equip(ps, GLADIIA_HOK_Y);
+    const plan = cachedPlanParity(m, ps, [glad, ulpia]);
+    assert.equal(ps.deployMap().get(plan.get(glad.uid)), 'ranged', 'eligible elite + HOK-Y still prefers a 高台');
+    assert.equal(ps.deployMap().get(plan.get(ulpia.uid)), 'melee', '乌尔比安 remains ground-only');
+    const allGround = new Set([...ps.deployMap()].filter(([, cls]) => cls === 'melee').map(([k]) => k));
+    assert.ok(cachedPlanParity(m, ps, [glad], allGround).has(glad.uid));
+    equip(ps, 'none');
+    assert.equal(cachedPlanParity(m, ps, [glad], allGround).has(glad.uid), false, 'removing HOK-Y invalidates eligibility');
+    equip(ps, HOK_X);
+    assert.equal(cachedPlanParity(m, ps, [glad], allGround).has(glad.uid), false, 'HOK-X never acquires the cached HOK-Y permission');
+    equip(ps, GLADIIA_HOK_Y);
+    const [r, c] = rc(plan.get(ulpia.uid));
+    assert.deepEqual(move(m, ulpia.uid, board(r, c), plan.dirOf(ulpia.uid)), { ok: true });
+    cachedPlanParity(m, ps, [glad, ulpia]);
+    assert.deepEqual(move(m, ulpia.uid, board(r, c), 'UP'), { ok: true });
+    cachedPlanParity(m, ps, [glad, ulpia]);
+    const next = [...ps.deployMap()].find(([k, cls]) => cls === 'melee' && k !== tileKey(r, c))[0];
+    assert.deepEqual(move(m, ulpia.uid, board(...rc(next)), 'LEFT'), { ok: true });
+    const itemId = Object.keys(DATA.items).find(id => DATA.items[id].itemType === 'EQUIP' && DATA.items[id].tier === 1 && !DATA.items[id].isGolden);
+    const item = giveItem(m, ps, itemId);
+    assert.deepEqual(ps.equip(item.uid, ulpia.uid), { ok: true });
+    cachedPlanParity(m, ps, [glad, ulpia]);
+    const blocked = plan.get(glad.uid);
+    ps.tileOverrides[blocked] = 'none'; ps.invalidateDeployMap(); ps.recompute();
+    const changed = cachedPlanParity(m, ps, [glad, ulpia]);
+    assert.ok(![...changed.values()].includes(blocked), 'the overwritten 高台 is no longer eligible');
+    ps.tileOverrides[blocked] = 'melee'; ps.invalidateDeployMap(); ps.recompute();
+    cachedPlanParity(m, ps, [glad, ulpia], new Set([next]));
+    checkInvariants(m);
+  } finally { m.dispose(); }
+});
+
+test('layout scoring cache: 流形 stays inside its moved/re-oriented owner range and uses the current deploy map', () => {
+  const { m, ps } = prep(HIGH_STAGE, 11);
+  try {
+    const owner = give(m, ps, MLYSS), ownerPlan = cachedPlanParity(m, ps, [owner]);
+    const [r, c] = rc(ownerPlan.get(owner.uid));
+    assert.deepEqual(move(m, owner.uid, board(r, c), ownerPlan.dirOf(owner.uid)), { ok: true });
+    let placed = 0;
+    for (const dir of ['RIGHT', 'UP', 'DOWN', 'LEFT']) {
+      assert.deepEqual(move(m, owner.uid, board(r, c), dir), { ok: true });
+      const flow = [...ps.hand.filter(Boolean), ...ps.board.values()].find(p => p.kind === 'token' && p.id === MANIFOLD);
+      assert.ok(flow, 'the actual 流形 stack/board piece');
+      const occupied = new Set([...ps.board].filter(([, p]) => p.uid !== flow.uid).map(([k]) => k));
+      const plan = cachedPlanParity(m, ps, [flow], occupied);
+      const k = plan.get(flow.uid);
+      if (!k) continue;
+      assert.ok(ps.summonRange(flow).has(k), `${dir}: ${k} inside the current owner range`);
+      assert.deepEqual(move(m, flow.uid, board(...rc(k)), plan.dirOf(flow.uid)), { ok: true });
+      placed++;
+      checkInvariants(m);
+    }
+    assert.ok(placed > 0, 'a real legal summon placement was exercised');
+  } finally { m.dispose(); }
 });

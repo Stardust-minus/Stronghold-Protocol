@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { startServer, parseCombatWorkers } from '../../server/index.js';
+import { startServer, parseCombatWorkers, parseTrialWorkers } from '../../server/index.js';
 import { Lobby } from '../../server/lobby.js';
 import { NET_DEFAULTS } from '../../server/net.js';
 import { Match } from '../../server/match/Match.js';
@@ -672,23 +672,25 @@ test('workers: listener startup failure closes the env-configured pool before re
   const logs = captureLog();
   const original = CombatWorkerPool.prototype.start;
   const env = process.env.SP_COMBAT_WORKERS;
-  let captured = null;
-  // Capture the real pool constructed by startServer; run the original startup without substituting workers.
-  CombatWorkerPool.prototype.start = function (...args) { captured = this; return original.apply(this, args); };
+  const captured = [];
+  // Capture both real pools; a failed listener must not strand either set of workers.
+  CombatWorkerPool.prototype.start = function (...args) { captured.push(this); return original.apply(this, args); };
   process.env.SP_COMBAT_WORKERS = '2';
   try {
-    await assert.rejects(startServer({ port: occupied.port, host: '127.0.0.1', log: logs.log }), { code: 'EADDRINUSE' });
+    await assert.rejects(startServer({ port: occupied.port, host: '127.0.0.1', trialWorkers: 1, log: logs.log }), { code: 'EADDRINUSE' });
   } finally {
     CombatWorkerPool.prototype.start = original;
     if (env === undefined) delete process.env.SP_COMBAT_WORKERS; else process.env.SP_COMBAT_WORKERS = env;
-    if (captured) t.after(() => captured.close());
+    for (const pool of captured) t.after(() => pool.close());
   }
-  assert.ok(captured, 'SP_COMBAT_WORKERS starts the pool before binding');
-  assert.equal(captured.size, 2);
-  assert.equal(captured.stats().status, 'closed');
-  assert.equal(captured.stats().workers, 0);
-  assert.equal(captured.stats().pending, 0);
-  assert.equal(captured.terminating.size, 0);
+  assert.equal(captured.length, 2, 'both pools start before binding');
+  assert.deepEqual(captured.map((pool) => [pool.role, pool.size]), [['combat', 2], ['trial', 1]]);
+  for (const pool of captured) {
+    assert.equal(pool.stats().status, 'closed');
+    assert.equal(pool.stats().workers, 0);
+    assert.equal(pool.stats().pending, 0);
+    assert.equal(pool.terminating.size, 0);
+  }
   assert.deepEqual(logs.errors, [], 'expected listen failure does not become spurious worker errors');
 });
 
@@ -737,6 +739,120 @@ test('workers: configuration strictly accepts only integer options/env 0..32 and
   const override = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 0, quiet: true });
   t.after(() => override.close());
   assert.equal(override.combatPool, null, 'explicit zero takes precedence over env');
+});
+
+test('trial workers: configuration accepts 0..2, explicit zero overrides env, and worker0 never starts a trial pool', async (t) => {
+  for (const n of [0, 1, 2]) {
+    assert.equal(parseTrialWorkers(n), n);
+    assert.equal(parseTrialWorkers(String(n)), n);
+  }
+  for (const n of [undefined, null, '']) assert.equal(parseTrialWorkers(n), 1);
+  for (const n of [-1, 3, 1.5, NaN, Infinity, '1e0', '0x1', '01', '+1', ' ', true, {}, [], [1]]) {
+    assert.throws(() => parseTrialWorkers(n), /SP_TRIAL_WORKERS/);
+  }
+  await assert.rejects(startServer({ port: 0, combatWorkers: 0, trialWorkers: 3, quiet: true }), /SP_TRIAL_WORKERS/);
+  const before = process.env.SP_TRIAL_WORKERS;
+  t.after(() => { if (before === undefined) delete process.env.SP_TRIAL_WORKERS; else process.env.SP_TRIAL_WORKERS = before; });
+  process.env.SP_TRIAL_WORKERS = '2';
+  const off = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 0, quiet: true });
+  t.after(() => off.close());
+  assert.equal(off.combatPool, null);
+  assert.equal(off.trialPool, null);
+  assert.equal((await (await fetch(`${off.url}/healthz`)).json()).trial.status, 'disabled');
+  const override = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 1, trialWorkers: 0, quiet: true });
+  t.after(() => override.close());
+  assert.equal(override.combatPool.stats().ready, 1);
+  assert.equal(override.trialPool, null);
+  process.env.SP_TRIAL_WORKERS = 'bad';
+  await assert.rejects(startServer({ port: 0, combatWorkers: 0, quiet: true }), /SP_TRIAL_WORKERS/);
+});
+
+test('trial workers: server mode defaults to 6+1, supports 6+2, and trial failure never changes combat health', { timeout: 30_000 }, async (t) => {
+  const beforeMode = process.env.SP_COMBAT, beforeTrial = process.env.SP_TRIAL_WORKERS;
+  t.after(() => {
+    if (beforeMode === undefined) delete process.env.SP_COMBAT; else process.env.SP_COMBAT = beforeMode;
+    if (beforeTrial === undefined) delete process.env.SP_TRIAL_WORKERS; else process.env.SP_TRIAL_WORKERS = beforeTrial;
+  });
+  process.env.SP_COMBAT = 'server';
+  delete process.env.SP_TRIAL_WORKERS;
+  for (const count of [undefined, 2]) {
+    const srv = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 6, trialWorkers: count, quiet: true });
+    t.after(() => srv.close());
+    const health = await (await fetch(`${srv.url}/healthz`)).json();
+    assert.equal(health.ok, true);
+    assert.equal(health.combat.ready, 6);
+    assert.equal(health.trial.ready, count ?? 1);
+    assert.equal(health.trial.scope, 'bot-rehearsal');
+    assert.equal(srv.lobby.combatPool, srv.combatPool);
+    assert.equal(srv.lobby.trialPool, srv.trialPool);
+    assert.equal(srv.trialPool.role, 'trial');
+    const threads = srv.combatPool.slots.map((slot) => slot.worker.threadId);
+    await srv.trialPool.close();
+    const response = await fetch(`${srv.url}/healthz`);
+    assert.equal(response.status, 200);
+    const down = await response.json();
+    assert.equal(down.combat.ready, 6);
+    assert.equal(down.trial.status, 'closed');
+    assert.equal(down.trial.workers, 0);
+    assert.deepEqual(srv.combatPool.slots.map((slot) => slot.worker.threadId), threads);
+    await Promise.all([srv.close(), srv.close()]);
+    assert.equal(srv.combatPool.stats().workers, 0);
+    assert.equal(srv.trialPool.terminating.size, 0);
+  }
+  process.env.SP_COMBAT = 'client';
+  const client = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 1, quiet: true });
+  t.after(() => client.close());
+  assert.equal(client.trialPool, null, 'default client mode does not add unused trial threads');
+});
+
+test('trial workers: handler startup failure closes both already-started pools', { timeout: 15_000 }, async (t) => {
+  const original = CombatWorkerPool.prototype.start, captured = [];
+  CombatWorkerPool.prototype.start = function (...args) { captured.push(this); return original.apply(this, args); };
+  try {
+    await assert.rejects(startServer({ port: 0, host: '127.0.0.1', publicDir: 1,
+      combatWorkers: 1, trialWorkers: 1, quiet: true }), { code: 'ERR_INVALID_ARG_TYPE' });
+  } finally {
+    CombatWorkerPool.prototype.start = original;
+    for (const pool of captured) t.after(() => pool.close());
+  }
+  assert.deepEqual(captured.map((pool) => pool.role), ['combat', 'trial']);
+  for (const pool of captured) {
+    assert.equal(pool.stats().status, 'closed');
+    assert.equal(pool.stats().workers, 0);
+    assert.equal(pool.terminating.size, 0);
+  }
+});
+
+test('trial workers: failed trial startup closes only that pool and exposes inline degradation', { timeout: 15_000 }, async (t) => {
+  const original = CombatWorkerPool.prototype.start;
+  let failed = null, srv;
+  const warnings = [];
+  CombatWorkerPool.prototype.start = async function (...args) {
+    await original.apply(this, args);
+    if (this.role === 'trial') { failed = this; throw new Error('test trial bootstrap failed after starting'); }
+    return this;
+  };
+  try {
+    srv = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 1, trialWorkers: 1,
+      log: { ...quiet, warn: (message) => warnings.push(message) } });
+    t.after(() => srv.close());
+  } finally {
+    CombatWorkerPool.prototype.start = original;
+    if (failed) t.after(() => failed.close());
+  }
+  assert.ok(failed);
+  assert.equal(failed.stats().status, 'closed');
+  assert.equal(failed.stats().workers, 0);
+  assert.equal(failed.terminating.size, 0);
+  assert.equal(srv.trialPool, null);
+  assert.equal(srv.lobby.trialPool, null);
+  const response = await fetch(`${srv.url}/healthz`);
+  assert.equal(response.status, 200);
+  const health = await response.json();
+  assert.equal(health.combat.ready, 1);
+  assert.equal(health.trial.backend, 'inline');
+  assert.equal(health.trial.status, 'degraded');
+  assert.ok(warnings.some((message) => message.includes('rehearsal stays inline')));
 });
 
 test('workers: health reports its streaming scope and becomes unavailable when the configured pool is gone', { timeout: 10_000 }, async (t) => {
@@ -810,6 +926,8 @@ test('workers: encoded transport preserves room/seat admission, connection and b
     'm.field': JSON.stringify({ t: 'm.field', fieldId: 'n:p_0', kind: 'normal', units: [] }),
     'b.snap': JSON.stringify({ t: 'b.snap', fieldId: 'n:p_0', gt: 1, units: [] }),
     'b.ev': JSON.stringify({ t: 'b.ev', fieldId: 'n:p_0', gt: 1, ev: [] }),
+    'b.damage': JSON.stringify({ t: 'b.damage', fieldId: 'n:p_0', gt: 1, owners: [] }),
+    'm.damage': JSON.stringify({ t: 'm.damage', matchId: 'fixture', round: 1, status: 'frozen', owners: [] }),
   };
   const send = (type = 'b.snap', pid = 'p_0', data = wires[type]) => lobby.sendEncodedToPlayer(room, pid, type, data);
   for (const [type, wire] of Object.entries(wires)) {
@@ -834,6 +952,8 @@ test('workers: encoded transport preserves room/seat admission, connection and b
   assert.equal(send('b.snap'), false, 'only snapshots may be dropped at the soft limit');
   assert.equal(send('b.ev'), true);
   assert.equal(send('m.field'), true, 'rejoin metadata is not droppable');
+  assert.equal(send('m.damage'), true, 'frozen scores are not droppable snapshots');
+  assert.equal(send('b.damage'), true, 'field scores are not droppable snapshots');
   const softAccepted = sent.length;
   ws.bufferedAmount = NET_DEFAULTS.hardBufferBytes + 1;
   assert.equal(send('b.ev'), false);

@@ -324,8 +324,17 @@ export const S2C = [
   // speed, watch? } · b.pool { hp, max, teamLp, acked: { [fieldId]: cumulative boss damage counted } } ·
   // b.end { battleId, fieldId, reason }
   'b.start', 'b.pool', 'b.end',
+  // Complete public round ledger (server combat): m.damage { matchId, round, phase: normal|unite|boss|hidden,
+  // status: live|frozen, owners: [{ playerId, name?, seat?, total, otherDamage,
+  // operators: [{ key, uid, defId, damage }] }] }. PREP retains frozen previous-round rows; battle start resets.
+  // Operator keys identify pieces, not definitions. Damage is actual opposing HP lost, summons credited to root ops.
+  // Client-authoritative combat sends available:false with owners:[] instead of trusting submitted operator stats.
+  'm.damage',
   // server-run combat streaming (legacy / SP_COMBAT=server only)
   'b.snap', 'b.ev',
+  // Low-frequency absolute field scores: b.damage { fieldId, kind, round, gt, owners } (same owner rows as m.damage).
+  // Independent of b.snap; snapshots must not clear the latest score. No C2S subscription or version bump.
+  'b.damage',
 ];
 
 /**

@@ -214,8 +214,9 @@ export class Lobby {
    *   options?: Partial<typeof LOBBY_DEFAULTS>,
    * }} opts
    */
-  constructor({ registry, log = noopLog, MatchClass = DefaultMatch, getData = defaultGetData, now = Date.now, seedFn, combatPool = null, options = {} }) {
+  constructor({ registry, log = noopLog, MatchClass = DefaultMatch, getData = defaultGetData, now = Date.now, seedFn, combatPool = null, trialPool = null, options = {} }) {
     this.combatPool = combatPool;
+    this.trialPool = trialPool;
     this.registry = registry;
     this.log = log;
     this.MatchClass = MatchClass;
@@ -824,6 +825,7 @@ export class Lobby {
         matchNo: room.matchCount + 1,
         data: this.safeData(),
         combatPool: this.combatPool,
+        trialPool: this.trialPool,
         log: this.log,
         now: this.now,
         send: (playerId, msg) => dispatch((frame) => this.matchSend(room, ctx, playerId, frame), msg),
@@ -1250,7 +1252,7 @@ export class Lobby {
 
   /** Only live battle frames use this path: result replay still goes through matchSend/matchBroadcast. */
   sendEncodedToPlayer(room, playerId, type, data) {
-    if (room.disposed || !['m.field', 'b.snap', 'b.ev'].includes(type) || typeof data !== 'string') return false;
+    if (room.disposed || !['m.field', 'b.snap', 'b.ev', 'm.damage', 'b.damage'].includes(type) || typeof data !== 'string') return false;
     const seat = room.seatOf(playerId) || room.spectatorOf(playerId);
     if (!seat || seat.isBot || seat.left) return false;
     const session = this.registry.byId(playerId);
