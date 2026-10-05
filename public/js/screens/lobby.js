@@ -11,13 +11,14 @@
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor } from '../../../shared/constants.js';
-import { html, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
+import { html, Button, Icon, MicroLabel, Modal, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
+import { AnnouncementBoard } from '../ui/announcements.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton } from '../ui/guide.js';
 import { LoadoutButton } from './loadout.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
-import { getConfig, getMode, getStage, useData } from '../data.js';
+import { data, getConfig, getMode, getStage, useData } from '../data.js';
 import { OnlinePlayers, MatchmakingPanel, queueActive } from '../ui/matchmaking.js';
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
@@ -219,6 +220,13 @@ function DifficultyCard({ roomMode, difficulty, selected, onSelect, disabled = f
   </button>`;
 }
 
+// Mounted on demand. Keep optional announcement I/O here, outside the shared in-match UI data contract.
+function LobbyAnnouncements({ onClose }) {
+  useData('announcements');
+  return html`<${AnnouncementBoard} status=${data.status('announcements')} value=${data.get('announcements')}
+    onRetry=${() => data.invalidate('announcements')} onClose=${onClose} />`;
+}
+
 /** Lobby screen component. */
 export function LobbyScreen() {
   const me = useStore((s) => s.me, shallowEqual);
@@ -237,6 +245,7 @@ export function LobbyScreen() {
   });
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(null);
+  const [overlay, setOverlay] = useState(null);
   const [recent] = useState(recentRooms);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
@@ -280,6 +289,9 @@ export function LobbyScreen() {
     store.set((s) => ({ session: { ...s.session, entered: false } }));
   };
 
+  const selectedMode = MODE_CARDS.find(c => c.id === (matching ? 'match' : roomMode));
+  const selectedInfo = difficultyInfo(matching ? 'coop' : roomMode, queued ? queue.difficulty : difficulty);
+
   return html`<div class="screen lobby-screen">
     <header class="topbar">
       <div class="topbar__left">
@@ -292,9 +304,11 @@ export function LobbyScreen() {
         <h1 class="topbar__title">选择模拟协议</h1>
       </div>
       <div class="topbar__right">
+        <${Button} class="lobby-announcements" variant="secondary" size="sm" icon="info" aria-haspopup="dialog"
+          onClick=${() => setOverlay('announcements')}>公告<//>
         <${GuideButton} class="lobby-guide" variant="secondary" />
         <${LoadoutButton} from="lobby" size="sm" class="lobby-loadout" />
-        <div class="me-chip">
+        <div class="me-chip" title=${me.name || '博士'}>
           <${AvatarFrame} size="sm" name=${me.name} seat=${0} self=${true} />
           <div class="me-chip__text">
             <span class="me-chip__name">${me.name || '博士'}</span>
@@ -306,7 +320,10 @@ export function LobbyScreen() {
 
     <div class="lobby-body screen__scroll">
       <section class="lobby-left">
-        <div class="section-label"><span class="section-label__idx num">01</span>模拟方式<${MicroLabel}>MODE<//></div>
+        <div class="section-label"><span class="section-label__idx num">01</span>模拟方式<${MicroLabel}>MODE<//>
+          <${Button} variant="ghost" size="sm" class="lobby-protocol-help" aria-haspopup="dialog"
+            onClick=${() => setOverlay('protocol')}>完整说明<//>
+        </div>
         <div class="mode-cards">
           ${MODE_CARDS.map((c) => html`<${ModeCard} key=${c.id} card=${c} selected=${(matching ? 'match' : roomMode) === c.id} onSelect=${pickMode} disabled=${queued || !!busy} />`)}
         </div>
@@ -331,11 +348,11 @@ export function LobbyScreen() {
       </section>
 
       <section class="lobby-right">
-        <div class="section-label"><span class="section-label__idx num">02</span>模拟难度<${MicroLabel}>DIFFICULTY<//></div>
+        <div class="section-label"><span class="section-label__idx num">02</span>${queued ? '同盟集结' : '模拟难度'}<${MicroLabel}>${queued ? 'MATCHMAKING' : 'DIFFICULTY'}<//></div>
         <div class="diff-list" hidden=${queued}>
           ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${matching ? 'coop' : roomMode} difficulty=${d} selected=${(queued ? queue.difficulty : difficulty) === d} onSelect=${pickDifficulty} disabled=${queued || !!busy} />`)}
         </div>
-        ${matching ? html`<${MatchmakingPanel} queue=${queue} difficulty=${difficulty} online=${online} joining=${busy === 'create'} onJoin=${create} />` : html`<div class="create-box">
+        ${matching ? html`<${MatchmakingPanel} queue=${queue} difficulty=${difficulty} online=${online} joining=${busy === 'create'} onJoin=${create} compact=${true} />` : html`<div class="create-box">
           <${Tooltip} block=${true} text=${online ? null : '正在连接服务器…'}>
             <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!online} onClick=${create}>
               ${roomMode === 'solo' ? '开始独立模拟' : '创建同盟'}
@@ -349,5 +366,17 @@ export function LobbyScreen() {
         </div>`}
       </section>
     </div>
+    ${overlay === 'announcements' ? html`<${LobbyAnnouncements} onClose=${() => setOverlay(null)} />` : null}
+    ${overlay === 'protocol' ? html`<${Modal} open=${true} title="所选协议说明" micro="SIMULATION PROTOCOL"
+        ariaLabel="所选协议说明" trapFocus=${true} class="lobby-dialog" onClose=${() => setOverlay(null)}
+        actions=${html`<${Button} icon="close" onClick=${() => setOverlay(null)}>关闭说明<//>`}>
+      <div class="lobby-protocol-text">
+        <h3>${selectedMode.name}</h3><p>${selectedMode.desc}</p>
+        <ul>${selectedMode.points.map(p => html`<li key=${p}>${p}</li>`)}</ul>
+        <h3>${DIFFICULTY_NAMES[queued ? queue.difficulty : difficulty]} · ${selectedInfo.rounds} 回合${selectedInfo.hidden ? ' + 隐秘核心' : ''}</h3>
+        <p>${selectedInfo.desc}</p><ul>${selectedInfo.effects.map(p => html`<li key=${p}>${p}</li>`)}</ul>
+        <p>${selectedInfo.stageNote}</p>
+      </div>
+    <//>` : null}
   </div>`;
 }

@@ -142,14 +142,52 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 @media (max-height: 460px) {
   .dhead__art { height: 1.66rem; }
   .dhead__en { display: none; }
-  .lobby-body { padding-top: .2rem; padding-bottom: .2rem; gap: .36rem; }
-  .mode-cards { margin-bottom: .2rem; }
-  .mode-card { min-height: 0; gap: .12rem; padding: .22rem .26rem .2rem; }
-  .mode-card__icon { width: .66rem; height: .66rem; }
-  .mode-card__name { font-size: .4rem; }
-  .mode-card__points, .diff-card__effects, .tips, .create-box__hint { display: none; }
-  .diff-list { gap: .1rem; }
-  .diff-card { padding-top: .12rem; padding-bottom: .12rem; }
-  .create-box { margin-top: .18rem; }
-  .create-box .btn--xl { height: .8rem; }
+  .lobby-screen .topbar { height: 48px; }
+  .lobby-body { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 16px; gap: 12px; }
+  .lobby-screen .section-label { font-size: 13px; margin-bottom: 8px; min-height: 20px; gap: 6px; }
+  .lobby-screen .section-label > .micro { display: none; }
+  .lobby-protocol-help { height: 28px; font-size: 12px; padding-inline: 8px; }
+  .mode-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .lobby-screen .mode-card { min-height: 64px; padding: 8px 4px; gap: 6px; align-items: center; justify-content: center; }
+  .lobby-screen .mode-card--match { grid-column: auto; flex-direction: column; }
+  .lobby-screen .mode-card__icon { width: 24px; height: 24px; }
+  .lobby-screen .mode-card__icon .icon { width: 18px; height: 18px; }
+  .lobby-screen .mode-card__name { font-size: 14px; letter-spacing: .02em; }
+  .lobby-screen .mode-card__text { align-items: center; gap: 0; }
+  .lobby-screen .mode-card__text > .micro, .lobby-screen .mode-card__desc, .lobby-screen .mode-card__points,
+  .lobby-screen .mode-card__check, .lobby-screen .diff-card__effects, .tips, .create-box__hint { display: none; }
+  .lobby-screen .join-panel .panel__body { padding: 10px; gap: 6px; }
+  .lobby-screen .join-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+  .lobby-screen .join-row .field { grid-column: 1 / -1; }
+  .lobby-screen .join-row .btn { height: 40px; min-height: 40px; font-size: 13px; padding-inline: 12px; }
+  .lobby-screen .join-row .join-spectate { width: 100%; }
+  .lobby-screen .join-foot { min-height: 20px; flex-wrap: nowrap; gap: 6px; font-size: 11px; }
+  .lobby-screen .join-foot > .t-lo { display: none; }
+  .lobby-screen .code-chip { font-size: 12px; padding: 4px 6px; letter-spacing: .08em; }
+  .lobby-screen .diff-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .lobby-screen .diff-card { min-height: 58px; padding: 8px 8px 8px 12px; gap: 4px; }
+  .lobby-screen .diff-card__head { flex-wrap: wrap; gap: 3px 5px; }
+  .lobby-screen .diff-card__name { font-size: 14px; }
+  .lobby-screen .diff-card__meta { width: 100%; font-size: 10px; margin: 0; }
+  .lobby-screen .diff-card__meta .num { font-size: 11px; }
+  .lobby-screen .diff-card__hidden { font-size: 10px; }
+  .lobby-screen .diff-card__desc, .lobby-screen .diff-card__code, .lobby-screen .diff-card__check { display: none; }
+  .lobby-screen .create-box { margin-top: 10px; }
+  .lobby-screen .create-box .btn--xl { height: 44px; font-size: 16px; }
+  .lobby-screen .matchmaking--compact { margin-top: 8px; padding: 8px 10px; }
+  .lobby-screen .matchmaking--compact > header, .lobby-screen .matchmaking--compact:not(.is-active) > h2 { display: none; }
+  .lobby-screen .matchmaking h2 { font-size: 17px; margin: 0 0 4px; }
+  .lobby-screen .matchmaking p { font-size: 12px; line-height: 1.35; margin: 3px 0; }
+  .lobby-screen .matchmaking__status { font-size: 12px; line-height: 1.4; margin: 4px 0 6px; }
+  .lobby-screen .matchmaking__actions { gap: 6px; }
+  .lobby-screen .matchmaking__actions .btn { height: 44px; min-height: 44px; font-size: 12px; padding-inline: 6px; letter-spacing: 0; }
+  .lobby-screen .matchmaking__revival { font-size: 12px; padding: 5px 8px; margin: 6px 0; }
+  .lobby-screen .matchmaking__revival p { font-size: 11px; line-height: 1.4; margin: 0; }
+  .lobby-screen .matchmaking__count { font-size: 11px; }
+  .lobby-dialog .modal__head { padding: 12px 16px 4px; }
+  .lobby-dialog .modal__body { padding: 8px 16px 12px; }
+  .lobby-dialog .modal__actions { padding: 8px 16px; }
+  .lobby-dialog .modal__actions .btn { min-height: 44px; font-size: 14px; }
+  .lobby-dialog .micro { font-size: 10px; }
+
 }

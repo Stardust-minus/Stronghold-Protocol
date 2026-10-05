@@ -1,4 +1,4 @@
-// Single views follow the bond strip's owner; a displayed 联防 field shows every actual helper separately.
+// Single views follow the bond strip's owner; shared 联防/Boss fields show their actual participants separately.
 import { useMemo } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
 import { html, Icon, Tooltip } from './components.js';
@@ -52,6 +52,19 @@ export function uniteDamageOwners({ pub, fieldId, field = null } = {}) {
   // SETTLE may already have retired public fields; retain the displayed field's actual members, not a guessed team.
   if (!listed && meta?.round != null && meta.round !== pub.round) return null;
   const members = Array.isArray(listed?.players) ? listed.players : Array.isArray(meta?.players) ? meta.players : [];
+  return fieldDamageOwners(pub, members);
+}
+
+/** Boss ownership comes only from the displayed current public field, never the other pair or stale field meta. */
+export function bossDamageOwners({ pub, fieldId } = {}) {
+  const kind = pub?.phase === PHASE.FINAL_ASSAULT ? 'boss' : pub?.phase === PHASE.HIDDEN_CORE ? 'hidden' : null;
+  if (!kind || typeof fieldId !== 'string' || !fieldId) return null;
+  const listed = Array.isArray(pub.fields) ? pub.fields.find(f => f?.fieldId === fieldId) : null;
+  if (listed?.kind !== kind || !Array.isArray(listed.players)) return null;
+  return fieldDamageOwners(pub, listed.players);
+}
+
+function fieldDamageOwners(pub, members) {
   const known = new Map((Array.isArray(pub.players) ? pub.players : []).filter(p => p?.playerId).map(p => [p.playerId, p]));
   const ids = [...new Set(members.filter(id => typeof id === 'string' && known.has(id)))];
   if (!ids.length || ids.length > 2) return null;
@@ -69,15 +82,18 @@ export function damageGroups(snapshot, owners) {
   return { groups, shared: groups.length > 1, available: !!groups.length && groups.every(group => group.available) && Number.isFinite(total), total };
 }
 
-export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, open = false, onToggle }) {
+export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, bossOwners = null, bossHidden = false, open = false, onToggle }) {
   useData('chess', 'assets');
-  const owners = Array.isArray(uniteOwners) && uniteOwners.length ? uniteOwners : [{ playerId: ownerId, name: ownerName || '当前视角' }];
+  const boss = Array.isArray(bossOwners) && bossOwners.length > 0;
+  const owners = boss ? bossOwners : Array.isArray(uniteOwners) && uniteOwners.length ? uniteOwners : [{ playerId: ownerId, name: ownerName || '当前视角' }];
   const ownersKey = JSON.stringify(owners);
   const score = useMemo(() => open ? damageGroups(snapshot, owners) : null, [open, snapshot, ownersKey]);
   const frozen = snapshot?.status === 'frozen';
   const label = snapshot?.round > 0 ? `第 ${snapshot.round} 回合 · ${frozen ? '结算冻结' : '实时累计'}` : '尚无战斗记录';
   const manifest = data.get('assets');
-  const heading = score?.shared ? `联防输出 · ${score.groups.length} 人` : score?.groups[0]?.name || ownerName || '当前视角';
+  const sharedTitle = boss ? bossHidden ? '隐藏 Boss 输出' : 'Boss 输出' : '联防输出';
+  const sharedScope = boss ? '同场玩家本轮累计' : '各自行动 + 联防';
+  const heading = score?.shared ? `${sharedTitle} · ${score.groups.length} 人` : score?.groups[0]?.name || ownerName || '当前视角';
   return html`<aside class=${`damage-board${open ? ' is-open' : ''}`} aria-label="干员输出统计">
     <button type="button" class="damage-board__toggle" aria-label="输出统计" title="输出统计" aria-controls="damage-report"
       aria-expanded=${String(open)} onClick=${() => onToggle?.(!open)}>
@@ -91,7 +107,7 @@ export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, 
       </header>
       <div class="damage-board__summary">
         <div><span>${score.shared ? '双方本轮合计' : '累计伤害'}</span><strong class="damage-board__total">${score.available ? damageNumber(score.total) : '—'}</strong></div>
-        <p class="damage-board__phase" role="status">${label}<small>${score.shared ? '各自行动 + 联防' : frozen ? '保留至下一轮开战' : '随当前视角同步'}</small></p>
+        <p class="damage-board__phase" role="status">${label}<small>${score.shared ? sharedScope : frozen ? '保留至下一轮开战' : '随当前视角同步'}</small></p>
       </div>
       <div class="damage-board__columns" aria-hidden="true"><span>${score.shared ? '干员 / 本人占比' : '干员 / 伤害占比'}</span><span>实际伤害</span></div>
       ${score.shared ? html`<div class="damage-board__groups">
@@ -101,7 +117,7 @@ export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, 
           <${DamageRows} score=${group} manifest=${manifest} ownerName=${group.name} shared=${true} />
         </section>`)}
       </div>` : html`<${DamageRows} score=${score.groups[0]} manifest=${manifest} />`}
-      <details class="damage-board__rules"><summary>统计口径</summary><p>${score.shared ? '按场上参与者分别展示本轮累计（各自行动 + 联防），占比以该玩家小计计算。' : ''}只计实际扣除的生命值。召唤物归所属干员；装置与无干员归属伤害单列；过量伤害、护盾吸收与友方伤害不计。</p></details>
+      <details class="damage-board__rules"><summary>统计口径</summary><p>${score.shared ? boss ? '仅展示当前 Boss 战场的参与者，分别统计本轮累计；占比以该玩家小计计算，不等同于全队共享 Boss 血池扣血。' : '按场上参与者分别展示本轮累计（各自行动 + 联防），占比以该玩家小计计算。' : ''}只计实际扣除的生命值。召唤物归所属干员；装置与无干员归属伤害单列；过量伤害、护盾吸收与友方伤害不计。</p></details>
     </section>` : null}
   </aside>`;
 }

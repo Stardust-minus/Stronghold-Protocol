@@ -137,6 +137,7 @@ NGINX_BIN="$LOCAL_NGINX" NGINX_MIME_TYPES="$LOCAL_MIME_TYPES" \
 7. 除非 PRTS 本身发布，否则保留其独立基础库版本和 CSP，不改变密码、签名密钥或开场动画。
 8. 当前三个服务Compose均无CPU/内存限额，D71已完成metadata统一；后续不能拿旧配置覆盖恢复限制。PIDs与安全选项保留，切换后同时核对Docker metadata和实际健康。游戏combat.ready仍为6，默认trial.ready为1，两个池分别检查。
 9. 三个服务健康schema不同，禁止用all(health.ok)统判：game与auth要求HTTP200且ok:true；assets须在容器内部loopback访问/healthz，核对HTTP200、合法JSON及files等清单计数，不要求不存在的ok字段。宿主机经Docker端口转发访问assets健康可能因非容器loopback而404，不据此回滚。输出具体失败服务/状态/字段；不要重演D71首轮因schema误判而回滚的事故。
+10. 用户2026-10-05要求默认仅MainThread nice=-20。按 [MAIN-THREAD-PRIORITY.md](MAIN-THREAD-PRIORITY.md) 单独从固定commit准备/校验宿主工具与systemd模板，**不混入游戏app导出或公开素材，不假设旧runtime导出器会安装它**。在明确授权窗口才安装/启用：白名单须为实际新/回滚revision与不可变image ID的配对。三服务健康后定位真正Node主TID（非Docker init PID），先普通调度reset-on-fork再Main=-20；核对其余线程0与6+1。Docker启动事件钩子覆盖后续重启/重建，不给容器加CAP或把Node启动命令包在nice中。工具失败不自行重启/回滚游戏；未安装时仍只有当前手动设置，push不代表启动默认已经在生产启用。
 
 ## 六、上线验收清单
 

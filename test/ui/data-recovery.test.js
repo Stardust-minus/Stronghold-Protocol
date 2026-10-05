@@ -133,6 +133,10 @@ test('loading recovery excludes optional missing art and successful data', () =>
   const statuses = Object.fromEntries(GAME_FILES.map((name) => [name, 'ready']));
   const source = { status: (name) => statuses[name] };
   statuses.local = statuses.assets = 'missing';
+  statuses.announcements = 'loading';
+  assert.equal(missingCoreData(source), false);
+  assert.deepEqual(pendingGameFiles(source), []);
+  statuses.announcements = 'missing';
   assert.equal(missingCoreData(source), false);
   assert.deepEqual(pendingGameFiles(source), []);
   statuses.chess = 'missing'; statuses.config = 'loading';

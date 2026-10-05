@@ -1,0 +1,19 @@
+[Unit]
+Description=Ark game main-thread scheduling policy
+After=docker.service
+Wants=docker.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Nice=0
+ExecStart=/usr/bin/python3 -B /opt/ark-proto/main-priority/current/main-thread-priority.py --config /opt/ark-proto/main-priority/config.json --watch
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=10
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

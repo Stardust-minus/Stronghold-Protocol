@@ -1,7 +1,7 @@
 // Public queue remains separate from solo and invite rooms; all assignments come from the server.
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
-import { html, Button, Icon, MicroLabel, useTicker } from './components.js';
+import { html, Button, Icon, MicroLabel, Modal, useTicker } from './components.js';
 import { useStore, serverNow } from '../store.js';
 import { net } from '../net.js';
 import { queueCancellation } from '../queueCancellation.js';
@@ -34,9 +34,13 @@ export function OnlinePlayers() {
   </span>`;
 }
 
-export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = false }) {
+const REVIVAL_RULES = '至少 3 人赞成则开启。每位博士最多获救一次；本轮实际参与联防且未漏怪的队友，生命值 ≥11 时可支付 10 点救援，获救者保留原状态并恢复至 1 点生命值。';
+const MATCHING_RULES = '集齐后有 30 秒确认时间，选择复活规则即确认入场；全部确认后直接开局，无需房间内再次准备。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。';
+
+export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = false, compact = false }) {
   useTicker(1000);
   const [busy, setBusy] = useState(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const inFlight = useRef(false);
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
@@ -63,21 +67,24 @@ export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = 
       if (mounted.current) setBusy(null);
     }
   };
-  return html`<section class=${`matchmaking${offered ? ' is-offered' : ''}`} aria-label="公开多人匹配">
+  return html`<section class=${`matchmaking${offered ? ' is-offered' : ''}${active ? ' is-active' : ''}${compact ? ' matchmaking--compact' : ''}`} aria-label="公开多人匹配">
     <header><${Icon} name=${offered ? 'users' : 'search'} /><${MicroLabel} tone="mint">PUBLIC MATCHMAKING<//></header>
-    <h2>${offered ? '队友已集结' : active ? '正在寻找队友' : '寻找同盟博士'}</h2>
+    <h2>${offered ? '队友已集结' : active ? '正在寻找队友' : '寻找同盟博士'}${compact && offered && Number.isInteger(queue.acceptedCount)
+      ? html`<span class="matchmaking__count">${queue.acceptedCount} / 4 已确认</span>` : null}</h2>
     <p>${DIFFICULTY_NAMES[queue?.difficulty || difficulty]} · 4 名真人 · 不自动补 AI${queue?.partySize > 1 ? ` · ${queue.partySize} 人小队整体匹配` : ''}</p>
     <div class="matchmaking__status" role="status">
       ${cancelling ? '正在确认取消，等待服务器同步…' : !online ? '连接中断，重连后同步匹配状态' : offered
         ? queue.accepted ? `你已确认，等待其他博士 · ${seconds} 秒` : `请在 ${seconds} 秒内确认入场`
         : active ? `已等待 ${Math.floor(seconds / 60)} 分 ${String(seconds % 60).padStart(2, '0')} 秒` : '按难度匹配，集齐后由每位博士确认'}
     </div>
-    ${cancelFailed && active ? html`<p class="matchmaking__reason" role="status">尚未确认取消，请恢复连接后重试；下方仍显示服务器最后确认的匹配状态。</p>` : null}
+    ${cancelFailed && active ? html`<p class="matchmaking__reason" role="status">${compact
+      ? '取消尚未确认，请重连后重试；当前为服务器最后确认的状态。'
+      : '尚未确认取消，请恢复连接后重试；下方仍显示服务器最后确认的匹配状态。'}</p>` : null}
     ${queue?.reason && REASONS[queue.reason] ? html`<p class="matchmaking__reason">${REASONS[queue.reason]}</p>` : null}
-    ${offered && Number.isInteger(queue.acceptedCount) ? html`<p>${queue.acceptedCount} / 4 位博士已确认</p>` : null}
+    ${!compact && offered && Number.isInteger(queue.acceptedCount) ? html`<p>${queue.acceptedCount} / 4 位博士已确认</p>` : null}
     ${offered ? html`<div class="matchmaking__revival">
-      <strong>本局是否开启复活？</strong>
-      <p>至少 3 人赞成则开启。每位博士最多获救一次；本轮实际参与联防且未漏怪的队友，生命值 ≥11 时可支付 10 点救援，获救者保留原状态并恢复至 1 点生命值。</p>
+      <strong>${compact ? '复活选择' : '本局是否开启复活？'}</strong>
+      <p>${compact ? '3 人赞成开启 · 每人限获救一次' : REVIVAL_RULES}</p>
       ${queue.accepted ? html`<span role="status">你的选择：${queue.revivalVote ? '赞成开启复活' : '不开启复活'} · 已确认入场</span>` : null}
     </div>` : null}
     <div class="matchmaking__actions">
@@ -92,7 +99,15 @@ export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = 
           onClick=${() => act('cancel')}>${cancelFailed ? '重试取消' : offered ? '退出本次匹配' : '取消匹配'}<//>
       ` : html`<${Button} variant="primary" size="lg" block=${true} icon="search" disabled=${!online || joining}
           loading=${joining} onClick=${onJoin}>开始多人匹配<//>`}
+      ${compact ? html`<${Button} variant="ghost" size="sm" icon="info" class="matchmaking__help"
+        onClick=${() => setRulesOpen(true)}>${offered ? '完整规则' : '匹配说明'}<//>` : null}
     </div>
-    <small>集齐后有 30 秒确认时间，选择复活规则即确认入场；全部确认后直接开局，无需房间内再次准备。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。</small>
+    ${compact ? null : html`<small>${MATCHING_RULES}</small>`}
+    ${compact && rulesOpen ? html`<${Modal} open=${true} title="多人匹配与复活规则" micro="MATCHMAKING RULES"
+        ariaLabel="多人匹配与复活规则" trapFocus=${true} class="lobby-dialog" onClose=${() => setRulesOpen(false)}
+        actions=${html`<${Button} icon="close" onClick=${() => setRulesOpen(false)}>关闭说明<//>`}>
+      <p class="modal__text">4 名真人按相同难度匹配，不自动补 AI；好友小队保持整队。</p>
+      <p class="modal__text">${MATCHING_RULES}</p><p class="modal__text">${REVIVAL_RULES}</p>
+    <//>` : null}
   </section>`;
 }

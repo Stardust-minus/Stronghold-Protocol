@@ -2,9 +2,41 @@
 
 更新时间：2026-10-05。线上已于11:34:34 +08切到 `186cda7` / `v013-ui-20261005`，三服务单project、6combat+1trial、无CPU/内存cap；发布记录见 `deploy/stardust/releases/v013-ui-20261005.json`。仅关闭片头、保留其他动画，输出面板避让表情并加头像的修正均已上线。实际生产双浏览器、真实战斗/表情/头像/资源分流验证通过，1408响应、0错误；后续仅记录提交不再重启。
 
-## 最新本地批次：热键 / Boss 缩放 / 可靠性 / health（未发布）
+## 最新已验证批次：默认主线程 nice=-20 / 推送（未部署）
 
-开发分支 `feat/reliability-health-20261005`，基线 `ff3cf3e`；详见 `.claude/reliability-health-progress.md` 与 `.claude/unite-board-progress.md`。用户现已要求先提交推送，凌晨再重启更新；尚未部署，以上生产记录不变，不能现在重启。不提前合入官方未合并 PR（包括 #109/#115/#126），只按用户批准做独立小改动。
+- 用户追加“nice默认设置-20吧，推送。然后继续看”，批准新计划；允许将下方已验收Boss/大厅功能及宿主启动策略提交、快进master、推送origin。仍不授权生产安装/启用服务、部署或重启；用户计划完成后compact，不开始其他未指定任务。进度见 `.claude/main-priority-default-progress.md`。
+- [x] 宿主机Python标准库helper，默认只Main=-20；先普通调度reset-on-fork再nice，不改其他线程、Node入口、Worker源码/数量、容器权限/配额或其他服务。root管理的完整revision/image ID成对白名单、Docker init与Node分辨、PID/startTicks/标签/健康/安全门槛、事务回滚、只读check及事件驱动watcher；systemd模板只入库。
+- [x] Python安全单测40/40（含只读审查发现的post-readiness瞬时失败丢失start事件，已补确认回滚后的3次/总deadline重试及不安全回滚拒绝重试）；本地实际Node24两fixture通过：真实6+1、新建与正式/试战替换Worker、独立人工fixture证明懒创建libuv nice0、幂等/显式恢复、Docker重启、真实事件自动重建、watcher完成事务后停止保留设置。首次随机port重启变化被拒及后续Docker旧事件ID模板错误/driver过早停止触发事务回滚均留证，不宣称首轮全通过；当前Actor.ID模板与完成日志等待均修正，自己的容器均removed。
+- [x] 本批最终Linux Node24 canonical：333文件 / 4161tests / 309suites / 4145pass / 16skip / 0fail/cancel，并发4，162.338s；日志 `.cache/stardust/lobby-announcements-canonical-c4-84fq1xja.log` 与显式.files.json。Python40/40及实际Node24两fixture另行运行，不声称由Node清单覆盖。提交结果/远端完整SHA以 `.claude/main-priority-default-progress.md` 的实测交接为准。
+- 未来经部署许可，宿主材料单独从固定提交导出/哈希校验并按 `deploy/stardust/MAIN-THREAD-PRIORITY.md` 安装。当前生产未安装启动钩子，仅保持此前手动Main=-20；容器重建仍默认0。两个归档stash保持，不移植第三方fork/官方未合并PR。
+
+## 最新运行参数：主线程 nice=-20（非代码发布）
+
+- 用户在-2/-5/-10/-20四次短时对照全部恢复0后，明确要求“我觉得直接干-20吧”。2026-10-05 22:56 +08起，仅当前线上游戏MainThread保留nice=-20，现有Worker/V8/libuv等线程仍0；普通调度策略、6+1、配额/亲和性/网络、其他服务均未改，无重启或部署，source186/v013-ui/restart0不变。
+- 22:57独立20s只读核查：Main -20/其他角色0，6+1 ready、replacements0；有减少调度等待的趋势，未宣称战斗卡顿已根治。证据与权限边界见 `.claude/combat-stutter-progress.md`。
+- 此次现场手动设置只对当前进程生效，无启动持久化或自动重施；重建会默认0，新线程继承需核对。用户随后授权上方宿主启动默认策略入库/推送，但尚未安装到生产。不要按旧试验记录恢复0、重跑调优、给容器加权限或擅自启用新工具。
+
+## 最新本地批次：大厅公告 / 整屏布局（未发布）
+
+当前 `feat/lobby-announcements-20261005`，保留下方已完成的Boss修复；原只做本地的许可已由用户新请求扩展为上方提交/推送批次，仍不deploy/restart。前端原验收见 `.claude/lobby-announcements-progress.md`。
+
+- [x] 大厅顶部可点击打开公告板，独立版本内容文件、加载/空态/失败重试、可访问弹窗与原生触屏正文滚动；公告失败不阻止游戏。
+- [x] 大厅缩紧卡片/间距，小横屏三模式横排、四难度2x2与header/加入区重排；匹配各状态主要操作不需上下滚动，完整协议/复活规则可点击查看，房间默认规则不改。
+- [x] 主助手真实Chrome桌面/触屏/安全区82项布局检查；最终公告加载分层后5步真实交互/四人匹配/房间与结算返回补验通过，截图已看，failed尝试保留。最终Node24显式Linux：333文件 / 4161tests / 4145pass / 16skip / 0fail/cancel，并发4，163.321s；首次完整回归公告依赖扫描失败已通过大厅层加载/纯展示分离修正，未改旧playtest3断言；既有观战测试一次AI抢选固定盟约失败，未改其输入/断言或服务端，独立44/44及最终完整回归均通过。自己的测试容器均清理；本功能纳入上方提交/推送批次，未上线。
+
+公告维护：修改 `data/announcements.json`，有序数组条目为 `{ "title": "标题", "date": "YYYY-MM-DD", "paragraphs": ["纯文本段落"] }`，date可省略；新条目放在前面。正式文件初始 `[]`，待提供实际文案，不把本地测试公告提交为真实公告。随游戏版本发布，旧已打开页面需刷新；无网页后台或热更新，保留 `/data/` 门禁，不放公开素材目录。
+
+## 最新收尾：性能归档 / Boss 双人输出（本地未发布）
+
+原分支 `fix/boss-damage-board-20261005`，基线为已推送的 `f54c47c`，现有改动已保留在大厅分支并纳入上方新许可的提交/推送批次；原验收见 `.claude/boss-damage-progress.md`。尚未部署，不与归档性能原型混合。
+
+- [x] 用户明确停止继续性能优化。profile、明细表/本地火焰图、审计及失败尝试保留；A评分原型单独stash `e9b7bd96fd4a11d942b584d950c222729d3dedaa`，旧stash保留。原型通过局部正确性/状态审计，但候选普通A/B计时未启动，没有收益结论；不纳入发布或自行恢复任务，见 `.claude/main-hotspots-progress.md`。
+- [x] 普通Boss/隐藏Boss输出板按当前实际战场的1–2名成员展示，双人各自姓名/小计/干员/本人占比与合计；不混入另一组，单人/普通/整备与联防规则保持。仅前端展示修正，不改计分/共享Boss血池/权限。主助手亲写并以真实6+1、四Chrome桌面/触屏验证两种Boss的独立分场、真实贡献和重连；共用滚动/表情/Escape/查看限制在普通Boss完整验收，隐藏Boss聚焦其分组/标题/数据/重连，截图已实际查看。
+- [x] 本地修复纳入上方已获许可的Boss/大厅/默认优先级提交推送批次；仍未上线，当前生产186。凌晨发布继续独立遵循配套SOP，未设自动任务，不因测试/推送重启生产。
+
+## 此前已推送批次：热键 / Boss 缩放 / 可靠性 / health（未发布）
+
+开发分支 `feat/reliability-health-20261005`，基线 `ff3cf3e`，已提交并推送 `master/origin/master=f54c47c`；详见 `.claude/reliability-release-handoff.md`、`.claude/reliability-health-progress.md` 与 `.claude/unite-board-progress.md`。用户要求凌晨再重启更新；尚未部署，以上生产记录不变，不能现在重启。不提前合入官方未合并 PR（包括 #109/#115/#126），只按用户批准做独立小改动。
 
 - [x] Q 撤退 / X 出售选中干员，共用原动作及权限；输入、IME、弹窗/托管、拖拽/朝向和忙碌状态保护，主助手亲写并实际按键验收。
 - [x] 全局及四个MULTI模式启用已有 Boss 存活席位 n/4 缩放；各Boss开战取人数，AI计入、观战不计，当前血池不随战中减员变化；单人0.25及训练false保持，生成器/文档/真实Worker回归同步。

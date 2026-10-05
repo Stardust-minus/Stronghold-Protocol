@@ -131,7 +131,7 @@ test('REAL simple Nginx TLS/gate/root+legacy WS/OpenI/CORS/redirect smoke', { sk
     if (nginx.exitCode !== null) throw new Error('Nginx failed: ' + nginxLog);
     try { return (await request('/healthz')).status === 404; } catch { return false; }
   }, 'TLS listener', 10000);
-  for (const uri of ['/?_prts=1', '/index.html?_prts=1', '/js/main.js', '/data/config.json', '/shared/constants.js', '/sim/constants.js',
+  for (const uri of ['/?_prts=1', '/index.html?_prts=1', '/js/main.js', '/data/config.json', '/data/announcements.json', '/shared/constants.js', '/sim/constants.js',
     '/client-build', '/_server/presence', PREFIX + '/public/js/main.js', PREFIX + '/shared/constants.js']) {
     assert.equal((await request(uri)).status, 401, 'anonymous private route ' + uri);
   }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { damageNumber, damageRows, damageShare, acceptDamageSnapshot, uniteDamageOwners, damageGroups } from '../../public/js/ui/damageBoard.js';
+import { damageNumber, damageRows, damageShare, acceptDamageSnapshot, uniteDamageOwners, bossDamageOwners, damageGroups } from '../../public/js/ui/damageBoard.js';
 import { emptyMatch } from '../../public/js/store.js';
 import { PHASE } from '../../shared/constants.js';
 
@@ -38,7 +38,7 @@ test('the displayed unite field selects both helpers, not the leaker or every ow
   assert.deepEqual(pub, before);
 });
 
-test('normal/teammate/prep/boss views keep their single-owner semantics even with stale unite metadata', () => {
+test('unite grouping stays off in normal/prep/Boss phases even with stale unite metadata', () => {
   const pub = unitePublic(), field = { fieldId: 'u', players: ['p1', 'p2'], round: 2 };
   for (const phase of [PHASE.PREP, PHASE.COMBAT, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE, PHASE.RESULT]) {
     assert.equal(uniteDamageOwners({ pub: { ...pub, phase }, fieldId: 'u', field }), null);
@@ -64,6 +64,54 @@ test('single/duplicate/unknown helpers cannot duplicate totals or expand to unre
   assert.equal(damageGroups(packet(), [...owners, ...owners]).total, 10);
   pub.fields[0].players = ['p1', 'p2', 'leaker'];
   assert.equal(uniteDamageOwners({ pub, fieldId: 'u' }), null, 'a malformed field never widens the two-helper roster');
+});
+
+const bossPublic = (hidden = false) => ({ phase: hidden ? PHASE.HIDDEN_CORE : PHASE.FINAL_ASSAULT, round: hidden ? 15 : 14,
+  players: ['p1', 'p2', 'p3', 'p4'].map((playerId, i) => ({ playerId, name: `博士${i + 1}` })),
+  fields: [{ fieldId: 'b1', kind: hidden ? 'hidden' : 'boss', players: ['p1', 'p2'] },
+    { fieldId: 'b2', kind: hidden ? 'hidden' : 'boss', players: ['p3', 'p4'] }],
+});
+
+test('Boss and hidden Boss select only both actual players in the displayed field, independent of camera half', () => {
+  for (const hidden of [false, true]) {
+    const pub = bossPublic(hidden), before = structuredClone(pub);
+    const owners = bossDamageOwners({ pub, fieldId: 'b1' });
+    assert.deepEqual(owners.map(p => p.playerId), ['p1', 'p2']);
+    assert.deepEqual(bossDamageOwners({ pub, fieldId: 'b1', ownerId: 'p2' }), owners);
+    assert.deepEqual(bossDamageOwners({ pub, fieldId: 'b2' }).map(p => p.playerId), ['p3', 'p4']);
+    const snap = packet(pub.round); snap.owners.push({ playerId: 'p3', total: 9999 }, { playerId: 'p4', total: 8888 });
+    const score = damageGroups(snap, owners);
+    assert.equal(score.shared, true); assert.equal(score.available, true); assert.equal(score.total, 410);
+    assert.deepEqual(score.groups.map(g => g.playerId), ['p1', 'p2']);
+    assert.deepEqual(pub, before);
+  }
+});
+
+test('Boss grouping fails closed for another phase, absent field, wrong kind or stale field metadata', () => {
+  const pub = bossPublic(), field = { ...pub.fields[0], round: 14 };
+  for (const phase of [PHASE.PREP, PHASE.COMBAT, PHASE.UNITE, PHASE.SETTLE, PHASE.RESULT]) {
+    assert.equal(bossDamageOwners({ pub: { ...pub, phase }, fieldId: 'b1', field }), null);
+  }
+  for (const fieldId of [null, '', 'u', 'n:p1', 'b3']) assert.equal(bossDamageOwners({ pub, fieldId, field }), null);
+  assert.equal(bossDamageOwners({ pub: { ...pub, fields: [] }, fieldId: 'b1', field }), null);
+  assert.equal(bossDamageOwners({ pub: { ...pub, phase: PHASE.HIDDEN_CORE, round: 15 }, fieldId: 'b1', field }), null);
+  assert.equal(bossDamageOwners({ pub: { ...bossPublic(true), phase: PHASE.FINAL_ASSAULT }, fieldId: 'b1' }), null);
+  assert.deepEqual(bossDamageOwners({ pub: bossPublic(true), fieldId: 'b2', field }).map(p => p.playerId), ['p3', 'p4'], 'current public roster wins over retired metadata');
+});
+
+test('Boss single-player groups, duplicate IDs and unavailable partners keep honest totals', () => {
+  const pub = bossPublic();
+  pub.fields[1].players = ['p3', 'p3', 'unknown'];
+  const owners = bossDamageOwners({ pub, fieldId: 'b2' });
+  assert.deepEqual(owners, [{ playerId: 'p3', name: '博士3' }]);
+  assert.equal(damageGroups({ owners: [{ playerId: 'p3', total: 50 }] }, owners).shared, false);
+  const pair = bossDamageOwners({ pub, fieldId: 'b1' });
+  const snap = { ...packet(14, 'frozen'), owners: packet().owners.slice(0, 1) };
+  const score = damageGroups(snap, pair);
+  assert.equal(score.available, false); assert.equal(score.groups[0].available, true); assert.equal(score.groups[1].available, false);
+  assert.equal(damageGroups({ ...packet(14), available: false }, pair).available, false);
+  pub.fields[0].players.push('p3');
+  assert.equal(bossDamageOwners({ pub, fieldId: 'b1' }), null);
 });
 
 test('player groups isolate same operator UID/key and other damage, with per-player percentages', () => {
@@ -110,7 +158,7 @@ test('unavailable client/hidden-group data is not mislabeled zero damage and num
   assert.equal(emptyMatch().damage, null);
 });
 
-test('scoreboard defaults collapsed, keeps the single-owner fallback and receives displayed unite membership', () => {
+test('scoreboard defaults collapsed, keeps the single-owner fallback and receives displayed unite/Boss membership', () => {
   const component = readFileSync(new URL('../../public/js/ui/damageBoard.js', import.meta.url), 'utf8');
   assert.match(component, /open = false/);
   assert.match(component, /snapshot\?\.status === 'frozen'/);
@@ -119,6 +167,11 @@ test('scoreboard defaults collapsed, keeps the single-owner fallback and receive
   assert.match(game, /<\$\{DamageBoard\} snapshot=\$\{damage\} ownerId=\$\{strip\.ownerId\}/);
   assert.match(game, /uniteDamageOwners\(\{ pub, fieldId: stripFid, field \}\)/);
   assert.match(game, /uniteOwners=\$\{uniteOwners\}/);
+  assert.match(game, /bossDamageOwners\(\{ pub, fieldId: stripFid \}\)/);
+  assert.match(game, /bossOwners=\$\{bossOwners\} bossHidden=\$\{pub\?\.phase === PHASE\.HIDDEN_CORE\}/);
+  assert.match(component, /隐藏 Boss 输出/);
+  assert.match(component, /同场玩家本轮累计/);
+  assert.match(component, /不等同于全队共享 Boss 血池扣血/);
   assert.match(component, /open \? damageGroups\(snapshot, owners\) : null/);
   assert.match(component, /key=\$\{group\.playerId\}/);
   assert.match(component, /本人占比/);

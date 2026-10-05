@@ -389,9 +389,9 @@ const modalStack = []; // open modals, topmost last: only the topmost reacts to 
 /**
  * Modal dialog (declarative). Esc / backdrop click call onClose.
  * @param {{ open: boolean, title?: any, micro?: string, tone?: string, onClose?: Function, actions?: any,
- *   width?: string, closeOnBackdrop?: boolean, class?: string, children?: any }} props
+ *   width?: string, closeOnBackdrop?: boolean, ariaLabel?: string, trapFocus?: boolean, class?: string, children?: any }} props
  */
-export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, class: cls, children }) {
+export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, ariaLabel, trapFocus = false, class: cls, children }) {
   const boxRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -401,7 +401,21 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
     modalStack.push(token);
     const prevFocus = typeof document !== 'undefined' ? document.activeElement : null;
     const onKey = (e) => {
-      if (e.key !== 'Escape' || modalStack[modalStack.length - 1] !== token || !closeRef.current) return;
+      if (modalStack[modalStack.length - 1] !== token) return;
+      if (trapFocus && e.key === 'Tab') {
+        const box = boxRef.current;
+        const items = [...(box?.querySelectorAll('button, a[href], input, select, textarea, [tabindex]') || [])]
+          .filter(el => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length
+            && getComputedStyle(el).visibility !== 'hidden');
+        const first = items[0], last = items[items.length - 1];
+        const outside = !items.includes(document.activeElement);
+        if (!first || outside || (e.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first)?.focus();
+          if (!first) box?.focus();
+        }
+      }
+      if (e.key !== 'Escape' || !closeRef.current) return;
       e.stopPropagation();
       closeRef.current();
     };
@@ -417,12 +431,12 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
       if (i >= 0) modalStack.splice(i, 1);
       prevFocus?.focus?.();
     };
-  }, [open]);
+  }, [open, trapFocus]);
   if (!open) return null;
   return html`<div class="modal" role="presentation"
       onMouseDown=${(e) => { if (closeOnBackdrop && e.target === e.currentTarget && onClose) onClose(); }}>
     <div ref=${boxRef} class=${cx('modal__box', 'brackets', `modal__box--${tone}`, cls)} role="dialog" aria-modal="true"
-         style=${width ? `width:${width}` : undefined}>
+         aria-label=${ariaLabel} tabindex=${trapFocus ? -1 : undefined} style=${width ? `width:${width}` : undefined}>
       <div class="modal__stripe" aria-hidden="true"></div>
       ${title || micro ? html`<header class="modal__head">
         ${micro ? html`<${MicroLabel}>${micro}<//>` : null}

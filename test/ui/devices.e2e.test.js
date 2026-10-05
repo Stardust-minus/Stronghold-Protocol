@@ -87,6 +87,9 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
       if (se.scrollWidth > innerWidth + 1) out.push(`page overflows horizontally (${se.scrollWidth} > ${innerWidth})`);
       if (se.scrollHeight > innerHeight + 1) out.push(`page overflows vertically (${se.scrollHeight} > ${innerHeight})`);
       const root = document.querySelector(sel) || document.body;
+      const lobby = root.querySelector('.lobby-body');
+      if (lobby?.scrollHeight > lobby?.clientHeight + 1) out.push(`lobby needs vertical scrolling (${lobby.scrollHeight} > ${lobby.clientHeight})`);
+      if (lobby?.scrollWidth > lobby?.clientWidth + 1) out.push(`lobby needs horizontal scrolling (${lobby.scrollWidth} > ${lobby.clientWidth})`);
       for (const el of root.querySelectorAll('button, input, [role="button"]')) {
         const r = el.getBoundingClientRect();
         if (r.width < 2 || r.height < 2) continue;
@@ -102,8 +105,8 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
           const cs = getComputedStyle(a);
           if (/(auto|scroll)/.test(cs.overflowX + cs.overflowY)) { scroller = true; break; }
         }
-        if (scroller) continue;
-        if (r.right <= 0 || r.bottom <= 0 || r.left >= innerWidth || r.top >= innerHeight) continue;
+        if (scroller && !el.closest('.lobby-screen')) continue;
+        if (!el.closest('.lobby-screen') && (r.right <= 0 || r.bottom <= 0 || r.left >= innerWidth || r.top >= innerHeight)) continue;
         if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) {
           out.push(`clipped: ${el.className || el.tagName} ${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 12)} [${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}]`);
         }
@@ -296,6 +299,11 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
       await sleep(400);
       await page.screenshot({ path: path.join(OUT, `device-${dev}-lobby.png`) });
       assert.deepEqual(await layoutProblems(page), [], `${dev} lobby`);
+      await tapText('.lobby-announcements', '公告');
+      await page.waitForSelector('.announcement-board', { visible: true });
+      assert.equal(await page.$eval('.announcement-board', el => el.getAttribute('aria-label')), '大厅公告板');
+      await tapText('.announcement-board button', '关闭公告');
+      await page.waitForSelector('.announcement-board', { hidden: true });
       await tapText('.mode-card', '同盟模拟');
       await tapText('.create-box button', '创建同盟');
       await page.waitForSelector('.room-bar__right', { timeout: 15000 });

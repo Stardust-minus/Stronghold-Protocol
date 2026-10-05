@@ -38,6 +38,8 @@
 | `tools/prepare-static-release.mjs` | 离线准备/校验素材、字体、vendor、音频 alias 和逐文件 SHA-256 清单 |
 | `tools/openi-assets.py`、`OPENI.md` | 素材镜像上传/校验、无扩展名音频映射、签名缓存及无游戏重启的接入流程 |
 | `WORKERS.md` | Worker 边界、故障策略、回退、健康指标与本机性能样本 |
+| `MAIN-THREAD-PRIORITY.md`、`main-thread-priority.example.json` | 宿主机默认仅游戏MainThread nice=-20；固定镜像/源码白名单、验收与停用；入库不代表已安装 |
+| `tools/main-thread-priority.py`、`systemd/ark-main-thread-priority.service` | 普通调度reset-on-fork继承保护与Docker启动事件钩子；不改容器权限、Node入口或其他线程 |
 | `UPDATE-SOP.md` | 游戏、素材、字体、vendor 的配套更新、验收及回滚步骤 |
 
 ## 本地准备与测试
