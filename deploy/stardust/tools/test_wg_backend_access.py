@@ -174,6 +174,29 @@ class FakeNft:
             self.hook(self)
 
 
+def hgy_owned_echo(nft):
+    """Observed HGY closed mapping JSON; open CT-family omission is anticipated."""
+    for entry in nft.entries:
+        if 'rule' not in entry:
+            continue
+        rule = entry['rule']
+        if rule['chain'] not in ('backend_beta', 'backend_core'):
+            continue
+        profile = rule['chain'].removeprefix('backend_')
+        if rule['comment'].endswith(':mapping'):
+            rule['expr'] = [
+                {'match': {'op': '==', 'left': {'meta': {'key': 'l4proto'}}, 'right': 'tcp'}},
+                {'match': {'op': '==', 'left': {'ct': {'key': 'daddr', 'dir': 'original'}}, 'right': '10.253.77.2'}},
+                {'match': {'op': '==', 'left': {'ct': {'key': 'proto-dst', 'dir': 'original'}},
+                           'right': 3220 if profile == 'beta' else 3120}},
+                {'counter': {'packets': 0, 'bytes': 0}}, {'drop': None}]
+        elif rule['comment'].endswith((':request', ':reply')):
+            for expression in rule['expr']:
+                left = expression.get('match', {}).get('left', {})
+                if left.get('ct', {}).get('key') == 'daddr':
+                    left['ct'].pop('family', None)
+
+
 def accepts(owned_rules, packet):
     """Evaluate only the deliberately small generated matching grammar, not the kernel."""
     for rule in owned_rules:
@@ -576,6 +599,102 @@ class BackendTests(unittest.TestCase):
                 self.run_action('check')
             self.assertEqual(self.nft.batches, [])
             self.nft.entries = original
+
+    def test_hgy_closed_echo_fixture_guard_check_and_hash(self):
+        self.nft.hook = hgy_owned_echo
+        self.system.available = False
+        self.assertEqual(self.run_action('guard')['state'], 'closed')
+        mapping = self.own_rules()[-1]
+        self.assertEqual(mapping['expr'][0], {'match': {'op': '==', 'left': {'meta': {'key': 'l4proto'}}, 'right': 'tcp'}})
+        self.assertEqual(mapping['expr'][1], {'match': {'op': '==', 'left': {'ct': {'key': 'daddr', 'dir': 'original'}}, 'right': m.LOCAL}})
+        before = copy.deepcopy(self.nft.entries)
+        self.assertEqual(self.run_action('check')['state'], 'closed')
+        self.assertEqual(self.nft.entries, before)
+        self.assertEqual(self.store.value['nftHash'], m.digest(before))
+
+    def test_hgy_open_echo_fixture_keeps_both_profiles_and_exact_conditions(self):
+        self.nft.hook = hgy_owned_echo
+        self.open()
+        core = FakeSystem(config('core'))
+        self.run_action('guard', core)
+        self.run_action('open', core)
+        for profile, system in (('beta', self.system), ('core', core)):
+            self.assertEqual(self.run_action('check', system)['state'], 'open')
+            for rule in self.own_rules(profile)[:2]:
+                ct = next(expr['match']['left']['ct'] for expr in rule['expr']
+                          if expr.get('match', {}).get('left', {}).get('ct', {}).get('key') == 'daddr')
+                self.assertEqual(ct, {'key': 'daddr', 'dir': 'original'})
+            self.assertEqual(m.owned_comparable(self.own_rules(profile), self.store.value, profile),
+                             m.owned_comparable(m.rules(self.store.value, profile, True)['backend_' + profile], self.store.value, profile))
+        self.assertEqual(self.store.value['nftHash'], m.digest(self.nft.entries))
+
+    def test_hgy_echo_rejects_bad_ip_ipv6_notlocal_and_port_tuple(self):
+        self.nft.hook = hgy_owned_echo
+        self.open()
+        baseline, manifest = copy.deepcopy(self.nft.entries), copy.deepcopy(self.store.value)
+        changes = [('right', '10.253.77.3'), ('right', '172.30.240.10'), ('right', 'fd00::2'),
+                   ('right', '::ffff:10.253.77.2'), ('right', {'prefix': {'addr': m.LOCAL, 'len': 24}}),
+                   ('family', 'ip6'), ('family', 'ipv4'), ('dir', 'reply'), ('port', 3120),
+                   ('port', {'set': [3220, 3000]}), ('nfproto', 'ipv6')]
+        for field, bad in changes:
+            entries = copy.deepcopy(baseline)
+            mapping = next(item['rule'] for item in entries if 'rule' in item and item['rule']['comment'].endswith(':beta:mapping'))
+            address = mapping['expr'][1]['match']
+            if field == 'right':
+                address['right'] = bad
+            elif field in ('family', 'dir'):
+                address['left']['ct'][field] = bad
+            elif field == 'port':
+                mapping['expr'][2]['match']['right'] = bad
+            else:
+                mapping['expr'].insert(0, m.meta('nfproto', bad))
+            changed_manifest = {**manifest, 'nftHash': m.digest(entries)}
+            with self.subTest(field=field, bad=bad), self.assertRaises(m.Refused):
+                m.schema(changed_manifest, entries)
+
+    def test_hgy_echo_rejects_broader_or_missing_open_states(self):
+        self.nft.hook = hgy_owned_echo
+        self.open()
+        baseline, manifest = copy.deepcopy(self.nft.entries), copy.deepcopy(self.store.value)
+        for role, broad in (('request', {'set': ['new', 'established', 'related']}),
+                            ('reply', {'set': ['new', 'established']}), ('request', None), ('reply', None)):
+            entries = copy.deepcopy(baseline)
+            rule = next(item['rule'] for item in entries if 'rule' in item and item['rule']['comment'].endswith(':beta:' + role))
+            state = next(expr for expr in rule['expr'] if expr.get('match', {}).get('left') == {'ct': {'key': 'state'}})
+            if broad is None:
+                rule['expr'].remove(state)
+            else:
+                state['match']['right'] = broad
+            with self.subTest(role=role, broad=broad), self.assertRaises(m.Refused):
+                m.schema({**manifest, 'nftHash': m.digest(entries)}, entries)
+
+    def test_hgy_echo_generation_change_still_closes_own_only(self):
+        self.nft.hook = hgy_owned_echo
+        self.open()
+        core = FakeSystem(config('core'))
+        self.run_action('guard', core)
+        self.run_action('open', core)
+        self.system.generation = replace(self.system.generation, main_start=99)
+        with self.assertRaises(m.Refused):
+            self.run_action('check')
+        self.assertEqual(self.store.value['profiles']['beta']['state'], 'closed')
+        self.assertEqual(self.store.value['profiles']['core']['state'], 'open')
+        self.assertEqual(self.run_action('check', core)['state'], 'open')
+        m.schema(self.store.value, self.nft.entries)
+
+    def test_hgy_canonicalization_not_applied_to_native_or_unowned_rules(self):
+        self.nft.hook = hgy_owned_echo
+        self.run_action('guard')
+        manifest = copy.deepcopy(self.store.value)
+        mapping = copy.deepcopy(self.own_rules()[-1])
+        for change in ({'chain': 'guard'}, {'comment': mapping['comment'] + ':foreign'}):
+            unowned = {**mapping, **change}
+            self.assertEqual(m.owned_comparable([unowned], manifest, 'beta'), m.comparable([unowned]))
+        entries = copy.deepcopy(self.nft.entries)
+        native_icmp = next(item['rule'] for item in entries if 'rule' in item and item['rule']['comment'].endswith(':icmp'))
+        native_icmp['expr'].insert(0, m.meta('nfproto', 'ipv4'))
+        with self.assertRaises(m.Refused):
+            m.schema({**manifest, 'nftHash': m.digest(entries)}, entries)
 
     def test_tag_dynamic_but_table_suffix_fixed(self):
         m.validate_manifest(self.store.value)

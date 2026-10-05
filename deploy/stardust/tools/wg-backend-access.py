@@ -267,6 +267,28 @@ def comparable(value):
     return [comparable(item) for item in value] if isinstance(value, list) else value
 
 
+def owned_comparable(values, manifest, profile):
+    values = comparable(values)
+    port = 3220 if profile == 'beta' else 3120
+    address = original('daddr', LOCAL)
+    without_family = original('daddr', LOCAL)
+    del without_family['match']['left']['ct']['family']
+    destination_port = original('proto-dst', port)
+    for value in values:
+        if (value.get('chain') != 'backend_' + profile or value.get('comment') not in
+                {manifest['tag'] + ':backend:' + profile + ':' + role for role in ('request', 'reply', 'mapping')}):
+            continue
+        expressions = value.get('expr', [])
+        for index in range(len(expressions) - 1):
+            # Only this profile's exact IPv4 ORIGINAL tuple permits the kernel's
+            # omitted family/redundant nfproto representation; all other terms remain exact.
+            if expressions[index] in (address, without_family) and expressions[index + 1] == destination_port:
+                expressions[index] = original('daddr', LOCAL)
+                value['expr'] = [item for item in expressions if item != meta('nfproto', 'ipv4')]
+                break
+    return values
+
+
 def identity(manifest, entries):
     require(isinstance(entries, list) and len(entries) <= 128
             and all(isinstance(item, dict) and len(item) == 1 and isinstance(next(iter(item.values())), dict)
@@ -330,7 +352,12 @@ def schema(manifest, entries, check_hash=True):
                     == sorted(comparable(expected[name][:n]), key=lambda item: item['comment'])
                     and comparable(actual[name][n:]) == comparable(expected[name][n:]), 'owned jump precedence mismatch')
         else:
-            require(comparable(actual[name]) == comparable(expected[name]), 'owned rule schema mismatch')
+            profile = next((item for item in manifest.get('profiles', {}) if name == 'backend_' + item), None)
+            if profile is None:
+                require(comparable(actual[name]) == comparable(expected[name]), 'owned rule schema mismatch')
+            else:
+                require(owned_comparable(actual[name], manifest, profile) == owned_comparable(expected[name], manifest, profile),
+                        'owned rule schema mismatch')
     require(not check_hash or digest(entries) == manifest['nftHash'], 'owned table hash mismatch')
 
 
