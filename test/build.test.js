@@ -87,7 +87,14 @@ test('client-build exposes only a stable instance marker for its actual public d
   assert.notEqual((await get(second)).build, before.build);
   resetBuildTag();
   assert.deepEqual(await get(first), before, 'other starts and helper resets cannot move a running instance marker');
-  assert.equal((await get(first, '/healthz')).build, before.build);
+  const health = await get(first, '/healthz');
+  assert.equal(health.build, before.build);
+  assert.ok(health.performance, 'diagnostics belong only to the internal health response');
+  assert.deepEqual(await get(first), { build: before.build }, 'performance must never leak through client-build');
+  const head = await fetch(`${first.url}/client-build`, { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), '');
+  assert.equal(Number(head.headers.get('content-length')), Buffer.byteLength(JSON.stringify(before)));
 });
 
 test('buildTag: computed once per process — a file that changes afterwards does not move it until the next process', () => {

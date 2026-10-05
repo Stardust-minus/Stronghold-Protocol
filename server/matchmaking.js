@@ -180,13 +180,18 @@ export class Matchmaking {
     if (!offer || this.offers.get(offer.id) !== offer) return;
     this.offers.delete(offer.id);
     const removedParties = new Set([...removed].map((e) => e.party));
-    for (const party of removedParties) this.parties.delete(party.id);
+    // Only parties whose every human accepted THIS offer may continue automatically. Capture before
+    // clearing votes: allocation failures arrive fully accepted and must retain their tickets/rooms.
+    const unconfirmedParties = new Set(offer.entries.filter((e) => !e.accepted).map((e) => e.party));
+    for (const party of new Set([...removedParties, ...unconfirmedParties])) this.parties.delete(party.id);
     for (const e of offer.entries) {
       e.offerId = null;
       e.accepted = false;
       e.revivalVote = null;
-      if (removedParties.has(e.party)) { this.entries.delete(e.session.playerId); this.idle(e, reason); }
-      else {
+      if (removedParties.has(e.party) || unconfirmedParties.has(e.party)) {
+        this.entries.delete(e.session.playerId);
+        this.idle(e, removedParties.has(e.party) ? reason : 'unconfirmed');
+      } else {
         e.reason = reason === 'cancelled' ? 'peer_cancelled' : reason === 'disconnected' ? 'peer_disconnected' : reason;
         this.push(e);
       }

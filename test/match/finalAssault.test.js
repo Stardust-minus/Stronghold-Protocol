@@ -17,31 +17,39 @@ test('pairing by seat: (1,2), (3,4); an odd player alone', () => {
   assert.deepEqual(pairPlayers([p(3), p(1), p(0), p(2)]).map((g) => g.map((x) => x.seat)), [[0, 1], [2, 3]]);
 });
 
-test('boss pool = bloodPoint[difficulty] in co-op whatever the alive count (× alive / 4 only with aliveScaling; solo × 0.25) × tuning; shared and never negative', () => {
-  // research numbers (data/tuning.json left out); DESIGN §20.10: notice 5114's "敌方领袖的总生命值不变" is about the
-  // mirrored copies, the one note on player count (巴哈姆特 12294 "聯機隊友(撤退/死掉)變少，最後boss血條也會變少") has no
-  // proportion — config bossHpScale.aliveScaling (off) would apply × alive / 4
-  const { tuning, ...RAW } = DATA; // eslint-disable-line no-unused-vars
-  const gd = new GameData(RAW, 'mode_multi_hard');
-  for (const n of [4, 3, 2, 1, undefined, 9]) assert.equal(bossPoolHp(gd, 'boss_1', n), 1800000, `${n} alive`);
-  assert.equal(gd.bossPoolHp('boss_1', 2), bossPoolHp(gd, 'boss_1', 2), 'GameData agrees');
-  // the flip: config bossHpScale.aliveScaling true scales the pool by alive / 4
-  const scaled = new GameData({ ...RAW, config: { ...RAW.config, bossHpScale: { ...RAW.config.bossHpScale, aliveScaling: true },
-    modes: { ...RAW.config.modes, mode_multi_hard: { ...RAW.config.modes.mode_multi_hard, bossHpScale: { ...RAW.config.modes.mode_multi_hard.bossHpScale, aliveScaling: true } } } } }, 'mode_multi_hard');
-  assert.equal(bossPoolHp(scaled, 'boss_1', 4), 1800000);
-  assert.equal(bossPoolHp(scaled, 'boss_1', 3), 1350000);
-  assert.equal(bossPoolHp(scaled, 'boss_1', 2), 900000);
-  assert.equal(bossPoolHp(scaled, 'boss_1', 1), 450000);
-  assert.equal(bossPoolHp(scaled, 'boss_1'), 1800000, 'no count given: a full team');
-  assert.equal(bossPoolHp(scaled, 'boss_1', 9), 1800000, 'never above the data value');
-  assert.equal(bossPoolHp(new GameData(RAW, 'mode_single_abyss'), 'boss_5', 1), 750000);
-  assert.equal(bossPoolHp(new GameData(RAW, 'mode_single_funny'), 'boss_2', 1), 56250);
-  // the balance layer multiplies the pool (docs/BALANCE.md)
-  for (const modeId of ['mode_single_funny', 'mode_multi_hard']) {
-    const tuned = new GameData(DATA, modeId);
-    const raw = new GameData(RAW, modeId);
-    assert.equal(bossPoolHp(tuned, 'boss_2', 4), Math.max(1, Math.round(bossPoolHp(raw, 'boss_2', 4) * tuned.bossHpMul('boss_2'))));
+test('configured default co-op pool × alive / 4: missing / invalid count means full, counts above four are capped', () => {
+  const gd = new GameData(DATA, 'mode_multi_hard');
+  for (const n of [1, 2, 3, 4]) {
+    assert.equal(bossPoolHp(gd, 'boss_1', n), 1800000 * n / 4, `${n} alive`);
+    assert.equal(gd.bossPoolHp('boss_1', n), bossPoolHp(gd, 'boss_1', n), 'GameData agrees');
   }
+  for (const n of [undefined, null, 0, -1, NaN, Infinity, 9]) {
+    assert.equal(bossPoolHp(gd, 'boss_1', n), 1800000, `${n}: full pool compatibility`);
+  }
+  assert.equal(bossPoolHp(new GameData(DATA, 'mode_single_abyss'), 'boss_5', 1), 750000);
+  assert.equal(bossPoolHp(new GameData(DATA, 'mode_single_funny'), 'boss_2', 1), 56250);
+});
+
+test('explicit aliveScaling false compatibility and mode-over-global precedence', () => {
+  const modeId = 'mode_multi_hard';
+  const view = (global, mode) => new GameData({ ...DATA, config: { ...DATA.config,
+    bossHpScale: { ...DATA.config.bossHpScale, aliveScaling: global },
+    modes: { ...DATA.config.modes, [modeId]: { ...DATA.config.modes[modeId],
+      bossHpScale: { ...DATA.config.modes[modeId].bossHpScale, aliveScaling: mode } } },
+  } }, modeId);
+  for (const gd of [view(true, false), view(false, false), view(false, undefined)]) {
+    for (const n of [1, 2, 3, 4]) {
+      assert.equal(gd.bossPoolShare(n), 1);
+      assert.equal(bossPoolHp(gd, 'boss_1', n), 1800000, `${n} alive: explicit opt-out keeps full HP`);
+      assert.equal(gd.bossPoolHp('boss_1', n), 1800000);
+    }
+  }
+  for (const gd of [view(true, undefined), view(false, true)]) {
+    assert.equal(bossPoolHp(gd, 'boss_1', 2), 900000, 'global fallback / explicit mode true');
+  }
+});
+
+test('one shared boss pool credits only actual damage and never becomes negative', () => {
   const pool = new SharedBossPool(100);
   assert.equal(pool.damage('a', 60), 60);
   assert.equal(pool.damage('b', 60), 40);
@@ -64,6 +72,7 @@ for (const n of [1, 2, 3, 4]) {
     assert.deepEqual(fields.map((f) => f.fieldId), Math.ceil(n / 2) === 2 ? ['b1', 'b2'] : ['b1']);
     const pool = fields[0].sharedBoss;
     assert.ok(fields.every((f) => f.sharedBoss === pool), 'one pool for every boss field');
+    assert.equal(pool.maxHp, Math.round(DATA.bosses[m.bossId].bloodPoint.FUNNY * n / 4), 'configured default scales the new pool');
     assert.equal(pool.maxHp, bossPoolHp(m.gd, m.bossId, n));
     for (const f of fields) {
       assert.deepEqual(f.opts.rect, GEO.BOSS_RECT);
@@ -97,6 +106,101 @@ for (const n of [1, 2, 3, 4]) {
     m.dispose();
   });
 }
+
+test('Final Assault counts living AI participants, not room spectators or eliminated seats', (t) => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, bots: 1,
+    spectators: ['observer_0', 'observer_1', 'observer_2'], seed: 45, fake: true, instant: false });
+  const m = h.m; t.after(() => m.dispose());
+  h.start().toPrep(14);
+  h.ps('p_1').eliminate(13);
+  assert.equal(m.spectators.size, 3);
+  assert.deepEqual(m.alivePlayers().map((p) => p.playerId), ['p_0', 'ai_0']);
+  h.drive(() => m.phase === PHASE.FINAL_ASSAULT);
+  assert.equal(m.bossPool.maxHp, Math.round(DATA.bosses[m.bossId].bloodPoint.FUNNY / 2));
+  assert.deepEqual(m.fields.map((f) => f.players), [['p_0', 'ai_0']]);
+  checkInvariants(m);
+  assert.deepEqual(h.logs.error, []);
+});
+
+for (const rescued of [false, true]) {
+  test(`Final Assault samples after R13 revival settlement (${rescued ? 'rescued seat counts' : 'expired seat excluded'})`, (t) => {
+    const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 4, seed: 46, fake: true, instant: false,
+      script: (b) => b.kind === 'normal' && b.round === 13 ? { leaks: { p_0: 1 } }
+        : b.kind === 'unite' && b.round === 13 ? { survivors: { p_0: 1 } } : {} });
+    const m = h.m; t.after(() => m.dispose());
+    m.revivalEnabled = true; // the pregame rule is locked on for this fixture
+    h.start().toPrep(13);
+    const target = h.ps('p_0'); target.lp = 1;
+    h.drive(() => m.phase === PHASE.SETTLE && m.round === 13);
+    assert.equal(target.pendingDeath, true);
+    assert.equal(m.alivePlayers().length, 3);
+    assert.equal(m.bossPool, null, 'no boss HP sampled while the rescue window is open');
+    if (rescued) {
+      const donor = m.order.find((p) => m.revivalDonorEligible(p));
+      assert.ok(donor, 'a real leak-free unite helper may rescue');
+      assert.deepEqual(m.handle(donor.playerId, { t: 'g.revive', playerId: target.playerId,
+        matchId: m.battlePrefix, round: 13 }), { ok: true });
+      assert.equal(target.lp, 1);
+      assert.equal(target.revived, true);
+    }
+    h.drive(() => m.phase === PHASE.FINAL_ASSAULT);
+    const n = rescued ? 4 : 3;
+    assert.equal(target.pendingDeath, false, 'revival settlement finalized before the boss');
+    assert.equal(target.alive, rescued);
+    assert.equal(m.alivePlayers().length, n);
+    assert.equal(m.bossPool.maxHp, Math.round(DATA.bosses[m.bossId].bloodPoint.NORMAL * n / 4));
+    assert.equal(m.fields.flatMap((f) => f.players).includes(target.playerId), rescued);
+    checkInvariants(m);
+    assert.deepEqual(h.logs.error, []);
+  });
+}
+
+test('Hidden Core samples new living-seat count after the ordinary boss, not its earlier pool size', (t) => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 3, seed: 47, fake: true, instant: false,
+    script: (b) => b.kind === 'boss' ? { bossDps: 1e9 } : {} });
+  const m = h.m; t.after(() => m.dispose());
+  h.start().toPrep(14);
+  for (const p of m.order) { p.bondCountBonus.yanShip = 3; p.layers.yanShip = 401; p.recompute(); }
+  h.drive(() => m.phase === PHASE.FINAL_ASSAULT);
+  const ordinary = m.bossPool;
+  assert.equal(ordinary.maxHp, Math.round(DATA.bosses[m.bossId].bloodPoint.NORMAL * 3 / 4));
+  h.drive(() => m.phase === PHASE.PREP && m.round === 15);
+  assert.equal(m.bossPool, null, 'ordinary pool released before hidden prep');
+  m.onLeave('p_2');
+  const lp = m.teamLp;
+  h.drive(() => m.phase === PHASE.HIDDEN_CORE);
+  assert.equal(m.alivePlayers().length, 2);
+  assert.notEqual(m.bossPool, ordinary);
+  assert.equal(m.bossPool.maxHp, Math.round(DATA.bosses[m.hiddenBossId].bloodPoint.NORMAL / 2));
+  assert.equal(m.teamLp, lp, 'merged LP carries over; HP sampling is independent');
+  assert.deepEqual(m.fields.map((f) => f.players), [['p_0', 'p_1']]);
+  checkInvariants(m);
+  assert.deepEqual(h.logs.error, []);
+});
+
+test('a departure during Final Assault never dynamically resizes the current shared pool', (t) => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 4, seed: 48, fake: true, instant: false,
+    script: (b) => b.kind === 'boss' ? { bossDps: 1 } : {} });
+  const m = h.m; t.after(() => m.dispose());
+  h.start().toPrep(14);
+  h.drive(() => m.phase === PHASE.FINAL_ASSAULT);
+  const pool = m.bossPool, max = DATA.bosses[m.bossId].bloodPoint.FUNNY;
+  assert.equal(pool.maxHp, max);
+  h.sched.advance(1000);
+  const hp = pool.hp;
+  assert.ok(hp < max, 'current pool has already taken damage');
+  m.onLeave('p_3');
+  assert.equal(m.alivePlayers().length, 3);
+  assert.equal(m.bossPool, pool);
+  assert.equal(pool.maxHp, max);
+  assert.equal(pool.hp, hp, 'a departure itself removes no boss HP');
+  h.sched.advance(500);
+  assert.ok(pool.hp < hp, 'ongoing combat still damages the same pool');
+  assert.equal(pool.maxHp, max);
+  assert.ok(bossFields().every((f) => f.sharedBoss === pool));
+  checkInvariants(m);
+  assert.deepEqual(h.logs.error, []);
+});
 
 test('overtime: −1 team LP per REAL second after 150 real s (300 game s at 2×); team LP 0 ends every field → defeat (13 rounds passed)', () => {
   const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, seed: 50, fake: true, script: (b) => (b.kind === 'boss' ? { bossDps: 1 } : {}) }).start();

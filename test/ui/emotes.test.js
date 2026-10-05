@@ -446,8 +446,8 @@ describe('public/js/ui/emotes.js helpers', () => {
     } finally { console.warn = warn; }
   });
 
-  test('the art-manifest clock is not armed for other files; the default wait is ART_MANIFEST_TIMEOUT_MS', async () => {
-    const { createDataStore, ART_MANIFEST_TIMEOUT_MS } = await import('../../public/js/data.js');
+  test('art keeps its eight-second clock while core data gets a separate bounded deadline', async () => {
+    const { createDataStore, ART_MANIFEST_TIMEOUT_MS, CORE_DATA_TIMEOUT_MS } = await import('../../public/js/data.js');
     assert.equal(ART_MANIFEST_TIMEOUT_MS, 8000);
     const arms = [];
     let release;
@@ -468,7 +468,8 @@ describe('public/js/ui/emotes.js helpers', () => {
     try {
       const chess = store.load('chess');
       await new Promise((r) => setImmediate(r));
-      assert.deepEqual(arms, [], 'chess is not on the emote clock');
+      assert.equal(CORE_DATA_TIMEOUT_MS, 30000);
+      assert.deepEqual(arms, [CORE_DATA_TIMEOUT_MS], 'chess is not on the shorter emote clock');
       assert.equal(store.status('chess'), 'loading');
       release();
       await chess;

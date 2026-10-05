@@ -12,6 +12,7 @@ import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { startServer, parseRange, acceptsGzip, parseTrustProxy } from '../server/index.js';
+import { createHealthMetrics } from '../server/healthMetrics.js';
 import { loadData, lookup, getChess, getBond, getBand, getMode, getConfig, INDEXED_FILES } from '../server/data.js';
 import * as dataModule from '../server/data.js';
 import { CODE_ALPHABET, BOT_NAMES } from '../server/lobby.js';
@@ -365,6 +366,8 @@ describe('static http server', () => {
     const h = JSON.parse(health.body.toString());
     assert.equal(h.ok, true);
     assert.equal(typeof h.rooms, 'number');
+    assert.ok(['warming', 'ready'].includes(h.performance.status));
+    assert.ok('process' in h.performance && 'mainThread' in h.performance);
     assert.equal(health.headers['cache-control'], 'no-store');
   });
 
@@ -1758,6 +1761,130 @@ describe('per-network limits', () => {
 });
 
 // ---------------------------------------------------------------------------------------------------
+// Cached performance diagnostics: HTTP must not drive sampling or readiness.
+// ---------------------------------------------------------------------------------------------------
+
+describe('health performance lifecycle', () => {
+  test('GET/HEAD only read the same cache; the independent sampler alone resets and advances its window', async (t) => {
+    let tick, at = 1000, resets = 0, reads = 0, clears = 0, disables = 0;
+    const histogram = {
+      count: 1, max: 30e6, percentile: () => 20e6,
+      enable() {}, disable() { disables++; }, reset() { resets++; },
+    };
+    const srv = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 0, quiet: true,
+      healthMetricsFactory: (opts) => createHealthMetrics({ ...opts,
+        now: () => at, wallNow: () => 1_800_000_000_000 + at,
+        cpuUsage: () => { reads++; return { user: at * 2000, system: at * 500 }; },
+        eventLoopUtilization: () => { reads++; return { active: at * 0.25, idle: at * 0.75 }; },
+        memoryUsage: () => { reads++; return { rss: 10, heapUsed: 3, heapTotal: 6, external: 2, arrayBuffers: 1 }; },
+        createHistogram: () => histogram,
+        setInterval: (fn, ms) => { assert.equal(ms, 10_000); tick = fn; return { unref() {} }; },
+        clearInterval: () => { clears++; },
+      }),
+    });
+    t.after(() => srv.close());
+    const initialReads = reads;
+    const cold = JSON.parse((await httpReq(srv.port, '/healthz')).body);
+    assert.equal(cold.ok, true);
+    assert.equal(cold.performance.status, 'warming');
+    assert.equal(cold.performance.sampledAt, null);
+    assert.equal(cold.performance.process.cpu.percent, null);
+    for (const method of ['GET', 'HEAD', 'GET', 'HEAD']) {
+      const response = await httpReq(srv.port, '/healthz', { method });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers['cache-control'], 'no-store');
+      if (method === 'HEAD') assert.equal(response.body.length, 0);
+      else assert.deepEqual(JSON.parse(response.body).performance, cold.performance);
+    }
+    assert.equal(reads, initialReads);
+    assert.equal(resets, 0);
+    at += 13_000; tick();
+    const sampledReads = reads;
+    const warm = JSON.parse((await httpReq(srv.port, '/healthz')).body);
+    assert.equal(warm.performance.windowMs, 13_000);
+    assert.equal(warm.performance.process.cpu.percent, 250);
+    assert.equal(warm.performance.mainThread.eventLoopUtilization, 0.25);
+    for (const method of ['HEAD', 'GET', 'GET']) {
+      const response = await httpReq(srv.port, '/healthz', { method });
+      if (method === 'GET') assert.deepEqual(JSON.parse(response.body).performance, warm.performance);
+    }
+    assert.equal(reads, sampledReads);
+    assert.equal(resets, 1);
+    const shutdown = srv.close();
+    assert.equal(clears, 1, 'timer stopped at close entry, not after asynchronous shutdown');
+    assert.equal(disables, 1);
+    await Promise.all([shutdown, srv.close()]);
+    assert.equal(clears, 1); assert.equal(disables, 1);
+    tick();
+    assert.equal(reads, sampledReads, 'a late timer callback cannot sample after disposal');
+  });
+
+  test('failed startup/listen never invokes the collector factory', async (t) => {
+    const occupied = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 0, quiet: true });
+    t.after(() => occupied.close());
+    let created = 0;
+    const healthMetricsFactory = () => { created++; assert.fail('failed boot must not create metrics'); };
+    await assert.rejects(startServer({ port: occupied.port, host: '127.0.0.1', combatWorkers: 0,
+      quiet: true, healthMetricsFactory }), { code: 'EADDRINUSE' });
+    await assert.rejects(startServer({ port: 0, host: '127.0.0.1', combatWorkers: 0,
+      publicDir: 1, quiet: true, healthMetricsFactory }), { code: 'ERR_INVALID_ARG_TYPE' });
+    assert.equal(created, 0);
+  });
+
+  test('partially failed metric initialization releases resources and keeps inline health 200', async (t) => {
+    let disabled = 0, schedules = 0;
+    const warnings = [];
+    const srv = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 0,
+      log: { ...captureLog().log, warn: (message) => warnings.push(message) },
+      healthMetricsFactory: (opts) => createHealthMetrics({ ...opts,
+        createHistogram: () => ({ enable() { throw new Error('test histogram enable failed'); }, disable() { disabled++; } }),
+        setInterval: () => { schedules++; assert.fail('failed initialization must not start a timer'); },
+      }),
+    });
+    t.after(() => srv.close());
+    for (const method of ['GET', 'HEAD', 'GET']) {
+      const response = await httpReq(srv.port, '/healthz', { method });
+      assert.equal(response.status, 200);
+      if (method === 'GET') {
+        const health = JSON.parse(response.body);
+        assert.equal(health.ok, true);
+        assert.deepEqual(health.combat, { backend: 'inline', workers: 0 });
+        assert.equal(health.performance.status, 'unavailable');
+        assert.equal(health.performance.sampledAt, null);
+      }
+    }
+    assert.equal(warnings.length, 1);
+    assert.equal(disabled, 1); assert.equal(schedules, 0);
+    await Promise.all([srv.close(), srv.close()]);
+    assert.equal(disabled, 1);
+  });
+
+  test('a throwing metric factory/start degrades only diagnostics and cleans a returned partial collector', async (t) => {
+    for (const step of ['factory', 'start']) {
+      await t.test(step, async (t) => {
+        let disposed = 0;
+        const warnings = [];
+        const srv = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 0,
+          log: { ...captureLog().log, warn: (message) => warnings.push(message) },
+          healthMetricsFactory: () => {
+            if (step === 'factory') throw new Error('test factory failure');
+            return { start() { throw new Error('test start failure'); }, dispose() { disposed++; } };
+          },
+        });
+        t.after(() => srv.close());
+        const health = await httpReq(srv.port, '/healthz');
+        assert.equal(health.status, 200);
+        assert.equal(JSON.parse(health.body).performance.status, 'unavailable');
+        assert.equal(warnings.length, 1);
+        assert.equal(disposed, step === 'start' ? 1 : 0);
+        await Promise.all([srv.close(), srv.close()]);
+        assert.equal(disposed, step === 'start' ? 1 : 0);
+      });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
 // Heartbeat, hello timeout, shutdown
 // ---------------------------------------------------------------------------------------------------
 
@@ -1791,7 +1918,9 @@ describe('heartbeat and shutdown', () => {
     const w = await c.hello('Last');
     c.id = w.playerId;
     await createRoom(c);
-    await srv.close();
+    const shutdown = srv.close();
+    assert.equal(srv.healthMetrics.snapshot().status, 'stopped');
+    await Promise.all([shutdown, srv.close()]);
     const closed = await c.waitFor('room.closed');
     assert.equal(closed.reason, 'shutdown');
     const info = await c.closed;

@@ -4,6 +4,7 @@ import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
 import { html, Button, Icon, MicroLabel, useTicker } from './components.js';
 import { useStore, serverNow } from '../store.js';
 import { net } from '../net.js';
+import { queueCancellation } from '../queueCancellation.js';
 import { toastError } from './toasts.js';
 
 export const queueActive = (q) => q?.state === 'queued' || q?.state === 'offered';
@@ -21,6 +22,7 @@ const REASONS = {
   declined: '队友取消了确认，继续等待', peer_cancelled: '队友取消了确认，继续等待',
   peer_disconnected: '队友连接中断，继续等待', capacity: '房间容量暂满，请稍后重试',
   allocation_failed: '本次分配未完成，继续等待；原好友队伍保留',
+  unconfirmed: '你或同队成员未完成确认，已退出本次匹配；请重新开始匹配',
 };
 
 export function OnlinePlayers() {
@@ -38,11 +40,15 @@ export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = 
   const inFlight = useRef(false);
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
+  const cancellation = useStore((s) => s.ui.queueCancel);
+  const cancelling = cancellation?.ticketId === queue?.ticketId && ['sending', 'recovering', 'confirming'].includes(cancellation?.status);
+  const cancelFailed = cancellation?.ticketId === queue?.ticketId && cancellation?.status === 'failed';
   const active = queueActive(queue);
   const offered = queue?.state === 'offered';
   const seconds = queueTime(queue, serverNow());
   const act = async (kind, revivalVote) => {
-    if (!online || inFlight.current || !queue?.ticketId || (kind === 'accept' && (queue.accepted || seconds === 0))) return;
+    if (!online || inFlight.current || cancelling || !queue?.ticketId || (kind === 'accept' && (queue.accepted || seconds === 0))) return;
+    if (kind === 'cancel') { queueCancellation.cancel(queue.ticketId); return; }
     inFlight.current = true;
     setBusy(kind === 'accept' ? (revivalVote ? 'acceptYes' : 'acceptNo') : kind);
     try {
@@ -62,10 +68,11 @@ export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = 
     <h2>${offered ? '队友已集结' : active ? '正在寻找队友' : '寻找同盟博士'}</h2>
     <p>${DIFFICULTY_NAMES[queue?.difficulty || difficulty]} · 4 名真人 · 不自动补 AI${queue?.partySize > 1 ? ` · ${queue.partySize} 人小队整体匹配` : ''}</p>
     <div class="matchmaking__status" role="status">
-      ${!online ? '连接中断，重连后同步匹配状态' : offered
+      ${cancelling ? '正在确认取消，等待服务器同步…' : !online ? '连接中断，重连后同步匹配状态' : offered
         ? queue.accepted ? `你已确认，等待其他博士 · ${seconds} 秒` : `请在 ${seconds} 秒内确认入场`
         : active ? `已等待 ${Math.floor(seconds / 60)} 分 ${String(seconds % 60).padStart(2, '0')} 秒` : '按难度匹配，集齐后由每位博士确认'}
     </div>
+    ${cancelFailed && active ? html`<p class="matchmaking__reason" role="status">尚未确认取消，请恢复连接后重试；下方仍显示服务器最后确认的匹配状态。</p>` : null}
     ${queue?.reason && REASONS[queue.reason] ? html`<p class="matchmaking__reason">${REASONS[queue.reason]}</p>` : null}
     ${offered && Number.isInteger(queue.acceptedCount) ? html`<p>${queue.acceptedCount} / 4 位博士已确认</p>` : null}
     ${offered ? html`<div class="matchmaking__revival">
@@ -76,16 +83,16 @@ export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = 
     <div class="matchmaking__actions">
       ${active ? html`
         ${offered && !queue.accepted ? html`
-          <${Button} variant="primary" size="lg" disabled=${!online || !!busy || seconds === 0}
+          <${Button} variant="primary" size="lg" disabled=${!online || !!busy || cancelling || seconds === 0}
             loading=${busy === 'acceptYes'} onClick=${() => act('accept', true)}>开启复活并确认<//>
-          <${Button} variant="secondary" size="lg" disabled=${!online || !!busy || seconds === 0}
+          <${Button} variant="secondary" size="lg" disabled=${!online || !!busy || cancelling || seconds === 0}
             loading=${busy === 'acceptNo'} onClick=${() => act('accept', false)}>不开启复活并确认<//>
         ` : null}
-        <${Button} variant="secondary" size="lg" disabled=${!online || !!busy} loading=${busy === 'cancel'}
-          onClick=${() => act('cancel')}>${offered ? '退出本次匹配' : '取消匹配'}<//>
+        <${Button} variant="secondary" size="lg" disabled=${!online || !!busy || cancelling} loading=${cancelling}
+          onClick=${() => act('cancel')}>${cancelFailed ? '重试取消' : offered ? '退出本次匹配' : '取消匹配'}<//>
       ` : html`<${Button} variant="primary" size="lg" block=${true} icon="search" disabled=${!online || joining}
           loading=${joining} onClick=${onJoin}>开始多人匹配<//>`}
     </div>
-    <small>集齐后有 30 秒确认时间，选择复活规则即确认入场；全部确认后直接开局，无需房间内再次准备。最多等待 10 分钟，可随时取消。</small>
+    <small>集齐后有 30 秒确认时间，选择复活规则即确认入场；全部确认后直接开局，无需房间内再次准备。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。</small>
   </section>`;
 }

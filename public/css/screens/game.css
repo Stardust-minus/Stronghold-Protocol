@@ -19,7 +19,17 @@
 .gm__loading { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
 .gm__hud { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .gm__hud > * { pointer-events: auto; }
-.gload { align-items: center; justify-content: center; gap: .2rem; }
+.gload { align-items: center; justify-content: center; gap: 12px; overflow-y: auto; padding-block: 16px; font-size: 14px; }
+.gload__recovery { width: 560px; max-width: calc(100vw - 32px); max-height: calc(100vh - 128px); max-height: calc(100dvh - 128px); overflow-y: auto; padding: 16px; background: var(--bg-1); border: 1px solid var(--line); }
+.gload__recovery p { margin: 12px 0; color: var(--text-md); }
+.gload__recovery ul { margin: 12px 0; padding: 0; max-height: 20vh; overflow-y: auto; list-style: none; }
+.gload__recovery li { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; font-size: 12px; }
+.gload__recovery li span:first-child { overflow-wrap: anywhere; }
+.gload__recovery li span:last-child, .gload__recovery small { color: var(--text-lo); }
+.gload__recovery small { font-size: 12px; }
+.gload__actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.gload__actions .btn { min-height: 40px; padding-inline: 14px; font-size: 14px; }
+@media (pointer: coarse) { .gload__actions .btn { min-height: 44px; } }
 
 /* ---- top bar -------------------------------------------------------------------------------------- */
 .gtop {

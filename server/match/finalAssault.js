@@ -9,12 +9,12 @@
 //     LEFT, UP / DOWN unchanged (DESIGN §3, research 09 §1.2 ConvertChessPositionInfoToBossMap); board rows 9–12 →
 //     boss rows 2–5, sim/constants BOSS_ROW_OFFSET). `bossFieldPlacement` gives that mapping for UIs / tools.
 //   * Shared boss HP pool (DESIGN §20.10, GameData.bossPoolShare): one pool shared by every boss field (official tip
-//     "所有人将一起对敌方领袖造成伤害"); co-op = bloodPoint[difficulty] whatever the number of alive players (notice 5114's
-//     "敌方领袖的总生命值不变" is about the mirrored copies of a pair field sharing it, not about that number); config
-//     bossHpScale.aliveScaling true scales it × alive / 4 (巴哈姆特 12294 "聯機隊友(撤退/死掉)變少，最後boss血條也會變少" — one
-//     community note, no proportion; off until the user confirms it); solo = bloodPoint × config bossHpScale.solo (0.25,
-//     flagged unknown); × the tuning bossHpMul when data/tuning.json still has one (docs/BALANCE.md); bosses are never
-//     scaled by enemyScale.
+//     "所有人将一起对敌方领袖造成伤害"); co-op = bloodPoint[difficulty] × alive / 4 with the configured
+//     bossHpScale.aliveScaling default true (user-approved 2026-10-05, proportion [ASSUMED]). Sample living participant
+//     seats after revival settlement at each ordinary / hidden boss start: AI counts, spectators do not. The current
+//     pool never shrinks mid-fight; explicit mode-level false retains the full pool. Notice 5114's "敌方领袖的总生命值不变"
+//     describes the mirrored copies sharing a pool, not player count. Solo remains bloodPoint × bossHpScale.solo (0.25,
+//     flagged unknown); legacy tuning multipliers are ignored (docs/BALANCE.md); leader HP is never scaled by enemyScale.
 //   * Overtime: bossTurnHpReduceTime counts REAL seconds like the level's 120 s maxPlayTime (which runs out first; the
 //     battle goes on): from 150 real s (300 game s on the 2× field clock) the team loses bossOvertimeDrainPerSec (1) LP
 //     per real second (gamedata.js bossOvertimeDue); m.public.deadline = the 120 s countdown, m.public.overtimeAt = the

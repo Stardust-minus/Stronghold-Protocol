@@ -673,16 +673,19 @@ test('workers: listener startup failure closes the env-configured pool before re
   const original = CombatWorkerPool.prototype.start;
   const env = process.env.SP_COMBAT_WORKERS;
   const captured = [];
+  let metricsCreated = 0;
   // Capture both real pools; a failed listener must not strand either set of workers.
   CombatWorkerPool.prototype.start = function (...args) { captured.push(this); return original.apply(this, args); };
   process.env.SP_COMBAT_WORKERS = '2';
   try {
-    await assert.rejects(startServer({ port: occupied.port, host: '127.0.0.1', trialWorkers: 1, log: logs.log }), { code: 'EADDRINUSE' });
+    await assert.rejects(startServer({ port: occupied.port, host: '127.0.0.1', trialWorkers: 1, log: logs.log,
+      healthMetricsFactory: () => { metricsCreated++; assert.fail('failed listener cannot create metrics'); } }), { code: 'EADDRINUSE' });
   } finally {
     CombatWorkerPool.prototype.start = original;
     if (env === undefined) delete process.env.SP_COMBAT_WORKERS; else process.env.SP_COMBAT_WORKERS = env;
     for (const pool of captured) t.after(() => pool.close());
   }
+  assert.equal(metricsCreated, 0);
   assert.equal(captured.length, 2, 'both pools start before binding');
   assert.deepEqual(captured.map((pool) => [pool.role, pool.size]), [['combat', 2], ['trial', 1]]);
   for (const pool of captured) {
@@ -783,6 +786,7 @@ test('trial workers: server mode defaults to 6+1, supports 6+2, and trial failur
     assert.equal(health.combat.ready, 6);
     assert.equal(health.trial.ready, count ?? 1);
     assert.equal(health.trial.scope, 'bot-rehearsal');
+    assert.ok(['warming', 'ready'].includes(health.performance.status));
     assert.equal(srv.lobby.combatPool, srv.combatPool);
     assert.equal(srv.lobby.trialPool, srv.trialPool);
     assert.equal(srv.trialPool.role, 'trial');
@@ -794,7 +798,13 @@ test('trial workers: server mode defaults to 6+1, supports 6+2, and trial failur
     assert.equal(down.combat.ready, 6);
     assert.equal(down.trial.status, 'closed');
     assert.equal(down.trial.workers, 0);
+    assert.ok(['warming', 'ready'].includes(down.performance.status), 'trial closure does not stop diagnostics');
     assert.deepEqual(srv.combatPool.slots.map((slot) => slot.worker.threadId), threads);
+    const closeCombat = srv.combatPool.close.bind(srv.combatPool);
+    srv.combatPool.close = (...args) => {
+      assert.equal(srv.healthMetrics.snapshot().status, 'stopped', 'metrics are disposed before awaiting pool close');
+      return closeCombat(...args);
+    };
     await Promise.all([srv.close(), srv.close()]);
     assert.equal(srv.combatPool.stats().workers, 0);
     assert.equal(srv.trialPool.terminating.size, 0);
@@ -852,6 +862,7 @@ test('trial workers: failed trial startup closes only that pool and exposes inli
   assert.equal(health.combat.ready, 1);
   assert.equal(health.trial.backend, 'inline');
   assert.equal(health.trial.status, 'degraded');
+  assert.ok(['warming', 'ready'].includes(health.performance.status));
   assert.ok(warnings.some((message) => message.includes('rehearsal stays inline')));
 });
 
@@ -866,6 +877,19 @@ test('workers: health reports its streaming scope and becomes unavailable when t
   assert.equal(up.combat.backend, 'workers');
   assert.equal(up.combat.scope, 'server-streaming');
   assert.equal(up.combat.ready, 2);
+  assert.ok(['warming', 'ready'].includes(up.performance.status));
+  const stats = srv.combatPool.stats;
+  try {
+    for (const [status, ready, expected] of [['ready', 1, 200], ['ready', 0, 503], ['starting', 1, 503]]) {
+      srv.combatPool.stats = function () { return { ...stats.call(this), status, ready }; };
+      const response = await fetch(`${srv.url}/healthz`);
+      assert.equal(response.status, expected, 'readiness remains ready status AND at least one combat worker');
+      assert.equal((await response.json()).ok, expected === 200);
+      const head = await fetch(`${srv.url}/healthz`, { method: 'HEAD' });
+      assert.equal(head.status, expected);
+      assert.equal(await head.text(), '');
+    }
+  } finally { srv.combatPool.stats = stats; }
   // Closing before HTTP shutdown makes the unavailable state stable, rather than racing automatic replacement.
   await srv.combatPool.close();
   const unavailable = await fetch(`${srv.url}/healthz`);
@@ -876,7 +900,27 @@ test('workers: health reports its streaming scope and becomes unavailable when t
   assert.equal(down.combat.ready, 0);
   assert.equal(down.combat.workers, 0);
   assert.equal(down.combat.backend, 'workers', 'never claim a silent inline fallback');
+  assert.ok(['warming', 'ready'].includes(down.performance.status), 'combat readiness never controls diagnostics');
   assert.deepEqual(logs.errors, []);
+});
+
+test('workers: unavailable diagnostics never change ready combat health', { timeout: 10_000 }, async (t) => {
+  const warnings = [];
+  const srv = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 1, trialWorkers: 0,
+    log: { ...quiet, warn: (message) => warnings.push(message) },
+    healthMetricsFactory: () => { throw new Error('test metrics unavailable'); },
+  });
+  t.after(() => srv.close());
+  const response = await fetch(`${srv.url}/healthz`);
+  assert.equal(response.status, 200);
+  const health = await response.json();
+  assert.equal(health.ok, true);
+  assert.equal(health.combat.status, 'ready');
+  assert.equal(health.combat.ready, 1);
+  assert.equal(health.performance.status, 'unavailable');
+  assert.equal(health.performance.windowMs, null);
+  assert.equal(health.performance.process.cpu.percent, null);
+  assert.equal(warnings.length, 1);
 });
 
 test('workers: lobby defaults to 4096 rooms and enforces the boundary with lightweight sessions, not matches', () => {

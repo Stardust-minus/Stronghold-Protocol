@@ -108,6 +108,25 @@ git merge --no-ff upstream/master
 
 证书目前是手动 DNS-01，材料在仓库外，没有自动续期。不要将持有域名 A 记录或当次 TXT 当成自动续期方案。
 
+## 游戏 health 性能指标（本地实现，非上线记录）
+
+游戏 `/healthz` 新增独立 `performance` 缓存；原 `ok/combat/trial` 字段和 HTTP 判定不变：inline 返回健康，正式池仅要求 `status === 'ready' && ready > 0`，不要求全部6个ready。试算池降级、性能采集失败均不使健康接口变503。现有队列/active/cleanup/replacement等计数仍直接来自原池，不新增RPC或重复计数。
+
+采集器只在HTTP监听成功后启动，每10秒独立采样一次；GET/HEAD只读同一缓存，不触发采样或直方图reset。`sampledAt` 为Unix epoch毫秒，`windowMs` 是两次采样之间的实际单调时钟时长（定时器延迟时可大于10000），不使用墙钟差值或固定10秒计算CPU百分比。`status` 为 `warming`（冷窗口）、`ready`、`unavailable`（初始化/采样失败）或 `stopped`（实例关闭）；冷窗口全部测量值为null，空直方图的延迟分位数/max为null，不伪造0或输出哨兵/非有限数。
+
+| 字段（相对 `performance`） | 单位与口径 |
+|---|---|
+| `mainThread.eventLoopDelayMs.{p50,p95,p99,max}` | 主线程 `monitorEventLoopDelay` 窗口统计，纳秒换算毫秒，采样分辨率20ms；20ms附近的基线不是业务/WS网络延迟，也不是Worker循环延迟 |
+| `mainThread.eventLoopUtilization` | 主线程累计active/idle快照的窗口差值ratio，范围0–1；不是整个进程CPU占用 |
+| `process.cpu.{userMs,systemMs,totalMs}` | 进程累计CPU微秒快照的窗口差值换算毫秒，包含combat/trial/V8等线程 |
+| `process.cpu.percent` | `totalMs / windowMs * 100`，一个CPU核满载=100%，多线程允许超过100%；不按宿主核数归一化 |
+| `process.rssBytes` | 全进程RSS字节，不与各Worker RSS重复相加 |
+| `mainThread.memory.{heapUsedBytes,heapTotalBytes,externalBytes,arrayBuffersBytes}` | 调用 `process.memoryUsage()` 的主线程对应内存字节，不是所有Worker堆之和 |
+
+定时器unref只防止阻止进程退出；实例幂等close入口会先清timer、disable直方图，再等待Worker池关闭。采集部分初始化/采样失败会释放资源、一次性记录日志，并只标记指标unavailable，不影响游戏继续服务；不新增服务、端口、配置或依赖。
+
+访问保护仍依赖现有Nginx和loopback部署：公网 `/healthz` 保持404，内部健康子请求边界不变；原生游戏HTTP本身没有独立health鉴权，切勿直接公开游戏监听端口。`/client-build` 仍只返回build标识；presence不转发这些性能/内存/会话诊断。这里仅说明待发布代码的口径，不表示当前运行镜像已经包含这些指标，auth/assets接口与部署健康判定均不改。
+
 ## Worker 开发状态
 
 固定池已实现，`SP_COMBAT_WORKERS=0` 保留原后端，生产目标为 6 Worker；不引入 Redis，不改变前端协议。`maxRooms` 默认 4096。确定性、Boss 共享池、暂停在途回包、动态元数据重连、退出/取消、迟到消息、线程故障与关闭均有专门测试。详细范围、故障行为和容量限制见 [WORKERS.md](WORKERS.md)，实际线上启用状态仍须核对 release 记录及 `/healthz`。

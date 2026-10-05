@@ -68,11 +68,12 @@ import { PHASE, GEO } from '../../../shared/constants.js';
 import { fxForm } from '../../../shared/protocol.js';
 import { html, Spinner, PhaseBanner, Icon, Button, MicroLabel, confirmDialog, closeAllDialogs, useTicker } from '../ui/components.js';
 import { useGameData, GIcon } from '../ui/gameComponents.js';
+import { GameLoading, missingCoreData, gameScreenStage } from '../ui/gameLoading.js';
 import { useFieldView } from '../ui/fieldHost.js';
 import { TopBar, liveLp, ownLeaks, uniteRemaining, tempInfo, tempReadyReason } from '../ui/hud.js';
 import { BondStrip, BondPopup } from '../ui/bondStrip.js';
 import { TeamPanel } from '../ui/teamPanel.js';
-import { DamageBoard } from '../ui/damageBoard.js';
+import { DamageBoard, uniteDamageOwners } from '../ui/damageBoard.js';
 import { ShopBar } from '../ui/shopBar.js';
 import { DetailPanel, resolveDetail } from '../ui/detailPanel.js';
 import { RewardOverlay } from '../ui/rewardOverlay.js';
@@ -94,7 +95,7 @@ import { pauseAvailable, isPaused, frozenNow } from '../ui/matchStatus.js';
 import { pieceTile } from '../render/drag.js';
 import {
   phaseMode, phaseBanner, isCombatPhase, showDeadPill, isBossPhase, placementContext, canPlace, boardTargets, dropIntent,
-  snapHud, activeBubbles, shortcutFor, shortcutBlocked, closesOnFieldPress, phaseTotalSeconds, homeFieldId, ownFieldId, normalizeSp, sortedPlayers,
+  snapHud, activeBubbles, shortcutFor, shortcutBlocked, selectionShortcutAllowed, closesOnFieldPress, phaseTotalSeconds, homeFieldId, ownFieldId, normalizeSp, sortedPlayers,
   countdownState, shopBlockReason, stageOverrides, effectiveStage, watchTarget, dropFailureReason,
   previewEnemyKey, prepCamera, prepCameraFor, foldCamera, deployFieldOf, panelSide, panelSlots, bondPopupPlace, chessLoadout, unitLoadout,
   mergeTarget, modeOffBonds, readyFundsPrompt,
@@ -131,21 +132,16 @@ export function GameScreen() {
   const away = useStore((s) => s.away, Object.is, awayStore);
   const autoplay = useStore((s) => !!(Array.isArray(s.match.public?.players) && s.match.public.players.find((p) => p && p.playerId === s.me.playerId)?.autoplay));
   const gd = useGameData();
-  if (!pub || !gd.ready) {
-    return html`<div class="screen gload">
-      <${Spinner} size="lg" label=${pub ? 'LOADING DATA' : 'ENTERING SIMULATION'} />
-      <p class="t-lo">${pub ? '正在载入模拟数据…' : '正在进入模拟…'}</p>
-    </div>`;
-  }
-  const mode = phaseMode(pub.phase);
+  const mode = phaseMode(pub?.phase);
+  const stage = gameScreenStage({ hasResult, ended, mode, hasPublic: !!pub, ready: gd.ready, missing: missingCoreData() });
+  if (stage === 'result') return html`<${ResultScreen} />`;
+  if (stage === 'ended') return html`<${MatchEnded} />`;
+  if (stage === 'loading') return html`<${GameLoading} hasPublic=${!!pub} />`;
   let body;
-  if (hasResult || mode === 'result') body = html`<${ResultScreen} />`;
-  else if (mode === 'briefing') body = html`<${BriefingScreen} />`;
+  if (mode === 'briefing') body = html`<${BriefingScreen} />`;
   else if (mode === 'draft') body = html`<${BandDraftScreen} />`;
   else body = html`<${MatchScreen} />`;
-  return html`${body}
-    ${(away || autoplay) && !hasResult && mode !== 'result' && !ended ? html`<${AwayOverlay} />` : null}
-    ${ended && !hasResult && mode !== 'result' ? html`<${MatchEnded} />` : null}`;
+  return html`${body}${away || autoplay ? html`<${AwayOverlay} />` : null}`;
 }
 
 /** The room went back to its lobby without a result (match aborted): offer the way back. */
@@ -212,6 +208,7 @@ function MatchScreen() {
   const [facing, setFacing] = useState(null);            // direction step: { uid, piece, row, col, grid, name }
   const [sel, setSel] = useState(null);                  // tapped own piece: { uid }
   const [selBusy, setSelBusy] = useState(false);
+  const selectionPending = useRef(false);
   const [holdSeq, setHoldSeq] = useState(0);             // bumped when a held piece is released (re-apply the prep state)
   const [hud, setHud] = useState(null);
   const [banner, setBanner] = useState(null);
@@ -992,21 +989,26 @@ function MatchScreen() {
   const retreatSel = useCallback(async () => {
     const L = live.current;
     const uid = L.sel?.uid;
-    const to = uid != null ? retreatSlot(L.placeCtx, uid) : null;
+    if (!L.editable || L.drag || L.facing || selectionPending.current || !underframeActions(L.placeCtx, uid)?.retreat) return;
+    const to = retreatSlot(L.placeCtx, uid);
     if (!to) { toast('整备区已满', 'warn'); audio.sfx('error', { volume: 0.5 }); return; }
+    selectionPending.current = true;
     setSelBusy(true);
-    if (await actions.move(uid, to)) {
-      setSel(null);
-      setDetail((d) => (d?.kind === 'piece' && d.uid === uid ? null : d)); // its card would cover the bench
-    }
-    setSelBusy(false);
+    try {
+      if (await actions.move(uid, to)) {
+        setSel(null);
+        setDetail((d) => (d?.kind === 'piece' && d.uid === uid ? null : d)); // its card would cover the bench
+      }
+    } finally { selectionPending.current = false; setSelBusy(false); }
   }, []);
   const sellSel = useCallback(async () => {
-    const e = live.current.sel ? live.current.placeCtx.pieces.get(live.current.sel.uid) : null;
-    if (!e) return;
+    const L = live.current;
+    const e = L.sel ? L.placeCtx.pieces.get(L.sel.uid) : null;
+    const offered = underframeActions(L.placeCtx, L.sel?.uid);
+    if (!L.editable || L.drag || L.facing || selectionPending.current || !e || !(offered?.sell != null || offered?.destroy)) return;
+    selectionPending.current = true;
     setSelBusy(true);
-    await sellPiece(e.piece);
-    setSelBusy(false);
+    try { await sellPiece(e.piece); } finally { selectionPending.current = false; setSelBusy(false); }
   }, []);
 
   // unit clicks from the engine may only carry an id: resolve through m.field / spawn infos
@@ -1068,7 +1070,7 @@ function MatchScreen() {
       const act = shortcutFor(e);
       const L = live.current;
       // dialogs / the guide own the keyboard; behind the 本局信息 / 敌方情报 drawer only Esc (closing it) acts
-      if (shortcutBlocked(act, { modal: !!document.querySelector('.modal, .guide'), drawer: !!L.drawer })) return;
+      if (shortcutBlocked(act, { modal: !!document.querySelector('.modal, .guide, .awayov'), drawer: !!L.drawer })) return;
       if (act === 'escape') {
         if (L.emoteOpen) setEmoteOpen(false);
         else if (L.damageOpen) setDamageOpen(false);
@@ -1098,6 +1100,13 @@ function MatchScreen() {
         return;
       }
       if (!L.editable) return;
+      if (act === 'retreat' || act === 'sell') {
+        const entry = L.sel ? L.placeCtx.pieces.get(L.sel.uid) : null;
+        if (!selectionShortcutAllowed(act, { editable: L.editable, dragging: !!L.drag, facing: !!L.facing,
+          busy: selectionPending.current || L.emoteOpen || L.damageOpen, entry })) return;
+        if (act === 'retreat') await retreatSel(); else await sellSel();
+        return;
+      }
       const reason = shopBlockReason(act, { priv: L.priv, editable: L.editable });
       if (reason) { audio.sfx('error', { volume: 0.5 }); return; }
       if (act === 'refresh') actions.refresh();
@@ -1137,6 +1146,7 @@ function MatchScreen() {
   });
   const stripFid = strip.fieldId;
   const damage = useStore((s) => s.match.damage);
+  const uniteOwners = useMemo(() => uniteDamageOwners({ pub, fieldId: stripFid, field }), [pub, stripFid, field]);
   const liveLayers = (combat || settleMode) && battleState?.bondLayers ? battleState.bondLayers : null;
   // the observing pill names the player whose bonds the strip shows (the same teammate as the strip's "👁 name" tag)
   const observingName = cc && combat && watchedFid ? (!strip.self && stripFid === watchedFid ? strip.name : (players.find((p) => p.fieldId === watchedFid || ownFieldId(p.playerId) === watchedFid)?.name || '队友')) : null;
@@ -1275,7 +1285,7 @@ function MatchScreen() {
         <button type="button" class="gm__gear gm__guide" aria-label="玩法说明" title="玩法说明" onClick=${() => openGuide(0)}><${Icon} name="book" /></button>
         <${FullscreenButton} class="gm__gear gm__fs" />
         <${DamageBoard} snapshot=${damage} ownerId=${strip.ownerId} ownerName=${strip.name || players.find(p => p.playerId === strip.ownerId)?.name}
-          open=${damageOpen} onToggle=${(open) => { setDamageOpen(open); if (open) setEmoteOpen(false); }} />
+          uniteOwners=${uniteOwners} open=${damageOpen} onToggle=${(open) => { setDamageOpen(open); if (open) setEmoteOpen(false); }} />
       </div>
 
       ${drawer ? html`<${EnemyDrawer} tab=${drawer} onTab=${setDrawer} pub=${pub} priv=${priv} onClose=${() => setDrawer(null)}

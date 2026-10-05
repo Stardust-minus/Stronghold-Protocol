@@ -84,9 +84,10 @@ export const RETRY_DELAYS_MS = Object.freeze([600, 2000]);
 /**
  * How long one attempt at an emote manifest (`local`, `assets`) may hang before it counts as a failure.
  * [ASSUMED] 8 s: long enough for a slow link, short enough that the 交流 button does not stay blank for the session
- * (GitHub #99). Other files are not on this clock.
+ * (GitHub #99). Core files use their own, longer clock.
  */
 export const ART_MANIFEST_TIMEOUT_MS = 8000;
+export const CORE_DATA_TIMEOUT_MS = 30000;
 
 /** Manifests the emote button waits on. A hang here used to leave every cell blank (GitHub #99). */
 const ART_MANIFESTS = new Set(['local', 'assets']);
@@ -107,15 +108,15 @@ const transientFailure = (err) => {
  * user playtest #3 item 9); a transient failure is retried (RETRY_DELAYS_MS) while the file stays 'loading', so a
  * network hiccup does not leave the texts of a whole session missing. `local` and `assets` are reported `missing` on
  * the first failure or timeout (the emote glyph) and stay that way through a retry; a later success is `ready`.
- * @param {{ fetch?: typeof fetch, base?: string, retryDelays?: number[], wait?: (ms: number) => Promise<void>, timeoutMs?: number, setTimeout?: typeof setTimeout, clearTimeout?: typeof clearTimeout }} [opts]
- *   `timeoutMs` 0 turns the art-manifest clock off. `setTimeout` / `clearTimeout` let a test fire that clock.
+ * @param {{ fetch?: typeof fetch, base?: string, retryDelays?: number[], wait?: (ms: number) => Promise<void>, timeoutMs?: number, coreTimeoutMs?: number, setTimeout?: typeof setTimeout, clearTimeout?: typeof clearTimeout }} [opts]
+ *   `timeoutMs` / `coreTimeoutMs` 0 disables that clock. Timers and retry waits are injectable for tests.
  */
 export function createDataStore(opts = {}) {
   const base = opts.base ?? '/data/';
   const doFetch = opts.fetch || ((...a) => globalThis.fetch(...a));
   const retryDelays = Array.isArray(opts.retryDelays) ? opts.retryDelays : RETRY_DELAYS_MS;
-  const wait = opts.wait || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const timeoutMs = opts.timeoutMs === undefined ? ART_MANIFEST_TIMEOUT_MS : Number(opts.timeoutMs);
+  const coreTimeoutMs = opts.coreTimeoutMs === undefined ? CORE_DATA_TIMEOUT_MS : Number(opts.coreTimeoutMs);
   const armTimer = opts.setTimeout || ((fn, ms) => setTimeout(fn, ms));
   const disarmTimer = opts.clearTimeout || ((id) => clearTimeout(id));
   /** @type {Map<string, { status: 'loading'|'ready'|'missing', promise: Promise<any>, value: any, index: Map<string, any>|null }>} */
@@ -131,57 +132,68 @@ export function createDataStore(opts = {}) {
 
   const urlFor = (name) => base + (DATA_FILES[name] || `${name}.json`);
 
-  /**
-   * One attempt at a file. Art manifests reject with a transient `{ timeout: true }` when the clock fires; a response
-   * that arrives after that is ignored (the retry is a new request). [ASSUMED]
-   */
-  function readJson(name) {
-    const run = async () => {
-      const res = await doFetch(urlFor(name), { cache: 'no-cache' });
-      if (!res || !res.ok) throw Object.assign(new Error(`HTTP ${res ? res.status : '???'}`), { status: res ? res.status : null });
-      try {
-        return await res.json();
-      } catch (err) {
-        throw Object.assign(err instanceof Error ? err : new Error(String(err)), { badJson: true });
-      }
-    };
-    if (!ART_MANIFESTS.has(name) || !(timeoutMs > 0)) return run();
-    let timer = null;
-    let done = false;
-    const finish = () => {
-      if (done) return false;
+  /** Each attempt's deadline covers both headers and the response body; a stale request can never win a retry. */
+  function readJson(name, entry) {
+    const controller = new AbortController();
+    const ms = ART_MANIFESTS.has(name) ? timeoutMs : coreTimeoutMs;
+    let timer = null, done = false, rejectWait;
+    const interrupted = new Promise((_, reject) => { rejectWait = reject; });
+    const stop = (error) => {
+      if (done) return;
       done = true;
       if (timer != null) disarmTimer(timer);
-      return true;
+      rejectWait(error);
+      controller.abort();
     };
-    const timed = new Promise((_, reject) => {
-      timer = armTimer(() => {
-        if (!finish()) return;
-        reject(Object.assign(new Error('timeout'), { timeout: true }));
-      }, timeoutMs);
+    const cancel = () => stop(Object.assign(new Error('superseded'), { cancelled: true }));
+    entry.cancel = cancel;
+    if (Number.isFinite(ms) && ms > 0) timer = armTimer(() => stop(Object.assign(new Error('timeout'), { timeout: true })), ms);
+    const run = async () => {
+      const res = await doFetch(urlFor(name), { cache: 'no-cache', signal: controller.signal });
+      if (!res || !res.ok) throw Object.assign(new Error(`HTTP ${res ? res.status : '???'}`), { status: res ? res.status : null });
+      try { return await res.json(); } catch (err) {
+        // A truncated/aborted body is a transport failure, not evidence of invalid JSON.
+        if (err instanceof SyntaxError) throw Object.assign(err, { badJson: true });
+        throw err;
+      }
+    };
+    // The race also bounds a fetch shim that ignores abort; both late success and rejection are consumed.
+    return Promise.race([run(), interrupted]).finally(() => {
+      done = true;
+      if (timer != null) disarmTimer(timer);
+      if (entry.cancel === cancel) entry.cancel = null;
     });
-    const req = run().then(
-      (json) => { finish(); return json; },
-      (err) => { finish(); throw err; },
-    );
-    return Promise.race([req, timed]);
+  }
+
+  function retryWait(entry, ms) {
+    let timer = null, cancel;
+    const waiting = new Promise((resolve) => {
+      cancel = () => { if (timer != null) disarmTimer(timer); resolve(false); };
+      entry.cancel = cancel;
+      if (opts.wait) Promise.resolve().then(() => opts.wait(ms)).then(() => resolve(true), () => resolve(false));
+      else timer = armTimer(() => resolve(true), ms);
+    });
+    return waiting.finally(() => { if (entry.cancel === cancel) entry.cancel = null; });
   }
 
   function load(name) {
     if (typeof name !== 'string' || !/^[A-Za-z0-9_-]+$/.test(name)) return Promise.resolve(null);
     const cur = entries.get(name);
     if (cur) return cur.promise;
-    const entry = { status: 'loading', promise: null, value: null, index: null };
+    const entry = { status: 'loading', promise: null, value: null, index: null, cancel: null };
     const art = ART_MANIFESTS.has(name);
     entry.promise = (async () => {
       let toldMissing = false;
       for (let attempt = 0; ; attempt++) {
         try {
-          entry.value = await readJson(name);
+          const value = await readJson(name, entry);
+          if (entries.get(name) !== entry) break;
+          entry.value = value;
           entry.status = 'ready';
           break;
         } catch (err) {
           const current = entries.get(name) === entry;
+          if (!current || err?.cancelled) break;
           // Decided before notify. Invalidating inside that notify leaves `again` true; the wait then sees
           // the superseded entry and stops, so this attempt does not fetch again.
           const again = transientFailure(err) && attempt < retryDelays.length && current;
@@ -194,8 +206,10 @@ export function createDataStore(opts = {}) {
             notify(name);
           }
           if (again) {
-            await wait(retryDelays[attempt]);
-            if (entries.get(name) === entry) continue;
+            if (entries.get(name) !== entry) break; // a missing-manifest listener may already have invalidated it
+            const resume = await retryWait(entry, retryDelays[attempt]);
+            if (resume && entries.get(name) === entry) continue;
+            if (entries.get(name) === entry) entry.status = 'missing';
             break;
           }
           if (current) {
@@ -244,8 +258,10 @@ export function createDataStore(opts = {}) {
     list: (name) => [...(index(name)?.values() ?? [])],
     /** Drop a cached file and refetch it now (subscribers are notified when it settles). */
     invalidate(name) {
-      if (!entries.has(name)) return Promise.resolve(null);
+      const old = entries.get(name);
+      if (!old) return Promise.resolve(null);
       entries.delete(name);
+      old.cancel?.();
       warned.delete(name);
       const p = load(name);
       notify(name); // status is 'loading' again, never a stuck 'idle'

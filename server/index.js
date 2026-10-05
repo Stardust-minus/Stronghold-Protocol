@@ -45,6 +45,7 @@ import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
 import { CombatWorkerPool } from './match/combat/pool.js';
+import { createHealthMetrics, PERFORMANCE_UNAVAILABLE } from './healthMetrics.js';
 
 /** Repository root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -621,6 +622,7 @@ function makeLogger(quiet) {
  *   port?: number, host?: string, quiet?: boolean, log?: object,
  *   publicDir?: string, dataDir?: string, sharedDir?: string,
  *   MatchClass?: Function, seedFn?: () => number, combatWorkers?: number, trialWorkers?: number,
+ *   healthMetricsFactory?: typeof createHealthMetrics,
  *   lobbyGraceMs?: number, reconnectWindowMs?: number, heartbeatMs?: number, helloTimeoutMs?: number,
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
@@ -676,7 +678,7 @@ export async function startServer(opts = {}) {
   for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs', 'matchmaking']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
-  let lobby, network, serveStatic, browserBuild;
+  let lobby, network, serveStatic, browserBuild, healthMetrics;
   const startedAt = Date.now();
   try {
     lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, trialPool, options: lobbyOptions });
@@ -720,6 +722,7 @@ export async function startServer(opts = {}) {
         build: browserBuild,
         sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
         maxRooms: lobby.opts.maxRooms, combat, trial,
+        performance: healthMetrics?.snapshot() ?? PERFORMANCE_UNAVAILABLE,
       });
       return;
     }
@@ -777,6 +780,16 @@ export async function startServer(opts = {}) {
   }
   server.on('error', (e) => log.error('[http] server error', e));
 
+  // Never create a histogram/timer for a failed boot or listener. Metrics are diagnostic, not readiness.
+  try {
+    healthMetrics = (opts.healthMetricsFactory ?? createHealthMetrics)({ log });
+    healthMetrics.start();
+  } catch (e) {
+    try { healthMetrics?.dispose(); } catch { /* diagnostic only */ }
+    healthMetrics = null;
+    try { log.warn?.(`[health] performance metrics unavailable: ${e.message}`); } catch { /* diagnostic only */ }
+  }
+
   const addr = server.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
   const url = `http://${host === '0.0.0.0' || host === '::' ? 'localhost' : host}:${actualPort}`;
@@ -785,6 +798,10 @@ export async function startServer(opts = {}) {
   async function close() {
     if (closing) return closing;
     closing = (async () => {
+      // Stop diagnostics synchronously at close entry, before awaiting either Worker pool.
+      try { healthMetrics?.dispose(); } catch (e) {
+        try { log.warn?.('[health] performance disposal failed', e); } catch { /* diagnostic only */ }
+      }
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       network.close();
       await closePools();
@@ -798,7 +815,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, trialPool, close };
+  return { port: actualPort, host, url, server, wss, lobby, network, registry, combatPool, trialPool, healthMetrics, close };
 }
 
 // ---------------------------------------------------------------------------------------------------

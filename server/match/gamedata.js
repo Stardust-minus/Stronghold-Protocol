@@ -110,9 +110,10 @@ export class GameData {
    * Official shared leader HP pool (DESIGN §20.10): ONE pool for every boss field of the match (official tip "最终攻势中，
    * 所有人将一起对敌方领袖造成伤害"; the mirrored copies of a pair field share it — notice 5114 "两侧的敌方领袖共享生命值
    * （敌方领袖的总生命值不变）", which is about those copies, not about the number of players). Co-op = bloodPoint
-   * [difficulty]; with config bossHpScale.aliveScaling (default false) × alive / aliveFull (4) — 巴哈姆特 12294 "聯機隊友
-   * (撤退/死掉)變少，最後boss血條也會變少" is one community note without a proportion, kept off until confirmed (it would
-   * shorten fights after eliminations, the opposite of the playtest report); `aliveCount` omitted ⇒ a full team. Solo = bloodPoint ×
+   * [difficulty] × alive / aliveFull (4) with the configured bossHpScale.aliveScaling default true (user-approved
+   * 2026-10-05; the proportion remains [ASSUMED]). Count living participant seats including AI, never spectators, at
+   * each Final Assault / Hidden Core start, after revival settlement; the pool stays fixed during that fight. An
+   * explicit mode-level false keeps the full pool; `aliveCount` omitted ⇒ a full team. Solo = bloodPoint ×
    * bossHpScale.solo (0.25 = one player of four, [ASSUMED]). Leaders are never scaled by enemyScale ("领袖单位于服务器的
    * 生命值加成不受上述加成影响").
    * @param {string} bossId

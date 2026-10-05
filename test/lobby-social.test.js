@@ -191,11 +191,12 @@ test('cancel racing the fourth acceptance never allocates the cancelled cohort',
   h.lobby.queue.cancel(players[0], states[0]);
   assert.equal(h.lobby.queue.accept(players[3], states[3]).error, ERR.BAD_TARGET);
   assert.equal(h.lobby.rooms.size, 0);
-  assert.equal(h.lobby.queue.size, 3);
+  assert.equal(h.lobby.queue.size, 2);
+  assert.equal(h.lobby.queue.state(players[3]).state, 'idle');
+  assert.equal(players[3].messages.at(-1).reason, 'unconfirmed');
   assert.equal(h.lobby.queue.state(players[1]).joinedAt, states[1].joinedAt);
   assert.equal(h.lobby.queue.state(players[1]).reason, 'peer_cancelled');
-  const replacement = h.player();
-  h.lobby.queue.join(replacement, { difficulty: 'NORMAL' });
+  for (let i = 0; i < 2; i++) h.lobby.queue.join(h.player(), { difficulty: 'NORMAL' });
   const next = h.lobby.queue.state(players[1]);
   assert.notEqual(next.offerId, states[1].offerId);
   assert.equal(next.accepted, false);
@@ -203,6 +204,7 @@ test('cancel racing the fourth acceptance never allocates the cancelled cohort',
 
 test('disconnect removes ticket immediately and excludes it from the next offer', (t) => {
   const h = harness(t), players = h.group(), states = h.offer(players);
+  h.accept(players.slice(1), states.slice(1));
   h.disconnect(players[0]);
   assert.equal(h.lobby.queue.size, 3);
   assert.equal(h.lobby.queue.state(players[0]).state, 'idle');
@@ -210,6 +212,73 @@ test('disconnect removes ticket immediately and excludes it from the next offer'
   h.lobby.onHello(players[0], { resumed: true, repeat: false });
   assert.equal(h.lobby.queue.state(players[0]).state, 'idle');
   assert.equal(h.lobby.queue.accept(players[0], states[0]).error, ERR.BAD_TARGET);
+});
+
+for (const trigger of ['cancelled', 'disconnected', 'unavailable']) test(`early offer ${trigger} never requeues unconfirmed solo survivors`, (t) => {
+  const h = harness(t), players = h.group(), offers = h.offer(players);
+  const original = { ...h.lobby.queue.entries.get(players[0].playerId) };
+  assert.deepEqual(h.lobby.queue.accept(players[0], offers[0]), { ok: true });
+  if (trigger === 'cancelled') h.lobby.queue.cancel(players[1], offers[1]);
+  else if (trigger === 'disconnected') h.disconnect(players[1]);
+  else { players[1].matchmakingVersion = null; h.lobby.queue.sync(players[1]); }
+  assert.equal(h.lobby.queue.size, 1);
+  assert.equal(h.lobby.queue.offers.size, 0);
+  const survivor = h.lobby.queue.entries.get(players[0].playerId);
+  for (const key of ['ticketId', 'sequence', 'joinedAt', 'expiresAt']) assert.equal(survivor[key], original[key]);
+  assert.equal(survivor.accepted, false); assert.equal(survivor.revivalVote, null);
+  for (const p of players.slice(2)) {
+    assert.equal(h.lobby.queue.state(p).state, 'idle');
+    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'unconfirmed');
+    assert.equal(h.lobby.queue.accept(p, offers[players.indexOf(p)]).error, ERR.BAD_TARGET);
+  }
+  const replacements = h.group().slice(0, 3);
+  for (const p of replacements) h.lobby.queue.join(p, { difficulty: 'NORMAL' });
+  assert.equal(h.lobby.queue.size, 4);
+  assert.equal(h.lobby.queue.offers.size, 1);
+  assert.ok([players[0], ...replacements].every((p) => h.lobby.queue.state(p).state === 'offered'));
+  assert.ok(players.slice(1).every((p) => !h.lobby.queue.has(p)));
+});
+
+for (const trigger of ['cancelled', 'disconnected', 'unavailable']) test(`early offer ${trigger} drops a partially confirmed party intact and preserves its room`, (t) => {
+  const h = harness(t), party = h.group().slice(0, 2), solos = h.group().slice(0, 2);
+  const room = h.privateRoom(party);
+  h.lobby.queue.join(party[0], { difficulty: 'NORMAL', party: true });
+  for (const p of solos) h.lobby.queue.join(p, { difficulty: 'NORMAL' });
+  const players = [...party, ...solos], offers = players.map((p) => ({ ...h.lobby.queue.state(p), revivalVote: false }));
+  h.lobby.queue.accept(party[0], offers[0]);
+  h.lobby.queue.accept(solos[0], offers[2]);
+  const original = { ...h.lobby.queue.entries.get(solos[0].playerId) };
+  if (trigger === 'cancelled') h.lobby.queue.cancel(solos[1], offers[3]);
+  else if (trigger === 'disconnected') h.disconnect(solos[1]);
+  else { solos[1].matchmakingVersion = null; h.lobby.queue.sync(solos[1]); }
+  assert.equal(h.lobby.queue.size, 1);
+  assert.equal(h.lobby.queue.parties.size, 1);
+  assert.equal(h.lobby.queue.offers.size, 0);
+  for (const p of party) {
+    assert.equal(h.lobby.queue.state(p).state, 'idle');
+    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'unconfirmed');
+    assert.equal(h.lobby.roomOf(p), room);
+    assert.equal(h.lobby.queue.accept(p, offers[players.indexOf(p)]).error, ERR.BAD_TARGET);
+  }
+  assert.equal(room.disposed, false); assert.equal(room.match, null);
+  assert.equal(room.activeHumans().length, 2); assert.equal(h.lobby.roomQueued(room), false);
+  const survivor = h.lobby.queue.entries.get(solos[0].playerId);
+  for (const key of ['ticketId', 'sequence', 'joinedAt', 'expiresAt']) assert.equal(survivor[key], original[key]);
+  assert.equal(survivor.accepted, false); assert.equal(survivor.revivalVote, null);
+});
+
+test('default thirty-second offer timeout exits every unconfirmed human without automatic rematching', (t) => {
+  const h = harness(t), players = h.group(); h.offer(players);
+  h.advance(29_999); h.lobby.queue.sweep();
+  assert.equal(h.lobby.queue.size, 4);
+  assert.ok(players.every((p) => h.lobby.queue.state(p).state === 'offered'));
+  h.advance(1); h.lobby.queue.sweep();
+  assert.equal(h.lobby.queue.size, 0); assert.equal(h.lobby.queue.offers.size, 0);
+  assert.ok(players.every((p) => h.lobby.queue.state(p).state === 'idle'
+    && p.messages.at(-1).reason === 'confirmation_timeout'));
+  for (const p of h.group().slice(0, 3)) h.lobby.queue.join(p, { difficulty: 'NORMAL' });
+  assert.equal(h.lobby.queue.offers.size, 0);
+  assert.ok(players.every((p) => !h.lobby.queue.has(p)));
 });
 
 test('offer deadline drops unconfirmed players; accepted survivors retain FIFO and queue expires', (t) => {
@@ -393,7 +462,8 @@ test('global presence broadcasts are coalesced independently of initial hello re
 
 test('network or compatibility change cancels the old ticket instead of moving its frozen group', (t) => {
   const h = harness(t), players = h.group(['A', 'B', 'C', 'D']);
-  h.offer(players);
+  const offers = h.offer(players);
+  h.accept(players.slice(1), offers.slice(1));
   players[0].limitKey = 'E';
   h.lobby.onHello(players[0], { resumed: true, repeat: false });
   assert.equal(h.lobby.queue.state(players[0]).state, 'idle');
@@ -486,7 +556,7 @@ test('friend coop still needs manual readiness/start and uses only room votes', 
 
 test('cancel/replacement requires all four fresh votes while preserving survivors FIFO and TTL', (t) => {
   const h = harness(t), players = h.group(), offers = h.offer(players);
-  for (let i = 0; i < 3; i++) h.lobby.queue.accept(players[i], { ...offers[i], revivalVote: true });
+  for (let i = 1; i < 4; i++) h.lobby.queue.accept(players[i], { ...offers[i], revivalVote: true });
   const old = players.slice(1).map((p) => ({ ...h.lobby.queue.entries.get(p.playerId) }));
   h.advance(50);
   h.lobby.queue.cancel(players[0], offers[0]);
@@ -659,7 +729,7 @@ for (const reason of ['cancelled', 'disconnected']) test(`party ${reason} remove
   h.advance(10);
   h.lobby.queue.join(b[0], { difficulty: 'NORMAL', party: true });
   const old = b.map((p) => ({ ...h.lobby.queue.entries.get(p.playerId) }));
-  for (const p of [...a, ...b].slice(0, 3)) h.lobby.queue.accept(p, { ...h.lobby.queue.state(p), revivalVote: true });
+  for (const p of [a[0], ...b]) h.lobby.queue.accept(p, { ...h.lobby.queue.state(p), revivalVote: true });
   const oldOffer = { ...h.lobby.queue.state(b[1]), revivalVote: true };
   if (reason === 'cancelled') h.lobby.queue.cancel(a[1], h.lobby.queue.state(a[1])); else h.disconnect(a[1]);
   assert.equal(h.lobby.queue.size, 2);
@@ -1170,7 +1240,7 @@ test('kicking an offered participant cancels its whole party before removal and 
   const h = harness(t), players = h.group(), rooms = [h.privateRoom(players.slice(0, 2)), h.privateRoom(players.slice(2))];
   for (const at of [0, 2]) h.lobby.queue.join(players[at], { difficulty: 'NORMAL', party: true });
   const offers = players.map((p) => ({ ...h.lobby.queue.state(p), revivalVote: true }));
-  for (let i = 0; i < 3; i++) h.lobby.queue.accept(players[i], offers[i]);
+  for (const i of [0, 2, 3]) h.lobby.queue.accept(players[i], offers[i]);
   assert.deepEqual(h.lobby.kick(players[0], { seat: 1, playerId: players[1].playerId }), { ok: true });
   assert.equal(players[1].roomCode, null);
   assert.equal(rooms[0].seatOf(players[1].playerId), null);
