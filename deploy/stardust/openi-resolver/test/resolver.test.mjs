@@ -110,6 +110,30 @@ test('manifest is strict, deduplicates aliases, and only allows public asset/med
   }
 });
 
+test('immutable byte reuse requires an exact bounded explicit mirror allowlist', async t => {
+  const next = 'v013-hangzhou-test';
+  const values = [entry('/assets/a.png'), entry('/assets/audio/new.mp3', `releases/${next}/media/new`, 'audio/mpeg')];
+  const input = { ...manifest(values), mirrorReleases: [MIRROR, next] };
+  const config = validateManifest(input);
+  assert.equal(config.files.size, 2);
+  input.mirrorReleases.push('changed-after-validation');
+  assert.deepEqual(config.mirrorReleases, [MIRROR, next]);
+  for (const mirrorReleases of [null, [], [MIRROR], [MIRROR, MIRROR], [MIRROR, '../bad'],
+    [MIRROR, next, 'third'], [MIRROR, 'not-used'], [MIRROR, 'https://evil.test']]) {
+    assert.throws(() => validateManifest({ ...manifest(values), mirrorReleases }), { message: 'CONFIG' });
+  }
+  assert.throws(() => validateManifest(manifest(values)), { message: 'CONFIG' });
+  const calls = [];
+  const { resolver } = make(t, { config: { ...manifest(values), mirrorReleases: [MIRROR, next] },
+    fetchImpl: async target => {
+      const fileName = new URL(target).searchParams.get('file_name');
+      calls.push(fileName);
+      return response(signed(manifest(values), fileName));
+    } });
+  for (const e of values) assert.equal((await resolver.resolve(e.requestPath)).location, signed(manifest(values), e.fileName));
+  assert.deepEqual(calls, values.map(e => e.fileName));
+});
+
 test('a cached exact capability is reused, with no client query or headers in the public API call', async t => {
   const config = manifest();
   const calls = [];

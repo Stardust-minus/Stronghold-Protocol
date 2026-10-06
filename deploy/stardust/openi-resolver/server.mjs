@@ -50,7 +50,12 @@ export function requestPath(target) {
 }
 
 export function validateManifest(manifest) {
-  keys(manifest, ['schemaVersion', 'release', 'dataset', 'apiOrigin', 'ossOrigin', 'ossPathPrefix', 'fallbackBase', 'entries']);
+  const reuse = !!manifest && Object.hasOwn(manifest, 'mirrorReleases');
+  keys(manifest, ['schemaVersion', 'release', 'dataset', 'apiOrigin', 'ossOrigin', 'ossPathPrefix', 'fallbackBase', 'entries',
+    ...(reuse ? ['mirrorReleases'] : [])]);
+  const approved = reuse ? manifest.mirrorReleases : null;
+  if (reuse && (!Array.isArray(approved) || approved.length < 1 || approved.length > 2 ||
+    approved.some(id => typeof id !== 'string' || !ID.test(id)) || new Set(approved).size !== approved.length)) fail('CONFIG');
   if (manifest.schemaVersion !== 1 || typeof manifest.release !== 'string' || !ID.test(manifest.release) ||
     manifest.dataset !== DATASET || manifest.apiOrigin !== API_ORIGIN || manifest.ossOrigin !== OSS_ORIGIN ||
     manifest.fallbackBase !== `${FALLBACK_ORIGIN}/releases/${manifest.release}` ||
@@ -60,6 +65,7 @@ export function validateManifest(manifest) {
     manifest.entries.length === 0 || manifest.entries.length > 50000) fail('CONFIG');
   const entries = new Map(), files = new Map();
   let mirror;
+  const used = new Set();
   for (const entry of manifest.entries) {
     keys(entry, ['requestPath', 'fileName', 'bytes', 'sha256', 'mime']);
     if (!publicPath(entry.requestPath) || !safeRelative(entry.fileName) ||
@@ -71,15 +77,17 @@ export function validateManifest(manifest) {
       (namespace === 'assets' && !publicPath('/assets/' + rest.join('/'))) ||
       (namespace === 'media' && (!entry.mime.startsWith('audio/') || EXTENSIONS.has(rest.at(-1).split('.').at(-1)))) ||
       (entry.requestPath.startsWith('/media/') && (namespace !== 'media' || !entry.mime.startsWith('audio/'))) ||
-      (mirror && mirror !== release)) fail('CONFIG');
+      (reuse ? !approved.includes(release) : mirror && mirror !== release)) fail('CONFIG');
     mirror = release;
+    used.add(release);
     const existing = files.get(entry.fileName);
     if (existing && ['bytes', 'sha256', 'mime'].some(key => existing[key] !== entry[key])) fail('CONFIG');
     const copy = Object.freeze({ ...entry });
     entries.set(copy.requestPath, copy);
     files.set(copy.fileName, copy);
   }
-  return Object.freeze({ ...manifest, entries, files });
+  if (reuse && (used.size !== approved.length || approved.some(id => !used.has(id)))) fail('CONFIG');
+  return Object.freeze({ ...manifest, ...(reuse ? { mirrorReleases: Object.freeze([...approved]) } : {}), entries, files });
 }
 
 // Preserve the exact signed URL bytes; parsing is only for validation, never reserialization.
