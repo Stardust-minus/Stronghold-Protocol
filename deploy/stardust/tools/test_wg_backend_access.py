@@ -793,8 +793,8 @@ class BackendTests(unittest.TestCase):
         from contextlib import contextmanager
         locks = []
         @contextmanager
-        def lock(path):
-            locks.append(path)
+        def lock(path, *, timeout=0):
+            locks.append((path, timeout))
             yield
         for profile in ('beta', 'core'):
             system = FakeSystem(config(profile))
@@ -803,7 +803,7 @@ class BackendTests(unittest.TestCase):
                  patch.object(m, 'Nft', return_value=self.nft), patch.object(m, 'Store', return_value=self.store), \
                  patch.object(p, 'runtime_lock', lock), patch.object(m.signal, 'signal'), redirect_stdout(io.StringIO()):
                 self.assertEqual(m.main(), 0)
-        self.assertEqual(locks, [m.LOCK, m.LOCK])
+        self.assertEqual(locks, [(m.LOCK, m.LOCK_TIMEOUT)] * 2)
 
     def test_signal_after_atomic_open_closes_lease(self):
         self.run_action()

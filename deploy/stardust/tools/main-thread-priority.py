@@ -442,16 +442,26 @@ class Helper:
 
 
 @contextmanager
-def runtime_lock(path=LOCK):
+def runtime_lock(path=LOCK, *, timeout=0):
+    if type(timeout) not in (int, float) or not 0 <= timeout <= 30 or not math.isfinite(timeout):
+        raise Refused('invalid runtime lock timeout')
     fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
         info = os.fstat(fd)
         if info.st_uid != 0 or not stat.S_ISREG(info.st_mode) or info.st_mode & 0o022:
             raise Refused('unsafe runtime lock')
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise Refused('another policy writer is active') from None
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                remaining = deadline - time.monotonic()
+                if timeout == 0 or remaining <= 0:
+                    raise Refused('another policy writer is active') from None
+                time.sleep(min(0.05, remaining))
+                if time.monotonic() >= deadline:
+                    raise Refused('another policy writer is active') from None
         yield
     finally:
         os.close(fd)

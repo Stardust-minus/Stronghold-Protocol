@@ -21,6 +21,7 @@ SPEC.loader.exec_module(priority)
 Refused = priority.Refused
 MANIFEST = '/etc/ark-wg-test/manifest.json'
 LOCK = '/run/ark-wg-backend-access.lock'  # Both profiles share this one root-owned flock.
+LOCK_TIMEOUT = 15  # Serialize legitimate Beta/core writers; never wait indefinitely.
 IFACE, PEER, LOCAL = 'ark-wg-test', '10.253.77.1', '10.253.77.2'
 FIXED = {'beta': ('172.30.240.10', '172.30.240.0/24'), 'core': ('172.30.241.10', '172.30.241.0/24')}
 TAG = re.compile(r'ark-wg-test-[0-9]{8}-[0-9a-f]{8}')
@@ -445,7 +446,7 @@ def main():
     try:
         require(os.geteuid() == 0, 'host root required')
         config = load_config(args.config, args.profile)
-        with priority.runtime_lock(LOCK):
+        with priority.runtime_lock(LOCK, timeout=LOCK_TIMEOUT):
             result = Helper(System(config), Nft(), Store()).run(args.action)
         priority.emit('backend-' + args.action, **result)
         return 0

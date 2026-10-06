@@ -7,6 +7,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stdout
 from dataclasses import replace
@@ -514,6 +515,107 @@ class PolicyTests(unittest.TestCase):
                     pass
             with m.runtime_lock(path):
                 pass
+
+    def test_waiting_lock_serializes_independent_beta_core_writers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'shared-wg.lock'
+            entered, attempting, release = threading.Event(), threading.Event(), threading.Event()
+            events, failures = [], []
+            original_flock = m.fcntl.flock
+            def flock(fd, operation):
+                try:
+                    return original_flock(fd, operation)
+                except BlockingIOError:
+                    attempting.set()
+                    raise
+            def writer(profile):
+                try:
+                    with m.runtime_lock(path, timeout=2):
+                        events.append(('enter', profile))
+                        if profile == 'beta':
+                            entered.set()
+                            if not release.wait(2):
+                                raise AssertionError('fixture release timed out')
+                        events.append(('leave', profile))
+                except BaseException as error:
+                    failures.append(error)
+            beta = threading.Thread(target=writer, args=('beta',))
+            core = threading.Thread(target=writer, args=('core',))
+            patcher = patch.object(m.fcntl, 'flock', side_effect=flock)
+            patcher.start()
+            beta.start()
+            try:
+                self.assertTrue(entered.wait(2))
+                core.start()
+                self.assertTrue(attempting.wait(2))
+                self.assertEqual(events, [('enter', 'beta')])
+            finally:
+                release.set()
+                beta.join(3)
+                if core.ident is not None:
+                    core.join(3)
+                patcher.stop()
+            self.assertFalse(beta.is_alive() or core.is_alive())
+            self.assertEqual(failures, [])
+            self.assertEqual(events, [('enter', 'beta'), ('leave', 'beta'), ('enter', 'core'), ('leave', 'core')])
+
+    def test_waiting_lock_timeout_is_bounded_without_busy_loop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'lock'
+            now = [0]
+            def advance(seconds):
+                now[0] += seconds
+            with m.runtime_lock(path), patch.object(m.time, 'monotonic', side_effect=lambda: now[0]), \
+                 patch.object(m.time, 'sleep', side_effect=advance) as sleep, self.assertRaises(m.Refused):
+                with m.runtime_lock(path, timeout=.2):
+                    self.fail('contending writer must not acquire the lock')
+            self.assertEqual(sleep.call_count, 4)
+            self.assertTrue(all(0 < call.args[0] <= .05 for call in sleep.call_args_list))
+            self.assertAlmostEqual(sum(call.args[0] for call in sleep.call_args_list), .2)
+            with m.runtime_lock(path):
+                pass
+
+    def test_waiting_lock_stop_propagates_and_closes_only_waiter_fd(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'lock'
+            with m.runtime_lock(path), patch.object(m.time, 'sleep', side_effect=m.Stopped()), \
+                 patch.object(m.os, 'close', wraps=os.close) as close, self.assertRaises(m.Stopped):
+                with m.runtime_lock(path, timeout=1):
+                    self.fail('interrupted writer must not acquire the lock')
+            close.assert_called_once()
+            with m.runtime_lock(path):
+                pass
+
+    def test_runtime_lock_rejects_invalid_wait_before_open(self):
+        for timeout in (-1, 31, 10 ** 1000, float('nan'), float('inf'), True, None, '1'):
+            with self.subTest(timeout=timeout), patch.object(m.os, 'open') as opened, self.assertRaises(m.Refused):
+                with m.runtime_lock(timeout=timeout):
+                    pass
+            opened.assert_not_called()
+
+    def test_waiting_lock_retains_regular_root_owned_nonwritable_no_symlink_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'lock'
+            path.write_bytes(b'')
+            path.chmod(0o666)
+            with self.assertRaises(m.Refused):
+                with m.runtime_lock(path, timeout=1):
+                    pass
+            path.chmod(0o600)
+            link = Path(directory) / 'link'
+            link.symlink_to(path)
+            with self.assertRaises(OSError):
+                with m.runtime_lock(link, timeout=1):
+                    pass
+            fifo = Path(directory) / 'fifo'
+            os.mkfifo(fifo)
+            with self.assertRaises(m.Refused):
+                with m.runtime_lock(fifo, timeout=1):
+                    pass
+            with patch.object(m.os, 'fstat', return_value=type('Stat', (), {'st_uid': 1000, 'st_mode': 0o100600})()), \
+                 self.assertRaises(m.Refused):
+                with m.runtime_lock(path, timeout=1):
+                    pass
 
     def test_systemd_is_host_nice_zero_and_no_container_permission_changes(self):
         root = Path(__file__).parents[1]

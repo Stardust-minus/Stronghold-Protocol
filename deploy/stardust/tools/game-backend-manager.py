@@ -46,7 +46,7 @@ def compose(config, action):
 
 
 def gate(config, action):
-    with priority.runtime_lock(access.LOCK):
+    with priority.runtime_lock(access.LOCK, timeout=access.LOCK_TIMEOUT):
         return access.Helper(access.System(config), access.Nft(), access.Store()).run(action)
 
 
@@ -92,15 +92,18 @@ def main():
         raise priority.Stopped()
     for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(number, interrupted)
-    config = None
+    config, owns_lifecycle = None, False
     try:
         access.require(os.geteuid() == 0, 'host root required')
         config = access.load_config(args.config, args.profile)
+        if args.action == 'check':
+            # A live manager holds the lifecycle lock; checks need only the shared WG lock.
+            gate(config, 'check')
+            return 0
         # A lifecycle lock prevents two root managers from changing one backend at once.
         with priority.runtime_lock('/run/ark-game-' + args.profile + '-lifecycle.lock'):
-            if args.action == 'check':
-                gate(config, 'check')
-            elif args.action == 'stop':
+            owns_lifecycle = True
+            if args.action == 'stop':
                 stop(config)
             else:
                 started = start(config)
@@ -112,12 +115,12 @@ def main():
         return 0
     except priority.Stopped:
         # Completed priority policy stays; only the owned WG lease is closed when this manager exits.
-        if config is not None:
+        if config is not None and (owns_lifecycle or args.action == 'check'):
             try: gate(config, 'close')
             except (Refused, OSError, ValueError): pass
         return 0
     except (Refused, OSError, ValueError, KeyError, subprocess.TimeoutExpired):
-        if config is not None:
+        if config is not None and (owns_lifecycle or args.action == 'check'):
             try: gate(config, 'close')
             except (Refused, OSError, ValueError): pass
         priority.emit('refused', reason='fixed backend lifecycle refused; no command output disclosed')

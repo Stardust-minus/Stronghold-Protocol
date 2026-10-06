@@ -69,14 +69,17 @@ class Harness:
     def __init__(self, c):
         self.config, self.info = c, metadata(c)
         self.image = {'id': IMAGE, 'revision': REV, 'source': p.SOURCE}
-        self.events, self.commands, self.active_locks = [], [], []
+        self.events, self.commands, self.active_locks, self.lock_timeouts = [], [], [], []
         self.inspected_name_exists, self.fail_check, self.fail_close = False, False, False
         self.lease_open = False
         self.nice, self.reset_on_fork = 0, False
 
     @contextmanager
-    def lock(self, path):
+    def lock(self, path, *, timeout=0):
         self.events.append(('lock', path))
+        self.lock_timeouts.append((path, timeout))
+        if path in self.active_locks:
+            raise p.Refused('fixture lock already held')
         self.active_locks.append(path)
         try:
             yield
@@ -181,6 +184,8 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(semantic, [('gate', 'guard'), ('compose', 'start'), ('priority', 'ark-proto-beta'),
                                     ('gate', 'open'), ('lease', CID)])
         self.assertIn(('lock', p.BETA_LOCK), self.harness.events)
+        self.assertTrue(all(timeout == (m.access.LOCK_TIMEOUT if path == m.access.LOCK else 0)
+                            for path, timeout in self.harness.lock_timeouts))
         self.assertEqual(self.harness.events[0], ('lock', '/run/ark-game-beta-lifecycle.lock'))
         self.assertEqual(self.harness.events[-1], ('unlock', '/run/ark-game-beta-lifecycle.lock'))
         self.assertTrue(self.harness.lease_open)
@@ -191,7 +196,8 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(tuple(map(str, m.paths('core'))),
                          ('/opt/ark-proto', '/opt/ark-proto/compose.core-game.yaml', '/opt/ark-proto/runtime.env'))
         self.assertEqual(self.cli('check', 'core')[0], 0)
-        self.assertIn(('lock', '/run/ark-game-core-lifecycle.lock'), self.harness.events)
+        self.assertNotIn(('lock', '/run/ark-game-core-lifecycle.lock'), self.harness.events)
+        self.assertIn((m.access.LOCK, m.access.LOCK_TIMEOUT), self.harness.lock_timeouts)
         with patch.object(m.os, 'geteuid', return_value=1000):
             result, _output, load = self.cli('start')
             self.assertEqual(result, 1)
@@ -206,6 +212,61 @@ class ManagerTests(unittest.TestCase):
                  patch('sys.stderr', new=io.StringIO()), self.assertRaises(SystemExit) as error:
                 m.main()
             self.assertEqual(error.exception.code, 2)
+
+    def test_check_with_active_lifecycle_owner_only_takes_shared_wg_lock(self):
+        self.harness.lease_open = True
+        path = '/run/ark-game-beta-lifecycle.lock'
+        with self.harness.lock(path):
+            before = len(self.harness.events)
+            self.assertEqual(self.cli('check')[0], 0)
+            events = self.harness.events[before:]
+            self.assertNotIn(('lock', path), events)
+            self.assertEqual([event for event in events if event[0] == 'gate'], [('gate', 'check')])
+            self.assertIn(path, self.harness.active_locks)
+            self.assertTrue(self.harness.lease_open)
+        self.assertEqual(self.harness.lock_timeouts[-1], (m.access.LOCK, m.access.LOCK_TIMEOUT))
+
+    def test_lifecycle_collision_never_closes_existing_managers_lease(self):
+        path = '/run/ark-game-beta-lifecycle.lock'
+        for action in ('start', 'stop', 'serve'):
+            self.harness.lease_open = True
+            self.harness.nice, self.harness.reset_on_fork = -20, True
+            with self.subTest(action=action), self.harness.lock(path):
+                before = len(self.harness.events)
+                result, output, _loader = self.cli(action)
+                self.assertEqual(result, 1)
+                self.assertIn('refused', output)
+                self.assertTrue(self.harness.lease_open)
+                self.assertEqual((self.harness.nice, self.harness.reset_on_fork), (-20, True))
+                self.assertFalse(any(event[0] in ('gate', 'compose', 'priority', 'stop-cid')
+                                     for event in self.harness.events[before:]))
+
+    def test_stop_signal_before_lifecycle_ownership_preserves_live_lease(self):
+        self.harness.lease_open = True
+        @contextmanager
+        def interrupted_lock(_path, **_kwargs):
+            raise p.Stopped()
+            yield
+        with patch.object(p, 'runtime_lock', interrupted_lock):
+            self.assertEqual(self.cli('serve')[0], 0)
+        self.assertTrue(self.harness.lease_open)
+        self.assertEqual(self.harness.events, [])
+
+    def test_shared_lock_timeout_keeps_failed_check_fail_closed(self):
+        self.harness.lease_open = True
+        attempts = []
+        @contextmanager
+        def timed_out_once(path, *, timeout=0):
+            attempts.append((path, timeout))
+            if len(attempts) == 1:
+                raise p.Refused('fixture bounded shared-lock timeout')
+            with self.harness.lock(path, timeout=timeout):
+                yield
+        with patch.object(p, 'runtime_lock', timed_out_once):
+            self.assertEqual(self.cli('check')[0], 1)
+        self.assertEqual(attempts, [(m.access.LOCK, m.access.LOCK_TIMEOUT)] * 2)
+        self.assertFalse(self.harness.lease_open)
+        self.assertEqual([event for event in self.harness.events if event[0] == 'gate'], [('gate', 'close')])
 
     def test_start_refuses_foreign_fixed_name_before_compose_or_policy(self):
         self.harness.inspected_name_exists = True
