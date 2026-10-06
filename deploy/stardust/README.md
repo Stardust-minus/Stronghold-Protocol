@@ -12,13 +12,23 @@
 - 15:00 +08 已按明确授权将 Worker 从 4 调到 6，镜像/资源未变；见 [运行配置记录](releases/v012-workers-20261004-workers6.json)。
 - 实际激活状态以两机 release 记录为准。checkout、合并与推送不自动授权部署；须完成同一 commit 的本地验收并取得上线授权，才能协调切换游戏与静态路由。
 
-## 独立 Beta 准备（不替换正式服）
+## 最新活动状态：正式素材 60/40（2026-10-06）
+
+正式公开 `/assets/`、`/media/` 普通 GET 已于 **17:12:58 +08** 激活 **ModelScope 60% / OpenI 40% / 宁夏 0%**，**17:19:54 +08** 完成验收。按请求随机选择，短缓存可复用同一跳转，不是逐十次严格配额。宁夏仍承担 HEAD、原 OpenI 故障回退，以及 fonts/vendor/PRTS 正文；Beta 分流不变。公开范围没有扩大到业务代码、data、认证或 WS。
+
+本次仅宿主 Nginx/Lua 与平滑 reload；游戏、auth、resolver、OpenResty 容器均未重建。正式 game 仍为 `7e019ee36a2423393221cbba37bf60e40be35536` / image `10c94333` / CID `8715f3a3`，杭州单正式 backend、12 combat + 2 trial；Beta 为独立 C1 `1f742992` / image `14ad2e07` / CID `dd114e05`，12+2。嘉兴保留 edge auth186、resolver063及 OpenResty，不能将旧单机三服务说明当作当前计算部署。
+
+完整源站职责、immutable revision、缓存/CORS、隔离测试、证据口径及不重启回退见 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)；活动记录见 [素材分流记录](releases/v013-material-lb-20261006-modelscope60-openi40.json)。ModelScope 全量库存 LFS SHA/size 已验证，但未逐对象重下载正文；实际 Chrome 完成匿名素材哈希、音频解码与 Spine 渲染，**不代表本批重新验收密码登录或玩法**。后续 Git 文档提交不改变运行 game/sourceHash；推送不是下一次切换授权。
+
+下面的旧准备/单机架构说明保留作历史与模板参考，当前活动声明以最新 release 及实时配置为准；完成的一次性脚本不得重跑。
+
+## 历史：独立 Beta 准备（不替换正式服）
 
 杭州/Beta的候选规范见 [BETA-SOP.md](BETA-SOP.md)。新增Beta game/edge Compose、Beta-only vhost与私有JS/CSS落盘工具，独立房间、队列、Cookie签名及门禁Origin。`prod` 优先级profile保持嘉兴6+1/单loopback；`beta` 为12+2/3220双绑定；`core`仅未来杭州正式迁移候选12+2/3120双绑定。准备/测试/推送不意味着Beta或正式已激活；以实际验收记录为准。
 
 正式服务仍维持下述单backend架构。Beta是用户明确要求的长期独立验收环境，不恢复rolling/drain或按版本分流。
 
-## 当前部署：一个项目、三个服务
+## 历史简单单机部署：一个项目、三个服务（2026-10-04）
 
 2026-10-04 用户取消平滑更新后，普通入口恢复 `/`，Nginx 直接到单个游戏 3120；门禁 3141、OpenI 素材解析器 3130。固定容器名 `ark-proto` / `ark-proto-auth` / `ark-proto-assets`，同一个 Compose project `ark-proto`，不运行网关、备用游戏或蓝绿素材槽位。`runtime.env.example` 只是现有镜像坐标基线，不证明本地新修改已上线。
 
@@ -42,7 +52,10 @@
 | `static/` | 宁夏公开静态源 Nginx 与 Supervisor 配置，10 workers；CORS `*`，无凭据 |
 | `tools/prepare-auth-assets.mjs` | 从本仓库 lockfile 对应依赖和已安装字体准备 PRTS 的忽略文件 |
 | `tools/prepare-static-release.mjs` | 离线准备/校验素材、字体、vendor、音频 alias 和逐文件 SHA-256 清单 |
-| `tools/openi-assets.py`、`OPENI.md` | 素材镜像上传/校验、无扩展名音频映射、签名缓存及无游戏重启的接入流程 |
+| `tools/openi-assets.py`、`OPENI.md` | OpenI 镜像上传/校验、无扩展名音频映射、签名缓存及同版本回退；旧单源状态标为历史 |
+| `MATERIAL-SOURCES.md`、`releases/v013-material-lb-20261006-modelscope60-openi40.json` | 当前正式 ModelScope60/OpenI40 分流、固定 revision、证据口径与回退边界 |
+| `material-lb/access.lua`、`material-lb/header.lua` | 当前 C1/60:40 宿主 OpenResty profile 模板；不是容器新实现或通用 provider 开关 |
+| `tools/prepare-material-lb.py`、`tools/test-prepare-material-lb.py` | 离线生成/验证当前 profile 与本地测试；无上传、激活、远端操作 |
 | `WORKERS.md` | Worker 边界、故障策略、回退、健康指标与本机性能样本 |
 | `MAIN-THREAD-PRIORITY.md`、`main-thread-priority.example.json` | 宿主机默认仅游戏MainThread nice=-20；固定镜像/源码白名单、验收与停用；入库不代表已安装 |
 | `tools/main-thread-priority.py`、`systemd/ark-main-thread-priority.service` | 普通调度reset-on-fork继承保护与Docker启动事件钩子；不改容器权限、Node入口或其他线程 |
@@ -110,7 +123,7 @@ git merge --no-ff upstream/master
 
 ## 安全与公开范围
 
-禁止提交：真实密码、会话 Cookie、scrypt verifier/签名密钥、SSH/DNS API 凭据、私钥、证书、ACME 账户、日志、带用户信息的截图或生产数据导出。`.gitignore` 和 `.dockerignore` 是辅助，不替代提交前人工检查。
+禁止提交：真实密码、会话Cookie、scrypt verifier/签名密钥、SSH/DNS API凭据、账户Token、私钥、证书、ACME账户、签名URL query、素材/vendor正文、日志内容、带用户信息截图或生产数据导出。公开artifact hash、固定revision及必要host-only路径可记录；完整运维证据保持Git外。`.gitignore`/`.dockerignore`是辅助，不替代提交前人工检查。
 
 静态源公开的是 assets/fonts/vendor 和 PRTS 的稳定图形库/字体。CORS `*` 不意味着游戏 API、WebSocket 或认证开放；也不保证当前带 Preact 导入适配的 vendor 对其他部署完全通用。
 
