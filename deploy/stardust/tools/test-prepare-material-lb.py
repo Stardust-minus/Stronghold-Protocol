@@ -43,6 +43,39 @@ class PrepareTests(unittest.TestCase):
         self.assertIn(b'2576980378', files['access.lua'])
         self.assertIn(b'if method == "OPTIONS" then return end', files['access.lua'])
 
+    def test_explicit_new_profile_preserves_default_profile(self):
+        openi, models = fixture()
+        release, revision, prefix = 'v014-fixture-20261006', 'c' * 40, 'releases/v014-fixture-20261006'
+        for manifest in (openi, models):
+            manifest['release'] = release
+            manifest['fallbackBase'] = TOOL.FALLBACK_ORIGIN + '/releases/' + release
+        for row in openi['entries']:
+            row['fileName'] = row['fileName'].replace(TOOL.RELEASE, release)
+        models.update(revision=revision, prefix=prefix)
+        for row in models['entries']:
+            row['fileName'] = row['fileName'].replace(TOOL.MODEL_PREFIX, prefix)
+        with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER)
+        files = TOOL.render(openi, models, CONTAINER, release=release, model_revision=revision, model_prefix=prefix)
+        data = json.loads(files['routes.json'])
+        self.assertEqual(data['release'], release)
+        self.assertIn(release.encode(), files['access.lua'])
+        self.assertIn(revision.encode(), files['access.lua'])
+        self.assertNotIn(TOOL.MODEL_REVISION.encode(), files['access.lua'])
+        self.assertIn(revision, data['paths']['/media/voice/test'])
+        self.assertEqual((data['modelscopeWeight'], data['openiWeight']), (60, 40))
+        baseline = fixture()
+        self.assertIn(TOOL.MODEL_REVISION, json.loads(TOOL.render(*baseline, CONTAINER)['routes.json'])['paths']['/media/voice/test'])
+        for key, value in [('release', '../escape'), ('model_revision', 'master'), ('model_prefix', 'releases/a/../b')]:
+            pins = dict(release=release, model_revision=revision, model_prefix=prefix)
+            pins[key] = value
+            with self.subTest(key=key):
+                with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER, **pins)
+
+    def test_mirror_quantity_limit_is_not_relaxed(self):
+        openi, models = fixture()
+        openi['mirrorReleases'] = [TOOL.RELEASE, 'old-mirror', 'third-mirror']
+        with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER)
+
     def test_manifest_root_and_schema_types(self):
         openi, models = fixture()
         for value in ([], None, 'invalid'):

@@ -10,7 +10,8 @@ import { createRehearsal, planLayout, REHEARSAL_VARIANTS, LAYOUT_PARAMS } from '
 import { makeMatch, give, legalTileFor } from './harness.js';
 import { DATA, QUIET, phase, until } from './combat-fixtures.js';
 import { GEO } from '../../shared/constants.js';
-import { GLADIIA_HOK_Y } from '../../shared/highGround.js';
+
+const GLADIIA_HOK_Y = 'uniequip_003_glady';
 
 const clone = (x) => structuredClone(x);
 async function realPool(t, opts = {}) {
