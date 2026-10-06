@@ -494,6 +494,20 @@ describe('keyboard & settings', () => {
     assert.equal(shortcutFor({ key: 'r', code: 'KeyR' }), 'refresh');
     assert.equal(shortcutFor({ key: 'F', code: 'KeyF' }), 'freeze');
     assert.equal(shortcutFor({ key: 'd' }), 'levelUp');
+    assert.equal(shortcutFor({ key: 'q', code: 'KeyQ' }), 'retreat');
+    assert.equal(shortcutFor({ key: 'Q' }), 'retreat');
+    assert.equal(shortcutFor({ code: 'KeyX' }), 'sell');
+    assert.equal(shortcutFor({ key: 'X' }), 'sell');
+    for (const key of ['q', 'x']) {
+      assert.equal(shortcutFor({ key, repeat: true }), null);
+      assert.equal(shortcutFor({ key, ctrlKey: true }), null);
+      assert.equal(shortcutFor({ key, metaKey: true }), null);
+      assert.equal(shortcutFor({ key, altKey: true }), null);
+      for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) {
+        assert.equal(shortcutFor({ key, target: { tagName } }), null);
+      }
+      assert.equal(shortcutFor({ key, target: { isContentEditable: true } }), null);
+    }
     assert.equal(shortcutFor({ key: ' ', code: 'Space' }), 'ready');
     assert.equal(shortcutFor({ key: 'Escape' }), 'escape');
     assert.equal(shortcutFor({ key: 'r', ctrlKey: true }), null);
@@ -506,12 +520,14 @@ describe('keyboard & settings', () => {
     assert.equal(shortcutFor({ key: 'x' }), 'sell');
     assert.equal(shortcutFor({ key: 'Q', code: 'KeyQ' }), 'retreat');
     assert.equal(shortcutFor({ key: 'q', isComposing: true }), null);
+    assert.equal(shortcutFor({ key: 'z' }), null);
     assert.equal(shortcutFor(null), null);
   });
   test('sanitizeSettings', () => {
     assert.deepEqual(sanitizeSettings(null), { ...DEFAULT_SETTINGS });
-    assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
-      { bgm: 1, sfx: 0, muted: false, damageNumbers: false, quality: 'high' });
+    assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
+      { bgm: 1, sfx: 0, voice: 1, muted: false, damageNumbers: false, quality: 'high' });
+    assert.equal(sanitizeSettings({ bgm: 0.5 }).voice, DEFAULT_SETTINGS.voice, 'a saved profile without `voice` gets the default');
     assert.equal(sanitizeSettings({ bgm: 0.333 }).bgm, 0.33);
     assert.equal(sanitizeSettings({ quality: 'low' }).quality, 'low');
   });

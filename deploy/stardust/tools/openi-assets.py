@@ -4,6 +4,8 @@
 Offline: python3 openi-assets.py --stage STAGE --prefix releases/NEW-ID \
     --out resolver-plan.json --plan-only
 Runtime: replace --plan-only with --upload --checkpoint upload.checkpoint.json.
+Verify the matched static stage first. Its release-manifest selects the fixed
+fallback release; new stages require an explicit safe mirror prefix.
 Use --resume only with that matching checkpoint. A plan-only manifest is NOT a
 remote-readiness assertion. Only --upload reads /root/.openi/token.json; there
 are deliberately no token arguments, environment variables or SDK dependencies.
@@ -30,18 +32,19 @@ from urllib.parse import unquote, urlsplit
 logging.disable(logging.CRITICAL)  # Must precede HTTP library use: no signed URL logs.
 import httpx
 
-RELEASE = "v012-workers-20261004"
+RELEASE = "v012-workers-20261004"  # Legacy default; prepared stages select their own release.
+RELEASE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,95}")
 DATASET = "Stardust_minus/arknight_assets"
 API_ORIGIN = "https://openi.pcl.ac.cn"
 OSS_ORIGIN = "https://obs.cn-south-222.ai.pcl.cn"
 OSS_PREFIX = "/fefced50e2d744508e4bc7e2792e1087-urchin2/ea9189b2-1aa3-4108-ae36-9dfb0ab139f4/"
-FALLBACK = "https://ark-asset.hanabi-ai.cn:25442/releases/" + RELEASE
+FALLBACK_ORIGIN = "https://ark-asset.hanabi-ai.cn:25442"
 CREDENTIALS = Path("/root/.openi/token.json")
 CACHE_CONTROL = "public, max-age=31536000, immutable"
-MIME_OVERRIDES = {".mp3": "audio/mpeg", ".skel": "application/octet-stream",
+MIME_OVERRIDES = {".mp3": "audio/mpeg", ".webp": "image/webp", ".skel": "application/octet-stream",
                   ".atlas": "text/plain", ".obj": "text/plain", ".json": "application/json"}
 # Only the fixed prepared art/media formats, not fonts, vendor, scripts or data.
-ASSET_EXTENSIONS = {".png", ".mp3", ".skel", ".atlas", ".obj", ".json"}
+ASSET_EXTENSIONS = {".png", ".webp", ".mp3", ".skel", ".atlas", ".obj", ".json"}
 AUDIO_EXTENSIONS = {"", ".mp3", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".wav"}
 
 
@@ -147,19 +150,25 @@ def verified_content(stage, asset):
 
 
 def prepare(stage, prefix):
-    relative_path(prefix)
-    require(re.fullmatch(r"releases/[A-Za-z0-9_-][A-Za-z0-9_.-]*", prefix) is not None,
-            "prefix-must-be-new-release")
     stage = checked_path(stage)
     require(stage.is_dir(), "stage-not-directory")
     source = parse_json(read_file(stage / "release-manifest.json"))
     require(isinstance(source, dict) and source.get("schemaVersion") == 1 and
-            source.get("release") == RELEASE and
+            isinstance(source.get("release"), str) and RELEASE_ID.fullmatch(source["release"]) is not None and
             isinstance(source.get("sourceRevision"), str) and
             re.fullmatch(r"[0-9a-f]{40}", source["sourceRevision"]) is not None and
             isinstance(source.get("files"), list) and isinstance(source.get("media"), list),
             "invalid-release-manifest")
-    source_root = checked_path(stage / "releases" / RELEASE)
+    release = source["release"]
+    # Preserve the historical CLI default only for its original stage. A new release
+    # must choose an explicit mirror prefix, never silently reuse the old inventory.
+    if prefix is None:
+        require(release == RELEASE, "new-release-requires-explicit-prefix")
+        prefix = "releases/v012-openi-20261004"
+    relative_path(prefix)
+    require(prefix.startswith("releases/") and RELEASE_ID.fullmatch(prefix[len("releases/"):]) is not None,
+            "prefix-must-be-new-release")
+    source_root = checked_path(stage / "releases" / release)
     require(source_root.is_dir(), "prepared-release-directory-missing")
     files, entries, seen = {}, {}, set()
     for row in source["files"]:
@@ -209,9 +218,9 @@ def prepare(stage, prefix):
         require(row.get("url") == url and url not in entries, "invalid-media-alias")
         entries[url] = asset  # MIME comes from the actual source, not requested extension.
     ordered = tuple(files[key] for key in sorted(files))
-    resolver = {"schemaVersion": 1, "release": RELEASE, "dataset": DATASET,
+    resolver = {"schemaVersion": 1, "release": release, "dataset": DATASET,
                 "apiOrigin": API_ORIGIN, "ossOrigin": OSS_ORIGIN, "ossPathPrefix": OSS_PREFIX,
-                "fallbackBase": FALLBACK, "entries": [
+                "fallbackBase": FALLBACK_ORIGIN + "/releases/" + release, "entries": [
                     {"requestPath": key, "fileName": asset.file_name, "bytes": asset.bytes,
                      "sha256": asset.sha256, "mime": asset.mime}
                     for key, asset in sorted(entries.items())]}
@@ -458,7 +467,7 @@ class SafeParser(argparse.ArgumentParser):
 def main(argv=None):
     parser = SafeParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--stage", type=Path, required=True)
-    parser.add_argument("--prefix", default="releases/v012-openi-20261004")
+    parser.add_argument("--prefix", help="New releases require an explicit releases/SAFE-ID mirror prefix")
     parser.add_argument("--out", type=Path, required=True)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--plan-only", action="store_true")

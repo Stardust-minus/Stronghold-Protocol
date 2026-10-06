@@ -21,9 +21,31 @@ test('nested board art uses the original manifest paths without rewriting', asyn
       return { ok: true, json: async () => ({ version: 1, materials: {}, source: { D: { path: '/assets/local/board.png' } } }) };
     };
     resetBoardArt();
-    const art = await loadBoardArt({ local: async () => ({}), localUrl: () => '/assets/local/atlas.png', image: async url => { images.push(url); return { width: 1 }; } });
+    const art = await loadBoardArt({ local: async () => ({}),
+      localUrl: (_group, name) => name === 'TX_autochessi_D' ? '/assets/local/atlas.png' : null,
+      image: async url => { images.push(url); return { width: 1 }; } });
     assert.ok(art);
     assert.deepEqual(images, ['/assets/local/board.png']);
+  } finally { resetBoardArt(); globalThis.fetch = previous; }
+});
+
+test('board art follows the matching manifest WebP without adding a release prefix', async () => {
+  const previous = globalThis.fetch;
+  const images = [];
+  const dir = '/assets/local/map/autochess';
+  const texture = 'TX_autochessi_D';
+  try {
+    globalThis.fetch = async url => {
+      assert.equal(url, `${dir}/tiles.json`);
+      return { ok: true, json: async () => ({ version: 1, materials: {}, source: { D: { path: `${dir}/${texture}.png` } } }) };
+    };
+    resetBoardArt();
+    const art = await loadBoardArt({ local: async () => ({}),
+      localUrl: (_group, name) => name === texture ? `${dir}/${texture}.webp` : null,
+      image: async url => { images.push(url); return { width: 1 }; } });
+    assert.ok(art);
+    assert.deepEqual(images, [`${dir}/${texture}.webp`]);
+    assert.equal(art.key, `${dir}/${texture}.webp#1`);
   } finally { resetBoardArt(); globalThis.fetch = previous; }
 });
 

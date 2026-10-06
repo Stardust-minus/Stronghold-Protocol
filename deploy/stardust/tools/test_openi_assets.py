@@ -201,6 +201,148 @@ class AssetsTest(unittest.TestCase):
         self.assertFalse(any("fonts" in e or "vendor" in e for e in entries))
         self.assertEqual(self.plan().fingerprint, plan.fingerprint)
 
+    def test_legacy_stage_keeps_release_fallback_and_cli_default(self):
+        plan = tool.prepare(self.stage, None)
+        self.assertEqual(plan.prefix, "releases/v012-openi-20261004")
+        self.assertEqual(plan.source_root, self.source)
+        self.assertEqual(plan.manifest["release"], tool.RELEASE)
+        self.assertEqual(plan.manifest["fallbackBase"], tool.FALLBACK_ORIGIN + "/releases/" + tool.RELEASE)
+        with patch.object(tool, "load_credentials", side_effect=AssertionError("credential read")), \
+             patch.object(tool.httpx, "Client", side_effect=AssertionError("network client")), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(tool.main(["--stage", str(self.stage), "--out", str(self.output), "--plan-only"]), 0)
+        self.assertEqual(json.loads(self.output.read_text()), plan.manifest)
+
+    def test_new_release_maps_voice_and_webp_with_matched_fixed_fallback(self):
+        release = "v013-hangzhou-20261006-a9dfd17"
+        self.source = self.source.rename(self.stage / "releases" / release)
+        self.manifest["release"] = release
+        self.manifest["fallbackBase"] = "https://untrusted.invalid/releases/wrong"
+        self.add_file("assets/local/map/autochess/TX_autochessi_D.webp", b"fixture WebP bytes")
+        voice = "assets/audio/voice/cn/char_103_angel/cn_019.mp3"
+        self.add_file(voice, b"fixture CN voice mp3")
+        stem = "/media/" + voice[len("assets/audio/"):-4]
+        for ext in sorted(tool.AUDIO_EXTENSIONS):
+            self.manifest["media"].append({"url": stem + ext, "requestedExtension": ext,
+                                          "file": voice, "ext": ".mp3"})
+        self.save_manifest()
+        before = {p.relative_to(self.stage): p.read_bytes() for p in self.stage.rglob("*") if p.is_file()}
+        guess_type = tool.mimetypes.guess_type
+        with patch.object(tool, "load_credentials", side_effect=AssertionError("credential read")), \
+             patch.object(tool.httpx, "Client", side_effect=AssertionError("network client")), \
+             patch.object(tool.mimetypes, "guess_type", side_effect=lambda path:
+                          ("application/x-untrusted", None) if path.endswith(".webp") else guess_type(path)):
+            result, _, stderr = self.cli("--plan-only")
+        self.assertEqual((result, stderr), (0, ""))
+        plan = self.plan()
+        self.assertEqual(plan.source_root, self.source)
+        self.assertEqual(len(plan.files), 9)
+        self.assertEqual(plan.manifest["release"], release)
+        self.assertEqual(plan.manifest["fallbackBase"], tool.FALLBACK_ORIGIN + "/releases/" + release)
+        entries = {e["requestPath"]: e for e in plan.manifest["entries"]}
+        webp = entries["/assets/local/map/autochess/TX_autochessi_D.webp"]
+        self.assertEqual(webp["fileName"], self.prefix + "/assets/local/map/autochess/TX_autochessi_D.webp")
+        self.assertEqual(webp["mime"], "image/webp")
+        for path in ["/" + voice, stem, stem + ".ogg"]:
+            self.assertEqual(entries[path]["fileName"], self.prefix + stem)
+            self.assertEqual(entries[path]["mime"], "audio/mpeg")
+        self.assertEqual(json.loads(self.output.read_text()), plan.manifest)
+        self.assertEqual(before, {p.relative_to(self.stage): p.read_bytes()
+                                  for p in self.stage.rglob("*") if p.is_file()})
+
+    def test_new_release_requires_explicit_mirror_prefix(self):
+        release = "v013-ui-20261006"
+        self.source = self.source.rename(self.stage / "releases" / release)
+        self.manifest["release"] = release
+        self.save_manifest()
+        with self.assertRaisesRegex(tool.ToolError, "new-release-requires-explicit-prefix"):
+            tool.prepare(self.stage, None)
+        with patch.object(tool, "load_credentials", side_effect=AssertionError("credential read")), \
+             patch.object(tool.httpx, "Client", side_effect=AssertionError("network client")), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as stderr:
+            result = tool.main(["--stage", str(self.stage), "--out", str(self.output), "--plan-only"])
+        self.assertEqual(result, 1)
+        self.assertIn("new-release-requires-explicit-prefix", stderr.getvalue())
+        self.assertFalse(self.output.exists())
+        self.assertEqual(self.plan().manifest["release"], release)
+
+    def test_release_identifiers_reject_traversal_urls_and_noncanonical_names(self):
+        for release in [None, 3, [], "", ".", "..", "../other", "releases/other", "/absolute",
+                        "x/y", "x\\y", "x%2fy", "x?token=fixture", "x#fragment", "x..y",
+                        ".hidden", "_hidden", "-hidden", "x.", "x y", "x\n", "x" * 97]:
+            self.manifest["release"] = release
+            self.save_manifest()
+            with self.subTest(release_type=type(release).__name__), \
+                 patch.object(tool, "verified_content", side_effect=AssertionError("must validate release first")), \
+                 self.assertRaisesRegex(tool.ToolError, "invalid-release-manifest"):
+                self.plan()
+
+    def test_manifest_release_must_select_an_existing_prepared_directory(self):
+        self.manifest["release"] = "v013-not-this-directory"
+        self.save_manifest()
+        with self.assertRaisesRegex(tool.ToolError, "prepared-release-directory-missing"):
+            self.plan()
+
+    def test_release_and_mirror_identifier_bounds_match_static_resolver_contract(self):
+        release = "A" + "_" * 95
+        self.source = self.source.rename(self.stage / "releases" / release)
+        self.manifest["release"] = release
+        self.save_manifest()
+        plan = tool.prepare(self.stage, "releases/" + release)
+        self.assertEqual(plan.manifest["release"], release)
+        for prefix in ["releases/a.b", "releases/a..b", "releases/_hidden", "releases/-hidden",
+                       "releases/" + "x" * 97, "releases/a."]:
+            with self.subTest(prefix_kind=prefix[:24]), self.assertRaises(tool.ToolError):
+                tool.prepare(self.stage, prefix)
+
+    def test_webp_keeps_exact_hash_inventory_and_audio_scope_checks(self):
+        path = "assets/local/map/autochess/TX_autochessi_D.webp"
+        self.add_file(path, b"fixture WebP bytes")
+        self.save_manifest()
+        self.plan()
+        (self.source / path).write_bytes(b"different WebP bytes")
+        with self.assertRaisesRegex(tool.ToolError, "source-size-mismatch"):
+            self.plan()
+        (self.source / path).write_bytes(b"fixture WebP bytes")
+        (self.source / "assets/local/map/autochess/extra.webp").write_bytes(b"extra")
+        with self.assertRaisesRegex(tool.ToolError, "local-inventory-mismatch"):
+            self.plan()
+        (self.source / "assets/local/map/autochess/extra.webp").unlink()
+        self.add_file("assets/audio/disguised.webp", b"not permitted audio")
+        self.save_manifest()
+        with self.assertRaisesRegex(tool.ToolError, "unexpected-audio-format"):
+            self.plan()
+
+    def test_new_release_keeps_code_secret_and_non_art_json_excluded(self):
+        release = "v013-new-public-material"
+        self.source = self.source.rename(self.stage / "releases" / release)
+        self.manifest["release"] = release
+        for path, reason in [("assets/private.js", "invalid-asset-record"),
+                             ("assets/private.pem", "invalid-asset-record"),
+                             ("assets/data/accounts.json", "non-art-json"),
+                             ("data/config.json", "non-public-source-path")]:
+            self.add_file(path, b"must not publish")
+            self.save_manifest()
+            with self.subTest(path_kind=Path(path).suffix), self.assertRaisesRegex(tool.ToolError, reason):
+                self.plan()
+            self.manifest["files"].pop()
+            (self.source / path).unlink()
+        self.save_manifest()
+        self.plan()
+
+    def test_resume_refuses_changed_fallback_release_even_when_bytes_and_prefix_match(self):
+        original = self.plan()
+        tool.atomic_json(self.saved, self.state(original))
+        release = "v013-same-assets-new-fallback"
+        self.source = self.source.rename(self.stage / "releases" / release)
+        self.manifest["release"] = release
+        self.save_manifest()
+        changed = self.plan()
+        self.assertEqual(changed.files, original.files)
+        self.assertNotEqual(changed.fingerprint, original.fingerprint)
+        with self.assertRaisesRegex(tool.ToolError, "checkpoint-plan-mismatch"):
+            self.state(changed, resume=True)
+
     def test_plan_only_never_reads_credentials_or_constructs_clients(self):
         before = {p.relative_to(self.stage): p.read_bytes() for p in self.stage.rglob("*") if p.is_file()}
         with patch.object(tool, "load_credentials", side_effect=AssertionError("credential read")), \
