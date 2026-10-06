@@ -1,5 +1,7 @@
 # Bounded WebSocket compression
 
+Formal activation:2026-10-06 14:30:23+08, source7e019ee3/image10c94333; see `releases/v013-ws-compression-20261006-7e019ee3-r2.json`. Beta remains its previous C1 version. Public WSS negotiation and per-frame policy were actually verified; early-round snapshots at most226bytes correctly stayed plain, while large events/field/damage frames compressed. This release also updates the separately versioned welcome announcement; the feature itself does not change other game data or frontend resources.
+
 `SP_WS_COMPRESSION=on` opts this game process into the verified transport preset. The default is `off`; any other value is refused before workers or listeners start. This is not an HTTP gzip setting or a hot reload.
 
 Preset: level 6, memLevel 5, server window 12 (4 KiB), 512-byte threshold, both directions without context takeover, and a ws zlib concurrency limit of 8. Leave the process-wide libuv pool at its existing/default size 4; this limit does not create eight threads or change the 12+2 combat/trial pool.

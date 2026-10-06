@@ -1,6 +1,10 @@
 {
   "release": "v013-hangzhou-20261006-1f742992",
-  "status": "active",
+  "status": "historical-formal-game-superseded-materials-still-active",
+  "formalGameSupersededAt": "2026-10-06T14:30:23+08:00",
+  "formalGameSupersededBy": "v013-ws-compression-20261006-7e019ee3-r2",
+  "historicalGameGeneration": true,
+  "materialsAndPrivateCodeStillReused": true,
   "routingActivatedAt": "2026-10-06T10:32:42+08:00",
   "legacyComputationStoppedAt": "2026-10-06T10:48:54+08:00",
   "sourceRevision": "1f74299291f07e100ca6f522721a29d4c474294c",

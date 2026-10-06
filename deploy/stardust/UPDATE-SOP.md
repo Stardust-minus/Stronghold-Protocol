@@ -10,7 +10,17 @@
 
 正式更新+服务器切换只留UTC+8每天05:00–08:00低谷并取得具体执行指令；本地测试、Beta上线、提交推送、用户睡觉或时间到窗口都不是自动正式激活许可。以下旧单机步骤不能直接在新机照搬；保留现用配置并按实际目标合并，配套材料与回退仍遵循本SOP。
 
-## 当前正式部署：杭州计算 / 嘉兴入口（2026-10-06）
+## 最新正式更新：WS 压缩（2026-10-06 14:30）
+
+正式当前source `7e019ee36a2423393221cbba37bf60e40be35536`，实际HGY image10c94333/CID8715f3a3，记录 `releases/v013-ws-compression-20261006-7e019ee3-r2.json`。用户明确批准本批立即维护重建，不产生今后任意时刻重启的通用许可。Beta仍为C1/1f742992且代次未变。
+
+`SP_WS_COMPRESSION=on` 在fixed runtime.env中显式启用，Compose从同变量注入；默认off。参数、类型白名单、凭证不压缩及回退边界见 [WS-COMPRESSION.md](WS-COMPRESSION.md)。12+2、Main-only优先级、UV默认4、WG启动链不变；不能restart WG来更新游戏。
+
+此批仅四个server blobs及announcements数据变化。232game-runtime Git字节及完整C1基础RootFS核验后，复用同字节C1私有JS/CSS/shared/package/static；Auth186、resolver063、现用OpenI/宁夏素材不重建或上传，Nginx也未reload。Remote COPY元数据导致新增层与local不同，记录的是完整已验证base+精确五文件层及全部game-runtime字节证明，不能冒称整个新RootFS等于local。
+
+以下10:32迁移记录是当时快照，不是当前game版本声明。
+
+## 历史正式迁移：杭州计算 / 嘉兴入口（2026-10-06）
 
 实际活动记录：`releases/v013-hangzhou-20261006-1f742992.json`。10:32:42+08正式路由迁杭州，10:48:54旧嘉兴计算停止；旧镜像/容器/配置/资源保留。不要复用下面历史嘉兴三服务的一次性activation。
 
