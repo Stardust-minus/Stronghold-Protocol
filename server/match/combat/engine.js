@@ -1,5 +1,5 @@
 // A phase, not a field, is the isolation boundary: all boss fields share HP, LP and tick ordering.
-import { FieldRunner, DeadBattle, HARD_CAP_SECONDS, MAX_TICKS_PER_INTERVAL, snapFrame } from '../fields.js';
+import { FieldRunner, DeadBattle, GAME_SPEED, HARD_CAP_SECONDS, MAX_TICKS_PER_INTERVAL, snapFrame, eventFrame } from '../fields.js';
 import { SharedBossPool } from '../finalAssault.js';
 import { GameData, COMBAT_TIME_SCALE, DEFAULTS } from '../gamedata.js';
 import { createBattleFromSpec, battleProgress, uniteLeft } from '../../sim/spec.js';
@@ -22,7 +22,7 @@ class EngineRunner extends FieldRunner {
 }
 
 export class CombatEngine {
-  constructor({ specs, boss = null, wireFrames = false, coalesceFrames = false, damageBoard = false },
+  constructor({ specs, boss = null, wireFrames = false, coalesceFrames = false, damageBoard = false, snapshotHz = 20, gameSpeed = GAME_SPEED },
     { data, log = QUIET, BattleClass, now = () => performance.now() } = {}) {
     if (!Array.isArray(specs) || specs.length > 4) throw new TypeError('specs must contain at most four fields');
     const ids = new Set();
@@ -86,7 +86,7 @@ export class CombatEngine {
       return f;
     });
     const facade = {
-      engine: this,
+      engine: this, snapshotHz, gameSpeed,
       markPublic() {},
       reportError: (label, e) => this._error(label, e),
     };
@@ -151,10 +151,17 @@ export class CombatEngine {
     }
   }
 
-  _emit(f) {
+  _emit(f, force = false) {
     let events = [];
     try { events = f.battle.drainEvents() || []; } catch (e) { this._error(`field ${f.fieldId} drainEvents`, e); }
-    if (this.watched.has(f.fieldId) || !f.live) this._frame(f, events);
+    if (!this.watched.has(f.fieldId) && f.live) return;
+    if (force || this.runner._snapshotDue(f)) this._frame(f, events);
+    else if (events.length) {
+      // Events retain the original boundary/gt even when snapshot and UnitInfo encoding are skipped.
+      const msg = eventFrame(f.fieldId, f.battle, events);
+      this.frames.push(this.wireFrames ? { fieldId: f.fieldId, eventsWire: JSON.stringify(msg) }
+        : structuredClone({ fieldId: f.fieldId, events, gt: msg.gt }));
+    }
   }
 
   _begin(snapshotFields = [], coalescing = false) {
@@ -190,7 +197,7 @@ export class CombatEngine {
     // even with no watchers, and do not reuse an earlier frame whose boss state/meta is now stale.
     for (const f of this.fields) {
       if (state && (this.watched.has(f.fieldId) || !f.live)) this._frame(f);
-      else if (!f.live || final) this._emit(f);
+      else if (!f.live || final) this._emit(f, true);
     }
     const fields = this.fields.map((f) => {
       const b = f.battle;
@@ -227,7 +234,7 @@ export class CombatEngine {
       const latest = new Map();
       const events = [];
       for (const frame of this.frames) {
-        latest.set(frame.fieldId, { ...frame, eventsWire: null });
+        if (frame.snapshotWire) latest.set(frame.fieldId, { ...frame, eventsWire: null });
         if (frame.eventsWire) events.push({ fieldId: frame.fieldId, eventsWire: frame.eventsWire });
       }
       dto.frames = [...events, ...latest.values()];

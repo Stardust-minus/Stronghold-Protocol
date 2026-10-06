@@ -15,6 +15,7 @@ import { h, Fragment } from '../../vendor/preact.module.js';
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from '../../vendor/hooks.module.js';
 import htm from '../../vendor/htm.module.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
+import { normalizeLoadDetails } from '../../../shared/protocol.js';
 import { serverNow } from '../store.js';
 import { data, useData, localAsset } from '../data.js';
 import { uiUrl } from './assetUrls.js';
@@ -765,20 +766,32 @@ export function doctorNo(id) {
  * Latency pill ("58ms"), coloured by research 06 §3.4 tiers (<60 mint, <200 amber, else red).
  * @param {{ ms?: number|null, online?: boolean, loadState?: string, class?: string }} props
  */
-export function PingPill({ ms, online = true, loadState, class: cls }) {
+export function PingPill({ ms, online = true, loadState, loadDetails, onLoadClick, loadOpen = false, class: cls }) {
   const ok = online && Number.isFinite(ms);
   const tier = !ok ? 'off' : ms < 60 ? 'low' : ms < 200 ? 'medium' : 'high';
-  const ping = html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? `当前延迟 ${ms}ms` : '未连接'}>
-    <${Icon} name=${ok ? 'signal' : 'wifiOff'} class="ping__icon" />
+  const ping = html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? `WebSocket 往返响应 ${ms}ms（含网络、排队和处理等待）` : online ? '响应延迟暂不可用，等待新测量' : '未连接'}>
+    <${Icon} name=${online ? 'signal' : 'wifiOff'} class="ping__icon" />
     <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>
   </span>`;
   if (loadState === undefined) return ping;
   const labels = { unknown: '未知', normal: '正常', busy: '繁忙', overloaded: '拥堵' };
   const state = online && typeof loadState === 'string' && Object.hasOwn(labels, loadState) ? loadState : 'unknown';
-  return html`<span class="latency-status">${ping}<span class=${`server-load server-load--${state}`} role="status"
-    aria-label=${`服务器负载${labels[state]}`} title="最近采样的游戏主线程响应压力；不是网络延迟或整机 CPU 占用">
-    <i aria-hidden="true" /><span>负载${labels[state]}</span>
-  </span></span>`;
+  const details = online ? normalizeLoadDetails(loadDetails) : null;
+  const preview = html`<div class="server-load-preview"><strong>游戏服务 · ${labels[state]}</strong>
+    ${details ? html`<span>进程 CPU <b class="num">${details.cpuPercent ?? '--'}%</b> · 内存 <b class="num">${details.rssMiB ?? '--'} MiB</b></span>
+      <span>主线程 <b class="num">${details.eluPercent ?? '--'}%</b> · P95 <b class="num">${details.p95Ms ?? '--'} ms</b></span>`
+      : html`<span>尚无有效采样，等待心跳更新</span>`}
+    <small>点击查看开销详情 · 非整机负载</small></div>`;
+  return html`<span class="latency-status">${ping}<${Tooltip} text=${preview} placement="bottom">
+    <button type="button" class=${`server-load-button server-load--${state}`} aria-label="查看游戏服务开销" aria-haspopup="dialog"
+        aria-expanded=${loadOpen ? 'true' : 'false'} onClick=${onLoadClick} disabled=${!onLoadClick}>
+      <span class="server-load__bars" aria-hidden="true"><i /><i /><i /></span>
+      <span class=${`server-load server-load--${state}`} role="status" aria-label=${`服务器负载${labels[state]}`}
+          title="最近约 10 秒采样的游戏主线程响应压力；点击查看详情，非整机 CPU 或战斗线程总负载">
+        <span class="server-load__caption">服务</span><b>${labels[state]}</b>
+      </span><${Icon} name="chevronRight" class="server-load__more" />
+    </button>
+  <//></span>`;
 }
 
 /**

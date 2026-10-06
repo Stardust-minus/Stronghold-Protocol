@@ -70,6 +70,55 @@ test('one-time transferred full dataset drives BOTH DataSource and content suppo
   assert.ok(Object.isFrozen(data.bands.band_worker_test.buffs[0].bb));
 });
 
+test('default/explicit zero combat session admission stays unlimited in pool and Worker while execution remains bounded', async (t) => {
+  for (const options of [{}, { maxSessions: 0 }]) {
+    const pool = new CombatWorkerPool({ size: 1, data: DATA, log: QUIET, ...options });
+    t.after(() => pool.close());
+    assert.equal(pool.maxSessions, 0);
+    assert.equal(pool.maxPending, 8192);
+    assert.equal(pool.maxTrials, 64);
+    assert.equal(pool.maxTrialPending, 64);
+    await pool.start();
+    const handles = Array.from({ length: 3 }, () => pool.create(phase()));
+    await Promise.all(handles.map((h) => h.ready));
+    assert.equal(pool.stats().sessions, 3);
+    assert.equal(pool.stats().active, 0);
+    // Session quantity is unlimited, but pending execution (including in-flight) is still finite.
+    pool.maxPending = 1;
+    const pending = handles[0].request('state');
+    assert.throws(() => pool.create(phase()), { code: 'QUEUE_FULL' });
+    await assert.rejects(handles[1].request('state'), { code: 'QUEUE_FULL' });
+    await pending;
+    handles.forEach((h) => h.close());
+    await pool.close();
+  }
+});
+
+test('combat session cap validation accepts zero without disabling queue/trial validation', async () => {
+  const pool = new CombatWorkerPool({ size: 1, data: DATA, log: QUIET, maxSessions: 0 });
+  await pool.close();
+  for (const maxSessions of [-1, .5, '0', Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => new CombatWorkerPool({ size: 1, data: DATA, maxSessions }), RangeError);
+  }
+  for (const key of ['maxPending', 'maxTrials', 'maxTrialPending']) {
+    assert.throws(() => new CombatWorkerPool({ size: 1, data: DATA, maxSessions: 0, [key]: 0 }), RangeError);
+  }
+});
+
+test('positive combat session cap is also enforced inside the Worker without invalidating other sessions', async (t) => {
+  const pool = new CombatWorkerPool({ size: 1, data: DATA, log: QUIET, maxSessions: 1 });
+  t.after(() => pool.close());
+  await pool.start();
+  const a = pool.create(phase()); await a.ready;
+  assert.throws(() => pool.create(phase()), { code: 'SESSION_LIMIT' });
+  // Bypass only the pool-side cap to exercise the independent workerData guard.
+  pool.maxSessions = 0;
+  const b = pool.create(phase());
+  await assert.rejects(b.ready, { code: 'WORKER_COMMAND', message: 'worker session limit reached' });
+  assert.equal(pool.stats().sessions, 1);
+  assert.equal((await a.request('state')).ticks, 0);
+});
+
 test('bounded admission, cancel-before-init, immediate promise cleanup, and unique session generations', async (t) => {
   const pool = new CombatWorkerPool({ size: 1, maxSessions: 2, maxPending: 2, log: QUIET });
   t.after(() => pool.close());

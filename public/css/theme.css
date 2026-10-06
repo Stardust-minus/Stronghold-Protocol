@@ -354,10 +354,10 @@ h1, h2, h3, h4, p { margin: 0; }
   50%, 75% { transform: rotate(-90deg); }
   100% { transform: rotate(0deg); }
 }
-/* only on a device that can be turned (js/ui/device.js sp-rotatable: a touch screen whose screen is not landscape) —
-   a narrow desktop window or a split-view iPad keeps the game */
+/* The battlefield requires landscape on rotatable touch devices. Keep the lobby, announcements and
+   fullscreen/help controls usable in portrait; narrow desktop windows and split-view iPads stay unblocked. */
 @media (orientation: portrait) and (max-width: 1024px) {
-  .sp-rotatable .rotate-hint { display: grid; }
+  .sp-rotatable.sp-in-match .rotate-hint { display: grid; }
 }
 
 @media (prefers-reduced-motion: reduce) {

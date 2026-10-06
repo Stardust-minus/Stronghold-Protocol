@@ -30,12 +30,15 @@
 // to /shared/x.js (URL resolution clamps at the root); under Node it resolves to <repo>/shared.
 
 import { PROTOCOL_VERSION, MATCHMAKING_VERSION, ERR_TEXT } from '../../shared/constants.js';
-import { validateC2S, normalizeServerLoad } from '../../shared/protocol.js';
+import { validateC2S, normalizeServerLoad, normalizeLoadDetails } from '../../shared/protocol.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
 export const PING_INTERVAL_MS = 4000;
 export const DEAD_AFTER_MS = 15000;
+export const PING_TIMEOUT_MS = DEAD_AFTER_MS;
+export const PING_SAMPLE_MAX_AGE_MS = PING_INTERVAL_MS * 3;
+const MAX_PENDING_PINGS = 8;
 export const BACKOFF = Object.freeze({ base: 500, factor: 2, max: 10000, jitter: 0.2 });
 
 /** Client-side error codes (in addition to shared ERR codes). */
@@ -113,7 +116,9 @@ export class Net {
    * @param {string} [opts.url] socket URL (default: derived from location at connect time)
    * @param {any} [opts.WebSocket] WebSocket constructor (default: globalThis.WebSocket)
    * @param {() => (string|null)} [opts.getToken] reconnect-token provider for `hello`
-   * @param {() => number} [opts.now]
+   * @param {() => number} [opts.now] epoch clock for server-time estimates
+   * @param {() => number} [opts.monotonicNow] elapsed-time clock (defaults to opts.now for injected clocks)
+   * @param {() => boolean} [opts.isVisible] whether latency probes belong to a visible page
    * @param {() => number} [opts.random]
    * @param {{setTimeout: Function, clearTimeout: Function, setInterval: Function, clearInterval: Function}} [opts.timers]
    */
@@ -122,6 +127,8 @@ export class Net {
     this.WS = opts.WebSocket || null;
     this.getToken = typeof opts.getToken === 'function' ? opts.getToken : () => null;
     this.now = opts.now || (() => Date.now());
+    this.monotonicNow = opts.monotonicNow || opts.now || (() => performance.now());
+    this.isVisible = opts.isVisible || (() => typeof document === 'undefined' || document.visibilityState !== 'hidden');
     this.random = opts.random || Math.random;
     this.timers = opts.timers || {
       setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms),
@@ -141,6 +148,7 @@ export class Net {
     this.retryAt = 0;          // epoch ms of the next reconnect attempt (0 = none)
     this.ping = null;          // last RTT in ms
     this.loadState = 'unknown'; // cached server main-thread pressure, independent of network RTT
+    this.loadDetails = null;    // whitelisted cached game-process measurements, never raw health data
     this.lastError = null;     // last NetError relevant to the connection (e.g. hello rejected)
     this.clockOffset = 0;
     this.clockSynced = false;
@@ -158,8 +166,13 @@ export class Net {
     this._helloRid = null;
     this._helloSentName = null;
     this._lastRx = 0;
-    this._unansweredSince = null; // time of the oldest ping sent since the last inbound frame
+    this._unansweredSince = null; // monotonic time of the oldest ping since the last inbound frame
+    this._pings = new Map();   // rid -> { c: epoch time, at: monotonic time, order }
+    this._pingOrder = 0;
+    this._lastPongOrder = 0;
+    this._pingReceivedAt = null;
     this._clockSamples = [];   // [{ offset, rtt }]
+    this._clockEpoch = this.now() - this.monotonicNow();
   }
 
   // ---- events ----------------------------------------------------------------------------------
@@ -195,7 +208,7 @@ export class Net {
   /** Snapshot of the connection state (what the 'status' event carries). */
   snapshot() {
     return {
-      status: this.status, attempt: this.attempt, retryAt: this.retryAt, ping: this.ping, loadState: this.loadState,
+      status: this.status, attempt: this.attempt, retryAt: this.retryAt, ping: this.ping, loadState: this.loadState, loadDetails: this.loadDetails,
       lastError: this.lastError ? { code: this.lastError.code, text: this.lastError.message } : null,
       playerId: this.playerId,
     };
@@ -203,7 +216,7 @@ export class Net {
 
   _setStatus(status) {
     this.status = status;
-    if (status !== 'online' && status !== 'connected') this.loadState = 'unknown';
+    if (status !== 'online' && status !== 'connected') { this.loadState = 'unknown'; this.loadDetails = null; }
     this._emit('status', this.snapshot());
   }
 
@@ -344,7 +357,9 @@ export class Net {
       ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
     }
     this.ws = null;
-    this.loadState = 'unknown';
+    this._resetLatency();
+    this._clockSamples = [];
+    this.clockSynced = false;
     this._unansweredSince = null;
     this._clearTimer('_pingTimer', 'clearInterval');
     this._clearTimer('_helloTimer', 'clearTimeout');
@@ -575,8 +590,10 @@ export class Net {
   _heartbeat() {
     const ws = this.ws;
     if (!ws || ws.readyState !== WS_OPEN) return;
+    const now = this.monotonicNow();
+    this._expireLatency(now);
     const live = this.status === 'online' || this.status === 'connected';
-    if (live && this._unansweredSince != null && this.now() - this._unansweredSince > DEAD_AFTER_MS) {
+    if (live && this._unansweredSince != null && now - this._unansweredSince > DEAD_AFTER_MS) {
       console.warn('[net] connection silent; reconnecting');
       this._teardownSocket();
       try { ws.close(4000, 'heartbeat timeout'); } catch { /* ignore */ }
@@ -587,10 +604,42 @@ export class Net {
     this._sendPing();
   }
 
+  _resetLatency(notify = false) {
+    this._pings.clear();
+    this._lastPongOrder = 0;
+    this._pingReceivedAt = null;
+    this.ping = null;
+    this.loadState = 'unknown';
+    this.loadDetails = null;
+    if (notify) {
+      this._emit('ping', null);
+      this._emit('status', this.snapshot());
+    }
+  }
+
+  _expireLatency(now) {
+    for (const [rid, probe] of this._pings) {
+      if (now - probe.at >= PING_TIMEOUT_MS) this._pings.delete(rid);
+    }
+    if (this._pingReceivedAt != null && now - this._pingReceivedAt >= PING_SAMPLE_MAX_AGE_MS) {
+      this._pingReceivedAt = null;
+      this.ping = null;
+      this.loadState = 'unknown';
+      this.loadDetails = null;
+      this._emit('ping', null);
+      this._emit('status', this.snapshot());
+    }
+  }
+
   _sendPing() {
     if (this.status !== 'online' && this.status !== 'connected') return;
-    const now = this.now();
-    if (this._sendRaw({ t: 'ping', c: now }) && this._unansweredSince == null) this._unansweredSince = now;
+    const at = this.monotonicNow(), c = this.now(), rid = this._nextRid();
+    this._expireLatency(at);
+    // Hidden pages still heartbeat, but cannot produce a fresh visible latency measurement.
+    if (this.isVisible()) this._pings.set(rid, { c, at, order: ++this._pingOrder });
+    while (this._pings.size > MAX_PENDING_PINGS) this._pings.delete(this._pings.keys().next().value);
+    if (!this._sendRaw({ t: 'ping', rid, c })) { this._pings.delete(rid); return; }
+    if (this._unansweredSince == null) this._unansweredSince = at;
   }
 
   /** Force an immediate latency probe (e.g. when the tab regains focus). */
@@ -599,14 +648,24 @@ export class Net {
   }
 
   _onPong(msg) {
-    const now = this.now();
-    const c = Number(msg.c);
-    if (!Number.isFinite(c)) return;
-    const rtt = now - c;
-    if (!(rtt >= 0 && rtt < 60000)) return;
+    const probe = this._pings.get(msg.rid);
+    if (!probe || msg.c !== probe.c) return;
+    this._pings.delete(msg.rid);
+    const at = this.monotonicNow(), rtt = at - probe.at;
+    if (!this.isVisible() || !(rtt >= 0 && rtt < PING_TIMEOUT_MS) || probe.order <= this._lastPongOrder) return;
+    this._lastPongOrder = probe.order;
+    this._pingReceivedAt = at;
     this.ping = Math.round(rtt);
     this.loadState = normalizeServerLoad(msg.loadState);
-    if (Number.isFinite(msg.s)) this._addClockSample(msg.s + rtt / 2 - now, rtt);
+    this.loadDetails = normalizeLoadDetails(msg.loadDetails);
+    const now = this.now();
+    if (Number.isFinite(msg.s)) {
+      // Detect adjustments during or between probes; offsets from the old epoch cannot be reused.
+      const epoch = now - at;
+      if (Math.abs(epoch - this._clockEpoch) > 100) { this._clockSamples = []; this.clockSynced = false; }
+      this._clockEpoch = epoch;
+      this._addClockSample(msg.s + rtt / 2 - now, rtt);
+    }
     this._emit('ping', this.ping);
     this._emit('status', this.snapshot());
   }
@@ -640,6 +699,7 @@ export class Net {
     this._hooked = true;
     window.addEventListener('online', () => this.retryNow());
     document.addEventListener('visibilitychange', () => {
+      this._resetLatency(true);
       if (document.visibilityState !== 'visible') return;
       if (this.status === 'reconnecting') this.retryNow();
       else if (this.status === 'online' || this.status === 'connected') this.probe();

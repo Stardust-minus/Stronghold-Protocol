@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { TrialEngine, snapshotTrialInput, assembleTrialInput, receiveTrialInput, MAX_TRIAL_TICKS } from '../../server/match/combat/trial.js';
 import { Battle } from '../../server/sim/Battle.js';
@@ -377,6 +378,22 @@ test('actual trial Battles cannot change same-worker SharedBoss HP/LP/ending aut
   assert.equal(after.done, before.done);
   assert.deepEqual(after.fields, before.fields);
   combat.close();
+});
+
+test('unlimited combat admission does not relax the independent per-worker trial serial guard', async (t) => {
+  const pool = await realPool(t, { maxSessions: 0 });
+  const trial = pool.createTrial(input()); await trial.ready;
+  const combat = pool.create(phase()); await combat.ready;
+  const slot = pool.slots[0], generation = 'test:extra-trial';
+  // Directly probe the duplicate Worker guard; the pool normally serializes these trial initializations.
+  const received = once(slot.worker, 'message');
+  slot.worker.postMessage({ type: 'request', epoch: slot.epoch, kind: 'trial', generation, seq: 1, op: 'init', payload: input() });
+  const [reply] = await received;
+  assert.equal(reply.generation, generation);
+  assert.equal(reply.error?.message, 'worker session limit reached');
+  assert.equal((await combat.request('state')).ticks, 0);
+  assert.equal((await trial.advance(1)).ticks, 1);
+  await trial.close(); combat.close();
 });
 
 test('bounded trial session/request admission reserves all combat capacity and rejects overlapping trial turns', async (t) => {

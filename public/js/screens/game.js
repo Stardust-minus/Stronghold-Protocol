@@ -1329,7 +1329,7 @@ function MatchScreen() {
         ${spectator ? null : html`<${EmoteWheel} open=${emoteOpen} onToggle=${(open) => { setEmoteOpen(open); if (open) setDamageOpen(false); }} onSend=${(id) => actions.emote(id)} disabled=${conn.status !== 'online'} />`}
         <button type="button" class="gm__gear" aria-label="设置" title="设置" onClick=${() => setSettingsOpen(true)}><${GIcon} name="gear" /></button>
         <button type="button" class="gm__gear gm__guide" aria-label="玩法说明" title="玩法说明" onClick=${() => openGuide(0)}><${Icon} name="book" /></button>
-        <${FullscreenButton} class="gm__gear gm__fs" />
+        <${FullscreenButton} class="gm__gear gm__fs" showUnavailable=${true} />
         <${DamageBoard} snapshot=${damage} ownerId=${strip.ownerId} ownerName=${strip.name || players.find(p => p.playerId === strip.ownerId)?.name}
           uniteOwners=${uniteOwners} bossOwners=${bossOwners} bossHidden=${pub?.phase === PHASE.HIDDEN_CORE}
           open=${damageOpen} onToggle=${(open) => { setDamageOpen(open); if (open) setEmoteOpen(false); }} />

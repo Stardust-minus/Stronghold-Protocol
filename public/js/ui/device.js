@@ -20,7 +20,7 @@
 // CSS counterpart: public/css/devices.css (safe-area insets, touch-action, overscroll, tap-target expansion).
 
 import { useEffect, useState } from '../../vendor/hooks.module.js';
-import { html, Icon } from './components.js';
+import { html, Icon, Modal, Button, Fragment } from './components.js';
 
 /** A touch held this long without moving opens the detail (contextmenu) on DOM controls. */
 export const LONG_PRESS_MS = 520;
@@ -122,9 +122,18 @@ export const fullscreen = {
     if (!el) return false;
     try {
       if (typeof el.requestFullscreen === 'function') await el.requestFullscreen({ navigationUI: 'hide' });
-      else if (typeof el.webkitRequestFullscreen === 'function') el.webkitRequestFullscreen();
-      else return false;
+      else if (typeof el.webkitRequestFullscreen === 'function') {
+        el.webkitRequestFullscreen();
+        if (!this.active(win)) await new Promise(resolve => {
+          const d = win.document;
+          let timer;
+          const finish = () => { clearTimeout(timer); d.removeEventListener('webkitfullscreenchange', finish); d.removeEventListener('webkitfullscreenerror', finish); resolve(); };
+          d.addEventListener('webkitfullscreenchange', finish); d.addEventListener('webkitfullscreenerror', finish);
+          timer = setTimeout(finish, 1500);
+        });
+      } else return false;
     } catch { return false; }
+    if (!this.active(win)) return false;
     // Android Chrome: a landscape game may lock the orientation while fullscreen (refused elsewhere — ignored)
     try { await win.screen?.orientation?.lock?.('landscape'); } catch { /* not allowed here */ }
     return true;
@@ -142,9 +151,11 @@ export const fullscreen = {
 };
 
 /** Fullscreen toggle (hidden where the browser has no element fullscreen, e.g. iPhone Safari). */
-export function FullscreenButton({ class: cls = '' }) {
+export function FullscreenButton({ class: cls = '', showUnavailable = false }) {
   const [on, setOn] = useState(() => fullscreen.active());
   const [ok] = useState(() => fullscreen.supported());
+  const [busy, setBusy] = useState(false);
+  const [help, setHelp] = useState(null);
   useEffect(() => {
     const d = globalThis.document;
     if (!d) return undefined;
@@ -153,12 +164,27 @@ export function FullscreenButton({ class: cls = '' }) {
     d.addEventListener('webkitfullscreenchange', upd);
     return () => { d.removeEventListener('fullscreenchange', upd); d.removeEventListener('webkitfullscreenchange', upd); };
   }, []);
-  if (!ok) return null;
-  const label = on ? '退出全屏' : '全屏';
-  return html`<button type="button" class=${`fsbtn tapx ${cls}`} aria-label=${label} title=${label} aria-pressed=${on ? 'true' : 'false'}
-      onClick=${() => fullscreen.toggle()}>
-    <${Icon} name=${on ? 'collapse' : 'expand'} />
-  </button>`;
+  if (!ok && !showUnavailable) return null;
+  const label = ok ? on ? '退出全屏' : '全屏' : '查看全屏说明';
+  const toggle = async () => {
+    if (!ok) { setHelp('unsupported'); return; }
+    if (busy) return;
+    setBusy(true);
+    try { if (!await fullscreen.toggle()) setHelp('denied'); }
+    finally { setBusy(false); setOn(fullscreen.active()); }
+  };
+  return html`<${Fragment}>
+    <button type="button" class=${`fsbtn tapx ${cls}`} aria-label=${label} title=${label} aria-pressed=${on ? 'true' : 'false'}
+        aria-haspopup=${ok ? undefined : 'dialog'} disabled=${busy} onClick=${toggle}>
+      <${Icon} name=${on ? 'collapse' : 'expand'} />
+    </button>
+    <${Modal} open=${!!help} title="全屏模式" micro="DISPLAY MODE" ariaLabel="全屏模式说明" trapFocus=${true}
+        class="fullscreen-help" onClose=${() => setHelp(null)} actions=${html`<${Button} onClick=${() => setHelp(null)}>知道了<//>`}>
+      <p>${help === 'unsupported' ? '当前浏览器不支持网页原生全屏。部分手机浏览器（包括部分 iPhone 浏览器）无法由网页隐藏地址栏。' : '浏览器未允许进入全屏。请直接点击全屏按钮重试，或检查浏览器权限。'}</p>
+      <p>如果浏览器菜单提供“添加到主屏幕”，可以尝试从主屏幕以独立窗口打开。系统状态栏是否隐藏仍由浏览器与系统决定。</p>
+      <p>我们不会把普通网页模式标记为“已经全屏”。</p>
+    <//>
+  <//>`;
 }
 
 // ---- boot-time installation ----------------------------------------------------------------------------------------

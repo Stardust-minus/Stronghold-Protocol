@@ -1,7 +1,7 @@
 // Window arithmetic and resource ownership without real clocks or sleeping.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHealthMetrics } from '../server/healthMetrics.js';
+import { createHealthMetrics, publicLoadDetails } from '../server/healthMetrics.js';
 
 function fixture(overrides = {}) {
   const calls = { now: 0, cpu: 0, elu: 0, memory: 0, create: 0, enable: 0, disable: 0, reset: 0, percentiles: [],
@@ -67,6 +67,29 @@ test('health metrics: cold reads do not allocate, read counters, sample or reset
   assert.equal(f.calls.elu, 1);
   assert.equal(f.calls.reset, 0);
   f.metrics.dispose();
+});
+
+test('health metrics: public load detail reads reuse the ready cache without readers, timers, RPC or resets', () => {
+  const f = fixture();
+  assert.equal(publicLoadDetails(f.metrics.snapshot(), f.state.wall), null);
+  assert.equal(f.calls.create, 0); assert.equal(f.calls.cpu, 0);
+  f.metrics.start(); f.state.at += 10_000;
+  f.state.cpu.user += 150_000_000;
+  f.state.elu.active += 4000; f.state.elu.idle += 6000;
+  f.tick();
+  const cached = f.metrics.snapshot(), reads = structuredClone(f.calls);
+  for (let i = 0; i < 100; i++) {
+    assert.equal(f.metrics.snapshot(), cached);
+    assert.deepEqual(publicLoadDetails(cached, f.state.wall + 50), { windowMs: 10_000, ageMs: 50,
+      cpuPercent: 1500, rssMiB: 76, heapMiB: 10, eluPercent: 40, p95Ms: 32, p99Ms: 44 });
+  }
+  assert.deepEqual(f.calls, reads, 'public details only project the existing cached snapshot');
+  f.state.at += 10_000; f.state.count = 0; f.tick();
+  const emptyWindow = publicLoadDetails(f.metrics.snapshot(), f.state.wall);
+  assert.equal(emptyWindow.cpuPercent, 0, 'a measured zero remains zero');
+  assert.equal(emptyWindow.eluPercent, null); assert.equal(emptyWindow.p95Ms, null); assert.equal(emptyWindow.p99Ms, null);
+  f.metrics.dispose();
+  assert.equal(publicLoadDetails(f.metrics.snapshot(), f.state.wall), null);
 });
 
 test('health metrics: CPU uses the real monotonic window, allows >100%, ns/us convert to ms, memory stays bytes', () => {

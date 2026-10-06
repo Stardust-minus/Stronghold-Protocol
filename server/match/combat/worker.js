@@ -2,7 +2,7 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { initializeData } from '../../data.js';
 
-const { epoch, data, maxSessions, role = 'combat', trialProgressMs = 50 } = workerData;
+const { epoch, data, maxSessions = 0, role = 'combat', trialProgressMs = 50 } = workerData;
 const sessions = new Map();
 const log = Object.freeze({ error() {}, warn() {}, info() {} });
 const reply = (request, result) => parentPort.postMessage({
@@ -90,8 +90,8 @@ try {
       if (op === 'init' || op === 'run') {
         if (op === 'run' && (role !== 'trial' || kind !== 'trial')) throw new Error('autonomous trial requires dedicated worker');
         if (seq !== 1 || sessions.has(generation)) throw new Error('invalid or duplicate combat session');
-        const count = [...sessions.values()].filter((s) => s.kind === kind).length;
-        if (count >= (kind === 'trial' ? 1 : maxSessions)) throw new Error('worker session limit reached');
+        const cap = kind === 'trial' ? 1 : maxSessions; // trials stay serial; 0 = unlimited combat sessions
+        if (cap > 0 && [...sessions.values()].filter((s) => s.kind === kind).length >= cap) throw new Error('worker session limit reached');
         if (op === 'run' && typeof payload?.summary !== 'boolean') throw new Error('invalid summary mode');
         const engine = kind === 'trial' ? new TrialEngine(op === 'run' ? payload.input : payload,
           { log, isolated: true, summary: op === 'run' && payload.summary }) : new CombatEngine(payload, { log });

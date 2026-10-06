@@ -1,9 +1,10 @@
-// Bounded, synchronous four-human matchmaking. Parties are indivisible session identities, never sockets.
+// Synchronous four-human matchmaking with optional admission caps. Parties are indivisible session identities, never sockets.
 // Every human explicitly accepts and votes before the lobby atomically starts and commits a match.
 import { randomBytes } from 'node:crypto';
 import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/constants.js';
 
-export const MATCHMAKING_DEFAULTS = Object.freeze({ maxEntries: 2000, maxPerAddr: 16, waitMs: 600_000, acceptMs: 30_000 });
+// Quantity/per-network admission caps use 0 = unlimited; ticket and acceptance deadlines stay bounded.
+export const MATCHMAKING_DEFAULTS = Object.freeze({ maxEntries: 0, maxPerAddr: 0, waitMs: 600_000, acceptMs: 30_000 });
 const OK = Object.freeze({ ok: true });
 const fail = (error, detail) => ({ error, detail });
 const id = () => randomBytes(16).toString('hex');
@@ -19,7 +20,8 @@ export class Matchmaking {
     this.opts = { ...MATCHMAKING_DEFAULTS, ...options };
     const limits = { maxEntries: 20_000, maxPerAddr: 20_000, waitMs: 3_600_000, acceptMs: 120_000 };
     for (const [key, max] of Object.entries(limits)) {
-      if (!Number.isSafeInteger(this.opts[key]) || this.opts[key] < 1 || this.opts[key] > max) throw new TypeError(`invalid matchmaking ${key}`);
+      const min = key === 'maxEntries' || key === 'maxPerAddr' ? 0 : 1;
+      if (!Number.isSafeInteger(this.opts[key]) || this.opts[key] < min || this.opts[key] > max) throw new TypeError(`invalid matchmaking ${key}`);
     }
     this.entries = new Map();
     this.parties = new Map();
@@ -78,11 +80,13 @@ export class Matchmaking {
       if (member.matchmakingVersion !== MATCHMAKING_VERSION) return fail(ERR.BAD_MSG, 'all party members must refresh the page');
     }
     this.sweep();
-    if (this.entries.size + sessions.length > this.opts.maxEntries) return fail(ERR.RATE, 'matchmaking queue is full');
-    const counts = new Map();
-    for (const member of sessions) if (member.limitKey) counts.set(member.limitKey, (counts.get(member.limitKey) || 0) + 1);
-    for (const e of this.entries.values()) if (counts.has(e.key)) counts.set(e.key, counts.get(e.key) + 1);
-    if ([...counts.values()].some((count) => count > this.opts.maxPerAddr)) return fail(ERR.RATE, 'too many queued players from your network');
+    if (this.opts.maxEntries > 0 && this.entries.size + sessions.length > this.opts.maxEntries) return fail(ERR.RATE, 'matchmaking queue is full');
+    if (this.opts.maxPerAddr > 0) {
+      const counts = new Map();
+      for (const member of sessions) if (member.limitKey) counts.set(member.limitKey, (counts.get(member.limitKey) || 0) + 1);
+      for (const e of this.entries.values()) if (counts.has(e.key)) counts.set(e.key, counts.get(e.key) + 1);
+      if ([...counts.values()].some((count) => count > this.opts.maxPerAddr)) return fail(ERR.RATE, 'too many queued players from your network');
+    }
     const now = this.now();
     const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId, sequence: ++this.sequence, entries: [] };
     unit.entries = sessions.map((member) => ({
@@ -275,7 +279,7 @@ export class Matchmaking {
     this.arm();
   }
 
-  /** One timer scans the bounded queue; incoming operations also enforce their own deadlines. */
+  /** One timer scans retained tickets; incoming operations also enforce their own deadlines. */
   sweep() {
     const now = this.now();
     const expired = new Set([...this.entries.values()].filter((e) => this.stale(e, now)));

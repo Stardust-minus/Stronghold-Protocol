@@ -1,5 +1,6 @@
 // Read-only /healthz performance cache. One collector per listening server; no Worker RPC.
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
+import { normalizeLoadDetails } from '../shared/protocol.js';
 
 const SAMPLE_MS = 10_000;
 const RESOLUTION_MS = 20;
@@ -32,6 +33,22 @@ export function serverLoadState(snapshot, now = Date.now()) {
   if (p95 >= 100 || (elu >= .95 && p95 >= 50)) return 'overloaded';
   if (elu >= .85 || p95 >= 40) return 'busy';
   return 'normal';
+}
+
+/** A bounded projection of an already-cached sample; never samples or queries Workers. */
+export function publicLoadDetails(snapshot, now = Date.now()) {
+  const at = snapshot?.sampledAt, windowMs = snapshot?.windowMs;
+  if (snapshot?.status !== 'ready' || !Number.isFinite(at) || at < 0 || !Number.isFinite(now)
+      || now < at || now - at > 30_000 || !Number.isFinite(windowMs) || windowMs <= 0 || windowMs > 300_000) return null;
+  const mib = (bytes) => Number.isFinite(bytes) && bytes >= 0 ? bytes / (1024 * 1024) : null;
+  const elu = snapshot?.mainThread?.eventLoopUtilization;
+  return normalizeLoadDetails({
+    windowMs: Math.max(1, Math.round(windowMs)), ageMs: Math.round(now - at),
+    cpuPercent: snapshot?.process?.cpu?.percent,
+    rssMiB: mib(snapshot?.process?.rssBytes), heapMiB: mib(snapshot?.mainThread?.memory?.heapUsedBytes),
+    eluPercent: Number.isFinite(elu) && elu >= 0 && elu <= 1 ? elu * 100 : null,
+    p95Ms: snapshot?.mainThread?.eventLoopDelayMs?.p95, p99Ms: snapshot?.mainThread?.eventLoopDelayMs?.p99,
+  });
 }
 
 /** Injectable built-in readers/timers keep window and lifecycle tests deterministic. */

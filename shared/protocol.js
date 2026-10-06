@@ -27,6 +27,19 @@ const isMap = (v, max, key, val) => {
 };
 const isList = (v, max, item) => Array.isArray(v) && v.length <= max && v.every(item);
 
+/** Safe game-process measurements only; 100% CPU is one core, including Worker usage. */
+export function normalizeLoadDetails(value) {
+  if (!isPlain(value) || !isInt(value.windowMs, 1, 300_000) || !isInt(value.ageMs, 0, 30_000)) return null;
+  const rounded = (n, max, scale = 10) => isNum(n, 0, max) ? Math.round(n * scale) / scale : null;
+  return {
+    windowMs: value.windowMs, ageMs: value.ageMs,
+    cpuPercent: rounded(value.cpuPercent, 100_000),
+    rssMiB: rounded(value.rssMiB, 16_777_216, 1), heapMiB: rounded(value.heapMiB, 16_777_216, 1),
+    eluPercent: rounded(value.eluPercent, 100),
+    p95Ms: rounded(value.p95Ms, 300_000), p99Ms: rounded(value.p99Ms, 300_000),
+  };
+}
+
 // ---- client-side combat (DESIGN §14): b.progress / b.result payloads -------------------------------------------
 
 /** Size limits of a b.result payload (the whole frame also obeys the 64 KB inbound limit). */

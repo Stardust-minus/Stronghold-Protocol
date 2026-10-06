@@ -92,7 +92,7 @@ export class WorkerFieldRunner {
     try {
       this.inflight = true;
       this.session = this.m.combatPool.create({ specs: this.fields.map((f) => f.spec), boss: this.boss,
-        wireFrames: true, coalesceFrames: true, damageBoard: true }, {
+        wireFrames: true, coalesceFrames: true, damageBoard: true, snapshotHz: this.m.snapshotHz, gameSpeed: this.m.gameSpeed }, {
         onFailure: (e) => this._fail(e),
       });
       this.session.ready.then((out) => this._receive(out, true), (e) => this._fail(e));
@@ -219,7 +219,7 @@ export class WorkerFieldRunner {
       const consumed = this.m._onDamageRows?.(f, f.battle.damageRows()) === false;
       if (!consumed) damageFields.push(f);
     }
-    const latest = new Map((out.frames || []).map((frame) => [frame.fieldId, frame]));
+    const latest = new Map((out.frames || []).filter((frame) => frame.snapshotWire || frame.snapshot).map((frame) => [frame.fieldId, frame]));
     for (const frame of out.frames || []) {
       const f = this.fields.find((x) => x.fieldId === frame.fieldId);
       if (!f) continue;
@@ -240,8 +240,8 @@ export class WorkerFieldRunner {
           if (frame.eventsWire) this.m.sendEncoded(pid, 'b.ev', frame.eventsWire);
           if (frame.snapshotWire) this.m.sendEncoded(pid, 'b.snap', frame.snapshotWire);
         } else {
-          if (frame.events?.length) this.m.sendTo(pid, { t: 'b.ev', fieldId: f.fieldId, gt: frame.snapshot.t, ev: frame.events });
-          this.m.sendTo(pid, snapFrame(f.fieldId, frame.snapshot));
+          if (frame.events?.length) this.m.sendTo(pid, { t: 'b.ev', fieldId: f.fieldId, gt: frame.gt ?? frame.snapshot.t, ev: frame.events });
+          if (frame.snapshot) this.m.sendTo(pid, snapFrame(f.fieldId, frame.snapshot));
         }
       }
     }

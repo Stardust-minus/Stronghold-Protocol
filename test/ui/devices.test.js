@@ -130,6 +130,26 @@ describe('ui/device.js feature detection', () => {
   });
 });
 
+test('fullscreen never reports success when the browser resolves without entering fullscreen', async () => {
+  const f = fakeWindow();
+  f.doc.documentElement.requestFullscreen = async () => {};
+  assert.equal(await fullscreen.enter(f.win), false);
+  f.doc.documentElement.requestFullscreen = async () => { throw new Error('permission denied'); };
+  assert.equal(await fullscreen.enter(f.win), false);
+  assert.equal(fullscreen.active(f.win), false);
+});
+
+test('prefixed mobile fullscreen waits for the actual fullscreen element and cleans listeners', async () => {
+  const f = fakeWindow({ fs: false });
+  f.doc.documentElement.webkitRequestFullscreen = () => setTimeout(() => {
+    f.doc.webkitFullscreenElement = f.doc.documentElement;
+    f.doc.dispatch(new FakeEvent('webkitfullscreenchange'));
+  }, 0);
+  assert.equal(await fullscreen.enter(f.win), true);
+  assert.equal(f.doc.count('webkitfullscreenchange'), 0);
+  assert.equal(f.doc.count('webkitfullscreenerror'), 0);
+});
+
 describe('ui/device.js installDeviceSupport', () => {
   test('classes, --sp-vh, zoom gestures cancelled, long press → contextmenu (once), click after it swallowed', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });

@@ -23,7 +23,7 @@ function deferred() {
 }
 
 export class CombatWorkerPool {
-  constructor({ size, data = getData(), log = console, maxSessions = 4096, maxPending = 8192,
+  constructor({ size, data = getData(), log = console, maxSessions = 0, maxPending = 8192,
     startupTimeoutMs = 15_000, requestTimeoutMs = 30_000, maxTrials = 64, maxTrialPending = 64,
     role = 'combat', trialAckTimeoutMs = 5_000, trialStallTimeoutMs = 5_000 } = {}) {
     if (!['combat', 'trial'].includes(role)) throw new RangeError('role must be combat or trial');
@@ -31,9 +31,9 @@ export class CombatWorkerPool {
     this.size = positive(size, 'size', role === 'trial' ? 2 : 64);
     this.trialAckTimeoutMs = positive(trialAckTimeoutMs, 'trialAckTimeoutMs');
     this.trialStallTimeoutMs = positive(trialStallTimeoutMs, 'trialStallTimeoutMs');
-    this.maxSessions = positive(maxSessions, 'maxSessions');
-    this.maxPending = positive(maxPending, 'maxPending');
-    // Trials have their own bounded admission: they cannot consume combat's request/session capacity.
+    this.maxSessions = maxSessions === 0 ? 0 : positive(maxSessions, 'maxSessions'); // 0 = unlimited combat sessions
+    this.maxPending = positive(maxPending, 'maxPending'); // execution backpressure, not human admission
+    // Trials remain bounded background work: they cannot consume combat's request/session capacity.
     this.maxTrials = positive(maxTrials, 'maxTrials');
     this.maxTrialPending = positive(maxTrialPending, 'maxTrialPending');
     this.trials = 0;
@@ -130,7 +130,7 @@ export class CombatWorkerPool {
   create(input, { onFailure = null } = {}) {
     if (this.role === 'trial') throw error('dedicated trial pool rejects combat', 'BAD_POOL_ROLE');
     if (this.status !== 'ready') throw error('combat pool is not ready', 'POOL_UNAVAILABLE');
-    if (this.sessions.size - this.trials >= this.maxSessions) throw error('combat session limit reached', 'SESSION_LIMIT');
+    if (this.maxSessions > 0 && this.sessions.size - this.trials >= this.maxSessions) throw error('combat session limit reached', 'SESSION_LIMIT');
     if (this.pending - this.trialPending >= this.maxPending) throw error('combat request queue full', 'QUEUE_FULL');
     const count = (s) => [...s.sessions].filter((x) => x.kind === 'combat').length;
     const slot = this.slots.filter((s) => s.ready).sort((a, b) => count(a) - count(b) || a.queue.length - b.queue.length || a.index - b.index)[0];

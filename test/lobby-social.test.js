@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { Lobby } from '../server/lobby.js';
+import { Lobby, LOBBY_DEFAULTS } from '../server/lobby.js';
 import { SessionRegistry } from '../server/net.js';
 import { startServer } from '../server/index.js';
 import { TestClient } from './helpers/wsClient.js';
-import { MATCHMAKING_VERSION, ERR, DIFFICULTIES } from '../shared/constants.js';
-import { MATCHMAKING_DEFAULTS } from '../server/matchmaking.js';
+import { MATCHMAKING_VERSION, ERR, DIFFICULTIES, MAX_SPECTATORS } from '../shared/constants.js';
+import { Matchmaking, MATCHMAKING_DEFAULTS } from '../server/matchmaking.js';
 import { validateC2S } from '../shared/protocol.js';
 
 class RecordingMatch {
@@ -296,6 +296,62 @@ test('offer deadline drops unconfirmed players; accepted survivors retain FIFO a
   h.lobby.queue.sweep();
   assert.equal(h.lobby.queue.size, 0);
   assert.equal(h.lobby.rooms.size, 0);
+});
+
+test('default concurrency admission allows same-network rooms/matches and four-human allocation without quantity caps', (t) => {
+  for (const key of ['maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr']) assert.equal(LOBBY_DEFAULTS[key], 0);
+  assert.equal(MATCHMAKING_DEFAULTS.maxEntries, 0);
+  assert.equal(MATCHMAKING_DEFAULTS.maxPerAddr, 0);
+  const h = harness(t);
+  // Tiny stub matches cross the former per-network limits without simulating any battles.
+  for (let i = 0; i < 17; i++) {
+    const p = h.player(`房主${i}`, 'A');
+    assert.deepEqual(h.lobby.create(p, { mode: 'solo', difficulty: 'NORMAL' }), { ok: true });
+    assert.deepEqual(h.lobby.start(p), { ok: true });
+  }
+  const queued = Array.from({ length: 20 }, (_, i) => h.player(`队列${i}`, 'A'));
+  for (const p of queued) assert.deepEqual(h.lobby.queue.join(p, { difficulty: 'NORMAL' }), { ok: true });
+  assert.equal(h.lobby.queue.size, 20);
+  assert.equal(h.lobby.queue.offers.size, 5);
+  assert.ok([...h.lobby.queue.offers.values()].every((offer) => offer.entries.length === 4));
+  const players = queued.slice(0, 4), states = players.map((p) => ({ ...h.lobby.queue.state(p), revivalVote: false }));
+  assert.ok(h.accept(players, states).every((result) => result.ok));
+  assert.equal(h.lobby.rooms.size, 18);
+  assert.equal(h.lobby.stats().matches, 18);
+  assert.equal(h.lobby.roomOf(players[0]).activeHumans().length, 4);
+  assert.equal(h.lobby.queue.size, 16);
+});
+
+for (const options of [{ maxEntries: 2, maxPerAddr: 0 }, { maxEntries: 0, maxPerAddr: 2 }]) {
+  test(`queue cap overrides are independent (${JSON.stringify(options)})`, (t) => {
+    const h = harness(t, { matchmaking: options });
+    const players = [h.player('队列0', 'A'), h.player('队列1', 'A'), h.player('队列2', 'A'), h.player('另一网络', 'B')];
+    for (const p of players.slice(0, 2)) assert.deepEqual(h.lobby.queue.join(p, { difficulty: 'NORMAL' }), { ok: true });
+    assert.equal(h.lobby.queue.join(players[2], { difficulty: 'NORMAL' }).error, ERR.RATE);
+    const other = h.lobby.queue.join(players[3], { difficulty: 'NORMAL' });
+    if (options.maxEntries > 0) assert.equal(other.error, ERR.RATE);
+    else assert.deepEqual(other, { ok: true });
+  });
+}
+
+test('matchmaking validation accepts zero quantity caps but rejects invalid caps and zero deadlines', () => {
+  const construct = (options) => new Matchmaking({ options, send() {}, available: () => true, allocate() {} });
+  const unlimited = construct({ maxEntries: 0, maxPerAddr: 0 });
+  assert.equal(unlimited.opts.waitMs, 600_000);
+  assert.equal(unlimited.opts.acceptMs, 30_000);
+  unlimited.close();
+  for (const key of ['maxEntries', 'maxPerAddr']) for (const value of [-1, .5, '0', 20_001]) {
+    assert.throws(() => construct({ [key]: value }), TypeError);
+  }
+  for (const key of ['waitMs', 'acceptMs']) assert.throws(() => construct({ [key]: 0 }), TypeError);
+});
+
+test('positive global room admission cap still rejects a private create without moving its creator', (t) => {
+  const h = harness(t, { maxRooms: 1 }), owner = h.player('房主'), other = h.player('满员');
+  assert.deepEqual(h.lobby.create(owner, { mode: 'solo', difficulty: 'NORMAL' }), { ok: true });
+  assert.equal(h.lobby.create(other, { mode: 'solo', difficulty: 'NORMAL' }).error, ERR.INTERNAL);
+  assert.equal(other.roomCode, null);
+  assert.equal(h.lobby.rooms.size, 1);
 });
 
 test('difficulties never mix; queue total and network capacity are bounded', (t) => {
@@ -1173,11 +1229,13 @@ test('spectators are online identities but never revival voters or queued party 
   assert.equal(queued.roomCode, null);
 });
 
-test('party allocation atomically transfers up to two spectator identities without seats, votes, quotas or private frames', (t) => {
+test('party allocation atomically transfers unlimited spectator identities without seats, votes, quotas or private frames', (t) => {
   const h = harness(t), players = h.group(['A', 'B', 'C', 'D']);
   const rooms = [h.privateRoom(players.slice(0, 2)), h.privateRoom(players.slice(2))];
-  const observers = [h.player('观战1', 'S'), h.player('观战2', 'T')];
-  observers.forEach((s, i) => h.lobby.spectate(s, { code: rooms[i].code }));
+  assert.equal(MAX_SPECTATORS, 0);
+  const observers = Array.from({ length: 6 }, (_, i) => h.player(`观战${i}`, `S${i}`));
+  observers.forEach((s, i) => assert.deepEqual(h.lobby.spectate(s, { code: rooms[i % 2].code }), { ok: true }));
+  const expectedSpectators = rooms.flatMap((room) => room.spectators.map((s) => s.playerId));
   h.disconnect(observers[1]);
   assert.ok(h.lobby.graceTimers.has(observers[1].playerId));
   for (const at of [0, 2]) h.lobby.queue.join(players[at], { difficulty: 'NORMAL', party: true });
@@ -1185,11 +1243,11 @@ test('party allocation atomically transfers up to two spectator identities witho
   for (const s of observers) s.messages.length = 0;
   for (let i = 0; i < 3; i++) {
     assert.deepEqual(h.lobby.queue.accept(players[i], offers[i]), { ok: true });
-    observers.forEach((s, j) => assert.equal(s.roomCode, rooms[j].code));
+    observers.forEach((s, j) => assert.equal(s.roomCode, rooms[j % 2].code));
   }
   assert.deepEqual(h.lobby.queue.accept(players[3], offers[3]), { ok: true });
   const room = h.lobby.roomOf(players[0]);
-  assert.deepEqual(room.match.opts.spectators, observers.map((s) => s.playerId));
+  assert.deepEqual(room.match.opts.spectators, expectedSpectators);
   assert.deepEqual(room.match.opts.seats.map((s) => s.playerId), players.map((s) => s.playerId));
   assert.deepEqual([...room.ownerKeys].sort(), ['A', 'B', 'C', 'D']);
   assert.deepEqual([...room.matchKeys].sort(), ['A', 'B', 'C', 'D']);
@@ -1209,11 +1267,11 @@ test('party allocation atomically transfers up to two spectator identities witho
   assert.equal(observers[1].messages.find((m) => m.t === 'room.state').code, room.code);
 });
 
-for (const fault of ['capacity', 'start']) test(`spectator party ${fault} allocation failure preserves every original room and observer`, (t) => {
+test('spectator party startup failure preserves every original room and unlimited observer', (t) => {
   class BrokenMatch extends RecordingMatch { start() { super.start(); throw new Error('fixture'); } }
-  const h = harness(t, {}, fault === 'start' ? BrokenMatch : RecordingMatch), players = h.group();
+  const h = harness(t, {}, BrokenMatch), players = h.group();
   const rooms = [h.privateRoom(players.slice(0, 2)), h.privateRoom(players.slice(2))];
-  const observers = Array.from({ length: fault === 'capacity' ? 3 : 2 }, (_, i) => h.player(`观战${i}`));
+  const observers = Array.from({ length: 6 }, (_, i) => h.player(`观战${i}`));
   observers.forEach((s, i) => h.lobby.spectate(s, { code: rooms[i % 2].code }));
   h.disconnect(observers[0]);
   const timer = h.lobby.graceTimers.get(observers[0].playerId);
@@ -1221,8 +1279,7 @@ for (const fault of ['capacity', 'start']) test(`spectator party ${fault} alloca
   for (const s of observers) s.messages.length = 0;
   const offers = players.map((p) => ({ ...h.lobby.queue.state(p), revivalVote: true }));
   const results = h.accept(players, offers);
-  assert.equal(results[3].error, fault === 'capacity' ? ERR.ROOM_FULL : ERR.INTERNAL);
-  if (fault === 'capacity') assert.equal(results[3].detail, 'party rooms have more than two spectators');
+  assert.equal(results[3].error, ERR.INTERNAL);
   assert.equal(h.lobby.rooms.size, 2);
   assert.equal(h.lobby.queue.size, 4);
   assert.equal(h.lobby.queue.offers.size, 0);

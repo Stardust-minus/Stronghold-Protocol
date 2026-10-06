@@ -41,10 +41,10 @@
 //     seats, start), leave it, or a new match starts. A human removed by the lobby grace gets them right after
 //     `room.closed {timeout}` on their next resume (Match.onReconnect cannot do this: the lobby drops the
 //     match reference at onEnd and disposes it on the next macrotask).
-//   * Per-network limits (internet clients only, see net.js clientAddress): at most `maxRoomsPerAddr` rooms
-//     created from one network may exist at once and at most `maxMatchesPerAddr` matches started from one
-//     network may run at once (room.create / room.start → ERR.RATE). Without them a socket loop could fill
-//     `maxRooms` or keep hundreds of unattended matches simulating for the whole reconnect window.
+//   * Optional per-network limits (internet clients only, see net.js clientAddress): positive `maxRoomsPerAddr`
+//     and `maxMatchesPerAddr` cap concurrent rooms and running matches (room.create / room.start → ERR.RATE).
+//     These and the global `maxRooms` admission cap default to 0 (unlimited). Match rules, reconnect policy,
+//     per-socket backpressure and Worker execution/queue safeguards are independent and remain enforced.
 //   * Permanent departure during a match (room.leave, g.leave, reconnect window expired): the seat is
 //     marked departed (shown as connected=false), match.onLeave(playerId) is called, and the seat is freed
 //     when the match ends. 'g.leave' is handled here and never reaches match.handle().
@@ -65,7 +65,7 @@
 //     match.setLoadout(playerId, loadout), which accepts it only during INFO_CHECK (the 干员调配 entry of the briefing)
 //     and refuses it afterwards (WRONG_PHASE: the match's loadout is locked, the stored one applies to the next match).
 //   * Spectator seats (community report #26, owner's decision 2026-10-04 — a remake feature, the official room has none):
-//     room.spectate { code } takes one of a co-op room's MAX_SPECTATORS (2) spectator seats, in its lobby or while its
+//     room.spectate { code } adds a co-op observer (MAX_SPECTATORS = 0 means unlimited), in its lobby or while its
 //     match runs (▸ solo rooms: ROOM_FULL). A spectator is not a player: never in `seats`, never counted for the 1–4 players
 //     or the start gate, never host, never keeps a room alive (a room whose last human leaves closes with room.closed
 //     {empty} for its spectators). It receives room.state (`spectators: [{ playerId, name, connected }]`) and every match
@@ -92,12 +92,12 @@ export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 /** Tunables. */
 export const LOBBY_DEFAULTS = Object.freeze({
   lobbyGraceMs: 60_000,   // disconnected humans keep their lobby seat this long
-  maxRooms: 4096,
-  maxRoomsPerAddr: 16,    // rooms created from one client network that may exist at once (0 = unlimited)
-  maxMatchesPerAddr: 8,   // matches started from one client network that may run at once (0 = unlimited)
+  maxRooms: 0,           // concurrent rooms (0 = unlimited)
+  maxRoomsPerAddr: 0,     // rooms created from one client network that may exist at once (0 = unlimited)
+  maxMatchesPerAddr: 0,   // matches started from one client network that may run at once (0 = unlimited)
   resyncMinGapMs: 1000,   // heavy resyncs (match state / result replay) per session at most this often on repeated hellos
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
-  matchmaking: null,           // bounded queue options; defaults live in matchmaking.js
+  matchmaking: null,           // queue admission/deadline options; defaults live in matchmaking.js
 });
 
 /** Official `singleReconnectTime` (s) when the data lacks it (constData, research 01 §1). */
@@ -133,7 +133,7 @@ export class Room {
     this.hostId = null;
     /** @type {(Seat | null)[]} */
     this.seats = new Array(MAX_SEATS).fill(null);
-    /** @type {{ playerId: string, name: string, connected: boolean }[]} spectator seats, ≤ MAX_SPECTATORS (header) */
+    /** @type {{ playerId: string, name: string, connected: boolean }[]} observers; MAX_SPECTATORS > 0 opts into a cap */
     this.spectators = [];
     /** @type {any} running Match instance */
     this.match = null;
@@ -414,7 +414,7 @@ export class Lobby {
     if (this.queue.has(session)) return fail(ERR.QUEUED);
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
-    if (this.rooms.size >= this.opts.maxRooms) return fail(ERR.INTERNAL, 'too many rooms');
+    if (this.opts.maxRooms > 0 && this.rooms.size >= this.opts.maxRooms) return fail(ERR.INTERNAL, 'too many rooms');
     const key = session.limitKey || null;
     if (key && this.opts.maxRoomsPerAddr > 0) {
       // The room being left disappears with this create when the creator is its only human (a spectator is none).
@@ -492,7 +492,7 @@ export class Lobby {
     if (this.queue.has(session)) return fail(ERR.QUEUED);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (room.mode === 'solo') return fail(ERR.ROOM_FULL, 'solo room');
-    if (room.spectators.length >= MAX_SPECTATORS) return fail(ERR.ROOM_FULL, 'no free spectator seat');
+    if (MAX_SPECTATORS > 0 && room.spectators.length >= MAX_SPECTATORS) return fail(ERR.ROOM_FULL, 'no free spectator seat');
     if (cur) this.removeMember(cur, session.playerId);
     room.spectators.push({ playerId: session.playerId, name: session.name, connected: session.connected });
     session.roomCode = room.code;
@@ -737,11 +737,11 @@ export class Lobby {
       if (entry.party.roomCode) oldRooms.add(this.roomOf(session));
     }
     const spectators = [...oldRooms].flatMap((r) => r.spectators);
-    if (spectators.length > MAX_SPECTATORS) return fail(ERR.ROOM_FULL, 'party rooms have more than two spectators');
+    if (MAX_SPECTATORS > 0 && spectators.length > MAX_SPECTATORS) return fail(ERR.ROOM_FULL, 'party rooms exceed the spectator limit');
     for (const old of oldRooms) {
       if (old.spectators.some((s) => this.registry.byId(s.playerId)?.roomCode !== old.code)) return fail(ERR.BAD_TARGET, 'party spectator unavailable');
     }
-    if (this.rooms.size - oldRooms.size >= this.opts.maxRooms) return fail(ERR.RATE, 'too many rooms');
+    if (this.opts.maxRooms > 0 && this.rooms.size - oldRooms.size >= this.opts.maxRooms) return fail(ERR.RATE, 'too many rooms');
     const keys = new Set(sessions.map((s) => s.limitKey).filter(Boolean));
     for (const key of keys) {
       const released = [...oldRooms].filter((r) => this.roomCharges(r, key)).length;
@@ -827,6 +827,7 @@ export class Lobby {
         data: this.safeData(),
         combatPool: this.combatPool,
         trialPool: this.trialPool,
+        snapshotHz: this.opts.snapshotHz,
         log: this.log,
         now: this.now,
         send: (playerId, msg) => dispatch((frame) => this.matchSend(room, ctx, playerId, frame), msg),

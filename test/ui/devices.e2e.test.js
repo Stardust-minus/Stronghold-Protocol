@@ -383,11 +383,13 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
     }
   });
 
-  test('portrait phone: the rotate hint covers the page', async () => {
+  test('portrait phone: lobby remains usable and only the battlefield requires rotation', async () => {
     const page = await browser.newPage();
     await page.emulate({ viewport: { width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true }, userAgent: IOS_UA });
     await page.goto(`${base}/`, { waitUntil: 'networkidle0' });
     await sleep(400);
+    assert.equal(await page.$eval('.rotate-hint', (el) => getComputedStyle(el).display), 'none');
+    await page.evaluate(() => document.documentElement.classList.add('sp-in-match'));
     assert.equal(await page.$eval('.rotate-hint', (el) => getComputedStyle(el).display), 'grid');
     await page.screenshot({ path: path.join(OUT, 'device-portrait-rotate.png') });
     await page.close();

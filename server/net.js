@@ -37,7 +37,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
-import { C2S, validateC2S, normalizeServerLoad } from '../shared/protocol.js';
+import { C2S, validateC2S, normalizeServerLoad, normalizeLoadDetails } from '../shared/protocol.js';
 import { ERR, ERR_TEXT, PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { isCompressibleType } from './wsCompression.js';
 import { moderateName } from '../shared/names.js';
@@ -53,9 +53,9 @@ export const NET_DEFAULTS = Object.freeze({
   reconnectWindowMs: 10 * 60_000, // disconnected sessions stay resumable this long
   snapDropBytes: 1 << 20,       // skip b.snap while bufferedAmount exceeds this
   hardBufferBytes: 16 << 20,    // terminate a socket whose send queue exceeds this
-  maxConnections: 2000,         // concurrent sockets (enforced by index.js at upgrade time)
-  maxConnectionsPerAddr: 64,    // concurrent sockets per client network key (0 = unlimited); see clientAddress
-  maxSessions: 20_000,          // registry cap; oldest idle sessions are evicted first
+  maxConnections: 0,            // concurrent sockets (0 = unlimited; enforced at upgrade time)
+  maxConnectionsPerAddr: 0,     // concurrent sockets per client network key (0 = unlimited); see clientAddress
+  maxSessions: 0,               // registry cap (0 = unlimited); finite caps evict oldest idle sessions first
   heavyPerSec: 2,               // refill of the bucket for resend-heavy intents (HEAVY_TYPES)
   heavyBurst: 6,
   trustProxy: 'auto',           // forwarding headers: 'auto' = from loopback/private peers only, true = always, false = never
@@ -148,7 +148,7 @@ export class SessionRegistry {
    * @returns {Session | null}
    */
   create(name) {
-    if (this.byPlayerId.size >= this.maxSessions && !this.evictOne()) return null;
+    if (this.maxSessions > 0 && this.byPlayerId.size >= this.maxSessions && !this.evictOne()) return null;
     let playerId;
     do playerId = 'p_' + randomBytes(5).toString('hex'); while (this.byPlayerId.has(playerId));
     let token;
@@ -483,15 +483,17 @@ export class Network {
    *   log?: { info: Function, warn: Function, error: Function, debug?: Function },
    *   now?: () => number,
    *   getLoadState?: () => string,
+   *   getLoadDetails?: () => unknown,
    *   options?: Partial<typeof NET_DEFAULTS>,
    * }} opts
    */
-  constructor({ registry, handler, log = noopLog, now = Date.now, getLoadState = null, options = {} }) {
+  constructor({ registry, handler, log = noopLog, now = Date.now, getLoadState = null, getLoadDetails = null, options = {} }) {
     this.registry = registry;
     this.handler = handler;
     this.log = log;
     this.now = now;
     this.getLoadState = typeof getLoadState === 'function' ? getLoadState : null;
+    this.getLoadDetails = typeof getLoadDetails === 'function' ? getLoadDetails : null;
     this.opts = { ...NET_DEFAULTS, ...options };
     /** @type {Map<import('ws').WebSocket, Connection>} */
     this.conns = new Map();
@@ -515,7 +517,7 @@ export class Network {
    */
   admission(req) {
     if (this.closed) return 'shutdown';
-    if (this.conns.size >= this.opts.maxConnections) return 'full';
+    if (this.opts.maxConnections > 0 && this.conns.size >= this.opts.maxConnections) return 'full';
     const { key } = clientAddress(req, this.opts.trustProxy);
     const cap = this.opts.maxConnectionsPerAddr;
     if (key && cap > 0 && (this.connsPerKey.get(key) || 0) >= cap) return 'per-address';
@@ -581,6 +583,12 @@ export class Network {
       if (this.getLoadState) {
         try { pong.loadState = normalizeServerLoad(this.getLoadState()); }
         catch { pong.loadState = 'unknown'; } // diagnostics cannot interrupt heartbeat replies
+      }
+      if (this.getLoadDetails) {
+        try {
+          const details = normalizeLoadDetails(this.getLoadDetails());
+          if (details !== null) pong.loadDetails = details;
+        } catch { /* diagnostics cannot interrupt heartbeat replies */ }
       }
       if (validRid(rid)) pong.rid = rid;
       this.reply(conn, pong);

@@ -12,7 +12,9 @@
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor, ERR } from '../../../shared/constants.js';
 import { html, Button, Icon, MicroLabel, Modal, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
-import { AnnouncementBoard } from '../ui/announcements.js';
+import { AnnouncementBoard, announcementRevision, announcementDismissed, dismissAnnouncement } from '../ui/announcements.js';
+import { ServerStatusModal } from '../ui/serverStatus.js';
+import { FullscreenButton } from '../ui/device.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton } from '../ui/guide.js';
 import { LoadoutButton } from './loadout.js';
@@ -235,9 +237,11 @@ function DifficultyCard({ roomMode, difficulty, selected, onSelect, disabled = f
 }
 
 // Mounted on demand. Keep optional announcement I/O here, outside the shared in-match UI data contract.
-function LobbyAnnouncements({ onClose }) {
+function LobbyAnnouncements({ snapshot, onClose }) {
   useData('announcements');
-  return html`<${AnnouncementBoard} status=${data.status('announcements')} value=${data.get('announcements')}
+  const status = data.status('announcements');
+  const ready = snapshot.value === data.get('announcements');
+  return html`<${AnnouncementBoard} status=${status === 'ready' && !ready ? 'loading' : status} value=${snapshot.value}
     onRetry=${() => data.invalidate('announcements')} onClose=${onClose} />`;
 }
 
@@ -245,7 +249,7 @@ function LobbyAnnouncements({ onClose }) {
 export function LobbyScreen() {
   const me = useStore((s) => s.me, shallowEqual);
   const conn = useStore((s) => s.connection, shallowEqual);
-  useData('config');
+  useData('config', 'announcements');
   const queue = useStore((s) => s.queue);
   const queued = queueActive(queue);
   const [roomMode, setRoomMode] = useState(() => {
@@ -260,6 +264,9 @@ export function LobbyScreen() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(null);
   const [overlay, setOverlay] = useState(null);
+  const [loadOpen, setLoadOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState({ value: null, revision: null });
+  const noticeStatus = data.status('announcements'), noticeValue = data.get('announcements');
   const [recent] = useState(recentRooms);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
@@ -267,6 +274,31 @@ export function LobbyScreen() {
 
   const online = conn.status === 'online';
   const codeOk = CODE_RE.test(code);
+  useEffect(() => {
+    // Optional low-frequency checks exist only while the lobby is mounted, never during a match.
+    const refresh = () => {
+      if (document.visibilityState === 'hidden' || data.status('announcements') === 'loading') return;
+      if (data.status('announcements') === 'ready' || data.status('announcements') === 'missing') data.invalidate('announcements');
+    };
+    refresh();
+    const timer = setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', refresh); };
+  }, []);
+  useEffect(() => {
+    if (noticeStatus !== 'ready') return undefined;
+    let current = true;
+    announcementRevision(noticeValue).then(revision => {
+      if (current && data.status('announcements') === 'ready' && data.get('announcements') === noticeValue) {
+        setAnnouncements({ value: noticeValue, revision });
+      }
+    });
+    return () => { current = false; };
+  }, [noticeStatus, noticeValue]);
+  useEffect(() => {
+    if (online && !queued && !busy && overlay == null && announcements.revision && !announcementDismissed(announcements.revision)) setOverlay('announcements');
+  }, [online, queued, busy, overlay, announcements.revision]);
+  const closeAnnouncements = () => { dismissAnnouncement(announcements.revision); setOverlay(null); };
 
   const pickMode = (m) => { setRoomMode(m); savePref('lobby.mode', m); };
   const pickDifficulty = (d) => { setDifficulty(d); savePref('lobby.difficulty', d); };
@@ -322,7 +354,8 @@ export function LobbyScreen() {
     <header class="topbar">
       <div class="topbar__left">
         <${Button} variant="ghost" size="sm" icon="chevronLeft" onClick=${backToTitle} title="返回标题">返回<//>
-        <${PingPill} ms=${conn.ping} online=${online} />
+        <${PingPill} ms=${conn.ping} online=${online} loadState=${conn.loadState ?? 'unknown'} loadDetails=${conn.loadDetails}
+          loadOpen=${loadOpen} onLoadClick=${() => setLoadOpen(true)} />
         <${OnlinePlayers} />
       </div>
       <div class="topbar__center">
@@ -330,6 +363,7 @@ export function LobbyScreen() {
         <h1 class="topbar__title">选择模拟协议</h1>
       </div>
       <div class="topbar__right">
+        <${FullscreenButton} class="lobby-fullscreen" showUnavailable=${true} />
         <${Button} class="lobby-announcements" variant="secondary" size="sm" icon="info" aria-haspopup="dialog"
           onClick=${() => setOverlay('announcements')}>公告<//>
         <${GuideButton} class="lobby-guide" variant="secondary" />
@@ -360,7 +394,7 @@ export function LobbyScreen() {
             <${TextField} size="code" icon="key" value=${code} placeholder="输入同盟密钥 / 粘贴邀请链接"
               transform=${normalizeCode} onInput=${(v) => setCode(normalizeCode(v))} onEnter=${() => join()} />
             <${Button} variant="amber" size="lg" icon="users" loading=${busy === 'join'} disabled=${!codeOk || !online || queued || !!busy} onClick=${() => join()}>加入同盟<//>
-            <${Tooltip} text=${`以观战者身份进入：不占博士席位，只能观看（每个同盟最多 ${MAX_SPECTATORS} 名，模拟进行中也可进入）`}>
+            <${Tooltip} text=${`以观战者身份进入：不占博士席位，只能观看${MAX_SPECTATORS > 0 ? `（每个同盟最多 ${MAX_SPECTATORS} 名）` : '（观战席不设人数上限）'}，模拟进行中也可进入`}>
               <${Button} variant="secondary" size="lg" icon="eye" class="join-spectate" loading=${busy === 'spectate'} disabled=${!codeOk || !online || queued || !!busy} onClick=${spectate}>观战<//>
             <//>
           </div>
@@ -393,7 +427,8 @@ export function LobbyScreen() {
         </div>`}
       </section>
     </div>
-    ${overlay === 'announcements' ? html`<${LobbyAnnouncements} onClose=${() => setOverlay(null)} />` : null}
+    <${ServerStatusModal} open=${loadOpen} online=${online} state=${conn.loadState} details=${conn.loadDetails} onClose=${() => setLoadOpen(false)} />
+    ${overlay === 'announcements' ? html`<${LobbyAnnouncements} snapshot=${announcements} onClose=${closeAnnouncements} />` : null}
     ${overlay === 'protocol' ? html`<${Modal} open=${true} title="所选协议说明" micro="SIMULATION PROTOCOL"
         ariaLabel="所选协议说明" trapFocus=${true} class="lobby-dialog" onClose=${() => setOverlay(null)}
         actions=${html`<${Button} icon="close" onClick=${() => setOverlay(null)}>关闭说明<//>`}>

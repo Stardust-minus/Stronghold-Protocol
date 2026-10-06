@@ -14,7 +14,7 @@ export const MAX_SEATS = 4;
  * A spectator never counts as a player, may not act, and watches like an eliminated player (server/lobby.js spectate,
  * server/match/Match.js addSpectator).
  */
-export const MAX_SPECTATORS = 2;
+export const MAX_SPECTATORS = 0; // 0 = unlimited observers; MAX_SEATS still caps players at four.
 export const ROOM_CODE_LEN = 4;
 export const NAME_MAX_LEN = 12;
 

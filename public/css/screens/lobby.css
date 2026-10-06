@@ -285,6 +285,18 @@
 .announcement-state > .icon { width: .4rem; height: .4rem; color: var(--mint-400); }
 .announcement-state h3 { color: var(--text-hi); font-size: max(.22rem, 16px); }
 .announcement-state p { font-size: max(.17rem, 14px); line-height: 1.6; }
+.announcement-board .modal__body { display: flex; flex-direction: column; flex: 1; gap: 12px; overflow: hidden; }
+.announcement-scroll { min-height: 0; flex: 1; overflow-y: scroll; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 12px; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.announcement-scroll::-webkit-scrollbar { width: 8px; }.announcement-scroll::-webkit-scrollbar-track { background: var(--bg-3); }.announcement-scroll::-webkit-scrollbar-thumb { background: var(--mint-700); border: 2px solid var(--bg-3); border-radius: 4px; }
+.announcement-reading { flex: none; display: flex; flex-direction: column; gap: 7px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--text-lo); font-size: 12px; }
+.announcement-reading__track { height: 3px; background: var(--bg-4); overflow: hidden; }.announcement-reading__track i { display: block; width: 100%; height: 100%; background: var(--mint-500); transform-origin: left; }
+.announcement-reading > span { display: flex; align-items: center; justify-content: center; gap: 6px; }.announcement-reading .icon { width: 14px; height: 14px; transform: rotate(90deg); }
+.announcement-reading.has-more { color: var(--mint-400); }
+.lobby-fullscreen { min-width: 40px; min-height: 40px; width: max(.4rem, 40px); height: max(.4rem, 40px); }
+.fullscreen-help { width: min(max(5.4rem, 320px), calc(100vw - 32px)); }.fullscreen-help p { font-size: max(.17rem, 14px); line-height: 1.65; }.fullscreen-help p + p { margin-top: 12px; }
+.announcement-board .modal__actions .btn, .server-status-modal .modal__actions .btn, .fullscreen-help .modal__actions .btn { min-height: 40px; font-size: max(.17rem, 14px); padding-inline: 16px; }
+.lobby-fullscreen .icon { width: 20px; height: 20px; }
+@media (max-width: 400px) { .lobby-screen .topbar__left .online-players { display: none; } .lobby-screen .topbar__right { gap: 4px; } }
 
 @media (max-width: 1100px) {
   .lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: .16rem; }

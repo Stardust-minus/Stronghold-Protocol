@@ -156,7 +156,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
 function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {
   if (!facts.spectators.length) return null;
   return html`<section class="specbar" aria-label="观战席">
-    <span class="specbar__label"><${Icon} name="eye" />观战席<b class="num">${facts.spectators.length}</b><span class="num t-dim">/${MAX_SPECTATORS}</span></span>
+    <span class="specbar__label"><${Icon} name="eye" />观战席<b class="num">${facts.spectators.length}</b><span class="num t-dim">${MAX_SPECTATORS > 0 ? `/${MAX_SPECTATORS}` : ' / 无上限'}</span></span>
     ${facts.spectators.map((s) => html`<span key=${s.playerId} class=${`specbar__who${s.playerId === myId ? ' is-me' : ''}${s.connected === false ? ' is-offline' : ''}`}>
       ${s.connected === false ? html`<${Icon} name="wifiOff" />` : null}${s.name || '博士'}${s.playerId === myId ? html`<span class="seat__you">你</span>` : null}
       ${facts.isHost ? html`<${Button} variant="ghost" size="sm" square=${true} icon="close" loading=${busy === `rs${s.playerId}`}

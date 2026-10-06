@@ -23,12 +23,13 @@
 // 准备就绪 is refused while the temp overflow row (临时整备区) holds pieces: the reason shows under the button
 // (user playtest #3 item 3; the row's own label is ui/underframe.js TempRowNotice).
 
-import { useRef } from '../../vendor/hooks.module.js';
+import { useRef, useState } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
 import { html, Button, Icon, PingPill, Countdown, Tooltip, MicroLabel, DifficultyTag, useTicker } from './components.js';
 import { Sprite, LpTower, GIcon, LocalSprite } from './gameComponents.js';
 import { localAsset } from '../data.js';
 import { serverNow } from '../store.js';
+import { ServerStatusModal } from './serverStatus.js';
 import { isCombatPhase, isBossPhase, prepCapsuleLabel, bossFrac, bossPctText, fmtNum, shopBlockReason } from './gameLogic.js';
 import { overtimeState, overtimeDrainPerSec, remainAt } from './matchStatus.js';
 
@@ -309,6 +310,7 @@ export function PauseButton({ paused, busy = false, onToggle }) {
  */
 export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, onReady, readyBusy, readyCount, playerCount, pen = false, penAvail = false, onPen = () => {},
   config = null, frozenAt = null, pause = null, live = null, spectator = false }) {
+  const [loadOpen, setLoadOpen] = useState(false);
   const phase = pub?.phase;
   const boss = isBossPhase(phase);
   const lp = boss && Number.isFinite(pub?.teamLp) ? pub.teamLp : Number.isFinite(priv?.lp) ? priv.lp : null;
@@ -334,7 +336,10 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
     <div class="gtop__left">
       <${Button} variant="danger" size="lg" square=${true} icon="exit" onClick=${onExit} aria-label="离开" title="离开 / 暂离" class="gtop__exit tapx" />
       <div class="gtop__meta">
-        <${PingPill} ms=${conn?.ping} online=${conn?.status === 'online'} loadState=${conn?.loadState ?? 'unknown'} />
+        <${PingPill} ms=${conn?.ping} online=${conn?.status === 'online'} loadState=${conn?.loadState ?? 'unknown'}
+          loadDetails=${conn?.loadDetails} loadOpen=${loadOpen} onLoadClick=${() => setLoadOpen(true)} />
+        <${ServerStatusModal} open=${loadOpen} online=${conn?.status === 'online'} state=${conn?.loadState}
+          details=${conn?.loadDetails} onClose=${() => setLoadOpen(false)} />
         ${pub?.difficulty ? html`<${DifficultyTag} difficulty=${pub.difficulty} size="sm" />` : null}
       </div>
     </div>

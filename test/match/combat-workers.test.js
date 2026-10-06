@@ -736,7 +736,7 @@ test('workers: configuration strictly accepts only integer options/env 0..32 and
   assert.equal(off.combatPool, null);
   const health = await (await fetch(`${off.url}/healthz`)).json();
   assert.deepEqual(health.combat, { backend: 'inline', workers: 0 });
-  assert.equal(health.maxRooms, 4096);
+  assert.equal(health.maxRooms, 0);
   process.env.SP_COMBAT_WORKERS = 'garbage';
   await assert.rejects(startServer({ port: 0, quiet: true }), /SP_COMBAT_WORKERS/);
   const override = await startServer({ port: 0, host: '127.0.0.1', combatWorkers: 0, quiet: true });
@@ -923,7 +923,7 @@ test('workers: unavailable diagnostics never change ready combat health', { time
   assert.equal(warnings.length, 1);
 });
 
-test('workers: lobby defaults to 4096 rooms and enforces the boundary with lightweight sessions, not matches', () => {
+test('workers: unlimited default crosses the old4096-room boundary; positive caps remain opt-in', () => {
   const sessions = new Map();
   const lobby = new Lobby({ registry: { byId: (id) => sessions.get(id) }, log: quiet, getData: () => DATA });
   const session = (n, limitKey = null) => {
@@ -932,15 +932,15 @@ test('workers: lobby defaults to 4096 rooms and enforces the boundary with light
     return s;
   };
   try {
-    assert.equal(lobby.opts.maxRooms, 4096);
+    assert.equal(lobby.opts.maxRooms, 0);
     for (let n = 0; n < 4096; n++) assert.deepEqual(lobby.create(session(n), { mode: 'solo', difficulty: 'NORMAL' }), { ok: true });
     assert.equal(lobby.rooms.size, 4096);
     assert.ok([...lobby.rooms.values()].every((room) => room.match == null));
     const extra = session(4096);
-    assert.equal(lobby.create(extra, { mode: 'solo', difficulty: 'NORMAL' }).error, 'INTERNAL');
-    assert.equal(extra.roomCode, null);
-    lobby.disposeRoom(lobby.rooms.values().next().value, 'empty');
     assert.deepEqual(lobby.create(extra, { mode: 'solo', difficulty: 'NORMAL' }), { ok: true });
+    assert.ok(extra.roomCode);
+    assert.equal(lobby.rooms.size, 4097);
+    lobby.disposeRoom(lobby.rooms.values().next().value, 'empty');
     assert.equal(lobby.rooms.size, 4096);
   } finally { lobby.shutdown(); }
   assert.equal(lobby.rooms.size, 0);
@@ -1130,7 +1130,7 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
   assert.ok(m.runner instanceof WorkerFieldRunner);
   assert.ok(m.fields.every((f) => f.battle instanceof RemoteBattle));
   const health = await (await fetch(`${srv.url}/healthz`)).json();
-  assert.equal(health.maxRooms, 4096);
+  assert.equal(health.maxRooms, 0);
   assert.equal(health.combat.backend, 'workers');
   assert.equal(health.combat.workers, 2);
   assert.equal(health.combat.sessions, 1);

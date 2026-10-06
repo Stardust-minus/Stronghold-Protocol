@@ -392,7 +392,7 @@ const quiet = async (fn) => {
 /** Answer the latest ping on a fake socket. */
 function ws0Pong(sock) {
   const p = sock.last('ping');
-  if (p) sock.recv({ t: 'pong', c: p.c, s: p.c });
+  if (p) sock.recv({ t: 'pong', rid: p.rid, c: p.c, s: p.c });
 }
 
 describe('net.js', () => {
@@ -536,7 +536,7 @@ describe('net.js', () => {
     net.probe();
     const ping = ws().last('ping');
     timers.advance(40);
-    ws().recv({ t: 'pong', c: ping.c, s: ping.c + 20 + 5000 });
+    ws().recv({ t: 'pong', rid: ping.rid, c: ping.c, s: ping.c + 20 + 5000 });
     assert.equal(net.ping, 40);
     assert.equal(net.clockOffset, 5000);
     assert.ok(clocks.at(-1).synced);
@@ -562,7 +562,7 @@ describe('net.js', () => {
     for (let i = 0; i < 5; i++) {
       const ping = ws().last('ping');
       timers.advance(30);
-      ws().recv({ t: 'pong', c: ping.c, s: ping.c });   // server answers promptly
+      ws().recv({ t: 'pong', rid: ping.rid, c: ping.c, s: ping.c });   // server answers promptly
       timers.advance(60_000 - 30);                        // next (late) heartbeat
     }
     assert.equal(sockets.length, 1, 'no reconnect churn');

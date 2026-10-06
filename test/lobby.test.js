@@ -16,7 +16,7 @@ import { createHealthMetrics } from '../server/healthMetrics.js';
 import { loadData, lookup, getChess, getBond, getBand, getMode, getConfig, INDEXED_FILES } from '../server/data.js';
 import * as dataModule from '../server/data.js';
 import { CODE_ALPHABET, BOT_NAMES } from '../server/lobby.js';
-import { sanitizeName, TokenBucket, SessionRegistry, clientAddress, normalizeIp, isLocalIp, limitKeyOf } from '../server/net.js';
+import { sanitizeName, TokenBucket, SessionRegistry, Network, NET_DEFAULTS, clientAddress, normalizeIp, isLocalIp, limitKeyOf } from '../server/net.js';
 import { StubMatch as Match } from '../server/match/StubMatch.js';
 import { Match as RealMatch } from '../server/match/Match.js';
 import { TestClient } from './helpers/wsClient.js';
@@ -99,6 +99,24 @@ function captureLog() {
   const errors = [];
   return { errors, log: { info() {}, warn() {}, debug() {}, error: (...a) => errors.push(a.map(String).join(' ')) } };
 }
+
+test('unlimited room admission serializes maxRooms zero in health without reporting full or unavailable', async (t) => {
+  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, MatchClass: Match });
+  t.after(() => srv.close());
+  assert.equal(srv.lobby.opts.maxRooms, 0);
+  assert.equal(srv.registry.maxSessions, 0);
+  assert.equal(srv.network.opts.maxConnections, 0);
+  for (let i = 0; i < 2; i++) {
+    const s = srv.registry.create(`房主${i}`);
+    assert.deepEqual(srv.lobby.create(s, { mode: 'solo', difficulty: 'NORMAL' }), { ok: true });
+  }
+  const response = await httpReq(srv.port, '/healthz');
+  assert.equal(response.status, 200);
+  const health = JSON.parse(response.body);
+  assert.equal(health.ok, true);
+  assert.equal(health.maxRooms, 0);
+  assert.equal(health.rooms, 2);
+});
 
 // ---------------------------------------------------------------------------------------------------
 // Static HTTP
@@ -610,7 +628,7 @@ describe('websocket lobby', () => {
   });
 
   // community report #26 (a remake feature): spectator seats — server/lobby.js header
-  test('spectator seats: join / cap / leave / host removal; never a player, never acting, never keeping a room', async () => {
+  test('spectator seats: unlimited join / leave / host removal; never a player, never acting, never keeping a room', async () => {
     const host = await pool.player('Host');
     const st = await createRoom(host);
     assert.deepEqual(st.spectators, []);
@@ -630,12 +648,14 @@ describe('websocket lobby', () => {
       await expectError(s1, msg, ERR.NOT_HOST);
     }
     await expectError(s1, { t: 'g.ready', ready: true }, ERR.WRONG_PHASE);
-    // the cap; spectators never count toward the players: two player seats still free
+    // Unlimited observers still never count toward the four player seats.
     const s2 = await pool.player('Watcher2');
     await expectOk(s2, { t: 'room.spectate', code: st.code });
-    assert.equal(MAX_SPECTATORS, 2);
+    assert.equal(MAX_SPECTATORS, 0);
     const s3 = await pool.player('Watcher3');
-    await expectError(s3, { t: 'room.spectate', code: st.code }, ERR.ROOM_FULL);
+    await expectOk(s3, { t: 'room.spectate', code: st.code });
+    const three = await s3.waitFor('room.state', (s) => s.spectators.length === 3);
+    assert.equal(three.seats.filter(Boolean).length, 2);
     await joinRoom(s3, st.code);
     await expectOk(host, { t: 'room.addBot' });
     const full = await host.waitFor('room.state', (s) => s.seats.every(Boolean));
@@ -1034,8 +1054,8 @@ describe('websocket lobby', () => {
         assert.ok(sess, 'seated session exists');
         assert.equal(sess.roomCode, room.code);
       }
-      // spectator seats: capped, none in solo rooms, never also a player (here or elsewhere), never the host
-      assert.ok(room.spectators.length <= MAX_SPECTATORS, `room ${room.code} spectator cap`);
+      // Optional spectator cap; none in solo rooms, never also a player (here or elsewhere), never the host.
+      assert.ok(MAX_SPECTATORS === 0 || room.spectators.length <= MAX_SPECTATORS, `room ${room.code} spectator cap`);
       if (room.mode === 'solo') assert.equal(room.spectators.length, 0, 'no spectator seat in a solo room');
       for (const sp of room.spectators) {
         assert.ok(!seen.has(sp.playerId), 'a spectator is seated (or spectating) twice');
@@ -2149,6 +2169,51 @@ describe('platform units', () => {
     assert.equal(parseTrustProxy('off'), false);
     assert.equal(parseTrustProxy(undefined), 'auto');
     assert.equal(parseTrustProxy('auto'), 'auto');
+  });
+
+  test('Network: default/explicit zero admission is unlimited; positive socket caps and shutdown still apply', (t) => {
+    const req = (ip) => ({ socket: { remoteAddress: ip }, headers: {} });
+    assert.equal(NET_DEFAULTS.maxConnections, 0);
+    assert.equal(NET_DEFAULTS.maxConnectionsPerAddr, 0);
+    for (const options of [{}, { maxConnections: 0, maxConnectionsPerAddr: 0 }]) {
+      const net = new Network({ registry: new SessionRegistry(), handler: {}, options });
+      t.after(() => net.close());
+      // Exercise counters above the old defaults without opening thousands of sockets.
+      Object.defineProperty(net.conns, 'size', { value: 2001 });
+      net.connsPerKey.set('203.0.113.1', 65);
+      assert.equal(net.admission(req('203.0.113.1')), null);
+      net.close();
+      assert.equal(net.admission(req('203.0.113.1')), 'shutdown');
+    }
+    const capped = new Network({ registry: new SessionRegistry(), handler: {},
+      options: { maxConnections: 2, maxConnectionsPerAddr: 1 } });
+    t.after(() => capped.close());
+    capped.connsPerKey.set('203.0.113.1', 1);
+    assert.equal(capped.admission(req('203.0.113.1')), 'per-address');
+    assert.equal(capped.admission(req('203.0.113.2')), null);
+    Object.defineProperty(capped.conns, 'size', { value: 2 });
+    assert.equal(capped.admission(req('203.0.113.2')), 'full');
+  });
+
+  test('SessionRegistry: default/explicit zero never evicts for capacity and retains expiry policy', () => {
+    assert.equal(NET_DEFAULTS.maxSessions, 0);
+    for (const options of [{}, { maxSessions: 0 }]) {
+      let now = 1000;
+      const reg = new SessionRegistry({ ...options, reconnectWindowMs: 100, now: () => now });
+      const idle = reg.create('Idle');
+      const active = reg.create('Active'); active.connected = true;
+      reg.evictOne = () => { throw new Error('unlimited registries must not capacity-evict'); };
+      Object.defineProperty(reg.byPlayerId, 'size', { value: 20_001, configurable: true });
+      const extra = reg.create('Extra');
+      assert.ok(extra);
+      assert.equal(reg.byToken(idle.token), idle);
+      assert.equal(reg.byId(active.playerId), active);
+      delete reg.byPlayerId.size;
+      assert.equal(reg.size, 3);
+      now += 101;
+      assert.deepEqual(reg.sweep(), [idle, extra]);
+      assert.equal(reg.size, 1);
+    }
   });
 
   test('SessionRegistry: token lookup, expiry sweep, eviction', () => {

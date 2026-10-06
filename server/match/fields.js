@@ -8,8 +8,8 @@
 //     remainder is dropped so a stalled server never spirals.
 //   * instant (VirtualScheduler default): every field is stepped to completion synchronously.
 //   * a solo pause (Match.paused, g.pause) skips the intervals: the field clock stands still (HeadlessPacer too).
-// Every SNAP_EVERY (3) ticks of a field its events are drained; watchers of that field get `b.ev` then `b.snap`, both
-// carrying the field's game time `gt` (`emit: false` skips the streaming: server-run fields under client-side combat).
+// Every SNAP_EVERY (3) ticks of a field its events are drained; watchers get `b.ev`, then `b.snap` when due. Lower
+// snapshot rates do not change event boundaries/gt (`emit: false` skips streaming under client-side combat).
 // Per-field isolation: an exception from step() force-ends that field as a timeout (and, if even that throws, the
 // field is closed with a synthetic result). A hard cap (HARD_CAP_SECONDS of game time) force-ends anything left.
 // Results that did not come from a finished battle carry `synthetic: true` (the match never charges LP for them).
@@ -39,6 +39,20 @@ export const INTERVAL_MS = 1000 / 30;
 export const GAME_SPEED = 2;
 export const HARD_CAP_SECONDS = 3700;
 const SNAP_EVERY = Number.isInteger(SNAPSHOT_EVERY) && SNAPSHOT_EVERY > 0 ? SNAPSHOT_EVERY : 3;
+
+/** Periodic snapshots only; events and simulation keep their original cadence. */
+export function parseSnapshotHz(value) {
+  if (value == null || value === '') return 20;
+  if (typeof value === 'string' ? !['5', '10', '20'].includes(value) : ![5, 10, 20].includes(value)) {
+    throw new RangeError('SP_SNAPSHOT_HZ must be 20, 10 or 5');
+  }
+  return Number(value);
+}
+
+export function eventFrame(fieldId, battle, events) {
+  const time = Number(battle.time);
+  return { t: 'b.ev', fieldId, gt: Number.isFinite(time) ? Math.round(time * 1000) / 1000 : 0, ev: events };
+}
 
 /** Catch-up cap per pacing interval: 8 ticks at the normal 2× speed, proportionally more when sped up. */
 export function maxTicksPerInterval(speed) {
@@ -95,6 +109,11 @@ export class FieldRunner {
     this.m = m;
     this.fields = fields;
     this.emit = emit !== false;
+    const hz = parseSnapshotHz(m.snapshotHz);
+    const speed = Number.isFinite(m.gameSpeed) && m.gameSpeed > 0 ? m.gameSpeed : GAME_SPEED;
+    // Default20 preserves legacy/tool pacing; lower rates sample only at existing event boundaries.
+    this.snapshotEvery = hz === 20 ? SNAP_EVERY : Math.max(SNAP_EVERY, Math.ceil(speed / (TICK * hz * SNAP_EVERY)) * SNAP_EVERY);
+    this.snapshotAt = new Map();
     for (const f of fields) f.live = !f.battle.finished;
     this.onTick = onTick;
     this.onDone = onDone;
@@ -198,6 +217,14 @@ export class FieldRunner {
 
   forceAll(reason = 'forced') { this._forceAll(reason); this._checkDone(); }
 
+  _snapshotDue(f) {
+    if (!f.live || this.snapshotEvery === SNAP_EVERY) return true;
+    const last = this.snapshotAt.get(f.fieldId);
+    if (last != null && this.ticks - last < this.snapshotEvery) return false;
+    this.snapshotAt.set(f.fieldId, this.ticks);
+    return true;
+  }
+
   _emit(f) {
     let ev = [];
     try { ev = f.battle.drainEvents() || []; } catch (e) { this.m.reportError(`field ${f.fieldId} drainEvents`, e); }
@@ -205,10 +232,11 @@ export class FieldRunner {
     const watchers = this.m.watchersOf(f.fieldId);
     if (!watchers.length) return;
     let snapMsg = null;
-    try { snapMsg = snapFrame(f.fieldId, f.battle.snapshot()); } catch (e) { this.m.reportError(`field ${f.fieldId} snapshot`, e); }
-    const time = Number(f.battle.time);
-    const gt = snapMsg ? snapMsg.gt : Number.isFinite(time) ? time : 0;
-    const evMsg = ev.length ? { t: 'b.ev', fieldId: f.fieldId, gt, ev } : null;
+    if (this._snapshotDue(f)) {
+      try { snapMsg = snapFrame(f.fieldId, f.battle.snapshot()); } catch (e) { this.m.reportError(`field ${f.fieldId} snapshot`, e); }
+    }
+    const evMsg = ev.length ? eventFrame(f.fieldId, f.battle, ev) : null;
+    if (evMsg && snapMsg) evMsg.gt = snapMsg.gt;
     for (const pid of watchers) {
       if (evMsg) this.m.sendTo(pid, evMsg);
       if (snapMsg) this.m.sendTo(pid, snapMsg);

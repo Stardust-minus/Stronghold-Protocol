@@ -8,15 +8,16 @@ import { createHash } from 'node:crypto';
 import { getData } from '../server/data.js';
 import { DataSource, spawnsFromTemplate } from '../server/sim/simdata.js';
 import { buildBattleSpec, createBattleFromSpec } from '../server/sim/spec.js';
-import { FieldRunner, snapFrame } from '../server/match/fields.js';
+import { FieldRunner, snapFrame, parseSnapshotHz } from '../server/match/fields.js';
 import { CombatWorkerPool } from '../server/match/combat/pool.js';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => {
-  const m = /^--(workers|sessions|ticks|batch)=(\d+)$/.exec(a);
+  const m = /^--(workers|sessions|ticks|batch|snapshot-hz)=(\d+)$/.exec(a);
   if (!m) throw new Error(`unknown argument: ${a}`);
   return [m[1], Number(m[2])];
 }));
 const workers = args.workers ?? 0, sessions = args.sessions ?? 24, ticks = args.ticks ?? 600, batch = args.batch ?? 6;
+const snapshotHz = parseSnapshotHz(args['snapshot-hz']);
 assert.ok(workers >= 0 && workers <= 32 && sessions > 0 && sessions <= 256 && ticks > 0 && ticks <= 1200 && batch > 0 && batch <= 1024);
 const log = { info() {}, warn() {}, error: (...a) => console.error(...a) };
 const data = getData({ log });
@@ -29,19 +30,26 @@ const lineup = [
   ['chess_char_5_12_a', 11, 5], ['chess_char_6_13_a', 9, 8],
 ];
 function input(seed) {
-  return { wireFrames: true, specs: [buildBattleSpec({
+  return { wireFrames: true, snapshotHz, specs: [buildBattleSpec({
     seed, fieldId: 'n:p', kind: 'normal', stageId: 'act2autochess_m01', timeLimit: 60, routes,
     spawns: Array.from({ length: 70 }, (_, i) => ({ time: i % 10 * 0.2, enemyKey: keys[i % keys.length], routeIndex: i % routes.length, mods: { hpMul: 10 } })),
     players: [{ playerId: 'p', units: lineup.map(([chessId, row, col], i) => ({ uid: i + 1, kind: 'chess', chessId, row, col, abs: true })) }],
   })] };
 }
-let bytes = 0, frames = 0, actualTicks = 0;
-const encode = (msg) => { bytes += Buffer.byteLength(JSON.stringify(msg)); if (msg.t === 'b.snap') frames++; };
+let bytes = 0, frames = 0, actualTicks = 0, snapshotBytes = 0, eventBytes = 0, eventBatches = 0;
+let eventHash = createHash('sha256');
+const consumeWire = (type, wire) => {
+  const size = Buffer.byteLength(wire);
+  bytes += size;
+  if (type === 'b.snap') { snapshotBytes += size; frames++; }
+  else { eventBytes += size; eventBatches++; eventHash.update(wire); }
+};
+const encode = (msg) => consumeWire(msg.t, JSON.stringify(msg));
 // The zero-worker baseline is the ORIGINAL runner, not an inline Engine with unnecessary IPC DTO cloning.
 function inline(input) {
   const fields = input.specs.map((spec) => ({ fieldId: spec.fieldId, kind: spec.kind,
     players: spec.players.map((p) => p.playerId), battle: createBattleFromSpec(spec, ds, { logger: log }) }));
-  const m = { watchersOf: () => ['p'], sendTo: (_, msg) => encode(msg), markPublic() {}, reportError: (...a) => log.error(...a) };
+  const m = { snapshotHz, gameSpeed: 2, watchersOf: () => ['p'], sendTo: (_, msg) => encode(msg), markPublic() {}, reportError: (...a) => log.error(...a) };
   const runner = new FieldRunner(m, fields, { onDone() {} });
   return {
     advance(count) {
@@ -68,15 +76,16 @@ try {
   }));
   for (let i = 0; i < sessions; i++) engines.push(pool ? pool.create(input(1000 + i)) : inline(input(1000 + i)));
   if (pool) await Promise.all(engines.map((e) => e.ready));
-  bytes = 0; frames = 0; actualTicks = 0;
+  bytes = 0; frames = 0; actualTicks = 0; snapshotBytes = 0; eventBytes = 0; eventBatches = 0;
+  eventHash = createHash('sha256');
   const consume = (out) => {
     for (const frame of out.frames) {
-      if (frame.snapshotWire) {
-        bytes += Buffer.byteLength(frame.snapshotWire) + (frame.eventsWire ? Buffer.byteLength(frame.eventsWire) : 0);
-        frames++;
+      if (frame.snapshotWire || frame.eventsWire) {
+        if (frame.eventsWire) consumeWire('b.ev', frame.eventsWire);
+        if (frame.snapshotWire) consumeWire('b.snap', frame.snapshotWire);
       } else {
-        if (frame.events.length) encode({ t: 'b.ev', fieldId: frame.fieldId, gt: frame.snapshot.t, ev: frame.events });
-        encode(snapFrame(frame.fieldId, frame.snapshot));
+        if (frame.events?.length) encode({ t: 'b.ev', fieldId: frame.fieldId, gt: frame.gt ?? frame.snapshot.t, ev: frame.events });
+        if (frame.snapshot) encode(snapFrame(frame.fieldId, frame.snapshot));
       }
     }
   };
@@ -104,7 +113,8 @@ try {
   const final = pool ? await Promise.all(engines.map((e) => e.request('forceAll', { reason: 'forced' }))) : engines.map((e) => e.forceAll('forced'));
   const resultHash = createHash('sha256').update(JSON.stringify(final.map((out) => out.fields.map((f) => f.result)))).digest('hex');
   console.log(JSON.stringify({
-    workers, sessions, ticks, batch, actualTicks, frames, encodedMiB: bytes / 2 ** 20, elapsedMs,
+    node: process.version, snapshotHz, workers, sessions, ticks, batch, actualTicks, frames, encodedMiB: bytes / 2 ** 20,
+    snapshotMiB: snapshotBytes / 2 ** 20, eventMiB: eventBytes / 2 ** 20, eventBatches, eventHash: eventHash.digest('hex'), elapsedMs,
     ticksPerSecond: actualTicks / elapsedMs * 1000, cpuMs: (cpu.user + cpu.system) / 1000,
     mainThreadCpuMs: thread ? (thread.user + thread.system) / 1000 : null,
     eventLoopP95Ms: histogram.percentile(95) / 1e6, eventLoopMaxMs: histogram.max / 1e6,

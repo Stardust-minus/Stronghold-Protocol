@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAnnouncements } from '../../public/js/ui/announcements.js';
+import { parseAnnouncements, announcementRevision, announcementDismissed, dismissAnnouncement } from '../../public/js/ui/announcements.js';
 import { createDataStore } from '../../public/js/data.js';
 
 const notice = () => ({ title: '本地测试公告', date: '2026-10-05', paragraphs: ['第一段。', '第二段\n保留换行。'] });
@@ -25,6 +25,35 @@ test('invalid or oversized announcements are unavailable, never truncated or dis
     [{ ...notice(), paragraphs: ['x'.repeat(10001)] }], [{ ...notice(), paragraphs: Array(41).fill('p') }],
     Array(51).fill(notice()), [{ ...notice(), paragraphs: Array(21).fill('x'.repeat(10000)) }]]) {
     assert.equal(parseAnnouncements(value), null, JSON.stringify(value).slice(0, 100));
+  }
+});
+
+test('announcement content revision is stable, and title/date/text/order updates create a new unread revision', async () => {
+  const a = notice(), version = await announcementRevision([a]);
+  assert.equal(await announcementRevision([{ paragraphs: a.paragraphs, date: a.date, title: a.title }]), version);
+  assert.equal(announcementDismissed(version), false);
+  dismissAnnouncement(version);
+  assert.equal(announcementDismissed(version), true);
+  for (const changed of [{ ...a, title: a.title + '更新' }, { ...a, date: '2026-10-06' }, { ...a, paragraphs: ['更新正文'] }, { ...a, paragraphs: [...a.paragraphs].reverse() }]) {
+    const next = await announcementRevision([changed]);
+    assert.notEqual(next, version); assert.equal(announcementDismissed(next), false);
+  }
+  assert.equal(await announcementRevision([]), null);
+  assert.equal(await announcementRevision({}), null);
+  const fallback = await announcementRevision([a], null);
+  assert.equal(fallback, await announcementRevision([a], null));
+  assert.notEqual(fallback, await announcementRevision([{ ...a, title: '不同内容' }], null));
+});
+
+test('announcement acknowledgement remains effective in-page when browser storage is blocked', async () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('blocked'); } });
+  try {
+    const version = await announcementRevision([{ title: '无存储测试', paragraphs: ['仍可关闭'] }]);
+    dismissAnnouncement(version); assert.equal(announcementDismissed(version), true);
+    assert.equal(announcementDismissed(await announcementRevision([notice()])), false);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'localStorage', previous); else delete globalThis.localStorage;
   }
 });
 

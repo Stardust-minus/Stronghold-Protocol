@@ -98,6 +98,7 @@
 // (g.bandFocus → timeoutBand); g.unitStats answers m.unitStats: the stats the board's units start their next battle with.
 //   opts.revivalEnabled  locked pregame vote result (strict true enables SETTLE death cancellation; donor >=11, cost 10 LP)
 //   opts.clientCombat  default true (env SP_COMBAT=server → false: the legacy server-run + snapshot streaming mode)
+//   opts.snapshotHz    20 (default) | 10 | 5 (env SP_SNAPSHOT_HZ): periodic server snapshots only, not event/sim cadence
 //   opts.verify        'off' | 'sample' | 'all' (env SP_VERIFY, default 'off'): re-simulate accepted client results
 //                      ('sample': ~1 in 8, in a later callback, mismatches logged; 'all': before accepting — the
 //                      server's result wins on a mismatch)
@@ -149,7 +150,7 @@ import { pairPlayers, bossPoolHp, SharedBossPool, hiddenEligible, BOSS_HIT_STEPS
 import {
   FieldRunner, DeadBattle, GAME_SPEED, snapFrame, runHeadless, timelineAt, HeadlessPacer, syntheticResult,
   validateClientResult, RESULT_GRACE_MS, BOSS_SILENCE_MS, HARD_CAP_SECONDS, HeadlessJob, HEADLESS_SLICE_MS, CATCHUP_TICKS_PER_INTERVAL,
-  uniteBillBounds,
+  uniteBillBounds, parseSnapshotHz,
 } from './fields.js';
 import { buildBattleSpec, createBattleFromSpec, resultDigest, compactResult as compactForVerify, battleProgress, uniteLeft } from '../sim/spec.js';
 import { CreditPool } from './finalAssault.js';
@@ -270,6 +271,7 @@ export class Match {
     this.battleContent = opts.battleContent || 'full';
     this.timerScale = Number.isFinite(opts.timerScale) && opts.timerScale >= 0 ? opts.timerScale : 1;
     this.gameSpeed = Number.isFinite(opts.combatSpeed) && opts.combatSpeed > 0 ? Math.min(opts.combatSpeed, 200) : GAME_SPEED;
+    this.snapshotHz = parseSnapshotHz(opts.snapshotHz ?? env('SP_SNAPSHOT_HZ'));
     /** layouts a bot rehearses per prep with the real simulation (bot.js; 0 = heuristic placement only) */
     this.botRehearsal = Number.isInteger(opts.botRehearsal) && opts.botRehearsal >= 0 ? Math.min(opts.botRehearsal, 8) : BOT_REHEARSAL_DEFAULT;
     /** wall-clock budget of one rehearsal slice (scheduleBotPrep) */
