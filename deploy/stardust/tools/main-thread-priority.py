@@ -191,7 +191,9 @@ def health_ready(value, config=None):
     combat_workers = config.combat_workers if config is not None else 6
     trial_workers = config.trial_workers if config is not None else 1
     combat, trial = value.get('combat'), value.get('trial')
-    return (value.get('ok') is True and value.get('maxRooms') == 4096
+    # Both shipped defaults are healthy: legacy4096 and explicit0=unlimited admission.
+    rooms = value.get('maxRooms')
+    return (value.get('ok') is True and type(rooms) is int and rooms in (0, 4096)
             and isinstance(combat, dict) and combat.get('status') == 'ready' and combat.get('ready') == combat_workers
             and combat.get('workers') == combat_workers and isinstance(trial, dict) and trial.get('status') == 'ready'
             and trial.get('ready') == trial_workers and trial.get('workers') == trial_workers)

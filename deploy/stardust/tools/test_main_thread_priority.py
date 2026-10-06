@@ -159,6 +159,16 @@ class PolicyTests(unittest.TestCase):
         self.assertFalse(m.health_ready({'ok': True}))
         self.assertFalse(m.health_ready(None))
 
+    def test_unlimited_room_default_keeps_strict_profile_health_counts(self):
+        for config in PROFILES:
+            self.assertTrue(m.health_ready({**health(config), 'maxRooms': 0}, config))
+            for rooms in (None, False, True, -1, 0.0, '0', 4095):
+                self.assertFalse(m.health_ready({**health(config), 'maxRooms': rooms}, config))
+            for role in ('combat', 'trial'):
+                changed = {**health(config), 'maxRooms': 0}
+                changed[role]['ready'] = 0
+                self.assertFalse(m.health_ready(changed, config))
+
     def test_proc_stat_parsing_handles_parentheses_in_name(self):
         fields = ['S', '100'] + ['0'] * 14 + ['-20', '8', '0', '123']
         value = m.proc_stat('101 (Main(Thread)) ' + ' '.join(fields))
