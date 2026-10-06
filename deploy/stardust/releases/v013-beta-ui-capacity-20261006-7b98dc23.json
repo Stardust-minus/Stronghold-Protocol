@@ -1,0 +1,94 @@
+{
+  "release": "v013-beta-ui-capacity-20261006-7b98dc23",
+  "scope": "beta-only",
+  "active": true,
+  "activatedAt": "2026-10-06T21:33:33+08:00",
+  "sourceRevision": "7b98dc23bd309a2ac8ec7286e4db2180fffca6bc",
+  "featureBranch": "feat/ui-capacity-beta-20261006",
+  "masterIntegrated": false,
+  "game": {
+    "imageId": "sha256:4dc3581ebeb477b6d720980f93c482c60ceaff98c75728dfdbe1832b10df8c37",
+    "containerId": "ecd666790fcb3bf615127353f870a161376b62013710ed9ac3c879cb5df19ea0",
+    "startedAt": "2026-10-06T13:33:26.595048099Z",
+    "finalContainerRestartCount": 0,
+    "snapshotHz": 10,
+    "combat": "server",
+    "verify": "off",
+    "wsCompression": "off",
+    "combatWorkersReady": 12,
+    "trialWorkersReady": 2,
+    "maxRooms": 0,
+    "cpuMemoryHardCaps": false,
+    "priority": { "mainNice": -20, "scheduler": "SCHED_OTHER", "resetOnFork": true, "otherThreadsNice": 0 }
+  },
+  "hostTools": {
+    "betaRevision": "3e89e9776ecab532ae0a56417e3ce4b743b89b0b",
+    "formalRevisionUnchanged": "1f74299291f07e100ca6f522721a29d4c474294c",
+    "change": "Allow typed maxRooms=0 alongside legacy4096 without weakening exact Worker readiness or generation/priority checks."
+  },
+  "privateCode": {
+    "revision": "7b98dc23bd309a2ac8ec7286e4db2180fffca6bc",
+    "exactUrls": 102,
+    "includeSha256": "1491d87732fd966410417c907f676c733a2bed9e69da7e7ffaa91722ae1bcebb",
+    "betaVhostSha256": "3c4ece0687d3589e5ef1b9cb75c94c7888c4ee1a4389339ec7897a0b25ed8cef",
+    "gateAndPrivateNoStorePreserved": true
+  },
+  "materials": {
+    "release": "v013-hangzhou-20261006-1f742992",
+    "artFontsVendorBytesAndBetaProvidersUnchanged": true,
+    "newUploads": false
+  },
+  "features": [
+    "Monotonic matched RTT probes with stale/visibility/reconnect handling",
+    "Whitelisted cached game-process metrics with hover preview and click/tap details",
+    "Content-version-acknowledged automatic lobby announcement modal",
+    "Mobile announcement scrollbar, reading position and remaining-content cue",
+    "Portrait lobby access and feature-detected fullscreen/help",
+    "Unlimited default application concurrency-admission counts and Beta WS per-IP admission removal"
+  ],
+  "retainedProtections": [
+    "Authentication and Origin/schema validation",
+    "Four player seats and one active socket binding per identity",
+    "Protocol payload and per-socket message/resync rate protection",
+    "Socket backpressure and Worker/trial execution safeguards"
+  ],
+  "validation": {
+    "canonicalNode": "v24.14.0",
+    "canonicalFiles": 350,
+    "canonicalTests": 4367,
+    "canonicalPass": 4350,
+    "canonicalSkip": 17,
+    "canonicalFail": 0,
+    "hostToolPythonPass": 157,
+    "actualRemoteImageRuntimeBlobsMatched": 231,
+    "actualRemoteImageSnapshotEventsReconnectPassed": true,
+    "localDesktopMobileEmulatedChromePassed": true,
+    "physicalMobileAcceptance": "pending user",
+    "newPublicGameplayAcceptance": "pending user",
+    "publicLoginHttp": 200,
+    "anonymousPrivateCodeHttp": 401,
+    "publicHealthHttp": 404
+  },
+  "maintenance": {
+    "betaEntryFrozenAt": "2026-10-06T21:25:46+08:00",
+    "betaEntryOpenedAt": "2026-10-06T21:33:33+08:00",
+    "beforeRoomsMatchesOnline": [0, 0, 0],
+    "initialManagerFailure": "Legacy host health guard required maxRooms4096 and rejected healthy unlimited0. One automatic service restart was observed before deliberate Beta-only stop and isolated helper correction. Final container restart0 does not erase that history."
+  },
+  "protected": {
+    "formalSourceRevision": "7e019ee36a2423393221cbba37bf60e40be35536",
+    "formalImageId": "sha256:10c94333d5919ebe926f169e2cc537b21558bad3924cd3a2f37a5d287912e59e",
+    "formalContainerId": "8715f3a3aa1224b6c2680c51c28529f893df91a98b02fd270fd76a0477796c14",
+    "formalGenerationConfigLeaseAndToolsUnchanged": true,
+    "authResolversOpenRestyGenerationsUnchanged": true,
+    "wireguardRecoveryNotRestarted": true
+  },
+  "rollback": {
+    "oldBetaSource": "b6f404079159d8f3921094320039621456916d11",
+    "oldBetaImageId": "sha256:d6553195761dc03f23dff0f251d863e204cbeb3676bc871f3b3e4626dd49f36d",
+    "coreBackup": "/opt/ark-proto-beta/releases/v013-beta-ui-capacity-20261006-7b98dc23",
+    "edgeBackup": "/data/ark-proto/beta-ui-capacity-7b98dc23",
+    "oldImagesAndCodeDirectoriesRetained": true,
+    "memoryGamesRecoverable": false
+  }
+}
