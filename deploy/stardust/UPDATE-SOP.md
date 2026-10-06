@@ -17,7 +17,9 @@
 - 杭州 `/opt/ark-proto/compose.core-game.yaml` + `runtime.env`，固定profile `core`，12combat+2trial，Main-only-20/reset/其他0；`ark-core-game-backend.service` 按关闭护栏→Compose→优先级→精确WG租约启动并监测。
 - 嘉兴 `/opt/ark-proto/compose.yaml` 是edge-only auth/assets；正式vhost只有一个 `10.253.77.2:3120` backend。私有代码供给按固定commit+门禁，与同版本core fallback配套。
 - 游戏source1f74299，解析器source0635506，auth仍source186，三个组件分别固定；不能说它们都等于最新Git HEAD。当前素材v013-hangzhou-20261006-1f742992，OpenI新音频与已验证同字节旧素材通过最多两个明确mirror ID复用。
-- 可选WebP和受控WG开机恢复仍待收尾；WG现在手动运行、两个manager尚未enableboot，不承诺整机重启自动可用。不重启共享杭州主机来验收。
+- 11:28 Beta已同步同一1f74299游戏及配套私有代码/素材/解析器；Beta auth保持源B4（与C1字节相同），不改口令/签名key。重复Beta浏览器/玩法验收由用户明确要求跳过，组件就绪检查仍完成。见 `releases/v013-beta-sync-20261006-1f742992-r2.json`。
+- 11:42两端WG恢复e6087bf已安装、active/exited并enable；杭州core/Beta管理器采用WG Requires/After drop-in并enable，现有管理器和游戏代次未变。180项Python和6项隔离真实内核测试、现网只读幂等通过；未做共享主机实际重启测试。不要停止/restart WG恢复单元，Requires可能连带停止游戏。详 `WG-BOOT-RECOVERY.md`。
+- 嘉兴全局variables_hash_max_size2048、两game上游HTTPidle4s；WS3600s、门禁/TLS/单upstream保持。正式vhost当前SHA5e123d68…，激活时5b01be43…保留为历史。仅可选WebP后置，不为它再重启正式。
 - 回滚需先读现用配置，恢复旧嘉兴同配套版本并验证6+1/仅Main-20，再恢复旧单upstream/私有代码/素材映射；回滚不会恢复已丢内存对局。不整表恢复nft，不停其他服务。
 
 ## 历史简单架构（2026-10-04 取消平滑更新）

@@ -1,8 +1,12 @@
 # Owned WireGuard boot recovery
 
-Local candidate only. This change does not install/enable units, restart a manager,
-change a live tunnel, or establish real-kernel reboot resilience. Installation and
-isolated boot verification are separate operator work.
+Installed on Jiaxing and Hangzhou at 2026-10-06 11:42 +08 from fixed host revision
+`e6087bf7a2425e998b861211c1c15eb0aaaa2f3e`. Both recovery units are active/exited and
+enabled; Hangzhou core/Beta managers are enabled with owned Requires/After drop-ins.
+Their existing program revision remains1f74299 and game/manager generations were
+preserved.180 scoped Python tests,6 isolated real-kernel cases and both live
+zero-mutation calls passed. No actual whole-host reboot was performed; this is
+verified startup configuration and isolated bootstrap, not a host-reboot claim.
 
 ## Scope and startup
 
@@ -62,11 +66,21 @@ The installed pinned script's compatibility must be reviewed before installation
 Never stop/restart the recovery unit while live managers depend on it: `Requires=`
 can propagate explicit unit stops to those managers and interrupt active games.
 
-## Local evidence and remaining gate
+## Verification and operational limits
 
 The recovery tests inject files, stores, nft and host state; temporary bash fixtures
 exercise source identity/arguments, success/failure exit codes, INT/TERM/HUP,
 redaction, and suppression of `del_if`, with no real network command or secret read.
-Related lease/manager/priority tests and local `systemd-analyze verify` are additional
-checks, not evidence of a successful host reboot. Isolated real-kernel boot/race
-checks, fixed-revision delivery, and live installation/enablement remain separate.
+Related lease/manager/priority tests and `systemd-analyze verify` passed. Real-kernel
+network-none containers exercised edge/core bootstrap and exact repeated live
+preservation, foreign-interface refusal, post-up failure and final-store failure.
+The first kernel run found that device-scoped `ip -j route show dev` omits `dev`;
+only that omission is accepted now, while explicit wrong devices and the separate
+peer-route lookup remain strict. Original failure evidence was retained.
+
+On each live host the installed oneshot returned `liveStatePreserved=true`; manifest,
+owned table, default routes/rules and open backend leases remained exact. Dependency
+wiring used daemon-reload and enable WITHOUT manager restart or `--now`. Existing
+core/Beta container IDs, StartedAt/PIDs and manager generations stayed unchanged.
+These checks do not establish a whole-host reboot, remote peer throughput, or
+resilience to arbitrary privileged actors changing the approved network.

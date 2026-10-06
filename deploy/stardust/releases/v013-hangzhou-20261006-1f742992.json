@@ -22,7 +22,9 @@
   },
   "edge": {
     "gameUpstream": "10.253.77.2:3120",
-    "formalVhostSha256": "5b01be43c0a1bd4d9a8927441b9c0b4e95df4d817ac5ec346ff303c943b17804",
+    "formalVhostSha256AtActivation": "5b01be43c0a1bd4d9a8927441b9c0b4e95df4d817ac5ec346ff303c943b17804",
+    "formalVhostSha256": "5e123d6834c24242a103167677e2434cbd32b8455ce43c4ef58b6353c73f83fb",
+    "httpIdleTimeoutSeconds": 4,
     "privateCodeRevision": "1f74299291f07e100ca6f522721a29d4c474294c",
     "privateCodeExactUrls": 101,
     "authRevision": "186cda7d088f2f17e9dd402ae864258e6c72cef8",
@@ -70,11 +72,26 @@
   },
   "beta": {
     "independent": true,
-    "gameRevision": "b4e22b24b35bd80a7b15af2bb165e5b142de371d",
+    "gameRevisionAtMigration": "b4e22b24b35bd80a7b15af2bb165e5b142de371d",
+    "gameRevision": "1f74299291f07e100ca6f522721a29d4c474294c",
+    "synchronizedAt": "2026-10-06T11:28:38+08:00",
+    "followUpRecord": "v013-beta-sync-20261006-1f742992-r2.json",
+    "repeatBrowserGameplayAcceptance": "skipped by explicit user instruction",
     "hostToolsRevision": "1f74299291f07e100ca6f522721a29d4c474294c",
     "earlyOldManagerLockCollisionRestartedSameBetaContainer": true,
-    "boundedLockFixAppliedAndHandoffPreservedCurrentGameGeneration": true
+    "boundedLockFixAppliedAndHandoffPreservedThenCurrentGameGeneration": true
   },
-  "deferred": ["Owned WireGuard boot recovery installation and manager boot enablement", "Optional WebP conversion"],
+  "bootRecovery": {
+    "recoveryRevision": "e6087bf7a2425e998b861211c1c15eb0aaaa2f3e",
+    "installedAndEnabledOnBothHosts": true,
+    "coreAndBetaManagersEnabled": true,
+    "existingGameAndManagerGenerationsPreserved": true,
+    "pythonTestsPassed": 180,
+    "isolatedRealKernelCasesPassed": 6,
+    "liveRecoveryZeroMutationVerified": true,
+    "wholeHostRebootPerformed": false,
+    "completedAt": "2026-10-06T11:42:16+08:00"
+  },
+  "deferred": ["Optional WebP conversion"],
   "rebootResilienceVerified": false
 }

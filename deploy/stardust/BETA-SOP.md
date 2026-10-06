@@ -2,14 +2,22 @@
 
 Beta 是独立验收环境，不是正式游戏的滚动版本、备用路由或房间迁移入口。每个域名只连接一个固定 backend。
 
+## 当前活动状态（2026-10-06 11:42 +08）
+
+- 正式与Beta游戏均为固定1f742992（官方上游a9dfd17），分别独立12战斗+2试算，不能把仓库文档HEAD当运行源码。
+- Beta于11:28:38同步，CIDdd114e05/image14ad；配套101私有代码URL、staticv013-hangzhou-20261006-1f742992及resolver0635506/image53ac/CID1e4d5568。Beta auth仍B4（与C1同字节），独立profile/密钥不变。
+- 用户明确要求跳过这次重复Beta浏览器/实战验收，记录为skip；游戏镜像/RootFS、清单、健康12+2与只读Main优先级检查完成。此前正式C1验收是参考，不冒称Beta重新实战通过。
+- 两端WG恢复e6087bf现已active/exited/enabled；杭州core/Beta管理器active/enabled且Requires/After WG，11:42依赖接入未重启既有游戏或管理器。180项Python及6项隔离内核测试、现网零修改验证通过；未做实际整机重启。
+- 记录 `releases/v013-beta-sync-20261006-1f742992-r2.json`，恢复操作边界见 `WG-BOOT-RECOVERY.md`。下面准备规则用于下一批，不要重跑已经完成的一次性部署脚本。
+
 ## 范围与布局
 
-- 正式域名 `ark-proto.stardust.matce.cn`、当前三个应用服务、凭据及资源路由保持不变，直至获得实际切换指令。
+- 正式域名 `ark-proto.stardust.matce.cn` 已迁杭州core；嘉兴正式edge-only auth3141/resolver3130与OpenResty保留。后续Beta发布不得顺带重建正式游戏/认证或修改正式资源版本。
 - Beta 域名 `ark-proto-beta.stardust.matce.cn` 使用嘉兴入口的独立 vhost/TLS/auth，经点对点 WG 到杭州独立 game；房间、队列、会话不与正式共享。
 - `compose.beta-game.yaml` 在杭州运行 project `ark-proto-beta`、container `ark-proto-beta`，12 combat＋2 trial，映射 `127.0.0.1:3220` 和 `10.253.77.2:3220` 到3000。
 - `compose.beta-edge.yaml` 在嘉兴运行同逻辑 project 的独立 auth3241、resolver3230。两台主机的 Compose 网络各自独立。
-- `compose.core-game.yaml` 是未来正式迁移候选，project/container仍`ark-proto`、12＋2、3120双绑定；不得在嘉兴执行，不随Beta准备自动启动。
-- 三个 game profile：旧嘉兴 `prod` 保持6＋1/单loopback3120；Beta `beta` 为12＋2/3220；未来杭州正式 `core` 为12＋2/3120。profile不是任意 selector，不能改成其他容器、端口或地址。
+- `compose.core-game.yaml` 是杭州正式game，project/container为`ark-proto`、12＋2、3120双绑定；不得在嘉兴执行，Beta准备/更新不自动操作它。
+- 三个固定game profile：旧嘉兴 `prod` 的6＋1/单loopback3120只作已停用回退；Beta `beta` 为12＋2/3220；杭州正式 `core` 为12＋2/3120。profile不是任意selector，不能改成其他容器、端口或地址。
 
 ## 准备固定候选
 
@@ -58,8 +66,10 @@ WG仅路由两个peer/32，不是跨LAN路由。保留既有CNI/Tailscale/EasyTi
 4. 用root-owned白名单执行对应priority helper；仅Main=-20，先SCHED_OTHER/reset-on-fork，其他线程nice0，无容器CAP_SYS_NICE。
 5. 只在上述条件成立后原子开放：可信WG入接口/peer源、原目的WGIP:发布端口、核准容器IP:3000全部匹配，回复只允许同连接反向。CID不是nft字段，由管理器验证后生成精确IP规则。
 6. 重建/身份变化先撤旧租约、保持关闭；新身份重新核验后开放。只修改专属表/链与manifest，不整表恢复、不放开Docker网段。早期ACCEPT不覆盖后续CNI/Docker DROP，必须验证完整链路。
-7. 长期Beta恢复仅管理Beta，WG/关闭护栏应先于game；旧正式manual Main-20不得恢复0或因Beta部署安装prod watcher。`game-backend-manager.py`负责guard→compose→priority→open及5秒lease复核，manager与独立priority watcher不能同时持有同一调度锁，托管game时不同时启用独立Beta watcher。
-8. `ark-beta-game-backend.service`仅在WG接口已存在时启动，停止后关闭lease并按批准CID停自己的game；它不自动重建WG。实验手动WG未配开机恢复时，不承诺主机重启后的可用性，也不盲目enable长期服务；正式切换前须补齐受控WG恢复并验证顺序。
+7. 管理器各自仅管理固定Beta/core；WG/关闭护栏先于game。`game-backend-manager.py`负责guard→compose→priority→open及约5秒lease复核；共享WG锁最多等15秒，profile生命周期锁fail-fast。托管game时不另启同profile优先级watcher，不因Beta部署操作旧prod watcher。
+8. 两manager Requires/After `ark-wireguard-route.service`，恢复unit先核验并在冷启动时创建closed护栏再恢复peer/32；现网已存在完整WG则零修改保留open租约。manager停止动作会关闭自己的lease并停止批准CID；直接restart管理器会中断其游戏。WG恢复unit没有down/ExecStop，但显式停/restart它会由Requires连带停manager，因此活跃游戏期间不能这样操作。
+9. 11:42安装时先启动新WG oneshot验证现网保留，再加owned依赖drop-in、daemon-reload、enable（不带--now，不restart）。该配置通过隔离冷启动和现网幂等，尚未做实际整机重启，不将enable等同重启实测。
+10. 同版本升级先仅关闭Beta入口，完成新game+resolver+代码+素材就绪后才解冻。解析器清单只含公开资源元数据，应对容器Node UID可读（当前0644）；仅更换host清单文件名，容器内固定目的`/run/config/openi-assets.json`与ASSET_MANIFEST保持一致。不要把此权限规则用于auth/verifier/signing文件。
 
 ## 用户验收与发布窗口
 
@@ -72,4 +82,4 @@ WG仅路由两个peer/32，不是跨LAN路由。保留既有CNI/Tailscale/EasyTi
 
 ## 精确回退
 
-先停止新Beta入口流量，再停Beta管理器/容器，关闭专属backend租约；只撤本次Beta文件/规则/站点或合并恢复必要段落。保留原WG和正式三服务，不flush ruleset、删共享网络、卸载模块、覆盖别人修改或自动清旧镜像/资源。
+先停止新Beta入口流量，再停Beta管理器/容器，关闭专属backend租约；只撤本次Beta文件/规则/站点或合并恢复必要段落。保留原WG、杭州正式game及嘉兴正式edge服务，不flush ruleset、删共享网络、卸载模块、覆盖别人修改或自动清旧镜像/资源。
