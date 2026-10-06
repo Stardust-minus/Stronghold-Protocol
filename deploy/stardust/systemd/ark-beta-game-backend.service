@@ -1,7 +1,7 @@
 [Unit]
 Description=Ark isolated Beta game backend and scoped WG lease
-After=docker.service
-Requires=docker.service
+After=docker.service ark-wireguard-route.service
+Requires=docker.service ark-wireguard-route.service
 ConditionPathExists=/sys/class/net/ark-wg-test
 StartLimitIntervalSec=300
 StartLimitBurst=5

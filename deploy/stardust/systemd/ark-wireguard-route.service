@@ -1,0 +1,18 @@
+[Unit]
+Description=Ark owned WireGuard peer route and fail-closed boot guards
+Wants=network-online.target
+After=network-online.target
+Before=ark-beta-game-backend.service ark-core-game-backend.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Stopping this unit must never tear down an active tunnel or backend leases.
+User=root
+Nice=0
+ExecStart=/usr/bin/python3 -B /opt/ark-wg-test/current/wg-route-restore.py
+UMask=0077
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

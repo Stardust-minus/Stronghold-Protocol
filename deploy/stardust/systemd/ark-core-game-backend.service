@@ -1,8 +1,8 @@
-# Candidate only: installation/enable requires the separately approved formal migration window.
+# Host-only policy: installation/enable requires explicit authorization; never restart a live game implicitly.
 [Unit]
 Description=Ark Hangzhou core game backend and scoped WG lease
-After=docker.service
-Requires=docker.service
+After=docker.service ark-wireguard-route.service
+Requires=docker.service ark-wireguard-route.service
 ConditionPathExists=/sys/class/net/ark-wg-test
 StartLimitIntervalSec=300
 StartLimitBurst=5
