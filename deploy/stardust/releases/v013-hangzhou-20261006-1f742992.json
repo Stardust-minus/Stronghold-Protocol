@@ -1,0 +1,80 @@
+{
+  "release": "v013-hangzhou-20261006-1f742992",
+  "status": "active",
+  "routingActivatedAt": "2026-10-06T10:32:42+08:00",
+  "legacyComputationStoppedAt": "2026-10-06T10:48:54+08:00",
+  "sourceRevision": "1f74299291f07e100ca6f522721a29d4c474294c",
+  "upstreamRevision": "a9dfd17bee029e09527f08c890f8933163e0bbaa",
+  "game": {
+    "hostRole": "hangzhou-core",
+    "containerId": "72f422a58d6d436fe36fb381c4dfbd90db03f1305c539c68aa584728b1970923",
+    "imageId": "sha256:14ad2e07c453a63f0d783dbc48602fb36ff2ed10aa8d7a213fa51b82003250e7",
+    "localBuildImageId": "sha256:925e829fc3beb2d4d36413d3a1ffc7c1b3ee9e4add04c869b5a61660080eb5c7",
+    "completeRootfsDiffIdsMatched": true,
+    "combatWorkers": 12,
+    "trialWorkers": 2,
+    "mainNice": -20,
+    "mainScheduler": "SCHED_OTHER",
+    "mainResetOnFork": true,
+    "otherThreadsNice": 0,
+    "cpuMemoryHardCaps": false,
+    "hostToolsRevision": "1f74299291f07e100ca6f522721a29d4c474294c"
+  },
+  "edge": {
+    "gameUpstream": "10.253.77.2:3120",
+    "formalVhostSha256": "5b01be43c0a1bd4d9a8927441b9c0b4e95df4d817ac5ec346ff303c943b17804",
+    "privateCodeRevision": "1f74299291f07e100ca6f522721a29d4c474294c",
+    "privateCodeExactUrls": 101,
+    "authRevision": "186cda7d088f2f17e9dd402ae864258e6c72cef8",
+    "authImageId": "sha256:5fa043dda850b483317561b7e27a2a1422e07e086ba8c1f34fe4a1a4626a2a44",
+    "authCredentialsAndTlsUnchanged": true,
+    "resolverRevision": "063550652867c0c69a193156b77e6f67316f685f",
+    "resolverImageId": "sha256:53ac77172e6071f6b638a0caf4c3cd8d03b67bdb3c23db017c74179b88ae81d0",
+    "resolverProof": "Exact Git server bytes and complete trusted base RootFS; new COPY layer metadata differs from local build",
+    "defaultCompose": "edge-only auth and assets; game is managed on Hangzhou"
+  },
+  "materials": {
+    "staticRelease": "v013-hangzhou-20261006-1f742992",
+    "staticFilesVerified": 7214,
+    "mediaAliases": 17768,
+    "resolverEntries": 24968,
+    "uniqueOpeniFiles": 7200,
+    "addedAudioFiles": 1685,
+    "addedAudioBytes": 49472441,
+    "audioSourceCommit": "6723a61db88b4c22ef5f5fcdfcd927183a61cb89",
+    "openiMirrorReleases": ["v012-openi-20261004", "v013-hangzhou-20261006-1f742992"],
+    "reusedArtByteHashMatched": true,
+    "newAudioPutEtagRegistrationAndFullInventoryVerified": true,
+    "webpConversion": "deferred; original PNGs remain in the local-art manifest",
+    "obsAudioMime": "binary/octet-stream; pinned bytes, Range and actual browser AudioContext decoding verified"
+  },
+  "acceptance": {
+    "node24Canonical": {"files": 346, "tests": 4264, "passed": 4247, "skipped": 17, "failed": 0},
+    "resolverReuseTests": {"passed": 39, "skipped": 1, "failed": 0},
+    "pythonPriorityAccessManagerTestsPassed": 156,
+    "pythonOpeniUploaderTestsPassed": 43,
+    "realFormalBrowser": "Trusted TLS, anonymous code401/health404, two WSS clients, room join and reconnect, gated private edge code, approved notice and hash-matched decodable new OpenI voice",
+    "realFormalGameplay": "Two humans and two AI, purchase/deploy/stats, first-round combat/unite/settlement, second-round advancing snapshots, battle reconnect, trial activity and exact own-room cleanup",
+    "fullMatchVictoryOrBossFinaleTested": false,
+    "actualPasswordInputTested": false,
+    "dualManagersStableSeconds": 30,
+    "untrustedMappedAndDirectCoreAccessBlocked": true
+  },
+  "rollback": {
+    "previousRelease": "v013-ui-20261005",
+    "legacyJiaxingContainerId": "a5f1857fd6a46cf71506a7f95a6b4ed977d99a74a8868eeccc1ceca1ce0c8479",
+    "legacyJiaxingImageId": "sha256:a1d5310037308a651959d56ccc0fc8d4ae33332c8d153444873bd29b92b2ce5b",
+    "legacyContainerStoppedAndRetained": true,
+    "previousImagesConfigAndImmutableResourcesRetained": true,
+    "inMemoryRoomsNotMigratedOrRestoredByRollback": true
+  },
+  "beta": {
+    "independent": true,
+    "gameRevision": "b4e22b24b35bd80a7b15af2bb165e5b142de371d",
+    "hostToolsRevision": "1f74299291f07e100ca6f522721a29d4c474294c",
+    "earlyOldManagerLockCollisionRestartedSameBetaContainer": true,
+    "boundedLockFixAppliedAndHandoffPreservedCurrentGameGeneration": true
+  },
+  "deferred": ["Owned WireGuard boot recovery installation and manager boot enablement", "Optional WebP conversion"],
+  "rebootResilienceVerified": false
+}
