@@ -16,6 +16,7 @@ services:
       PORT: "3000"
       SP_COMBAT: server
       SP_VERIFY: "off"
+      SP_WS_COMPRESSION: "${SP_WS_COMPRESSION:-off}"
       SP_COMBAT_WORKERS: "12"
       SP_TRIAL_WORKERS: "2"
       TRUST_PROXY: auto

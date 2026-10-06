@@ -46,6 +46,7 @@ import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
 import { CombatWorkerPool } from './match/combat/pool.js';
 import { createHealthMetrics, PERFORMANCE_UNAVAILABLE, serverLoadState } from './healthMetrics.js';
+import { resolveWsCompression } from './wsCompression.js';
 
 /** Repository root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -622,7 +623,7 @@ function makeLogger(quiet) {
  *   port?: number, host?: string, quiet?: boolean, log?: object,
  *   publicDir?: string, dataDir?: string, sharedDir?: string,
  *   MatchClass?: Function, seedFn?: () => number, combatWorkers?: number, trialWorkers?: number,
- *   healthMetricsFactory?: typeof createHealthMetrics,
+ *   healthMetricsFactory?: typeof createHealthMetrics, wsCompression?: 'on' | 'off',
  *   lobbyGraceMs?: number, reconnectWindowMs?: number, heartbeatMs?: number, helloTimeoutMs?: number,
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
@@ -636,6 +637,7 @@ export async function startServer(opts = {}) {
   const host = opts.host ?? process.env.HOST ?? '0.0.0.0';
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new RangeError(`invalid PORT ${port}`);
   const log = opts.log || makeLogger(!!opts.quiet);
+  const wsCompression = resolveWsCompression(opts.wsCompression ?? process.env.SP_WS_COMPRESSION ?? 'off');
   const combatWorkers = parseCombatWorkers(opts.combatWorkers ?? process.env.SP_COMBAT_WORKERS);
   const trialSetting = opts.trialWorkers ?? process.env.SP_TRIAL_WORKERS;
   const requestedTrials = parseTrialWorkers(trialSetting);
@@ -743,7 +745,7 @@ export async function startServer(opts = {}) {
     } catch { /* ignore */ }
   });
 
-  const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: false, clientTracking: false });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: wsCompression, clientTracking: false });
   wss.on('connection', (ws, req) => network.handleConnection(ws, req));
   wss.on('error', (e) => log.error('[ws] server error', e));
 

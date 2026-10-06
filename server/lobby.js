@@ -81,6 +81,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
+import { isCompressibleType } from './wsCompression.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
 import { Matchmaking } from './matchmaking.js';
@@ -1246,7 +1247,7 @@ export class Lobby {
     const data = encode(msg);
     if (data == null) { this.log.error(`[lobby] ${room.code} unserializable broadcast ${msg && msg.t}`); return null; }
     const droppable = isDroppable(msg);
-    for (const session of this.memberSessions(room)) sendRaw(session.ws, data, { droppable });
+    for (const session of this.memberSessions(room)) sendRaw(session.ws, data, { droppable, compress: isCompressibleType(msg?.t) });
     return data;
   }
 
@@ -1257,7 +1258,7 @@ export class Lobby {
     if (!seat || seat.isBot || seat.left) return false;
     const session = this.registry.byId(playerId);
     if (!session?.connected || session.roomCode !== room.code) return false;
-    return sendRaw(session.ws, data, { droppable: type === 'b.snap' });
+    return sendRaw(session.ws, data, { droppable: type === 'b.snap', compress: isCompressibleType(type) });
   }
 
   /** Match unicast. @returns {boolean} */

@@ -953,10 +953,11 @@ test('workers: lobby defaults to 4096 rooms and enforces the boundary with light
 });
 
 test('workers: encoded transport preserves room/seat admission, connection and backpressure boundaries without result-replay bypass', (t) => {
-  const sent = [];
+  const sent = [], sendOptions = [];
   let terminated = 0;
   const ws = { readyState: 1, bufferedAmount: 0,
-    send(data, cb) { sent.push(data); cb?.(); }, terminate() { terminated++; } };
+    send(data, options, cb) { sent.push(data); sendOptions.push(options); (typeof options === 'function' ? options : cb)?.(); },
+    terminate() { terminated++; } };
   const session = { playerId: 'p_0', name: 'Transport', connected: false, roomCode: null, ws };
   const sessions = new Map([['p_0', session]]);
   const lobby = new Lobby({ registry: { byId: (id) => sessions.get(id) }, log: quiet, getData: () => DATA });
@@ -977,6 +978,7 @@ test('workers: encoded transport preserves room/seat admission, connection and b
   for (const [type, wire] of Object.entries(wires)) {
     assert.equal(send(type), true);
     assert.equal(sent.at(-1), wire, 'the original wire string is passed unchanged');
+    assert.equal(sendOptions.at(-1).compress, type !== 'b.damage', 'only allowlisted encoded battle types opt into compression');
   }
   const accepted = sent.length;
   assert.equal(send('b.snap', 'outsider'), false);
