@@ -310,7 +310,7 @@ function bondPoolStats(m, ps, owned) {
   const reach = new Map();
   const supply = new Map();
   const maxTier = Math.min(6, ps.shop.level + 1);
-  for (const [id, e] of m.pool.entries) {
+  for (const [id, e] of ps.pool.entries) {
     if (!(e.left > 0)) continue;
     const c = m.gd.chess(id);
     if (!c || !Array.isArray(c.bonds)) continue;
@@ -1233,12 +1233,12 @@ function copyCounts(m, ps) {
 function refreshValue(m, ps, ctx) {
   const L = ps.shop.level;
   let total = 0;
-  for (const e of m.pool.entries.values()) if (e.left > 0 && e.tier <= L) total += e.left;
+  for (const e of ps.pool.entries.values()) if (e.left > 0 && e.tier <= L) total += e.left;
   if (!(total > 0)) return 0;
   const slots = m.gd.shopSlots(L).chess;
   let v = 0;
   for (const [b, k] of ctx.copies) {
-    const e = m.pool.entries.get(b);
+    const e = ps.pool.entries.get(b);
     if (!e || e.left <= 0 || e.tier > L) continue;
     const pShop = 1 - (1 - e.left / total) ** slots;
     if (k + 1 >= mergeNeed(m, b)) v += pShop * MERGE_HIT;
@@ -1309,7 +1309,7 @@ function sellJunk(m, ps) {
     const base = m.gd.baseIdOf(p.id);
     const copies = c.isGolden ? 0 : ctx.copies.get(base) || 0;
     // a pair whose third copy can still come (the merge's reward is worth it for any pair)
-    const pairLive = copies + 1 >= mergeNeed(m, base) && (m.pool.left(base) > 0 || !m.pool.has(base));
+    const pairLive = copies + 1 >= mergeNeed(m, base) && (ps.pool.left(base) > 0 || !ps.pool.has(base));
     const useful = c.isGolden || pairLive || ctx.keep.has(base) || (copies >= 2 && m.round <= 6);
     (useful ? keep : junk).push({ p, v: pieceValue(m, ps, p, ctx) + (pairLive ? 150 : useful ? 100 : 0) });
   }

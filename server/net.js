@@ -38,6 +38,7 @@
 import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { C2S, validateC2S, normalizeServerLoad, normalizeLoadDetails } from '../shared/protocol.js';
+import { normalizeClusterLoad } from '../shared/cluster-load.js';
 import { ERR, ERR_TEXT, PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { isCompressibleType } from './wsCompression.js';
 import { moderateName } from '../shared/names.js';
@@ -59,6 +60,7 @@ export const NET_DEFAULTS = Object.freeze({
   heavyPerSec: 2,               // refill of the bucket for resend-heavy intents (HEAVY_TYPES)
   heavyBurst: 6,
   trustProxy: 'auto',           // forwarding headers: 'auto' = from loopback/private peers only, true = always, false = never
+  allowAsyncHandlers: false,    // explicit coordinator opt-in; ordinary lobby dispatch remains synchronous
 });
 
 /**
@@ -460,6 +462,7 @@ class Connection {
     this.heavy = new TokenBucket(opts.heavyPerSec, opts.heavyBurst, now);
     this.dropWindowAt = now;
     this.drops = 0;
+    this.pendingHandlers = 0;
     /** true once the server initiated the close; frames still in flight are ignored */
     this.closing = false;
   }
@@ -484,17 +487,20 @@ export class Network {
    *   now?: () => number,
    *   getLoadState?: () => string,
    *   getLoadDetails?: () => unknown,
+   *   getClusterLoad?: () => unknown,
    *   options?: Partial<typeof NET_DEFAULTS>,
    * }} opts
    */
-  constructor({ registry, handler, log = noopLog, now = Date.now, getLoadState = null, getLoadDetails = null, options = {} }) {
+  constructor({ registry, handler, log = noopLog, now = Date.now, getLoadState = null, getLoadDetails = null, getClusterLoad = null, options = {} }) {
     this.registry = registry;
     this.handler = handler;
     this.log = log;
     this.now = now;
     this.getLoadState = typeof getLoadState === 'function' ? getLoadState : null;
     this.getLoadDetails = typeof getLoadDetails === 'function' ? getLoadDetails : null;
+    this.getClusterLoad = typeof getClusterLoad === 'function' ? getClusterLoad : null;
     this.opts = { ...NET_DEFAULTS, ...options };
+    if (typeof this.opts.allowAsyncHandlers !== 'boolean') throw new TypeError('invalid asynchronous network handler option');
     /** @type {Map<import('ws').WebSocket, Connection>} */
     this.conns = new Map();
     /** @type {Map<string, number>} open sockets per client network key */
@@ -590,6 +596,12 @@ export class Network {
           if (details !== null) pong.loadDetails = details;
         } catch { /* diagnostics cannot interrupt heartbeat replies */ }
       }
+      if (this.getClusterLoad) {
+        try {
+          const cluster = normalizeClusterLoad(this.getClusterLoad());
+          if (cluster !== null) pong.clusterLoad = cluster;
+        } catch { /* diagnostics cannot interrupt heartbeat replies */ }
+      }
       if (validRid(rid)) pong.rid = rid;
       this.reply(conn, pong);
       return;
@@ -598,6 +610,15 @@ export class Network {
     if (!conn.session) { this.reply(conn, errorMsg(ERR.BAD_MSG, rid, 'hello required')); return; }
     if (HEAVY_TYPES.has(msg.t) && !conn.heavy.take(now)) { this.reply(conn, errorMsg(ERR.RATE, rid, `${msg.t} too often`)); return; }
 
+    if (this.opts.allowAsyncHandlers && conn.pendingHandlers >= 64) { this.reply(conn, errorMsg(ERR.RATE, rid)); return; }
+    const session = conn.session;
+    const respond = res => {
+      if (this.closed || conn.closing || conn.session !== session || session.ws !== conn.ws) return;
+      if (res && res.error) {
+        if (msg.t === 'b.progress' && !validRid(rid)) return;
+        this.reply(conn, errorMsg(isErrCode(res.error) ? res.error : ERR.INTERNAL, rid, res.detail));
+      } else if (validRid(rid)) this.reply(conn, { t: 'ok', rid });
+    };
     let res;
     try {
       // client-side combat reports (b.progress / b.result, DESIGN §14) belong to the running match like 'g.*' intents:
@@ -608,13 +629,16 @@ export class Network {
       this.log.error(`[net] handler crashed on ${msg.t}`, e);
       res = { error: ERR.INTERNAL };
     }
-    if (res && res.error) {
-      // fire-and-forget battle progress (no rid) that reached no running match — the match just ended, the room went
-      // back to the lobby — is stale, not a client mistake: never answered (DESIGN §14; a rid-less error frame would
-      // surface as an error toast in the browser)
-      if (msg.t === 'b.progress' && !validRid(rid)) return;
-      this.reply(conn, errorMsg(isErrCode(res.error) ? res.error : ERR.INTERNAL, rid, res.detail));
-    } else if (validRid(rid)) this.reply(conn, { t: 'ok', rid });
+    if (res && typeof res.then === 'function') {
+      if (!this.opts.allowAsyncHandlers) {
+        Promise.resolve(res).catch(() => {});
+        respond({ error: ERR.INTERNAL });
+        return;
+      }
+      conn.pendingHandlers++;
+      Promise.resolve(res).then(respond, () => respond({ error: ERR.INTERNAL }))
+        .catch(() => {}).finally(() => { conn.pendingHandlers--; });
+    } else respond(res);
   }
 
   /** @param {Connection} conn @param {any} msg @param {number} now */

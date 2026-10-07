@@ -1,0 +1,32 @@
+# The app export and dependency/art hashes are verified before this offline build.
+FROM node@sha256:7fddd9ddeae8196abf4a3ef2de34e11f7b1a722119f91f28ddf1e99dcafdf114
+ARG SOURCE_REVISION
+ARG SOURCE_KIND
+ARG SOURCE_MANIFEST_SHA256
+ARG RESOURCE_MANIFEST_SHA256
+ARG APP_VERSION
+LABEL org.opencontainers.image.source="https://github.com/Stardust-minus/Stronghold-Protocol" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      cn.stardust.cluster.source-kind="${SOURCE_KIND}" \
+      cn.stardust.cluster.manifest-sha256="${SOURCE_MANIFEST_SHA256}" \
+      cn.stardust.cluster.resource-manifest-sha256="${RESOURCE_MANIFEST_SHA256}"
+RUN test -n "${SOURCE_REVISION}" && test -n "${SOURCE_MANIFEST_SHA256}" && test -n "${RESOURCE_MANIFEST_SHA256}" \
+ && test -n "${APP_VERSION}" && { test "${SOURCE_KIND}" = commit || test "${SOURCE_KIND}" = tree; }
+ENV NODE_ENV=production SP_COMBAT=server SP_VERIFY=off SP_SNAPSHOT_HZ=10
+WORKDIR /app
+COPY app/ /app/
+RUN for file in name-policy.mjs name-dictionary.mjs name-sensitive-dictionary.mjs \
+      name-filter-vendor.mjs name-filter-node.mjs NAME-DICTIONARY-LICENSE.txt \
+      NAME-FILTER-LICENSE.txt NAME-CATEGORIES-LICENSE.txt NAME-POLITICAL-LICENSE.txt; do \
+      test -s "deploy/stardust/auth/$file" || exit 1; \
+    done \
+ && node --input-type=module -e "import { moderateName } from './shared/names.js'; import { NAME_FILTER_SOURCE } from './deploy/stardust/auth/name-filter-vendor.mjs'; if (NAME_FILTER_SOURCE.version !== '4.0.3' || !moderateName('阿米娅').ok) process.exit(1)" \
+ && test -s server/cluster/start.mjs \
+ && node --input-type=module -e "import { readFileSync } from 'node:fs'; const m = JSON.parse(readFileSync('data/local-assets.json', 'utf8')); if (m.version !== 1 || !(m.count > 0) || !m.groups?.['map/autochess']?.TX_autochessi_D?.path || !Object.keys(m.groups?.['mesh/map_autochess_bkg'] || {}).length) process.exit(1)"
+USER node
+EXPOSE 3000
+# The host manager checks game authenticated status, coordinator HTTP and relay WS.
+# A monolith /healthz Docker check would incorrectly mark every game/ingress unhealthy.
+HEALTHCHECK NONE
+CMD ["node", "server/cluster/start.mjs", "--config", "/run/config/runtime.json"]

@@ -96,7 +96,8 @@
 // phase outside its battles (soloUntimed); the co-op strategy draft has ONE countdown — BAND_TURN_SECONDS per turn,
 // published as m.public.deadline — AI seats pick at once and a turn that runs out takes the highlighted strategy
 // (g.bandFocus → timeoutBand); g.unitStats answers m.unitStats: the stats the board's units start their next battle with.
-//   opts.revivalEnabled  locked pregame vote result (strict true enables SETTLE death cancellation; donor >=11, cost 10 LP)
+//   opts.experimental   locked room rules: revivalEnabled and disableSharedPool, both false by default
+//   opts.revivalEnabled  direct engine compatibility (SETTLE death cancellation; donor >=11, cost 10 LP)
 //   opts.clientCombat  default true (env SP_COMBAT=server → false: the legacy server-run + snapshot streaming mode)
 //   opts.snapshotHz    20 (default) | 10 | 5 (env SP_SNAPSHOT_HZ): periodic server snapshots only, not event/sim cadence
 //   opts.verify        'off' | 'sample' | 'all' (env SP_VERIFY, default 'off'): re-simulate accepted client results
@@ -139,6 +140,7 @@ import { createRng, deriveSeed } from '../sim/rng.js';
 import { GameData } from './gamedata.js';
 import { RealScheduler } from './scheduler.js';
 import { SharedPool, drawDisabledBonds } from './pool.js';
+import { experimentalOptions } from '../../shared/experimental.js';
 import { PlayerState } from './PlayerState.js';
 import { buildDeployMap, boardOrder, pieceDir } from './board.js';
 import { bondList, offBondCounts } from './bondsMeta.js';
@@ -310,8 +312,12 @@ export class Match {
     this._damageAt = -Infinity;
     this._damageSampleAt = -Infinity;
     this._damageSent = new Map();
-    /** Locked pregame rule; only the lobby counts the human votes. */
-    this.revivalEnabled = opts.revivalEnabled === true;
+    /** Locked room-owned rules; direct engine fixtures retain the legacy option names. */
+    this.experimental = experimentalOptions(opts.experimental ?? {
+      revivalEnabled: opts.revivalEnabled === true, disableSharedPool: opts.disableSharedPool === true,
+    });
+    this.revivalEnabled = !this.isSolo && this.experimental.revivalEnabled;
+    this.disableSharedPool = this.experimental.disableSharedPool;
     /** SETTLE-only rescue state: { round, eligible: Set<playerId>, windowOpen, deadline }. */
     this._revival = null;
     this._progressTimer = null;
@@ -365,6 +371,8 @@ export class Match {
     this.staticInactiveBonds = bans.staticOff;
     this.bannedChess = bans.banned;
     this.pool = new SharedPool(this.gd, { banned: bans.banned });
+    this.playerPools = this.disableSharedPool ? new Map(this.order.map(ps =>
+      [ps.playerId, new SharedPool(this.gd, { banned: bans.banned })])) : null;
 
     this.phase = PHASE.LOBBY;
     this.round = 0;
@@ -708,6 +716,14 @@ export class Match {
 
   alivePlayers() { return this.order.filter((p) => p.alive); }
 
+  /** Ordinary copy limits remain per player when the shared card pool is disabled. */
+  poolFor(player) {
+    if (!this.playerPools) return this.pool;
+    const pool = this.playerPools.get(typeof player === 'string' ? player : player?.playerId);
+    if (!pool) throw new TypeError('player card pool required');
+    return pool;
+  }
+
   /** Whether any chess of a bond is in this match's pool (a 驰援 card of a fully banned bond is never offered). */
   bondInPool(bondId) {
     for (const id of this.pool.entries.keys()) {
@@ -1017,6 +1033,7 @@ export class Match {
       serverNow: this.sched.now(),
       modeId: this.modeId,
       difficulty: this.difficulty,
+      experimental: { ...this.experimental },
       stageId: this.stageId,
       factions: this.factions.slice(),
       disabledBonds: [...new Set([...this.disabledBonds, ...this.staticInactiveBonds])].sort(),
@@ -1867,7 +1884,8 @@ export class Match {
    * pool filtered by `tier` / `minTier` / `maxTier` (number or 'shopLevel') / `bond`; `golden: true` yields the elite id.
    * @returns {{ kind: 'item'|'chess', id: string, golden?: boolean } | null}
    */
-  rollPool(poolId, { shopLevel = 6 } = {}) {
+  rollPool(poolId, { shopLevel = 6, player = null } = {}) {
+    const stock = this.poolFor(player);
     const pools = this.gd.choices.pools && typeof this.gd.choices.pools === 'object' ? this.gd.choices.pools : {};
     const p = typeof poolId === 'string' && Object.hasOwn(pools, poolId) ? pools[poolId] : null;
     if (!p || typeof p !== 'object') return null;
@@ -1881,7 +1899,7 @@ export class Match {
     const free = (id) => {
       if (typeof id !== 'string' || !this.gd.chess(id)) return false;
       const base = this.gd.baseIdOf(id);
-      return !this.pool.has(base) || this.pool.left(base) > 0;
+      return !stock.has(base) || stock.left(base) > 0;
     };
     let id = null;
     if (Array.isArray(p.weighted) && p.weighted.length) {
@@ -1894,7 +1912,7 @@ export class Match {
       const maxTier = p.maxTier === 'shopLevel' ? lvl : Number.isInteger(p.maxTier) ? p.maxTier : 6;
       const minTier = Number.isInteger(p.minTier) ? p.minTier : 1;
       const bond = typeof p.bond === 'string' ? p.bond : null;
-      id = this.pool.roll(rng, {
+      id = stock.roll(rng, {
         tier: Number.isInteger(p.tier) ? p.tier : null,
         maxTier,
         filter: (cid, e) => e.tier >= minTier && (!bond || (Array.isArray(this.gd.chess(cid)?.bonds) && this.gd.chess(cid).bonds.includes(bond))),

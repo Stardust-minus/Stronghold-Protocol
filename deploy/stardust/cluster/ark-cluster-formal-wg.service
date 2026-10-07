@@ -1,0 +1,27 @@
+[Unit]
+Description=Ark Formal owned WireGuard bootstrap guard and overlay recovery
+Wants=network-online.target
+After=network-online.target
+Before=ark-cluster-formal-core.service ark-cluster-formal-edge.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+Group=root
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -I /opt/ark-cluster-formal/tools/cluster-wg-recover.py --profile formal --action start
+# No ExecStop/down/re-key: stopping this unit must not mutate any live interface.
+# Each role unit separately creates its closed manager guard, then explicitly
+# invokes --action handoff in ExecStartPre before its lifecycle manager starts.
+TimeoutStartSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/etc/ark-cluster-formal-wg /run
+CapabilityBoundingSet=CAP_NET_ADMIN
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

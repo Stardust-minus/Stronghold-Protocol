@@ -80,6 +80,7 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout } from '../shared/protocol.js';
+import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isExperimental, sameExperimental } from '../shared/experimental.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { isCompressibleType } from './wsCompression.js';
 import { getData as defaultGetData, lookup } from './data.js';
@@ -141,6 +142,7 @@ export class Room {
     this.matchCtx = null;
     this.matchCount = 0;
     this.revivalLocked = null;
+    this.experimental = EXPERIMENTAL_DEFAULTS;
     this.source = 'private';
     // Public rooms charge every participant's network, not a rotating/randomly selected host alone.
     this.ownerKeys = null;
@@ -176,11 +178,7 @@ export class Room {
   activeHumans() { return this.seats.filter((s) => s && !s.isBot && !s.left); }
 
   revivalState() {
-    if (this.revivalLocked) return { ...this.revivalLocked };
-    const humans = this.activeHumans();
-    const yes = humans.filter((s) => s.revivalVote === true).length;
-    const required = Math.max(2, Math.floor(humans.length / 2) + 1);
-    return { yes, required, enabled: this.mode === 'coop' && humans.length >= 2 && yes >= required };
+    return { enabled: this.mode === 'coop' && this.experimental.revivalEnabled };
   }
 
   /** `room.state` frame (DESIGN §8.1) plus `inMatch`. */
@@ -193,6 +191,7 @@ export class Room {
       difficulty: this.difficulty,
       inMatch: !!this.match,
       source: this.source,
+      experimental: { ...this.experimental },
       revival: this.revivalState(),
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left, revivalVote: s.isBot ? null : s.revivalVote ?? null }
@@ -342,6 +341,7 @@ export class Lobby {
       case 'room.leave': return this.leave(session);
       case 'room.ready': return this.ready(session, msg);
       case 'room.voteRevival': return this.voteRevival(session, msg);
+      case 'room.setExperimental': return this.setExperimental(session, msg);
       case 'queue.join': return this.queue.join(session, msg);
       case 'queue.cancel': return this.queue.cancel(session, msg);
       case 'queue.accept': return this.queue.accept(session, msg);
@@ -410,7 +410,8 @@ export class Lobby {
   // room.* handlers
   // ---------------------------------------------------------------------------------------------------
 
-  create(session, { mode, difficulty }) {
+  create(session, { mode, difficulty, experimental = EXPERIMENTAL_DEFAULTS }) {
+    if (!isExperimental(experimental)) return fail(ERR.BAD_MSG);
     if (this.queue.has(session)) return fail(ERR.QUEUED);
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
@@ -428,6 +429,7 @@ export class Lobby {
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
     if (cur) this.removeMember(cur, session.playerId);
     const room = new Room(code, mode, difficulty, this.now());
+    room.experimental = experimentalOptions(experimental);
     room.ownerKey = key;
     room.seats[0] = this.humanSeat(0, session);
     room.hostId = session.playerId;
@@ -536,17 +538,21 @@ export class Lobby {
     return OK;
   }
 
-  voteRevival(session, { enable }) {
-    if (typeof enable !== 'boolean') return fail(ERR.BAD_MSG);
+  voteRevival() { return fail(ERR.BAD_MSG, 'revival voting was replaced by room experimental options'); }
+
+  setExperimental(session, { experimental }) {
+    if (!isExperimental(experimental)) return fail(ERR.BAD_MSG);
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
-    if (room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.match) return fail(ERR.ROOM_STARTED);
     if (this.roomQueued(room)) return fail(ERR.QUEUED);
-    if (room.mode !== 'coop') return fail(ERR.WRONG_PHASE, 'revival voting requires a cooperative room');
-    const seat = room.seatOf(session.playerId);
     this.dropReplay(room, session.playerId);
-    if (seat.revivalVote !== enable) { seat.revivalVote = enable; this.broadcastState(room); }
+    if (!sameExperimental(room.experimental, experimental)) {
+      room.experimental = experimentalOptions(experimental);
+      for (const seat of room.activeHumans()) if (seat.playerId !== room.hostId) seat.ready = false;
+      this.broadcastState(room);
+    }
     return OK;
   }
 
@@ -697,7 +703,7 @@ export class Lobby {
     if (room.seats.some((seat) => seat?.isBot)) return fail(ERR.BAD_MSG, 'public matchmaking has no AI players');
     const sessions = room.activeHumans().map((seat) => this.registry.byId(seat.playerId));
     if (!sessions.length || sessions.some((s) => !this.isOnline(s))) return fail(ERR.NOT_READY, 'all party members must be online');
-    return { sessions, roomCode: room.code, leaderId: room.hostId };
+    return { sessions, roomCode: room.code, leaderId: room.hostId, experimental: room.experimental };
   }
 
   matchmakingAvailable(session, entry) {
@@ -707,6 +713,7 @@ export class Lobby {
     if (!party?.roomCode) return !room;
     if (!room || room.code !== party.roomCode || room.match || room.mode !== 'coop'
       || room.hostId !== party.leaderId || room.difficulty !== entry.difficulty
+      || !sameExperimental(room.experimental, party.experimental)
       || room.seats.some((seat) => seat?.isBot)) return false;
     const humans = room.activeHumans();
     return humans.length === party.entries.length && party.entries.every((member) =>
@@ -728,7 +735,7 @@ export class Lobby {
       const entry = this.queue.entries.get(session.playerId);
       if (!this.matchmakingAvailable(session, entry) || session.matchmakingVersion !== MATCHMAKING_VERSION
         || entry?.session !== session || entry.version !== MATCHMAKING_VERSION || entry.expiresAt <= now
-        || (entry.key || null) !== (session.limitKey || null) || typeof entry.revivalVote !== 'boolean'
+        || (entry.key || null) !== (session.limitKey || null)
         || !entry.accepted || entry.offerId !== offer.id || entry.difficulty !== difficulty || !offer.entries.includes(entry)) {
         return fail(ERR.WRONG_PHASE, 'matchmaking participant unavailable');
       }
@@ -756,6 +763,7 @@ export class Lobby {
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
     const room = new Room(code, 'coop', difficulty, this.now());
     room.source = 'matchmaking';
+    room.experimental = experimentalOptions(offer.experimental);
     room.ownerKeys = keys;
     room.ownerKey = sessions[0].limitKey || null;
     room.hostId = sessions[0].playerId;
@@ -786,6 +794,9 @@ export class Lobby {
   // Match wiring
   // ---------------------------------------------------------------------------------------------------
 
+  /** Factory hook; the default lobby still constructs exactly one local Match. */
+  createMatch(opts) { return new this.MatchClass(opts); }
+
   /** @param {Room} room @param {string | null} [key] per-network limit key of the starter */
   startMatch(room, key = null, keys = null, { deferPublish = false } = {}) {
     const revival = room.revivalState();
@@ -812,12 +823,14 @@ export class Lobby {
     let seed = 0;
     try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
     try {
-      const match = new this.MatchClass({
+      const match = this.createMatch({
         roomCode: room.code,
         mode: room.mode,
         difficulty: room.difficulty,
         modeId: modeIdFor(room.mode, room.difficulty),
         revivalEnabled: revival.enabled,
+        disableSharedPool: room.experimental.disableSharedPool,
+        experimental: room.experimental,
         seats,
         // the spectator seats (header): watched like eliminated players, never players
         spectators: room.spectators.map((s) => s.playerId),

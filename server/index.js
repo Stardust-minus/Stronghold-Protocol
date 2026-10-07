@@ -625,6 +625,7 @@ function makeLogger(quiet) {
  *   publicDir?: string, dataDir?: string, sharedDir?: string,
  *   MatchClass?: Function, seedFn?: () => number, combatWorkers?: number, trialWorkers?: number,
  *   healthMetricsFactory?: typeof createHealthMetrics, wsCompression?: 'on' | 'off', snapshotHz?: 20 | 10 | 5,
+ *   lobbyFactory?: (params: object) => Lobby, allowAsyncHandlers?: boolean,
  *   lobbyGraceMs?: number, reconnectWindowMs?: number, heartbeatMs?: number, helloTimeoutMs?: number,
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
@@ -673,7 +674,7 @@ export async function startServer(opts = {}) {
   }
   const netOptions = {};
   for (const k of ['reconnectWindowMs', 'heartbeatMs', 'helloTimeoutMs', 'ratePerSec', 'rateBurst', 'maxConnections', 'abuseDropsPerSec',
-    'maxConnectionsPerAddr', 'heavyPerSec', 'heavyBurst', 'trustProxy']) {
+    'maxConnectionsPerAddr', 'heavyPerSec', 'heavyBurst', 'trustProxy', 'allowAsyncHandlers']) {
     if (opts[k] != null) netOptions[k] = opts[k];
   }
   if (netOptions.trustProxy == null) netOptions.trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
@@ -685,10 +686,13 @@ export async function startServer(opts = {}) {
   let lobby, network, serveStatic, browserBuild, healthMetrics;
   const startedAt = Date.now();
   try {
-    lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, trialPool, options: lobbyOptions });
+    if (opts.lobbyFactory != null && typeof opts.lobbyFactory !== 'function') throw new TypeError('invalid lobby factory');
+    if (opts.getClusterLoad != null && typeof opts.getClusterLoad !== 'function') throw new TypeError('invalid cluster load provider');
+    const createLobby = opts.lobbyFactory || (params => new Lobby(params));
+    lobby = createLobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, trialPool, options: lobbyOptions });
     network = new Network({ registry, handler: lobby, log, options: netOptions,
       getLoadState: () => serverLoadState(healthMetrics?.snapshot?.()),
-      getLoadDetails: () => publicLoadDetails(healthMetrics?.snapshot?.()) });
+      getLoadDetails: () => publicLoadDetails(healthMetrics?.snapshot?.()), getClusterLoad: opts.getClusterLoad });
     serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
     // Capture this instance's served browser runtime once; another local test/release instance cannot replace it.
     browserBuild = computeBuildTag(ROOT, publicDir);

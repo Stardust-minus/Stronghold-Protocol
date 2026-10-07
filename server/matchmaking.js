@@ -1,7 +1,9 @@
-// Synchronous four-human matchmaking with optional admission caps. Parties are indivisible session identities, never sockets.
-// Every human explicitly accepts and votes before the lobby atomically starts and commits a match.
+// Four-human matchmaking with optional admission caps and explicit opt-in async preparation.
+// Parties are indivisible session identities, never sockets. Every human explicitly accepts
+// before the lobby atomically commits its room-owned rules; the legacy allocate path stays synchronous.
 import { randomBytes } from 'node:crypto';
 import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/constants.js';
+import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, sameExperimental } from '../shared/experimental.js';
 
 // Quantity/per-network admission caps use 0 = unlimited; ticket and acceptance deadlines stay bounded.
 export const MATCHMAKING_DEFAULTS = Object.freeze({ maxEntries: 0, maxPerAddr: 0, waitMs: 600_000, acceptMs: 30_000 });
@@ -9,8 +11,20 @@ const OK = Object.freeze({ ok: true });
 const fail = (error, detail) => ({ error, detail });
 const id = () => randomBytes(16).toString('hex');
 
+// Observe cleanup/invalid async-commit rejections without logging provider data.
+function observeThenable(value) {
+  if (!value || typeof value.then !== 'function') return false;
+  Promise.resolve(value).catch(() => {});
+  return true;
+}
+
 export class Matchmaking {
-  constructor({ now = Date.now, send, available, members, allocate, options = {}, timers = { setTimeout, clearTimeout } }) {
+  constructor({ now = Date.now, send, available, members, allocate, asyncAllocate = null, allocationMs = 6000,
+    options = {}, timers = { setTimeout, clearTimeout } }) {
+    if (asyncAllocate !== null && typeof asyncAllocate !== 'function') throw new TypeError('invalid matchmaking asyncAllocate');
+    if (!Number.isSafeInteger(allocationMs) || allocationMs < 1 || allocationMs > 8000) throw new TypeError('invalid matchmaking allocationMs');
+    this.asyncAllocate = asyncAllocate;
+    this.allocationMs = allocationMs;
     this.now = now;
     this.send = send;
     this.available = available;
@@ -50,7 +64,8 @@ export class Matchmaking {
       difficulty: e.difficulty, required: MAX_SEATS, joinedAt: e.joinedAt,
       deadline: offer ? offer.deadline : e.expiresAt, ...this.partyState(e.party),
       ...(e.reason ? { reason: e.reason } : {}),
-      ...(offer ? { offerId: offer.id, accepted: e.accepted, revivalVote: e.revivalVote, acceptedCount: offer.entries.filter((x) => x.accepted).length } : {}),
+      ...(offer ? { offerId: offer.id, accepted: e.accepted, experimental: { ...offer.experimental }, acceptedCount: offer.entries.filter((x) => x.accepted).length,
+        ...(offer.allocation ? { allocationPending: true } : {}) } : {}),
     };
   }
 
@@ -88,7 +103,11 @@ export class Matchmaking {
       if ([...counts.values()].some((count) => count > this.opts.maxPerAddr)) return fail(ERR.RATE, 'too many queued players from your network');
     }
     const now = this.now();
-    const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId, sequence: ++this.sequence, entries: [] };
+    let experimental = null;
+    try { if (group.roomCode) experimental = experimentalOptions(group.experimental ?? EXPERIMENTAL_DEFAULTS); }
+    catch { return fail(ERR.BAD_MSG, 'invalid party experimental options'); }
+    const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId,
+      experimental, sequence: ++this.sequence, entries: [] };
     unit.entries = sessions.map((member) => ({
       session: member, key: member.limitKey, ticketId: id(), difficulty, version: member.matchmakingVersion, party: unit,
       joinedAt: now, expiresAt: now + this.opts.waitMs, sequence: unit.sequence, offerId: null, accepted: false, revivalVote: null,
@@ -112,13 +131,12 @@ export class Matchmaking {
   }
 
   accept(session, { ticketId, offerId, revivalVote }) {
-    if (typeof revivalVote !== 'boolean') return fail(ERR.BAD_MSG, 'explicit revival vote required');
+    if (revivalVote !== undefined && typeof revivalVote !== 'boolean') return fail(ERR.BAD_MSG, 'invalid obsolete vote');
     this.refresh(session);
     if (this.closed) return fail(ERR.WRONG_PHASE, 'matchmaking is closed');
     const e = this.entries.get(session.playerId);
     const matched = session.matchmakingResult;
     if (!e && matched?.ticketId === ticketId && matched.offerId === offerId && session.roomCode === matched.code) {
-      if (revivalVote !== matched.revivalVote) return fail(ERR.BAD_MSG, 'accepted revival vote is locked');
       this.send(session, this.state(session));
       return OK;
     }
@@ -129,14 +147,17 @@ export class Matchmaking {
       return fail(ERR.WRONG_PHASE, 'player unavailable');
     }
     if (e.accepted) {
-      if (revivalVote !== e.revivalVote) return fail(ERR.BAD_MSG, 'accepted revival vote is locked');
       this.push(e);
       return OK;
     }
-    e.revivalVote = revivalVote;
+    e.revivalVote = false; // Legacy bookkeeping only; no player vote selects room rules.
     e.accepted = true;
     for (const member of offer.entries) this.push(member);
     if (!offer.entries.every((x) => x.accepted)) return OK;
+    if (this.asyncAllocate) {
+      this.prepareAllocation(offer);
+      return OK; // Acknowledges acceptance only; allocation is not yet committed.
+    }
     // No await: the lobby validates identities, parties and quotas again before starting/committing.
     let result;
     try { result = this.allocate(offer.entries.map((x) => x.session), e.difficulty); }
@@ -154,7 +175,7 @@ export class Matchmaking {
       this.parties.delete(member.party.id);
       member.session.matchmakingResult = {
         ticketId: member.ticketId, offerId: offer.id, difficulty: member.difficulty, code: result.code,
-        revivalVote: member.revivalVote, ...this.partyState(member.party),
+        experimental: { ...offer.experimental }, ...this.partyState(member.party),
       };
     }
     // room.state(inMatch) first: the client clears old game slices on a changed room. Matched is last.
@@ -163,6 +184,111 @@ export class Matchmaking {
     this.pump();
     this.arm();
     return OK;
+  }
+
+  /**
+   * Opt-in provider contract: prepare must not mutate the original friend rooms.
+   * Resolve { code, commit?, abort?, publish? }; commit is synchronous/atomic,
+   * publish is synchronous/nonthrowing, and abort must compensate partial commit
+   * and late preparation idempotently. The signal alone is not compensation.
+   */
+  prepareAllocation(offer) {
+    if (offer.allocation || this.offers.get(offer.id) !== offer || this.closed) return;
+    const allocation = {
+      controller: new AbortController(), offerId: offer.id, experimental: offer.experimental,
+      cancelled: false, cleaned: false, completed: false, result: null,
+      entries: offer.entries.map((entry) => ({ entry, session: entry.session, playerId: entry.session.playerId,
+        ticketId: entry.ticketId, version: entry.version, party: entry.party, difficulty: entry.difficulty,
+        expiresAt: entry.expiresAt, sequence: entry.sequence, revivalVote: entry.revivalVote, experimental: entry.party.experimental })),
+    };
+    offer.allocation = allocation;
+    offer.deadline = Math.min(offer.deadline, this.now() + this.allocationMs);
+    allocation.deadline = offer.deadline;
+    for (const member of offer.entries) this.push(member);
+    this.arm();
+    const context = Object.freeze({ signal: allocation.controller.signal, offerId: offer.id,
+      isCurrent: () => this.allocationCurrent(offer, allocation) });
+    let prepared;
+    try { prepared = this.asyncAllocate(allocation.entries.map((member) => member.session), offer.entries[0].difficulty, context); }
+    catch { this.failAllocation(offer, allocation); return; }
+    Promise.resolve(prepared).then(
+      (result) => this.finishAllocation(offer, allocation, result),
+      () => this.failAllocation(offer, allocation),
+    ).catch(() => this.failAllocation(offer, allocation));
+  }
+
+  allocationCurrent(offer, allocation, inspectAvailable = true) {
+    try {
+      if (this.closed || allocation.cancelled || allocation.controller.signal.aborted || offer.allocation !== allocation
+        || this.offers.get(allocation.offerId) !== offer || offer.id !== allocation.offerId
+        || offer.entries.length !== allocation.entries.length || offer.experimental !== allocation.experimental) return false;
+      const now = this.now();
+      if (offer.deadline !== allocation.deadline || now >= allocation.deadline) return false;
+      return allocation.entries.every((saved, index) => {
+        const e = saved.entry;
+        return offer.entries[index] === e && this.entries.get(saved.playerId) === e && e.session === saved.session
+          && e.session.playerId === saved.playerId && e.ticketId === saved.ticketId && e.version === saved.version
+          && e.offerId === allocation.offerId && e.party === saved.party && this.parties.get(e.party.id) === e.party
+          && e.difficulty === saved.difficulty && e.expiresAt === saved.expiresAt && e.sequence === saved.sequence
+          && e.party.experimental === saved.experimental && (!e.party.experimental || sameExperimental(e.party.experimental, offer.experimental))
+          && e.accepted === true && e.revivalVote === saved.revivalVote && e.expiresAt > now
+          && e.session.matchmakingVersion === saved.version && (e.session.limitKey || null) === (e.key || null)
+          && (!inspectAvailable || this.available(e.session, e));
+      });
+    } catch { return false; }
+  }
+
+  cancelAllocation(allocation) {
+    if (!allocation || allocation.completed) return;
+    allocation.cancelled = true;
+    if (!allocation.controller.signal.aborted) allocation.controller.abort();
+    if (allocation.cleaned || !allocation.result) return;
+    allocation.cleaned = true;
+    try { observeThenable(allocation.result.abort?.()); } catch { /* best-effort provider compensation */ }
+  }
+
+  failAllocation(offer, allocation) {
+    this.cancelAllocation(allocation);
+    // Never break a newer offer or overwrite replacement identities/tickets.
+    if (this.offers.get(allocation.offerId) !== offer || offer.allocation !== allocation) return;
+    const removed = new Set(offer.entries.filter((member) => this.stale(member, this.now())));
+    this.breakOffer(offer, removed, 'allocation_failed');
+    this.arm(); // Healthy fully confirmed parties keep age/TTL; no immediate capacity retry loop.
+  }
+
+  finishAllocation(offer, allocation, result) {
+    allocation.result = result;
+    if (!this.allocationCurrent(offer, allocation)) { this.failAllocation(offer, allocation); return; }
+    try {
+      if (!result || result.error || typeof result.code !== 'string' || !result.code.length
+        || ['commit', 'abort', 'publish'].some((hook) => result[hook] != null && typeof result[hook] !== 'function')) {
+        throw new TypeError('invalid matchmaking allocation result');
+      }
+      if (!this.allocationCurrent(offer, allocation)) throw new TypeError('stale matchmaking allocation');
+      const committed = result.commit?.();
+      if (observeThenable(committed) || committed === false || committed?.error) throw new TypeError('matchmaking commit must succeed synchronously');
+      // Commit may change room availability, but must not reenter and replace the
+      // cohort, advance its epoch, cancel it or commit after its bounded deadline.
+      if (!this.allocationCurrent(offer, allocation, false)) throw new TypeError('stale matchmaking commit');
+    } catch { this.failAllocation(offer, allocation); return; }
+
+    allocation.completed = true;
+    this.offers.delete(offer.id);
+    for (const member of offer.entries) {
+      this.entries.delete(member.session.playerId);
+      this.parties.delete(member.party.id);
+      member.session.matchmakingResult = {
+        ticketId: member.ticketId, offerId: offer.id, difficulty: member.difficulty, code: result.code,
+        experimental: { ...offer.experimental }, ...this.partyState(member.party),
+      };
+    }
+    // Same ordering as the legacy path: room/match publication precedes matched.
+    try { result.publish?.(); }
+    finally {
+      for (const member of offer.entries) this.send(member.session, this.state(member.session));
+      this.pump();
+      this.arm();
+    }
   }
 
   /** Removing any identity removes its whole party; unrelated parties keep their FIFO age. */
@@ -185,10 +311,14 @@ export class Matchmaking {
     this.offers.delete(offer.id);
     const removedParties = new Set([...removed].map((e) => e.party));
     // Only parties whose every human accepted THIS offer may continue automatically. Capture before
-    // clearing votes: allocation failures arrive fully accepted and must retain their tickets/rooms.
+    // clearing acceptance: allocation failures arrive fully accepted and must retain their tickets/rooms.
     const unconfirmedParties = new Set(offer.entries.filter((e) => !e.accepted).map((e) => e.party));
-    for (const party of new Set([...removedParties, ...unconfirmedParties])) this.parties.delete(party.id);
+    this.cancelAllocation(offer.allocation);
+    for (const party of new Set([...removedParties, ...unconfirmedParties])) {
+      if (this.parties.get(party.id) === party) this.parties.delete(party.id);
+    }
     for (const e of offer.entries) {
+      if (this.entries.get(e.session.playerId) !== e) continue;
       e.offerId = null;
       e.accepted = false;
       e.revivalVote = null;
@@ -215,39 +345,50 @@ export class Matchmaking {
     for (const pool of pools.values()) {
       pool.sort((a, b) => a.sequence - b.sequence);
       const unused = new Set(pool);
-      const sizes = Array.from({ length: MAX_SEATS + 1 }, () => []);
-      const cursors = new Array(MAX_SEATS + 1).fill(0);
-      for (const party of pool) sizes[party.entries.length].push(party);
+      const buckets = new Map();
+      for (const party of pool) {
+        const key = `${party.entries.length}:${party.experimental ? experimentalKey(party.experimental) : '*'}`;
+        if (!buckets.has(key)) buckets.set(key, { parties: [], cursor: 0 });
+        buckets.get(key).parties.push(party);
+      }
       for (const leader of pool) {
         if (!unused.has(leader)) continue;
         const remaining = MAX_SEATS - leader.entries.length;
-        const candidates = [];
-        // Only the first floor(remaining/size) later units of each size can occur in an earliest fit.
-        // At four seats this bounds the combination search to five candidates, not the whole queue.
-        for (let size = 1; size <= remaining; size++) {
-          const list = sizes[size];
-          while (cursors[size] < list.length && (list[cursors[size]].sequence <= leader.sequence || !unused.has(list[cursors[size]]))) cursors[size]++;
-          let taken = 0;
-          for (let i = cursors[size]; i < list.length && taken < Math.floor(remaining / size); i++) {
-            if (unused.has(list[i])) { candidates.push(list[i]); taken++; }
+        let rest = null;
+        // Solos are wildcards; fixed-option parties only merge with compatible parties.
+        // Four flag combinations and size buckets bound each fit search independently of queue length.
+        for (const optionKey of leader.experimental ? [experimentalKey(leader.experimental)] : ['00', '01', '10', '11']) {
+          const candidates = [];
+          for (let size = 1; size <= remaining; size++) for (const key of ['*', optionKey]) {
+            const bucket = buckets.get(`${size}:${key}`);
+            if (!bucket) continue;
+            const list = bucket.parties;
+            while (bucket.cursor < list.length && (list[bucket.cursor].sequence <= leader.sequence || !unused.has(list[bucket.cursor]))) bucket.cursor++;
+            let taken = 0;
+            for (let i = bucket.cursor; i < list.length && taken < Math.floor(remaining / size); i++) {
+              if (unused.has(list[i])) { candidates.push(list[i]); taken++; }
+            }
           }
+          candidates.sort((a, b) => a.sequence - b.sequence);
+          const fit = (at, slots) => {
+            if (!slots) return [];
+            for (let i = at; i < candidates.length; i++) {
+              const size = candidates[i].entries.length;
+              if (size > slots) continue;
+              const tail = fit(i + 1, slots - size);
+              if (tail) return [candidates[i], ...tail];
+            }
+            return null;
+          };
+          const found = fit(0, remaining);
+          if (found && (!rest || found.some((party, i) => party.sequence !== rest[i]?.sequence
+            && found.slice(0, i).every((p, j) => p === rest[j]) && party.sequence < (rest[i]?.sequence ?? Infinity)))) rest = found;
         }
-        candidates.sort((a, b) => a.sequence - b.sequence);
-        const fit = (at, slots) => {
-          if (!slots) return [];
-          for (let i = at; i < candidates.length; i++) {
-            const size = candidates[i].entries.length;
-            if (size > slots) continue;
-            const rest = fit(i + 1, slots - size);
-            if (rest) return [candidates[i], ...rest];
-          }
-          return null;
-        };
-        const rest = fit(0, remaining);
-        if (!rest) continue; // never split a party; an unfillable older unit does not block every later fit
+        if (!rest) continue; // never split a party; an unfillable older unit does not block later fits
         const parties = [leader, ...rest];
         const entries = parties.flatMap((party) => party.entries);
-        const offer = { id: id(), deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries };
+        const experimental = parties.find(party => party.experimental)?.experimental ?? EXPERIMENTAL_DEFAULTS;
+        const offer = { id: id(), experimental, deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries };
         this.offers.set(offer.id, offer);
         for (const party of parties) unused.delete(party);
         for (const e of entries) { e.offerId = offer.id; e.accepted = false; e.revivalVote = null; e.reason = null; }
@@ -273,9 +414,10 @@ export class Matchmaking {
       return;
     }
     const removed = new Set(offer.entries.filter((member) => this.stale(member, now) || (offer.deadline <= now && !member.accepted)));
-    if (!removed.size) return;
-    this.breakOffer(offer, removed, offer.deadline <= now ? 'confirmation_timeout' : 'unavailable');
-    this.pump();
+    const allocationExpired = !!offer.allocation && offer.deadline <= now;
+    if (!removed.size && !allocationExpired) return;
+    this.breakOffer(offer, removed, allocationExpired ? 'allocation_timeout' : offer.deadline <= now ? 'confirmation_timeout' : 'unavailable');
+    if (!allocationExpired) this.pump();
     this.arm();
   }
 
@@ -283,12 +425,17 @@ export class Matchmaking {
   sweep() {
     const now = this.now();
     const expired = new Set([...this.entries.values()].filter((e) => this.stale(e, now)));
+    let allocationExpired = false;
     for (const offer of [...this.offers.values()]) {
       const removed = new Set(offer.entries.filter((e) => expired.has(e) || (offer.deadline <= now && !e.accepted)));
-      if (removed.size) this.breakOffer(offer, removed, offer.deadline <= now ? 'confirmation_timeout' : 'unavailable');
+      const pendingExpired = !!offer.allocation && offer.deadline <= now;
+      if (removed.size || pendingExpired) {
+        this.breakOffer(offer, removed, pendingExpired ? 'allocation_timeout' : offer.deadline <= now ? 'confirmation_timeout' : 'unavailable');
+        allocationExpired ||= pendingExpired;
+      }
     }
-    for (const e of expired) if (this.entries.has(e.session.playerId)) this.dropParty(e.party, e.expiresAt <= now ? 'expired' : 'unavailable');
-    this.pump();
+    for (const e of expired) if (this.entries.get(e.session.playerId) === e) this.dropParty(e.party, e.expiresAt <= now ? 'expired' : 'unavailable');
+    if (!allocationExpired) this.pump();
     this.arm();
   }
 
@@ -305,10 +452,11 @@ export class Matchmaking {
   clear(reason) {
     if (this.timer != null) this.timers.clearTimeout(this.timer);
     this.timer = null;
-    const entries = [...this.entries.values()];
+    const entries = [...this.entries.values()], offers = [...this.offers.values()];
     this.entries.clear();
     this.parties.clear();
     this.offers.clear();
+    for (const offer of offers) this.cancelAllocation(offer.allocation);
     for (const e of entries) this.idle(e, reason);
   }
 

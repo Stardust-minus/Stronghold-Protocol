@@ -336,10 +336,10 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
     <div class="gtop__left">
       <${Button} variant="danger" size="lg" square=${true} icon="exit" onClick=${onExit} aria-label="离开" title="离开 / 暂离" class="gtop__exit tapx" />
       <div class="gtop__meta">
-        <${PingPill} ms=${conn?.ping} online=${conn?.status === 'online'} loadState=${conn?.loadState ?? 'unknown'}
-          loadDetails=${conn?.loadDetails} loadOpen=${loadOpen} onLoadClick=${() => setLoadOpen(true)} />
+        <${PingPill} ms=${conn?.ping} online=${conn?.status === 'online'} status=${conn?.status} loadState=${conn?.loadState ?? 'unknown'}
+          loadDetails=${conn?.loadDetails} clusterLoad=${conn?.clusterLoad} scope="game" loadOpen=${loadOpen} onLoadClick=${() => setLoadOpen(true)} />
         <${ServerStatusModal} open=${loadOpen} online=${conn?.status === 'online'} state=${conn?.loadState}
-          details=${conn?.loadDetails} onClose=${() => setLoadOpen(false)} />
+          details=${conn?.loadDetails} clusterLoad=${conn?.clusterLoad} scope="game" onClose=${() => setLoadOpen(false)} />
         ${pub?.difficulty ? html`<${DifficultyTag} difficulty=${pub.difficulty} size="sm" />` : null}
       </div>
     </div>

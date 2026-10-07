@@ -16,6 +16,7 @@ import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } fro
 import htm from '../../vendor/htm.module.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { normalizeLoadDetails } from '../../../shared/protocol.js';
+import { loadSummary, scopedClusterLoad } from '../serviceTelemetry.js';
 import { serverNow } from '../store.js';
 import { data, useData, localAsset } from '../data.js';
 import { uiUrl } from './assetUrls.js';
@@ -55,6 +56,7 @@ export const ICONS = {
   users: { d: 'M9 4a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM2 20a7 6.5 0 0 1 14 0zM16.5 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm.9 8.1A6.5 6 0 0 1 22.5 20H18a8.6 8 0 0 0-2.4-6.1 6 6 0 0 1 1.8-.8z' },
   rook: { d: 'M5 3h3v2h2V3h4v2h2V3h3v5l-2 2v7l2 2v2H5v-2l2-2v-7L5 8z' },
   signal: { d: 'M2 17h3v4H2zm6-4h3v8H8zm6-4h3v12h-3zm6-4h3v16h-3z' },
+  server: { d: 'M3 3h18v8H3zm2 2v4h14V5zM3 13h18v8H3zm2 2v4h14v-4zM7 6h2v2H7zm0 10h2v2H7z', eo: true },
   refresh: { d: 'M12 4a8 8 0 0 1 7.4 5H17v2h6V5h-2v2.3A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8zm0 16a8 8 0 0 1-7.4-5H7v-2H1v6h2v-2.3A10 10 0 0 0 22 12h-2a8 8 0 0 1-8 8z' },
   snow: { d: 'M11 2h2v4.2l2.3-2.3 1.4 1.4-3.7 3.7v2h2l3.7-3.7 1.4 1.4-2.3 2.3H22v2h-4.2l2.3 2.3-1.4 1.4-3.7-3.7h-2v2l3.7 3.7-1.4 1.4-2.3-2.3V22h-2v-4.2l-2.3 2.3-1.4-1.4 3.7-3.7v-2H9l-3.7 3.7-1.4-1.4L6.2 13H2v-2h4.2L3.9 8.7l1.4-1.4L9 11h2V9L7.3 5.3l1.4-1.4L11 6.2z' },
   chevronRight: { d: 'M8.6 5 7.2 6.4 12.8 12l-5.6 5.6L8.6 19l7-7z' },
@@ -766,32 +768,39 @@ export function doctorNo(id) {
  * Latency pill ("58ms"), coloured by research 06 §3.4 tiers (<60 mint, <200 amber, else red).
  * @param {{ ms?: number|null, online?: boolean, loadState?: string, class?: string }} props
  */
-export function PingPill({ ms, online = true, loadState, loadDetails, onLoadClick, loadOpen = false, class: cls }) {
+export function ConnectionStatus({ status = 'idle' }) {
+  const labels = { idle: '未连接', connecting: '连接中', connected: '已连接', handshaking: '验证中', online: '已连接', reconnecting: '重连中', closed: '已断开' };
+  const tone = status === 'online' || status === 'connected' ? 'on' : ['connecting', 'handshaking', 'reconnecting'].includes(status) ? 'waiting' : 'off';
+  return html`<span class=${`connection-status connection-status--${tone}`} role="status"><i aria-hidden="true" />${labels[status] || '未连接'}</span>`;
+}
+
+export function PingPill({ ms, online = true, status, loadState, loadDetails, clusterLoad, scope = 'cluster', onLoadClick, loadOpen = false, class: cls }) {
   const ok = online && Number.isFinite(ms);
   const tier = !ok ? 'off' : ms < 60 ? 'low' : ms < 200 ? 'medium' : 'high';
-  const ping = html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? `WebSocket 往返响应 ${ms}ms（含网络、排队和处理等待）` : online ? '响应延迟暂不可用，等待新测量' : '未连接'}>
+  const ping = html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? `WebSocket 往返响应 ${ms}ms` : online ? '等待新测量' : '未连接'}>
     <${Icon} name=${online ? 'signal' : 'wifiOff'} class="ping__icon" />
     <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>
   </span>`;
-  if (loadState === undefined) return ping;
+  if (loadState === undefined && status === undefined) return ping;
   const labels = { unknown: '未知', normal: '正常', busy: '繁忙', overloaded: '拥堵' };
-  const state = online && typeof loadState === 'string' && Object.hasOwn(labels, loadState) ? loadState : 'unknown';
-  const details = online ? normalizeLoadDetails(loadDetails) : null;
-  const preview = html`<div class="server-load-preview"><strong>游戏服务 · ${labels[state]}</strong>
-    ${details ? html`<span>进程 CPU <b class="num">${details.cpuPercent ?? '--'}%</b> · 内存 <b class="num">${details.rssMiB ?? '--'} MiB</b></span>
-      <span>主线程 <b class="num">${details.eluPercent ?? '--'}%</b> · P95 <b class="num">${details.p95Ms ?? '--'} ms</b></span>`
-      : html`<span>尚无有效采样，等待心跳更新</span>`}
-    <small>点击查看开销详情 · 非整机负载</small></div>`;
-  return html`<span class="latency-status">${ping}<${Tooltip} text=${preview} placement="bottom">
-    <button type="button" class=${`server-load-button server-load--${state}`} aria-label="查看游戏服务开销" aria-haspopup="dialog"
-        aria-expanded=${loadOpen ? 'true' : 'false'} onClick=${onLoadClick} disabled=${!onLoadClick}>
-      <span class="server-load__bars" aria-hidden="true"><i /><i /><i /></span>
-      <span class=${`server-load server-load--${state}`} role="status" aria-label=${`服务器负载${labels[state]}`}
-          title="最近约 10 秒采样的游戏主线程响应压力；点击查看详情，非整机 CPU 或战斗线程总负载">
-        <span class="server-load__caption">服务</span><b>${labels[state]}</b>
-      </span><${Icon} name="chevronRight" class="server-load__more" />
-    </button>
-  <//></span>`;
+  const load = online ? scopedClusterLoad(clusterLoad, scope) : null;
+  const summary = loadSummary(load);
+  const state = online && !(clusterLoad != null && !load) ? summary?.state ?? (typeof loadState === 'string' && Object.hasOwn(labels, loadState) ? loadState : 'unknown') : 'unknown';
+  const details = online ? normalizeLoadDetails(load?.scope === 'game' ? load.nodes[0]?.loadDetails : loadDetails) : null;
+  const preview = summary ? `${summary.caption} · ${labels[state]}` : details
+    ? `CPU ${details.cpuPercent ?? '--'}% · ${details.rssMiB ?? '--'} MiB` : '等待采样';
+  return html`<span class="latency-status">
+    ${status !== undefined ? html`<${ConnectionStatus} status=${status} />` : null}${ping}
+    ${loadState !== undefined ? html`<${Tooltip} text=${preview} placement="bottom">
+      <button type="button" class=${`server-load-button server-load--${state}`} aria-label="查看游戏服务开销" aria-haspopup="dialog"
+          aria-expanded=${loadOpen ? 'true' : 'false'} onClick=${onLoadClick} disabled=${!onLoadClick}>
+        <${Icon} name="server" class="server-load__icon" />
+        <span class=${`server-load server-load--${state}`} role="status" aria-label=${`服务器负载${labels[state]}`} title="主线程响应压力">
+          <span class="server-load__caption">${summary?.caption ?? '服务'}</span><b>${labels[state]}</b>
+        </span>
+      </button>
+    <//>` : null}
+  </span>`;
 }
 
 /**

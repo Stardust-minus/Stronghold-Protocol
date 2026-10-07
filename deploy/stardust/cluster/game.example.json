@@ -1,0 +1,13 @@
+{
+  "role": "game",
+  "nodeId": "game-01",
+  "publicSlot": 1,
+  "build": "REPLACE_WITH_FIXED_40_HEX_BUILD_ID",
+  "host": "0.0.0.0",
+  "port": 3000,
+  "keyFile": "/run/secrets/game.key",
+  "coordinatorUrl": "http://172.30.242.2:3001/",
+  "combatWorkers": 8,
+  "trialWorkers": 2,
+  "futureSkewMs": 1000
+}

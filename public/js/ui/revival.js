@@ -1,31 +1,10 @@
-// Pregame vote and post-unite rescue controls. The server owns votes, eligibility and the one-use limit.
+// Post-unite rescue controls. The server owns room options, eligibility and the one-use limit.
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
 import { html, Button, Icon, MicroLabel, Tooltip, Countdown, confirmDialog } from './components.js';
 import { net } from '../net.js';
 import { store, useStore, serverNow } from '../store.js';
 import { toast, toastError } from './toasts.js';
-
-export function RevivalVote({ room, myId, online, busy, onVote }) {
-  if (room?.mode !== 'coop' || !room.revival) return null;
-  const mine = room.seats?.find((s) => s?.playerId === myId);
-  const vote = mine?.revivalVote;
-  const humans = room.seats?.filter(s => s && !s.isBot).length || 0;
-  const required = room.revival.required;
-  const locked = !online || !!busy || !mine || room.inMatch || humans < 2;
-  return html`<section class="revival-vote" aria-label="队友复活投票">
-    <div class="revival-vote__title"><${Icon} name="plus" /><strong>队友复活</strong><${MicroLabel}>RESCUE PROTOCOL<//></div>
-    <p class="revival-vote__rules">本轮未漏怪且参与联防、生命不少于 <b>11</b> 的队友，可支付 <b>10</b> 生命抵消一人死亡，令其恢复至 <b>1</b> 生命。每人每局仅一次。</p>
-    <div class="revival-vote__actions">
-      <span class=${room.revival.enabled ? 't-mint' : 't-lo'} role="status">${humans < 2 ? '暂无可救援队友' : `${room.revival.yes} / ${required} 票赞成 · ${room.revival.enabled ? '开局将启用' : '尚未启用'}`}</span>
-      <${Button} size="sm" variant=${vote === true ? 'primary' : 'secondary'} active=${vote === true}
-        disabled=${locked} onClick=${() => onVote(true)} aria-pressed=${String(vote === true)}>赞成开启<//>
-      <${Button} size="sm" variant="secondary" active=${vote === false}
-        disabled=${locked} onClick=${() => onVote(false)} aria-pressed=${String(vote === false)}>保持关闭<//>
-    </div>
-    <small>每位真人一票，需严格多数赞成（2 人需 2 票、3 人需 2 票、4 人需 3 票）；AI 不计票，开局锁定。获救者保留干员与原有状态，不重置资源。</small>
-  </section>`;
-}
 
 const UNAVAILABLE = Object.freeze({
   disabled: '本局未开启复活',

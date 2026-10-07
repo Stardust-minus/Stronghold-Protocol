@@ -85,11 +85,15 @@ test('shipped announcement data validates; optional board is mounted from the lo
   assert.match(board, /ariaLabel="大厅公告板" trapFocus=\$\{true\}/);
 });
 
-test('modal focus/name options are opt-in and lobby compact matching retains the default full rules', () => {
+test('modal focus remains opt-in and compact matching explains room-owned experimental rules', () => {
   const modal = source('../../public/js/ui/components.js'), matching = source('../../public/js/ui/matchmaking.js');
+  const experimental = source('../../public/js/ui/experimental.js'), revival = source('../../public/js/ui/revival.js');
   assert.match(modal, /trapFocus = false/); assert.match(modal, /aria-label=\$\{ariaLabel\}/);
   assert.match(modal, /trapFocus && e\.key === 'Tab'/); assert.match(modal, /prevFocus\?\.focus/);
   assert.match(matching, /compact = false/); assert.match(matching, /compact \? null : html`<small>\$\{MATCHING_RULES\}/);
-  assert.match(matching, /compact \? .+ : REVIVAL_RULES/s);
-  assert.match(matching, /未完成确认者不自动回队/); assert.match(matching, /生命值 ≥11/);
+  assert.match(matching, /\$\{MATCHING_RULES\}<\/p><p class="modal__text">\$\{EXPERIMENTAL_RULES\}/);
+  assert.match(matching, /未完成确认者不自动回队/); assert.match(matching, /单人匹配跟随所加入房间/);
+  assert.doesNotMatch(matching, /revivalVote|开启复活并确认|赞成开启/);
+  assert.match(experimental, /title="实验性选项"/); assert.match(experimental, /revivalEnabled/); assert.match(experimental, /disableSharedPool/);
+  assert.match(revival, /me\.lp >= 11/); assert.match(revival, /至少 11 生命，可支付 10 点救援/);
 });

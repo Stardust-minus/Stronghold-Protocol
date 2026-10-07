@@ -31,6 +31,7 @@
 
 import { PROTOCOL_VERSION, MATCHMAKING_VERSION, ERR_TEXT } from '../../shared/constants.js';
 import { validateC2S, normalizeServerLoad, normalizeLoadDetails } from '../../shared/protocol.js';
+import { normalizeClusterLoad } from '../../shared/cluster-load.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
@@ -149,6 +150,7 @@ export class Net {
     this.ping = null;          // last RTT in ms
     this.loadState = 'unknown'; // cached server main-thread pressure, independent of network RTT
     this.loadDetails = null;    // whitelisted cached game-process measurements, never raw health data
+    this.clusterLoad = null;
     this.lastError = null;     // last NetError relevant to the connection (e.g. hello rejected)
     this.clockOffset = 0;
     this.clockSynced = false;
@@ -208,7 +210,7 @@ export class Net {
   /** Snapshot of the connection state (what the 'status' event carries). */
   snapshot() {
     return {
-      status: this.status, attempt: this.attempt, retryAt: this.retryAt, ping: this.ping, loadState: this.loadState, loadDetails: this.loadDetails,
+      status: this.status, attempt: this.attempt, retryAt: this.retryAt, ping: this.ping, loadState: this.loadState, loadDetails: this.loadDetails, clusterLoad: this.clusterLoad,
       lastError: this.lastError ? { code: this.lastError.code, text: this.lastError.message } : null,
       playerId: this.playerId,
     };
@@ -216,7 +218,7 @@ export class Net {
 
   _setStatus(status) {
     this.status = status;
-    if (status !== 'online' && status !== 'connected') { this.loadState = 'unknown'; this.loadDetails = null; }
+    if (status !== 'online' && status !== 'connected') { this.loadState = 'unknown'; this.loadDetails = null; this.clusterLoad = null; }
     this._emit('status', this.snapshot());
   }
 
@@ -611,6 +613,7 @@ export class Net {
     this.ping = null;
     this.loadState = 'unknown';
     this.loadDetails = null;
+    this.clusterLoad = null;
     if (notify) {
       this._emit('ping', null);
       this._emit('status', this.snapshot());
@@ -626,6 +629,7 @@ export class Net {
       this.ping = null;
       this.loadState = 'unknown';
       this.loadDetails = null;
+      this.clusterLoad = null;
       this._emit('ping', null);
       this._emit('status', this.snapshot());
     }
@@ -658,6 +662,7 @@ export class Net {
     this.ping = Math.round(rtt);
     this.loadState = normalizeServerLoad(msg.loadState);
     this.loadDetails = normalizeLoadDetails(msg.loadDetails);
+    this.clusterLoad = normalizeClusterLoad(msg.clusterLoad);
     const now = this.now();
     if (Number.isFinite(msg.s)) {
       // Detect adjustments during or between probes; offsets from the old epoch cannot be reused.

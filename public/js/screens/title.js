@@ -175,11 +175,6 @@ function Ridges() {
   </svg>`;
 }
 
-const STATUS_TEXT = {
-  idle: '准备连接', connecting: '正在连接服务器', connected: '已连接服务器', handshaking: '正在验证身份',
-  online: '已连接服务器', reconnecting: '连接中断，正在重连', closed: '连接已关闭',
-};
-
 /** Title screen component. */
 export function TitleScreen() {
   const conn = useStore((s) => s.connection, shallowEqual);
@@ -208,7 +203,6 @@ export function TitleScreen() {
   };
 
   const online = conn.status === 'online' || conn.status === 'connected';
-  const dotClass = online ? 'is-on' : conn.status === 'reconnecting' || conn.status === 'connecting' || conn.status === 'handshaking' ? 'is-warn' : 'is-bad';
 
   // touch screens: no autofocus (it would pop the on-screen keyboard over a landscape phone's whole view)
   const touchUi = useMemo(() => detectFeatures().coarse, []);
@@ -258,9 +252,7 @@ export function TitleScreen() {
           onInput=${setName} onEnter=${start} invalid=${nameRejected} hint=${nameRejected ? conn.lastError.text : null} />
         <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" disabled=${!valid} onClick=${start}>开始<//>
         <div class="title-conn">
-          <span class=${`status-dot ${dotClass}`}></span>
-          <span>${STATUS_TEXT[conn.status] || conn.status}</span>
-          ${conn.status === 'online' ? html`<${PingPill} ms=${conn.ping} />` : null}
+          <${PingPill} ms=${conn.ping} online=${online} status=${conn.status} />
           <${GuideButton} class="title-guide" />
           <button type="button" class="title-settings fsbtn tapx" aria-label="设置" title="设置"
             onClick=${() => setSettingsOpen(true)}><${GIcon} name="gear" /></button>

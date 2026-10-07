@@ -22,7 +22,8 @@ import { LoadoutButton } from './loadout.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../store.js';
 import { difficultyInfo } from './lobby.js';
-import { RevivalVote } from '../ui/revival.js';
+import { ExperimentalOptions, experimentalSummary } from '../ui/experimental.js';
+import { ServerStatusModal } from '../ui/serverStatus.js';
 import { MatchmakingPanel, queueActive } from '../ui/matchmaking.js';
 
 /**
@@ -206,6 +207,8 @@ export function RoomScreen() {
   const queue = useStore((s) => s.queue);
   const queued = queueActive(queue);
   const [busy, setBusy] = useState(null);
+  const [experimentalOpen, setExperimentalOpen] = useState(false);
+  const [loadOpen, setLoadOpen] = useState(false);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -287,8 +290,8 @@ export function RoomScreen() {
           <${Button} variant="danger" size="lg" square=${true} icon="exit" loading=${busy === 'leave'} onClick=${leave} aria-label="离开同盟" />
         <//>
         <div class="room-ping">
-          <${PingPill} ms=${conn.ping} online=${online} />
-          <${MicroLabel}>当前延迟<//>
+          <${PingPill} ms=${conn.ping} online=${online} status=${conn.status} loadState=${conn.loadState ?? 'unknown'} loadDetails=${conn.loadDetails}
+            clusterLoad=${conn.clusterLoad} loadOpen=${loadOpen} onLoadClick=${() => setLoadOpen(true)} />
         </div>
         <${GuideButton} class="room-guide" variant="secondary" />
       </div>
@@ -325,13 +328,18 @@ export function RoomScreen() {
     </main>
     <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
 
-    ${queued ? null : html`<${RevivalVote} room=${room} myId=${me.playerId} online=${online} busy=${busy}
-      onVote=${(enable) => run('vote', () => net.request('room.voteRevival', { enable }))} />`}
+    <${ExperimentalOptions} open=${experimentalOpen && !queued} value=${room.experimental} editable=${facts.isHost && online} busy=${!!busy}
+      onChange=${experimental => run('experimental', () => net.request('room.setExperimental', { experimental }))} onClose=${() => setExperimentalOpen(false)} />
+    <${ServerStatusModal} open=${loadOpen} online=${online} state=${conn.loadState} details=${conn.loadDetails} clusterLoad=${conn.clusterLoad} onClose=${() => setLoadOpen(false)} />
 
     <footer hidden=${queued} class="room-bar">
       <div class="room-bar__left">
-        <span class="room-bar__label">模拟难度<${MicroLabel}>DIFFICULTY<//></span>
-        <${DifficultyPicker} room=${room} isHost=${facts.isHost} busy=${busy} onPick=${setDifficulty} />
+        <div class="room-bar__difficulty">
+          <span class="room-bar__label">模拟难度<${MicroLabel}>DIFFICULTY<//></span>
+          <${DifficultyPicker} room=${room} isHost=${facts.isHost} busy=${busy} onPick=${setDifficulty} />
+        </div>
+        <${Button} class="room-experimental" variant="secondary" size="sm" icon="edit" disabled=${!!busy} aria-haspopup="dialog" title=${experimentalSummary(room.experimental)}
+          onClick=${() => setExperimentalOpen(true)}>实验性选项<//>
       </div>
       <div class="room-bar__center">
         <div class="ready-count" hidden=${!coop}>

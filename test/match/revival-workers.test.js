@@ -19,7 +19,9 @@ const keys = ['board', 'hand', 'temp', 'shop', 'offers', 'funds', 'pendingFunds'
   'bonds', 'round', 'lastResult', 'pendingLayerGains', '_tempDue', 'prepsEnded', 'ready', 'eliminatedRound', 'lpAtFinal',
   'bondCountBonus', 'deployCapBonus', 'deployCapMin', 'deviceOverrides', 'tileOverrides', 'stats', 'bandId'];
 const retained = (p) => structuredClone(Object.fromEntries(keys.map((k) => [k, p[k]])));
-const poolState = (m) => [...m.pool.entries].map(([id, e]) => [id, e.left, e.cap]);
+const poolState = (m) => m.playerPools
+  ? [...m.playerPools].map(([playerId, pool]) => [playerId, [...pool.entries].map(([id, e]) => [id, e.left, e.cap])])
+  : [...m.pool.entries].map(([id, e]) => [id, e.left, e.cap]);
 const rngState = (m) => ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta'].map((k) => [k, m[k].state()]);
 const playerView = (m, p) => m.publicView().players.find((v) => v.playerId === p.playerId);
 function reason(m, p, expected) {
@@ -79,10 +81,8 @@ async function scenario(t, options = {}) {
   await ok(clients[0], { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
   const room = await clients[0].waitFor('room.state', (s) => s.hostId === clients[0].id);
   for (let i = 1; i < 4; i++) await ok(clients[i], { t: 'room.join', code: room.code });
-  for (let i = 0; i < 4; i++) {
-    await ok(clients[i], { t: 'room.voteRevival', enable: i < (options.yesVotes ?? 4) });
-    if (i) await ok(clients[i], { t: 'room.ready', ready: true });
-  }
+  await ok(clients[0], { t: 'room.setExperimental', experimental: { revivalEnabled: options.revivalEnabled ?? true, disableSharedPool: options.disableSharedPool ?? false } });
+  for (let i = 1; i < 4; i++) await ok(clients[i], { t: 'room.ready', ready: true });
   await ok(clients[0], { t: 'room.start' });
   const m = srv.lobby.rooms.get(room.code).match;
   assert.equal(srv.combatPool.stats().ready, 6); assert.equal(m.combatPool, srv.combatPool); assert.equal(m.verifyMode, 'off');
@@ -135,10 +135,24 @@ for (const lp of [11, 21]) test(`real six-worker WS LP${lp}: fresh window, in-pl
   assert.deepEqual(collectViolations(m), []); await s.close();
 });
 
+test('real six-worker WS independent card pools: rescue retains all four owner stocks and original target state', { timeout: 15_000 }, async t => {
+  const s = await scenario(t, { donorLp: 21, disableSharedPool: true }), { m, target, donor, clients } = s;
+  await s.settle();
+  assert.equal(m.playerPools.size, 4); assert.equal(new Set(m.order.map(player => player.pool)).size, 4);
+  assert.equal(target.pendingDeath, true); assert.equal(m.cleanups, 0);
+  const stocks = poolState(m), state = retained(target), rng = rngState(m), uid = m.uidSeq;
+  assert.equal((await clients[1].request(s.request())).t, 'ok');
+  assert.deepEqual(poolState(m), stocks); assert.deepEqual(retained(target), state); assert.deepEqual(rngState(m), rng);
+  assert.equal(m.uidSeq, uid); assert.equal(donor.lp, 11); assert.equal(target.lp, 1); assert.equal(target.revived, true);
+  assert.equal(m.cleanups, 0); assert.equal(m.settlements, 1); assert.deepEqual(collectViolations(m), []);
+  assert.equal((await clients[1].request(s.request())).detail, 'revival-target-ineligible'); assert.equal(donor.lp, 11);
+  await s.close();
+});
+
 for (const [label, options, expected] of [
   ['actual perfect helper below 11 LP', { donorLp: 10 }, 'donor-lp'],
   ['no leak-free actual helper', { noPerfect: true }, 'no-helper'],
-  ['two of four votes', { yesVotes: 2 }, 'disabled'],
+  ['room revival disabled', { revivalEnabled: false }, 'disabled'],
   ['previously rescued target dies again', { used: true }, 'already-used'],
 ]) test(`real six-worker WS finalized diagnosis: ${label}`, { timeout: 15_000 }, async (t) => {
   const s = await scenario(t, options), { m, target, donor, clients } = s;

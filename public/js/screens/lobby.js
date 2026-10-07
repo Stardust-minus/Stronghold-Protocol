@@ -76,13 +76,13 @@ const MODE_CARDS = [
   },
   {
     id: 'coop', name: '同盟模拟', en: 'ALLIANCE SIMULATION', icon: 'users',
-    desc: `与至多 ${MAX_SEATS - 1} 名博士组成同盟，共享干员池，联防协作抵御敌潮。`,
+    desc: `与至多 ${MAX_SEATS - 1} 名博士组成同盟，调配干员、联防协作抵御敌潮。`,
     points: [`1–${MAX_SEATS} 名博士 · 可由 AI 队友补位`, '联防阶段 · 最终攻势合并生命值'],
   },
   {
     id: 'match', name: '多人匹配', en: 'PUBLIC MATCHMAKING', icon: 'search',
     desc: '寻找相同难度的博士，确认后组成四人同盟；也可从好友房组队匹配。',
-    points: ['4 名真人 · 不自动补 AI', '确认时选择复活规则 · 全员确认自动开局'],
+    points: ['4 名真人 · 不自动补 AI', '跟随房间选项 · 全员确认自动开局'],
   },
 ];
 
@@ -354,8 +354,8 @@ export function LobbyScreen() {
     <header class="topbar">
       <div class="topbar__left">
         <${Button} variant="ghost" size="sm" icon="chevronLeft" onClick=${backToTitle} title="返回标题">返回<//>
-        <${PingPill} ms=${conn.ping} online=${online} loadState=${conn.loadState ?? 'unknown'} loadDetails=${conn.loadDetails}
-          loadOpen=${loadOpen} onLoadClick=${() => setLoadOpen(true)} />
+        <${PingPill} ms=${conn.ping} online=${online} status=${conn.status} loadState=${conn.loadState ?? 'unknown'} loadDetails=${conn.loadDetails}
+          clusterLoad=${conn.clusterLoad} loadOpen=${loadOpen} onLoadClick=${() => setLoadOpen(true)} />
         <${OnlinePlayers} />
       </div>
       <div class="topbar__center">
@@ -427,7 +427,7 @@ export function LobbyScreen() {
         </div>`}
       </section>
     </div>
-    <${ServerStatusModal} open=${loadOpen} online=${online} state=${conn.loadState} details=${conn.loadDetails} onClose=${() => setLoadOpen(false)} />
+    <${ServerStatusModal} open=${loadOpen} online=${online} state=${conn.loadState} details=${conn.loadDetails} clusterLoad=${conn.clusterLoad} onClose=${() => setLoadOpen(false)} />
     ${overlay === 'announcements' ? html`<${LobbyAnnouncements} snapshot=${announcements} onClose=${closeAnnouncements} />` : null}
     ${overlay === 'protocol' ? html`<${Modal} open=${true} title="所选协议说明" micro="SIMULATION PROTOCOL"
         ariaLabel="所选协议说明" trapFocus=${true} class="lobby-dialog" onClose=${() => setOverlay(null)}

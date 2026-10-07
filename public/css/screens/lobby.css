@@ -308,7 +308,7 @@
 }
 @media (max-width: 767px) {
   .lobby-screen .topbar { height: 48px; padding-inline: 16px; grid-template-columns: auto auto; justify-content: space-between; }
-  .lobby-screen .topbar__center, .lobby-screen .me-chip, .lobby-screen .ping { display: none; }
+  .lobby-screen .topbar__center, .lobby-screen .me-chip { display: none; }
   .lobby-screen .topbar__left, .lobby-screen .topbar__right { gap: 6px; }
   .lobby-screen .topbar .btn { padding-inline: 8px; font-size: 12px; min-height: 40px; }
   .lobby-screen .online-players { font-size: 12px; }

@@ -76,6 +76,7 @@ export function makeMatch(o = {}) {
     botSliceMs: o.botSliceMs,
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',
+    experimental: o.experimental,
     headlessSliceMs: o.headlessSliceMs,
   });
   const m = h.m;
@@ -149,8 +150,7 @@ export function checkInvariants(m) {
 
 /** The original harness checks (kept alongside collectViolations; they must agree). */
 function legacyInvariants(m) {
-  const pool = m.pool;
-  const held = new Map();
+  const holdings = new Map();
   const uids = new Set();
   const note = (p) => {
     assert.ok(Number.isInteger(p.uid) && p.uid > 0, `bad uid ${p.uid}`);
@@ -158,6 +158,9 @@ function legacyInvariants(m) {
     uids.add(p.uid);
   };
   for (const ps of m.players.values()) {
+    const pool = m.poolFor(ps);
+    if (!holdings.has(pool)) holdings.set(pool, new Map());
+    const held = holdings.get(pool);
     assert.ok(Number.isInteger(ps.funds) && ps.funds >= 0, `${ps.playerId} funds ${ps.funds}`);
     assert.ok(Number.isInteger(ps.pendingFunds) && ps.pendingFunds >= 0, `${ps.playerId} pending ${ps.pendingFunds}`);
     assert.equal(ps.hand.length, GEO.HAND_SIZE);
@@ -211,11 +214,13 @@ function legacyInvariants(m) {
       if (need > 1 && m.gd.goldenIdOf(b)) assert.ok(n < need, `${ps.playerId} owns ${n} copies of ${b} (merge ${need})`);
     }
   }
-  for (const [base, e] of pool.entries) {
-    assert.ok(e.left >= 0 && e.left <= e.cap, `pool ${base} left ${e.left} cap ${e.cap}`);
-    assert.equal(e.left + (held.get(base) || 0), e.cap, `pool accounting ${base}: left ${e.left} + held ${held.get(base) || 0} != cap ${e.cap}`);
+  for (const [pool, held] of holdings) {
+    for (const [base, e] of pool.entries) {
+      assert.ok(e.left >= 0 && e.left <= e.cap, `pool ${base} left ${e.left} cap ${e.cap}`);
+      assert.equal(e.left + (held.get(base) || 0), e.cap, `pool accounting ${base}: left ${e.left} + held ${held.get(base) || 0} != cap ${e.cap}`);
+    }
+    for (const [base, n] of held) if (!pool.has(base)) assert.equal(n, 0, `non-pool chess ${base} holds copies`);
   }
-  for (const [base, n] of held) if (!pool.has(base)) assert.equal(n, 0, `non-pool chess ${base} holds copies`);
   return true;
 }
 
@@ -224,7 +229,7 @@ export function give(m, ps, chessId, where = 'hand', at = null) {
   const rec = m.gd.chess(chessId);
   assert.ok(rec, `unknown chess ${chessId}`);
   const base = m.gd.baseIdOf(chessId);
-  const taken = m.pool.take(base, rec.isGolden ? m.gd.goldenCopies : 1);
+  const taken = m.poolFor(ps).take(base, rec.isGolden ? m.gd.goldenCopies : 1);
   const piece = ps.newPiece('chess', chessId, { poolCopies: taken });
   if (where === 'board') {
     ps.board.set(tileKey(at[0], at[1]), piece);

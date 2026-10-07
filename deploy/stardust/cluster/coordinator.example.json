@@ -1,0 +1,28 @@
+{
+  "role": "coordinator",
+  "build": "REPLACE_WITH_FIXED_40_HEX_BUILD_ID",
+  "host": "0.0.0.0",
+  "port": 3000,
+  "privateHost": "0.0.0.0",
+  "privatePort": 3001,
+  "heartbeatMs": 1000,
+  "snapshotHz": 10,
+  "nodes": [
+    { "nodeId": "game-01", "publicSlot": 1, "url": "http://172.30.242.11:3000/", "keyFile": "/run/secrets/game-01.key", "capacity": 0 },
+    { "nodeId": "game-02", "publicSlot": 2, "url": "http://172.30.242.12:3000/", "keyFile": "/run/secrets/game-02.key", "capacity": 0 },
+    { "nodeId": "game-03", "publicSlot": 3, "url": "http://172.30.242.13:3000/", "keyFile": "/run/secrets/game-03.key", "capacity": 0 },
+    { "nodeId": "game-04", "publicSlot": 4, "url": "http://172.30.242.14:3000/", "keyFile": "/run/secrets/game-04.key", "capacity": 0 },
+    { "nodeId": "game-05", "publicSlot": 5, "url": "http://172.30.242.15:3000/", "keyFile": "/run/secrets/game-05.key", "capacity": 0 },
+    { "nodeId": "game-06", "publicSlot": 6, "url": "http://172.30.242.16:3000/", "keyFile": "/run/secrets/game-06.key", "capacity": 0 },
+    { "nodeId": "game-07", "publicSlot": 7, "url": "http://172.30.242.17:3000/", "keyFile": "/run/secrets/game-07.key", "capacity": 0 },
+    { "nodeId": "game-08", "publicSlot": 8, "url": "http://172.30.242.18:3000/", "keyFile": "/run/secrets/game-08.key", "capacity": 0 },
+    { "nodeId": "game-09", "publicSlot": 9, "url": "http://172.30.242.19:3000/", "keyFile": "/run/secrets/game-09.key", "capacity": 0 },
+    { "nodeId": "game-10", "publicSlot": 10, "url": "http://172.30.242.20:3000/", "keyFile": "/run/secrets/game-10.key", "capacity": 0 },
+    { "nodeId": "game-11", "publicSlot": 11, "url": "http://172.30.242.21:3000/", "keyFile": "/run/secrets/game-11.key", "capacity": 0 },
+    { "nodeId": "game-12", "publicSlot": 12, "url": "http://172.30.242.22:3000/", "keyFile": "/run/secrets/game-12.key", "capacity": 0 },
+    { "nodeId": "game-13", "publicSlot": 13, "url": "http://172.30.242.23:3000/", "keyFile": "/run/secrets/game-13.key", "capacity": 0 },
+    { "nodeId": "game-14", "publicSlot": 14, "url": "http://172.30.242.24:3000/", "keyFile": "/run/secrets/game-14.key", "capacity": 0 },
+    { "nodeId": "game-15", "publicSlot": 15, "url": "http://172.30.242.25:3000/", "keyFile": "/run/secrets/game-15.key", "capacity": 0 },
+    { "nodeId": "game-16", "publicSlot": 16, "url": "http://172.30.242.26:3000/", "keyFile": "/run/secrets/game-16.key", "capacity": 0 }
+  ]
+}

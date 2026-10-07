@@ -1,0 +1,27 @@
+{
+  "role": "ingress",
+  "host": "0.0.0.0",
+  "port": 3000,
+  "coordinatorUrl": "http://10.253.78.2:35300/",
+  "origins": ["https://ark-proto-beta.stardust.matce.cn"],
+  "wsCompression": "on",
+  "trustProxy": "auto",
+  "nodes": [
+    { "nodeId": "game-01", "url": "http://10.253.78.2:35311/" },
+    { "nodeId": "game-02", "url": "http://10.253.78.2:35312/" },
+    { "nodeId": "game-03", "url": "http://10.253.78.2:35313/" },
+    { "nodeId": "game-04", "url": "http://10.253.78.2:35314/" },
+    { "nodeId": "game-05", "url": "http://10.253.78.2:35315/" },
+    { "nodeId": "game-06", "url": "http://10.253.78.2:35316/" },
+    { "nodeId": "game-07", "url": "http://10.253.78.2:35317/" },
+    { "nodeId": "game-08", "url": "http://10.253.78.2:35318/" },
+    { "nodeId": "game-09", "url": "http://10.253.78.2:35319/" },
+    { "nodeId": "game-10", "url": "http://10.253.78.2:35320/" },
+    { "nodeId": "game-11", "url": "http://10.253.78.2:35321/" },
+    { "nodeId": "game-12", "url": "http://10.253.78.2:35322/" },
+    { "nodeId": "game-13", "url": "http://10.253.78.2:35323/" },
+    { "nodeId": "game-14", "url": "http://10.253.78.2:35324/" },
+    { "nodeId": "game-15", "url": "http://10.253.78.2:35325/" },
+    { "nodeId": "game-16", "url": "http://10.253.78.2:35326/" }
+  ]
+}

@@ -31,7 +31,7 @@ export function collectViolations(m, { limit = 25 } = {}) {
   const out = [];
   const fail = (msg) => { if (out.length < limit) out.push(msg); };
   const gd = m.gd;
-  const held = new Map();
+  const holdings = new Map();
   const uids = new Set();
   const banned = new Set(m.bannedChess || []);
   const note = (ps, p) => {
@@ -46,6 +46,9 @@ export function collectViolations(m, { limit = 25 } = {}) {
 
   for (const ps of m.players.values()) {
     const id = ps.playerId;
+    const pool = m.poolFor(ps);
+    if (!holdings.has(pool)) holdings.set(pool, new Map());
+    const held = holdings.get(pool);
     if (!Number.isInteger(ps.funds) || ps.funds < 0) fail(`${id}: funds ${ps.funds}`);
     if (!Number.isInteger(ps.pendingFunds) || ps.pendingFunds < 0) fail(`${id}: pendingFunds ${ps.pendingFunds}`);
     if (!Number.isFinite(ps.lp)) fail(`${id}: lp ${ps.lp}`);
@@ -167,13 +170,15 @@ export function collectViolations(m, { limit = 25 } = {}) {
     }
   }
 
-  // shared pool accounting
-  for (const [base, e] of m.pool.entries) {
-    if (!(e.left >= 0 && e.left <= e.cap)) fail(`pool ${base}: left ${e.left} cap ${e.cap}`);
-    const h = held.get(base) || 0;
-    if (e.left + h !== e.cap) fail(`pool ${base}: left ${e.left} + held ${h} != cap ${e.cap}`);
+  // Shared or player-local pool accounting; no personal pool can borrow another seat's holdings.
+  for (const [pool, held] of holdings) {
+    for (const [base, e] of pool.entries) {
+      if (!(e.left >= 0 && e.left <= e.cap)) fail(`pool ${base}: left ${e.left} cap ${e.cap}`);
+      const h = held.get(base) || 0;
+      if (e.left + h !== e.cap) fail(`pool ${base}: left ${e.left} + held ${h} != cap ${e.cap}`);
+    }
+    for (const [base, n] of held) if (!pool.has(base) && n !== 0) fail(`non-pool chess ${base} holds ${n} copies`);
   }
-  for (const [base, n] of held) if (!m.pool.has(base) && n !== 0) fail(`non-pool chess ${base} holds ${n} copies`);
 
   // combat fields
   if (m.phase === PHASE.COMBAT) {

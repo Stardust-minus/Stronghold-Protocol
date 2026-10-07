@@ -1,0 +1,32 @@
+[Unit]
+Description=Ark Formal cluster coordinator and sixteen game-node guards
+After=docker.service ark-cluster-formal-wg.service
+Requires=docker.service ark-cluster-formal-wg.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/usr/bin/python3 -I /opt/ark-cluster-formal/tools/cluster-host-manager.py --profile formal --config /etc/ark-cluster-formal/host-policy.json --action guard
+ExecStartPre=/usr/bin/python3 -I /opt/ark-cluster-formal/tools/cluster-wg-recover.py --profile formal --action handoff
+ExecStart=/usr/bin/python3 -I /opt/ark-cluster-formal/tools/cluster-host-manager.py --profile formal --config /etc/ark-cluster-formal/host-policy.json --action serve
+# Closes only this cluster's WG leases. Existing games remain pinned for diagnosis;
+# an explicit manager --action stop uses their recorded immutable CIDs.
+ExecStopPost=/usr/bin/python3 -I /opt/ark-cluster-formal/tools/cluster-host-manager.py --profile formal --config /etc/ark-cluster-formal/host-policy.json --action guard
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=180
+TimeoutStopSec=30
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/run /var/run/docker.sock /etc/ark-cluster-formal-wg
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

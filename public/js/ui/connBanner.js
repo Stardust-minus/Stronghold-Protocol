@@ -47,10 +47,10 @@ export function ConnectionBanner() {
   // Short transitional states (a rename re-sends hello on the live socket) only show if they linger.
   const transient = conn.status === 'connecting' || conn.status === 'handshaking' || (conn.status === 'connected' && !rejected);
   const text = conn.status === 'reconnecting'
-    ? '与服务器的连接已中断，正在重连'
+    ? '连接中断，重连中'
     : replaced ? '该身份已在其他页面登录'
       : conn.status === 'closed' ? '连接已关闭'
-        : rejected ? conn.lastError.text : '正在连接服务器';
+        : rejected ? conn.lastError.text : '连接中';
   const action = conn.status === 'reconnecting' ? { label: '立即重连', run: () => net.retryNow() }
     : conn.status === 'closed' ? { label: replaced ? '在此页面继续' : '重新连接', run: () => net.connect() }
       : versionMismatch ? { label: '刷新页面', run: () => location.reload() }

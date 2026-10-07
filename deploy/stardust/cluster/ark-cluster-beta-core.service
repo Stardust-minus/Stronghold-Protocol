@@ -1,0 +1,32 @@
+[Unit]
+Description=Ark Beta cluster coordinator and sixteen game-node guards
+After=docker.service ark-cluster-beta-wg.service
+Requires=docker.service ark-cluster-beta-wg.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/usr/bin/python3 -I /opt/ark-cluster-beta/tools/cluster-host-manager.py --config /etc/ark-cluster-beta/host-policy.json --action guard
+ExecStartPre=/usr/bin/python3 -I /opt/ark-cluster-beta/tools/cluster-wg-recover.py --action handoff
+ExecStart=/usr/bin/python3 -I /opt/ark-cluster-beta/tools/cluster-host-manager.py --config /etc/ark-cluster-beta/host-policy.json --action serve
+# Closes only this cluster's WG leases. Existing games remain pinned for diagnosis;
+# an explicit manager --action stop uses their recorded immutable CIDs.
+ExecStopPost=/usr/bin/python3 -I /opt/ark-cluster-beta/tools/cluster-host-manager.py --config /etc/ark-cluster-beta/host-policy.json --action guard
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=180
+TimeoutStopSec=30
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/run /var/run/docker.sock /etc/ark-cluster-beta-wg
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

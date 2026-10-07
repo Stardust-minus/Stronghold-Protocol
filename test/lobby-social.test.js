@@ -53,61 +53,56 @@ function harness(t, options = {}, MatchClass = RecordingMatch) {
   return { lobby, registry, player, group, privateRoom, offer, accept, disconnect, advance: (n) => { clock += n; } };
 }
 
-test('revival votes require three distinct humans and are locked for the running match', (t) => {
+test('room experimental rules are host-owned, default off, and locked for the running match', (t) => {
   const h = harness(t), players = h.group(), room = h.privateRoom(players);
-  for (const p of players.slice(0, 2)) assert.deepEqual(h.lobby.voteRevival(p, { enable: true }), { ok: true });
-  h.lobby.voteRevival(players[0], { enable: true });
-  assert.deepEqual(room.revivalState(), { yes: 2, required: 3, enabled: false });
-  h.lobby.voteRevival(players[2], { enable: true });
-  assert.equal(room.revivalState().enabled, true);
-  h.lobby.voteRevival(players[2], { enable: false });
-  assert.equal(room.revivalState().yes, 2);
-  h.lobby.voteRevival(players[2], { enable: true });
+  const experimental = { revivalEnabled: true, disableSharedPool: true };
+  assert.deepEqual(room.experimental, { revivalEnabled: false, disableSharedPool: false });
+  assert.equal(h.lobby.setExperimental(players[1], { experimental }).error, ERR.NOT_HOST);
+  assert.equal(h.lobby.voteRevival(players[1], { enable: true }).error, ERR.BAD_MSG);
+  assert.deepEqual(h.lobby.setExperimental(players[0], { experimental }), { ok: true });
   for (const p of players.slice(1)) h.lobby.ready(p, { ready: true });
   assert.deepEqual(h.lobby.start(players[0]), { ok: true });
   assert.equal(room.match.opts.revivalEnabled, true);
-  assert.equal(h.lobby.voteRevival(players[3], { enable: true }).error, ERR.ROOM_STARTED);
+  assert.equal(room.match.opts.disableSharedPool, true);
+  assert.equal(h.lobby.setExperimental(players[0], { experimental }).error, ERR.ROOM_STARTED);
   h.lobby.leave(players[2]);
-  assert.deepEqual(room.toState().revival, { yes: 3, required: 3, enabled: true });
+  assert.deepEqual(room.toState().revival, { enabled: true });
   room.match.opts.onEnd({});
-  assert.deepEqual(room.toState().revival, { yes: 0, required: 2, enabled: false });
+  assert.deepEqual(room.experimental, experimental);
   assert.ok(room.activeHumans().every((s) => s.revivalVote === null));
 });
 
-test('votes survive a reconnect but leave/new seat clears them; bots never vote', (t) => {
+test('experimental rules survive reconnects, seat changes and host migration; bots cannot vote', (t) => {
   const h = harness(t), players = h.group().slice(0, 3), room = h.privateRoom(players);
-  h.lobby.voteRevival(players[1], { enable: true });
+  h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
   h.disconnect(players[1]);
-  assert.equal(room.revivalState().yes, 1);
   players[1].connected = true; players[1].ws.readyState = 1;
   h.lobby.onHello(players[1], { resumed: true, repeat: false });
-  assert.equal(room.seatOf(players[1].playerId).revivalVote, true);
-  h.lobby.leave(players[1]);
-  assert.equal(room.revivalState().yes, 0);
-  h.lobby.join(players[1], { code: room.code });
-  assert.equal(room.seatOf(players[1].playerId).revivalVote, null);
+  assert.equal(room.revivalState().enabled, true);
+  h.lobby.leave(players[1]); h.lobby.join(players[1], { code: room.code });
   h.lobby.addBot(players[0]);
-  const bot = room.seats.find((s) => s?.isBot);
-  bot.revivalVote = true;
-  assert.equal(room.revivalState().yes, 0);
+  const bot = room.seats.find((s) => s?.isBot); bot.revivalVote = true;
   assert.equal(room.toState().seats.find((s) => s?.isBot).revivalVote, null);
+  h.lobby.leave(players[0]);
+  assert.equal(room.revivalState().enabled, true);
+  assert.deepEqual(h.lobby.setExperimental(players[1], { experimental: { revivalEnabled: false, disableSharedPool: false } }), { ok: true });
+  assert.equal(room.revivalState().enabled, false);
 });
 
-test('failed match start preserves votes and clears only its rule lock', (t) => {
+test('failed match start preserves experimental options and clears only its rule lock', (t) => {
   class BrokenMatch extends RecordingMatch { start() { throw new Error('fixture'); } }
   const h = harness(t, {}, BrokenMatch), players = h.group(), room = h.privateRoom(players);
-  for (const p of players) { h.lobby.voteRevival(p, { enable: true }); h.lobby.ready(p, { ready: true }); }
+  h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: true } });
+  for (const p of players) h.lobby.ready(p, { ready: true });
   assert.equal(h.lobby.start(players[0]).error, ERR.INTERNAL);
-  assert.equal(room.match, null);
-  assert.equal(room.revivalLocked, null);
-  assert.equal(room.revivalState().yes, 4);
-  assert.equal(room.revivalState().enabled, true);
+  assert.equal(room.match, null); assert.equal(room.revivalLocked, null);
+  assert.deepEqual(room.experimental, { revivalEnabled: true, disableSharedPool: true });
 });
 
-test('solo cannot lower the fixed voting threshold', (t) => {
+test('solo never enables teammate revival through an obsolete vote', (t) => {
   const h = harness(t), p = h.player();
   h.lobby.create(p, { mode: 'solo', difficulty: 'FUNNY' });
-  assert.equal(h.lobby.voteRevival(p, { enable: true }).error, ERR.WRONG_PHASE);
+  assert.equal(h.lobby.voteRevival(p, { enable: true }).error, ERR.BAD_MSG);
   h.lobby.start(p);
   assert.equal(h.lobby.roomOf(p).match.opts.revivalEnabled, false);
 });
@@ -455,7 +450,7 @@ test('real websocket hello replacement identity and vote-bearing confirmation au
   for (const c of group) assert.equal((await c.request({ t: 'queue.join', difficulty: 'NORMAL' })).t, 'ok');
   const offers = await Promise.all(group.map((c) => c.waitFor('queue.state', (m) => m.state === 'offered')));
   const malformed = { t: 'queue.accept', ticketId: offers[0].ticketId, offerId: offers[0].offerId };
-  for (const revivalVote of [undefined, null, 'true', 1]) {
+  for (const revivalVote of [null, 'true', 1]) {
     assert.equal((await group[0].request({ ...malformed, ...(revivalVote === undefined ? {} : { revivalVote }) })).code, ERR.BAD_MSG);
     assert.equal(srv.lobby.queue.state(srv.registry.byId(group[0].id)).accepted, false);
   }
@@ -471,7 +466,7 @@ test('real websocket hello replacement identity and vote-bearing confirmation au
   }
   assert.equal((await group[1].request({ t: 'room.ready', ready: true })).code, ERR.ROOM_STARTED);
   assert.equal((await group[0].request({ t: 'room.start' })).code, ERR.ROOM_STARTED);
-  assert.equal(srv.lobby.getRoom(states[0].code).match.opts.revivalEnabled, true);
+  assert.equal(srv.lobby.getRoom(states[0].code).match.opts.revivalEnabled, false);
   assert.equal(srv.lobby.stats().online, 4);
   await group[3].terminate();
   await delay(15);
@@ -552,56 +547,51 @@ test('public-room replacement members must have a compatible handshake too', (t)
   assert.deepEqual(h.lobby.join(legacy, { code }), { ok: true });
 });
 
-test('queue acceptance requires an explicit boolean vote and locks it against replay changes', (t) => {
+test('queue acceptance needs only ticket/offer identities; obsolete votes cannot change room rules', (t) => {
   const h = harness(t), players = h.group(), offers = h.offer(players);
   const intent = { ticketId: offers[0].ticketId, offerId: offers[0].offerId };
-  for (const revivalVote of [undefined, null, 0, 1, '', 'false', {}, []]) {
-    const msg = { ...intent, ...(revivalVote === undefined ? {} : { revivalVote }) };
+  for (const revivalVote of [null, 0, 1, '', 'false', {}, []]) {
+    const msg = { ...intent, revivalVote };
     assert.equal(h.lobby.queue.accept(players[0], msg).error, ERR.BAD_MSG);
     assert.ok(validateC2S({ t: 'queue.accept', ...msg }));
     assert.equal(h.lobby.queue.state(players[0]).accepted, false);
-    assert.equal(h.lobby.queue.state(players[0]).revivalVote, null);
   }
-  for (const revivalVote of [true, false]) assert.equal(validateC2S({ t: 'queue.accept', ...intent, revivalVote }), null);
-  assert.deepEqual(h.lobby.queue.accept(players[0], { ...intent, revivalVote: false }), { ok: true });
-  assert.equal(h.lobby.queue.state(players[0]).revivalVote, false);
-  assert.equal(h.lobby.queue.accept(players[0], { ...intent, revivalVote: true }).error, ERR.BAD_MSG);
+  assert.equal(validateC2S({ t: 'queue.accept', ...intent }), null);
+  assert.deepEqual(h.lobby.queue.accept(players[0], intent), { ok: true });
+  for (const revivalVote of [true, false]) assert.deepEqual(h.lobby.queue.accept(players[0], { ...intent, revivalVote }), { ok: true });
   assert.equal(h.lobby.queue.state(players[0]).acceptedCount, 1);
   h.accept(players.slice(1), offers.slice(1));
   const room = h.lobby.roomOf(players[0]), match = room.match;
-  assert.equal(h.lobby.queue.accept(players[0], intent).error, ERR.BAD_MSG);
-  assert.equal(h.lobby.queue.accept(players[0], { ...intent, revivalVote: true }).error, ERR.BAD_MSG);
-  assert.deepEqual(h.lobby.queue.accept(players[0], { ...intent, revivalVote: false }), { ok: true });
-  assert.equal(room.match, match);
-  assert.equal(room.matchCount, 1);
-  assert.equal(h.lobby.queue.state(players[0]).revivalVote, false);
+  assert.deepEqual(h.lobby.queue.accept(players[0], intent), { ok: true });
+  assert.deepEqual(h.lobby.queue.accept(players[0], { ...intent, revivalVote: true }), { ok: true });
+  assert.equal(room.match, match); assert.equal(room.matchCount, 1);
+  assert.deepEqual(h.lobby.queue.state(players[0]).experimental, { revivalEnabled: false, disableSharedPool: false });
 });
 
-test('all sixteen public vote combinations enable revival iff at least three humans voted yes', (t) => {
+test('all sixteen obsolete public vote combinations leave default room experimental rules unchanged', (t) => {
   const h = harness(t);
   for (let mask = 0; mask < 16; mask++) {
     const players = h.group(), offers = h.offer(players, DIFFICULTIES[mask % DIFFICULTIES.length]);
     const votes = players.map((_, i) => !!(mask & (1 << i)));
     offers.forEach((offer, i) => { offer.revivalVote = votes[i]; });
     assert.ok(h.accept(players, offers).every((result) => result.ok));
-    const room = h.lobby.roomOf(players[0]), yes = votes.filter(Boolean).length;
-    assert.deepEqual(room.revivalState(), { yes, required: 3, enabled: yes >= 3 });
-    assert.equal(room.match.opts.revivalEnabled, yes >= 3);
+    const room = h.lobby.roomOf(players[0]);
+    assert.deepEqual(room.revivalState(), { enabled: false });
+    assert.equal(room.match.opts.revivalEnabled, false); assert.equal(room.match.opts.disableSharedPool, false);
     assert.equal(room.match.opts.difficulty, offers[0].difficulty);
-    assert.deepEqual(room.seats.map((seat) => seat.revivalVote), votes);
-    assert.equal(h.lobby.voteRevival(players[0], { enable: !votes[0] }).error, ERR.ROOM_STARTED);
+    assert.equal(h.lobby.voteRevival(players[0], { enable: !votes[0] }).error, ERR.BAD_MSG);
     h.lobby.leave(players[0]);
-    assert.deepEqual(room.revivalState(), { yes, required: 3, enabled: yes >= 3 });
+    assert.deepEqual(room.revivalState(), { enabled: false });
     for (const p of players.slice(1)) h.lobby.leave(p);
   }
   assert.equal(h.lobby.rooms.size, 0);
 });
 
-test('friend coop still needs manual readiness/start and uses only room votes', (t) => {
+test('friend coop still needs manual readiness/start and uses room experimental options', (t) => {
   const h = harness(t), players = h.group(), room = h.privateRoom(players);
   assert.equal(room.source, 'private');
   assert.ok(room.seats.every((s) => !s.ready && s.revivalVote === null));
-  for (const p of players.slice(0, 3)) h.lobby.voteRevival(p, { enable: true });
+  h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
   assert.equal(room.match, null);
   assert.equal(h.lobby.start(players[0]).error, ERR.NOT_READY);
   for (const p of players.slice(1)) h.lobby.ready(p, { ready: true });
@@ -669,26 +659,17 @@ test('shutdown clears offers and rejects new admissions without rolling state', 
   assert.equal(players[0].messages.at(-1).reason, 'shutdown');
 });
 
-test('waiting coop uses strict human majority for one/two/three/four humans and never counts bots', (t) => {
+test('waiting coop uses room-owned revival settings for one/two/three/four humans without votes', (t) => {
   const h = harness(t);
   for (let size = 1; size <= 4; size++) {
     const players = h.group().slice(0, size), room = h.privateRoom(players);
-    const required = Math.max(2, Math.floor(size / 2) + 1);
-    assert.equal(room.revivalState().required, required);
-    for (let yes = 1; yes <= size; yes++) {
-      h.lobby.voteRevival(players[yes - 1], { enable: true });
-      assert.deepEqual(room.revivalState(), { yes, required, enabled: size >= 2 && yes >= required });
-    }
-    if (size < 4) {
-      h.lobby.addBot(players[0]);
-      room.seats.find((s) => s?.isBot).revivalVote = true;
-      assert.equal(room.revivalState().required, required);
-      assert.equal(room.revivalState().yes, size);
-      assert.equal(room.revivalState().enabled, size >= 2);
-    }
+    assert.deepEqual(room.revivalState(), { enabled: false });
+    h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
+    if (size < 4) h.lobby.addBot(players[0]);
+    assert.deepEqual(room.revivalState(), { enabled: true });
     for (const p of players.slice(1)) h.lobby.ready(p, { ready: true });
     h.lobby.start(players[0]);
-    assert.equal(room.match.opts.revivalEnabled, size >= 2);
+    assert.equal(room.match.opts.revivalEnabled, true);
   }
 });
 
@@ -761,7 +742,7 @@ test('party queue locks room mutations but permits loadout sync and leave cancel
   const h = harness(t), members = h.group().slice(0, 2), room = h.privateRoom(members), outsider = h.player();
   h.lobby.queue.join(members[0], { difficulty: 'NORMAL', party: true });
   for (const msg of [
-    { t: 'room.ready', ready: true }, { t: 'room.voteRevival', enable: true }, { t: 'room.setDifficulty', difficulty: 'HARD' },
+    { t: 'room.ready', ready: true }, { t: 'room.setExperimental', experimental: { revivalEnabled: true, disableSharedPool: false } }, { t: 'room.setDifficulty', difficulty: 'HARD' },
     { t: 'room.start' }, { t: 'room.addBot' }, { t: 'room.removeBot', seat: 2 },
     { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' },
   ]) assert.equal(h.lobby.onMessage(members[0], msg).error, ERR.QUEUED, msg.t);
@@ -846,7 +827,7 @@ test('party startup failure buffers every frame and preserves original rooms, ti
   }
   const h = harness(t, {}, BrokenMatch), party = h.group().slice(0, 2), solo = h.group().slice(0, 2);
   const oldRoom = h.privateRoom(party);
-  h.lobby.voteRevival(party[0], { enable: true });
+  h.lobby.setExperimental(party[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
   h.lobby.ready(party[1], { ready: true });
   h.lobby.queue.join(party[0], { difficulty: 'NORMAL', party: true });
   for (const p of solo) h.lobby.queue.join(p, { difficulty: 'NORMAL' });
@@ -862,7 +843,7 @@ test('party startup failure buffers every frame and preserves original rooms, ti
   assert.equal(oldRoom.disposed, false);
   assert.equal(oldRoom.match, null);
   assert.equal(oldRoom.seatOf(party[1].playerId).ready, true);
-  assert.equal(oldRoom.seatOf(party[0].playerId).revivalVote, true);
+  assert.equal(oldRoom.experimental.revivalEnabled, true);
   assert.equal(disposed.length, 1);
   assert.equal(disposed[0].opts.send(party[0].playerId, { t: 'm.private' }), false);
   players.forEach((p, i) => {
@@ -875,7 +856,7 @@ test('party startup failure buffers every frame and preserves original rooms, ti
   });
   assert.equal(h.lobby.queue.state(others[0]).offerId, otherOffers[0].offerId);
   assert.equal(h.lobby.queue.state(others[0]).accepted, true);
-  assert.equal(h.lobby.queue.state(others[0]).revivalVote, true);
+  assert.deepEqual(h.lobby.queue.state(others[0]).experimental, { revivalEnabled: false, disableSharedPool: false });
   assert.deepEqual(h.lobby.queue.state(waiting), waitingBefore);
   assert.equal(h.lobby.queue.accept(players[3], intents[3]).error, ERR.BAD_TARGET);
   broken = false;
@@ -884,7 +865,7 @@ test('party startup failure buffers every frame and preserves original rooms, ti
   assert.notEqual(retry[0].offerId, intents[0].offerId);
   assert.ok(h.accept(players, retry).every((r) => r.ok));
   assert.equal(oldRoom.disposed, true);
-  assert.equal(h.lobby.roomOf(party[0]).match.opts.revivalEnabled, false);
+  assert.equal(h.lobby.roomOf(party[0]).match.opts.revivalEnabled, true);
   assert.ok(players.every((p) => p.notice === null && p.pendingResult === null));
   assert.equal(h.lobby.queue.state(others[0]).accepted, true);
 });
@@ -954,7 +935,7 @@ test('fourth acceptance winning a cancel/disconnect race retains exactly one run
   h.disconnect(players[3]);
   assert.equal(h.lobby.rooms.size, 1); assert.equal(room.disposed, true);
   assert.equal(current.match, match); assert.equal(current.matchCount, 1);
-  assert.deepEqual(current.revivalState(), { yes: 4, required: 3, enabled: true });
+  assert.deepEqual(current.revivalState(), { enabled: false });
   assert.equal(h.lobby.queue.size, 0);
   assert.equal(h.lobby.queue.state(players[0]).state, 'matched');
 });
@@ -986,7 +967,7 @@ test('real four-socket party replacement uses default Match, latest checked load
   const replaced = group[0], replacement = await connect('实机0', replaced.token);
   await replaced.closed; assert.equal(replaced.closeInfo.code, 4001); assert.equal(replacement.id, replaced.id);
   const restored = await replacement.waitFor('queue.state', (m) => m.state === 'offered');
-  assert.equal(restored.accepted, true); assert.equal(restored.revivalVote, true); assert.equal(restored.offerId, offers[0].offerId);
+  assert.equal(restored.accepted, true); assert.deepEqual(restored.experimental, { revivalEnabled: false, disableSharedPool: false }); assert.equal(restored.offerId, offers[0].offerId);
   group = [replacement, ...group.slice(1)];
   assert.equal((await replacement.request({ t: 'room.loadout', entries: { [INSIDE]: { skill: 0, module: 'none' } } })).t, 'ok');
   for (let i = 1; i < 4; i++) assert.equal((await group[i].request({
@@ -996,14 +977,14 @@ test('real four-socket party replacement uses default Match, latest checked load
   const matchRoom = srv.lobby.getRoom(roomStates[0].code), match = matchRoom.match;
   assert.ok(match);
   assert.ok(codes.every((code) => srv.lobby.getRoom(code) === null));
-  assert.equal(match.phase, 'INFO_CHECK'); assert.equal(match.order.length, 4); assert.equal(match.revivalEnabled, true);
+  assert.equal(match.phase, 'INFO_CHECK'); assert.equal(match.order.length, 4); assert.equal(match.revivalEnabled, false);
   assert.equal(match.modeId, 'mode_multi_hard'); assert.ok(match.order.every((ps) => !ps.isBot && ps.connected && !ps.infoReady));
   for (const c of group) {
     const priv = await c.waitFor('m.private');
     const pub = await c.waitFor('m.public', (m) => m.phase === 'INFO_CHECK');
     await c.waitFor('queue.state', (m) => m.state === 'matched');
     assert.equal(priv.playerId, c.id); assert.equal(pub.modeId, 'mode_multi_hard'); assert.equal(pub.players.length, 4);
-    assert.equal(pub.revival.enabled, true);
+    assert.equal(pub.revival.enabled, false);
     if (c === replacement) assert.deepEqual(priv.loadout, { [INSIDE]: { skill: 0, module: 'none' } });
     else assert.deepEqual(priv.loadout, {});
     assert.ok(c.log.filter((m) => m.t === 'm.private').every((m) => m.playerId === c.id));
@@ -1109,7 +1090,7 @@ test('seeded 140-cohort party fuzz preserves identities, quotas, FIFO and atomic
         p.ws = { readyState: 1, bufferedAmount: 0, send: (data, cb) => { p.messages.push(JSON.parse(data)); cb?.(); } };
         oldSocket.readyState = 3;
         h.lobby.onDisconnect(p); h.lobby.onHello(p, { resumed: true, repeat: false });
-        assert.equal(h.lobby.queue.state(p).accepted, true); assert.equal(h.lobby.queue.state(p).revivalVote, intents[0].revivalVote);
+        assert.equal(h.lobby.queue.state(p).accepted, true); assert.deepEqual(h.lobby.queue.state(p).experimental, { revivalEnabled: false, disableSharedPool: false });
         assert.deepEqual(h.lobby.queue.accept(members[3], intents[3]), { ok: true });
         break;
       }
@@ -1136,7 +1117,7 @@ test('seeded 140-cohort party fuzz preserves identities, quotas, FIFO and atomic
         assert.ok(h.lobby.roomOf(members[0]).match);
         break;
       case 6:
-        assert.equal(h.lobby.queue.accept(members[3], { ...intents[3], revivalVote: undefined }).error, ERR.BAD_MSG);
+        assert.equal(h.lobby.queue.accept(members[3], { ...intents[3], revivalVote: 'true' }).error, ERR.BAD_MSG);
         assert.equal(h.lobby.queue.state(members[3]).accepted, false);
         assert.deepEqual(h.lobby.queue.accept(members[3], intents[3]), { ok: true });
         assert.deepEqual(h.lobby.queue.accept(members[3], intents[3]), { ok: true });
@@ -1157,7 +1138,7 @@ test('seeded 140-cohort party fuzz preserves identities, quotas, FIFO and atomic
 test('a full four-person party replaces its room at the global/network cap but cannot bypass running match quotas', (t) => {
   const h = harness(t, { maxRooms: 2, maxRoomsPerAddr: 2, maxMatchesPerAddr: 1 }), players = h.group(['A', 'B', 'C', 'D']);
   const original = h.privateRoom(players), busy = h.player('作战占位', 'B');
-  h.lobby.voteRevival(players[0], { enable: true });
+  h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
   h.lobby.loadout(players[1], { entries: {} });
   const loadout = players[1].loadout;
   h.lobby.create(busy, { mode: 'solo', difficulty: 'NORMAL' }); h.lobby.start(busy);
@@ -1165,7 +1146,7 @@ test('a full four-person party replaces its room at the global/network cap but c
   const intents = players.map((p) => ({ ...h.lobby.queue.state(p), revivalVote: true }));
   assert.equal(h.accept(players, intents)[3].error, ERR.RATE);
   assert.equal(h.lobby.rooms.size, 2); assert.equal(original.disposed, false);
-  assert.equal(original.seatOf(players[0].playerId).revivalVote, true);
+  assert.equal(original.experimental.revivalEnabled, true);
   assert.equal(original.seatOf(players[1].playerId).loadout, loadout);
   h.lobby.leave(busy);
   // A room-code failure also preserves old votes and the exact checked loadout, not only identity.
@@ -1173,7 +1154,7 @@ test('a full four-person party replaces its room at the global/network cap but c
   h.lobby.queue.join(players[0], { difficulty: 'NORMAL', party: true });
   let retry = players.map((p) => ({ ...h.lobby.queue.state(p), revivalVote: true }));
   assert.equal(h.accept(players, retry)[3].error, ERR.INTERNAL);
-  assert.equal(original.seatOf(players[0].playerId).revivalVote, true);
+  assert.equal(original.experimental.revivalEnabled, true);
   assert.equal(original.seatOf(players[1].playerId).loadout, loadout);
   h.lobby.genCode = gen;
   h.lobby.opts.maxRooms = 1; h.lobby.opts.maxRoomsPerAddr = 1;
@@ -1213,9 +1194,9 @@ test('spectators are online identities but never revival voters or queued party 
   assert.deepEqual(h.lobby.spectate(spectator, { code: room.code }), { ok: true });
   assert.equal(h.lobby.presenceState().online, 3);
   assert.deepEqual(h.lobby.stats(), { rooms: 1, matches: 0, humans: 2, bots: 0, spectators: 1, online: 3, queued: 0 });
-  assert.equal(h.lobby.voteRevival(spectator, { enable: true }).error, ERR.SPECTATOR);
-  for (const p of players) h.lobby.voteRevival(p, { enable: true });
-  assert.deepEqual(room.revivalState(), { yes: 2, required: 2, enabled: true });
+  assert.equal(h.lobby.setExperimental(spectator, { experimental: { revivalEnabled: true, disableSharedPool: false } }).error, ERR.NOT_HOST);
+  h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
+  assert.deepEqual(room.revivalState(), { enabled: true });
   assert.equal(h.lobby.queue.join(spectator, { difficulty: 'NORMAL', party: true }).error, ERR.SPECTATOR);
   assert.deepEqual(h.lobby.queue.join(players[0], { difficulty: 'NORMAL', party: true }), { ok: true });
   assert.equal(h.lobby.queue.size, 2);
@@ -1251,7 +1232,7 @@ test('party allocation atomically transfers unlimited spectator identities witho
   assert.deepEqual(room.match.opts.seats.map((s) => s.playerId), players.map((s) => s.playerId));
   assert.deepEqual([...room.ownerKeys].sort(), ['A', 'B', 'C', 'D']);
   assert.deepEqual([...room.matchKeys].sort(), ['A', 'B', 'C', 'D']);
-  assert.deepEqual(room.revivalState(), { yes: 3, required: 3, enabled: true });
+  assert.deepEqual(room.revivalState(), { enabled: false });
   for (const s of observers) {
     assert.equal(s.roomCode, room.code);
     assert.ok(room.spectatorOf(s.playerId));

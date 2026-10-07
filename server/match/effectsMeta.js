@@ -516,7 +516,7 @@ export function makeCtx(m, ps, source, hook, ev = null) {
       if (!gd.chess(id)) return null;
       const base = gd.baseIdOf(id);
       // "some effects fail when the cap is hit" (research 06 §7): by default a chess of the pool needs a free copy
-      if (opts.requirePool !== false && m.pool.has(base) && m.pool.left(base) < 1) return null;
+      if (opts.requirePool !== false && ps.pool.has(base) && ps.pool.left(base) < 1) return null;
       const p = ps.acquireChess(id, { source: opts.source || source.key || 'effect', toTemp: !!opts.toTemp, fromPool: opts.fromPool !== false });
       // 「歌蕾蒂娅：获得斯卡蒂」 — every silent grantChess (a 特质, 余 SERVER_MOST_BOND, a band, an item, a choice).
       // opts.toast === false skips it. A caller that already says the same thing should pass that.
@@ -545,14 +545,14 @@ export function makeCtx(m, ps, source, hook, ev = null) {
         if (opts.bond) { const c = gd.chess(id); if (!c || !Array.isArray(c.bonds) || !c.bonds.includes(opts.bond)) return false; }
         return typeof opts.filter === 'function' ? !!opts.filter(id) : true;
       };
-      return m.pool.roll(m.rngMeta, { maxTier: Number.isInteger(opts.maxTier) ? opts.maxTier : 6, tier: Number.isInteger(opts.tier) ? opts.tier : null, filter: f });
+      return ps.pool.roll(m.rngMeta, { maxTier: Number.isInteger(opts.maxTier) ? opts.maxTier : 6, tier: Number.isInteger(opts.tier) ? opts.tier : null, filter: f });
     },
     rollItem: (opts = {}) => m.rollItemId(opts),
     /**
      * Roll a choices.json pool: equip pools → { kind: 'item', id }; chess pools (items / weighted / shopEligible with
      * tier, minTier, bond, golden) → { kind: 'chess', id, golden } (a pool chess needs a free copy). null when empty.
      */
-    rollPool: (poolId, opts = {}) => m.rollPool(poolId, { shopLevel: ps.shop.level, ...opts }),
+    rollPool: (poolId, opts = {}) => m.rollPool(poolId, { shopLevel: ps.shop.level, ...opts, player: ps }),
     /**
      * Run another owned chess's 特质 of `eventType` now (SERVER_GAIN / SERVER_PREP_START / SERVER_PREP_FIN /
      * SERVER_CHESS_SOLD / SERVER_REFRESH_SHOP). opts.asUid: run them as if they belonged to that piece. Returns the

@@ -2,6 +2,7 @@
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
 import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } from './constants.js';
+import { isExperimental } from './experimental.js';
 
 /** Public response-pressure hint; never carries raw host/process diagnostics. */
 export const SERVER_LOAD_STATES = Object.freeze(['unknown', 'normal', 'busy', 'overloaded']);
@@ -257,15 +258,16 @@ export const C2S = {
   // session & lobby
   hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6), matchmakingVersion: isId, $optional: ['token', 'version', 'matchmakingVersion'] },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
-  'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v) },
+  'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), experimental: isExperimental, $optional: ['experimental'] },
+  'room.setExperimental': { experimental: isExperimental },
   'room.join': { code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.leave': {},
   'room.ready': { ready: isBool },
   'room.voteRevival': { enable: isBool },
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, $optional: ['party'] },
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, experimental: () => false, $optional: ['party', 'experimental'] },
   'queue.cancel': { ticketId: isId },
-  // Public acceptance includes the player's explicit revival vote; neither omission nor coercion is allowed.
-  'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool },
+  // Older clients may send a boolean vote, but it has no authority over room-owned rules.
+  'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool, experimental: () => false, $optional: ['revivalVote', 'experimental'] },
   'room.setDifficulty': { difficulty: (v) => DIFFICULTIES.includes(v) },
   'room.addBot': {},
   'room.removeBot': { seat: (v) => isInt(v, 0, MAX_SEATS - 1) },

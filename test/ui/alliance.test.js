@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
-import { revivalReason, RevivalVote } from '../../public/js/ui/revival.js';
+import { revivalReason } from '../../public/js/ui/revival.js';
+import { experimentalSummary, ExperimentalOptions } from '../../public/js/ui/experimental.js';
 import { partyQueueReason } from '../../public/js/screens/room.js';
 import { queueActive, queueTime } from '../../public/js/ui/matchmaking.js';
 import { watchTarget } from '../../public/js/ui/gameLogic.js';
@@ -90,18 +91,15 @@ test('party matching hints require a waiting coop, host, online humans and no AI
   assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'p3', connected: false }] }, 'p1'), /所有队友/);
 });
 
-test('revival ballot displays server threshold and disables a lone human', () => {
-  const textOf = node => node == null ? '' : Array.isArray(node) ? node.map(textOf).join('') : typeof node !== 'object' ? String(node) : textOf(node.props?.children);
-  const room = { mode: 'coop', inMatch: false, seats: [{ playerId: 'p1' }, { playerId: 'p2' }, { playerId: 'p3' }], revival: { yes: 2, required: 2, enabled: true } };
-  assert.match(textOf(RevivalVote({ room, myId: 'p1', online: true })), /2 \/ 2 票赞成/);
-  const single = { ...room, seats: [{ playerId: 'p1' }, { playerId: 'bot', isBot: true }], revival: { yes: 0, required: 2, enabled: false } };
-  const view = RevivalVote({ room: single, myId: 'p1', online: true });
-  assert.match(textOf(view), /暂无可救援队友/);
-  const buttons = [];
-  const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node?.props) { if (node.props.onClick) buttons.push(node); visit(node.props.children); } };
+test('experimental rules display room options without a revival ballot', () => {
+  assert.equal(experimentalSummary(null), '复活 关闭 · 共享卡池 开启');
+  assert.equal(experimentalSummary({ revivalEnabled: true, disableSharedPool: true }), '复活 开启 · 共享卡池 关闭');
+  const view = ExperimentalOptions({ open: true, value: { revivalEnabled: true, disableSharedPool: true }, editable: false });
+  const switches = [];
+  const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node?.props) { if (node.props.role === 'switch') switches.push(node); visit(node.props.children); } };
   visit(view);
-  assert.equal(buttons.length, 2);
-  assert.ok(buttons.every(node => node.props.disabled));
+  assert.equal(switches.length, 2);
+  assert.ok(switches.every(node => node.props.disabled && node.props.checked));
 });
 
 test('queue UI distinguishes pending vs allocated and clamps clocks', () => {
