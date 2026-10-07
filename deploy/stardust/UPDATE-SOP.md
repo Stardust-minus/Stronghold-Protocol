@@ -4,7 +4,17 @@
 
 正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。0.1.2 + Worker 的历史发布单元见下方记录；此后每次更新都须配套验收及取得明确上线授权，提交、合并与推送不代表允许重启生产。
 
-## 杭州/Beta准备与正式切换分开
+## 最新已完成正式集群切换（2026-10-07）
+
+用户本批明确授权上线，并随后明确允许直接停止旧正式服替换，不等待旧局自然结束。运行源码固定`5b63d51dddeba07292eb9891beee776850c1bb75`，已先非force推至origin/master再切公开路由。正式与Beta各1协调器/16个8+2完整游戏节点/3入口（`.78/.73/.92`）；`.75`保持禁用。实际结果、配套身份与旧局中断边界见[发布记录](releases/v014-cluster-formal-20261007-5b63d51.json)及[CLUSTER-SOP.md](CLUSTER-SOP.md)。
+
+本次原入口Formal vhost用目录挂载原子CAS替换；`.73/.92`是单文件bind，必须保持原inode、先隔离语法检查、备份和原字节CAS写入，再实际nginx-t/正常reload。它们复用现有代理，不新建第二443代理。正常reload会保留旧WS，所以另按已核验unit/CID停止旧f3管理器和容器，关闭其旧core-only WG租约；旧WG恢复依赖不能停止。旧容器/镜像/匹配文件保留，但内存对局不能恢复。
+
+公开F3素材60MS/40OI及原入口auth/assets/密码/TLS源保持不变；新镜像必须有独立验证的生成atlas索引，HTTP200空groups不能算通过。双profile精确Main-only策略/40角色租约、各312TLS门禁、真实五客户端纹理/购买部署/第二轮/观战重连及音频解码已通过。新增加A不重启控制/节点、不拆匹配池、不承诺DNS严格均分或HA；用户已自行添加`.73/.92`，禁止添加held`.75`。
+
+后续release记录提交不改变运行源码C。旧章节是对应时间的流程和状态，既不取消本批明确授权，也不产生下一批自动维护许可。
+
+## 历史：杭州/Beta准备与正式切换分开
 
 用户2026-10-06要求先准备独立杭州Beta和版本化业务JS/CSS本地供给，详 [BETA-SOP.md](BETA-SOP.md)。Beta拥有独立backend/会话/门禁签名/Origin/vhost，不能把Beta域名指向正式进程或绕过密码门禁。更大的12+2 Worker与`beta`/`core`宿主profile均须逐池及实际线程核对，原`prod`仍6+1。WG发布端口涉及Docker DNAT/FORWARD，精确隔离及重建fail-closed不可只用INPUT/绑定地址代替。
 
