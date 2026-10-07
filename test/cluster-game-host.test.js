@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameHost, GameHostError } from '../server/cluster/game-host.js';
 import { Match } from '../server/match/Match.js';
+import { getData } from '../server/data.js';
+import { checkNotOwned } from '../shared/protocol.js';
 import { ERR, PHASE } from '../shared/constants.js';
 
 const isCode = code => error => error instanceof GameHostError && error.code === code;
@@ -97,6 +99,46 @@ test('assignment spec keeps seat/loadout data, borrows pools, and never supplies
   assert.equal(matches[0].opts.revivalEnabled, true);
   assert.equal(matches[0].opts.snapshotHz, 10);
   assert.equal(matches[0].opts.clientCombat, false, 'host remains server-authoritative without an environment setting');
+});
+
+test('0.2.0 ownership and DIY are copied, frozen and included in actor identity', t => {
+  const { host, matches } = fixture(t);
+  const original = spec({ seats: [seat(0, 'p1', {
+    notOwned: ['chess_a'], diy: { slot_5: { charId: 'char_a', skillIndex: 1, uniEquipId: null } },
+  })] });
+  const prepared = host.prepare(original);
+  original.seats[0].notOwned.push('chess_b');
+  original.seats[0].diy.slot_5.skillIndex = 2;
+  assert.deepEqual(prepared.seats[0].notOwned, ['chess_a']);
+  assert.equal(prepared.seats[0].diy.slot_5.skillIndex, 1);
+  assert.ok(Object.isFrozen(prepared.seats[0].notOwned) && Object.isFrozen(prepared.seats[0].diy.slot_5));
+  assert.deepEqual(matches[0].opts.seats[0], prepared.seats[0]);
+  assert.throws(() => host.prepare(original), isCode('ASSIGNMENT_CONFLICT'));
+  for (const fields of [
+    { notOwned: ['../invalid'] }, { notOwned: Array(161).fill('chess_a') },
+    { diy: { slot_5: { charId: 'char_a', skillIndex: 10 } } },
+    { diy: { slot_5: { charId: 'char_a', skillIndex: 1, secret: true } } },
+  ]) assert.throws(() => host.prepare(spec({ assignmentId: 'invalid-fields', seats: [seat(0, 'p1', fields)] })), isCode('INVALID_SPEC'));
+});
+
+test('real 0.2.0 Match consumes ownership and DIY from a prepared cluster actor', t => {
+  const data = getData({ log: { info() {}, warn() {}, error() {} } });
+  const notOwned = Object.keys(data.chess).find(id => checkNotOwned([id], key => data.chess[key]).notOwned.length);
+  assert.ok(notOwned);
+  const diy = { chess_char_5_diy1_a: { charId: 'char_112_siege', skillIndex: 2, uniEquipId: 'uniequip_002_siege' } };
+  let match;
+  class RecordedMatch extends Match { constructor(opts) { super(opts); match = this; } }
+  const host = new GameHost({ data, MatchClass: RecordedMatch });
+  t.after(() => host.close());
+  const prepared = host.prepare(spec({ seats: [seat(0, 'p1', { notOwned: [notOwned], diy })], spectators: [] }));
+  const transport = channel(); host.bind(prepared.assignmentId, 'p1', transport);
+  host.commit(prepared.assignmentId);
+  const player = match.players.get('p1');
+  assert.deepEqual(player.standIns, [notOwned]);
+  assert.deepEqual(player.diy, diy);
+  assert.equal(player.gd.chess('chess_char_5_diy1_a').charId, 'char_112_siege');
+  assert.equal(player.diyStock.cap('chess_char_5_diy1_a'), 8);
+  assert.ok(transport.sent.some(frame => frame.t === 'm.private' && frame.standIns.includes(notOwned)));
 });
 
 test('all supplied spec fields participate in duplicate-prepare conflict detection', t => {

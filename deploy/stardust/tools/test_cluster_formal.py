@@ -57,6 +57,15 @@ class FormalProfileTests(beta.Fixture):
         self.assertEqual(str(FORMAL.root), '/opt/ark-cluster-formal')
         self.assertEqual(str(FORMAL.policy_file), '/etc/ark-cluster-formal/host-policy.json')
 
+    def test_replacement_entry_changes_only_formal_slot_two(self):
+        self.assertEqual(FORMAL.endpoints['10.253.79.12'], '115.231.235.219:51839')
+        self.assertEqual(BETA.endpoints['10.253.78.12'], '115.231.235.75:51838')
+        for slot, address in ((11, '115.231.235.78'), (13, '115.231.235.73'), (14, '115.231.235.92')):
+            self.assertEqual(FORMAL.endpoints['10.253.79.' + str(slot)], address + ':51839')
+        self.assertEqual(len(FORMAL.endpoints), 4)
+        with self.assertRaises(TypeError):
+            FORMAL.endpoints['10.253.79.12'] = '115.231.235.75:51839'
+
     def test_commit_manifest_sixteen_games_and_four_all_route_ingresses(self):
         policy = deploy.generate(self.root / 'commit', profile='formal', image=beta.IMAGE,
                                  build=COMMIT, manifest_sha256=beta.MANIFEST,

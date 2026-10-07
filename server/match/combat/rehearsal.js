@@ -13,7 +13,7 @@ export function canUseWorkerRehearsal(match) {
 export function rehearsalFingerprint(match, ps) {
   const piece = (p) => p && [p.uid, p.kind, p.id, p.dir, p.ownerUid, p.count, p.poolCopies,
     (p.items || []).map((i) => [i.uid, i.id])];
-  return JSON.stringify([match.stageId, ps.bandId, ps.deployCap, ps.loadout,
+  return JSON.stringify([match.stageId, ps.bandId, ps.deployCap, ps.loadout, ps.standIns, ps.diy,
     [...ps.board].map(([key, p]) => [key, piece(p)]), ps.hand.map(piece), ps.temp.map(piece),
     Object.entries(ps.bonds).map(([id, b]) => [id, b.count, b.active, b.tier, b.layers]),
     ps.layers, ps.pendingLayerGains, ps.effects, ps.deviceOverrides, ps.tileOverrides, ps.bounties]);

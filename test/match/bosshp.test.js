@@ -2,8 +2,8 @@
 // seconds; with our layers the official leader never dies that fast"). DESIGN §20.10.
 //   * Pool: one pool for every boss field (official tip "最终攻势中，所有人将一起对敌方领袖造成伤害"), bloodPoint[difficulty]
 //     of data/bosses.json (= activity_table bossInfoDict bloodPoint / Normal / Hard / Abyss of the current data; PRTS
-//     盟约记录's leader table is the older 11月18日 revision, 铳 险境 and 胄 / 铳 / 萨米 绝境 differ, no 终极 column) ×
-//     alive / 4 at each co-op boss start by default (configured aliveScaling true; solo remains ×0.25).
+//     盟约记录's leader table is the older 11月18日 revision, 铳 险境 and 胄 / 铳 / 萨米 绝境 differ, no 终极 column) per
+//     player alive when the fight starts (DESIGN §25.13.4: the owner's decision of 2026-10-06, adopting PR #209).
 //   * Damage: the 卫戍 systems' "+X%" attribute bonuses are 直接乘算 — summed, not compounded (PRTS 盟约记录 / 游戏数据基础);
 //     v2.5 compounded them, which made stacked lineups kill the leaders 1.2–3× faster (more with more layers).
 // Real bot matches to the Final Assault (real sim, server-run fields): every operator fighting the leader carries its
@@ -11,13 +11,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
-import { makeMatch, DATA } from './harness.js';
+import { makeMatch as makeHarnessMatch, DATA as LIVE_DATA } from './harness.js';
+import { officialBossData } from './official-boss-fixture.js';
+
+// Explicit official input: this fork intentionally retains alive/4 in its runtime config.
+const DATA = officialBossData(LIVE_DATA);
+const makeMatch = (opts = {}) => makeHarnessMatch({ ...opts, data: opts.data ?? DATA });
 import { aggregateMods } from '../../server/sim/buffs.js';
 import { bondBb } from '../../server/sim/content/bonds/addon/battle.js';
 import { DataSource } from '../../server/sim/simdata.js';
 import { createBattleFromSpec } from '../../server/sim/spec.js';
-import { SharedBossPool, bossPoolHp } from '../../server/match/finalAssault.js';
-import { GameData } from '../../server/match/gamedata.js';
+import { SharedBossPool } from '../../server/match/finalAssault.js';
 
 /** 4 AI seats, co-op, LP 400 (they reach R14), +`layers` on every active bond at the boss round's prep. */
 function toFinalAssault({ difficulty, seed, bossId, layers = 0 }) {
@@ -65,52 +69,15 @@ test('leader HP data = the current official bossInfoDict for every leader and di
   }
 });
 
-for (const difficulty of ['FUNNY', 'NORMAL', 'HARD', 'ABYSS']) {
-  test(`${difficulty} co-op defaults: every ordinary / hidden leader scales by 1/2/3/4 living seats`, () => {
-    const modeId = `mode_multi_${difficulty.toLowerCase()}`;
-    const gd = new GameData(DATA, modeId);
-    assert.equal(DATA.config.bossHpScale.aliveScaling, true, 'global generated default');
-    assert.equal(gd.mode.bossHpScale.aliveScaling, true, 'mode default must not override it with false');
-    assert.equal(gd.mode.bossHpScale.aliveFull, 4);
-    for (const [id, boss] of Object.entries(DATA.bosses)) {
-      const full = boss.bloodPoint[difficulty];
-      for (const n of [1, 2, 3, 4]) {
-        const expected = Math.round(full * n / 4);
-        assert.equal(gd.bossPoolShare(n), n / 4, `${n} living seats`);
-        assert.equal(gd.bossPoolHp(id, n), expected, `${id}: ${n} living seats`);
-        assert.equal(bossPoolHp(gd, id, n), expected, 'Match helper agrees');
-      }
-    }
-  });
-}
-
-test('single-player ×0.25 and explicit training opt-out survive the global scaling default', () => {
-  assert.equal(DATA.config.bossHpScale.solo, 0.25);
-  for (const mode of Object.values(DATA.config.modes)) {
-    const gd = new GameData(DATA, mode.modeId);
-    if (mode.type === 'SINGLE') {
-      assert.equal(mode.bossHpScale.solo, 0.25);
-      for (const [id, boss] of Object.entries(DATA.bosses)) {
-        for (const n of [1, 2, 3, 4, undefined]) {
-          assert.equal(gd.bossPoolHp(id, n), Math.round(boss.bloodPoint[mode.difficulty] / 4), `${mode.modeId} ${id} ${n}`);
-        }
-      }
-    } else if (mode.type !== 'MULTI') {
-      assert.equal(mode.bossHpScale.aliveScaling, false, `${mode.modeId}: retain explicit opt-out`);
-      for (const n of [1, 2, 3, 4]) assert.equal(gd.bossPoolShare(n), 1);
-    }
-  }
-});
-
 const SYSTEM_KEY = /^(bond|item|band|choice):/;
 const MUL_STATS = ['atkMul', 'defMul', 'hpMul'];
 
-test('终极 Final Assault (+200 layers per active bond): one bloodPoint pool for both fields, bonuses additive, each hit once', () => {
+test('终极 Final Assault (+200 layers per active bond): one pool (bloodPoint × 4 alive) for both fields, bonuses additive, each hit once', () => {
   const h = toFinalAssault({ difficulty: 'ABYSS', seed: 2, bossId: 'boss_1', layers: 200 });
   const m = h.m;
   const pool = m.bossPool;
   assert.equal(m.alivePlayers().length, 4);
-  assert.equal(pool.maxHp, DATA.bosses.boss_1.bloodPoint.ABYSS, 'full team: the data value (3 600 000)');
+  assert.equal(pool.maxHp, DATA.bosses.boss_1.bloodPoint.ABYSS * 4, 'four alive: 4 × the data value (14 400 000)');
   const fields = m.fields.filter((f) => f.battle);
   assert.equal(fields.length, 2, 'two pair fields');
   // one second into the fight: every operator's stats
@@ -137,8 +104,8 @@ test('终极 Final Assault (+200 layers per active bond): one bloodPoint pool fo
 test('绝境 Final Assault: both pair fields drain the one pool, every hit exactly once', () => {
   const h = toFinalAssault({ difficulty: 'HARD', seed: 3, bossId: 'boss_5' });
   const m = h.m;
-  assert.equal(m.bossPool.maxHp, DATA.bosses.boss_5.bloodPoint.HARD, 'four alive: the data value');
-  assert.equal(m.gd.bossPoolHp('boss_5', 2), DATA.bosses.boss_5.bloodPoint.HARD / 2, 'a new fight with two alive gets half HP');
+  assert.equal(m.bossPool.maxHp, DATA.bosses.boss_5.bloodPoint.HARD * 4, 'four alive: 4 × the data value');
+  assert.equal(m.gd.bossPoolHp('boss_5', 2), DATA.bosses.boss_5.bloodPoint.HARD * 2, 'two alive: 2 × the data value');
   const pool = m.bossPool;
   const fields = m.fields.filter((f) => f.battle);
   assert.equal(fields.length, 2);
@@ -156,7 +123,8 @@ test('绝境 Final Assault: both pair fields drain the one pool, every hit exact
 
 test('终极 Final Assault vs 假想敌：胄 (seeded bot match): both players\' 奥术 never multiply on the leader; a drone costs it 2 % of the pool', () => {
   // DESIGN §20.10: one 奥术 instance per target (the strongest — PRTS 作战机制 同名buff, 巴哈姆特 12316 "共享型buff會跟對面搶");
-  // 死亡集群's "最大生命值2%" = the leader's shown max HP, the pool (DRONE_LINK_BASE 'pool' [ASSUMED]): 72 000 at 终极
+  // 死亡集群's "最大生命值2%" = the leader's shown max HP, the pool (DRONE_LINK_BASE 'pool' [ASSUMED]): 288 000 at 终极
+  // with 4 alive (14 400 000)
   // the bots' boards follow every draw of the match (the elite-to-board merge, DESIGN §20.11, moved seed 7 to 12; the
   // 战术决策 drawn with replacement moved 12 on): the first of these seeds whose bots pair two 奥术 players
   const pairOf = (m) => m.fields.filter((f) => f.battle).find((f) => f.players.length === 2 && f.players.every((pid) => f.battle.getPlayer(pid).bonds.arcaneShip?.active));
@@ -199,7 +167,8 @@ test('终极 Final Assault vs 假想敌：胄 (seeded bot match): both players\'
   }
   assert.ok(withArcane > 100, `the leader carried 奥术 (${withArcane} samples)`);
   assert.ok(links.length >= 1, 'drones were shot down');
-  for (const x of links) assert.equal(x, DATA.bosses.boss_1.bloodPoint.ABYSS * 0.02, 'drone link = 2 % × the 3 600 000 pool');
+  for (const x of links) assert.equal(x, m.bossPool.maxHp * 0.02, 'drone link = 2 % × the pool');
+  assert.equal(m.bossPool.maxHp, DATA.bosses.boss_1.bloodPoint.ABYSS * 4, 'the 14 400 000 pool of 4 alive players');
   m.dispose();
 });
 
@@ -232,7 +201,7 @@ test('绝境 Hidden Core vs 假想敌：铳 (隐秘核心): a 碎铳之簧 passe
   assert.equal(m.phase, PHASE.HIDDEN_CORE, 'reached the Hidden Core');
   assert.ok(specs.length >= 1);
   const pool = new SharedBossPool(m.bossPool.maxHp);
-  assert.equal(pool.maxHp, DATA.bosses.boss_9.bloodPoint.HARD, 'the hidden 铳 pool = bloodPoint');
+  assert.equal(pool.maxHp, DATA.bosses.boss_9.bloodPoint.HARD * m.alivePlayers().length, 'the hidden 铳 pool = bloodPoint × the players alive at its start');
   const b = createBattleFromSpec(specs[0], new DataSource(DATA, null), { sharedBoss: pool, recordEvents: false, quiet: true });
   // the springs stand from the start, 铳 enters ≈ 10 game s later
   for (let i = 0; i < 1200 && !b.enemies.some((e) => e.alive && e.isBoss); i++) b.step();

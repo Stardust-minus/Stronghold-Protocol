@@ -89,6 +89,27 @@ function preserved(h, players, before) {
   }
 }
 
+test('0.2.0 ownership and DIY follow a public party and fence changes during allocation', async t => {
+  const h = harness(t), players = h.group();
+  players[0].notOwned = Object.freeze(['synthetic_unit']);
+  players[0].diy = Object.freeze({ slot_5: Object.freeze({ charId: 'char_a', skillIndex: 1, uniEquipId: null }) });
+  h.privateRoom(players.slice(0, 2));
+  const states = h.queue(players); h.accept(players, states);
+  assert.equal(h.calls.length, 1);
+  const spec = h.calls[0].spec;
+  assert.deepEqual(spec.seats[0].notOwned, ['synthetic_unit']);
+  assert.deepEqual(spec.seats[0].diy, players[0].diy);
+  assert.equal(spec.seats[1].notOwned, null);
+  assert.equal(spec.seats[1].diy, null);
+  assert.ok(h.calls[0].context.isCurrent());
+  players[0].notOwned = Object.freeze([]);
+  assert.equal(h.calls[0].context.isCurrent(), false, 'an in-flight match cannot publish stale ownership settings');
+  const done = h.complete(); await flush();
+  assert.equal(done.counts.publish, 0);
+  assert.equal(done.counts.abort, 1);
+  assert.ok(!players.some(s => h.lobby.roomOf(s)?.match));
+});
+
 test('base Lobby factory hook retains default local construction', () => {
   let constructions = 0;
   class Stub { constructor(opts) { constructions++; this.opts = opts; } }

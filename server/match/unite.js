@@ -5,7 +5,11 @@
 // players chosen by most units on the field (downed included) > has an active bond (存疑) > most undowned units, then
 // seat; with 2 helpers the one ranked first by most units > active bond > Σ active bond layers (存疑) > most undowned
 // units "率先迎敌" on the RIGHT-hand field (colOffset +8, where the escaped_multi routes enter), the other keeps the
-// left half (colOffset 0); a lone helper plays escaped_single on its own field. Their operators keep the HP ratio and
+// left half (colOffset 0); a lone helper plays on its own field. 联防 keeps the match's original map, including its
+// walls, water, crates and devices (the pre-0.2.0 fork behaviour). Escaped templates supply the re-entry wave only;
+// uniteStageId keeps their historical map lookup for upstream reference tests. Every helper's pieces stand on their
+// prep tiles ("按休整期位置部署在场"), the right-hand one shifted 8 columns
+// (the official maps' halves, = the stage config's player_map_lr_offset 8). Their operators keep the HP ratio and
 // the SP (技力, stored charges included) from the end of their own combat, nothing else — a skill still running then
 // enters switched off (BattleResult.unitsEnd → PlayerBattleInput.units[].carryState `{ hpPct, sp }`, "阵地以其当前状态";
 // community report #34 / GitHub #82: it used to restart for free). An operator knocked out at the end of its own combat (alive false) is fielded with
@@ -18,10 +22,11 @@
 // them beside the operators; one off the field at the end enters fresh [ASSUMED]). Enemies = the union of every leaker's
 // counted leaks (same stats: the SpawnSpec mods travel with the leak), routed on the escaped template (`escaped_single`
 // for 1 helper, `escaped_multi` for 2): walkers on its `lrsldr` action, flyers on `yokai`, tokens on `gopro_2` /
-// `lazerd` (waves.js buildUniteWave); kill bounties keep paying the killer (a helper). No IN_BATTLE layer gains ("该阶段
-// 不能叠加层数"); the helpers' bonds carry the layers their own combat reached (PlayerState.battleInput `reached`: the
-// round's pending gains, capped like settle() — the strip's count; "以其阵地当前的状态" [ASSUMED] includes them; until 0.1.3
-// the round-start layers), and settle() still adds those gains once. Time limit = the round's combat limit.
+// `lazerd` (waves.js buildUniteWave); kill bounties keep paying the killer (a helper) — a death no operator caused pays
+// the helper whose half it fell on (Battle._bountyPayee). No IN_BATTLE layer gains ("该阶段不能叠加层数"); the helpers'
+// bonds carry the layers their own combat reached (PlayerState.battleInput `reached`: the round's pending gains, capped
+// like settle() — the strip's count; "以其阵地当前的状态" [ASSUMED] includes them; until 0.1.3 the round-start layers),
+// and settle() still adds those gains once. Time limit = the round's combat limit.
 // LP: an enemy still alive at the end (leaked in the unite battle, or never spawned before the limit) costs its
 // SOURCE player 1 LP; each player's round loss = min(lpCap, survivors attributed to them + leaks that could not
 // re-enter) — the same 10 cap as a normal round.
@@ -113,6 +118,21 @@ export function helperOrder(m, perfects, results) {
   const select = perfects.slice().sort((a, b) => S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).standing - S(a).standing || a.seat - b.seat)
     .slice(0, m.gd.unite.maxHelpers);
   return select.sort((a, b) => S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).layers - S(a).layers || S(b).standing - S(a).standing || a.seat - b.seat);
+}
+
+/**
+ * Historical upstream escaped-template map lookup, used by the official golden/reference fixtures only.
+ * The fork's MatchUnite keeps the match's original stage; config.unite.templates[n] still supplies its re-entry wave.
+ * null when the data has no such stage.
+ * @param {import('./gamedata.js').GameData} gd
+ * @param {number} helperCount
+ * @returns {string|null}
+ */
+export function uniteStageId(gd, helperCount) {
+  const templates = gd.unite.templates || {};
+  const id = templates[String(helperCount)] ?? templates[helperCount] ?? null;
+  const st = id ? gd.stage(id) : null;
+  return st && st.kind === 'unite' ? id : null;
 }
 
 /** Battle options for the unite field (without data/logger, added by the match). */

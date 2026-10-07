@@ -30,6 +30,7 @@ def canonical(value):
 def code_path(name):
     return name in ('package.json', 'package-lock.json', 'public/index.html') \
         or name.startswith(('server/', 'shared/', 'data/', 'public/js/', 'public/css/')) \
+        or re.fullmatch(r'public/i18n/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\.json', name) is not None \
         or name in tuple('deploy/stardust/auth/' + file for file in AUTH_FILES)
 
 

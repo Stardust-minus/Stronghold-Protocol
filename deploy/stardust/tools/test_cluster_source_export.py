@@ -62,6 +62,60 @@ class ClusterSourceExportTests(unittest.TestCase):
         self.assertEqual(row['sha256'], identity['generatedRendererIndex']['sha256'])
         self.assertEqual((self.output / 'app/data/local-assets.json').read_bytes(), (self.root / 'data/local-assets.json').read_bytes())
 
+    def test_committed_language_packs_are_code_not_public_art(self):
+        self.put('public/i18n/en.json', '{"_meta":{"lang":"en"},"开始":"Start"}\n')
+        self.put('public/i18n/zh-TW.json', '{"_meta":{"lang":"zh-TW"},"开始":"開始"}\n')
+        self.put('data/i18n/en.json', '{"files":{}}\n')
+        self.git('add', 'public/i18n/en.json', 'public/i18n/zh-TW.json', 'data/i18n/en.json')
+        self.git('commit', '-qm', 'fixture language packs')
+        self.revision = self.git('rev-parse', 'HEAD').decode().strip()
+        exporter.export(self.root, self.output, self.revision)
+        source = json.loads((self.output / 'source-manifest.json').read_text())
+        resources = json.loads((self.output / 'resource-manifest.json').read_text())
+        for relative in ['public/i18n/en.json', 'public/i18n/zh-TW.json', 'data/i18n/en.json']:
+            self.assertIn(relative, [row['path'] for row in source['files']])
+            self.assertNotIn(relative, [row['path'] for row in resources['files']])
+            self.assertEqual((self.output / 'app' / relative).read_bytes(), (self.root / relative).read_bytes())
+
+    def test_language_pack_export_rejects_uncommitted_change(self):
+        self.put('public/i18n/en.json', '{}\n')
+        self.git('add', 'public/i18n/en.json')
+        self.git('commit', '-qm', 'fixture language pack')
+        self.revision = self.git('rev-parse', 'HEAD').decode().strip()
+        self.put('public/i18n/en.json', '{"changed":true}\n')
+        with self.assertRaises(exporter.Refused):
+            exporter.export(self.root, self.output, self.revision)
+        self.assertFalse(self.output.exists())
+
+    def test_language_pack_selection_does_not_broaden_to_other_public_data(self):
+        self.assertTrue(exporter.code_path('public/i18n/en.json'))
+        self.assertTrue(exporter.code_path('public/i18n/zh-TW.json'))
+        for path in ['public/i18n/.secret.json', 'public/i18n/../secret.json',
+                     'public/i18n/en.js', 'public/i18n/en.json/private.json',
+                     'public/packs/random.json', 'public/assets/data.json']:
+            self.assertFalse(exporter.code_path(path), path)
+
+    def test_verified_webp_renderer_atlas_is_bound_as_generated_resource(self):
+        index = json.loads((self.root / 'data/local-assets.json').read_text())
+        record = index['groups']['map/autochess']['TX_autochessi_D']
+        record['path'] = '/assets/local/map/autochess/TX_autochessi_D.webp'
+        self.put('data/local-assets.json', json.dumps(index))
+        self.put('public/assets/local/map/autochess/TX_autochessi_D.webp', 'fixture WebP atlas')
+        identity = exporter.export(self.root, self.output, self.revision)
+        self.assertEqual(identity['generatedRendererIndex']['resourceReferences'], 2)
+        self.assertEqual((self.output / 'app/public/assets/local/map/autochess/TX_autochessi_D.webp').read_text(), 'fixture WebP atlas')
+
+    def test_unknown_or_relocated_renderer_atlas_is_rejected_before_export(self):
+        index = json.loads((self.root / 'data/local-assets.json').read_text())
+        for target in ['/assets/local/map/autochess/TX_autochessi_D.jpg',
+                       '/assets/local/map/autochess/other.webp',
+                       '/assets/local/map/other/TX_autochessi_D.webp']:
+            index['groups']['map/autochess']['TX_autochessi_D']['path'] = target
+            self.put('data/local-assets.json', json.dumps(index))
+            with self.assertRaises(exporter.assets.Refused):
+                exporter.export(self.root, self.output, self.revision)
+            self.assertFalse(self.output.exists())
+
     def test_empty_locked_dependency_files_are_preserved(self):
         for relative in ['node_modules/dependency/types.d.ts', 'node_modules/dependency/legacy.js']:
             self.put(relative, '')

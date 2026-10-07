@@ -129,6 +129,22 @@ test('synchronous invalidation from the art fallback notification never arms an 
   assert.equal(clock.jobs.size, 0);
 });
 
+test('language-overlay retries use the injected clock alongside core data recovery', async () => {
+  const clock = new BrowserClock(); let calls = 0;
+  const store = createDataStore(options(clock, async () => {
+    if (++calls === 1) return { ok: false, status: 503 };
+    return json({ files: {} });
+  }, { retryDelays: [600] }));
+  const switching = store.setLocale('en');
+  await flushPromises();
+  assert.equal(store.locale(), 'zh');
+  assert.equal([...clock.jobs.values()][0].at, 600);
+  clock.advance(600);
+  assert.equal(await switching, 'en');
+  assert.equal(calls, 2);
+  assert.equal(clock.jobs.size, 0);
+});
+
 test('loading recovery excludes optional missing art and successful data', () => {
   const statuses = Object.fromEntries(GAME_FILES.map((name) => [name, 'ready']));
   const source = { status: (name) => statuses[name] };

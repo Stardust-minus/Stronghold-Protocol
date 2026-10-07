@@ -57,7 +57,9 @@ def generated_renderer_data(root):
     groups = value['groups']
     atlas = groups.get('map/autochess', {}).get('TX_autochessi_D')
     meshes = groups.get('mesh/map_autochess_bkg')
-    if not isinstance(atlas, dict) or atlas.get('path') != '/assets/local/map/autochess/TX_autochessi_D.png' \
+    if not isinstance(atlas, dict) or atlas.get('path') not in (
+            '/assets/local/map/autochess/TX_autochessi_D.png',
+            '/assets/local/map/autochess/TX_autochessi_D.webp') \
             or atlas.get('kind') != 'Texture2D' or not isinstance(meshes, dict) or not meshes:
         raise Refused('map atlas and mesh inventory required')
     references = set()

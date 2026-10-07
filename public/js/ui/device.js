@@ -21,6 +21,7 @@
 
 import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, Modal, Button, Fragment } from './components.js';
+import { t } from '../../../shared/i18n.js';
 
 /** A touch held this long without moving opens the detail (contextmenu) on DOM controls. */
 export const LONG_PRESS_MS = 520;
@@ -165,7 +166,7 @@ export function FullscreenButton({ class: cls = '', showUnavailable = false }) {
     return () => { d.removeEventListener('fullscreenchange', upd); d.removeEventListener('webkitfullscreenchange', upd); };
   }, []);
   if (!ok && !showUnavailable) return null;
-  const label = ok ? on ? '退出全屏' : '全屏' : '查看全屏说明';
+  const label = ok ? on ? t('退出全屏') : t('全屏') : t('查看全屏说明');
   const toggle = async () => {
     if (!ok) { setHelp('unsupported'); return; }
     if (busy) return;
@@ -178,11 +179,11 @@ export function FullscreenButton({ class: cls = '', showUnavailable = false }) {
         aria-haspopup=${ok ? undefined : 'dialog'} disabled=${busy} onClick=${toggle}>
       <${Icon} name=${on ? 'collapse' : 'expand'} />
     </button>
-    <${Modal} open=${!!help} title="全屏模式" micro="DISPLAY MODE" ariaLabel="全屏模式说明" trapFocus=${true}
-        class="fullscreen-help" onClose=${() => setHelp(null)} actions=${html`<${Button} onClick=${() => setHelp(null)}>知道了<//>`}>
-      <p>${help === 'unsupported' ? '当前浏览器不支持网页原生全屏。部分手机浏览器（包括部分 iPhone 浏览器）无法由网页隐藏地址栏。' : '浏览器未允许进入全屏。请直接点击全屏按钮重试，或检查浏览器权限。'}</p>
-      <p>如果浏览器菜单提供“添加到主屏幕”，可以尝试从主屏幕以独立窗口打开。系统状态栏是否隐藏仍由浏览器与系统决定。</p>
-      <p>我们不会把普通网页模式标记为“已经全屏”。</p>
+    <${Modal} open=${!!help} title=${t('全屏模式')} micro="DISPLAY MODE" ariaLabel=${t('全屏模式说明')} trapFocus=${true}
+        class="fullscreen-help" onClose=${() => setHelp(null)} actions=${html`<${Button} onClick=${() => setHelp(null)}>${t('知道了')}<//>`}>
+      <p>${help === 'unsupported' ? t('当前浏览器不支持网页原生全屏。部分手机浏览器（包括部分 iPhone 浏览器）无法由网页隐藏地址栏。') : t('浏览器未允许进入全屏。请直接点击全屏按钮重试，或检查浏览器权限。')}</p>
+      <p>${t('如果浏览器菜单提供“添加到主屏幕”，可以尝试从主屏幕以独立窗口打开。系统状态栏是否隐藏仍由浏览器与系统决定。')}</p>
+      <p>${t('我们不会把普通网页模式标记为“已经全屏”。')}</p>
     <//>
   <//>`;
 }

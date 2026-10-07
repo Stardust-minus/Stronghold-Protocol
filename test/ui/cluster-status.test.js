@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ConnectionStatus, PingPill } from '../../public/js/ui/components.js';
-import { experimentalOptions, ExperimentalOptions } from '../../public/js/ui/experimental.js';
+import { experimentalOptions, experimentalSummary, ExperimentalOptions } from '../../public/js/ui/experimental.js';
+import { setLang, setMessages } from '../../shared/i18n.js';
 import { loadSummary, scopedClusterLoad, ServerStatusModal } from '../../public/js/ui/serverStatus.js';
+import { gameDisplayName } from '../../public/js/serviceTelemetry.js';
 
 const source = name => readFileSync(new URL(name, import.meta.url), 'utf8');
 const details = { windowMs: 10000, ageMs: 1000, cpuPercent: 320, rssMiB: 1024, heapMiB: 128, eluPercent: 60, p95Ms: 22, p99Ms: 24 };
@@ -36,18 +38,68 @@ test('lobby lists all sixteen rows but battle rejects a cluster-scoped sample', 
 
 test('battle status names only its owner and ignores injected internal metadata', () => {
   const game = { scope: 'game', nodes: [{ ...node(13), pid: 222, host: 'secret-host', url: 'http://private-node', generation: 'private-epoch' }] };
-  assert.equal(loadSummary(game).caption, '对战 13');
+  assert.equal(loadSummary(game).caption, '叙拉古');
   const view = ServerStatusModal({ open: true, clusterLoad: game, scope: 'game' });
-  assert.equal(view.props.title, '对战 13');
+  assert.equal(view.props.title, '叙拉古');
   assert.doesNotMatch(JSON.stringify(view), /secret-host|private-node|private-epoch/);
   const pill = PingPill({ ms: 20, status: 'online', loadState: 'normal', clusterLoad: game, scope: 'game' });
-  assert.match(JSON.stringify(pill), /对战 13/);
+  assert.match(JSON.stringify(pill), /叙拉古/);
+});
+
+test('site names cover the exact sixteen slots in order without changing wire labels or adding a notice', () => {
+  const names = ['罗德岛', '企鹅物流', '莱茵生命', '黑钢国际', '喀兰贸易', '龙门', '卡西米尔', '乌萨斯',
+    '炎', '拉特兰', '萨尔贡', '哥伦比亚', '叙拉古', '萨米', '伊比利亚', '卡兹戴尔'];
+  const cluster = { scope: 'cluster', nodes: names.map((_, index) => node(index + 1)) };
+  const before = JSON.stringify(cluster);
+  const view = ServerStatusModal({ open: true, clusterLoad: cluster });
+  const rows = collect(view, v => v.type === 'tr').slice(1);
+  assert.deepEqual(rows.map(row => collect(row, v => v.props?.scope === 'row')[0].props.children), names);
+  for (let slot = 1; slot <= 16; slot++) {
+    const label = node(slot).label, game = { scope: 'game', nodes: [node(slot)] };
+    assert.equal(gameDisplayName(label), names[slot - 1]);
+    assert.equal(loadSummary(game).caption, names[slot - 1]);
+    assert.equal(ServerStatusModal({ open: true, clusterLoad: game, scope: 'game' }).props.title, names[slot - 1]);
+    assert.equal(scopedClusterLoad(game, 'game').nodes[0].label, label);
+  }
+  assert.equal(JSON.stringify(cluster), before);
+  assert.equal(new Set(names).size, 16);
+  assert.equal(gameDisplayName('game-17'), '对战 17');
+  assert.equal(gameDisplayName('game-256'), '对战 256');
+  for (const label of [null, undefined, 1, 'game-001', 'game-00', 'game-257', 'game-01\n', 'private-node', '罗德岛']) assert.equal(gameDisplayName(label), null);
+  const notices = JSON.parse(source('../../data/announcements.json'));
+  assert.equal(notices.length, 3);
+  assert.equal(notices[0].title, '联防地图独立热修复');
+  assert.doesNotMatch(notices[0].paragraphs.join('\n'), /节点更名|服务器更名|罗德岛|企鹅物流/);
+});
+
+for (const lang of ['en', 'ja', 'ko', 'zh-TW']) test(`all sixteen display names follow the ${lang} catalog`, t => {
+  const catalog = JSON.parse(source(`../../public/i18n/${lang}.json`));
+  const names = Array.from({ length: 16 }, (_, index) => gameDisplayName(node(index + 1).label));
+  setMessages(lang, catalog); setLang(lang); t.after(() => setLang('zh'));
+  for (let index = 0; index < names.length; index++) {
+    assert.equal(typeof catalog[names[index]], 'string');
+    assert.equal(gameDisplayName(node(index + 1).label), catalog[names[index]]);
+  }
 });
 
 test('partial or unavailable cluster metrics never claim normal', () => {
   assert.equal(loadSummary({ scope: 'cluster', nodes: [node(1), { ...node(2), status: 'unavailable' }] }).state, 'unknown');
   assert.equal(loadSummary({ scope: 'cluster', nodes: [node(1), { ...node(2), loadDetails: null }] }).state, 'unknown');
   assert.equal(loadSummary({ scope: 'cluster', nodes: [node(1), node(2, 'overloaded')] }).state, 'overloaded');
+});
+
+test('fork status and experimental summaries follow a language switch with unchanged rule values', (t) => {
+  const english = JSON.parse(source('../../public/i18n/en.json'));
+  setMessages('en', english);
+  setLang('en');
+  t.after(() => setLang('zh'));
+  assert.match(JSON.stringify(ConnectionStatus({ status: 'online' })), /Connected/);
+  assert.equal(loadSummary({ scope: 'game', nodes: [node(13)] }).caption, 'Siracusa');
+  assert.equal(loadSummary({ scope: 'cluster', nodes: [node(1), node(2)] }).caption, 'Cluster 2\/2');
+  const options = { revivalEnabled: false, disableSharedPool: false };
+  assert.equal(experimentalSummary(options), 'Rescue Off · Shared pool On');
+  assert.deepEqual(options, { revivalEnabled: false, disableSharedPool: false });
+  assert.equal(ServerStatusModal({ open: true, clusterLoad: { scope: 'game', nodes: [node(13)] }, scope: 'game' }).props.title, 'Siracusa');
 });
 
 test('experimental switches default off and send immutable full options only when editable', () => {
@@ -84,7 +136,7 @@ test('room options stay with difficulty controls rather than crowding ready acti
   assert.match(settings, /class="room-experimental"/);
   assert.match(settings, /size="sm"/);
   assert.doesNotMatch(actions, /setExperimentalOpen|实验性选项/);
-  assert.match(actions, /myReady \? '已就绪' : '准备就绪'/);
+  assert.match(actions, /myReady \? t\('已就绪'\) : t\('准备就绪'\)/);
   const css = source('../../public/css/screens/room.css');
   assert.match(css, /grid-template-areas: "settings actions" "status status"/);
   assert.match(css, /grid-template-areas: "settings" "status" "actions"/);

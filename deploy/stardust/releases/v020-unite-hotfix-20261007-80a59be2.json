@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "release": "v020-unite-hotfix-20261007-80a59be2",
+  "status": "formal-active-four-entries-open",
+  "recordedDate": "2026-10-07",
+  "applicationVersion": "0.2.0",
+  "upstreamInputCommit": "1303321407f9a9b80c68e0a4d47b40871a5d06c3",
+  "runtimeSource": {
+    "kind": "tree",
+    "build": "80a59be2121de90eee9579a4b2b63c65ca9b7f69",
+    "sourceManifestSha256": "80a59be2121de90eee9579a4b2b63c65ca9b7f691226b79a35118bfa27ab4c28",
+    "baseRevision": "6715bf205eff17ace9e786c5e8883b8cb544d448",
+    "sourceFiles": 578,
+    "clientBuild": "7793c19cf0fc",
+    "isGitCommit": false,
+    "laterRepositoryCommitDoesNotRelabelOrRestartRuntime": true
+  },
+  "image": {
+    "tag": "ark-proto:hotfix-v020-tree-80a59be2121d-20261007-main",
+    "localAndEdgeOciManifestId": "sha256:a2b838cd22940055a322d26f60258bc63d231017020cb8e34bfb992d03c5480c",
+    "coreClassicStoreId": "sha256:df3edf271c779234cde48dbef7e759ba7239ee2e94203f55d918f1248f0592c6",
+    "allFiveImportsMatchedRootfsLayersAndLabels": true,
+    "archiveBytes": 500657152,
+    "archiveSha256": "12253906f50eb5f3e24c18b1e3369629161670a343434d4c6d02280d450412f6",
+    "sourceOnlyOverlayOnExactVerifiedCe68Base": true,
+    "changedRuntimeFiles": 9,
+    "otherRuntimeFilesUnchanged": 569
+  },
+  "changes": {
+    "uniteUsesOriginalMatchStage": true,
+    "mapSelectionRollback": "stageId: this.stageId",
+    "obstaclesTerrainDevicesRemainInSimulationAndClientSpec": true,
+    "escapedTemplatesStillSupplyReentryWave": true,
+    "helperPositionsCarriedHpSpDownAndSettlementUnchanged": true,
+    "noticeTitle": "联防地图独立热修复",
+    "noticeExplainsIndependentSiteFixWithoutClaimingUpstreamContainsIt": true,
+    "nodeRenameIncludedInNotice": false,
+    "displayNamesInSlotOrder": [
+      "罗德岛", "企鹅物流", "莱茵生命", "黑钢国际",
+      "喀兰贸易", "龙门", "卡西米尔", "乌萨斯",
+      "炎", "拉特兰", "萨尔贡", "哥伦比亚",
+      "叙拉古", "萨米", "伊比利亚", "卡兹戴尔"
+    ],
+    "internalNodeIdsRoutesMatchingAndTelemetrySchemaUnchanged": true,
+    "displayNameLanguagePacks": ["en", "ja", "ko", "zh-TW"]
+  },
+  "formal": {
+    "coordinator": 1,
+    "gameNodes": 16,
+    "activeIngress": 4,
+    "combatWorkersPerNode": 8,
+    "trialWorkersPerNode": 2,
+    "allTwentyOneRolesNativeReady": true,
+    "mainThreadNice": -20,
+    "otherThreadsNice": 0,
+    "mainResetOnFork": true,
+    "oldExactFormalRoleContainersRemoved": 21,
+    "inMemoryRoomsAndMatchesEndedDuringAuthorizedCutover": true,
+    "temporaryMaintenanceRemovedAfterReadiness": true,
+    "noHighAvailabilityOrInMemoryMigrationClaim": true
+  },
+  "matchedResources": {
+    "resourceManifestSha256": "47f9a58614ae3dda58c88395ce7b78cc2e62f420e023f65be51d85c0e5df6f48",
+    "dependencyManifestSha256": "f70676505462d92fff1c443c9cccf6776bbf62c5db463ac59c4e16defdb4ea7c",
+    "packageLockSha256": "12c37530a208e58c7fcd9981c50a30dc9be5dc4a4dae1a84a6f269a5388a2236",
+    "publicResourceFiles": 9594,
+    "generatedRendererIndexBytes": 170137,
+    "generatedRendererIndexSha256": "1dd4ac0d67d33449edb11cd722b069030b960d35d44c1971513ad89cf456dea3",
+    "generatedRendererResourceReferences": 1598,
+    "lockedProductionPackages": 92,
+    "privateCodeUrlsPerEntry": 152,
+    "publicResourceAndDependencyFileBytesUnchangedFromCe68": true,
+    "publicProvidersNotReuploadedForHotfix": true,
+    "existingCachedJsonMaterialHeaderHotfixPreserved": true
+  },
+  "verification": {
+    "mapFixCanonicalBeforeNodeNames": { "files": 563, "tests": 6071, "passed": 6050, "skipped": 21, "failed": 0 },
+    "fullOfficialGoldenGroupsPassed": 10,
+    "officialGoldenJsonBaselinesUnchanged": true,
+    "focusedNodeTelemetryNoticeTestsPassed": 37,
+    "localOriginalMap2dAndSwiftshader3dPassed": true,
+    "localMapBrowserUsedRealUniteBattleWithNormalSelectionFixture": true,
+    "noPhysicalGpuOrPhysicalPhoneAcceptanceClaim": true,
+    "additionalBrowserCanonicalAndNativeGameplayAcceptanceSkippedByUser": true,
+    "nodeNameBrowserFixturePassed": false,
+    "nodeNameBrowserFixtureFailure": "Fixture omitted PingPill.loadState, so the status button did not exist; user then requested skipping additional acceptance.",
+    "allFivePostCutoverNativeReadOnlyChecksPassed": true,
+    "actualCoordinatorNoticeBytesMatched": true,
+    "allFourAnonymousRootTlsResponses": 401,
+    "anonymous401IsNormalPasswordGateNotMaintenance503": true,
+    "initialPublicCheckerRejected401AndWasReconciledWithoutChangingProduction": true,
+    "productionPlayerClientsOrRoomsCreatedByAcceptance": 0,
+    "earlierV020PublicGameplayAndPrivateChecksFailedDuringLuaIncidentRemainFailed": true
+  },
+  "directCoreTransfer": {
+    "noJumpOrFallback": true,
+    "bytes": 500657152,
+    "seconds": 65.72184421028942,
+    "channelLoopbackOnly": true,
+    "strictPinnedHostKeys": true,
+    "channelRuntimeMaxHours": 12,
+    "channelExpiresUtc": "2026-10-07T22:40:43Z",
+    "notPermanentAccessOrCapacityBenchmark": true
+  },
+  "preserved": {
+    "authResolverTlsProxyAndUnrelatedContainerGenerations": true,
+    "wireguardUnitAndInterfaceIdentity": true,
+    "betaRemainsStoppedOnCore": true,
+    "publicMaterialRulesAndProviderMapping": true,
+    "noDnsChanges": true,
+    "noGlobalNetworkOrImagePrune": true,
+    "bothStashes": true,
+    "noSourceCheckoutDocumentsOrTestToolsCopiedToCore": true
+  },
+  "operationalNotes": [
+    "All release records stay management/Git-side, not on Hangzhou.",
+    "Image/runtime preparation and activation claims are consumed; never replay completed or failed controllers.",
+    "This record does not authorize another restart, maintenance interval, DNS change or acceptance run.",
+    "The immutable cached JSON header repair remains a host-side overlay; future material producers need the separately documented full-size Lua/runtime gate."
+  ]
+}

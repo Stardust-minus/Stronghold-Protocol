@@ -2,7 +2,7 @@
 //
 // Exports: html (bound htm), Icon, Button, Panel, MicroLabel, Chevrons, HexBadge, TierChip,
 // BondDisc, SevenSeg, Countdown, Modal, confirmDialog/alertDialog + DialogHost, Tooltip +
-// TooltipLayer, ProgressBar, Tabs, Spinner, AvatarFrame, PhaseBanner, PingPill, DifficultyTag,
+// TooltipLayer, ProgressBar, Tabs, Spinner, AvatarFrame, PhaseBanner, ResultDialog, PingPill, DifficultyTag,
 // DifficultyIcon, TextField, UiHosts (mount once: dialogs + tooltips), useTicker, secondsLeft/hasDeadline,
 // roman(), doctorNo().
 //
@@ -17,6 +17,7 @@ import htm from '../../vendor/htm.module.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { normalizeLoadDetails } from '../../../shared/protocol.js';
 import { loadSummary, scopedClusterLoad } from '../serviceTelemetry.js';
+import { t } from '../../../shared/i18n.js';
 import { serverNow } from '../store.js';
 import { data, useData, localAsset } from '../data.js';
 import { uiUrl } from './assetUrls.js';
@@ -196,12 +197,12 @@ export function tierChipUrl(t) {
  * @param {{ tier: number, golden?: boolean, size?: 'sm'|'md'|'lg', class?: string }} props
  */
 export function TierChip({ tier, golden = false, size = 'md', class: cls }) {
-  const t = Math.max(1, Math.min(6, Number(tier) | 0 || 1));
-  const src = tierChipUrl(t);
+  const n = Math.max(1, Math.min(6, Number(tier) | 0 || 1));
+  const src = tierChipUrl(n);
   const [bad, setBad] = useState(null);
   const img = !!src && bad !== src;
-  return html`<span class=${cx('tier', `tier--${t}`, `tier--${size}`, golden && 'tier--golden', img && 'tier--img', cls)} aria-label=${`${t}阶`}>
-    ${img ? html`<img src=${src} alt="" draggable=${false} onError=${() => setBad(src)} />` : roman(t)}
+  return html`<span class=${cx('tier', `tier--${n}`, `tier--${size}`, golden && 'tier--golden', img && 'tier--img', cls)} aria-label=${t('{tier}阶', { tier: n })}>
+    ${img ? html`<img src=${src} alt="" draggable=${false} onError=${() => setBad(src)} />` : roman(n)}
   </span>`;
 }
 
@@ -242,7 +243,7 @@ export function BondDisc({
           : html`<span class="bond__glyph">${glyph}</span>`}
       </span>
       ${stack != null ? html`<span class="bond__count">${stack}</span>` : null}
-      ${disabled ? html`<span class="bond__ban" aria-label="禁用"><${Icon} name="close" /></span>` : null}
+      ${disabled ? html`<span class="bond__ban" aria-label=${t('禁用')}><${Icon} name="close" /></span>` : null}
     </span>
     ${showName && name ? html`<span class="bond__name">${name}</span>` : null}
   <//>`;
@@ -375,7 +376,7 @@ export function Countdown({ deadline, seconds, total, warnAt = 10, label = 'COUN
 
   // untimed phase: no timer on screen (hooks above run unconditionally, so the component may toggle freely)
   if (remain == null) return null;
-  return html`<div class=${cx('countdown', `countdown--${size}`, warn && 'is-warn', cls)} role="timer" aria-label=${remain == null ? '无倒计时' : `剩余${remain}秒`}>
+  return html`<div class=${cx('countdown', `countdown--${size}`, warn && 'is-warn', cls)} role="timer" aria-label=${remain == null ? t('无倒计时') : t('剩余{remain}秒', { remain })}>
     <div class="countdown__main">
       <${SevenSeg} text=${text} tone=${warn ? 'orange' : 'mint'} flicker=${warn && remain > 0} />
       ${label ? html`<span class="countdown__label">${label}</span>` : null}
@@ -505,7 +506,7 @@ export function DialogHost() {
   }, []);
   const d = dialogs[0];
   if (!d) return null;
-  const { title = '确认', text, okText = '确认', cancelText = '取消', tone, danger, micro = 'CONFIRMATION' } = d.opts;
+  const { title = t('确认'), text, okText = t('确认'), cancelText = t('取消'), tone, danger, micro = 'CONFIRMATION' } = d.opts;
   const isConfirm = d.kind === 'confirm';
   // Enter confirms unless a specific button has focus (then the native click decides).
   const onKey = (e) => {
@@ -686,7 +687,7 @@ export function Spinner({ size = 'md', label, tone = 'mint', class: cls }) {
       <polygon class="spinner__track" points="25,3 44,14 44,36 25,47 6,36 6,14" />
       <polygon class="spinner__arc" points="25,3 44,14 44,36 25,47 6,36 6,14" />
     </svg>
-    ${label ? html`<span class="spinner__label">${label}</span>` : html`<span class="sr-only">加载中</span>`}
+    ${label ? html`<span class="spinner__label">${label}</span>` : html`<span class="sr-only">${t('加载中')}</span>`}
   </span>`;
 }
 
@@ -711,8 +712,8 @@ export function AvatarFrame({ name = '', src, size = 'md', seat = 0, host, bot, 
         : bot ? html`<${Icon} name="robot" class="avatar__bot" />`
         : html`<span class="avatar__glyph">${glyph}</span>`}
     </div>
-    ${host ? html`<span class="avatar__badge avatar__badge--host" title="创建者"><${Icon} name="crown" /></span>` : null}
-    ${self ? html`<span class="avatar__badge avatar__badge--self" title="你"><${Icon} name="user" /></span>` : null}
+    ${host ? html`<span class="avatar__badge avatar__badge--host" title=${t('创建者')}><${Icon} name="crown" /></span>` : null}
+    ${self ? html`<span class="avatar__badge avatar__badge--self" title=${t('你')}><${Icon} name="user" /></span>` : null}
     ${bot && !empty ? html`<span class="avatar__tag">AI</span>` : null}
   </div>`;
 }
@@ -748,6 +749,39 @@ export function PhaseBanner({ title, sub, micro, tone = 'mint', mode = 'inline',
   </div>`;
 }
 
+/**
+ * The round's result box (the official round result dialog, shown at settlement; GitHub #235, PR #112 by @Convey123):
+ * a centred framed plate — tone-coloured frame and corner ticks, chevrons either side of the title — that opens, holds
+ * `duration` ms and closes by itself. Purely presentational: ui/gameLogic/phases.js (roundResultBox / uniteResultBox /
+ * battleResultBox) picks the words, screens/game.js the moment (SETTLE). `pointer-events: none`: it never takes a click.
+ * @param {{ title: any, sub?: any, micro?: string, tone?: 'mint'|'orange'|'red', duration?: number, onDone?: Function }} props
+ *   duration (ms) > 0 auto-hides then calls onDone. Re-key to replay.
+ */
+export function ResultDialog({ title, sub, micro, tone = 'mint', duration = 2800, onDone }) {
+  const [leaving, setLeaving] = useState(false);
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    if (!(duration > 0)) return undefined;
+    const t1 = setTimeout(() => setLeaving(true), duration);
+    const t2 = setTimeout(() => { setGone(true); onDone?.(); }, duration + 300);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [duration]);
+  if (gone) return null;
+  return html`<div class=${cx('rdialog', `rdialog--${tone}`, leaving && 'is-leaving')} role="status" aria-live="polite">
+    <div class="rdialog__box">
+      <span class="rdialog__tick rdialog__tick--tl"></span><span class="rdialog__tick rdialog__tick--tr"></span>
+      <span class="rdialog__tick rdialog__tick--bl"></span><span class="rdialog__tick rdialog__tick--br"></span>
+      ${micro ? html`<span class="rdialog__micro">${micro}</span>` : null}
+      <div class="rdialog__row">
+        <${Chevrons} count=${3} tone=${tone} class="rdialog__chev" />
+        <span class="rdialog__title">${title}</span>
+        <${Chevrons} count=${3} tone=${tone} dir="left" class="rdialog__chev" />
+      </div>
+      ${sub ? html`<span class="rdialog__sub">${sub}</span>` : null}
+    </div>
+  </div>`;
+}
+
 // ---- domain helpers ----------------------------------------------------------------------------
 
 /**
@@ -769,34 +803,34 @@ export function doctorNo(id) {
  * @param {{ ms?: number|null, online?: boolean, loadState?: string, class?: string }} props
  */
 export function ConnectionStatus({ status = 'idle' }) {
-  const labels = { idle: '未连接', connecting: '连接中', connected: '已连接', handshaking: '验证中', online: '已连接', reconnecting: '重连中', closed: '已断开' };
+  const labels = { idle: t('未连接'), connecting: t('连接中'), connected: t('已连接'), handshaking: t('验证中'), online: t('已连接'), reconnecting: t('重连中'), closed: t('已断开') };
   const tone = status === 'online' || status === 'connected' ? 'on' : ['connecting', 'handshaking', 'reconnecting'].includes(status) ? 'waiting' : 'off';
-  return html`<span class=${`connection-status connection-status--${tone}`} role="status"><i aria-hidden="true" />${labels[status] || '未连接'}</span>`;
+  return html`<span class=${`connection-status connection-status--${tone}`} role="status"><i aria-hidden="true" />${labels[status] || t('未连接')}</span>`;
 }
 
 export function PingPill({ ms, online = true, status, loadState, loadDetails, clusterLoad, scope = 'cluster', onLoadClick, loadOpen = false, class: cls }) {
   const ok = online && Number.isFinite(ms);
   const tier = !ok ? 'off' : ms < 60 ? 'low' : ms < 200 ? 'medium' : 'high';
-  const ping = html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? `WebSocket 往返响应 ${ms}ms` : online ? '等待新测量' : '未连接'}>
+  const ping = html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? t('WebSocket 往返响应 {ms}ms', { ms }) : online ? t('等待新测量') : t('未连接')}>
     <${Icon} name=${online ? 'signal' : 'wifiOff'} class="ping__icon" />
     <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>
   </span>`;
   if (loadState === undefined && status === undefined) return ping;
-  const labels = { unknown: '未知', normal: '正常', busy: '繁忙', overloaded: '拥堵' };
+  const labels = { unknown: t('未知'), normal: t('正常'), busy: t('繁忙'), overloaded: t('拥堵') };
   const load = online ? scopedClusterLoad(clusterLoad, scope) : null;
   const summary = loadSummary(load);
   const state = online && !(clusterLoad != null && !load) ? summary?.state ?? (typeof loadState === 'string' && Object.hasOwn(labels, loadState) ? loadState : 'unknown') : 'unknown';
   const details = online ? normalizeLoadDetails(load?.scope === 'game' ? load.nodes[0]?.loadDetails : loadDetails) : null;
   const preview = summary ? `${summary.caption} · ${labels[state]}` : details
-    ? `CPU ${details.cpuPercent ?? '--'}% · ${details.rssMiB ?? '--'} MiB` : '等待采样';
+    ? `CPU ${details.cpuPercent ?? '--'}% · ${details.rssMiB ?? '--'} MiB` : t('等待采样');
   return html`<span class="latency-status">
     ${status !== undefined ? html`<${ConnectionStatus} status=${status} />` : null}${ping}
     ${loadState !== undefined ? html`<${Tooltip} text=${preview} placement="bottom">
-      <button type="button" class=${`server-load-button server-load--${state}`} aria-label="查看游戏服务开销" aria-haspopup="dialog"
+      <button type="button" class=${`server-load-button server-load--${state}`} aria-label=${t('查看游戏服务开销')} aria-haspopup="dialog"
           aria-expanded=${loadOpen ? 'true' : 'false'} onClick=${onLoadClick} disabled=${!onLoadClick}>
         <${Icon} name="server" class="server-load__icon" />
-        <span class=${`server-load server-load--${state}`} role="status" aria-label=${`服务器负载${labels[state]}`} title="主线程响应压力">
-          <span class="server-load__caption">${summary?.caption ?? '服务'}</span><b>${labels[state]}</b>
+        <span class=${`server-load server-load--${state}`} role="status" aria-label=${t('服务器负载{0}', { 0: labels[state] })} title=${t('主线程响应压力')}>
+          <span class="server-load__caption">${summary?.caption ?? t('服务')}</span><b>${labels[state]}</b>
         </span>
       </button>
     <//>` : null}
@@ -825,7 +859,7 @@ export function DifficultyIcon({ difficulty, class: cls }) {
  * @param {{ difficulty: string, size?: 'sm'|'md'|'lg', class?: string, code?: string }} props
  */
 export function DifficultyTag({ difficulty, size = 'md', class: cls, code }) {
-  const name = DIFFICULTY_NAMES[difficulty] || difficulty || '—';
+  const name = DIFFICULTY_NAMES[difficulty] ? t(DIFFICULTY_NAMES[difficulty]) : difficulty || '—';
   const color = DIFFICULTY_COLORS[difficulty] || 'var(--text-lo)';
   return html`<span class=${cx('dtag', `dtag--${size}`, cls)} style=${`--d-color:${color}`}>
     <${DifficultyIcon} difficulty=${difficulty} class="dtag__icon" />

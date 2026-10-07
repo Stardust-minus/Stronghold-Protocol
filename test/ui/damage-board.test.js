@@ -211,5 +211,5 @@ test('expanded rows reuse manifest avatars, accessible exact-value tooltips and 
   assert.match(component, /<\$\{Tooltip\} text=\$\{detail\}/);
   assert.match(component, /tabIndex="0" aria-label=\$\{detail\}/);
   assert.match(component, /share\.toFixed\(1\)/);
-  assert.match(component, /aria-label="输出统计"/);
+  assert.match(component, /aria-label=\$\{t\('输出统计'\)\}/);
 });

@@ -33,6 +33,8 @@ async function client(url, name, token) {
   socket.send(JSON.stringify({ t: 'hello', name, token, version: 1, matchmakingVersion: MATCHMAKING_VERSION }));
   await until(() => frames.some(frame => frame.t === 'welcome'));
   const welcome = frames.find(frame => frame.t === 'welcome');
+  assert.equal(Object.keys(welcome)[0], 't', 'the ingress can inspect the frame type without parsing optional DIY metadata');
+  assert.ok(Array.isArray(welcome.diyKitted), 'the new operator kit catalog survives the cluster ingress');
   const request = (t, fields = {}) => new Promise((resolve, reject) => {
     const id = ++rid;
     const timer = setTimeout(() => { pending.delete(id); reject(new Error('fixture request deadline')); }, 7000);

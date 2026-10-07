@@ -26,7 +26,8 @@ function matchDTO(room, seed, snapshotHz) {
     revivalEnabled: room.revivalState().enabled, disableSharedPool: room.experimental.disableSharedPool,
     experimental: room.experimental, seed, matchNo: room.matchCount + 1,
     seats: room.seats.filter(Boolean).map(s => ({ seat: s.seat, playerId: s.playerId, name: s.name,
-      isBot: s.isBot, connected: s.connected, loadout: structuredClone(s.isBot ? null : s.loadout || null) })),
+      isBot: s.isBot, connected: s.connected, loadout: structuredClone(s.isBot ? null : s.loadout || null),
+      notOwned: structuredClone(s.isBot ? null : s.notOwned || null), diy: structuredClone(s.isBot ? null : s.diy || null) })),
     spectators: room.spectators.map(s => s.playerId), ...(snapshotHz === undefined ? {} : { snapshotHz }),
   };
 }
@@ -300,7 +301,9 @@ export class ClusterLobby extends Lobby {
           || this.rooms.get(room.code) !== room || room.match || !isDeepStrictEqual(roomStamp(room), stamp)) return false;
         if (!identities.every((s, i) => this.registry.byId(s.playerId) === s && s.roomCode === room.code && (s.limitKey || null) === sessionKeys[i])) return false;
         if (!plan.dto.seats.filter(s => !s.isBot).every(seat => this.isOnline(this.registry.byId(seat.playerId))
-          && isDeepStrictEqual(this.registry.byId(seat.playerId)?.loadout || null, seat.loadout))) return false;
+          && isDeepStrictEqual(this.registry.byId(seat.playerId)?.loadout || null, seat.loadout)
+          && isDeepStrictEqual(this.registry.byId(seat.playerId)?.notOwned || null, seat.notOwned)
+          && isDeepStrictEqual(this.registry.byId(seat.playerId)?.diy || null, seat.diy))) return false;
         const current = this.inspectManual(session);
         return !current.error && current.room === room && current.key === check.key
           && isDeepStrictEqual(current.keys, check.keys) && isDeepStrictEqual(matchDTO(room, plan.dto.seed, this.opts.snapshotHz), plan.dto);

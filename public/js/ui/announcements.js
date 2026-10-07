@@ -2,6 +2,7 @@
 import { html, Button, Icon, Modal, Spinner } from './components.js';
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { loadPref, savePref } from '../store.js';
+import { t } from '../../../shared/i18n.js';
 
 /** Validate the whole editorial list; never silently truncate or turn malformed content into an empty board. */
 export function parseAnnouncements(value) {
@@ -69,26 +70,26 @@ export function AnnouncementBoard({ status = 'idle', value, onRetry, onClose }) 
     window.addEventListener('resize', measure);
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
   }, [status, value]);
-  return html`<${Modal} open=${true} title="公告板" micro="BULLETIN BOARD" ariaLabel="大厅公告板" trapFocus=${true}
+  return html`<${Modal} open=${true} title=${t('公告板')} micro="BULLETIN BOARD" ariaLabel=${t('大厅公告板')} trapFocus=${true}
       closeOnBackdrop=${false} class="announcement-board lobby-dialog" onClose=${onClose}
-      actions=${html`<${Button} icon="close" onClick=${onClose} data-autofocus>关闭公告<//>`}>
-    ${loading ? html`<div class="announcement-state" role="status"><${Spinner} label="LOADING" /><p>正在读取公告…</p></div>`
+      actions=${html`<${Button} icon="close" onClick=${onClose} data-autofocus>${t('关闭公告')}<//>`}>
+    ${loading ? html`<div class="announcement-state" role="status"><${Spinner} label="LOADING" /><p>${t('正在读取公告…')}</p></div>`
       : entries === null ? html`<div class="announcement-state" role="status">
-        <${Icon} name="warn" /><h3>暂时无法显示公告</h3>
-        <p>${status === 'ready' ? '公告内容格式有误，请稍后再试。' : '公告未能加载，其他大厅功能仍可正常使用。'}</p>
-        <${Button} icon="refresh" onClick=${onRetry}>重试公告<//>
+        <${Icon} name="warn" /><h3>${t('暂时无法显示公告')}</h3>
+        <p>${status === 'ready' ? t('公告内容格式有误，请稍后再试。') : t('公告未能加载，其他大厅功能仍可正常使用。')}</p>
+        <${Button} icon="refresh" onClick=${onRetry}>${t('重试公告')}<//>
       </div>`
-      : !entries.length ? html`<div class="announcement-state" role="status"><${Icon} name="info" /><h3>暂无公告</h3><p>新的公告会在这里显示。</p></div>`
-      : html`<div ref=${scrollRef} class="announcement-scroll" role="region" aria-label="公告内容，可滚动" tabindex="0" onScroll=${measure}>
+      : !entries.length ? html`<div class="announcement-state" role="status"><${Icon} name="info" /><h3>${t('暂无公告')}</h3><p>${t('新的公告会在这里显示。')}</p></div>`
+      : html`<div ref=${scrollRef} class="announcement-scroll" role="region" aria-label=${t('公告内容，可滚动')} tabindex="0" onScroll=${measure}>
         <div class="announcement-list">${entries.map((entry, i) => html`<article key=${i} class="announcement-entry">
           <header><h3>${entry.title}</h3>${entry.date ? html`<span class="announcement-date num">${entry.date}</span>` : null}</header>
           ${entry.paragraphs.map((text, j) => html`<p key=${j}>${text}</p>`)}
         </article>`)}</div>
       </div>`}
     ${entries?.length ? html`<div class=${`announcement-reading${scroll.more ? ' has-more' : ''}`}>
-      <div class="announcement-reading__track" role="progressbar" aria-label="公告阅读位置" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${scroll.percent}>
+      <div class="announcement-reading__track" role="progressbar" aria-label=${t('公告阅读位置')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${scroll.percent}>
         <i style=${`transform:scaleX(${scroll.percent / 100})`} />
-      </div><span>${scroll.more ? html`<${Icon} name="chevronRight" />向下滑动查看剩余公告` : scroll.scrollable ? '已到公告末尾' : '内容已完整显示'}</span>
+      </div><span>${scroll.more ? html`<${Icon} name="chevronRight" />${t('向下滑动查看剩余公告')}` : scroll.scrollable ? t('已到公告末尾') : t('内容已完整显示')}</span>
     </div>` : null}
   <//>`;
 }

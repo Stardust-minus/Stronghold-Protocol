@@ -2,7 +2,7 @@
 // socket carries lobby control and its assigned node's direct game stream.
 import http from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { NET_DEFAULTS, TokenBucket, clientAddress, encode, sendRaw, errorMsg, CLOSE } from '../net.js';
+import { NET_DEFAULTS, TokenBucket, clientAddress, encode, sendRaw, errorMsg, CLOSE, HEAVY_TYPES } from '../net.js';
 import { C2S, validateC2S } from '../../shared/protocol.js';
 import { ERR } from '../../shared/constants.js';
 import { isCompressibleType, resolveWsCompression } from '../wsCompression.js';
@@ -249,7 +249,7 @@ export async function startIngress({ host = '127.0.0.1', port = 0, coordinatorUr
       if (!plain(message) || typeof message.t !== 'string' || !Object.hasOwn(C2S, message.t) || validateC2S(message)) {
         outward(peer, encode(errorMsg(ERR.BAD_MSG, validRid(rid) ? rid : undefined))); return;
       }
-      if (['g.watch', 'room.loadout', 'queue.join', 'room.spectate'].includes(message.t) && !peer.heavy.take(at)) {
+      if (HEAVY_TYPES.has(message.t) && !peer.heavy.take(at)) {
         outward(peer, encode(errorMsg(ERR.RATE, rid))); return;
       }
       const text = raw.toString();

@@ -82,7 +82,26 @@ test('shipped announcement data validates; optional board is mounted from the lo
   assert.match(lobby, /data\.invalidate\('announcements'\)/);
   assert.match(board, /onClick=\$\{onRetry\}/);
   assert.doesNotMatch(board, /dangerouslySetInnerHTML|innerHTML|setInterval|net\.request/);
-  assert.match(board, /ariaLabel="大厅公告板" trapFocus=\$\{true\}/);
+  assert.match(board, /ariaLabel=\$\{t\('大厅公告板'\)\} trapFocus=\$\{true\}/);
+});
+
+test('prepared 0.2.0 update notice explains player features and maintenance without internal deployment details', () => {
+  const entries = parseAnnouncements(JSON.parse(source('../../data/announcements.json')));
+  const update = entries.find((entry) => entry.title === '0.2.0 大版本更新与游玩体验升级');
+  assert.ok(update, 'the original major-version notice remains available');
+  const text = update.paragraphs.join('\n');
+  for (const feature of ['干员持有', '替补干员', '自选编队', '界面语言', '快捷键', '无需选择分区']) assert.ok(text.includes(feature), feature);
+  assert.match(text, /旧房间和对局无法保留/);
+  assert.doesNotMatch(text, /coordinator|ingress|Worker|WireGuard|ModelScope|OpenI|\b\d{1,3}(?:\.\d{1,3}){3}\b/);
+  assert.ok(entries.some((entry) => entry.title === '欢迎游玩卫戍协议！卫来！'));
+});
+
+test('original-map hotfix notice is first and identifies the independent site fix, not an upstream release', () => {
+  const entries = parseAnnouncements(JSON.parse(source('../../data/announcements.json')));
+  assert.equal(entries[0].title, '联防地图独立热修复');
+  const text = entries[0].paragraphs.join('\n');
+  for (const detail of ['博士反馈', '未等待上游主线提供修复', '本站独立热修复', '不代表上游主线已经包含', '沿用本局原本的地图', '障碍物', '特殊地形', '场景装置', '继承', '结算规则保持不变']) assert.ok(text.includes(detail), detail);
+  assert.doesNotMatch(text, /coordinator|ingress|Worker|WireGuard|ModelScope|OpenI|\b\d{1,3}(?:\.\d{1,3}){3}\b/);
 });
 
 test('modal focus remains opt-in and compact matching explains room-owned experimental rules', () => {
@@ -90,10 +109,10 @@ test('modal focus remains opt-in and compact matching explains room-owned experi
   const experimental = source('../../public/js/ui/experimental.js'), revival = source('../../public/js/ui/revival.js');
   assert.match(modal, /trapFocus = false/); assert.match(modal, /aria-label=\$\{ariaLabel\}/);
   assert.match(modal, /trapFocus && e\.key === 'Tab'/); assert.match(modal, /prevFocus\?\.focus/);
-  assert.match(matching, /compact = false/); assert.match(matching, /compact \? null : html`<small>\$\{MATCHING_RULES\}/);
-  assert.match(matching, /\$\{MATCHING_RULES\}<\/p><p class="modal__text">\$\{EXPERIMENTAL_RULES\}/);
+  assert.match(matching, /compact = false/); assert.match(matching, /compact \? null : html`<small>\$\{t\(MATCHING_RULES\)\}/);
+  assert.match(matching, /\$\{t\(MATCHING_RULES\)\}<\/p><p class="modal__text">\$\{t\(EXPERIMENTAL_RULES\)\}/);
   assert.match(matching, /未完成确认者不自动回队/); assert.match(matching, /单人匹配跟随所加入房间/);
   assert.doesNotMatch(matching, /revivalVote|开启复活并确认|赞成开启/);
-  assert.match(experimental, /title="实验性选项"/); assert.match(experimental, /revivalEnabled/); assert.match(experimental, /disableSharedPool/);
+  assert.match(experimental, /title=\$\{t\('实验性选项'\)\}/); assert.match(experimental, /revivalEnabled/); assert.match(experimental, /disableSharedPool/);
   assert.match(revival, /me\.lp >= 11/); assert.match(revival, /至少 11 生命，可支付 10 点救援/);
 });

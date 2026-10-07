@@ -203,8 +203,8 @@ earlier commit (a current run differs for every leader) and were not refreshed h
 
 Reading: the early game is easy everywhere (official R1–R3 bring 3–10 enemies); leaks concentrate on the second-half
 specials (深池逐火 TIMES embers, stealth 隐形弩手组长 / 重弩突袭者, 疯狂的逐腐兽, 掠海漂移体) and 终极 R6–R11, where co-op
-boards still leak 3–6 and 联防 halves the LP cost. Solo leaders (bloodPoint × 0.25 [ASSUMED]) are the hard part of the
-solo modes; the solo pool factor is the one open number here (research 08 §8 #2).
+boards still leak 3–6 and 联防 halves the LP cost. Solo leaders (bloodPoint × 0.25 [ASSUMED] when these tables were
+measured; × 1 since the owner's decision of 2026-10-06, §25.13.4) are the hard part of the solo modes.
 
 Reproduce: `node tools/balance.mjs --mode all --difficulty ALL --tuning off [--bots 5] [--json]`.
 
@@ -426,6 +426,16 @@ on a leader is cancelled (`MAX_BATTLE_DAMAGE`: 0 damage, nothing to the pool —
   `--profile` above ≈ 4.9 would have pushed the 170-layer R15 core curve, +20 % jitter, past 999) and
   `matchrun.mjs --layers N` adds at most the room left under 999, so `--check` stays clean on a boosted run.
 - **Pool size and the line**: a drone that dies (whoever kills it, DESIGN §20.13) costs 假想敌：胄 0.02 × the pool
-  max (【死亡集群】, boss_1 / boss_8; `bosses.js DRONE_LINK_BASE 'pool'`). Today that is at most 144000 (boss_8 ABYSS 7.2M) and lands; a pool above 14999950 would make every
-  drone kill a cancelled hit. Re-check this whenever the pool size changes (research 11 §6).
+  max (【死亡集群】, boss_1 / boss_8; `bosses.js DRONE_LINK_BASE 'pool'`). With the pool per player alive (§25.13.4) the
+  hidden 胄 终极 pool is 21.6M / 28.8M at 3 / 4 players, so a drone is 432000 / 576000 — above the line; the link is a
+  share, no hit, and passes it (`Battle.loseHp noHitLimit` [ASSUMED]: research 11 §2.1 checks every damage modifier, but
+  which max HP the official link reads is not documented). Re-check this whenever the pool size changes (research 11 §6).
 
+
+## Stardust 0.2.0 integration note
+
+The active fork retains its approved co-op `bloodPoint × alive / 4` and solo ×0.25
+leader pool (`perPlayer: false`, `aliveScaling: true`, `aliveFull: 4`). Upstream
+0.2.0 defaults to co-op ×alive and solo ×1; its history and counterfactual rule
+remain documented, not presented as this deployment's default. See
+[DESIGN.md — Stardust fork overrides](DESIGN.md#stardust-fork-overrides).

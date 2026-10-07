@@ -1,7 +1,7 @@
 // Process-local game actors. A whole Match stays here; this is neither a session
 // registry nor durable recovery. The caller owns authentication, transport and pools.
 import { Match } from '../match/Match.js';
-import { C2S, LOADOUT_LIMITS } from '../../shared/protocol.js';
+import { C2S, LOADOUT_LIMITS, isNotOwnedList, isDiyPicks } from '../../shared/protocol.js';
 import { experimentalOptions, isExperimental } from '../../shared/experimental.js';
 import { DIFFICULTIES, ERR, MAX_SEATS, NAME_MAX_LEN, modeIdFor } from '../../shared/constants.js';
 
@@ -12,7 +12,7 @@ const integer = (v, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(
 const plain = v => !!v && typeof v === 'object' && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
 const onlyKeys = (v, keys) => Object.keys(v).every(k => keys.includes(k));
 const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'snapshotHz'];
-const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout'];
+const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'notOwned', 'diy'];
 // Match's public observer contract, including the lobby's broadcast ticker/emote
 // and server-combat streams. Unknown types fail closed for observers.
 const SPECTATOR_TYPES = new Set(['m.public', 'm.field', 'm.result', 'm.ticker', 'm.emote', 'm.damage', 'b.start', 'b.snap', 'b.ev', 'b.pool', 'b.end', 'b.damage']);
@@ -74,6 +74,14 @@ function specCopy(spec) {
     if (!s.isBot) humans++;
     const seat = { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected };
     if (s.loadout !== undefined) seat.loadout = loadoutCopy(s.loadout);
+    if (s.notOwned !== undefined) {
+      if (s.notOwned !== null && !isNotOwnedList(s.notOwned)) invalid();
+      seat.notOwned = s.notOwned === null ? null : [...s.notOwned];
+    }
+    if (s.diy !== undefined) {
+      if (s.diy !== null && (!isDiyPicks(s.diy) || Object.values(s.diy).some(p => p != null && !onlyKeys(p, ['charId', 'skillIndex', 'uniEquipId'])))) invalid();
+      seat.diy = s.diy === null ? null : copy(s.diy);
+    }
     return seat;
   });
   const spectators = spec.spectators ?? [];

@@ -98,11 +98,17 @@ function richPending(t, o = {}) {
   };
   s.fight(({ m }) => {
     // Representative late grants/settled state, which are normally usable through the next prep.
-    const tempPiece = give(m, target, ids[2], 'temp');
-    target._tempDue.set(tempPiece.uid, target.prepsEnded);
-    const equipment = Object.entries(DATA.items).filter(([, item]) => item.itemType === 'EQUIP' && !item.isGolden).map(([id]) => id);
+    const equipment = Object.entries(DATA.items).filter(([id, item]) => item.itemType === 'EQUIP' && !item.isGolden && id !== 'chess_item_2_03_e_a').map(([id]) => id);
     boardPiece.items.push(target.newPiece('item', equipment[0]));
     giveItem(m, target, equipment[1]);
+    // 0.2.0 automatically pulls overflow into free hand slots; actual overflow requires a full hand.
+    for (const item of equipment.slice(2)) {
+      if (!target.hand.some(p => p == null)) break;
+      giveItem(m, target, item);
+    }
+    assert.ok(target.hand.every(Boolean), 'late-grant fixture has a full hand');
+    const tempPiece = give(m, target, ids[2], 'temp');
+    target._tempDue.set(tempPiece.uid, target.prepsEnded);
     target.funds = 23;
     target.pendingFunds = 7;
     target.shop.frozen = true;
