@@ -4,10 +4,9 @@
 //     without the per-bond extras the client reads from bonds.json (thresholds / countsHand); nothing else (but `harmony`
 //     on an entry whose count holds 调和's +1, DESIGN §21.26: test/match/feedback1-gaps.test.js) — and nothing at all for
 //     an eliminated player (nobody can watch them).
-//   * From the end of COMBAT until the settlement the views (m.private and m.public) carry the finished normal battle's
-//     in-battle gains (PlayerState.bondsView / bondsMeta.bondsWithGains, capped at 999): the strip of a player — and of a
-//     teammate watching him in the 联防 — keeps the layers his battle reached. The persistent state is untouched and the
-//     settlement adds the gains once.
+//   * Normal-battle gains are retained live (capped at 999), then shown in m.private/m.public and carried to 联防.
+//     Result-only fixtures still credit at their field completion. SETTLE reconciles only an uncredited remainder;
+//     already retained layers must not reappear as pending overlays or be added twice.
 //   * The runner publishes state().bondLayers { [playerId]: { [bondId]: n } } — absolute live counts of every bond that
 //     grew in a battle it simulates (the own one, a teammate's display replica), ≤ 999, kept through the round; and
 //     ownerOps(ownerId) — that player's operators in the battle on screen (a teammate's popup: the members in play).
@@ -76,7 +75,7 @@ test('bondsWithGains: adds a result\'s layerGains like settle() (floored, ≤ 99
   assert.equal(bondsWithGains({ yanShip: { ...bonds.yanShip, layers: 999 } }, { yanShip: 5 }).yanShip.layers, 999, 'at the cap: nothing');
 });
 
-test('after COMBAT the views carry the battle\'s gains until SETTLE makes them persistent (once); the state is untouched meanwhile', () => {
+test('COMBAT results reconcile into persistent layers before SETTLE; views and settlement never double the gains', () => {
   const h = makeMatch({
     mode: 'coop', humans: 2, seed: 92, fake: true,
     script: (b) => (b.round === 1 ? { layerGains: { p_0: { yanShip: 50 }, p_1: { sargonShip: 12 } } } : {}),
@@ -89,8 +88,9 @@ test('after COMBAT the views carry the battle\'s gains until SETTLE makes them p
   // the COMBAT_END pause: every result is in, nothing settled yet
   h.drive(() => m.phase === PHASE.COMBAT && m.lastResults.size === 2);
   assert.equal(m.phase, PHASE.COMBAT);
-  assert.deepEqual([a.layers.yanShip, b.layers.sargonShip || 0], [980, 0], 'nothing persistent yet');
-  assert.equal(a.bonds.yanShip.layers, 980, 'the computed state is untouched (rules read it)');
+  assert.deepEqual([a.layers.yanShip, b.layers.sargonShip || 0], [BOND_LAYER_CAP, 12], 'both counts already retained');
+  assert.equal(a.bonds.yanShip.layers, BOND_LAYER_CAP, 'rules and views read the same live count');
+  assert.deepEqual([a.pendingLayerGains, b.pendingLayerGains], [null, null], 'no duplicate pending overlay');
   assert.equal(entry(a.privateView().bonds, 'yanShip').layers, BOND_LAYER_CAP, 'm.private: 980 + 50 shows 999');
   assert.equal(entry(row(h, 'p_0').bonds, 'yanShip').layers, BOND_LAYER_CAP, 'm.public: the same');
   assert.equal(entry(row(h, 'p_1').bonds, 'sargonShip').layers, 12, 'a teammate\'s gain shows in his public row');
@@ -114,7 +114,8 @@ test('the 联防 phase keeps showing the gains (a teammate watching the helper s
   h.toPrep(1);
   h.drive(() => m.phase === PHASE.UNITE || m.phase === PHASE.SETTLE);
   assert.equal(m.phase, PHASE.UNITE, 'p_1 leaked, p_0 was perfect: 联防');
-  assert.equal(h.ps('p_0').layers.yanShip || 0, 0, 'not settled during 联防');
+  assert.equal(h.ps('p_0').layers.yanShip, 9, 'retained before 联防, not merely displayed');
+  assert.equal(h.ps('p_0').pendingLayerGains, null);
   assert.equal(entry(row(h, 'p_0').bonds, 'yanShip').layers, 9, 'the helper\'s public row shows his battle\'s count');
   assert.equal(entry(h.ps('p_0').privateView().bonds, 'yanShip').layers, 9, 'and his own strip');
   h.drive(() => m.phase === PHASE.PREP && m.round === 2);
@@ -145,7 +146,8 @@ test('the 联防 field fights with the layers the helper\'s own combat reached (
   assert.equal(u.bonds.indomShip.layers, 250, '联防: 230 + the 20 reached in the own combat');
   assert.equal(u.bonds.yanShip.layers, BOND_LAYER_CAP, '995 + 9 is capped at 999, as the settlement caps it');
   assert.equal(u.bonds.indomShip.layers, entry(a.privateView().bonds, 'indomShip').layers, 'the count the strip shows');
-  assert.deepEqual([a.layers.indomShip, a.bonds.indomShip.layers], [230, 230], 'nothing persistent yet');
+  assert.deepEqual([a.layers.indomShip, a.bonds.indomShip.layers], [250, 250], 'persistent and computed states already agree');
+  assert.equal(a.pendingLayerGains, null, '联防 input cannot double the retained gain');
   h.drive(() => m.phase === PHASE.COMBAT && m.round === 2);
   assert.deepEqual([a.layers.indomShip, a.layers.yanShip], [250, BOND_LAYER_CAP], 'settled once (not 270)');
   assert.equal(input('normal', 2).bonds.indomShip.layers, 250, 'the next combat starts from 250');

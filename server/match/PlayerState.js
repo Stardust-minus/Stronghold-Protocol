@@ -195,11 +195,13 @@ export class PlayerState {
     this.board = new Map();
     /** persistent bond layers */
     this.layers = {};
+    /** This round's cumulative battle gains already consumed; repeated Worker states must not credit twice. */
+    this.battleLayerGains = {};
     /** computed bond states */
     this.bonds = {};
     /**
-     * this round's IN_BATTLE layer gains of the finished normal battle ({ [bondId]: n }, Match._finishCombat) until
-     * settle() makes them persistent — the views add them (bondsView, DESIGN §20.15); null otherwise
+     * Unsynchronized final-result gains ({ [bondId]: n }) for legacy/reference settlement paths only.
+     * Live normal-battle gains are already persistent and must never be overlaid again; null otherwise.
      */
     this.pendingLayerGains = null;
     /** optional per-bond count bonus written by effects */

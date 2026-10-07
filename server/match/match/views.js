@@ -97,7 +97,7 @@ export class MatchViews {
         ready: this.phase === PHASE.INFO_CHECK ? ps.infoReady : ps.ready,
         // the strip of a teammate watching this player (DESIGN §20.15): every bond with members, layers or an active tier
         // (= the player's own m.private list without thresholds / countsHand — the client reads those from bonds.json),
-        // this round's in-battle gains included once the COMBAT phase ended (PlayerState.bondsView); [] once eliminated —
+        // normal-battle gains included as the authority retains them live (PlayerState.bondsView); [] once eliminated —
         // nobody can watch an eliminated player (g.watch refuses them, they have no field) and the result screen reads
         // m.result's own bonds, so their layers would only cost every m.public bytes for the rest of the match
         // (the mode-off bonds with members included, `off: true`, as in m.private — bondsMeta.offBondCounts)

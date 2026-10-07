@@ -20,6 +20,7 @@ export class RemoteBattle {
     this.errors = [];
     this.progress = null;
     this.left = null;
+    this.layerGains = {};
     this._result = null;
     this._meta = null;
     this._snapshot = null;
@@ -56,6 +57,7 @@ export class RemoteBattle {
     this.errors = view.errors || [];
     this.progress = view.progress;
     this.left = view.left;
+    this.layerGains = view.layerGains || {};
     if (view.result) this._result = view.result;
   }
 }
@@ -190,6 +192,7 @@ export class WorkerFieldRunner {
       if (f.live !== view.live) this.m.markPublic();
       f.live = view.live;
       f.battle.update(view);
+      this.m._syncNormalLayers?.(f, f.battle.layerGains);
     }
     // Replay ordered deltas once, then reconcile the authoritative totals. The main-thread pool is a HUD/stat mirror;
     // no live Battle has access to it. Threshold tickers still observe each hit in the original order.

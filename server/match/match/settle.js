@@ -3,7 +3,7 @@
 // view carries) and RESULT (finish: m.result to every human still here, onEnd).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
-import { PHASE, layerGainRoom } from '../../../shared/constants.js';
+import { PHASE } from '../../../shared/constants.js';
 import { REVIVAL_WINDOW_SECONDS } from './common.js';
 import { uniteSurvivors } from '../unite.js';
 import { buildResult } from '../results.js';
@@ -18,7 +18,7 @@ export class MatchSettle {
     this.phase = PHASE.SETTLE;
     this.runner = null;
     this._stopClientCombat();
-    // the pending in-battle gains the views showed become persistent below (alive players) or lapse (DESIGN §20.15)
+    // Only legacy/final-result gains not yet synchronized may have a pending display overlay.
     for (const ps of this.order) if (ps.pendingLayerGains) { ps.pendingLayerGains = null; ps.dirty(); }
     const cap = this.gd.lpCapPerRound;
     // a 联防 battle that could not run at all (synthetic result) must not wipe the leakers' losses: charge their own leaks
@@ -62,16 +62,9 @@ export class MatchSettle {
       if (coins > 0) { ps.pendingFunds += coins; ps.stats.fundsGained += coins; }
       for (const b of ps.bounties) b.roundsLeft--;
       ps.bounties = ps.bounties.filter((b) => b.roundsLeft > 0);
-      // IN_BATTLE layer gains (normal battles only), at most the room left under BOND_LAYER_CAP (999, as the battle's
-      // live copy: Battle.addLayers); a bond at the cap gains nothing and dispatches nothing
-      for (const [bondId, n] of Object.entries(r.layerGains || {})) {
-        if (!this.gd.bond(bondId) || !(n > 0)) continue;
-        const before = ps.layers[bondId] || 0;
-        const add = layerGainRoom(before, Math.floor(n));
-        if (!(add > 0)) continue;
-        ps.layers[bondId] = before + add;
-        this.dispatch(ps, 'onLayers', { bondId, from: before, to: ps.layers[bondId], reason: 'battle' });
-      }
+      // Ordinary server battles already retain gains live. Reconcile only an unsynchronized final delta;
+      // repeated results or a cap reached during combat must not award layers or milestone rewards again.
+      this._applyBattleLayerGains(ps, r.layerGains);
       this._charDamageTickers(ps, r);
       this.dispatch(ps, 'onBattleResult', { result: r, lpLoss: loss, perfect: counted === 0 && r.perfect !== false, unite: uniteResult || null });
       ps.recompute();

@@ -3,7 +3,7 @@
 // (server-run streaming, client-side combat), the per-field results and the sim-error log, then 联防 or SETTLE.
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
-import { PHASE, GEO } from '../../../shared/constants.js';
+import { PHASE, GEO, layerGainRoom } from '../../../shared/constants.js';
 import { WorkerFieldRunner } from '../combat/runner.js';
 import { deriveSeed } from '../../sim/rng.js';
 import { withBounties } from '../waves.js';
@@ -139,6 +139,39 @@ export class MatchCombat {
     }
   }
 
+  /** Consume a normal battle's cumulative gains once; settlement may supply a missing final delta. */
+  _applyBattleLayerGains(ps, gains) {
+    if (!ps || !ps.alive || ps.left || !gains || typeof gains !== 'object') return false;
+    let changed = false;
+    for (const [bondId, n] of Object.entries(gains)) {
+      if (!this.gd.bond(bondId) || !Number.isFinite(n) || !(n > 0)) continue;
+      const total = Math.floor(n);
+      const credited = ps.battleLayerGains[bondId] || 0;
+      if (total <= credited) continue;
+      // Advance the watermark before dispatch: rewards can cause nested onGain/onLayers hooks.
+      ps.battleLayerGains[bondId] = total;
+      const before = ps.layers[bondId] || 0;
+      const add = layerGainRoom(before, total - credited);
+      if (!(add > 0)) continue;
+      ps.layers[bondId] = before + add;
+      this.dispatch(ps, 'onLayers', { bondId, from: before, to: ps.layers[bondId], reason: 'battle' });
+      changed = true;
+    }
+    if (changed) ps.dirty();
+    return changed;
+  }
+
+  /** Authority updates are independent of who watches; old fields and disabled phases cannot award layers. */
+  _syncNormalLayers(field, gains) {
+    if (this.disposed || this.ended || this.phase !== PHASE.COMBAT || field.kind !== 'normal'
+      || !this.fields.includes(field) || field.spec?.flags?.layerGainsEnabled === false
+      || field.battle?.flags?.layerGainsEnabled === false) return;
+    for (const pid of field.players) {
+      const ps = this.players.get(pid);
+      if (this._applyBattleLayerGains(ps, gains?.[pid])) ps.recompute();
+    }
+  }
+
   combatDone(runner) { this._finishCombat((f) => runner.resultOf(f)); }
 
   /** Every normal field has its result: record them, then 联防 or SETTLE. */
@@ -149,16 +182,24 @@ export class MatchCombat {
     this._stopClientCombat();
     for (const f of this.fields) {
       const res = resultOf(f);
+      if (!res.synthetic) this._syncNormalLayers(f, Object.fromEntries(
+        Object.entries(res.perPlayer || {}).map(([pid, pp]) => [pid, pp.layerGains || {}])));
       this._collectSimErrors(f, res);
       for (const pid of f.players) {
         const pp = res.perPlayer && res.perPlayer[pid];
         const normalResult = pp || { killed: 0, total: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, unitsEnd: [], unitStats: [] };
         // Keep the full field's provenance: a synthetic fallback must never qualify a rescue donor.
         this.lastResults.set(pid, res.synthetic || !pp ? { ...normalResult, synthetic: true } : normalResult);
-        // the views show the layers the battle reached until settle() makes them persistent (DESIGN §20.15)
+        // Keep only a legacy/reference result's uncredited remainder as an overlay; live gains must not show twice.
         const ps = this.players.get(pid);
         const gains = pp && pp.layerGains && typeof pp.layerGains === 'object' ? pp.layerGains : null;
-        if (ps && gains && Object.keys(gains).length) { ps.pendingLayerGains = { ...gains }; ps.dirty(); }
+        if (ps && gains) {
+          const pending = Object.fromEntries(Object.entries(gains)
+            .filter(([bondId, n]) => Number.isFinite(n) && Math.floor(n) > (ps.battleLayerGains[bondId] || 0))
+            .map(([bondId, n]) => [bondId, Math.floor(n) - (ps.battleLayerGains[bondId] || 0)]));
+          ps.pendingLayerGains = Object.keys(pending).length ? pending : null;
+          ps.dirty();
+        }
       }
     }
     for (const f of this.fields) f.live = false;

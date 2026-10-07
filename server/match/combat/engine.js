@@ -1,5 +1,5 @@
 // A phase, not a field, is the isolation boundary: all boss fields share HP, LP and tick ordering.
-import { FieldRunner, DeadBattle, GAME_SPEED, HARD_CAP_SECONDS, MAX_TICKS_PER_INTERVAL, snapFrame, eventFrame } from '../fields.js';
+import { FieldRunner, DeadBattle, GAME_SPEED, HARD_CAP_SECONDS, MAX_TICKS_PER_INTERVAL, snapFrame, eventFrame, battleLayerGains } from '../fields.js';
 import { SharedBossPool } from '../finalAssault.js';
 import { GameData, COMBAT_TIME_SCALE, DEFAULTS } from '../gamedata.js';
 import { createBattleFromSpec, battleProgress, uniteLeft } from '../../sim/spec.js';
@@ -212,7 +212,7 @@ export class CombatEngine {
         fieldId: f.fieldId, kind: f.kind, players: f.players, live: f.live,
         time: Number(b.time) || 0, tickCount: Number(b.tickCount) || 0,
         killed: Number(b.killed) || 0, total: Number(b.total) || 0,
-        progress, left, errors: this.diagnostics.get(f.fieldId), ...(result ? { result } : {}),
+        progress, left, layerGains: battleLayerGains(b), errors: this.diagnostics.get(f.fieldId), ...(result ? { result } : {}),
         ...(this.damageBoard && !f.live ? { damageRows: f.damageRows } : {}),
       };
     });

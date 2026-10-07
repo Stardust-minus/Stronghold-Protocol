@@ -49,6 +49,16 @@ export function parseSnapshotHz(value) {
   return Number(value);
 }
 
+/** Committed cumulative gains only; never builds a result or depends on watched/drained events. */
+export function battleLayerGains(battle) {
+  const out = {};
+  if (battle?.kind !== 'normal' || battle.flags?.layerGainsEnabled === false) return out;
+  for (const [pid, stats] of Object.entries(battle._perPlayer || {})) {
+    if (stats.layerGains && Object.keys(stats.layerGains).length) out[pid] = { ...stats.layerGains };
+  }
+  return out;
+}
+
 export function eventFrame(fieldId, battle, events) {
   const time = Number(battle.time);
   return { t: 'b.ev', fieldId, gt: Number.isFinite(time) ? Math.round(time * 1000) / 1000 : 0, ev: events };
@@ -226,6 +236,7 @@ export class FieldRunner {
   }
 
   _emit(f) {
+    this.m._syncNormalLayers?.(f, battleLayerGains(f.battle));
     let ev = [];
     try { ev = f.battle.drainEvents() || []; } catch (e) { this.m.reportError(`field ${f.fieldId} drainEvents`, e); }
     if (!this.emit) return;

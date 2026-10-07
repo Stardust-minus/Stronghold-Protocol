@@ -12,7 +12,8 @@ import { computeBonds, bondSnapshot, activatedLayers, bondsWithGains } from '../
 export class PlayerRound {
   startRound(r) {
     this.round = { refreshes: 0, buys: 0, sells: 0, spent: 0, gainedChess: 0, arts: 0 };
-    this.pendingLayerGains = null; // settled (or lapsed) at the last SETTLE
+    this.pendingLayerGains = null; // only unsynchronized result gains may remain until SETTLE
+    this.battleLayerGains = {};
     if (r > 1) this.shop.upgradePrice = Math.max(0, this.shop.upgradePrice - 1);
     // onIncome handlers may rewrite ev.income / ev.pending (e.g. 老鲤 withholds R1–R2 income until R3)
     const ev = { round: r, income: this.gd.income(r), pending: this.pendingFunds };
@@ -85,9 +86,8 @@ export class PlayerRound {
   activatedLayers() { return activatedLayers(this.bonds); }
 
   /**
-   * The bond states the views show (m.private bonds, m.public players[].bonds): the computed states plus the pending
-   * in-battle gains of this round's finished normal battle (bondsMeta.bondsWithGains). The 联防 field fights with them too
-   * (battleInput `reached`); no other rule reads them.
+   * The bond states the views show (m.private bonds, m.public players[].bonds): live persistent states plus only a
+   * legacy/reference result's uncredited remainder. The 联防 field uses the same reached count, never double gains.
    */
   bondsView() { return bondsWithGains(this.bonds, this.pendingLayerGains); }
 

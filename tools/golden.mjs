@@ -770,8 +770,9 @@ function boardStr(ps) {
 const bondsStr = (bonds) => Object.entries(bonds || {}).filter(([, b]) => b && (b.active || b.layers > 0)).map(([id, b]) => `${id} ${b.tier}/${b.layers}`).sort(byId).join(', ');
 const MATCH_ROW_COLS = Object.freeze(['alive', 'lp', 'prepFunds', 'funds', 'pending', 'level', 'deployed', 'board', 'layers', 'bonds', 'killed', 'total', 'leaks', 'gold']);
 
-// Official 0.2.0 reference only: keep its escaped-map choice out of the runtime rollback.
+// Official 0.2.0 reference only: keep its escaped-map and settlement-time layers out of the fork rules.
 class OfficialReferenceMatch extends Match {
+  _syncNormalLayers() {} // Reference rewards remain deferred until SETTLE; runtime gains are tested separately.
   _uniteOpts(plan, limit) {
     return { ...super._uniteOpts(plan, limit), stageId: uniteStageId(this.gd, plan.helpers.length) ?? this.stageId };
   }
