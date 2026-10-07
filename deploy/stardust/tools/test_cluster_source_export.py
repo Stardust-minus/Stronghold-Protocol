@@ -62,6 +62,15 @@ class ClusterSourceExportTests(unittest.TestCase):
         self.assertEqual(row['sha256'], identity['generatedRendererIndex']['sha256'])
         self.assertEqual((self.output / 'app/data/local-assets.json').read_bytes(), (self.root / 'data/local-assets.json').read_bytes())
 
+    def test_empty_locked_dependency_files_are_preserved(self):
+        for relative in ['node_modules/dependency/types.d.ts', 'node_modules/dependency/legacy.js']:
+            self.put(relative, '')
+        identity = exporter.export(self.root, self.output, self.revision)
+        self.assertEqual(identity['resourceFiles'], 5)
+        for relative in ['node_modules/dependency/types.d.ts', 'node_modules/dependency/legacy.js']:
+            self.assertTrue((self.output / 'app' / relative).is_file())
+            self.assertEqual((self.output / 'app' / relative).read_bytes(), b'')
+
     def test_missing_generated_index_fails_before_creating_export(self):
         (self.root / 'data/local-assets.json').unlink()
         with self.assertRaises(exporter.assets.Refused):

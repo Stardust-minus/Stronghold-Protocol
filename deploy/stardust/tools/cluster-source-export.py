@@ -105,7 +105,8 @@ def export(root, output, revision):
             raise Refused('dependency symlink refused')
         if path.is_file():
             name = 'node_modules/' + relative.as_posix()
-            copy(name, assets.read_regular(root, name, limit=64 * 1024 * 1024))
+            # Locked packages include legitimate empty .d.ts and module files.
+            copy(name, assets.read_regular(root, name, limit=64 * 1024 * 1024, allow_empty=True))
     resource_raw = canonical({'version': 1, 'sourceKind': 'commit', 'build': revision,
         'sourceManifestSha256': source_digest, 'files': sorted(resources, key=lambda row: row['path'])})
     resource_digest = hashlib.sha256(resource_raw).hexdigest()

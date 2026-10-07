@@ -16,7 +16,10 @@ class Refused(Exception):
     """A missing index must fail the release, not select procedural terrain."""
 
 
-def read_regular(root, relative, *, limit=LIMIT):
+def read_regular(root, relative, *, limit=LIMIT, allow_empty=False):
+    parts = Path(relative).parts
+    if type(allow_empty) is not bool or (allow_empty and (not parts or parts[0] != 'node_modules' or '..' in parts)):
+        raise Refused('only dependency files may be empty')
     path = Path(root) / relative
     for parent in (path, *path.parents):
         if parent.is_symlink():
@@ -30,7 +33,7 @@ def read_regular(root, relative, *, limit=LIMIT):
             raw = file.read(limit + 1)
         after = os.fstat(fd)
         identity = lambda s: (s.st_dev, s.st_ino, s.st_mode, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
-        if identity(before) != identity(after) or not raw or len(raw) > limit:
+        if identity(before) != identity(after) or (not raw and not allow_empty) or len(raw) > limit:
             raise Refused('renderer resource changed or exceeds bound')
         return raw
     finally:

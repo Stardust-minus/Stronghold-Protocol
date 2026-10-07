@@ -84,6 +84,21 @@ class GeneratedAssetsTests(unittest.TestCase):
             path.unlink()
             path.write_bytes(raw)
 
+    def test_empty_dependency_option_does_not_relax_resource_or_link_checks(self):
+        dependency = self.root / 'node_modules/dependency/empty.js'
+        dependency.parent.mkdir(parents=True)
+        dependency.write_bytes(b'')
+        with self.assertRaises(assets.Refused):
+            assets.read_regular(self.root, 'node_modules/dependency/empty.js')
+        self.assertEqual(assets.read_regular(self.root, 'node_modules/dependency/empty.js', allow_empty=True), b'')
+        for relative in [assets.INDEX, 'public/assets/local/mesh/map_autochess_bkg/floor.obj', 'node_modules/../data/local-assets.json']:
+            with self.assertRaises(assets.Refused):
+                assets.read_regular(self.root, relative, allow_empty=True)
+        dependency.unlink()
+        dependency.symlink_to(self.root / assets.INDEX)
+        with self.assertRaises(assets.Refused):
+            assets.read_regular(self.root, 'node_modules/dependency/empty.js', allow_empty=True)
+
     def test_declared_count_and_integer_schema_are_strict(self):
         for key, value in [('count', 3), ('count', True), ('version', True)]:
             before = self.value[key]
