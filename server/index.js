@@ -1,5 +1,6 @@
 // server/index.js — process boot; HTTP routes, static delivery and WebSocket wiring live in server/http/.
 // Worker pools are process-owned loans to matches. Startup and shutdown keep diagnostics separate from readiness.
+// Process-entry boot checks a pending update package before listening (server/update.js).
 
 import http from 'node:http';
 import { getData, loadData } from './data.js';

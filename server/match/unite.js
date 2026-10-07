@@ -5,11 +5,13 @@
 // players chosen by most units on the field (downed included) > has an active bond (存疑) > most undowned units, then
 // seat; with 2 helpers the one ranked first by most units > active bond > Σ active bond layers (存疑) > most undowned
 // units "率先迎敌" on the RIGHT-hand field (colOffset +8, where the escaped_multi routes enter), the other keeps the
-// left half (colOffset 0); a lone helper plays on its own field. 联防 keeps the match's original map, including its
-// walls, water, crates and devices (the pre-0.2.0 fork behaviour). Escaped templates supply the re-entry wave only;
-// uniteStageId keeps their historical map lookup for upstream reference tests. Every helper's pieces stand on their
-// prep tiles ("按休整期位置部署在场"), the right-hand one shifted 8 columns
-// (the official maps' halves, = the stage config's player_map_lr_offset 8). Their operators keep the HP ratio and
+// left half (colOffset 0); a lone helper plays escaped_single on its own field. The field is the round's battlefield —
+// the match stage with its terrain, crates, water, devices and runes — opened to both halves (GEO.UNITE_RECT, cols
+// 0–20; the stage's right half is its left half + 8 columns), every helper's pieces on their prep tiles
+// ("按休整期位置部署在场"), the right-hand one shifted 8 columns (= the stage config's player_map_lr_offset 8): the
+// owner's knowledge of the official mode, 2026-10-07 「官服保留地形」. 0.2.0 fielded it on the escaped levels' own map,
+// an empty road (GitHub #41) — withdrawn in 0.2.1; data/stages.json keeps those two records (kind 'unite'), which no
+// match fields. Their operators keep the HP ratio and
 // the SP (技力, stored charges included) from the end of their own combat, nothing else — a skill still running then
 // enters switched off (BattleResult.unitsEnd → PlayerBattleInput.units[].carryState `{ hpPct, sp }`, "阵地以其当前状态";
 // community report #34 / GitHub #82: it used to restart for free). An operator knocked out at the end of its own combat (alive false) is fielded with
@@ -118,21 +120,6 @@ export function helperOrder(m, perfects, results) {
   const select = perfects.slice().sort((a, b) => S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).standing - S(a).standing || a.seat - b.seat)
     .slice(0, m.gd.unite.maxHelpers);
   return select.sort((a, b) => S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).layers - S(a).layers || S(b).standing - S(a).standing || a.seat - b.seat);
-}
-
-/**
- * Historical upstream escaped-template map lookup, used by the official golden/reference fixtures only.
- * The fork's MatchUnite keeps the match's original stage; config.unite.templates[n] still supplies its re-entry wave.
- * null when the data has no such stage.
- * @param {import('./gamedata.js').GameData} gd
- * @param {number} helperCount
- * @returns {string|null}
- */
-export function uniteStageId(gd, helperCount) {
-  const templates = gd.unite.templates || {};
-  const id = templates[String(helperCount)] ?? templates[helperCount] ?? null;
-  const st = id ? gd.stage(id) : null;
-  return st && st.kind === 'unite' ? id : null;
 }
 
 /** Battle options for the unite field (without data/logger, added by the match). */

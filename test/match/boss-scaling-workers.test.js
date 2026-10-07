@@ -52,7 +52,10 @@ function assertInitial(m, runner, out, expected) {
   assert.equal(out.boss.hp, expected);
   assert.equal(m.bossPool.maxHp, expected, 'main-thread mirror starts with the same HP');
   assert.deepEqual(m.publicView().bossHp, { hp: expected, max: expected });
-  for (const f of m.fields) assert.deepEqual(f.spec.boss, { poolHp: expected, poolMax: expected });
+  for (const f of m.fields) {
+    assert.deepEqual(f.spec.boss, { poolHp: expected, poolMax: expected });
+    assert.deepEqual(f.spec.flags.enemyScale, m.gd.enemyScale(m.round), 'leader summons retain the round scaling in the Worker spec');
+  }
   assert.equal(out.frames.length, m.fields.length, 'every field returns its actual startup snapshot');
   for (const frame of out.frames) {
     assert.deepEqual(JSON.parse(frame.snapshotWire).boss, { hp: expected, max: expected }, `${frame.fieldId}: worker snapshot`);
@@ -79,7 +82,9 @@ for (const hidden of [false, true]) for (const count of [1, 2, 3, 4]) {
 
 for (const hidden of [false, true]) {
   test(`serverWorker ${hidden ? 'hidden' : 'ordinary'} Boss: two fields debit the scaled pool once, no result re-credit`, { timeout: 20_000 }, async (t) => {
-    const { m, pool, expected, errors, ended } = await fixture(t, { hidden, smallPool: true, speed: 200 });
+    // Two equally populated pair fields: 0.2.1's content can end the small pool before an odd lone field hits it.
+    // The 1–4-seat startup cases above still cover the lone field and every scaled HP share.
+    const { m, pool, expected, errors, ended } = await fixture(t, { count: 4, hidden, smallPool: true, speed: 200 });
     for (const ps of m.order) for (const id of ['chess_char_4_17_b', 'chess_char_6_18_b', 'chess_char_6_20_b']) {
       const tile = legalTileFor(m, ps, id); assert.ok(tile, `legal tile for ${id}`);
       give(m, ps, id, 'board', tile);
@@ -97,7 +102,8 @@ for (const hidden of [false, true]) {
     assert.equal(ended.length, 1);
     assert.equal(m.outcome.victory, true);
     assert.equal(m.outcome.hiddenCleared, hidden);
-    assert.equal(shared.maxHp, 30000, 'three seats: 75% of the test-only 40000 base');
+    assert.ok(fields.every(f => f.players.length === 2), 'two real pair fields, including the AI seat');
+    assert.equal(shared.maxHp, 40000, 'four seats: 100% of the test-only 40000 base');
     assert.equal(shared.hp, 0);
     const effects = outputs.flatMap((out) => out.effects || []).filter((effect) => effect.type === 'bossDamage');
     assert.ok(effects.length > 1, 'real content produced multiple ordered damage deltas');

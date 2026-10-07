@@ -49,8 +49,10 @@ export class MatchUnite {
   }
 
   /**
-   * 联防 stays on the match's original map, as before 0.2.0: walls, special terrain and devices remain in the sim.
-   * The field meta / client spec carry the same stageId. Escaped templates supply the re-entry wave only.
+   * Battle options of the 联防 field (helpers' carried end state, the leakers' enemies) on the round's battlefield, its
+   * terrain, crates, water, devices and runes included (unite.js header; the owner's decision of 2026-10-07 — 0.2.0's
+   * escaped-level map is withdrawn). The field meta and the client-run spec carry the match stageId, so every viewer
+   * draws the battlefield the boards stand on.
    */
   _uniteOpts(plan, limit) {
     const { wave, players } = uniteBattleOpts(this, plan, limit);
