@@ -489,14 +489,16 @@ export class UnitView {
   _loadPicture() {
     const a = this.ctx.assets;
     // (an ICE_TOKENS unit takes no picture: the token fallback would be its owner's face — assets.js tokenAvatarUrl)
-    const url = ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar) || a.picture(this.info.defId) || a.picture(this.info.spine) : null);
-    this._pic = { key: String(this.info.avatar || this.info.defId || 'unknown'), color: this._frameColor(), img: null, state: 'none', shown: null, t0: nowMs() };
+    const url = ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar, { skinId: this.info.skinId }) || a.picture(this.info.defId) || a.picture(this.info.spine) : null);
+    const defaultUrl = a?.picture ? a.picture(this.info.avatar) || a.picture(this.info.spine) : null;
+    const baseKey = this.info.avatar || this.info.defId || 'unknown';
+    this._pic = { key: this.info.skinId ? `${baseKey}|${this.info.skinId}` : baseKey, color: this._frameColor(), img: null, state: 'none', shown: null, t0: nowMs() };
     if (!url || !a.image) return;
     const cached = typeof a.imageNow === 'function' ? a.imageNow(url) : null;
     if (cached) { this._pic.img = cached; this._pic.state = 'img'; return; }
     this._pic.state = 'wait';
     const pic = this._pic;
-    Promise.resolve().then(() => a.image(url)).then((img) => {
+    Promise.resolve().then(() => a.image(url)).then(img => img || (defaultUrl && defaultUrl !== url ? a.image(defaultUrl) : null)).then((img) => {
       if (img) { pic.img = img; pic.state = 'img'; } else pic.state = 'none';
     }, () => { pic.state = 'none'; });
   }
@@ -520,7 +522,7 @@ export class UnitView {
     // Front/Back rule (research 07 §5.5 / 09 §1.2): Front facing right/down (mirrored for left), Back facing up — while
     // standing (a knocked-out operator lies with the model that has a fall: _wantsBack).
     const back = this._wantsBack();
-    const entry = id ? a.spineEntry(id, { back }) : null;
+    const entry = id ? a.spineEntry(id, { back, skinId: this.info.skinId }) : null;
     if (!entry || this.ctx.settings?.quality === 'low' && this.isEnemy && !this.isBoss && this.ctx.crowded?.()) return;
     this.entryBack = back;
     this._acquireSpine(entry, id, retry);
@@ -571,6 +573,7 @@ export class UnitView {
       } catch (err) {
         console.warn('[render] spine build failed', id, err?.message || err);
         this._releaseEntry(entry);
+        if (entry.fallback) this._acquireSpine(entry.fallback, id, retry);
         return;
       }
       // a Front ⇄ Back swap (setDir, or knocked out / standing again: _syncModel) replaces the previous model in place:
@@ -772,8 +775,8 @@ export class UnitView {
   _wantsBack() {
     const a = this.ctx.assets;
     const id = this.info.spine || this.info.defId;
-    if (this.isEnemy || this.dir !== 'UP' || !id || !a || typeof a.hasBack !== 'function' || !a.hasBack(id)) return false;
-    return this.alive || dieClipDur(typeof a.spineEntry === 'function' ? a.spineEntry(id, { back: true }) : null) > 0;
+    if (this.isEnemy || this.dir !== 'UP' || !id || !a || typeof a.hasBack !== 'function' || !a.hasBack(id, { skinId: this.info.skinId })) return false;
+    return this.alive || dieClipDur(typeof a.spineEntry === 'function' ? a.spineEntry(id, { back: true, skinId: this.info.skinId }) : null) > 0;
   }
 
   /**
@@ -918,7 +921,7 @@ export class UnitView {
   _fallDur() {
     const a = this.ctx.assets;
     const id = this.info.spine || this.info.defId;
-    return a && typeof a.spineEntry === 'function' && id ? dieClipDur(a.spineEntry(id, { back: this._wantsBack() })) : 0;
+    return a && typeof a.spineEntry === 'function' && id ? dieClipDur(a.spineEntry(id, { back: this._wantsBack(), skinId: this.info.skinId })) : 0;
   }
 
   /** Standing again (a redeploy, a revive): an operator facing UP gets its Back model back (this frame's update). */

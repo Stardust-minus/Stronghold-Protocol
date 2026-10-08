@@ -63,6 +63,13 @@ test('selection: runtime files in; tests, maintainer tools, other docs, dev page
   assert.ok(!keep.some((f) => drop.includes(f)));
 });
 
+test('appearance importer ships as fetch-assets dependency, without admitting adjacent tools or artwork', () => {
+  const importer = 'tools/prepare-operator-skins.mjs';
+  const others = [importer + '.bak', importer + '/extra', 'tools/prepare-operator-skins-private.mjs',
+    'public/assets/skins/avatar.png', '.cache/skins/inventory.json'];
+  assert.deepEqual(selectTracked([importer, ...others]), { keep: [importer], drop: [...others].sort() });
+});
+
 test('refusal list: 0.1.x\'s entries and what 0.2.0 leaves out, at the path or under it; .env and .venv anywhere', () => {
   for (const r of ['pv', '3，9，11回合情况', 'review', 'docs/research/10-networking-hosting.md', '.cache', '.claude', '.git', 'logs',
     'test/e2e/out', 'scripts/service.env.cmd', '.env', 'handoff', 'test', '.github']) assert.ok(REFUSE.includes(r), r);

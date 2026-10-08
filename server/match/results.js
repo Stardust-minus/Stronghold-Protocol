@@ -104,6 +104,8 @@ export function buildResult(m, outcome) {
       // of the official mode, 2026-10-06); `standInFor` = the replaced operator's charId, like the sim's UnitInfo
       const si = typeof ps.fieldsStandIn === 'function' && ps.fieldsStandIn(piece.id) ? gd.standIn(piece.id) : null;
       if (si && si.standInFor) e.standInFor = si.standInFor;
+      const skinId = typeof ps.skinIdFor === 'function' ? ps.skinIdFor(ps.gd.chess(piece.id)) : null;
+      if (skinId) e.skinId = skinId;
       return e;
     });
     // the team's clear counts for the players still in; an eliminated / departed teammate did not pass the boss round

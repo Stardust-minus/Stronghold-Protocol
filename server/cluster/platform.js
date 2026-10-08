@@ -5,6 +5,7 @@ import { ClusterDirectory, AllocationError } from './directory.js';
 import { createTicketAuthority } from './tickets.js';
 import { createRpcAuthenticator, createRpcClient } from './rpc.js';
 import { normalizeClusterLoad, normalizeGameLoad, publicGameLabel, MAX_PUBLIC_GAME_NODES } from '../../shared/cluster-load.js';
+import { isSkinChoices } from '../../shared/skins.js';
 
 const safeId = v => typeof v === 'string' && v.length > 0 && v.length <= 128 && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const cancelled = () => new AllocationError('CANCELLED');
@@ -165,6 +166,10 @@ export class RemoteGamePlatform {
       || !Array.isArray(input.seats) || !Array.isArray(input.spectators ?? [])) throw new TypeError('invalid remote match');
     if (signal?.aborted) throw cancelled();
     const spec = structuredClone({ ...input, assignmentId: input.assignmentId ?? randomBytes(16).toString('hex'), spectators: input.spectators ?? [] });
+    for (const seat of spec.seats) if (seat.skins !== undefined) {
+      if (!isSkinChoices(seat.skins)) throw new TypeError('invalid remote skin choices');
+      seat.skins = Object.freeze({ ...seat.skins });
+    }
     const assignment = this.directory.prepare({ assignmentId: spec.assignmentId, roomCode: spec.roomCode,
       sessionIds: spec.seats.filter(s => !s.isBot).map(s => s.playerId), build: this.build, protocol: this.protocol });
     if (this.contexts.has(spec.assignmentId)) throw new AllocationError('ASSIGNMENT_CONFLICT');
@@ -347,7 +352,7 @@ export class RemoteGamePlatform {
   async memberOperation(assignmentId, method, sessionId, loadout) {
     const ctx = this.contexts.get(assignmentId);
     if (!ctx || ctx.state !== 'published' || !safeId(sessionId)
-      || !['leave', 'removeSpectator', 'addSpectator', 'setLoadout'].includes(method)) throw new AllocationError('STALE_ASSIGNMENT');
+      || !['leave', 'removeSpectator', 'addSpectator', 'setLoadout', 'setSkins'].includes(method)) throw new AllocationError('STALE_ASSIGNMENT');
     const removing = ['leave', 'removeSpectator'].includes(method);
     const role = ctx.members.get(sessionId) ?? (removing ? ctx.revokedMembers.get(sessionId) : undefined);
     if (removing) {
@@ -384,7 +389,8 @@ export class RemoteGamePlatform {
       return result;
     }
     if (role !== 'player') throw new AllocationError('NOT_MEMBER');
-    return ctx.node.client.call(method, { ...this.memberPayload(ctx, sessionId), loadout });
+    return ctx.node.client.call(method, { ...this.memberPayload(ctx, sessionId),
+      ...(method === 'setSkins' ? { choices: loadout } : { loadout }) });
   }
 
   /** Only validated, bounded terminal frames may use the low-rate control path. */

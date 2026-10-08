@@ -11,6 +11,7 @@ import { resolveProfile } from '../professions.js';
 import { normalizeToken } from '../simdata.js';
 import { setupUnitKit } from '../content/index.js';
 import { clone } from './util.js';
+import { skinFor } from '../../../shared/skins.js';
 
 export class BattlePlayers {
   _addPlayer(p) {
@@ -150,6 +151,8 @@ export class BattlePlayers {
     // a DIY slot has no body of its own (甄选干员): it fights only as a 自选 piece (its `diy` pick)
     if (def.raw?.isDiy && !def.diyFor) { this.log(`自选 slot ${inp.chessId} without a pick`); return null; }
     const u = this._makeAlly(ps, def, 'op', r, c, { uid: inp.uid, dir });
+    const skin = skinFor(def.charId, inp.skinId);
+    if (skin) u.skinId = skin.id; // per-instance display only: never mutate shared defs / attack timing / skill identity
     u.items = [...(inp.items ?? [])];
     u.carry = inp.carryState ?? null;
     return u;

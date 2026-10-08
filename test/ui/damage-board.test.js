@@ -164,7 +164,8 @@ test('scoreboard defaults collapsed, keeps the single-owner fallback and receive
   assert.match(component, /snapshot\?\.status === 'frozen'/);
   const game = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');
   assert.match(game, /\[damageOpen, setDamageOpen\] = useState\(false\)/);
-  assert.match(game, /<\$\{DamageBoard\} snapshot=\$\{damage\} ownerId=\$\{strip\.ownerId\}/);
+  assert.match(game, /<\$\{DamageBoard\} snapshot=\$\{damage\} units=\$\{shownOps\} ownerId=\$\{strip\.ownerId\}/);
+  assert.match(game, /const shownOps = \[\.\.\.\(field\?\.units \|\| \[\]\), \.\.\.spawnedOps\]/, 'portraits use visible metadata and late-spawned operators from this field');
   assert.match(game, /uniteDamageOwners\(\{ pub, fieldId: stripFid, field \}\)/);
   assert.match(game, /uniteOwners=\$\{uniteOwners\}/);
   assert.match(game, /bossDamageOwners\(\{ pub, fieldId: stripFid \}\)/);

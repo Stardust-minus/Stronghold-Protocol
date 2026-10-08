@@ -46,6 +46,8 @@ import { SKILL_SUMMON_START_DEPLOY } from '../../../shared/constants.js';
 import { moduleBadge, fullTraitText } from './loadoutModel.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 import { audio } from '../audio.js';
+import { appearanceRecord } from './skinAssets.js';
+import { skinFor, skinIdFor } from '../../../shared/skins.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -383,7 +385,7 @@ function skillTextNote(sk) {
   return note ? html`<p class="dhint dhint--rule" data-skill-note=${sk.skillId}><${Icon} name="info" />${t(note)}</p>` : null;
 }
 
-export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bonds, offBonds = null, loadout, onBond, live = null, hint = null, unitItems = null, standIn = null, diy = null }) {
+export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bonds, offBonds = null, loadout, onBond, live = null, hint = null, unitItems = null, standIn = null, diy = null, skinId = null }) {
   const m = data.get('assets');
   const hp = hpOf(live, snapHp);
   // 0.2.0 自选编队: `chess` is then the composed 自选 record (the operator, the slot's tier / price); its skill and module are
@@ -394,7 +396,7 @@ export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bond
   // where the English name usually is (「银灰的替补」, [ASSUMED] placement); the chess's tier, bonds, 特质 and sell price
   // still apply (the owner's recall of the official mode, 2026-10-06)
   const si = standIn && standIn.standInFor ? standIn : null;
-  const body = si || chess;
+  const body = appearanceRecord(si || chess, skinId);
   const lo = si ? standInLoadout(si, getChess, data.get('backups')) : chessLoadout(chess, loadout, getChess);
   const c = chess;
   // stats / talents the unit fights with: the chosen module's (or none — statsBase) for an elite (DESIGN §16)
@@ -417,7 +419,7 @@ export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bond
   blocks.head = html`
     <div key="head" class="dhead">
       <div class=${cx('dhead__art', golden && 'is-golden', `dhead__art--t${c.tier}`)}>
-        <${Img} src=${chessPortraitUrl(m, body)} fallback=${html`<${UnitThumb} kind="chess" id=${c.chessId} size="lg" rec=${si} />`} />
+        <${Img} src=${chessPortraitUrl(m, body)} fallbackSrc=${chessPortraitUrl(m, si || chess)} fallback=${html`<${UnitThumb} kind="chess" id=${c.chessId} size="lg" rec=${si} />`} />
       </div>
       <div class="dhead__info">
         <div class="dhead__chips">
@@ -723,6 +725,15 @@ function TerrainDetail({ terrain }) {
  *   resolve to the composed 自选 record (`chess`, the operator) with `diy` = the pick
  */
 export function resolveDetail(target, pieces, { priv = null, backups = data.get('backups') } = {}) {
+  const detail = resolveDetailBase(target, pieces, { priv, backups });
+  if (detail?.type !== 'chess') return detail;
+  const body = detail.standIn || detail.chess;
+  const foreign = !!target.foreign || (target.owner != null && target.owner !== priv?.playerId);
+  const skinId = target.kind === 'unit' ? target.unit?.skinId : foreign ? target.skinId : skinIdFor(priv?.skins, body?.charId);
+  return skinFor(body?.charId, skinId) ? { ...detail, skinId } : detail;
+}
+
+function resolveDetailBase(target, pieces, { priv = null, backups = data.get('backups') } = {}) {
   if (!target) return null;
   // a special terrain tile (issue #184): the screen resolved the stage's own numbers already (gameLogic.terrainInfo)
   if (target.kind === 'terrain') return target.terrain && typeof target.terrain === 'object' ? { type: 'terrain', terrain: target.terrain } : null;
@@ -834,7 +845,7 @@ export function DetailPanel({ detail, editable, snapHp, onClose, onSell, onDestr
     <div class="dpanel__scroll">
       ${detail.type === 'chess' ? html`<${ChessDetail} chess=${detail.chess} piece=${detail.piece} snapHp=${snapHp} editable=${editable} onSell=${sellIt}
         bonds=${bonds} offBonds=${offBonds} loadout=${loadout} onBond=${onBond} live=${liveNow} hint=${detail.hint || null} unitItems=${detail.unitItems || null}
-        standIn=${detail.standIn || null} diy=${detail.diy || null} />` : null}
+        standIn=${detail.standIn || null} diy=${detail.diy || null} skinId=${detail.skinId || null} />` : null}
       ${detail.type === 'item' ? html`<${ItemDetail} item=${detail.item} piece=${detail.piece} editable=${editable} onDestroy=${destroyIt} offBonds=${offBonds} />` : null}
       ${detail.type === 'enemy' ? html`<${EnemyDetail} enemy=${detail.enemy} snapHp=${snapHp} count=${detail.count} live=${liveNow} />` : null}
       ${detail.type === 'token' ? html`<${TokenDetail} token=${detail.token} piece=${detail.piece} ownerId=${detail.ownerId ?? null} snapHp=${snapHp} live=${liveNow} />` : null}

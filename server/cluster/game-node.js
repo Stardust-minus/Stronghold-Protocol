@@ -240,6 +240,10 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
       guardedMember(payload, ['loadout']);
       return gameHost.setLoadout(payload.assignmentId, payload.sessionId, payload.loadout);
     },
+    setSkins(payload) {
+      guardedMember(payload, ['choices']);
+      return gameHost.setSkins(payload.assignmentId, payload.sessionId, payload.choices);
+    },
   };
   const rpc = createRpcHandler({ authority, operations: Object.fromEntries(Object.entries(operations).map(([name, operation]) =>
     [name, payload => { sweepPublications(); return operation(payload); }])) });

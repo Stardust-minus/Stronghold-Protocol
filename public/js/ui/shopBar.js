@@ -32,6 +32,7 @@ import { chessPortraitUrl, itemIconUrl, profIconUrl, uiUrl, skillIconUrl, skillR
 import { data } from '../data.js';
 import { hotkeyLabelOf } from './settings.js';
 import { t } from '../../../shared/i18n.js';
+import { ownAppearance } from './skinAssets.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -76,7 +77,8 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
   // 0.2.0 补位: the player's not-owned chess shows its stand-in (art, name, class, its backup skill); the composed record
   // keeps the chess's identity — tier, bonds, price (a DIY slot is never droppable: one or the other)
   const si = c0 && !dr ? ownStandIn(c0, priv, data.get('backups')) : null;
-  const c = dr || si || c0;
+  const defaultBody = dr || si || c0;
+  const c = ownAppearance(defaultBody, priv);
   const m = data.get('assets');
   const tier = c?.tier ?? 1;
   const prog = mergeProgress(priv, slot.id, (id) => data.lookup('chess', id));
@@ -92,7 +94,7 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
       aria-label=${`${t('{name}，价格 {price}', { name, price: slot.price })}${armed ? (disabled ? t('，无法购买') : t('，再次点击确认')) : ''}`} aria-pressed=${onTap ? String(!!armed) : undefined}>
     <span class="scard__bg" aria-hidden="true"></span>
     <span class="scard__water" aria-hidden="true">${bonds[0] ? html`<${BondGlyph} bondId=${bonds[0]} />` : null}</span>
-    <${Img} src=${chessPortraitUrl(m, c)} class="scard__art" />
+    <${Img} src=${chessPortraitUrl(m, c)} fallbackSrc=${chessPortraitUrl(m, defaultBody)} class="scard__art" />
     <span class="scard__top">
       <${TierChip} tier=${tier} size="md" />
       <${PriceHex} slot=${slot} free=${free} poor=${reason === t('资金不足')} />

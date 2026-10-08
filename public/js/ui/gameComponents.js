@@ -6,6 +6,7 @@ import { html, Icon, TierChip, Tooltip } from './components.js';
 import { data, useData, localAsset } from '../data.js';
 import { parseRichText, rtClassName } from './richText.js';
 import { t as tr } from '../../../shared/i18n.js';
+import { appearanceRecord } from './skinAssets.js';
 import {
   uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
 } from './assetUrls.js';
@@ -62,9 +63,10 @@ export function makeLookups(ready = true) {
  * <img> that swaps to a fallback node when the URL is missing or fails.
  * @param {{ src?: string|null, class?: string, alt?: string, fallback?: any, style?: string }} props
  */
-export function Img({ src, class: cls, alt = '', fallback = null, style }) {
+export function Img({ src, class: cls, alt = '', fallback = null, fallbackSrc = null, style }) {
   const [bad, setBad] = useState(null);
-  if (!src || bad === src) return fallback;
+  if (!src || bad === src) return fallbackSrc && fallbackSrc !== src
+    ? html`<${Img} src=${fallbackSrc} class=${cls} alt=${alt} fallback=${fallback} style=${style} />` : fallback;
   return html`<img class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onError=${() => setBad(src)} />`;
 }
 
@@ -106,16 +108,19 @@ export const isGoldenPiece = (piece, chess) => !!(piece?.golden || chess?.isGold
  *   `rec`: the chess record to draw instead of the data's (a 自选 piece's composed record — 0.2.0, gameLogic/diy.js; a
  *   补位 stand-in's — gameLogic/standIn.js: drawn with a small 「替补」 mark in the corner)
  */
-export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showTier = true, class: cls, dim = false, badge = null, title, rec = null }) {
+export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showTier = true, class: cls, dim = false, badge = null, title, rec = null, skinId = null }) {
   const m = data.get('assets');
   let src = null;
+  let fallbackSrc = null;
   let name = '';
   let t = tier;
   let si = null;
   if (kind === 'chess') {
-    const c = rec || data.lookup('chess', id);
+    const c0 = rec || data.lookup('chess', id);
+    const c = appearanceRecord(c0, skinId || c0?.skinId);
     si = rec && typeof rec.standInFor === 'string' && rec.standInFor ? rec : null;
     src = chessAvatarUrl(m, c);
+    fallbackSrc = c?.skinId ? chessAvatarUrl(m, { ...c, skinId: null }) : null;
     name = c?.name || '';
     t = t ?? c?.tier;
     golden = golden ?? !!c?.isGolden;
@@ -138,7 +143,7 @@ export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showT
   return html`<span class=${cx('uthumb', `uthumb--${size}`, `uthumb--${kind}`, golden && 'is-golden', dim && 'is-dim', t && `uthumb--t${Math.max(1, Math.min(6, t | 0))}`, cls)}
       title=${title ?? name}>
     <span class="uthumb__art">
-      <${Img} src=${src} fallback=${html`<span class="uthumb__glyph">${glyph}</span>`} />
+      <${Img} src=${src} fallbackSrc=${fallbackSrc} fallback=${html`<span class="uthumb__glyph">${glyph}</span>`} />
     </span>
     ${showTier && t && kind !== 'enemy' && kind !== 'token' ? html`<${TierChip} tier=${t} golden=${golden} size="sm" class="uthumb__tier" />` : null}
     ${kind === 'token' ? html`<span class="uthumb__tag">${tr('召唤')}</span>` : null}
@@ -151,7 +156,7 @@ export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showT
 export function PieceThumb({ piece, size = 'md', class: cls, badge }) {
   if (!piece) return null;
   return html`<${UnitThumb} kind=${piece.kind === 'item' ? 'item' : piece.kind === 'token' ? 'token' : 'chess'} id=${piece.id}
-    golden=${!!piece.golden} tier=${piece.tier} size=${size} class=${cls} badge=${badge} />`;
+    golden=${!!piece.golden} tier=${piece.tier} skinId=${piece.skinId} size=${size} class=${cls} badge=${badge} />`;
 }
 
 /**

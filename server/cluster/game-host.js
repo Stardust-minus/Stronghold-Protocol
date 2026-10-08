@@ -3,6 +3,7 @@
 import { Match } from '../match/Match.js';
 import { C2S, LOADOUT_LIMITS, isNotOwnedList, isDiyPicks } from '../../shared/protocol.js';
 import { experimentalOptions, isExperimental } from '../../shared/experimental.js';
+import { isSkinChoices } from '../../shared/skins.js';
 import { DIFFICULTIES, ERR, MAX_SEATS, NAME_MAX_LEN, modeIdFor } from '../../shared/constants.js';
 
 const OK = Object.freeze({ ok: true });
@@ -12,7 +13,7 @@ const integer = (v, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(
 const plain = v => !!v && typeof v === 'object' && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
 const onlyKeys = (v, keys) => Object.keys(v).every(k => keys.includes(k));
 const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'snapshotHz'];
-const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'notOwned', 'diy'];
+const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'notOwned', 'diy', 'skins'];
 // Match's public observer contract, including the lobby's broadcast ticker/emote
 // and server-combat streams. Unknown types fail closed for observers.
 const SPECTATOR_TYPES = new Set(['m.public', 'm.field', 'm.result', 'm.ticker', 'm.emote', 'm.damage', 'b.start', 'b.snap', 'b.ev', 'b.pool', 'b.end', 'b.damage']);
@@ -81,6 +82,10 @@ function specCopy(spec) {
     if (s.diy !== undefined) {
       if (s.diy !== null && (!isDiyPicks(s.diy) || Object.values(s.diy).some(p => p != null && !onlyKeys(p, ['charId', 'skillIndex', 'uniEquipId'])))) invalid();
       seat.diy = s.diy === null ? null : copy(s.diy);
+    }
+    if (s.skins !== undefined) {
+      if (!isSkinChoices(s.skins)) invalid();
+      seat.skins = { ...s.skins };
     }
     return seat;
   });
@@ -400,7 +405,7 @@ export class GameHost {
     if (!this._live(ctx)) return fail(ERR.WRONG_PHASE);
     try {
       const fn = ctx.match?.[method];
-      if (typeof fn !== 'function') return method === 'setLoadout' ? fail(ERR.ROOM_STARTED) : OK;
+      if (typeof fn !== 'function') return method === 'setLoadout' || method === 'setSkins' ? fail(ERR.ROOM_STARTED) : OK;
       return this._rejectAsync(fn.apply(ctx.match, args), method) ?? OK;
     } catch { this._log(method); return fail(ERR.INTERNAL); }
   }
@@ -435,6 +440,15 @@ export class GameHost {
     let safe;
     try { safe = loadoutCopy(loadout); } catch { return fail(ERR.BAD_MSG); }
     return this._invoke(actor.ctx, 'setLoadout', playerId, safe);
+  }
+
+  setSkins(assignmentId, playerId, choices, channel) {
+    const actor = this._actor(assignmentId, playerId, channel);
+    if (!actor) return fail(ERR.NOT_IN_ROOM);
+    if (actor.member.role === 'spectator') return fail(ERR.SPECTATOR);
+    if (actor.ctx.state !== 'committed') return fail(ERR.WRONG_PHASE);
+    if (!isSkinChoices(choices)) return fail(ERR.BAD_MSG);
+    return this._invoke(actor.ctx, 'setSkins', playerId, freeze({ ...choices }));
   }
 
   leave(assignmentId, playerId, channel) {

@@ -182,7 +182,7 @@ test('auth login and remembered profile reject political category names without 
   const fixture = mkdtempSync(join(tmpdir(), 'sp-name-auth-'));
   t.after(() => rmSync(fixture, { recursive: true, force: true }));
   writeFileSync(join(fixture, 'login.html'), '<input name="csrf" value="{{CSRF}}">');
-  for (const file of ['gate.css', 'gate.js', 'scene.js', 'entry-nav.js', 'three.module.js', 'three.core.js', 'css3d.js', 'bender-regular.woff2']) {
+  for (const file of ['gate.css', 'gate.js', 'warmup.js', 'terminal-motion.js', 'scene.js', 'entry-nav.js', 'three.module.js', 'three.core.js', 'css3d.js', 'bender-regular.woff2']) {
     writeFileSync(join(fixture, file), 'fixture');
   }
   const password = 'test-only-name-policy-access-93';

@@ -27,7 +27,8 @@ function matchDTO(room, seed, snapshotHz) {
     experimental: room.experimental, seed, matchNo: room.matchCount + 1,
     seats: room.seats.filter(Boolean).map(s => ({ seat: s.seat, playerId: s.playerId, name: s.name,
       isBot: s.isBot, connected: s.connected, loadout: structuredClone(s.isBot ? null : s.loadout || null),
-      notOwned: structuredClone(s.isBot ? null : s.notOwned || null), diy: structuredClone(s.isBot ? null : s.diy || null) })),
+      notOwned: structuredClone(s.isBot ? null : s.notOwned || null), diy: structuredClone(s.isBot ? null : s.diy || null),
+      skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }) })),
     spectators: room.spectators.map(s => s.playerId), ...(snapshotHz === undefined ? {} : { snapshotHz }),
   };
 }
@@ -48,6 +49,7 @@ class PreparedRemoteMatch {
     this.lobby = lobby; this.plan = plan; this.opts = opts; this.started = false; this.ended = false;
     this.members = new Set([...plan.spec.seats.filter(s => !s.isBot).map(s => s.playerId), ...plan.spec.spectators]);
     this.loadoutSequence = 0; this.lastLoadout = null;
+    this.skinsSequence = 0; this.lastSkins = null;
     this.mutationSequence = 0; this.lastMutation = null;
     this.pendingSpectators = new Map(); this.pendingSpectatorRemovals = new Set(); this.pendingPeers = new Map();
   }
@@ -124,6 +126,11 @@ class PreparedRemoteMatch {
     this.lastLoadout = this.peer('setLoadout', playerId, loadout);
     return this.lastLoadout;
   }
+  setSkins(playerId, choices) {
+    this.skinsSequence++;
+    this.lastSkins = this.peer('setSkins', playerId, choices);
+    return this.lastSkins;
+  }
   dispose() {
     if (!this.plan.published) return this.plan.abort();
     if (this.ended) return this.lobby.releasePlan(this.plan);
@@ -180,6 +187,7 @@ export class ClusterLobby extends Lobby {
       handle: null, remoteCleanup: null, proxy: null, ctx: null, basePublish: null, release: null,
       spec: structuredClone({ assignmentId: randomBytes(16).toString('hex'), build: this.platform.build, protocol: this.platform.protocol, ...dto }),
     };
+    for (const seat of plan.spec.seats) Object.freeze(seat.skins);
     plan.abort = () => {
       plan.aborted = true;
       if (!plan.controller.signal.aborted) plan.controller.abort();
@@ -303,7 +311,8 @@ export class ClusterLobby extends Lobby {
         if (!plan.dto.seats.filter(s => !s.isBot).every(seat => this.isOnline(this.registry.byId(seat.playerId))
           && isDeepStrictEqual(this.registry.byId(seat.playerId)?.loadout || null, seat.loadout)
           && isDeepStrictEqual(this.registry.byId(seat.playerId)?.notOwned || null, seat.notOwned)
-          && isDeepStrictEqual(this.registry.byId(seat.playerId)?.diy || null, seat.diy))) return false;
+          && isDeepStrictEqual(this.registry.byId(seat.playerId)?.diy || null, seat.diy)
+          && isDeepStrictEqual(this.registry.byId(seat.playerId)?.skins || {}, seat.skins))) return false;
         const current = this.inspectManual(session);
         return !current.error && current.room === room && current.key === check.key
           && isDeepStrictEqual(current.keys, check.keys) && isDeepStrictEqual(matchDTO(room, plan.dto.seed, this.opts.snapshotHz), plan.dto);
@@ -447,6 +456,12 @@ export class ClusterLobby extends Lobby {
     const result = super.loadout(session, message);
     if (result.error || !(match instanceof PreparedRemoteMatch) || match.loadoutSequence === before) return result;
     return match.lastLoadout; // Preserve the remote INFO_CHECK acknowledgement, not a fabricated local OK.
+  }
+  skins(session, message) {
+    const match = this.roomOf(session)?.match, before = match?.skinsSequence;
+    const result = super.skins(session, message);
+    if (result.error || !(match instanceof PreparedRemoteMatch) || match.skinsSequence === before) return result;
+    return match.lastSkins; // Only the owning game actor can acknowledge an INFO_CHECK edit.
   }
   leave(session) {
     const match = this.roomOf(session)?.match, before = match?.mutationSequence;

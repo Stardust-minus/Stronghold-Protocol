@@ -11,6 +11,7 @@ import { PHASE } from '../../../shared/constants.js';
 import { msg, dn } from '../../../shared/i18n.js';
 import { checkLoadout, checkNotOwned, resolveLoadout } from '../../../shared/protocol.js';
 import { tileKey, boardOrder } from '../board.js';
+import { isSkinChoices, skinIdFor } from '../../../shared/skins.js';
 
 export class PlayerBasics {
   get isHumanActive() { return !this.isBot && !this.left; }
@@ -74,6 +75,16 @@ export class PlayerBasics {
     this.loadout = Object.freeze(out);
     return true;
   }
+
+  /** Strict whitelist, copied and frozen independently of all loadouts and operator definitions. */
+  setSkins(choices) {
+    if (this.isBot || !isSkinChoices(choices)) return false;
+    this.skins = Object.freeze({ ...choices });
+    return true;
+  }
+
+  /** The actual body's appearance (DIY picks / stand-ins), never the replaced chess's operator. */
+  skinIdFor(rec) { return skinIdFor(this.skins, this.fieldRecord(rec)?.charId); }
 
   /**
    * The skill index / module a chess record fights with under this player's loadout (DESIGN §16) — for a chess this

@@ -42,6 +42,8 @@
 // so it can be unit tested without a browser. Helpers never throw on unknown ids — they return null and the
 // caller falls back (docs/ASSETS.md "Other fallbacks").
 
+import { appearanceEntry } from './ui/skinAssets.js';
+
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' && v ? v : null);
 const get = (o, k) => (isObj(o) && Object.hasOwn(o, k) ? o[k] : undefined);
@@ -62,6 +64,8 @@ export function baseCharId(id) {
 export function avatarUrl(m, id, opts) {
   const s = str(id);
   if (!s) return null;
+  const skin = appearanceEntry(m, baseCharId(s), opts?.skinId);
+  if (str(skin?.avatar)) return skin.avatar;
   const direct = get(get(m, 'chars'), s);
   let rec = direct, e2 = !!(opts && opts.e2);
   if (!rec) {
@@ -77,6 +81,8 @@ export function avatarUrl(m, id, opts) {
 export function portraitUrl(m, id, opts) {
   const s = str(id);
   if (!s) return null;
+  const skin = appearanceEntry(m, baseCharId(s), opts?.skinId);
+  if (str(skin?.portrait)) return skin.portrait;
   let rec = get(get(m, 'chars'), s), e2 = !!(opts && opts.e2);
   if (!rec) {
     rec = get(get(m, 'chars'), baseCharId(s));
@@ -148,9 +154,22 @@ export function subProfIconUrl(m, sub) {
  * web model, mostly none — its view then keeps the avatar diamond), for a load failure (DESIGN §13: local art is
  * optional, everything works without it).
  */
+const appearanceSpines = new WeakMap();
 export function spineEntry(m, id, opts) {
   const s = str(id);
   if (!s) return null;
+  const appearance = appearanceEntry(m, baseCharId(s), opts?.skinId);
+  if (appearance?.spine) {
+    const sp = opts?.back && validSpine(appearance.spine.back) ? appearance.spine.back : appearance.spine.front;
+    if (validSpine(sp)) {
+      const fallback = spineEntry(m, s, { ...opts, skinId: null });
+      const cached = appearanceSpines.get(sp);
+      if (cached?.fallback === fallback) return cached.entry;
+      const entry = { ...sp, fallback };
+      appearanceSpines.set(sp, { fallback, entry });
+      return entry;
+    }
+  }
   const ch = get(get(m, 'chars'), s) || get(get(m, 'chars'), baseCharId(s));
   if (ch && isObj(ch.spine)) {
     const sp = (opts && opts.back && isObj(ch.spine.back)) ? ch.spine.back : ch.spine.front;
@@ -200,7 +219,9 @@ export function localSpineEntry(sl, local, web) {
 }
 
 /** Whether an operator/token/enemy has a Back model. */
-export function hasBackSpine(m, id) {
+export function hasBackSpine(m, id, opts) {
+  const skin = appearanceEntry(m, baseCharId(id), opts?.skinId);
+  if (validSpine(skin?.spine?.front)) return validSpine(skin.spine.back);
   const ch = get(get(m, 'chars'), str(id) || '') || get(get(m, 'chars'), baseCharId(id) || '');
   return !!(ch && isObj(ch.spine) && validSpine(ch.spine.back));
 }
@@ -210,8 +231,8 @@ export function validSpine(sp) {
 }
 
 /** Best 2D picture for a unit asset id (operator avatar, token avatar, enemy icon, item icon). */
-export function unitPictureUrl(m, id) {
-  return avatarUrl(m, id) || tokenAvatarUrl(m, id) || enemyIconUrl(m, id) || itemIconUrl(m, id) || null;
+export function unitPictureUrl(m, id, opts) {
+  return avatarUrl(m, id, opts) || tokenAvatarUrl(m, id) || enemyIconUrl(m, id) || itemIconUrl(m, id) || null;
 }
 
 // ---- audio ---------------------------------------------------------------------------------------------------
@@ -899,9 +920,9 @@ export function createAssets(options) {
     profIcon: (p, kind) => profIconUrl(m(), p, kind),
     subProfIcon: (s) => subProfIconUrl(m(), s),
     ui: (name) => uiUrl(m(), name),
-    picture: (id) => unitPictureUrl(m(), id),
+    picture: (id, o) => unitPictureUrl(m(), id, o),
     spineEntry: (id, o) => spineEntry(m(), id, localManifest ? { ...o, local: localManifest } : o),
-    hasBack: (id) => hasBackSpine(m(), id),
+    hasBack: (id, o) => hasBackSpine(m(), id, o),
     audio: {
       bgm: (kind) => bgmEntry(m(), kind),
       sfx: (group, key) => sfxUrl(m(), group, key),

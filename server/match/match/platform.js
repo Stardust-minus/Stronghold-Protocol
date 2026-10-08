@@ -75,6 +75,19 @@ export class MatchPlatform {
     return res;
   }
 
+  /** Display preferences may change only during the briefing; the lobby keeps later edits for the next match. */
+  setSkins(playerId, choices) {
+    const ps = this.players.get(playerId);
+    if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);
+    if (this.disposed || this.ended || this.phase !== PHASE.INFO_CHECK) return fail(ERR.WRONG_PHASE, 'skins locked for this match; stored for the next match');
+    let res = OK;
+    this.guard(() => {
+      if (!ps.setSkins(choices)) { res = fail(ERR.BAD_MSG, 'invalid skin choices'); return; }
+      this.markPrivate(ps);
+    });
+    return res;
+  }
+
   onDisconnect(playerId) {
     const ps = this.players.get(playerId);
     if (!ps || ps.isBot || this.disposed) return;

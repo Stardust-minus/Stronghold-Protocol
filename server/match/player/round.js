@@ -119,6 +119,8 @@ export class PlayerRound {
           u.skillIndex = lo.skillIndex;
           u.moduleId = lo.moduleId;
         }
+        const skinId = this.skinIdFor(this.gd.chess(piece.id));
+        if (skinId) u.skinId = skinId;
         if (carry && carry.has(piece.uid)) u.carryState = carry.get(piece.uid);
         units.push(u);
       } else if (piece.kind === 'token') {

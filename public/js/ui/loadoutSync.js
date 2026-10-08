@@ -22,6 +22,8 @@ import { LOADOUT_PREF, parseStored, toStored, sanitizeEntries } from './loadoutM
 import { OWNERSHIP_PREF, parseStoredOwnership, toStoredOwnership, cleanIds, sanitizeNotOwned } from './ownershipModel.js';
 import { DIY_PREF, parseStoredDiy, toStoredDiy, cleanPicks, sanitizeDiyPicks } from './diyModel.js';
 import { toast } from './toasts.js';
+import { cleanSkinChoices } from '../../../shared/skins.js';
+import { SKINS_PREF, parseStoredSkins, toStoredSkins } from './skinsModel.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 export const SYNC_DEBOUNCE_MS = 500;
@@ -37,12 +39,23 @@ function readStoredDiy() {
   try { return parseStoredDiy(loadPref(DIY_PREF, null)); } catch { return {}; }
 }
 
+function readStoredSkins() {
+  try { return parseStoredSkins(loadPref(SKINS_PREF, null)); } catch { return {}; }
+}
+export function setSkins(choices) {
+  const next = cleanSkinChoices(choices);
+  try { savePref(SKINS_PREF, toStoredSkins(next)); } catch { /* private mode: the session keeps the choice */ }
+  loadoutStore.set({ skins: next });
+}
+
 /** Loadout + ownership + screen state (separate from the app store: it must survive room / match resets). */
 export const loadoutStore = createStore({
   entries: readStored(),
   notOwned: readStoredOwnership(), // 干员持有: base chess ids marked 未持有 (sorted; [] = every operator owned)
   diy: readStoredDiy(), // 自选编队: { [slotBaseId]: { charId, skillIndex?, uniEquipId? } } ({} = every slot empty)
   diyKitted: null,     // the operators a DIY slot may field (welcome.diyKitted; null before the first welcome)
+  skins: readStoredSkins(),
+  skinSync: 'idle',
   open: false,
   from: null,          // 'lobby' | 'room' | 'briefing'
   tab: 'loadout',      // 'loadout' (干员调配) | 'ownership' (干员持有) | 'diy' (自选编队)
@@ -270,6 +283,15 @@ export function installOwnershipSync({ net, timers, target = loadoutStore, notif
  * @param {{ net: any, timers?: { setTimeout: Function, clearTimeout: Function }, target?: ReturnType<typeof createStore>,
  *   notify?: (text: string) => void }} deps
  */
+/** Display preferences use the same ordered/debounced sync, without altering skill/module configuration. */
+export function installSkinsSync({ net, timers, target = loadoutStore, notify } = {}) {
+  return installPrefSync({
+    net, timers, target, notify, key: 'skins', stateKey: 'skinSync', msgType: 'room.skins', field: 'choices', tag: 'skins',
+    lockedText: N_('本局的干员外观已锁定，修改将在下一局生效'),
+    prepare: async () => cleanSkinChoices(target.get().skins),
+  });
+}
+
 export function installDiySync({ net, timers, target = loadoutStore, notify } = {}) {
   const offKit = net.on('welcome', (msg) => {
     const list = msg && Array.isArray(msg.diyKitted) ? msg.diyKitted.filter((x) => typeof x === 'string') : null;

@@ -3,6 +3,8 @@
 // (glyph, CSS shape) when null. Only URLs present in the manifest are ever returned, so the client
 // never requests files the asset pipeline did not produce (no 404 noise in the console).
 
+import { appearanceEntry } from './skinAssets.js';
+
 const str = (v) => (typeof v === 'string' && v ? v : null);
 const obj = (v) => (v && typeof v === 'object' ? v : null);
 
@@ -17,6 +19,8 @@ export function uiUrl(m, key) {
  * @param {any} chess chess.json record (or { assets: { avatar } })
  */
 export function chessAvatarUrl(m, chess) {
+  const appearance = appearanceEntry(m, chess?.charId || chess?.assets?.spine, chess?.skinId);
+  if (str(appearance?.avatar)) return appearance.avatar;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.avatar) || str(chess?.charId);
   if (!chars || !id) return null;
@@ -33,6 +37,8 @@ export function chessAvatarUrl(m, chess) {
  * @param {any} chess
  */
 export function chessPortraitUrl(m, chess) {
+  const appearance = appearanceEntry(m, chess?.charId || chess?.assets?.spine, chess?.skinId);
+  if (str(appearance?.portrait)) return appearance.portrait;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.portrait);
   if (!chars) return null;

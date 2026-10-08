@@ -59,6 +59,7 @@ import {
   LOCAL_TOKEN_SPINES_FILE, LOCAL_ENEMY_SPINE_DIR, LOCAL_TOKEN_SPINE_DIR,
 } from './assets/spine.mjs';
 import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash, droppedEntries, MANIFEST_VERSION } from './assets/manifest.mjs';
+import { retainInstalledSkins } from './prepare-operator-skins.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
 
@@ -383,6 +384,9 @@ async function main() {
   // Manifest
   const resolved = resolveTemplate(plan.template, { root: ASSETS, spine: spine.entries, sourceOf: (rel) => dl.ledger.files[rel]?.url });
   const body = resolved.value;
+  const importedSkins = retainInstalledSkins(current, ASSETS);
+  if (Object.keys(importedSkins.skins).length) body.skins = importedSkins.skins;
+  for (const rel of importedSkins.files) resolved.files.add(rel);
   tidyManifest(body);
   const fontFaces = {};
   for (const [name, f] of Object.entries(fonts.files)) fontFaces[name] = f;
@@ -393,7 +397,7 @@ async function main() {
     version: MANIFEST_VERSION,
     hash: contentHash(body),
     generator: 'tools/fetch-assets.mjs',
-    stats: countStats(body, bytes, resolved.files.size),
+    stats: { ...countStats(body, bytes, resolved.files.size), ...(Object.keys(importedSkins.skins).length ? { skins: Object.keys(importedSkins.skins).length } : {}) },
     ...body,
   };
   const guard = shrinkGuard(current, manifest, opts);

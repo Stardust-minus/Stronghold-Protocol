@@ -6,6 +6,7 @@ import { Img, GIcon } from './gameComponents.js';
 import { chessAvatarUrl } from './assetUrls.js';
 import { data, getChess, useData } from '../data.js';
 import { t } from '../../../shared/i18n.js';
+import { appearanceRecord } from './skinAssets.js';
 
 export function damageNumber(value) {
   const n = Number.isFinite(value) && value > 0 ? value : 0;
@@ -83,7 +84,13 @@ export function damageGroups(snapshot, owners) {
   return { groups, shared: groups.length > 1, available: !!groups.length && groups.every(group => group.available) && Number.isFinite(total), total };
 }
 
-export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, bossOwners = null, bossHidden = false, open = false, onToggle }) {
+export function damageAppearance(chess, row, ownerId, units = []) {
+  const unit = units.find(u => u?.ownerId === ownerId && u.defId === row.defId && u.uid === row.uid && u.kind === 'op');
+  if (!chess || !unit?.skinId) return chess;
+  return appearanceRecord({ ...chess, charId: unit.spine, assets: { ...chess.assets, avatar: unit.avatar } }, unit.skinId);
+}
+
+export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, bossOwners = null, bossHidden = false, open = false, onToggle, units = [] }) {
   useData('chess', 'assets');
   const boss = Array.isArray(bossOwners) && bossOwners.length > 0;
   const owners = boss ? bossOwners : Array.isArray(uniteOwners) && uniteOwners.length ? uniteOwners : [{ playerId: ownerId, name: ownerName || t('当前视角') }];
@@ -115,18 +122,18 @@ export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, 
         ${score.groups.map(group => html`<section key=${group.playerId} class="damage-board__group" data-player-id=${group.playerId} aria-label=${t('{name}的输出', { name: group.name })}>
           <header class="damage-board__group-heading"><strong title=${group.name}>${group.name}</strong>
             <span>${t('小计')} <b class="num">${group.available ? damageNumber(group.total) : '—'}</b></span></header>
-          <${DamageRows} score=${group} manifest=${manifest} ownerName=${group.name} shared=${true} />
+          <${DamageRows} score=${group} manifest=${manifest} ownerName=${group.name} shared=${true} units=${units} />
         </section>`)}
-      </div>` : html`<${DamageRows} score=${score.groups[0]} manifest=${manifest} />`}
+      </div>` : html`<${DamageRows} score=${score.groups[0]} manifest=${manifest} units=${units} />`}
       <details class="damage-board__rules"><summary>${t('统计口径')}</summary><p>${score.shared ? boss ? t('仅展示当前 Boss 战场的参与者，分别统计本轮累计；占比以该玩家小计计算，不等同于全队共享 Boss 血池扣血。') : t('按场上参与者分别展示本轮累计（各自行动 + 联防），占比以该玩家小计计算。') : ''}${t('只计实际扣除的生命值。召唤物归所属干员；装置与无干员归属伤害单列；过量伤害、护盾吸收与友方伤害不计。')}</p></details>
     </section>` : null}
   </aside>`;
 }
 
-function DamageRows({ score = { available: false, rows: [], total: 0 }, manifest, ownerName, shared = false }) {
+function DamageRows({ score = { available: false, rows: [], total: 0 }, manifest, ownerName, shared = false, units = [] }) {
   return html`<ol class="damage-board__rows">
     ${score.rows.length ? score.rows.map((row, index) => {
-      const chess = row.other ? null : getChess(row.defId);
+      const chess = row.other ? null : damageAppearance(getChess(row.defId), row, score.playerId, units);
       const name = row.other ? t('装置 / 其他') : chess?.name || row.defId || t('干员');
       const share = damageShare(row.damage, score.total);
       const detail = t('{0}{name} · 实际伤害 {2} · {3} {4}%', { 0: shared ? `${ownerName} · ` : '', name, 2: row.damage.toLocaleString('zh-CN', { maximumFractionDigits: 2 }), 3: shared ? t('本人占比') : t('占比'), 4: share.toFixed(1) });
@@ -134,7 +141,7 @@ function DamageRows({ score = { available: false, rows: [], total: 0 }, manifest
         <${Tooltip} text=${detail} block class="damage-board__tip">
           <div class="damage-board__row" tabIndex="0" aria-label=${detail}>
             <span class="damage-board__portrait" aria-hidden="true">
-              ${row.other ? html`<${GIcon} name="gear" />` : html`<${Img} src=${chessAvatarUrl(manifest, chess)}
+              ${row.other ? html`<${GIcon} name="gear" />` : html`<${Img} src=${chessAvatarUrl(manifest, chess)} fallbackSrc=${chessAvatarUrl(manifest, chess && { ...chess, skinId: null })}
                 fallback=${html`<span class="damage-board__initial">${Array.from(name)[0]}</span>`} />`}
               <span class="damage-board__rank num">${index + 1}</span>
             </span>

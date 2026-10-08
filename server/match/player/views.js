@@ -21,6 +21,8 @@ export class PlayerViews {
       count: p.kind === 'token' ? (p.count || 1) : 1,
       ownerUid: p.kind === 'token' ? p.ownerUid ?? null : null,
     };
+    const skinId = p.kind === 'chess' ? this.skinIdFor(rec) : null;
+    if (skinId) v.skinId = skinId;
     if (rc) { v.row = rc[0]; v.col = rc[1]; v.dir = pieceDir(p); }
     return v;
   }
@@ -92,6 +94,8 @@ export class PlayerViews {
       nextEnemies: this.m.nextEnemiesFor(this),
       // DESIGN §16: the effective operator loadout ({ [baseChessId]: { skill, module } }; chess not listed use defaults)
       loadout: this.loadout,
+      // Private preference map; public/scouting DTOs carry only each visible piece's resolved skinId.
+      skins: this.skins,
       // 0.2.0 补位: the base chess ids this player fields as their stand-ins in this match (the not-owned list the seat had
       // at the match start; [] = every operator owned) — the client shows these as their stand-ins (cards, pieces, the
       // detail card, with a small 「替补」 mark)

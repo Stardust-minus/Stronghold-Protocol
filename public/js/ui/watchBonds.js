@@ -22,6 +22,7 @@
 // strip's owner, or the chip's — its entry, member list and "👁 name" label always belong to that one player.
 
 import { BOND_LAYER_CAP } from '../../../shared/constants.js';
+import { skinFor } from '../../../shared/skins.js';
 import { sidesOf, nameOf, cameraLayers } from '../battle/observe.js';
 
 const isObj = (v) => !!v && typeof v === 'object';
@@ -169,6 +170,7 @@ export function ownerBoard(field, ownerId, extra = null) {
       if (isObj(u.diy) && typeof u.diy.charId === 'string') p.diy = u.diy;
       // 0.2.0 补位: a unit fighting as its stand-in says so (UnitInfo standInFor) — the popup draws that member as the stand-in
       if (typeof u.standInFor === 'string' && u.standInFor) p.standInFor = u.standInFor;
+      if (skinFor(u.spine, u.skinId)) p.skinId = u.skinId;
       return p;
     });
   return { board, hand: [], temp: [] };

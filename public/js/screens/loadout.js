@@ -31,7 +31,9 @@ import {
   MODULE_NONE, PROF_ORDER, PROF_NAME, rosterOf, filterRoster, recordsOf, chessOptions, effectiveChoice, setChoice, resetChoice,
   changedCount, skillLabel, moduleBadge, attrRows, skillTags, traitLines, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES,
 } from '../ui/loadoutModel.js';
-import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport } from '../ui/loadoutSync.js';
+import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport, setSkins } from '../ui/loadoutSync.js';
+import { SkinPicker } from '../ui/skinPicker.js';
+import { ownAppearance } from '../ui/skinAssets.js';
 import { setOwned, notOwnedCount, serializeOwnership, parseOwnershipImport, OWNERSHIP_IMPORT_MAX_BYTES } from '../ui/ownershipModel.js';
 import { OwnershipPanel, useOwnershipRoster } from './ownership.js';
 import { DiyPanel, diyData } from './diy.js';
@@ -142,7 +144,7 @@ export function ModuleGlyph({ m, rec, id, size = 'md' }) {
 
 // ---- roster card ---------------------------------------------------------------------------------------------------
 
-function RosterCard({ m, chess, golden, entries, selected, onPick, notOwned = false }) {
+function RosterCard({ m, chess, golden, entries, selected, onPick, notOwned = false, skins = {} }) {
   const choice = effectiveChoice(entries, chess, golden);
   const opt = chessOptions(chess, golden);
   const skillRec = opt.skillOptions.find((s) => s.index === choice.skill)?.normal || chess.skill;
@@ -152,7 +154,7 @@ function RosterCard({ m, chess, golden, entries, selected, onPick, notOwned = fa
       class=${cx('lo-card', `lo-card--t${chess.tier}`, selected && 'is-sel', choice.changed && 'is-changed')} onClick=${() => onPick(chess.chessId)}
       title=${`${chess.name} · ${skillRec?.name || ''}`}>
     <span class="lo-card__art">
-      <${Img} src=${chessAvatarUrl(m, chess)} fallback=${html`<span class="lo-card__glyph">${[...(chess.name || '?')][0]}</span>`} />
+      <${Img} src=${chessAvatarUrl(m, ownAppearance(chess, { skins }))} fallbackSrc=${chessAvatarUrl(m, chess)} fallback=${html`<span class="lo-card__glyph">${[...(chess.name || '?')][0]}</span>`} />
     </span>
     <${TierChip} tier=${chess.tier} size="sm" class="lo-card__tier" />
     ${choice.changed ? html`<span class="lo-card__flag" aria-label=${t('已调整')}></span>` : null}
@@ -280,7 +282,7 @@ export function LoadoutStats({ base, golden, entries, level, onLevel, getChess =
   </section>`;
 }
 
-function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned = false }) {
+function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned = false, skins = {}, skinSync = 'idle' }) {
   const [level, setLevel] = useState('normal');
   const [statLevel, setStatLevel] = useState('elite'); // 局内数值: the 精锐 shows the chosen module's effect
   const bodyRef = useRef(null);
@@ -293,7 +295,7 @@ function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned
   return html`<aside class="lo-detail" aria-label=${t('{name} 调配', { name: chess.name })}>
     <div class="lo-dhead">
       <div class=${cx('lo-dhead__art', `lo-dhead__art--t${chess.tier}`)}>
-        <${Img} src=${chessPortraitUrl(m, golden || chess)} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
+        <${Img} src=${chessPortraitUrl(m, ownAppearance(golden || chess, { skins }))} fallbackSrc=${chessPortraitUrl(m, golden || chess)} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
       </div>
       <div class="lo-dhead__info">
         <div class="lo-dhead__chips"><${TierChip} tier=${chess.tier} size="md" />
@@ -310,6 +312,7 @@ function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned
       <${Button} variant="ghost" size="sm" icon="refresh" class="lo-dhead__reset" disabled=${!choice.changed} onClick=${onReset}>${t('恢复默认')}<//>
     </div>
     <div class="lo-detail__body" ref=${bodyRef}>
+      <${SkinPicker} m=${m} charId=${chess.charId} record=${golden || chess} choices=${skins} sync=${skinSync} onChange=${setSkins} locked=${locked} />
       <section class="lo-sec">
         <header class="lo-sec__head">
           <h3>${t('技能')}<${MicroLabel}>SKILL<//></h3>
@@ -631,7 +634,7 @@ function LoadoutScreen({ st }) {
       : html`<p class=${cx('lo-note', locked && 'is-locked')}><${Icon} name="info" />${locked ? t('本局的调配已锁定（确认本局信息后无法修改），修改将在下一局生效') : fromText}</p>`}
     ${!ready ? html`<div class="lo-loading"><${Spinner} size="sm" />${t('正在载入干员数据（打开页面后仅载入一次）…')}</div>`
       : lost.length ? html`<${DataMissing} files=${lost} />` : tab === 'diy'
-      ? html`<${DiyPanel} m=${m} picks=${st.diy || {}} legal=${diyLegal} kitted=${st.diyKitted} onSet=${setDiySlot} />`
+      ? html`<${DiyPanel} m=${m} picks=${st.diy || {}} legal=${diyLegal} kitted=${st.diyKitted} onSet=${setDiySlot} skins=${st.skins} skinSync=${st.skinSync} onSkins=${setSkins} />`
       : tab === 'ownership'
       ? html`<${OwnershipPanel} m=${m} roster=${ownRoster} notOwned=${st.notOwned} onToggle=${toggleOwned} />`
       : html`<main class=${cx('lo-body', narrowDetail && 'is-detail')}>
@@ -639,12 +642,12 @@ function LoadoutScreen({ st }) {
         <${Filters} m=${m} filters=${st.filters} bonds=${bonds} onFilters=${(filters) => loadoutStore.set({ filters })} />
         <div class="lo-grid" role="listbox" aria-label=${t('干员列表')} ref=${gridRef}>
           ${list.length ? list.map((c) => html`<${RosterCard} key=${c.chessId} m=${m} chess=${c} golden=${c.goldenId ? getChess(c.goldenId) : null}
-            entries=${st.entries} selected=${c.chessId === selId} onPick=${pick} notOwned=${(st.notOwned || []).includes(c.chessId)} />`) : html`<p class="lo-empty t-dim">${t('没有符合条件的干员')}</p>`}
+            entries=${st.entries} skins=${st.skins} selected=${c.chessId === selId} onPick=${pick} notOwned=${(st.notOwned || []).includes(c.chessId)} />`) : html`<p class="lo-empty t-dim">${t('没有符合条件的干员')}</p>`}
         </div>
       </section>
       <div class="lo-detail-wrap">
         <button type="button" class="lo-detail-back tapx" onClick=${() => setNarrowDetail(false)}><${Icon} name="chevronLeft" />${t('干员列表')}</button>
-        <${Detail} m=${m} chess=${base} golden=${golden} entries=${st.entries} onChange=${change} onReset=${resetOne} locked=${locked}
+        <${Detail} m=${m} chess=${base} golden=${golden} entries=${st.entries} skins=${st.skins} skinSync=${st.skinSync} onChange=${change} onReset=${resetOne} locked=${locked}
           notOwned=${!!base && (st.notOwned || []).includes(base.chessId)} />
       </div>
     </main>`}

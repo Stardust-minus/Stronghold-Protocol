@@ -34,6 +34,32 @@ export function skelParserAvailable() {
   try { loadRuntime(); return true; } catch { return false; }
 }
 
+/** Remove editor image/audio roots from a 3.8 display copy, retaining all skeleton/animation bytes. */
+export function normalizeSkelPaths(bytes) {
+  const source = Uint8Array.from(bytes);
+  const { BinaryInput } = require('@pixi-spine/base');
+  const input = new BinaryInput(source);
+  input.readString();
+  const version = input.readString();
+  if (!version?.startsWith('3.8.')) throw new Error('Only Spine 3.8 display headers can be normalized');
+  for (let i = 0; i < 4; i++) input.readFloat();
+  if (!input.readBoolean()) return { bytes: source, removed: [], sourceHeaderEnd: input.index, displayHeaderEnd: input.index };
+  input.readFloat();
+  const spans = [];
+  for (const field of ['imagesPath', 'audioPath']) {
+    const start = input.index, value = input.readString();
+    if (value) spans.push({ field, start, end: input.index });
+  }
+  const chunks = []; let offset = 0;
+  for (const span of spans) {
+    chunks.push(source.subarray(offset, span.start), Uint8Array.of(1)); // Spine string encoding for an empty root.
+    offset = span.end;
+  }
+  chunks.push(source.subarray(offset));
+  return { bytes: spans.length ? Uint8Array.from(Buffer.concat(chunks)) : source, removed: spans.map(s => s.field),
+    sourceHeaderEnd: input.index, displayHeaderEnd: input.index - spans.reduce((n, s) => n + s.end - s.start - 1, 0) };
+}
+
 function makeLoader(r, regions, missing) {
   const check = (path) => { if (regions && !regions.has(path)) missing.add(path); };
   return {

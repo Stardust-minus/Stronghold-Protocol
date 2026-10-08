@@ -31,6 +31,41 @@
    later rule) it beat the layer's `position: absolute`, which left a 0-px tall flex item that never drew (PR #14). */
 .lo > :where(:not(.lo__bg)) { position: relative; }
 
+/* ---- display-only operator appearances -------------------------------------------------------------------------- */
+.lo-skins { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(.92rem, 92px), 1fr)); gap: .1rem; }
+.lo-skin {
+  position: relative; display: flex; flex-direction: column; gap: .04rem; min-width: 0; padding: .1rem;
+  border: 1px solid var(--line); background: var(--bg-1); color: var(--text-hi); text-align: left;
+  cursor: pointer; transition: border-color 150ms, transform 150ms;
+}
+.lo-skin:hover:not(:disabled) { border-color: var(--mint-500); }
+.lo-skin:active:not(:disabled) { transform: scale(.98); }
+.lo-skin:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+.lo-skin.is-on { border-color: var(--mint-400); background: var(--bg-2); }
+.lo-skin:disabled { opacity: .5; cursor: not-allowed; }
+.lo-skin__art { display: flex; align-items: center; justify-content: center; height: max(1.24rem, 110px); overflow: hidden; }
+.lo-skin__art img { max-width: 100%; width: auto; height: 100%; object-fit: contain; }
+.lo-skin__name { font-size: max(.16rem, 12px); font-weight: 700; overflow-wrap: anywhere; }
+.lo-skin__brand { font-size: max(.12rem, 10px); color: var(--text-lo); overflow-wrap: anywhere; }
+.lo-skin__mark { display: flex; align-items: center; gap: .03rem; color: var(--mint-400); font-size: max(.12rem, 10px); }
+.lo-skin__mark .icon { width: max(.12rem, 12px); height: max(.12rem, 12px); }
+.lo-skin__note { color: var(--text-lo); font-size: max(.13rem, 11px); line-height: 1.6; margin: .12rem 0 0; }
+.lo-skin-sync { color: var(--text-lo); font-size: max(.12rem, 10px); }
+.lo-skin-preview { display: flex; align-items: center; justify-content: center; }
+.lo-skin-preview img { max-width: 100%; max-height: 65dvh; object-fit: contain; }
+.lo-skin__dynamic { font-size: max(.12rem, 10px); color: var(--mint-400); }
+.lo-dynamic__stage { position: relative; width: 100%; height: min(60dvh, 560px); min-height: 200px; }
+.lo-dynamic__canvas { position: absolute; inset: 0; }
+.lo-dynamic__canvas canvas { display: block; max-width: 100%; }
+.lo-dynamic__fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.lo-dynamic__controls { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem; margin-top: .12rem; font-size: max(.14rem, 12px); color: var(--text-lo); }
+.lo-dynamic__controls select { max-width: 100%; background: var(--bg-1); color: var(--text-hi); border: 1px solid var(--line); min-height: 36px; }
+.lo-dynamic-switch { display: flex; justify-content: flex-end; margin-bottom: .08rem; }
+.lo-skin__tools { display: flex; flex-wrap: wrap; gap: .08rem; margin-top: .08rem; }
+.lo-skin__error { color: var(--red-400, #ef8f8f); font-size: max(.16rem, 12px); }
+@media (pointer: coarse) { .lo-skin__tools .btn { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .lo-skin { transition: none; } }
+
 /* ---- top bar ---------------------------------------------------------------------------------------------------- */
 /* The tabs stay centred while both sides fit in equal halves beside them; a wider side keeps its own width and shifts
    the tabs instead (0.2.0: three tabs and the co-op countdown ran the right column into the tabs on phones and in
