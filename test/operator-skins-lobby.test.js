@@ -110,6 +110,7 @@ test('public 2+1+1 allocation takes each current preference and keeps observers 
   for (let i = 0; i < ps.length; i++) lobby.skins(ps[i], { choices: i % 2 ? {} : choices(i ? SECOND : FIRST) });
   lobby.create(ps[0], { mode: 'coop', difficulty: 'NORMAL' }); const old = lobby.roomOf(ps[0]);
   lobby.join(ps[1], { code: old.code }); lobby.spectate(observer, { code: old.code });
+  assert.deepEqual(lobby.ready(ps[1], { ready: true }), { ok: true });
   lobby.skins(observer, { choices: choices(SECOND) });
   for (const s of [ps[0], ps[2], ps[3]]) assert.deepEqual(lobby.queue.join(s, { difficulty: 'NORMAL', party: s === ps[0] }), { ok: true });
   const states = ps.map(s => lobby.queue.state(s));

@@ -12,11 +12,11 @@
 //   opts.mode        'solo' | 'coop'
 //   opts.difficulty  'FUNNY'|'NORMAL'|'HARD'|'ABYSS'
 //   opts.modeId      string                     modeIdFor(mode, difficulty), e.g. 'mode_multi_hard'
-//   opts.seats       Array<{ seat: 0..3, playerId: string, name: string, isBot: boolean, connected: boolean,
+//   opts.seats       Array<{ seat: 0..(capacity-1), playerId: string, name: string, isBot: boolean, connected: boolean,
 //                            loadout?: { [baseChessId]: { skill: index, module: uniEquipId|'none'|null } } | null,
 //                            notOwned?: string[] | null,
 //                            diy?: { [slotBaseId]: { charId, skillIndex, uniEquipId } } | null }>
-//                    sorted by seat, 1–4 entries, ≥ 1 human; solo ⇒ exactly 1 human and no bots.
+//                    sorted by seat, ordinary 1–4 entries; opt-in friend-room capacity up to 20. Solo stays one seat.
 //                    Bot playerIds start with 'ai_'. Seat indexes may have gaps (e.g. seats 0 and 2).
 //                    `loadout` (DESIGN §16, optional): the human's operator loadout, already checked by the lobby
 //                    (shared/protocol.js checkLoadout); PlayerState re-checks it against opts.data and ignores it for bots.
@@ -168,6 +168,7 @@
 
 import { PHASE, modeIdFor } from '../../shared/constants.js';
 import { experimentalOptions } from '../../shared/experimental.js';
+import { roomCapacity } from '../../shared/playerCapacity.js';
 import { createDamageBoard } from './damageBoard.js';
 import { MatchExtensions } from './match/extensions.js';
 import { Battle } from '../sim/Battle.js';
@@ -175,7 +176,7 @@ import { DataSource } from '../sim/simdata.js';
 import { createRng, deriveSeed } from '../sim/rng.js';
 import { GameData } from './gamedata.js';
 import { RealScheduler } from './scheduler.js';
-import { SharedPool, drawDisabledBonds } from './pool.js';
+import { SharedPool, createPoolGroups, drawDisabledBonds } from './pool.js';
 import { PlayerState } from './PlayerState.js';
 import { EffectDispatcher, getDefaultRegistry } from './effectsMeta.js';
 import { setupMatchWaves } from './waves.js';
@@ -294,6 +295,9 @@ export class Match {
     });
     this.revivalEnabled = !this.isSolo && this.experimental.revivalEnabled;
     this.disableSharedPool = this.experimental.disableSharedPool;
+    this.playerCapacity = roomCapacity(this.isSolo ? 'solo' : this.mode, this.experimental);
+    this.capacityExperiment = !this.isSolo && this.playerCapacity > 4;
+    if (opts.seats.length > this.playerCapacity) throw new RangeError('Match: seats exceed room capacity');
     /** SETTLE-only rescue state: { round, eligible: Set<playerId>, windowOpen, deadline }. */
     this._revival = null;
     this._progressTimer = null;
@@ -313,10 +317,14 @@ export class Match {
 
     /** @type {Map<string, PlayerState>} */
     this.players = new Map();
-    const seen = new Set();
+    const seen = new Set(), seatIndexes = new Set();
     for (const s of opts.seats) {
       if (!s || typeof s.playerId !== 'string' || seen.has(s.playerId)) continue;
+      if (!Number.isInteger(s.seat) || s.seat < 0 || s.seat >= this.playerCapacity || seatIndexes.has(s.seat)) {
+        throw new TypeError('Match: unique seat index within room capacity required');
+      }
       seen.add(s.playerId);
+      seatIndexes.add(s.seat);
       this.players.set(s.playerId, new PlayerState(this, s));
     }
     if (!this.players.size) throw new TypeError('Match: seats required');
@@ -346,9 +354,12 @@ export class Match {
     this.disabledBonds = bans.drawn;
     this.staticInactiveBonds = bans.staticOff;
     this.bannedChess = bans.banned;
-    this.pool = new SharedPool(this.gd, { banned: bans.banned });
-    this.playerPools = this.disableSharedPool ? new Map(this.order.map(ps =>
-      [ps.playerId, new SharedPool(this.gd, { banned: bans.banned })])) : null;
+    this.poolGroups = createPoolGroups(this.gd, this.order, { banned: bans.banned,
+      experimental: this.capacityExperiment, independent: this.disableSharedPool });
+    // `pool` remains the ordinary diagnostic/bond-availability view; transactions always route via poolFor/ps.pool.
+    this.pool = this.disableSharedPool ? new SharedPool(this.gd, { banned: bans.banned }) : this.poolGroups[0].pool;
+    this.playerPools = this.disableSharedPool || this.capacityExperiment
+      ? new Map(this.poolGroups.flatMap(g => g.playerIds.map(id => [id, g.pool]))) : null;
     // 自选编队 (0.2.0): each human's slotted DIY pieces get their own stock — none for one whose bonds are all off this
     // match (player/diy.js initDiyStock); no randomness is drawn here
     const off = new Set([...bans.drawn, ...bans.staticOff]);
@@ -396,6 +407,8 @@ export class Match {
     this.watchPref = new Map();
     this.lastResults = new Map();
     this.unitePlan = null;
+    this._normalAliveCount = 0;
+    this._uniteRelay = null;
     /** 联防 outcome for the SETTLE view: { through, helpers, leakers, losses } (settle()), null when no 联防 resolved */
     this.uniteResultView = null;
     /** server-run 联防: the leakers' counts last published (_uniteTick) */
@@ -405,6 +418,7 @@ export class Match {
     this.teamLp = null;
     this.bossPool = null;
     this.hiddenLayerSum = 0;
+    this.finalAliveCount = 0;
     this.hiddenReached = false;
     this.outcome = null;
     this._turnToken = 0;

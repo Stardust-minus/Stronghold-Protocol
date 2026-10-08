@@ -11,8 +11,10 @@ const DAMAGE_PUBLIC_MS = 1000;
 
 export class MatchExtensions {
   poolFor(player) {
+    const id = typeof player === 'string' ? player : player?.playerId;
+    if (this.capacityExperiment && !this.players.has(id)) throw new TypeError('player card pool required');
     if (!this.playerPools) return this.pool;
-    const pool = this.playerPools.get(typeof player === 'string' ? player : player?.playerId);
+    const pool = this.playerPools.get(id);
     if (!pool) throw new TypeError('player card pool required');
     return pool;
   }

@@ -1,7 +1,8 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO } from './constants.js';
+import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS } from './playerCapacity.js';
 import { isExperimental } from './experimental.js';
 import { isSkinChoices } from './skins.js';
 
@@ -337,7 +338,7 @@ const target = (v) => {
 /** @type {Record<string, Record<string, (v:any)=>boolean> & { $optional?: string[] }>} */
 export const C2S = {
   // session & lobby
-  hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6), matchmakingVersion: isId, $optional: ['token', 'version', 'matchmakingVersion'] },
+  hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6), matchmakingVersion: isId, playerCapacityVersion: isId, $optional: ['token', 'version', 'matchmakingVersion', 'playerCapacityVersion'] },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), experimental: isExperimental, $optional: ['experimental'] },
   'room.setExperimental': { experimental: isExperimental },
@@ -351,10 +352,10 @@ export const C2S = {
   'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool, experimental: () => false, $optional: ['revivalVote', 'experimental'] },
   'room.setDifficulty': { difficulty: (v) => DIFFICULTIES.includes(v) },
   'room.addBot': {},
-  'room.removeBot': { seat: (v) => isInt(v, 0, MAX_SEATS - 1) },
+  'room.removeBot': { seat: (v) => isInt(v, 0, MAX_PLAYER_CAPACITY - 1) },
   // the host removes another human before the match (server/lobby.js kick; community report #17); playerId = the one the
   // host confirmed — a seat that changed hands meanwhile is refused
-  'room.kick': { seat: (v) => isInt(v, 0, MAX_SEATS - 1), playerId: isId },
+  'room.kick': { seat: (v) => isInt(v, 0, MAX_PLAYER_CAPACITY - 1), playerId: isId },
   'room.start': {},
   // operator loadout (DESIGN §16): stored per session/seat; accepted until the match leaves INFO_CHECK
   'room.loadout': { entries: isLoadoutEntries },
@@ -392,7 +393,7 @@ export const C2S = {
   'g.art': { itemUid: isUid, row: (v) => isInt(v, 0, GEO.ROWS - 1), col: (v) => isInt(v, 0, GEO.COLS - 1), dir: isDir, $optional: ['dir'] },
   'g.destroy': { uid: isUid },
   'g.reward': { idx: (v) => isInt(v, 0, 5) },
-  'g.choice': { idx: (v) => isInt(v, 0, 5) },
+  'g.choice': { idx: (v) => isInt(v, 0, MAX_DRAFT_CARDS - 1) },
   'g.ready': { ready: isBool },
   'g.revive': { playerId: isId, round: (v) => isInt(v, 1, 1000), matchId: isId },
   'g.emote': { id: (v) => EMOTES.includes(v) },
@@ -415,7 +416,7 @@ export const C2S = {
     battleId: isId, gt: (v) => isNum(v, 0, 1e5), killed: (v) => isInt(v, 0, 1e5), total: (v) => isInt(v, 0, 1e5),
     leaks: (v) => isNum(v, 0, 1e6), bossDmg: (v) => isNum(v, 0, BIG),
     by: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, BIG)), done: isBool,
-    left: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isInt(x, 0, 1e5)),
+    left: (v) => isMap(v, MAX_PLAYER_CAPACITY, isId, (x) => isInt(x, 0, 1e5)),
     $optional: ['leaks', 'bossDmg', 'by', 'done', 'left'],
   },
   'b.result': { battleId: isId, result: isBattleResult },
@@ -427,6 +428,9 @@ export const S2C = [
   'room.state', 'room.closed',
   // Aggregate online identities and the requester's own matchmaking ticket (never other queue members).
   'presence.state', 'queue.state',
+  // Expanded relay only: m.public.uniteRound (1|2), uniteRounds (2); unite.rounds / uniteResult.rounds
+  // retain completed { round, fieldId, battleId, helpers, through } rows. Current field helpers <=2,
+  // final uniteResult.helpers aggregates <=4 actual participants; b.result limits remain unchanged.
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)
   'm.unitStats',

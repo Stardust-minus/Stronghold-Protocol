@@ -74,6 +74,8 @@ export class MatchCombat {
     this.phase = PHASE.COMBAT;
     const alive = this.alivePlayers();
     this.lastResults = new Map();
+    this._normalAliveCount = alive.length;
+    this._uniteRelay = null;
     this.fields = alive.map((ps) => this.combatPool ? this._remoteField(this._normalOpts(ps), [ps.playerId])
       : { fieldId: `n:${ps.playerId}`, kind: 'normal', players: [ps.playerId], battle: this._normalBattle(ps), live: true });
     this._beginDamage('normal');
@@ -93,6 +95,8 @@ export class MatchCombat {
     this.phase = PHASE.COMBAT;
     const alive = this.alivePlayers();
     this.lastResults = new Map();
+    this._normalAliveCount = alive.length;
+    this._uniteRelay = null;
     this.watchers.clear();
     const fields = alive.map((ps) => this._ccField({ fieldId: `n:${ps.playerId}`, kind: 'normal', players: [ps.playerId], opts: this._normalOpts(ps) }));
     const limit = this.wave ? this.wave.timeLimit : 60;

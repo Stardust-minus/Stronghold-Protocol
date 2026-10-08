@@ -71,7 +71,8 @@
 import { net as appNet } from '../net.js';
 import { store as appStore } from '../store.js';
 import { unitStatsEntry, fxForm } from '../../../shared/protocol.js';
-import { spectateEffects } from './observe.js';
+import { spectateEffects, uniteRelayKey } from './observe.js';
+import { MAX_PLAYER_CAPACITY } from '../../../shared/playerCapacity.js';
 
 const TICK = 1 / 30;
 /** Fast-forward budget per frame (ticks) when far behind. */
@@ -439,8 +440,8 @@ export function createBattleRunner(deps) {
       }
     } else {
       msg.leaks = Math.min(1e6, p.leaks);
-      // 联防: the leakers' enemies still standing (shared/protocol.js b.progress `left`, ≤ 4 players)
-      if (p.left) msg.left = Object.fromEntries(Object.entries(p.left).slice(0, 4));
+      // Expanded rooms may have twenty leak sources; field participants remain bounded separately.
+      if (p.left) msg.left = Object.fromEntries(Object.entries(p.left).slice(0, MAX_PLAYER_CAPACITY));
     }
     try { net.send('b.progress', msg); } catch { /* offline */ }
   }
@@ -779,12 +780,22 @@ export function createBattleRunner(deps) {
   }
   // phase changes: combat fields live until the next prep; leaving the match drops everything
   let lastPhase = null;
+  let lastRelay = null;
   if (store && typeof store.subscribe === 'function') {
     offs.push(store.subscribe((s) => {
       const pub = s && s.match && s.match.public ? s.match.public : null;
       // solo pause (DESIGN §14): the local battle clocks follow m.public.paused
       setPaused(!!(pub && pub.paused));
       const phase = pub ? pub.phase : null;
+      const relay = uniteRelayKey(pub);
+      const relayChanged = relay && lastRelay && relay !== lastRelay;
+      lastRelay = relay;
+      if (relayChanged && cur?.kind === 'unite' && cur.battleId !== pub.unite?.battleId) {
+        // Detach the old view, not its authority/result: lost b.result must still be re-delivered.
+        cur = null;
+        if (loading?.battleId !== pub.unite?.battleId) { ++startSeq; loading = null; }
+        publishState();
+      }
       if (phase === lastPhase) return;
       lastPhase = phase;
       if (!phase || ['PREP', 'ROUND_START', 'SP_DRAFT', 'RESULT', 'LOBBY', 'INFO_CHECK', 'BAND_DRAFT', 'BATTLE_CHECK'].includes(phase)) {

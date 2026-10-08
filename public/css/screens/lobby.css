@@ -9,10 +9,13 @@
   width: 100%;
   max-width: 19.2rem;
   margin: 0 auto;
-  padding: .24rem .5rem .26rem;
+  padding: .2rem .5rem .22rem;
   align-content: start;
 }
 .lobby-left, .lobby-right { display: flex; flex-direction: column; min-width: 0; }
+.lobby-contact { display: flex; justify-content: flex-end; width: 100%; max-width: 19.2rem; margin-inline: auto; padding: 0 max(.5rem, 16px); flex: none; }
+.lobby-feedback { min-height: 40px; padding-inline: 14px; font-size: max(.19rem, 14px); color: var(--mint-400); border-color: var(--mint-700); letter-spacing: .06em; }
+.lobby-feedback .icon { width: 16px; height: 16px; }
 
 /* ---- mode cards ------------------------------------------------------------------------------------ */
 .mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .16rem; margin-bottom: .22rem; }
@@ -312,4 +315,33 @@
   .lobby-screen .topbar__left, .lobby-screen .topbar__right { gap: 6px; }
   .lobby-screen .topbar .btn { padding-inline: 8px; font-size: 12px; min-height: 40px; }
   .lobby-screen .online-players { font-size: 12px; }
+}
+@media (max-width: 600px) and (min-height: 461px) {
+  .lobby-screen .topbar { height: auto; min-height: 96px; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-block: 4px; }
+  .lobby-screen .topbar__left, .lobby-screen .topbar__right { justify-content: space-between; }
+  .lobby-body { grid-template-columns: minmax(0, 1fr); padding: 8px 16px 16px; gap: 16px; }
+  .lobby-screen .section-label { font-size: 13px; min-height: 24px; margin-bottom: 8px; }
+  .lobby-screen .section-label > .micro { display: none; }
+  .lobby-protocol-help { height: 32px; min-height: 32px; font-size: 12px; padding-inline: 8px; }
+  .mode-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .lobby-screen .mode-card, .lobby-screen .mode-card--match { min-height: 76px; padding: 8px 4px; flex-direction: column; gap: 6px; align-items: center; justify-content: center; grid-column: auto; }
+  .lobby-screen .mode-card__icon { width: 24px; height: 24px; }
+  .lobby-screen .mode-card__icon .icon { width: 18px; height: 18px; }
+  .lobby-screen .mode-card__name { font-size: 15px; letter-spacing: .02em; }
+  .lobby-screen .mode-card__text { align-items: center; }
+  .lobby-screen .mode-card__text > .micro, .lobby-screen .mode-card__desc, .lobby-screen .mode-card__points, .lobby-screen .mode-card__check, .lobby-screen .diff-card__effects, .tips, .create-box__hint { display: none; }
+  .lobby-screen .join-panel .panel__body { padding: 10px; gap: 6px; }
+  .lobby-screen .join-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+  .lobby-screen .join-row .field { grid-column: 1 / -1; }
+  .lobby-screen .join-row .btn { height: 44px; min-height: 44px; font-size: 13px; padding-inline: 12px; }
+  .lobby-screen .join-foot { font-size: 11px; line-height: 1.5; }
+  .lobby-screen .diff-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .lobby-screen .diff-card { min-height: 76px; padding: 10px; gap: 6px; }
+  .lobby-screen .diff-card__head { flex-wrap: wrap; gap: 4px 6px; }
+  .lobby-screen .diff-card__name { font-size: 15px; }
+  .lobby-screen .diff-card__meta { width: 100%; margin: 0; font-size: 12px; }
+  .lobby-screen .diff-card__meta .num { font-size: 12px; }
+  .lobby-screen .diff-card__desc, .lobby-screen .diff-card__code, .lobby-screen .diff-card__check { display: none; }
+  .lobby-screen .create-box { margin-top: 12px; }
+  .lobby-screen .create-box .btn--xl { height: 48px; font-size: 17px; }
 }

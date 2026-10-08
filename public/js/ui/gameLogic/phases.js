@@ -6,6 +6,7 @@ import { bossLevelSeconds } from '../matchStatus.js';
 import { clamp, int, isObj, sortedPlayers } from './shared.js';
 import { normalizeSp } from './draft.js';
 import { t } from '../../../../shared/i18n.js';
+import { uniteRelayRound } from '../../battle/observe.js';
 
 
 // ---- phases ----------------------------------------------------------------------------------------
@@ -62,7 +63,10 @@ export function phaseBanner(phase, pub, { alive = true, spectator = false } = {}
     case PHASE.UNITE: {
       const names = new Map(sortedPlayers(pub).map((p) => [p.playerId, p.name || t('博士')]));
       const helpers = Array.isArray(pub?.unite?.helpers) ? pub.unite.helpers.map((id) => names.get(id)).filter(Boolean) : [];
-      return { title: t('联防阶段'), micro: 'JOINT DEFENSE', tone: 'orange', sub: helpers.length ? t('联防：{names}', { names: helpers }) : t('完美作战的博士迎战突破防线的敌人') };
+      const relayRound = uniteRelayRound(pub);
+      return { title: relayRound ? t('接力联防 · 第 {round} 轮', { round: relayRound }) : t('联防阶段'),
+        micro: relayRound ? `JOINT DEFENSE ${relayRound}/2` : 'JOINT DEFENSE', tone: 'orange',
+        sub: helpers.length ? t('联防：{names}', { names: helpers }) : t('完美作战的博士迎战突破防线的敌人') };
     }
     case PHASE.FINAL_ASSAULT: return { title: t('最终攻势'), micro: 'FINAL ASSAULT', tone: 'red', sub: t('击败敌方领袖') };
     case PHASE.HIDDEN_CORE: return { title: t('隐秘核心'), micro: 'HIDDEN CORE', tone: 'red', sub: t('被源石侵蚀的假想敌') };

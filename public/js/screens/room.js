@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
+import { roomCapacity } from '../../../shared/playerCapacity.js';
 import {
   html, Button, Icon, MicroLabel, PingPill, AvatarFrame, DifficultyTag, DifficultyIcon, Tooltip, confirmDialog, doctorNo,
 } from '../ui/components.js';
@@ -34,7 +35,7 @@ import { t, tc } from '../../../shared/i18n.js';
  * @returns {(null | {seat:number, playerId:any, name:string, isBot:boolean, ready:boolean, connected:boolean})[]}
  */
 export function normalizeSeats(room) {
-  const cap = room?.mode === 'solo' ? 1 : MAX_SEATS;
+  const cap = roomCapacity(room?.mode, room?.experimental);
   const src = Array.isArray(room?.seats) ? room.seats : [];
   const out = [];
   for (let i = 0; i < cap; i++) {
@@ -77,9 +78,11 @@ export function partyQueueReason(room, myId, online = true) {
   if (!online) return t('连接中断，请稍候重试');
   if (room?.mode !== 'coop' || room.inMatch) return t('仅等待中的好友同盟可组队匹配');
   if (room.hostId !== myId) return t('由同盟创建者发起组队匹配');
+  if (roomCapacity(room.mode, room.experimental) > MAX_SEATS) return t('扩展人数好友房不能参与公开匹配');
   const seats = room.seats?.filter(Boolean) || [];
   if (seats.some(s => s.isBot)) return t('请先移除 AI 队友，公开匹配仅限真人');
   if (!seats.length || seats.some(s => s.connected === false)) return t('请等待所有队友连接后再匹配');
+  if (seats.some(s => s.playerId !== room.hostId && !s.ready)) return t('仍有博士未准备就绪');
   return null;
 }
 
@@ -287,7 +290,7 @@ export function RoomScreen() {
         ? html`<span class="t-mint">${t('已就绪 · 等待创建者开始模拟')}</span>`
         : html`<span class="t-lo">${t('准备就绪后，创建者即可开始模拟')}</span>`;
 
-  return html`<div class="screen room-screen">
+  return html`<div class=${`screen room-screen${facts.seats.length > MAX_SEATS ? ' room-screen--expanded' : ''}`}>
     <header class="topbar">
       <div class="topbar__left">
         <${Tooltip} text=${t('离开同盟')} placement="bottom">
@@ -302,6 +305,7 @@ export function RoomScreen() {
       <div class="topbar__center">
         <${MicroLabel} tone="mint">${coop ? 'ALLIANCE LOBBY' : 'SOLO SIMULATION'}<//>
         <h1 class="topbar__title">${coop ? t('同盟模拟') : t('独立模拟')}<span class="topbar__sep"></span><${DifficultyTag} difficulty=${room.difficulty} size="lg" /></h1>
+        ${facts.seats.length > MAX_SEATS ? html`<span class="room-capacity">${t('实验性好友房 · {n} 人上限 · 禁用匹配', { n: facts.seats.length })}</span>` : null}
       </div>
       <div class="topbar__right">
         ${coop ? html`<${InviteBox} code=${room.code} name=${me.name} difficulty=${room.difficulty} />` : html`<div class="solo-note"><${MicroLabel}>SINGLE OPERATOR<//><span>${t('仅限 1 名博士')}</span></div>`}
@@ -316,7 +320,7 @@ export function RoomScreen() {
       </div>
       <${MatchmakingPanel} queue=${queue} difficulty=${room.difficulty} online=${online} />
     </main>` : null}
-    <main hidden=${queued} class=${`seats${coop ? '' : ' seats--solo'}`}>
+    <main hidden=${queued} class=${`seats${coop ? '' : ' seats--solo'}${facts.seats.length > MAX_SEATS ? ' seats--expanded screen__scroll' : ''}`}>
       ${facts.seats.map((s, i) => html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
         myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} />`)}
       ${coop ? null : html`<aside class="solo-brief brackets">
@@ -332,7 +336,7 @@ export function RoomScreen() {
     </main>
     <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
 
-    <${ExperimentalOptions} open=${experimentalOpen && !queued} value=${room.experimental} editable=${facts.isHost && online} busy=${!!busy}
+    <${ExperimentalOptions} open=${experimentalOpen && !queued} value=${room.experimental} mode=${room.mode} source=${room.source} editable=${facts.isHost && online} busy=${!!busy}
       onChange=${experimental => run('experimental', () => net.request('room.setExperimental', { experimental }))} onClose=${() => setExperimentalOpen(false)} />
     <${ServerStatusModal} open=${loadOpen} online=${online} state=${conn.loadState} details=${conn.loadDetails} clusterLoad=${conn.clusterLoad} onClose=${() => setLoadOpen(false)} />
 

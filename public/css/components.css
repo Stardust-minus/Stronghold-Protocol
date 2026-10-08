@@ -874,6 +874,9 @@
 .server-status__metrics dt { color: var(--text-lo); font-size: max(.16rem, 13px); }.server-status__metrics dd { color: var(--text-hi); font-size: max(.18rem, 15px); margin: 0; }.server-status__metrics small { font-size: 11px; color: var(--text-lo); margin-left: 6px; }
 .server-status__note, .server-status__empty { font-size: 11px; line-height: 1.5; color: var(--text-lo); padding-top: 12px; }.server-status__empty { display: flex; gap: 8px; }.server-status__empty .icon { width: 16px; height: 16px; flex: none; }
 .experimental-modal { width: min(440px, calc(100vw - 32px)); }.experimental-summary { color: var(--text-lo); font-size: max(.14rem, 12px); }
+.experimental-capacity { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: max(.16rem, 13px); color: var(--text-lo); }
+.experimental-capacity select { min-height: 40px; min-width: 100px; padding: 8px 12px; background: var(--bg-3); color: var(--text-hi); border: 1px solid var(--line-3); font: inherit; }
+.experimental-capacity select:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
 .experimental-options { display: grid; gap: 8px; }.experimental-option { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .experimental-option > span { display: grid; gap: 7px; }.experimental-option strong { font-size: max(.19rem, 15px); color: var(--text-hi); font-weight: 500; }.experimental-option small { color: var(--text-lo); font-size: max(.14rem, 12px); line-height: 1.6; }
 .experimental-option input { flex: none; appearance: none; width: 36px; height: 20px; border-radius: 10px; border: 1px solid var(--line-3); background: var(--bg-3); cursor: pointer; }

@@ -1,7 +1,9 @@
 // Coordinator-owned room assignments. The game state stays on its original node;
 // health expiry prevents new allocation, never silently migrates an existing match.
 import { randomBytes } from 'node:crypto';
-import { MAX_SEATS, ROOM_CODE_LEN } from '../../shared/constants.js';
+import { ROOM_CODE_LEN } from '../../shared/constants.js';
+import { EXPERIMENTAL_DEFAULTS, experimentalOptions, sameExperimental } from '../../shared/experimental.js';
+import { roomCapacity } from '../../shared/playerCapacity.js';
 
 const identifier = v => typeof v === 'string' && v.length > 0 && v.length <= 128 && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const integer = (v, min = 0) => Number.isSafeInteger(v) && v >= min;
@@ -93,15 +95,19 @@ export class ClusterDirectory {
     return Math.max(node.committed, node.matches) + node.prepared;
   }
 
-  prepare({ roomCode, sessionIds, build, protocol, assignmentId = randomBytes(16).toString('hex') }) {
-    if (!room(roomCode) || !identifier(build) || !identifier(assignmentId) || !integer(protocol, 1)
-      || !Array.isArray(sessionIds) || sessionIds.length < 1 || sessionIds.length > MAX_SEATS
+  prepare({ roomCode, sessionIds, build, protocol, mode = 'coop', experimental = EXPERIMENTAL_DEFAULTS, assignmentId = randomBytes(16).toString('hex') }) {
+    // Explicit coordinator admission: validate the approved room policy, not a
+    // caller-supplied bare capacity. Bind that immutable policy to this nonce.
+    const options = experimentalOptions(experimental), capacity = roomCapacity(mode, options);
+    if (!['solo', 'coop'].includes(mode) || !room(roomCode) || !identifier(build) || !identifier(assignmentId) || !integer(protocol, 1)
+      || !Array.isArray(sessionIds) || sessionIds.length < 1 || sessionIds.length > capacity
       || !sessionIds.every(identifier) || new Set(sessionIds).size !== sessionIds.length) throw new TypeError('invalid assignment');
     const now = this.time();
     this.sweep(now);
     const previous = this.assignments.get(assignmentId);
     if (previous) {
-      if (previous.roomCode !== roomCode || previous.build !== build || previous.protocol !== protocol || !sameMembers(previous.sessionIds, sessionIds)) {
+      if (previous.roomCode !== roomCode || previous.build !== build || previous.protocol !== protocol
+        || previous.mode !== mode || !sameExperimental(previous.experimental, options) || !sameMembers(previous.sessionIds, sessionIds)) {
         throw new AllocationError('ASSIGNMENT_CONFLICT');
       }
       return this.view(previous);
@@ -115,7 +121,7 @@ export class ClusterDirectory {
     available.sort((a, b) => loads.get(a.nodeId) - loads.get(b.nodeId) || a.selectedAt - b.selectedAt || a.nodeId.localeCompare(b.nodeId));
     const node = available[0];
     if (!node) throw new AllocationError('NO_NODE');
-    const assignment = { assignmentId, roomCode, sessionIds: [...sessionIds], build, protocol, nodeId: node.nodeId,
+    const assignment = { assignmentId, roomCode, sessionIds: [...sessionIds], build, protocol, mode, experimental: options, nodeId: node.nodeId,
       generation: node.generation, state: 'prepared', createdAt: now, expiresAt: now + this.prepareMs, spectators: new Set() };
     node.selectedAt = ++this.sequence;
     node.prepared++;
@@ -210,6 +216,7 @@ export class ClusterDirectory {
     return Object.freeze({ assignmentId: assignment.assignmentId, roomCode: assignment.roomCode,
       sessionIds: Object.freeze([...assignment.sessionIds]), spectatorIds: Object.freeze([...assignment.spectators]),
       nodeId: assignment.nodeId, generation: assignment.generation, build: assignment.build, protocol: assignment.protocol,
+      mode: assignment.mode, experimental: assignment.experimental,
       state: assignment.state, createdAt: assignment.createdAt, expiresAt: assignment.expiresAt,
       ownerAvailable: this.ownerAvailable(assignment) });
   }

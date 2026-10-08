@@ -34,7 +34,10 @@ function lobbyFixture(t, LobbyClass = Lobby, extra = {}) {
     const members = Array.from({ length: size }, player);
     assert.deepEqual(lobby.create(members[0], { mode: 'coop', difficulty: 'NORMAL', experimental }), { ok: true });
     const owner = lobby.roomOf(members[0]);
-    for (const member of members.slice(1)) assert.deepEqual(lobby.join(member, { code: owner.code }), { ok: true });
+    for (const member of members.slice(1)) {
+      assert.deepEqual(lobby.join(member, { code: owner.code }), { ok: true });
+      assert.deepEqual(lobby.ready(member, { ready: true }), { ok: true });
+    }
     return { owner, members };
   };
   return { lobby, registry, player, room };
@@ -86,6 +89,7 @@ test('option change un-readies teammates and does not grant non-host, spectator 
   assert.equal(owner.seatOf(members[1].playerId).ready, false);
   assert.ok(validateC2S({ t: 'queue.join', difficulty: 'NORMAL', experimental: opts(true, true) }));
   assert.ok(validateC2S({ t: 'queue.accept', ticketId: 'ticket', offerId: 'offer', experimental: opts(true, true) }));
+  h.lobby.ready(members[1], { ready: true });
   h.lobby.queue.join(members[0], { difficulty: 'NORMAL', party: true });
   assert.equal(h.lobby.setExperimental(members[0], { experimental: opts() }).error, ERR.QUEUED);
   assert.deepEqual(owner.experimental, opts(true, true));

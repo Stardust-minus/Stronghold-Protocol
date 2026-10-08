@@ -55,7 +55,7 @@ describe('spectateEffects — the watched battle\'s effects column from the spec
 
   test('wiring: the runner derives it for replica fields, the game screen prefers the field\'s list (source)', () => {
     assert.match(read('public/js/battle/runner.js'), /effects: spectateEffects\(e\.spec, e\.members\)/);
-    assert.match(read('public/js/battle/runner.js'), /import \{ spectateEffects \} from '\.\/observe\.js'/);
+    assert.match(read('public/js/battle/runner.js'), /import \{[^}]*\bspectateEffects\b[^}]*\} from '\.\/observe\.js'/);
     assert.match(read('public/js/screens/game.js'), /watchingOther && field \? \(field\.effects \?\? null\) : priv\?\.effects/);
   });
 });

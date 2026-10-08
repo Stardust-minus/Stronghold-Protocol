@@ -14,6 +14,10 @@
     "complete": true
   },
   "_about": "English UI strings: Chinese msgid → English (shared/i18n.js t(); docs/I18N.md). Placeholders {name} and {n|one|other} as in the msgid; a 'context::msgid' key is a tc() variant. Seeded from GitHub PR #70 (branch en-translation) by @YuriRestia, reused with credit (NOTICE.md). Game texts are not here: data/i18n/en.json (tools/build-i18n.mjs).",
+  "接力联防 · 第 {round} 轮": "Relay defense · wave {round}",
+  "联防 {round}/2": "Defense {round}/2",
+  "各自行动 + 接力联防": "Individual combat + relay defense",
+  "参与者本轮合计": "Participants' round total",
   "你已在其他同盟中，请先离开当前同盟": "You are already in another Alliance. Leave it first.",
   "你已不在该同盟中": "You are no longer in this Alliance",
   "创建者已离开，同盟已解散": "The host left. The Alliance has been disbanded.",
@@ -1477,5 +1481,14 @@
   "正义缔造者": "Justice Maker",
   "升华": "Sublimation",
   "质素访客": "Distinguished Visitor",
-  "夏卉 FA017": "Summer Flowers FA017"
+  "夏卉 FA017": "Summer Flowers FA017",
+  "已复制反馈群号 {group}": "Copied feedback group number {group}",
+  "反馈 QQ 群：{group}，点击复制群号": "Feedback QQ group: {group}. Click to copy the group number",
+  "扩展人数好友房不能参与公开匹配": "Expanded friend rooms cannot enter public matchmaking",
+  "实验性好友房 · {n} 人上限 · 禁用匹配": "Experimental friend room · Up to {n} players · Matchmaking disabled",
+  "{rules} · {n} 人好友房": "{rules} · {n}-player friend room",
+  "扩展同盟人数": "Expanded alliance size",
+  "仅限好友房；开启后禁用组队匹配。所有成员需更新页面，人数较多时等待与演算时间可能增加。": "Friend rooms only; party matchmaking is disabled while enabled. All members need to refresh their pages. Larger groups may take longer to draft and simulate.",
+  "好友房人数上限": "Friend room player limit",
+  "{n} 人": "{n} players"
 }

@@ -5,7 +5,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { Lobby, Room } from '../lobby.js';
 import { encode, isErrCode } from '../net.js';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, MATCHMAKING_VERSION, modeIdFor } from '../../shared/constants.js';
-import { experimentalOptions, sameExperimental } from '../../shared/experimental.js';
+import { experimentalOptions, isExperimental, sameExperimental } from '../../shared/experimental.js';
+import { roomCapacity } from '../../shared/playerCapacity.js';
 
 const OK = Object.freeze({ ok: true });
 const fail = error => ({ error });
@@ -232,6 +233,7 @@ export class ClusterLobby extends Lobby {
     if (sessions.length !== MAX_SEATS || new Set(sessions.map(s => s.playerId)).size !== MAX_SEATS || !context.isCurrent()) invalid(ERR.BAD_TARGET);
     const first = this.queue.entries.get(sessions[0].playerId), offer = this.queue.offers.get(context.offerId), now = this.now();
     if (!offer || first?.offerId !== offer.id || offer.entries.length !== MAX_SEATS || now >= offer.deadline) invalid(ERR.BAD_TARGET);
+    if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== MAX_SEATS) invalid(ERR.BAD_MSG);
     const oldRooms = new Set();
     for (const session of sessions) {
       const entry = this.queue.entries.get(session.playerId);
@@ -302,12 +304,14 @@ export class ClusterLobby extends Lobby {
     const stamp = roomStamp(room), identities = [...room.activeHumans(), ...room.spectators].map(s => this.registry.byId(s.playerId));
     if (identities.some(s => !s || s.roomCode !== room.code) || room.activeHumans().some(s => !this.isOnline(this.registry.byId(s.playerId)))) return fail(ERR.NOT_READY);
     const sessionKeys = identities.map(s => s.limitKey || null);
+    const clientVersions = identities.map(s => s.playerCapacityVersion);
     let plan;
     const valid = () => {
       try {
         if (this.clusterClosed || this.manualPending.get(room.code) !== plan || this.now() >= plan.deadline
           || this.rooms.get(room.code) !== room || room.match || !isDeepStrictEqual(roomStamp(room), stamp)) return false;
-        if (!identities.every((s, i) => this.registry.byId(s.playerId) === s && s.roomCode === room.code && (s.limitKey || null) === sessionKeys[i])) return false;
+        if (!identities.every((s, i) => this.registry.byId(s.playerId) === s && s.roomCode === room.code && (s.limitKey || null) === sessionKeys[i]
+          && s.playerCapacityVersion === clientVersions[i]) || !this.capacityClients(room)) return false;
         if (!plan.dto.seats.filter(s => !s.isBot).every(seat => this.isOnline(this.registry.byId(seat.playerId))
           && isDeepStrictEqual(this.registry.byId(seat.playerId)?.loadout || null, seat.loadout)
           && isDeepStrictEqual(this.registry.byId(seat.playerId)?.notOwned || null, seat.notOwned)

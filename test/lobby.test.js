@@ -506,7 +506,7 @@ describe('websocket lobby', () => {
     await expectError(c, { t: 'room.join', code: 'AB CD' }, ERR.BAD_MSG);
     await expectError(c, { t: 'room.join', code: { $gt: '' } }, ERR.BAD_MSG);
     await expectError(c, { t: 'room.ready', ready: 'yes' }, ERR.BAD_MSG);
-    await expectError(c, { t: 'room.removeBot', seat: 9 }, ERR.BAD_MSG);
+    await expectError(c, { t: 'room.removeBot', seat: 20 }, ERR.BAD_MSG);
     await expectError(c, { t: 'g.buy', slot: -1 }, ERR.BAD_MSG);
     await expectError(c, { t: 'g.move', uid: 1, to: { area: 'moon' } }, ERR.BAD_MSG);
     await expectError(c, { t: 'ping', c: 'x' }, ERR.BAD_MSG);
@@ -1020,6 +1020,12 @@ describe('websocket lobby', () => {
       return pick([{ t: 'hello', name: pick(['Re', '', 'x'.repeat(20)]) }, { t: 'ping', c: pick([1, 'x']) }, { t: pick(['nope', '__proto__', 'toString']) }, { t: 'room.join', code: pick(junk) }]);
     };
     const okCounts = {};
+    // Seed a real legal game action; random lobby churn alone may never hit INFO_CHECK in 500 intents.
+    const coverage = await pool.player('Coverage');
+    for (const msg of [{ t: 'room.create', mode: 'solo', difficulty: 'FUNNY' }, { t: 'room.start' }, { t: 'g.infoReady' }, { t: 'room.leave' }]) {
+      await expectOk(coverage, msg);
+      okCounts[msg.t] = (okCounts[msg.t] || 0) + 1;
+    }
     for (let i = 0; i < 500; i++) {
       const k = Math.floor(rnd() * clients.length);
       let c = clients[k];

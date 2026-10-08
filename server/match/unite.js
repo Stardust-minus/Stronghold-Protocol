@@ -77,7 +77,64 @@ export function planUnite(m, results) {
       leaked.push({ enemyKey: l.enemyKey, mods: l.mods ? { ...l.mods } : null, lpr: l.lpr ?? 1, sourcePlayerId: ps.playerId, tag: l.tag ?? null, bounty });
     }
   }
-  return { helpers, leakers, leaked, notReentered };
+  const plan = { helpers, leakers, leaked, notReentered };
+  // Both snapshots are actual alive counts, not room capacity or the match's initial seats.
+  // Ordinary rooms and expanded rooms below eight keep the original single-round plan shape.
+  if (m.capacityExperiment && m._normalAliveCount >= 8 && alive.length >= 8) {
+    plan.uniteRound = 1;
+    plan.relayCandidates = perfects.filter((ps) => !helpers.includes(ps) && !results.get(ps.playerId)?.synthetic);
+  }
+  return plan;
+}
+
+/** Only the first field's residual enemies may enter a relay; original normal leaks never re-enter twice. */
+export function planUniteRelay(m, plan, result, fieldSpawns = null) {
+  if (plan.uniteRound !== 1 || !Array.isArray(plan.relayCandidates) || !result || result.synthetic) return null;
+  const perfects = plan.relayCandidates.filter((ps) => {
+    const r = m.lastResults.get(ps.playerId);
+    return m.players.get(ps.playerId) === ps && ps.alive && !ps.left && !plan.helpers.includes(ps)
+      && r && !r.synthetic && r.perfect !== false && !(r.leaked || []).some((l) => l && l.counted !== false);
+  });
+  const helpers = helperOrder(m, perfects, m.lastResults).slice(0, 2);
+  if (!helpers.length) return null;
+  const leaked = [];
+  const notReentered = new Map(plan.notReentered);
+  const sources = new Set(plan.leakers.map((ps) => ps.playerId));
+  // Use the actual field input: equal enemy keys may have different mods/bounties and spawn times.
+  // Expand counts just as the simulation queue does, then consume each pending entry at most once.
+  const spawns = fieldSpawns || buildUniteWave(m.gd, plan.leaked, plan.helpers.length, m.wave?.timeLimit || 60).spawns;
+  const pending = [];
+  for (const s of spawns) for (let i = 0; i < Math.max(1, Math.trunc(s.count || 1)); i++) {
+    pending.push({ ...s, time: (Number(s.time) || 0) + i * Math.max(0, Number(s.interval) || 0) });
+  }
+  const takeUnspawned = (l) => {
+    const matches = (s) => s.enemyKey === l.enemyKey && s.sourcePlayerId === l.sourcePlayerId;
+    let i = Number.isFinite(l.time) ? pending.findIndex((s) => matches(s) && Math.abs(s.time - l.time) < 1e-6) : -1;
+    if (i < 0) i = pending.findIndex(matches); // legacy results without a precise pending time: preserve multiset order
+    return i < 0 ? null : pending.splice(i, 1)[0];
+  };
+  const add = (l, unspawned = false) => {
+    if (!l || l.counted === false || !sources.has(l.sourcePlayerId)) return;
+    if (!m.gd.enemy(l.enemyKey)) {
+      notReentered.set(l.sourcePlayerId, (notReentered.get(l.sourcePlayerId) || 0) + 1);
+      return;
+    }
+    // An unspawned result omits mods/bounty. Recover them from this field's input, not a new normal wave.
+    const source = unspawned ? takeUnspawned(l) : null;
+    const mods = unspawned ? source?.mods : l.mods;
+    const bountyId = mods?.bountyId;
+    const ps = m.players.get(l.sourcePlayerId);
+    const card = bountyId ? ps?.bounties.find((x) => x.id === bountyId)?.card : null;
+    const coins = card && card.payout !== 'perfect' && card.enemyKey === l.enemyKey ? Math.trunc(Number(card.coin) || 0)
+      : !bountyId ? Math.trunc(Number(mods?.bountyCoins) || 0) : 0;
+    const bounty = source?.bounty || (coins > 0 ? { coins, ownerPlayerId: l.sourcePlayerId } : null);
+    leaked.push({ ...l, mods: mods ? { ...mods } : null, bounty, sourcePlayerId: l.sourcePlayerId });
+  };
+  for (const pp of Object.values(result.perPlayer || {})) for (const l of pp?.leaked || []) add(l);
+  for (const l of result.unspawned || []) add(l, true);
+  // Non-reenterable losses are billed at final settlement, but cannot create an empty extra battle.
+  if (!leaked.length) return null;
+  return { helpers, leakers: plan.leakers, leaked, notReentered, uniteRound: 2 };
 }
 
 /**

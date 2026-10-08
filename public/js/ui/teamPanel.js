@@ -25,6 +25,7 @@ import { MissTag, uniteRemaining } from './hud.js';
 import { localAsset } from '../data.js';
 import { ReviveAction, RevivalNotice } from './revival.js';
 import { t } from '../../../shared/i18n.js';
+import { uniteRelayKey } from '../battle/observe.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -77,7 +78,7 @@ export function rowLpTip(lp, cap = 10) {
  */
 export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal = null }) {
   const [openPid, setOpenPid] = useState(null);
-  const phaseKey = `${pub?.phase}:${pub?.round}`;
+  const phaseKey = `${pub?.phase}:${pub?.round}:${uniteRelayKey(pub) || ''}`;
   useEffect(() => { setOpenPid(null); }, [phaseKey, watching, observe?.observing]);
   const players = sortedPlayers(pub);
   if (!players.length) return null;
@@ -92,7 +93,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
     if (!t.fieldId) { setOpenPid(null); onWatch(p); return; } // the game screen toasts the reason
     setOpenPid((cur) => (cur === p.playerId ? null : p.playerId));
   };
-  return html`<aside class=${cx('team', compact && 'team--compact')} aria-label=${t('同盟成员')}>
+  return html`<aside class=${cx('team', compact && 'team--compact', players.length > 6 && 'team--expanded')} aria-label=${t('同盟成员')}>
     <${RevivalNotice} pub=${pub} />
     ${players.map((p) => {
       const self = p.playerId === myId;

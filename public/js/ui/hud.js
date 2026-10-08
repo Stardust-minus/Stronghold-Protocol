@@ -34,6 +34,7 @@ import { isCombatPhase, isBossPhase, prepCapsuleLabel, bossFrac, bossPctText, fm
 import { overtimeState, overtimeDrainPerSec, remainAt } from './matchStatus.js';
 import { hotkeyLabelOf } from './settings.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
+import { uniteRelayRound } from '../battle/observe.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -43,6 +44,7 @@ const cx = (...p) => p.flat().filter(Boolean).join(' ');
  */
 export function PhaseCapsule({ pub, hud, miss = null }) {
   const phase = pub?.phase;
+  const relayRound = uniteRelayRound(pub);
   if (isBossPhase(phase)) {
     // the battle on screen first: its snapshot carries the live pool (the local simulation's own damage on top of the
     // server's b.pool, or the server's 20 Hz stream); m.public.bossHp refreshes at ~1 Hz and lags the leader's death
@@ -62,7 +64,7 @@ export function PhaseCapsule({ pub, hud, miss = null }) {
       <${Sprite} k=${phase === PHASE.UNITE ? 'hudPanel/icon_coop' : 'hudPanel/icon_battle'} class="capsule__icon"
         fallback=${html`<${Icon} name="sword" class="capsule__icon" />`} />
       <span class="capsule__kills num"><b>${hud?.killed ?? 0}</b>/${hud?.total ?? '--'}</span>
-      ${phase === PHASE.UNITE ? html`<span class="capsule__tag">${t('联防')}</span>` : null}
+      ${phase === PHASE.UNITE ? html`<span class="capsule__tag">${relayRound ? t('联防 {round}/2', { round: relayRound }) : t('联防')}</span>` : null}
       ${phase === PHASE.UNITE && Number.isFinite(miss) ? html`<${MissTag} n=${miss} />` : null}
     </div>`;
   }

@@ -86,7 +86,7 @@ if (!process.env.NODE_TEST_CONTEXT) {
         const rec = this.data.chess?.[id];
         const slot = ps.hand.findIndex((x) => x == null);
         if (!rec || slot < 0) continue;
-        try { ps.hand[slot] = ps.newPiece('chess', id, { poolCopies: this.pool.take(this.gd.baseIdOf(id), rec.isGolden ? this.gd.goldenCopies : 1) }); } catch { /* best effort */ }
+        try { ps.hand[slot] = ps.newPiece('chess', id, { poolCopies: ps.poolOf(this.gd.baseIdOf(id)).take(this.gd.baseIdOf(id), rec.isGolden ? this.gd.goldenCopies : 1) }); } catch { /* best effort */ }
       }
     }
 
@@ -153,7 +153,7 @@ if (!process.env.NODE_TEST_CONTEXT) {
         const slot = ps.hand.findIndex((x) => x == null);
         if (slot < 0) break;
         try {
-          const taken = this.pool.take(this.gd.baseIdOf(rec.chessId), rec.isGolden ? this.gd.goldenCopies : 1);
+          const taken = ps.poolOf(this.gd.baseIdOf(rec.chessId)).take(this.gd.baseIdOf(rec.chessId), rec.isGolden ? this.gd.goldenCopies : 1);
           if (!taken && !ids.length) continue; // an explicit SP_START_CHESS piece is handed out even when this match bans it
           ps.hand[slot] = ps.newPiece('chess', rec.chessId, { poolCopies: taken });
         } catch { /* keep going: the kit is best effort */ }

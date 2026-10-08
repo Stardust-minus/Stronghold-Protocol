@@ -40,7 +40,10 @@ function harness(t, options = {}, MatchClass = RecordingMatch) {
   const privateRoom = (players) => {
     assert.deepEqual(lobby.create(players[0], { mode: 'coop', difficulty: 'NORMAL' }), { ok: true });
     const room = lobby.roomOf(players[0]);
-    for (const p of players.slice(1)) assert.deepEqual(lobby.join(p, { code: room.code }), { ok: true });
+    for (const p of players.slice(1)) {
+      assert.deepEqual(lobby.join(p, { code: room.code }), { ok: true });
+      assert.deepEqual(lobby.ready(p, { ready: true }), { ok: true });
+    }
     return room;
   };
   const offer = (players, difficulty = 'NORMAL') => {
@@ -590,6 +593,7 @@ test('all sixteen obsolete public vote combinations leave default room experimen
 test('friend coop still needs manual readiness/start and uses room experimental options', (t) => {
   const h = harness(t), players = h.group(), room = h.privateRoom(players);
   assert.equal(room.source, 'private');
+  for (const p of players.slice(1)) h.lobby.ready(p, { ready: false });
   assert.ok(room.seats.every((s) => !s.ready && s.revivalVote === null));
   h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
   assert.equal(room.match, null);
@@ -960,6 +964,7 @@ test('real four-socket party replacement uses default Match, latest checked load
     assert.equal((await group[at].request({ t: 'room.create', mode: 'coop', difficulty: 'HARD' })).t, 'ok');
     const room = await group[at].waitFor('room.state', (m) => m.hostId === group[at].id); codes.push(room.code);
     assert.equal((await group[at + 1].request({ t: 'room.join', code: room.code })).t, 'ok');
+    assert.equal((await group[at + 1].request({ t: 'room.ready', ready: true })).t, 'ok');
     assert.equal((await group[at].request({ t: 'queue.join', difficulty: 'HARD', party: true })).t, 'ok');
   }
   const offers = await Promise.all(group.map((c) => c.waitFor('queue.state', (m) => m.state === 'offered')));
@@ -1139,6 +1144,7 @@ test('a full four-person party replaces its room at the global/network cap but c
   const h = harness(t, { maxRooms: 2, maxRoomsPerAddr: 2, maxMatchesPerAddr: 1 }), players = h.group(['A', 'B', 'C', 'D']);
   const original = h.privateRoom(players), busy = h.player('作战占位', 'B');
   h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
+  for (const p of players.slice(1)) h.lobby.ready(p, { ready: true });
   h.lobby.loadout(players[1], { entries: {} });
   const loadout = players[1].loadout;
   h.lobby.create(busy, { mode: 'solo', difficulty: 'NORMAL' }); h.lobby.start(busy);
@@ -1197,6 +1203,7 @@ test('spectators are online identities but never revival voters or queued party 
   assert.equal(h.lobby.setExperimental(spectator, { experimental: { revivalEnabled: true, disableSharedPool: false } }).error, ERR.NOT_HOST);
   h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
   assert.deepEqual(room.revivalState(), { enabled: true });
+  h.lobby.ready(players[1], { ready: true });
   assert.equal(h.lobby.queue.join(spectator, { difficulty: 'NORMAL', party: true }).error, ERR.SPECTATOR);
   assert.deepEqual(h.lobby.queue.join(players[0], { difficulty: 'NORMAL', party: true }), { ok: true });
   assert.equal(h.lobby.queue.size, 2);

@@ -2,7 +2,7 @@
 
 > **Stardust fork**：上游为 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)。本站部署、PRTS 门禁与静态分流见 [部署覆盖层](deploy/stardust/README.md) 和 [协同更新 SOP](deploy/stardust/UPDATE-SOP.md)。本 fork 的 `master` 是开发集成分支，推送不等于线上发布。本站部署为同一个 project 的游戏/门禁/素材三个服务，Nginx 直接接单后端，入口 `/`、WS `/ws`；已取消平滑更新，游戏重建会清除内存对局，静态资源仍按 immutable release 配套发布/回滚。
 
-《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或 1–4 人联机合作。
+《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或普通 1–4 人联机合作。本 fork 另提供默认关闭、仅好友房可用的 [实验性多人](docs/EXPERIMENTAL-MULTIPLAYER.md)，开启后可选 8／10／16／20 人上限并禁用匹配。
 
 ![version](https://img.shields.io/badge/version-0.2.1-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)

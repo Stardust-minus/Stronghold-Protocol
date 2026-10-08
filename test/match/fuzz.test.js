@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateC2S, C2S } from '../../shared/protocol.js';
-import { ERR, EMOTES } from '../../shared/constants.js';
+import { ERR, EMOTES, MAX_SEATS } from '../../shared/constants.js';
 import { createRng } from '../../server/sim/rng.js';
 import { DATA, makeMatch, checkInvariants } from './harness.js';
 
@@ -49,7 +49,7 @@ function fuzzOne(seed, { fake }) {
   const mode = rng() < 0.3 ? 'solo' : 'coop';
   const difficulty = rng.pick(['FUNNY', 'NORMAL', 'HARD', 'ABYSS']);
   const humans = mode === 'solo' ? 1 : 1 + rng.int(3);
-  const bots = mode === 'solo' ? 0 : rng.int(3);
+  const bots = mode === 'solo' ? 0 : Math.min(rng.int(3), MAX_SEATS - humans); // ordinary room fixtures cannot exceed four total seats
   const h = makeMatch({ mode, difficulty, humans, bots, seed, fake, captureFrames: false, checkFrames: true, script: () => ({ duration: 2 + rng.int(6), leaks: {} }) });
   const m = h.m;
   m.start();

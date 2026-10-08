@@ -36,6 +36,7 @@
 import { BOSS_ROW_OFFSET, COLS, BOSS_POOL_MIN_HP } from '../sim/constants.js';
 import { mirrorDir, normDir } from '../sim/dir.js';
 import { bossPoolShareOf } from './gamedata.js';
+import { MAX_PLAYER_CAPACITY } from '../../shared/playerCapacity.js';
 
 /**
  * BOSS_HIT ticker thresholds (activity_table autoChessData.broadcastList comment_boss_hit_1..3, paramList 0.2 / 0.5 /
@@ -64,14 +65,16 @@ export function pairPlayers(alive) {
 }
 
 /** Shared boss HP for a boss id with `aliveCount` alive players (GameData.bossPoolShare / bossPoolShareOf; omitted ⇒ a full team). */
-export function bossPoolHp(gd, bossId, aliveCount) {
+export function bossPoolHp(gd, bossId, aliveCount, { experimental = false } = {}) {
   const boss = gd.boss(bossId);
   const diff = gd.difficulty;
   let base = boss && boss.bloodPoint && Number.isFinite(boss.bloodPoint[diff]) ? boss.bloodPoint[diff] : null;
   if (base == null && boss && boss.bloodPoint) base = Object.values(boss.bloodPoint).find((v) => Number.isFinite(v)) ?? null;
   if (base == null) base = 500000;
   const tune = typeof gd.bossHpMul === 'function' ? gd.bossHpMul(bossId) : 1;
-  const share = typeof gd.bossPoolShare === 'function' ? gd.bossPoolShare(aliveCount)
+  const enlarged = experimental && !gd.isSolo && Number.isInteger(aliveCount) && aliveCount > 4 && aliveCount <= MAX_PLAYER_CAPACITY;
+  // Only the opt-in >4-seat fight extends this fork's alive/4 rule; normal config/solo scaling are untouched.
+  const share = enlarged ? aliveCount / 4 : typeof gd.bossPoolShare === 'function' ? gd.bossPoolShare(aliveCount)
     : bossPoolShareOf(gd.mode && gd.mode.bossHpScale, gd.config && gd.config.bossHpScale, !!gd.isSolo, aliveCount);
   return Math.max(1, Math.round(base * share * tune));
 }
@@ -107,10 +110,11 @@ export class SharedBossPool {
  * @param {import('./gamedata.js').GameData} gd
  * @param {{ layerSum: number, teamLp: number }} s
  */
-export function hiddenEligible(gd, { layerSum, teamLp }) {
+export function hiddenEligible(gd, { layerSum, teamLp, aliveCount = 4, experimental = false }) {
   const hc = gd.hiddenCore;
   if (!gd.hiddenRound || !hc.difficulties.includes(gd.difficulty)) return false;
-  const threshold = gd.isSolo ? hc.single : hc.multi;
+  const scale = experimental && !gd.isSolo && Number.isInteger(aliveCount) && aliveCount > 4 && aliveCount <= MAX_PLAYER_CAPACITY ? aliveCount / 4 : 1;
+  const threshold = gd.isSolo ? hc.single : hc.multi * scale;
   return layerSum > threshold && teamLp > hc.minTeamLpExclusive;
 }
 

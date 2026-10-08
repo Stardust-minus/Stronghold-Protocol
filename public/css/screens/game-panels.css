@@ -407,6 +407,10 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .spov__who.is-done .spov__wstate { color: var(--mint-400); }
 .spov__who.is-cur .spov__wstate { color: var(--gold); }
 .spov__grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: .2rem; }
+.spov--expanded .spov__head, .spov--expanded .spov__order { flex: none; }
+.spov--expanded .spov__order { overflow-x: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-bottom: 4px; }
+.spov--expanded .spov__who { flex: none; }
+.spov--expanded .spov__grid { grid-template-rows: none; grid-auto-rows: minmax(150px, 2.6rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px; }
 .spov__grid--3 { grid-template-columns: repeat(3, minmax(0, 4.3rem)); grid-template-rows: minmax(0, 4.6rem); justify-content: center; align-content: start; gap: .36rem; margin-top: .3rem; }
 .spov__grid--3 .spcard__icon { width: 1.3rem; height: 1.3rem; }
 /* The official card (research 06 §11.5; the official 悬赏 / 机密商店 / 战术 screenshots): a framed icon at the top-left

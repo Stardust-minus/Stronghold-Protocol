@@ -232,6 +232,8 @@ export class MatchPhases {
     this.watchers.clear();
     this._flushDamage(true); // no-field prep may view the complete frozen scope, including a former boss group
     this.unitePlan = null;
+    this._normalAliveCount = 0;
+    this._uniteRelay = null;
     this._revival = null;
     this.uniteResultView = null;
     this.sp = null;

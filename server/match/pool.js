@@ -50,19 +50,39 @@ function sample(arr, n, rng) {
   return a.slice(0, Math.max(0, Math.min(n, a.length)));
 }
 
+import { MAX_PLAYER_CAPACITY } from '../../shared/playerCapacity.js';
+
+/** Start-of-match seat groups, never rebalanced after a death or leave. Small experimental rooms share one enlarged
+ * pool; at seven seats and above each balanced group keeps a complete ordinary pool, including three-seat groups. */
+export function createPoolGroups(gd, players, { banned = [], experimental = false, independent = false } = {}) {
+  if (!Array.isArray(players) || players.length < 1 || players.length > MAX_PLAYER_CAPACITY) throw new RangeError('pool groups require 1..20 players');
+  const sorted = players.slice().sort((a, b) => a.seat - b.seat);
+  const count = sorted.length;
+  const groups = independent ? count : experimental && count >= 7 ? Math.ceil(count / 4) : 1;
+  const size = Math.floor(count / groups), remainder = count % groups;
+  let offset = 0;
+  return Array.from({ length: groups }, (_, i) => {
+    const n = size + (i < remainder ? 1 : 0);
+    const playerIds = sorted.slice(offset, offset += n).map(p => p.playerId);
+    const scale = !independent && experimental && count > 4 && count < 7 ? count / 4 : 1;
+    return { id: i + 1, playerIds, scale, pool: new SharedPool(gd, { banned, scale }) };
+  });
+}
+
 export class SharedPool {
   /**
    * @param {import('./gamedata.js').GameData} gd
-   * @param {{ banned?: Iterable<string> }} [opts]
+   * @param {{ banned?: Iterable<string>, scale?: number }} [opts]
    */
-  constructor(gd, { banned = [] } = {}) {
+  constructor(gd, { banned = [], scale = 1 } = {}) {
+    if (!Number.isFinite(scale) || scale < 1 || scale > 1.5) throw new RangeError('pool scale must be 1..1.5');
     this.gd = gd;
     const ban = new Set(banned);
     /** @type {Map<string, { cap: number, left: number, tier: number }>} */
     this.entries = new Map();
     for (const id of gd.visibleChess) {
       if (ban.has(id)) continue;
-      const cap = gd.poolCopies(id);
+      const cap = scale === 1 ? gd.poolCopies(id) : Math.ceil(gd.poolCopies(id) * scale);
       if (cap <= 0) continue;
       this.entries.set(id, { cap, left: cap, tier: gd.tierOf(id) });
     }

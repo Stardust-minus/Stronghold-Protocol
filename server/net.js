@@ -42,6 +42,7 @@ import { isIP } from 'node:net';
 import { C2S, validateC2S, normalizeServerLoad, normalizeLoadDetails } from '../shared/protocol.js';
 import { normalizeClusterLoad } from '../shared/cluster-load.js';
 import { ERR, ERR_TEXT, PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../shared/constants.js';
+import { PLAYER_CAPACITY_VERSION } from '../shared/playerCapacity.js';
 import { isCompressibleType } from './wsCompression.js';
 import { moderateName } from '../shared/names.js';
 export { sanitizeName } from '../shared/names.js';
@@ -126,6 +127,8 @@ export class Session {
     this.limitKey = null;
     /** Explicit hello capability; legacy clients without it cannot enter public matchmaking. */
     this.matchmakingVersion = null;
+    /** Legacy clients remain compatible with ordinary rooms, not expanded rooms. */
+    this.playerCapacityVersion = null;
     /**
      * @type {number | null} lobby-owned extension of the reconnect window for this session (ms; null = the registry's
      * window). A solo run keeps its session resumable for the official `singleReconnectTime` (24 h) — see lobby.js.
@@ -666,6 +669,21 @@ export class Network {
     const checked = moderateName(msg.name);
     if (!checked.ok) { this.reply(conn, errorMsg(ERR.NAME_REJECTED, rid, checked.reason)); return; }
     const name = checked.name;
+    if (msg.playerCapacityVersion != null && msg.playerCapacityVersion !== PLAYER_CAPACITY_VERSION) {
+      this.reply(conn, errorMsg(ERR.BAD_MSG, rid, 'player capacity version mismatch'));
+      return;
+    }
+    // Check an existing room's capability before replacing its socket or changing any session metadata.
+    const previous = conn.session || (msg.token ? this.registry.byToken(msg.token) : null);
+    let admission;
+    try { admission = this.handler.helloAdmission?.(previous, msg); } catch (e) {
+      this.log.error('[net] hello admission crashed', e);
+      this.reply(conn, errorMsg(ERR.INTERNAL, rid)); return;
+    }
+    if (admission?.error) {
+      this.reply(conn, errorMsg(isErrCode(admission.error) ? admission.error : ERR.INTERNAL, rid, admission.detail));
+      return;
+    }
 
     let session = conn.session;
     let resumed = false;
@@ -689,6 +707,7 @@ export class Network {
     session.addr = conn.ip;
     session.limitKey = conn.key;
     session.matchmakingVersion = msg.matchmakingVersion ?? null;
+    session.playerCapacityVersion = msg.playerCapacityVersion ?? null;
 
     let extra = null;
     try { extra = this.handler.welcomeInfo?.() ?? null; } catch (e) { this.log.error('[net] welcomeInfo crashed', e); }

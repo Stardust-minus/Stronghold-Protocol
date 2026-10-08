@@ -19,6 +19,19 @@ const COMBAT = new Set([PHASE.COMBAT, PHASE.UNITE, PHASE.FINAL_ASSAULT, PHASE.HI
 /** The server runs client-side combat (m.public.combatMode). */
 export const isClientCombat = (pub) => !!pub && pub.combatMode === 'client';
 
+/** Only the admitted relay exposes a second UNITE generation within the same match round. */
+export const uniteRelayRound = (pub) => pub?.phase === PHASE.UNITE && pub.uniteRounds === 2
+  && (pub.uniteRound === 1 || pub.uniteRound === 2) ? pub.uniteRound : null;
+export const uniteRelayKey = (pub) => uniteRelayRound(pub) ? `${pub.round}:${pub.uniteRound}` : null;
+
+/** A new relay public state may arrive before its field; never re-enter the previous helpers' battle. */
+export function currentRelayField(pub, field) {
+  if (!uniteRelayRound(pub)) return true;
+  const current = fields(pub).find(f => f.kind === 'unite');
+  return !!current && field?.fieldId === current.fieldId
+    && (!pub.unite?.battleId || !field.battleId || field.battleId === pub.unite.battleId);
+}
+
 const players = (pub) => (Array.isArray(pub?.players) ? pub.players.filter(isObj) : []);
 const fields = (pub) => (Array.isArray(pub?.fields) ? pub.fields.filter(isObj) : []);
 

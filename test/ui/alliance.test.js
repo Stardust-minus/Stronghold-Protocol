@@ -81,7 +81,7 @@ test('pending death is displayed as awaiting rescue, not finalized elimination',
 });
 
 test('party matching hints require a waiting coop, host, online humans and no AI', () => {
-  const room = { mode: 'coop', hostId: 'p1', inMatch: false, seats: [{ playerId: 'p1', connected: true }, { playerId: 'p2', connected: true }] };
+  const room = { mode: 'coop', hostId: 'p1', inMatch: false, seats: [{ playerId: 'p1', connected: true }, { playerId: 'p2', connected: true, ready: true }] };
   assert.equal(partyQueueReason(room, 'p1'), null);
   assert.match(partyQueueReason(room, 'p2'), /创建者/);
   assert.match(partyQueueReason(room, 'p1', false), /连接中断/);
@@ -89,6 +89,8 @@ test('party matching hints require a waiting coop, host, online humans and no AI
   assert.match(partyQueueReason({ ...room, mode: 'solo' }, 'p1'), /等待/);
   assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'bot', isBot: true }] }, 'p1'), /移除 AI/);
   assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'p3', connected: false }] }, 'p1'), /所有队友/);
+  assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'p3', connected: true, ready: false }] }, 'p1'), /未准备/);
+  assert.match(partyQueueReason({ ...room, experimental: { revivalEnabled: false, disableSharedPool: false, playerCapacity: 8 } }, 'p1'), /不能参与公开匹配/);
 });
 
 test('experimental rules display room options without a revival ballot', () => {
@@ -98,8 +100,10 @@ test('experimental rules display room options without a revival ballot', () => {
   const switches = [];
   const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node?.props) { if (node.props.role === 'switch') switches.push(node); visit(node.props.children); } };
   visit(view);
-  assert.equal(switches.length, 2);
-  assert.ok(switches.every(node => node.props.disabled && node.props.checked));
+  assert.equal(switches.length, 3);
+  assert.ok(switches.every(node => node.props.disabled));
+  assert.ok(switches.slice(0, 2).every(node => node.props.checked));
+  assert.equal(switches[2].props.checked, false, 'expanded rooms stay default off independently of both original rules');
 });
 
 test('queue UI distinguishes pending vs allocated and clamps clocks', () => {

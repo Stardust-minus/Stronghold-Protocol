@@ -67,9 +67,9 @@ test('site names cover the exact sixteen slots in order without changing wire la
   assert.equal(gameDisplayName('game-256'), '对战 256');
   for (const label of [null, undefined, 1, 'game-001', 'game-00', 'game-257', 'game-01\n', 'private-node', '罗德岛']) assert.equal(gameDisplayName(label), null);
   const notices = JSON.parse(source('../../data/announcements.json'));
-  assert.equal(notices.length, 3);
-  assert.equal(notices[0].title, '联防地图独立热修复');
-  assert.doesNotMatch(notices[0].paragraphs.join('\n'), /节点更名|服务器更名|罗德岛|企鹅物流/);
+  assert.equal(notices.length, 2);
+  assert.equal(notices[0].title, '0.2.1 更新：干员时装与实验性多人');
+  assert.doesNotMatch(notices.flatMap(notice => notice.paragraphs).join('\n'), /节点更名|服务器更名|罗德岛|企鹅物流/);
 });
 
 for (const lang of ['en', 'ja', 'ko', 'zh-TW']) test(`all sixteen display names follow the ${lang} catalog`, t => {
@@ -126,6 +126,7 @@ test('experimental options are room-only and lobby creation uses server defaults
   assert.match(lobby, /net\.request\('room\.create', \{ mode: roomMode, difficulty \}\)/);
   const room = source('../../public/js/screens/room.js');
   assert.match(room, /editable=\$\{facts\.isHost && online\}/);
+  assert.match(room, /mode=\$\{room\.mode\}/);
   assert.match(room, /net\.request\('room\.setExperimental', \{ experimental \}\)/);
 });
 

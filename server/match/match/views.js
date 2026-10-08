@@ -46,6 +46,8 @@ export class MatchViews {
     const revivalOpen = this.revivalWindowOpen();
     const v = {
       t: 'm.public',
+      ...(this.capacityExperiment ? { playerCapacity: this.playerCapacity,
+        poolGroups: this.poolGroups.map(({ id, playerIds, scale }) => ({ id, playerIds: playerIds.slice(), scale })) } : {}),
       matchId: this.battlePrefix,
       phase: this.phase,
       round: this.round,
@@ -110,6 +112,7 @@ export class MatchViews {
       })),
       fields: this.fields.map((f) => {
         const v = { fieldId: f.fieldId, kind: f.kind, players: f.players.slice(), live: !!f.live };
+        if (this.phase === PHASE.UNITE && this._uniteRelay) v.battleId = f.battleId || f.spec?.battleId || f.battle?.opts?.battleId;
         const pr = this._fieldProgress(f);
         if (pr) v.progress = pr;
         return v;
@@ -134,13 +137,22 @@ export class MatchViews {
         turn: this.spTurn(), picks: { ...s.picks }, taken: { ...s.taken }, untimed: !!s.untimed,
       };
     }
-    if (this.phase === PHASE.UNITE && this.unitePlan) v.unite = { helpers: this.unitePlan.helpers.map((p) => p.playerId), leakers: this.unitePlan.leakers.map((p) => p.playerId) };
+    if (this.phase === PHASE.UNITE && this.unitePlan) {
+      v.unite = { helpers: this.unitePlan.helpers.map((p) => p.playerId), leakers: this.unitePlan.leakers.map((p) => p.playerId) };
+      if (this._uniteRelay) {
+        v.uniteRound = this.unitePlan.uniteRound;
+        v.uniteRounds = 2; // relay ceiling, not a promise that an empty/unavailable second field will run
+        v.unite.battleId = v.fields[0]?.battleId;
+        v.unite.rounds = this._uniteRelay.rounds.map((r) => ({ ...r.view, helpers: r.view.helpers.slice() }));
+      }
+    }
     // SETTLE after a 联防: its outcome as data (settle.js uniteResultView; GitHub #235, PR #112) — { through, helpers,
     // leakers, losses: { playerId: the LP settlement charged this round } } — the client's result box reads the viewer's
     // own charge from it; absent when no 联防 resolved (the client then shows the round's own battle result)
     if (this.phase === PHASE.SETTLE && this.uniteResultView) {
       const ur = this.uniteResultView;
       v.uniteResult = { through: ur.through, helpers: ur.helpers.slice(), leakers: ur.leakers.slice(), losses: { ...ur.losses } };
+      if (ur.rounds) v.uniteResult.rounds = ur.rounds.map((r) => ({ ...r, helpers: r.helpers.slice() }));
     }
     return v;
   }

@@ -64,6 +64,7 @@ test('cluster public 2+1+1 carries each preference and aborts stale in-flight ch
   players.forEach((s, i) => f.lobby.skins(s, { choices: i % 2 ? {} : choices(i ? B : A) }));
   f.lobby.create(players[0], { mode: 'coop', difficulty: 'NORMAL' });
   const old = f.lobby.roomOf(players[0]); f.lobby.join(players[1], { code: old.code });
+  assert.deepEqual(f.lobby.ready(players[1], { ready: true }), { ok: true });
   for (const p of [players[0], players[2], players[3]]) f.lobby.queue.join(p, { difficulty: 'NORMAL', party: p === players[0] });
   const states = players.map(p => f.lobby.queue.state(p)); players.forEach((p, i) => f.lobby.queue.accept(p, states[i]));
   const call = f.calls[0];

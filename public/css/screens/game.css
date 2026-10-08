@@ -289,6 +289,8 @@
 /* ---- team panel ------------------------------------------------------------------------------------------- */
 .team { position: absolute; left: .22rem; top: 2.36rem; display: flex; flex-direction: column; gap: .14rem; pointer-events: none; }
 .team__row { position: relative; display: flex; align-items: center; gap: .1rem; pointer-events: auto; }
+.team.team--expanded { max-height: calc(100% - 4.5rem); max-width: min(4rem, 42vw); padding: .08rem .14rem .12rem .08rem; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; scrollbar-width: thin; }
+.team--expanded .team__row { flex: none; }
 .team__btn {
   position: relative; padding: 0; background: none; border: 0;
   transition: transform var(--t-fast);
@@ -650,6 +652,15 @@
 /* ---- small screens (1280×720 → root ≈ 66px) ------------------------------------------------------------------------ */
 @media (max-aspect-ratio: 16/10) {
   .gm__bonds { right: 4.6rem; }
+}
+@media (max-width: 600px) and (orientation: portrait) {
+  .gm--expanded .gtop { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "connection clock" "phase phase"; padding-inline: 16px; gap: .18rem; }
+  .gm--expanded .gtop__left { grid-area: connection; min-width: 0; }
+  .gm--expanded .gtop__center { grid-area: phase; justify-self: center; max-width: 100%; }
+  .gm--expanded .gtop__right { grid-area: clock; }
+  .gm--expanded .ticker { top: 2.7rem; max-width: calc(100% - 32px); }
+  .gm--expanded .gm__bonds { top: 3.2rem; right: .3rem; }
+  .gm--expanded .team--expanded { top: 4.1rem; max-height: calc(100% - 6.4rem); }
 }
 
 /* fallback view: enemy preview pen (setCamera('pen')) */

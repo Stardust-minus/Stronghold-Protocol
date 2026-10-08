@@ -35,7 +35,7 @@ export function collectViolations(m, { limit = 25 } = {}) {
   const out = [];
   const fail = (msg) => { if (out.length < limit) out.push(msg); };
   const gd = m.gd;
-  const holdings = new Map();
+  const holdings = new Map((m.poolGroups || []).map(g => [g.pool, new Map()]));
   const uids = new Set();
   const banned = new Set(m.bannedChess || []);
   const note = (ps, p) => {

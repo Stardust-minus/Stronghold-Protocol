@@ -110,7 +110,7 @@ import { ResultScreen } from './result.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, serverNow, isSpectating } from '../store.js';
 import { battleRunner } from '../battle/runner.js';
-import { isClientCombat, observeTarget, teammateProgress, cameraLayers, layerCamera, sidesOf, resumedWatch, followedScout } from '../battle/observe.js';
+import { isClientCombat, observeTarget, teammateProgress, cameraLayers, layerCamera, sidesOf, resumedWatch, followedScout, uniteRelayKey, currentRelayField } from '../battle/observe.js';
 import { screenStrip, playerBonds, playerLayer, detailBondOwner, toggleBond, popupView } from '../ui/watchBonds.js';
 import { data, getMode } from '../data.js';
 import { audio, resultSpeaker, resultVoiceSlot } from '../audio.js';
@@ -351,7 +351,9 @@ function MatchScreen() {
 
   // own board (prep, or a battle field the player fights on) → the stage with the player's overrides; a teammate's
   // board → the plain stage (their overrides are not known here)
-  const shownField = showPrep ? null : field;
+  const relayKey = uniteRelayKey(pub);
+  const relayFieldReady = currentRelayField(pub, field);
+  const shownField = showPrep || !relayFieldReady ? null : field;
   const shownMembers = shownField ? ((Array.isArray(pub?.fields) ? pub.fields : []).find((f) => f && f.fieldId === shownField.fieldId)?.players
     || (Array.isArray(shownField.players) ? shownField.players : null)) : null;
   const ownView = showPrep || (shownField ? (shownMembers ? shownMembers.includes(myId) : shownField.fieldId === ownFieldId(myId)) : !watchingOther);
@@ -374,6 +376,23 @@ function MatchScreen() {
   const staleFieldRef = useRef(null);
   const enteredFieldRef = useRef(null);
   const pressSel = useRef(null);                         // the selected piece when the current field press began
+  const enteredRelayRef = useRef(null);
+  useEffect(() => {
+    if (enteredRelayRef.current === relayKey) return;
+    enteredRelayRef.current = relayKey;
+    if (!relayKey) return;
+    const currentId = pub?.fields?.find(f => f?.kind === 'unite')?.fieldId;
+    // Keep early frames of the new field, but no HUD, selection or detail from the previous helpers.
+    evBufRef.current = new Map([...evBufRef.current].filter(([id]) => id === currentId));
+    snapBufRef.current = new Map([...snapBufRef.current].filter(([id]) => id === currentId));
+    snapUnitsRef.current = new Map();
+    hudRef.current = null;
+    lastFieldRef.current = null;
+    enteredFieldRef.current = null;
+    reentryRef.current = null;
+    setHud(null);
+    setDetail(d => d?.kind === 'unit' ? null : d);
+  }, [relayKey]);
   useEffect(() => {
     if (!view) return;
     if (showPrep) {
@@ -399,7 +418,7 @@ function MatchScreen() {
       return;
     }
     const wanted = combat || mode === 'settle' || watchingOther;
-    if (!wanted || !field || !field.fieldId || field === staleFieldRef.current || field === enteredFieldRef.current) return;
+    if (!wanted || !field || !field.fieldId || !relayFieldReady || field === staleFieldRef.current || field === enteredFieldRef.current) return;
     if (watchingOther && !combat && field.fieldId !== watching) return; // an older push while switching
     if (lastFieldRef.current && lastFieldRef.current !== field.fieldId) setDetail((d) => (d?.kind === 'unit' ? null : d));
     enteredFieldRef.current = field;
@@ -448,7 +467,7 @@ function MatchScreen() {
       hudRef.current = snapHud(earlySnap);
       setHud(hudRef.current);
     }
-  }, [view, showPrep, priv, editable, field, combat, mode, watchingOther, watching, holdSeq]);
+  }, [view, showPrep, priv, editable, field, combat, mode, watchingOther, watching, holdSeq, relayKey, relayFieldReady]);
 
   // battle frames straight from the socket (server-run combat, 20 Hz) or from the local simulation (client-side combat,
   // battle/runner.js, every animation frame) — never through the store. Frames go to the view as received: the game
@@ -588,13 +607,14 @@ function MatchScreen() {
   }, [viewKind]);
 
   // phase changes: banners, sounds, resets
-  const phaseKey = `${phase}:${pub?.round}`;
+  const phaseKey = `${phase}:${pub?.round}${relayKey ? `:${pub.uniteRound}` : ''}`;
+  const phaseIdentity = relayKey ? phaseKey : phase;
   const prevPhase = useRef(null);
   const resultSeq = useRef(0);                           // re-keys the result box (ResultDialog) at every SETTLE
   useEffect(() => {
     const prev = prevPhase.current;
-    prevPhase.current = phase;
-    if (prev === phase) return;
+    prevPhase.current = phaseIdentity;
+    if (prev === phaseIdentity) return;
     const b = phaseBanner(phase, pub, { alive, spectator });
     if (b) setBanner({ ...b, key: phaseKey });
     if (phase === PHASE.ROUND_START) audio.sfx('roundStart');
@@ -1318,7 +1338,7 @@ function MatchScreen() {
   // bonds this mode never activates (标准: 10 of 23, 奥术 among them) — shown 本局禁用 on cards, chips and the popup
   const offBonds = modeOffBonds(getMode(pub?.modeId));
 
-  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, drag && 'is-dragging', collapsed && 'is-collapsed', sp && 'has-sp', pen && 'is-pen', readyWhy && 'has-readywhy')}
+  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, pub?.playerCapacity > 4 && 'gm--expanded', drag && 'is-dragging', collapsed && 'is-collapsed', sp && 'has-sp', pen && 'is-pen', readyWhy && 'has-readywhy')}
       data-camera=${pen ? 'pen' : camKind}>
     <div class="gm__field" ref=${hostRef} onContextMenu=${(e) => e.preventDefault()}></div>
     ${viewKind === 'loading' ? html`<div class="gm__loading"><${Spinner} label="LOADING FIELD" /></div>` : null}
@@ -1391,7 +1411,7 @@ function MatchScreen() {
         <button type="button" class="gm__gear gm__guide" aria-label=${t('玩法说明')} title=${t('玩法说明')} onClick=${() => openGuide(0)}><${Icon} name="book" /></button>
         <${FullscreenButton} class="gm__gear gm__fs" showUnavailable=${true} />
         <${DamageBoard} snapshot=${damage} units=${shownOps} ownerId=${strip.ownerId} ownerName=${strip.name || players.find(p => p.playerId === strip.ownerId)?.name}
-          uniteOwners=${uniteOwners} bossOwners=${bossOwners} bossHidden=${pub?.phase === PHASE.HIDDEN_CORE}
+          uniteOwners=${uniteOwners} uniteRelay=${pub?.uniteRounds === 2 || Array.isArray(pub?.uniteResult?.rounds)} bossOwners=${bossOwners} bossHidden=${pub?.phase === PHASE.HIDDEN_CORE}
           open=${damageOpen} onToggle=${(open) => { setDamageOpen(open); if (open) setEmoteOpen(false); }} />
       </div>
 

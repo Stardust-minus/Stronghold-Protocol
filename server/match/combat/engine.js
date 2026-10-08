@@ -5,6 +5,7 @@ import { GameData, COMBAT_TIME_SCALE, DEFAULTS } from '../gamedata.js';
 import { createBattleFromSpec, battleProgress, uniteLeft } from '../../sim/spec.js';
 import { combatData } from './data.js';
 import { damageFrame, emptyDamageRows } from '../../sim/damageBoard.js';
+import { MAX_PLAYER_CAPACITY } from '../../../shared/playerCapacity.js';
 
 export const DAMAGE_INTERVAL_MS = 1000;
 
@@ -24,7 +25,11 @@ class EngineRunner extends FieldRunner {
 export class CombatEngine {
   constructor({ specs, boss = null, wireFrames = false, coalesceFrames = false, damageBoard = false, snapshotHz = 20, gameSpeed = GAME_SPEED },
     { data, log = QUIET, BattleClass, now = () => performance.now() } = {}) {
-    if (!Array.isArray(specs) || specs.length > 4) throw new TypeError('specs must contain at most four fields');
+    if (!Array.isArray(specs) || specs.length > MAX_PLAYER_CAPACITY) throw new TypeError(`specs must contain at most ${MAX_PLAYER_CAPACITY} fields`);
+    // A leader phase remains ONE worker / ONE SharedBossPool, with at most ten pair fields.
+    if ((boss || specs.some(s => s?.kind === 'boss' || s?.kind === 'hidden')) && specs.length > MAX_PLAYER_CAPACITY / 2) {
+      throw new TypeError('boss specs must contain at most ten fields');
+    }
     const ids = new Set();
     for (const s of specs) {
       if (!s || typeof s.fieldId !== 'string' || ids.has(s.fieldId)) throw new TypeError('unique fieldId required');

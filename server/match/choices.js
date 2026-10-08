@@ -62,6 +62,7 @@
 //   cards with `team: true` apply to the picker AND every alive teammate ("若存在其他队友则他们也获得").
 
 import { weightedPick } from './waves.js';
+import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS } from '../../shared/playerCapacity.js';
 
 export const FAMILY_NAMES = { bounty: '悬赏决策', supply: '道具补给', shop: '机密商店', tactic: '战术决策' }; // i18n-ignore: = choices.json families (the client shows the localized record)
 
@@ -136,7 +137,7 @@ function itemCard(gd, id) {
  * Build the draft cards for an SP round.
  * @returns {{ family: string, name: string, desc: string, eventId: string|null, cards: object[] } | null}
  */
-export function generateDraft(gd, rng, round, { stageId = null, bondAvailable = null } = {}) {
+export function generateDraft(gd, rng, round, { stageId = null, bondAvailable = null, playerCount = 4, experimental = false } = {}) {
   const sch = scheduleFor(gd, round);
   const fams = Array.isArray(sch.families) && sch.families.length ? sch.families.map((f) => [f.family, f.weight]) : [['supply', 1]];
   let family = weightedPick(rng, fams) || 'supply';
@@ -145,6 +146,18 @@ export function generateDraft(gd, rng, round, { stageId = null, bondAvailable = 
   let cards = buildCards(gd, rng, family, n, sch, opts);
   if (!cards.length && family !== 'supply') { family = 'supply'; cards = buildCards(gd, rng, family, n, sch, opts); }
   if (!cards.length) return null;
+  // Keep the ordinary four-player generation AND RNG sequence intact. Only larger experimental drafts top up.
+  if (!gd.isSolo && experimental && Number.isInteger(playerCount) && playerCount > 4 && playerCount <= MAX_PLAYER_CAPACITY) {
+    const target = Math.min(MAX_DRAFT_CARDS, Math.max(6, playerCount + 2));
+    const originals = cards.slice();
+    while (cards.length < target) {
+      // Repeat the selected bounty combination, not a different structured event; every slot still has its own idx.
+      const batch = family === 'bounty' ? rng.shuffle(originals.slice())
+        : buildCards(gd, rng, family, Math.min(6, target - cards.length), sch, opts);
+      const fill = batch.length ? batch : originals;
+      cards.push(...fill.slice(0, target - cards.length).map(c => ({ ...c })));
+    }
+  }
   cards.forEach((c, i) => { c.idx = i; c.family = family; });
   const famInfo = gd.choices.families && gd.choices.families[family];
   const events = sch.events && Array.isArray(sch.events[family]) ? sch.events[family] : [];

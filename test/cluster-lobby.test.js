@@ -46,7 +46,10 @@ function harness(t, options = {}) {
   const privateRoom = (players, mode = 'coop') => {
     assert.deepEqual(lobby.create(players[0], { mode, difficulty: 'NORMAL' }), { ok: true });
     const room = lobby.roomOf(players[0]);
-    for (const session of players.slice(1)) assert.deepEqual(lobby.join(session, { code: room.code }), { ok: true });
+    for (const session of players.slice(1)) {
+      assert.deepEqual(lobby.join(session, { code: room.code }), { ok: true });
+      assert.deepEqual(lobby.ready(session, { ready: true }), { ok: true });
+    }
     return room;
   };
   const queue = (players) => {
@@ -243,6 +246,7 @@ test('solo manual start awaits one prepared actor, reuses base validation and co
 
 test('manual friend room enforces host/readiness and locks experimental rules before preparation', async t => {
   const h = harness(t), players = h.group().slice(0, 3), room = h.privateRoom(players);
+  h.lobby.ready(players[1], { ready: false });
   assert.equal(h.lobby.start(players[1]).error, ERR.NOT_HOST); assert.equal(h.lobby.start(players[0]).error, ERR.NOT_READY);
   h.lobby.setExperimental(players[0], { experimental: { revivalEnabled: true, disableSharedPool: false } });
   for (const p of players.slice(1)) h.lobby.ready(p, { ready: true });
@@ -342,7 +346,10 @@ for (const layout of [[2, 2], [3, 1], [4]]) test(`remote public ${layout.join('+
     }
     at += size;
   }
-  for (const old of oldRooms) h.lobby.setExperimental(h.registry.byId(old.hostId), { experimental: { revivalEnabled: true, disableSharedPool: false } });
+  for (const old of oldRooms) {
+    h.lobby.setExperimental(h.registry.byId(old.hostId), { experimental: { revivalEnabled: true, disableSharedPool: false } });
+    for (const seat of old.activeHumans()) if (seat.playerId !== old.hostId) h.lobby.ready(h.registry.byId(seat.playerId), { ready: true });
+  }
   const states = h.queue(players);
   h.accept(players, states);
   assert.equal(h.calls[0].spec.revivalEnabled, true);

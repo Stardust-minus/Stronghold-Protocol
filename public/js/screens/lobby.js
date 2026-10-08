@@ -16,6 +16,7 @@ import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_S
 import { html, Button, Icon, MicroLabel, Modal, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
 import { AnnouncementBoard, announcementRevision, announcementDismissed, dismissAnnouncement } from '../ui/announcements.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
+import { LobbyFeedback } from '../ui/lobbyFeedback.js';
 import { FullscreenButton } from '../ui/device.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton } from '../ui/guide.js';
@@ -386,6 +387,7 @@ export function LobbyScreen() {
       </div>
     </header>
 
+    <aside class="lobby-contact"><${LobbyFeedback} /></aside>
     <div class="lobby-body screen__scroll">
       <section class="lobby-left">
         <div class="section-label"><span class="section-label__idx num">01</span>${t('模拟方式')}<${MicroLabel}>MODE<//>

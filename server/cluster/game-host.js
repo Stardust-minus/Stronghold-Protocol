@@ -1,17 +1,17 @@
 // Process-local game actors. A whole Match stays here; this is neither a session
 // registry nor durable recovery. The caller owns authentication, transport and pools.
 import { Match } from '../match/Match.js';
-import { C2S, LOADOUT_LIMITS, isNotOwnedList, isDiyPicks } from '../../shared/protocol.js';
+import { C2S, LOADOUT_LIMITS, OWNERSHIP_LIMITS, DIY_LIMITS, isNotOwnedList, isDiyPicks } from '../../shared/protocol.js';
 import { experimentalOptions, isExperimental } from '../../shared/experimental.js';
-import { isSkinChoices } from '../../shared/skins.js';
-import { DIFFICULTIES, ERR, MAX_SEATS, NAME_MAX_LEN, modeIdFor } from '../../shared/constants.js';
+import { SKIN_LIMITS, isSkinChoices } from '../../shared/skins.js';
+import { DIFFICULTIES, ERR, NAME_MAX_LEN, modeIdFor } from '../../shared/constants.js';
+import { roomCapacity } from '../../shared/playerCapacity.js';
 
 const OK = Object.freeze({ ok: true });
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 const identifier = (v, max = 128) => typeof v === 'string' && v.length > 0 && v.length <= max && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const integer = (v, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(v) && v >= min && v <= max;
 const plain = v => !!v && typeof v === 'object' && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
-const onlyKeys = (v, keys) => Object.keys(v).every(k => keys.includes(k));
 const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'snapshotHz'];
 const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'notOwned', 'diy', 'skins'];
 // Match's public observer contract, including the lobby's broadcast ticker/emote
@@ -34,14 +34,47 @@ export class GameHostError extends Error {
 }
 const invalid = () => { throw new GameHostError('INVALID_SPEC'); };
 
+// Assignment DTOs are data, never executable objects. Validate ALL own fields
+// before reading one, then snapshot their data descriptors without getters/spread.
+function dataRecord(value, keys, max = keys?.length ?? Number.MAX_SAFE_INTEGER) {
+  if (!plain(value)) invalid();
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.length > max) invalid();
+  const entries = ownKeys.map(key => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (typeof key !== 'string' || (keys && !keys.includes(key)) || !descriptor || !Object.hasOwn(descriptor, 'value')) invalid();
+    return [key, descriptor.value];
+  });
+  const result = Object.fromEntries(entries);
+  if (Object.getPrototypeOf(value) === null) Object.setPrototypeOf(result, null);
+  return result;
+}
+function dataArray(value, max = Number.MAX_SAFE_INTEGER) {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) invalid();
+  const length = Object.getOwnPropertyDescriptor(value, 'length')?.value;
+  if (!integer(length, 0, max)) invalid();
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const key of Reflect.ownKeys(descriptors)) {
+    if (typeof key !== 'string' || (key !== 'length' && (!/^(0|[1-9][0-9]*)$/.test(key) || Number(key) >= length))
+      || !Object.hasOwn(descriptors[key], 'value')) invalid();
+  }
+  const result = [];
+  for (let i = 0; i < length; i++) {
+    if (!Object.hasOwn(descriptors, i)) invalid();
+    result.push(descriptors[i].value);
+  }
+  return result;
+}
+
 // Match takes the lobby's *normalised* loadout, whose module may be null (unlike
 // room.loadout.entries). Preserve it rather than running checkLoadout a second time.
 function loadoutCopy(value) {
   if (value == null) return value;
-  if (!plain(value) || Object.keys(value).length > LOADOUT_LIMITS.entries) invalid();
-  const entries = Object.entries(value).map(([id, entry]) => {
-    if (!identifier(id, 64) || ['__proto__', 'constructor', 'prototype'].includes(id) || !plain(entry)
-      || !Object.keys(entry).length || !onlyKeys(entry, ['skill', 'module'])
+  const safe = dataRecord(value, undefined, LOADOUT_LIMITS.entries);
+  const entries = Object.entries(safe).map(([id, input]) => {
+    const entry = dataRecord(input, ['skill', 'module']);
+    if (!identifier(id, 64) || ['__proto__', 'constructor', 'prototype'].includes(id)
+      || !Object.keys(entry).length
       || (entry.skill !== undefined && !integer(entry.skill, 0, LOADOUT_LIMITS.skillIndex))
       || (entry.module !== undefined && entry.module !== null && !identifier(entry.module, 64))) invalid();
     return [id, { ...entry }];
@@ -49,24 +82,29 @@ function loadoutCopy(value) {
   return Object.fromEntries(entries);
 }
 
-function specCopy(spec) {
-  if (!plain(spec) || !onlyKeys(spec, SPEC_KEYS) || !identifier(spec.assignmentId) || !identifier(spec.build)
+export function copyAssignmentSpec(input, fallbackAssignmentId) {
+  const spec = dataRecord(input, SPEC_KEYS);
+  if (spec.assignmentId == null && fallbackAssignmentId !== undefined) spec.assignmentId = fallbackAssignmentId;
+  if (!identifier(spec.assignmentId) || !identifier(spec.build)
     || typeof spec.roomCode !== 'string' || !/^[A-Z]{4}(?![\s\S])/.test(spec.roomCode)
     || !integer(spec.protocol, 1) || !integer(spec.seed, 0, 0xffffffff) || !integer(spec.matchNo, 1)
     || !['solo', 'coop'].includes(spec.mode) || !DIFFICULTIES.includes(spec.difficulty)
     || spec.modeId !== modeIdFor(spec.mode, spec.difficulty)
-    || !Array.isArray(spec.seats) || !spec.seats.length || spec.seats.length > MAX_SEATS
     || (spec.revivalEnabled !== undefined && typeof spec.revivalEnabled !== 'boolean')
     || (spec.disableSharedPool !== undefined && typeof spec.disableSharedPool !== 'boolean')
     || (spec.experimental !== undefined && (!isExperimental(spec.experimental)
       || (spec.revivalEnabled !== undefined && spec.revivalEnabled !== (spec.mode === 'coop' && spec.experimental.revivalEnabled))
       || (spec.disableSharedPool !== undefined && spec.disableSharedPool !== spec.experimental.disableSharedPool)))
     || (spec.snapshotHz !== undefined && ![5, 10, 20].includes(spec.snapshotHz))) invalid();
+  const experimental = experimentalOptions(spec.experimental ?? { revivalEnabled: spec.revivalEnabled ?? false, disableSharedPool: spec.disableSharedPool ?? false });
+  const capacity = roomCapacity(spec.mode, experimental), roster = dataArray(spec.seats, capacity);
+  if (!roster.length) invalid();
   const ids = new Set();
   const seats = new Set();
   let humans = 0;
-  const players = Array.from(spec.seats, s => {
-    if (!plain(s) || !onlyKeys(s, SEAT_KEYS) || !integer(s.seat, 0, MAX_SEATS - 1)
+  const players = roster.map(input => {
+    const s = dataRecord(input, SEAT_KEYS);
+    if (!integer(s.seat, 0, capacity - 1)
       || !identifier(s.playerId, 64) || ids.has(s.playerId) || seats.has(s.seat)
       || typeof s.name !== 'string' || !s.name.trim() || s.name.length > NAME_MAX_LEN || /[\x00-\x1f\x7f]/.test(s.name)
       || typeof s.isBot !== 'boolean' || typeof s.connected !== 'boolean'
@@ -76,21 +114,26 @@ function specCopy(spec) {
     const seat = { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected };
     if (s.loadout !== undefined) seat.loadout = loadoutCopy(s.loadout);
     if (s.notOwned !== undefined) {
-      if (s.notOwned !== null && !isNotOwnedList(s.notOwned)) invalid();
-      seat.notOwned = s.notOwned === null ? null : [...s.notOwned];
+      const notOwned = s.notOwned === null ? null : dataArray(s.notOwned, OWNERSHIP_LIMITS.notOwned);
+      if (notOwned !== null && !isNotOwnedList(notOwned)) invalid();
+      seat.notOwned = notOwned;
     }
     if (s.diy !== undefined) {
-      if (s.diy !== null && (!isDiyPicks(s.diy) || Object.values(s.diy).some(p => p != null && !onlyKeys(p, ['charId', 'skillIndex', 'uniEquipId'])))) invalid();
-      seat.diy = s.diy === null ? null : copy(s.diy);
+      const diy = s.diy === null ? null : dataRecord(s.diy, undefined, DIY_LIMITS.slots);
+      if (diy !== null) {
+        for (const [id, pick] of Object.entries(diy)) if (pick != null) diy[id] = dataRecord(pick, ['charId', 'skillIndex', 'uniEquipId']);
+        if (!isDiyPicks(diy)) invalid();
+      }
+      seat.diy = diy;
     }
     if (s.skins !== undefined) {
-      if (!isSkinChoices(s.skins)) invalid();
-      seat.skins = { ...s.skins };
+      const skins = dataRecord(s.skins, undefined, SKIN_LIMITS.choices);
+      if (!isSkinChoices(skins)) invalid();
+      seat.skins = skins;
     }
     return seat;
   });
-  const spectators = spec.spectators ?? [];
-  if (!Array.isArray(spectators)) invalid();
+  const spectators = dataArray(spec.spectators ?? []);
   for (const id of spectators) {
     if (!identifier(id, 64) || id.startsWith('ai_') || ids.has(id)) invalid();
     ids.add(id);
@@ -99,9 +142,8 @@ function specCopy(spec) {
   return freeze({ assignmentId: spec.assignmentId, roomCode: spec.roomCode, build: spec.build, protocol: spec.protocol,
     seed: spec.seed, matchNo: spec.matchNo, mode: spec.mode, difficulty: spec.difficulty, modeId: spec.modeId,
     seats: players, spectators: [...spectators],
-    revivalEnabled: spec.mode === 'coop' && (spec.experimental?.revivalEnabled ?? spec.revivalEnabled ?? false),
-    disableSharedPool: spec.experimental?.disableSharedPool ?? spec.disableSharedPool ?? false,
-    experimental: experimentalOptions(spec.experimental ?? { revivalEnabled: spec.revivalEnabled ?? false, disableSharedPool: spec.disableSharedPool ?? false }),
+    revivalEnabled: spec.mode === 'coop' && experimental.revivalEnabled,
+    disableSharedPool: experimental.disableSharedPool, experimental,
     ...(spec.snapshotHz === undefined ? {} : { snapshotHz: spec.snapshotHz }) });
 }
 
@@ -187,7 +229,7 @@ export class GameHost {
 
   prepare(spec) {
     if (this.closed) throw new GameHostError('HOST_CLOSED');
-    const safe = specCopy(spec);
+    const safe = copyAssignmentSpec(spec);
     const key = fingerprint(safe);
     this.sweep();
     const existing = this.contexts.get(safe.assignmentId);

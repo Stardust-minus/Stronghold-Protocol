@@ -6,7 +6,7 @@
 import { PHASE, GEO } from '../../../shared/constants.js';
 import { WorkerFieldRunner } from '../combat/runner.js';
 import { deriveSeed } from '../../sim/rng.js';
-import { uniteBattleOpts, uniteSurvivors } from '../unite.js';
+import { uniteBattleOpts, uniteSurvivors, planUniteRelay } from '../unite.js';
 import { FieldRunner, timelineAt, uniteBillBounds } from '../fields.js';
 import { uniteLeft } from '../../sim/spec.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
@@ -14,6 +14,8 @@ import { msg } from '../../../shared/i18n.js';
 
 export class MatchUnite {
   startUnite(plan) {
+    if (plan.uniteRound === 1) this._uniteRelay = { rounds: [], eligible: new Set() };
+    if (plan.uniteRound && !this.clientCombat) plan.battleId = `${this.battlePrefix}.${this.round}.${++this._battleSeq}.relay${plan.uniteRound}`;
     if (this.clientCombat) { this._startUniteClient(plan); return; }
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
@@ -21,7 +23,7 @@ export class MatchUnite {
     const opts = this._uniteOpts(plan, limit);
     const players = plan.helpers.map((p) => p.playerId);
     this.fields = [this.combatPool ? this._remoteField(opts, players)
-      : { fieldId: 'u', kind: 'unite', players, battle: this.newBattle(opts), live: true }];
+      : { fieldId: opts.fieldId, kind: 'unite', players, battle: this.newBattle(opts), live: true }];
     this._beginDamage('unite');
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     this._defaultWatch();
@@ -32,15 +34,11 @@ export class MatchUnite {
     this.runner = new Runner(this, this.fields, {
       onTick: (runner) => this._uniteTick(runner),
       onDone: (runner) => {
-        if (this.phase !== PHASE.UNITE) return;
-        const res = runner.resultOf(this.fields[0]);
+        if (this.phase !== PHASE.UNITE || this.runner !== runner || this.unitePlan !== plan) return;
         this._sampleDamage(true, true);
         this._flushDamage(true);
-        this._collectSimErrors(this.fields[0], res);
-        this.fields[0].live = false;
-        this.deadline = 0;
-        this.markPublic();
-        this.later(this.scaled(DELAYS.COMBAT_END), () => this.settle(plan, res));
+        const field = runner.fields[0];
+        this._finishUniteField(plan, runner.resultOf(field), field);
       },
     });
     this._defaultWatch();
@@ -57,7 +55,8 @@ export class MatchUnite {
   _uniteOpts(plan, limit) {
     const { wave, players } = uniteBattleOpts(this, plan, limit);
     return {
-      seed: deriveSeed(this.seed, `u:${this.round}`),
+      seed: deriveSeed(this.seed, plan.uniteRound === 2 ? `u:${this.round}:2` : `u:${this.round}`),
+      ...(plan.uniteRound ? { battleId: plan.battleId } : {}),
       kind: 'unite',
       modeId: this.modeId,
       round: this.round,
@@ -69,7 +68,7 @@ export class MatchUnite {
       routes: wave.routes,
       sharedBoss: null,
       flags: { layerGainsEnabled: false, ...this.gd.dp },
-      fieldId: 'u',
+      fieldId: plan.uniteRound === 2 ? 'u:2' : 'u',
       // leaked enemies re-enter with the stats they had: the round template's stat overrides apply again
       enemyOverrides: this.wave && this.wave.overrides ? this.wave.overrides : {},
       waveId: wave.templateId,
@@ -80,7 +79,8 @@ export class MatchUnite {
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
     const limit = this.wave ? this.wave.timeLimit : 60;
-    const f = this._ccField({ fieldId: 'u', kind: 'unite', players: plan.helpers.map((p) => p.playerId), opts: this._uniteOpts(plan, limit) });
+    const opts = this._uniteOpts(plan, limit);
+    const f = this._ccField({ fieldId: opts.fieldId, kind: 'unite', players: plan.helpers.map((p) => p.playerId), opts });
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     this.watchers.clear();
     this._launch([f]);
@@ -88,7 +88,7 @@ export class MatchUnite {
     this._flushDamage(true);
     // helpers and everyone else (as observers, spectator seats included) simulate the same 联防 spec locally
     for (const ps of this._viewers()) {
-      this.watchers.set(ps.playerId, 'u');
+      this.watchers.set(ps.playerId, f.fieldId);
       this._sendStart(ps.playerId, f, { watch: !f.players.includes(ps.playerId) });
     }
     this.markPublic();
@@ -99,13 +99,47 @@ export class MatchUnite {
     if (this.phase !== PHASE.UNITE) return;
     const f = this.fields[0];
     const res = f.result;
-    this._collectSimErrors(f, res);
     this._stopClientCombat();
-    f.live = false;
+    this._finishUniteField(this.unitePlan, res, f);
+  }
+
+  /** Archive a natural terminal once; a distinct field/generation owns the next relay. No LP is charged here. */
+  _finishUniteField(plan, res, field) {
+    if (this.disposed || this.ended || this.phase !== PHASE.UNITE || this.unitePlan !== plan
+      || !this.fields.includes(field) || field.uniteCompleted) return;
+    field.uniteCompleted = true;
+    this._collectSimErrors(field, res);
+    field.live = false;
     this.deadline = 0;
+    if (this._uniteRelay && plan.uniteRound) {
+      const survivors = res && !res.synthetic ? uniteSurvivors(plan, res) : new Map(plan.notReentered);
+      if (!res || res.synthetic) for (const l of plan.leaked) {
+        survivors.set(l.sourcePlayerId, (survivors.get(l.sourcePlayerId) || 0) + 1);
+      }
+      const eligible = this._revivalHelpers(plan, res);
+      for (const pid of eligible) {
+        const pp = res.perPlayer[pid];
+        // Leak records belong to the helper's half; sourcePlayerId remains the original leaker billed for LP.
+        if (pp.perfect !== false && !(pp.leaked || []).some((l) => l && l.counted !== false)) this._uniteRelay.eligible.add(pid);
+      }
+      this._uniteRelay.rounds.push({ plan, result: res, survivors,
+        view: { round: plan.uniteRound, fieldId: field.fieldId,
+          battleId: field.battleId || field.spec?.battleId || field.battle?.opts?.battleId,
+          helpers: plan.helpers.map((ps) => ps.playerId),
+          through: plan.leakers.reduce((n, ps) => n + (survivors.get(ps.playerId) || 0), 0) } });
+    }
     this.markPublic();
-    const plan = this.unitePlan;
-    this.later(this.scaled(DELAYS.COMBAT_END), () => this.settle(plan, res));
+    this.later(this.scaled(DELAYS.COMBAT_END), () => {
+      if (this.phase !== PHASE.UNITE || this.unitePlan !== plan || !this.fields.includes(field) || field.uniteReleased) return;
+      field.uniteReleased = true;
+      const next = planUniteRelay(this, plan, res, field.spec?.spawns || field.battle?.opts?.spawns);
+      if (next) {
+        this.runner?.stop();
+        this.runner = null;
+        this._stopClientCombat();
+        this.startUnite(next);
+      } else this.settle(plan, res);
+    });
   }
 
   /**
@@ -129,6 +163,7 @@ export class MatchUnite {
     if (f && f.cc) res = f.done ? f.result : null;
     else if (f && f.battle && f.battle.finished) { try { res = f.battle.result(); } catch { res = null; } }
     if (res && res.synthetic) {
+      if (plan.uniteRound) return plan.leaked.filter((l) => l.sourcePlayerId === pid).length + (plan.notReentered.get(pid) || 0);
       const own = this.lastResults.get(pid);
       return own && Array.isArray(own.leaked) ? own.leaked.filter((l) => l && l.counted !== false).length : 0;
     }

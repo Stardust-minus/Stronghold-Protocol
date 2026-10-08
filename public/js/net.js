@@ -30,6 +30,7 @@
 // to /shared/x.js (URL resolution clamps at the root); under Node it resolves to <repo>/shared.
 
 import { PROTOCOL_VERSION, MATCHMAKING_VERSION, ERR_TEXT } from '../../shared/constants.js';
+import { PLAYER_CAPACITY_VERSION } from '../../shared/playerCapacity.js';
 import { validateC2S, normalizeServerLoad, normalizeLoadDetails } from '../../shared/protocol.js';
 import { normalizeClusterLoad } from '../../shared/cluster-load.js';
 import { N_ } from '../../shared/i18n.js';
@@ -382,7 +383,7 @@ export class Net {
   _sendHello() {
     if (!this.name) return;
     const rid = this._nextRid();
-    const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION, matchmakingVersion: MATCHMAKING_VERSION };
+    const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION, matchmakingVersion: MATCHMAKING_VERSION, playerCapacityVersion: PLAYER_CAPACITY_VERSION };
     let token = null;
     try { token = this.getToken(); } catch { token = null; }
     if (typeof token === 'string' && token.length > 0 && token.length <= 64) msg.token = token;

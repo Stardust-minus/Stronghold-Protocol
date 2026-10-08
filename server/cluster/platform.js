@@ -5,7 +5,7 @@ import { ClusterDirectory, AllocationError } from './directory.js';
 import { createTicketAuthority } from './tickets.js';
 import { createRpcAuthenticator, createRpcClient } from './rpc.js';
 import { normalizeClusterLoad, normalizeGameLoad, publicGameLabel, MAX_PUBLIC_GAME_NODES } from '../../shared/cluster-load.js';
-import { isSkinChoices } from '../../shared/skins.js';
+import { copyAssignmentSpec, GameHostError } from './game-host.js';
 
 const safeId = v => typeof v === 'string' && v.length > 0 && v.length <= 128 && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const cancelled = () => new AllocationError('CANCELLED');
@@ -162,17 +162,22 @@ export class RemoteGamePlatform {
 
   async prepare(input, { signal, isCurrent = () => true } = {}) {
     if (this.closed) throw new AllocationError('PLATFORM_CLOSED');
-    if (typeof isCurrent !== 'function' || !input || input.build !== this.build || input.protocol !== this.protocol
-      || !Array.isArray(input.seats) || !Array.isArray(input.spectators ?? [])) throw new TypeError('invalid remote match');
+    if (typeof isCurrent !== 'function') throw new TypeError('invalid remote match');
     if (signal?.aborted) throw cancelled();
-    const spec = structuredClone({ ...input, assignmentId: input.assignmentId ?? randomBytes(16).toString('hex'), spectators: input.spectators ?? [] });
-    for (const seat of spec.seats) if (seat.skins !== undefined) {
-      if (!isSkinChoices(seat.skins)) throw new TypeError('invalid remote skin choices');
-      seat.skins = Object.freeze({ ...seat.skins });
+    let spec;
+    try { spec = copyAssignmentSpec(input, randomBytes(16).toString('hex')); }
+    catch (error) {
+      if (error instanceof GameHostError && error.code === 'INVALID_SPEC') throw new TypeError('invalid remote match');
+      throw error;
     }
-    const assignment = this.directory.prepare({ assignmentId: spec.assignmentId, roomCode: spec.roomCode,
-      sessionIds: spec.seats.filter(s => !s.isBot).map(s => s.playerId), build: this.build, protocol: this.protocol });
+    if (spec.build !== this.build || spec.protocol !== this.protocol) throw new TypeError('invalid remote match');
+    // The actual RPC envelope has a 32-hex-character nonce. Check its unchanged
+    // 64 KiB budget BEFORE any reservation, ingress ticket or actor side effect.
+    if (Buffer.byteLength(JSON.stringify({ id: '0'.repeat(32), op: 'prepare', payload: spec })) > 64 * 1024) throw new AllocationError('TOO_LARGE');
     if (this.contexts.has(spec.assignmentId)) throw new AllocationError('ASSIGNMENT_CONFLICT');
+    const assignment = this.directory.prepare({ assignmentId: spec.assignmentId, roomCode: spec.roomCode,
+      sessionIds: spec.seats.filter(s => !s.isBot).map(s => s.playerId), build: this.build, protocol: this.protocol,
+      mode: spec.mode, experimental: spec.experimental });
     const node = this.nodes.get(assignment.nodeId);
     const controller = new AbortController();
     const ctx = { spec, node, generation: assignment.generation, controller, isCurrent, state: 'preparing',

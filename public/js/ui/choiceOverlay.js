@@ -177,7 +177,7 @@ export function ChoiceView({ pub, sp, myId, solo, busyIdx = null, total = null, 
     if (t && typeof t.closest === 'function' && t.closest('.spcard, .spov__confirm')) return;
     onDisarm();
   };
-  return html`<div class=${cx('spov', armed != null && 'has-armed')} role="dialog" aria-label=${t('机变阶段')} onPointerDown=${onDown}>
+  return html`<div class=${cx('spov', armed != null && 'has-armed', sp.cards.length > 6 && 'spov--expanded')} role="dialog" aria-label=${t('机变阶段')} onPointerDown=${onDown}>
     <div class="spov__veil" aria-hidden="true"></div>
     <div class="spov__inner">
       <header class="spov__head">

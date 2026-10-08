@@ -11,8 +11,9 @@ import { OK, fail, DELAYS } from './common.js';
 
 export class MatchSpDraft {
   enterSpDraft() {
-    const draft = generateDraft(this.gd, this.rngDraft, this.round, { stageId: this.stageId, bondAvailable: (bondId) => this.bondLive(bondId) });
     const alive = this.alivePlayers();
+    const draft = generateDraft(this.gd, this.rngDraft, this.round, { stageId: this.stageId,
+      bondAvailable: (bondId) => this.bondLive(bondId), playerCount: alive.length, experimental: this.capacityExperiment });
     if (!draft || !alive.length) { this.enterPrep(); return; }
     this.phase = PHASE.SP_DRAFT;
     const order = alive.map((p) => p.playerId);
@@ -157,7 +158,6 @@ export class MatchSpDraft {
    * @returns {{ kind: 'item'|'chess', id: string, golden?: boolean } | null}
    */
   rollPool(poolId, { shopLevel = 6, player = null, extra = null, chessOf = null } = {}) {
-    const stock = this.poolFor(player);
     const pools = this.gd.choices.pools && typeof this.gd.choices.pools === 'object' ? this.gd.choices.pools : {};
     const p = typeof poolId === 'string' && Object.hasOwn(pools, poolId) ? pools[poolId] : null;
     if (!p || typeof p !== 'object') return null;
@@ -167,11 +167,14 @@ export class MatchSpDraft {
       return id ? { kind: 'item', id } : null;
     }
     if (p.kind !== 'chess') return null;
+    const stock = this.poolFor(player);
+    const ps = typeof player === 'string' ? this.players.get(player) : player;
     const rng = this.rngMeta;
     const free = (id) => {
       if (typeof id !== 'string' || !this.gd.chess(id)) return false;
       const base = this.gd.baseIdOf(id);
-      return !stock.has(base) || stock.left(base) > 0;
+      const copies = typeof ps?.poolOf === 'function' ? ps.poolOf(base) : stock;
+      return !copies.has(base) || copies.left(base) > 0;
     };
     let id = null;
     if (Array.isArray(p.weighted) && p.weighted.length) {
