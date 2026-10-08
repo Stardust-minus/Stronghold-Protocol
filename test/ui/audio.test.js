@@ -311,6 +311,64 @@ describe('operator battle voice', () => {
     }
   });
 
+  for (const language of ['cn', 'jp', 'en']) test(`listener voice language ${language} selects its own URL without changing unit identity`, async () => {
+    const fw = fakeWindow(), vm = { audio: { voice: { char_a: { place: '/cn/line.mp3' } }, voiceByLang: {
+      cn: { char_a: { place: '/cn/line.mp3' } }, jp: { char_a: { place: '/jp/line.mp3' } }, en: { char_a: { place: '/en/line.mp3' } },
+    } } };
+    const a = new AudioManager({ win: fw.win, getManifest: () => vm });
+    a.install(); fw.fire('pointerdown'); a.setVoiceLanguage(language);
+    a._buffer = async () => ({ duration: 1.5 });
+    assert.equal(a.voice('char_a', 'place', { unitKey: 1 }), true);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(a.voiceNode.url, `/${language}/line.mp3`);
+    const bgm = { loopUrl: '/bgm.mp3' }; a.bgm = bgm;
+    const volumes = { ...a.volumes }, token = a.voiceToken;
+    assert.equal(a.setVoiceLanguage(language), false); assert.equal(a.voiceToken, token, 'same preference does not interrupt');
+    a.setVoiceLanguage(language === 'cn' ? 'jp' : 'cn');
+    assert.equal(a.voiceNode, null); assert.equal(a.bgm, bgm); assert.deepEqual(a.volumes, volumes);
+  });
+
+  test('missing or failed listener-language lines fall back to Chinese without freeing the voice gate early', async () => {
+    const fw = fakeWindow(), vm = { audio: { voice: { char_a: { place: '/cn/line.mp3', skill1: '/cn/skill.mp3' } },
+      voiceByLang: { jp: { char_a: { place: '/jp/line.mp3' } } } } };
+    const a = new AudioManager({ win: fw.win, getManifest: () => vm });
+    a.install(); fw.fire('pointerdown'); a.setVoiceLanguage('jp'); a.voiceGate = new VoiceGate({ gapMs: 0 });
+    const asked = [];
+    a._buffer = async url => { asked.push(url); return url.startsWith('/jp/') ? null : { duration: 1.5 }; };
+    assert.equal(a.voice('char_a', 'place', { unitKey: 1 }), true);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(asked, ['/jp/line.mp3', '/cn/line.mp3']); assert.equal(a.voiceNode.url, '/cn/line.mp3');
+    a._stopVoice(); a.voiceGate.reset(); asked.length = 0;
+    assert.equal(a.voice('char_a', 'skill1', { unitKey: 1 }), true);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(asked, ['/cn/skill.mp3']);
+    a._stopVoice(); a.voiceGate.reset(); asked.length = 0;
+    a._buffer = async url => { asked.push(url); return null; };
+    assert.equal(a.voice('char_a', 'place', { unitKey: 2 }), true);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(asked, ['/jp/line.mp3', '/cn/line.mp3']); assert.equal(a.voiceGate.playing, null);
+  });
+
+  test('changing language during decoding prevents the old line and its fallback from taking the new channel', async () => {
+    const fw = fakeWindow(), vm = { audio: { voice: { char_a: { place: '/cn/line.mp3' } }, voiceByLang: {
+      jp: { char_a: { place: '/jp/line.mp3' } }, en: { char_a: { place: '/en/line.mp3' } },
+    } } };
+    const a = new AudioManager({ win: fw.win, getManifest: () => vm });
+    a.install(); fw.fire('pointerdown'); a.voiceGate = new VoiceGate({ gapMs: 0 });
+    const urls = []; let releaseOld;
+    a._buffer = url => {
+      urls.push(url);
+      return url.startsWith('/jp/') ? new Promise(resolve => { releaseOld = resolve; }) : Promise.resolve({ duration: 1.5 });
+    };
+    a.setVoiceLanguage('jp'); assert(a.voice('char_a', 'place', { unitKey: 1 }));
+    a.setVoiceLanguage('en'); assert(a.voice('char_a', 'place', { unitKey: 2 }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const gate = a.voiceGate.playing, node = a.voiceNode;
+    releaseOld(null); await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(urls, ['/jp/line.mp3', '/en/line.mp3']);
+    assert.equal(a.voiceNode, node); assert.equal(a.voiceNode.url, '/en/line.mp3'); assert.equal(a.voiceGate.playing, gate);
+  });
+
   test('voice: a stale callback never frees the channel the newest line holds (review on #73)', async () => {
     const fw = fakeWindow();
     const origFetch = globalThis.fetch;

@@ -17,6 +17,7 @@ import { html, Button, Icon, MicroLabel, Modal, Panel, TextField, PingPill, Avat
 import { AnnouncementBoard, announcementRevision, announcementDismissed, dismissAnnouncement } from '../ui/announcements.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { LobbyFeedback } from '../ui/lobbyFeedback.js';
+import { LanguageButton } from '../ui/languageSettings.js';
 import { FullscreenButton } from '../ui/device.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton } from '../ui/guide.js';
@@ -372,6 +373,7 @@ export function LobbyScreen() {
         <h1 class="topbar__title">${t('选择模拟协议')}</h1>
       </div>
       <div class="topbar__right">
+        <${LanguageButton} />
         <${FullscreenButton} class="lobby-fullscreen" showUnavailable=${true} />
         <${Button} class="lobby-announcements" variant="secondary" size="sm" icon="info" aria-haspopup="dialog"
           onClick=${() => setOverlay('announcements')}>${t('公告')}<//>

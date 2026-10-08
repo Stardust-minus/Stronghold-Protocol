@@ -4,6 +4,7 @@
 //   bgm { lobby, prep, combat, combatAlts?: [ {intro?, loop}, … ], boss: { intro?, loop } },
 //   bossBgm { [bossId]: { intro?, loop } },
 //   voice { [charId]: { start, faceEnemy, select, place, skill1…skill4, squad, squadFirst, result*, gacha } },
+//   voiceByLang { cn, jp, en }: listener-selected battle lines, with voice as the Chinese compatibility fallback,
 //   sfx.ui { click, buy, sell, refresh, freeze, levelup, merge, equip, ready, timer, yourTurn, … },
 //   sfx.battle { deploy, tokenDeploy, charDie, tokenDie?, enemyDie, enemyHit, heal, killCoin, … },
 //   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }.
@@ -48,6 +49,7 @@
 
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
+import { normalizeVoiceLanguage, voiceCandidates } from './voiceLanguage.js';
 
 const MAX_VOICES = 8;
 const UNIT_COOLDOWN_MS = 160;
@@ -457,6 +459,7 @@ export class AudioManager {
     this.voiceGate = new VoiceGate();
     this.voiceNode = null;    // { src, gain, url, token } of the line on air
     this.voiceToken = 0;
+    this.voiceLanguage = 'cn';
     this.startVoiceDone = false; // 行动出发 of this field (the first operator deployed says it)
     this.uiVoices = 0;
     this.wantBgm = null;      // desired key (kept while locked)
@@ -579,6 +582,15 @@ export class AudioManager {
     if (this.warned.has(key)) return;
     this.warned.add(key);
     try { console.warn(`[audio] ${key} unavailable`, err?.message || err || ''); } catch { /* ignore */ }
+  }
+
+  /** Change only the listener's voice channel; stale decodes must not start in the old language. */
+  setVoiceLanguage(language) {
+    const next = normalizeVoiceLanguage(language);
+    if (next === this.voiceLanguage) return false;
+    this.voiceLanguage = next;
+    this._stopVoice();
+    return true;
   }
 
   /**
@@ -823,7 +835,7 @@ export class AudioManager {
   // ---- operator battle voice ----------------------------------------------------------------------------------
 
   /**
-   * Play an operator's battle line (`audio.voice[charId][slot]`; a slot with several lines draws one at random).
+   * Play a listener-language battle line (Chinese fallback; a slot with several lines draws one at random).
    * Only in battle: every caller is a running battle's own event stream or its settlement (user request — the 休整期
    * is silent). The line must pass VoiceGate: one at a time, a global gap, a per-unit cooldown, higher priority wins.
    * @param {string} charId e.g. 'char_263_skadi'
@@ -836,31 +848,35 @@ export class AudioManager {
     try {
       if (!this.ctx || !this.voiceGain || this.volumes.muted || this.volumes.voice <= 0) return false;
       if (typeof charId !== 'string' || typeof slot !== 'string') return false;
-      const line = this.getManifest()?.audio?.voice?.[charId]?.[slot];
-      const url = Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line;
-      if (typeof url !== 'string' || !url) return false;
+      const [url, ...fallback] = voiceCandidates(this.getManifest(), charId, slot, this.voiceLanguage);
+      if (!url) return false;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const verdict = this.voiceGate.request(slot, o.unitKey ?? null, now);
       if (verdict === 'drop') return false;
       if (verdict === 'preempt') this._stopVoice();
       this.voiceGate.start(slot, o.unitKey ?? null, now);
       const token = ++this.voiceToken;
-      this._playVoice(url, token, o.volume);
+      this._playVoice(url, token, o.volume, fallback);
       return true;
     } catch (err) { this._warn('voice', err); return false; }
   }
 
   /** Fetch/decode and start one voice line through the voice channel. */
-  _playVoice(url, token, volume) {
+  _playVoice(url, token, volume, fallback = []) {
     // `token` is the line's own `voiceToken`. Every deferred step below — the decode, a failed fetch, `onended` and the
     // safety timer — can land AFTER this line was taken over or stopped: `voiceToken` has moved on and the channel then
     // belongs to the line that replaced it. So each step re-checks its token and, when it is stale, touches NOTHING:
     // `_stopVoice` (takeover / stop) and `setFieldUnits` released the gate themselves. An unconditional release here let
     // a stale callback free the channel the NEW line had just taken, and the next line walked in on top of it (review
     // on #73).
+    const failed = () => {
+      if (token !== this.voiceToken) return;
+      if (fallback.length && this.ctx && this.voiceGain) this._playVoice(fallback[0], token, volume, fallback.slice(1));
+      else this.voiceGate.release();
+    };
     this._buffer(url).then((buf) => {
       if (token !== this.voiceToken) return;   // taken over / stopped while it decoded: not ours to release
-      if (!buf || !this.ctx || !this.voiceGain) { this.voiceGate.release(); return; }
+      if (!buf || !this.ctx || !this.voiceGain) { failed(); return; }
       try {
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
@@ -888,7 +904,7 @@ export class AudioManager {
         this._warn('voice-play', err);
         if (token === this.voiceToken) this.voiceGate.release();
       }
-    }, () => { if (token === this.voiceToken) this.voiceGate.release(); });
+    }, failed);
   }
 
   /** Fade the line on air out (a higher priority line is taking the channel over). */

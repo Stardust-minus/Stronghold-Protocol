@@ -1,6 +1,6 @@
-// Title screen: season-style backdrop, big title 卫戍协议：盟约, remembered nickname, 开始, the language menu
-// (中文 | English | every pack in public/i18n/, ui/lang.js; a title in an alphabetic script — English — is the big one and
-// the small wordmark above it hides).
+// Title screen: season-style backdrop, big title 卫戍协议：盟约, remembered nickname and 开始.
+// The combined language/voice entry lives in the lobby; settings still offers the same preferences here.
+// A title in an alphabetic script — English — is the big one, and the small wordmark above it hides.
 //
 // Pressing 开始 validates the nickname (1..NAME_MAX_LEN chars, no control characters), stores it,
 // marks this tab as "entered" (so reloads skip the title) and hands the name to net.js, which
@@ -19,7 +19,7 @@ import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual } from '../store.js';
 import { data, useData } from '../data.js';
 import { FullscreenButton, detectFeatures } from '../ui/device.js';
-import { LangToggle, useLang } from '../ui/lang.js';
+import { useLang } from '../ui/lang.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { GIcon } from '../ui/gameComponents.js';
@@ -240,7 +240,6 @@ export function TitleScreen() {
     </div>
     <div class="title-corner title-corner--tr">
       <div>
-        <${LangToggle} class="title-lang" />
         <${MicroLabel} tone="hi">TARGET POINT<//><br /><${MicroLabel}>STRONGHOLD PROTOCOL<//>
       </div>
     </div>

@@ -537,6 +537,23 @@
 .set-seg button.is-on { background: var(--mint-500); color: var(--text-on-mint); font-weight: 700; }
 .set-hint { margin-top: .06rem; font-size: .14rem; color: var(--text-dim); line-height: 1.8; }
 .set-hint kbd, .lvcard__key, .toolbtn kbd { font-family: var(--font-num); font-size: .11rem; border: 1px solid var(--line-2); padding: 0 .04rem; color: var(--text-lo); background: rgba(0, 0, 0, .3); }
+/* Shared interface/voice preferences in the lobby and settings. */
+.language-options { display: flex; flex-direction: column; gap: max(.14rem, 10px); min-width: 0; }
+.language-options__row { grid-template-columns: minmax(0, 1fr); gap: max(.1rem, 8px); }
+.language-options__row .set-row__label { flex-wrap: wrap; white-space: normal; font-size: max(.18rem, 14px); }
+.language-options__row .set-row__label .icon { width: 16px; height: 16px; }
+.language-options__row .micro, .language-dialog .modal__head .micro { font-size: 10px; }
+.language-options__row .set-seg { grid-column: 1; max-width: 100%; }
+.voice-language-toggle { width: 100%; }
+.voice-language-toggle button { flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; padding-inline: 12px; font-size: max(.16rem, 14px); }
+.voice-language-code { font-family: var(--font-num); font-size: 11px; opacity: .7; }
+.language-options__hint { font-size: max(.16rem, 13px); line-height: 1.65; }
+.language-dialog { width: min(8rem, calc(100vw - 32px)); }
+.language-dialog .modal__body { overflow-y: auto; }
+.lobby-screen .language-dialog .modal__actions .btn { min-height: 44px; font-size: max(.17rem, 14px); }
+.language-options .lang-select, .language-options .lang-select select { width: 100%; min-height: 44px; }
+.language-options .lang-select select { font-size: max(.16rem, 14px); }
+.voice-language-toggle button:focus-visible { outline: 2px solid var(--mint-400); outline-offset: -3px; }
 /* 快捷键 (ui/settings.js HotkeySection): each shortcut with its key — click the key, press the new one; two columns,
    one under 768 px (phones in landscape) */
 .set-keys { display: flex; flex-direction: column; gap: .08rem; padding-top: .1rem; border-top: 1px solid var(--line); }

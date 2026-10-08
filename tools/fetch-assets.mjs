@@ -52,7 +52,7 @@ import { Downloader } from './assets/downloader.mjs';
 import { MirrorPolicy, selectDownloadSource, validateSource } from './assets/network.mjs';
 import { normalizeProxyPrefix } from './assets/sources.mjs';
 import { loadIndexes } from './assets/cache.mjs';
-import { indexAudio, VOICE_DIRS } from './assets/audio.mjs';
+import { indexAudio, VOICE_DIRS, normalizeVoiceLangs, retainInstalledVoices } from './assets/audio.mjs';
 import { buildPlan } from './assets/plan.mjs';
 import {
   processModels, findLocalEnemyModels, findLocalTokenModels, localSpineMeta, loadLocalSpines, LOCAL_ENEMY_SPINES_FILE,
@@ -93,7 +93,9 @@ const HELP = `Usage: node tools/fetch-assets.mjs [options]
   --offline         no network: post-process what is on disk and rebuild data/assets.json
   --dry-run         print the plan and exit
   --refresh-index   re-download the audio_data.json / charword_table.json / models_data.json indexes
-  --voice-lang=cn   operator battle voice language: cn (default) | jp | en | kr
+  --voice-lang=cn   legacy single operator voice language: cn (default) | jp | en | kr
+  --voice-langs=L   simultaneous languages (comma-separated or repeated; always retains CN fallback)
+                    e.g. --voice-langs=cn,jp,en; keeps installed language files referenced during --prune
   --voice-all       plan every official voice slot, including the prep-only lines no battle plays
                     (干员报到 / 编入队伍 / 任命队长; 360 files / 19.3 MB more per run — off by default)
   --prune           delete files under public/assets that the manifest no longer references
@@ -118,6 +120,7 @@ failures. Only explicitly enabled GitHub downloads use the third-party proxy.`;
  */
 export function parseArgs(argv) {
   const o = { concurrency: 16, force: false, offline: false, dryRun: false, refreshIndex: false, prune: false, allowShrink: false, addOnly: false, localSpines: false, voiceLang: 'cn', voiceAll: false, help: false, source: process.env.SP_ASSET_SOURCE || 'direct' };
+  let explicitVoiceLang = false;
   for (const a of argv) {
     const [k, v] = a.split('=');
     if (k === '--concurrency') o.concurrency = Math.max(1, Math.min(64, parseInt(v, 10) || 16));
@@ -130,11 +133,13 @@ export function parseArgs(argv) {
     else if (k === '--allow-shrink') o.allowShrink = true;
     else if (k === '--add-only') o.addOnly = true;
     else if (k === '--local-spines') o.localSpines = true;
-    else if (k === '--voice-lang') { if (!VOICE_DIRS[v]) throw new Error(`unknown --voice-lang ${v} (cn | jp | en | kr)`); o.voiceLang = v; }
+    else if (k === '--voice-lang') { if (!Object.hasOwn(VOICE_DIRS, v)) throw new Error(`unknown --voice-lang ${v} (cn | jp | en | kr)`); o.voiceLang = v; explicitVoiceLang = true; }
+    else if (k === '--voice-langs') o.voiceLangs = normalizeVoiceLangs([...(o.voiceLangs || []), ...normalizeVoiceLangs([v])]);
     else if (k === '--voice-all') o.voiceAll = true;
     else if (k === '--help' || k === '-h') o.help = true;
     else throw new Error(`unknown option ${a}\n${HELP}`);
   }
+  if (o.voiceLangs) o.voiceLangs = normalizeVoiceLangs(['cn', ...(explicitVoiceLang ? [o.voiceLang] : []), ...o.voiceLangs]);
   if (o.addOnly && (o.prune || o.force)) throw new Error(`--add-only never deletes or rewrites files: not with --prune / --force\n${HELP}`);
   if (!o.help) validateSource(o.source);
   return o;
@@ -329,7 +334,7 @@ async function main() {
   const localEnemySpines = await syncLocalSpines(opts, 'enemy');
   const localTokenSpines = await syncLocalSpines(opts, 'token');
   const plan = buildPlan({
-    assets07, ops03, enemies05, maps05, audio, modelsData, charword, voiceLang: opts.voiceLang,
+    assets07, ops03, enemies05, maps05, audio, modelsData, charword, voiceLang: opts.voiceLang, voiceLangs: opts.voiceLangs,
     // default: only the slots a battle can play (plan.mjs VOICE_BATTLE_SLOTS); --voice-all takes the whole official set
     voiceSlots: opts.voiceAll ? null : undefined,
     extraEnemyIds: Object.keys(dataEnemies || {}),
@@ -387,6 +392,9 @@ async function main() {
   const importedSkins = retainInstalledSkins(current, ASSETS);
   if (Object.keys(importedSkins.skins).length) body.skins = importedSkins.skins;
   for (const rel of importedSkins.files) resolved.files.add(rel);
+  const importedVoices = retainInstalledVoices(current?.audio, body.audio, ASSETS);
+  body.audio = importedVoices.audio;
+  for (const rel of importedVoices.files) resolved.files.add(rel);
   tidyManifest(body);
   const fontFaces = {};
   for (const [name, f] of Object.entries(fonts.files)) fontFaces[name] = f;

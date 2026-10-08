@@ -14,6 +14,9 @@
 //   of silence (猎狗 / 深池侦察犬 bark on 20 of 100 attacks), and give each sound a volume; `indexAudio().mixOf(paths)`
 //   returns { p?, vol? } of the bank a picked path list came from (plan.mjs writes it as sfx.units[id].mix).
 
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
+
 const PREFIX_RE = /^audio\/sound_beta_2\//i;
 
 /**
@@ -298,6 +301,55 @@ export function resolveSpec(spec, bank) {
 
 /** Voice dump folder per language (under sound_beta_2). */
 export const VOICE_DIRS = Object.freeze({ cn: 'voice_cn', jp: 'voice', en: 'voice_en', kr: 'voice_kr' });
+
+/** Validate and deduplicate a language list; an unknown dump is never a guessed source path. */
+export function normalizeVoiceLangs(value) {
+  const values = typeof value === 'string' ? [value] : Array.from(value || []);
+  const out = [];
+  for (const item of values) {
+    if (typeof item !== 'string') throw new Error('voice languages must be strings');
+    for (const lang of item.split(',').map((s) => s.trim())) {
+      if (!Object.hasOwn(VOICE_DIRS, lang)) throw new Error(`unknown voice language ${lang || '(empty)'} (cn | jp | en | kr)`);
+      if (!out.includes(lang)) out.push(lang);
+    }
+  }
+  if (!out.length) throw new Error('voice languages must not be empty');
+  return out;
+}
+
+/** Keep installed, unrequested language slots referenced even during a later --prune rebuild. */
+export function retainInstalledVoices(current, next, assetRoot) {
+  if (!current?.voiceByLang && !next?.voiceByLang) return { audio: next, files: new Set() };
+  const files = new Set(), voiceByLang = {};
+  const installed = (slots, lang) => {
+    const chars = {};
+    for (const [id, rec] of Object.entries(slots || {})) {
+      if (!/^char_\d+_[a-z0-9]+$/i.test(id)) continue;
+      const kept = {};
+      for (const [slot, value] of Object.entries(rec || {})) {
+        const lines = Array.isArray(value) ? value : [value];
+        if (!lines.length || lines.some((url) => {
+          if (typeof url !== 'string' || !new RegExp(`^/assets/audio/voice/${lang}/${id}/cn_\\d{3}\\.mp3$`).test(url)) return true;
+          try { return !statSync(join(assetRoot, url.slice('/assets/'.length))).isFile(); } catch { return true; }
+        })) continue;
+        kept[slot] = value;
+      }
+      if (Object.keys(kept).length) chars[id] = kept;
+    }
+    return chars;
+  };
+  for (const lang of Object.keys(VOICE_DIRS)) {
+    const old = installed(current?.voiceByLang?.[lang] || (lang === 'cn' ? current?.voice : null), lang);
+    const fresh = installed(next?.voiceByLang?.[lang] || next?.voice, lang);
+    const chars = { ...old };
+    for (const [id, slots] of Object.entries(fresh)) chars[id] = { ...old[id], ...slots };
+    if (Object.keys(chars).length || Object.hasOwn(next?.voiceByLang || {}, lang) || Object.hasOwn(current?.voiceByLang || {}, lang)) voiceByLang[lang] = chars;
+  }
+  for (const chars of Object.values(voiceByLang)) for (const slots of Object.values(chars)) for (const value of Object.values(slots)) {
+    for (const url of Array.isArray(value) ? value : [value]) files.add(url.slice('/assets/'.length));
+  }
+  return { audio: { ...next, voice: voiceByLang.cn || {}, voiceByLang }, files };
+}
 
 /** Official `placeType` → the manifest's voice slot (public/js/audio.js VOICE_PRIORITY / VOICE_COOLDOWN_MS). */
 export const VOICE_SLOTS = Object.freeze({

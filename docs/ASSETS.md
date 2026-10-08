@@ -20,7 +20,8 @@ npm run assets       # = node tools/vendor.mjs && node tools/fetch-assets.mjs
 | `--offline` | No network. Re-runs post-processing (atlas fixes, skeleton parsing, WOFF2) on what is already on disk, then rebuilds `data/assets.json`. |
 | `--dry-run` | Print the plan (file and model counts, alias notes) and exit. |
 | `--refresh-index` | Re-download the upstream indexes: `audio_data.json`, `charword_table.json` (the 干员战斗语音 slots) and `models_data.json`. |
-| `--voice-lang=cn` | 干员战斗语音 language: `cn` (default) | `jp` | `en` | `kr` — the same file names under `voice_cn/`, `voice/`, `voice_en/`, `voice_kr/`. |
+| `--voice-lang=cn` | Legacy single-language 干员战斗语音 plan: `cn` (default), `jp`, `en` or `kr` — the same file names under `voice_cn/`, `voice/`, `voice_en/`, `voice_kr/`. |
+| `--voice-langs=cn,jp,en` | Multi-language plan (comma-separated or repeated flag); always includes Chinese for compatibility and emits `audio.voiceByLang`. Existing installed languages are retained during a rebuild or prune. The UI currently offers `cn`, `jp` and `en`. |
 | `--voice-all` | Plan every official voice slot, including the prep-only lines no battle plays (干员报到 / 编入队伍 / 任命队长 — 360 files, one per operator and slot). Off by default: nothing requests them, so planning them only makes every run download more. |
 | `--prune` | Delete files under `public/assets/` that the manifest no longer references, for example after a mapping change. Without this flag they are only listed in the report. `public/assets/local/` (written by `tools/local-extract`) is never pruned. Implies `--allow-shrink`. |
 | `--allow-shrink` | Write `data/assets.json` even when it loses entries the current one has (see "The manifest never shrinks by accident" below). |
@@ -69,6 +70,19 @@ Upstream indexes are cached under `.cache/`. They are downloaded when missing:
 - `.cache/ark-models/models_data.json`, from `isHarryh/Ark-Models`.
 
 The research JSONs in `docs/research/` (03, 05, 07) define **which** ids are needed.
+
+## Multi-language battle voices
+
+The lobby's combined language dialog and the existing title/in-game settings share the same controls. Interface
+language and operator voice language are separate browser-local preferences; they are not room settings. The voice
+selector offers Chinese (`cn`), Japanese (`jp`) and English (`en`). Missing or failed selected-language recordings
+fall back to the Chinese recording of the same battle slot, then silence. BGM, SFX, operator identity and battle timing
+are unchanged. See [VOICE-LANGUAGES.md](VOICE-LANGUAGES.md) for coverage and the targeted importer.
+
+`audio.voice` remains the Chinese compatibility map. Multi-language installs add `audio.voiceByLang` with one map
+per language; `voiceByLang.cn` equals `audio.voice`. The client requests only registered URLs, through the existing
+extensionless `/media/voice/{lang}/{charId}/{cn_nn}` alias. The `cn_` filename prefix is an event number, not a language.
+Rebuilding the general asset manifest retains other installed languages, including their references in the prune set.
 
 ## What is downloaded
 
@@ -186,6 +200,10 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                            // prep-only slots 干员报到 / 编入队伍 / 任命队长 are left out of the plan by default —
                            // nothing requests them and they cost 360 files (19.3 MB) per run — and `--voice-all` adds
                            // them (audio.mjs VOICE_PREP_SLOTS) for the complete official set
+    voiceByLang: { cn: { [charId]: { [battleSlot]: urlOrArray } },
+                   jp: { [charId]: { [battleSlot]: urlOrArray } },
+                   en: { [charId]: { [battleSlot]: urlOrArray } } },
+                   // optional; cn equals voice, jp/en contain only installed recordings
     sfx: {
       ui:     { click, back, confirm, tab, pick, drop, error, buy, sell, income, refresh, freeze, levelup,
                 merge, equip, itemMerge, bondUp, artPlace, ready, timer, draft, yourTurn, yourTurnCircle,

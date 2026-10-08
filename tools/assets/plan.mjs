@@ -23,7 +23,7 @@
 
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, VOICE_DIRS, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, VOICE_DIRS, VOICE_BATTLE_SLOTS, normalizeVoiceLangs } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
 
@@ -295,7 +295,8 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @param {ReturnType<import('./audio.mjs').indexAudio>} p.audio indexed audio_data.json
  * @param {any} p.modelsData Ark-Models models_data.json
  * @param {any} [p.charword] parsed excel/charword_table.json — the operators' official voice slots (voice)
- * @param {string} [p.voiceLang] voice dump to plan: cn (default) | jp | en | kr
+ * @param {string} [p.voiceLang] legacy single dump to plan: cn (default) | jp | en | kr
+ * @param {string[]} [p.voiceLangs] simultaneous dumps; always includes CN as the legacy audio.voice fallback
  * @param {Iterable<string>|null} [p.voiceSlots] which voice slots to plan: VOICE_BATTLE_SLOTS (default) plans only the
  *   lines a battle can play, null plans every slot of audio.mjs VOICE_SLOTS (`--voice-all`). The prep-only slots
  *   (干员报到 / 编入队伍 / 任命队长) are never requested by the client and cost 360 files / 19.3 MB of downloads.
@@ -316,10 +317,12 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @returns {{ template: any, models: Map<string, any>, notes: string[] }}
  */
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
-  voiceSlots = VOICE_BATTLE_SLOTS,
+  voiceLangs = null, voiceSlots = VOICE_BATTLE_SLOTS,
   extraEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
   moduleTypes = [] }) {
   const notes = [];
+  if (!Object.hasOwn(VOICE_DIRS, voiceLang)) throw new Error(`unknown voice language ${voiceLang} (cn | jp | en | kr)`);
+  const languages = voiceLangs === null ? [voiceLang] : normalizeVoiceLangs(['cn', ...normalizeVoiceLangs(voiceLangs)]);
   /** @type {Map<string, any>} */
   const models = new Map();
   const skillIdx = skillIndicesByChar(ops03);
@@ -621,19 +624,23 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // The three prep-only slots (干员报到 gacha / 编入队伍 squad / 任命队长 squadFirst) are NOT planned by default: the
   // client never requests them, and downloading them adds 360 files / 19.3 MB to every `npm run assets` — pass --voice-all for
   // the complete official set (`voiceSlots: null`, reviewer note on the voice PR).
-  const voice = {};
-  for (const [charId, slots] of indexVoice(charword, VOICE_ID_LANG, voiceSlots)) {
-    if (!chars[charId]) continue;            // only the operators this game can field (`chars`: the 138 pool charIds and the 自选 picks)
-    const v = {};
-    for (const [slot, assets] of Object.entries(slots)) {
-      // one leaf per line (部署1 / 部署2 …): an array stays an array so the client can draw one — chaining them as
-      // alternatives of a single leaf would keep only the first line that landed on disk.
-      const lines = assets.map((a) => leaf(voiceAlt(a, voiceLang))).filter(Boolean);
-      if (!lines.length) continue;
-      v[slot] = lines.length === 1 ? lines[0] : lines;
+  const voiceByLang = {};
+  const voiceIndex = indexVoice(charword, VOICE_ID_LANG, voiceSlots);
+  for (const lang of languages) {
+    const voice = {};
+    for (const [charId, slots] of voiceIndex) {
+      if (!chars[charId]) continue; // only operators this game can field
+      const v = {};
+      for (const [slot, assets] of Object.entries(slots)) {
+        // One leaf per line, not file alternatives: 部署1 / 部署2 remain randomly selectable.
+        const lines = assets.map((a) => leaf(voiceAlt(a, lang))).filter(Boolean);
+        if (lines.length) v[slot] = lines.length === 1 ? lines[0] : lines;
+      }
+      if (Object.keys(v).length) voice[charId] = v;
     }
-    if (Object.keys(v).length) voice[charId] = v;
+    voiceByLang[lang] = voice;
   }
+  const voice = voiceByLang[voiceLangs === null ? voiceLang : 'cn'];
   if (!Object.keys(voice).length) notes.push('battle voice: charword_table.json has no slots (index missing?)');
 
   const template = {
@@ -642,6 +649,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       bgm,
       bossBgm: Object.fromEntries(Object.entries(bossBgm).sort(([a], [b]) => a.localeCompare(b, 'en', { numeric: true }))),
       voice,
+      ...(voiceLangs === null ? {} : { voiceByLang }),
       sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx },
     },
   };

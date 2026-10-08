@@ -1,4 +1,12 @@
 {
+  "中文": "Chinese",
+  "日语": "Japanese",
+  "英语": "English",
+  "语言与配音": "Language & Voice",
+  "界面语言": "Interface Language",
+  "干员配音": "Operator Voice Language",
+  "界面语言与配音分别保存，仅影响本浏览器，不改变队友的设置。": "Interface and voice languages are saved separately for this browser only. Your teammates' settings are unchanged.",
+  "部分干员暂无英语配音；所选配音缺失或无法载入时，使用中文配音。": "Some operators have no English voice. Missing or unavailable recordings fall back to Chinese.",
   "_meta": {
     "type": "lang",
     "lang": "en",

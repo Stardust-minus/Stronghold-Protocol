@@ -243,8 +243,10 @@
 .create-box__hint { display: flex; align-items: center; justify-content: center; min-height: .3rem; font-size: .14rem; color: var(--text-lo); }
 
 /* Lobby-only chrome and optional readers; no changes to the game/room scale. */
-.lobby-screen .topbar { gap: .16rem; padding-inline: .32rem; }
-.lobby-screen .topbar__right { gap: .1rem; }
+.lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: .16rem; padding-inline: .32rem; }
+.lobby-screen .topbar__center { min-width: 0; }
+.lobby-screen .topbar__title { font-size: max(.25rem, 14px); letter-spacing: .06em; text-wrap: balance; }
+.lobby-screen .topbar__right { gap: .1rem; flex-wrap: wrap; }
 .lobby-screen .me-chip__name { max-width: 1.5rem; }
 .lobby-screen .join-row .field { min-width: 0; }
 .lobby-protocol-help { margin-left: auto; height: .36rem; font-size: .14rem; }
@@ -302,8 +304,8 @@
 @media (max-width: 400px) { .lobby-screen .topbar__left .online-players { display: none; } .lobby-screen .topbar__right { gap: 4px; } }
 
 @media (max-width: 1100px) {
-  .lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: .16rem; }
-  .lobby-screen .topbar__center .micro, .lobby-screen .me-chip__text { display: none; }
+  .lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr); gap: .16rem; }
+  .lobby-screen .topbar__center, .lobby-screen .me-chip__text { display: none; }
   .lobby-screen .me-chip { padding: .04rem; border: 0; background: none; }
   .lobby-screen .topbar__title { font-size: max(.25rem, 14px); }
   .lobby-screen .topbar .btn { font-size: max(.16rem, 12px); min-height: 40px; padding-inline: max(.14rem, 8px); }
