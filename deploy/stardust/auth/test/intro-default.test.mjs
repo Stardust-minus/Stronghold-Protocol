@@ -35,7 +35,7 @@ test('skipping the intro still assembles the terminal and loads the existing opt
   assert.match(script, /setPhase\(motion\.matches \? 'idle' : 'assembling'\)/);
   const load = script.slice(script.indexOf('  function loadScene('), script.indexOf('  queueMicrotask(maybeAutoEnter);', script.indexOf('  function loadScene(')));
   assert.doesNotMatch(load, /introEnabled|animations/);
-  assert.ok(load.indexOf('if (motion.matches || scene') < load.indexOf("import('/_gate/assets/scene.js')"));
+  assert.ok(load.indexOf('if (motion.matches || scene') < load.indexOf("import('/_gate/assets/scene.js?v=ae-10')"));
   assert.match(load, /if \(motion\.matches \|\| navigation\) return/);
 });
 

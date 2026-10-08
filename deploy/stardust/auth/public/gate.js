@@ -2,7 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const body = document.body;
-  if (body.dataset.build !== 'spatial-07') { location.reload(); return; }
+  if (body.dataset.build !== 'ae-10') { location.reload(); return; }
   const form = $('login-form'), logout = $('logout-form'), input = $('password');
   const callsign = $('callsign'), credentialName = $('credential-name');
   const message = $('login-message'), statusMessage = $('status-message');
@@ -191,7 +191,7 @@
     clearTimeout(introTimer); clearTimeout(handoffTimer); clearTimeout(assembleTimer);
     delete body.dataset.introSkipped;
     intro.hidden = false; introSkip.hidden = false; setPhase('intro');
-    introTimer = setTimeout(() => finishIntro(false), 1880);
+    introTimer = setTimeout(() => finishIntro(false), 3200);
   }
   introToggle?.addEventListener('change', () => {
     if (pending || committed) { introToggle.checked = introEnabled; return; }
@@ -202,6 +202,13 @@
     if (introEnabled) startIntro();
     else { finishIntro(true); assembleTerminal(); }
   });
+  for (const image of document.querySelectorAll('.optional-art')) {
+    const ready = () => { if (image.naturalWidth) image.parentElement.classList.add('art-ready'); };
+    const unavailable = () => { image.hidden = true; image.parentElement.classList.remove('art-ready'); };
+    image.addEventListener('load', ready, { once: true });
+    image.addEventListener('error', unavailable, { once: true });
+    if (image.complete) { if (image.naturalWidth) ready(); else unavailable(); }
+  }
   const initialError = !authed && message.textContent.trim();
   if (initialError) setPhase('error');
   else if (introEnabled && !motion.matches) startIntro();
@@ -311,7 +318,7 @@
   function loadScene() {
     if (motion.matches || scene || sceneLoading || navigation) return;
     sceneLoading = true;
-    import('/_gate/assets/scene.js').then(module => {
+    import('/_gate/assets/scene.js?v=ae-10').then(module => {
       if (motion.matches || navigation) return;
       $('spatial-dom').hidden = false;
       scene = module.createTerminalScene({ canvas: $('world'), plane: $('terminal-plane'), home: $('plane-home'), dom: $('spatial-dom'), reduced: motion.matches });

@@ -20,12 +20,17 @@ const KDF = Object.freeze({ N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
 const ASSETS = new Map([
   ['gate.css', 'text/css; charset=utf-8'],
   ['gate.js', 'text/javascript; charset=utf-8'],
+  ['warmup.js', 'text/javascript; charset=utf-8'],
   ['scene.js', 'text/javascript; charset=utf-8'],
+  ['terminal-motion.js', 'text/javascript; charset=utf-8'],
   ['entry-nav.js', 'text/javascript; charset=utf-8'],
   ['three.module.js', 'text/javascript; charset=utf-8'],
   ['three.core.js', 'text/javascript; charset=utf-8'],
   ['css3d.js', 'text/javascript; charset=utf-8'],
   ['bender-regular.woff2', 'font/woff2'],
+]);
+const OPTIONAL_ART = new Map([
+  ['doctor.webp', 'image/webp'], ['rhodes.webp', 'image/webp'], ['ae-sphere.json', 'application/json; charset=utf-8'],
 ]);
 
 function decode(value, bytes = null) {
@@ -145,7 +150,7 @@ function headers(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'");
+  res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://ark-asset.hanabi-ai.cn:25442; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'");
 }
 
 function send(req, res, status, body, type = 'text/plain; charset=utf-8') {
@@ -188,6 +193,10 @@ export function createGate({ secrets, profile = 'prod', now = () => Math.floor(D
   const keys = validateSecrets(secrets);
   const template = readFileSync(join(publicDir, 'login.html'), 'utf8');
   const assets = new Map([...ASSETS].map(([name, type]) => [name, { type, data: readFileSync(join(publicDir, name)) }]));
+  for (const [name, type] of OPTIONAL_ART) {
+    try { assets.set(name, { type, data: readFileSync(join(publicDir, name)) }); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
   let activeKDF = 0;
 
   const authenticated = req => verifyToken(cookieValue(req.headers.cookie, SESSION_COOKIE), 'session', keys.signingKey, now());

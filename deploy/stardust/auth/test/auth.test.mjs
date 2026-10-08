@@ -15,7 +15,7 @@ const origins = new Map();
 const password = 'test-only-access-password-84!';
 const fixture = mkdtempSync(join(tmpdir(), 'ark-gate-tests-'));
 writeFileSync(join(fixture, 'login.html'), '<!doctype html><body data-authenticated="{{AUTHENTICATED}}"><form {{LOGIN_HIDDEN}}><input name="csrf" value="{{CSRF}}"><input name="next" value="{{NEXT}}"><p>{{MESSAGE}}</p></form><section {{STATUS_HIDDEN}}>authorized</section></body>');
-for (const name of ['gate.css', 'gate.js', 'scene.js', 'entry-nav.js', 'three.module.js', 'three.core.js', 'css3d.js', 'bender-regular.woff2']) writeFileSync(join(fixture, name), 'test asset');
+for (const name of ['gate.css', 'gate.js', 'warmup.js', 'scene.js', 'terminal-motion.js', 'entry-nav.js', 'three.module.js', 'three.core.js', 'css3d.js', 'bender-regular.woff2']) writeFileSync(join(fixture, name), 'test asset');
 before(async () => { secrets = await makeSecrets(password); betaSecrets = await makeSecrets(password); });
 after(() => rmSync(fixture, { recursive: true, force: true }));
 
@@ -240,6 +240,9 @@ test('chunked body limits are enforced without relying on Content-Length', async
 test('password page assets are allowlisted, not a filesystem proxy', async t => {
   const base = await start(t);
   assert.equal((await request(base + '/_gate/assets/gate.css')).status, 200);
+  assert.equal((await request(base + '/_gate/assets/warmup.js')).status, 200);
+  assert.equal((await request(base + '/_gate/assets/terminal-motion.js?v=ae-10')).status, 200);
+  for (const name of ['doctor.webp', 'rhodes.webp', 'ae-sphere.json']) assert.equal((await request(base + '/_gate/assets/' + name)).status, 404, 'optional missing art does not prevent the gate starting');
   for (const path of ['/_gate/assets/secrets.json', '/_gate/assets/%2e%2e/server.mjs', '/server.mjs', '/data/chess.json', '/ws']) assert.equal((await request(base + path)).status, 404);
 });
 test('parallel derivations are bounded instead of creating an unbounded work queue', async t => {

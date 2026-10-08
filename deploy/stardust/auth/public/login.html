@@ -9,10 +9,11 @@
   <meta name="description" content="卫戍协议：盟约 · 私人访问终端">
   <title>PRTS · 卫戍协议：盟约</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/_gate/assets/gate.css">
-  <script src="/_gate/assets/gate.js?v=spatial-07" defer></script>
+  <link rel="stylesheet" href="/_gate/assets/gate.css?v=ae-10">
+  <script src="/_gate/assets/warmup.js?v=ae-10" async></script>
+  <script src="/_gate/assets/gate.js?v=ae-10" defer></script>
 </head>
-<body data-authenticated="{{AUTHENTICATED}}" data-phase="idle" data-renderer="fallback" data-build="spatial-07">
+<body data-authenticated="{{AUTHENTICATED}}" data-phase="idle" data-renderer="fallback" data-build="ae-10">
   <div id="ambient-field" aria-hidden="true"></div>
   <canvas id="world" aria-hidden="true"></canvas>
   <div id="spatial-dom"></div>
@@ -21,10 +22,10 @@
 
   <div id="intro-scene" hidden aria-hidden="true">
     <div class="intro-grain"></div>
-    <div class="signal-assembly">
-      <div class="signal-left"><span class="signal-hatch"></span><span class="signal-wire"></span><p>PRIVATE RHODES TERMINAL<br><b>STRONGHOLD PROTOCOL</b></p></div>
-      <div class="signal-core"><span class="signal-orbit orbit-one"></span><span class="signal-orbit orbit-two"></span><div class="signal-plaque"><span>卫戍协议</span><small>PRTS</small></div></div>
-      <div class="signal-right"><span class="signal-wire"></span><span class="signal-hatch"></span><div class="signal-grid"><span>P</span><span>R</span><span>T</span><span>S</span></div></div>
+    <div id="intro-assembly" class="signal-assembly">
+      <div id="intro-left" class="signal-left"><span class="signal-hatch"></span><span class="signal-wire"></span><span class="signal-trace"></span><p>PRIVATE RHODES TERMINAL<br><b>TERMINAL SERVICE</b></p></div>
+      <div id="intro-core" class="signal-core"><span class="signal-orbit orbit-one"></span><span class="signal-orbit orbit-two"></span><span class="signal-orbit orbit-three"></span><div class="signal-plaque"><span>卫戍协议</span><small>PRTS</small><i class="plaque-rim"></i></div></div>
+      <div id="intro-right" class="signal-right"><span class="signal-wire"></span><span class="signal-trace"></span><span class="signal-hatch"></span><div class="signal-grid"><span>A</span><span>R</span><span>K</span><span>N</span><span>I</span><span>G</span><span>H</span><span>T</span><span>S</span></div></div>
     </div>
     <p class="intro-caption">私人终端 · 访问认证</p>
   </div>
@@ -63,14 +64,14 @@
 
       <div id="success-scene" aria-hidden="true" hidden>
         <div class="recognized-copy"><div class="access-legend"><span>ACCESS TERMINAL</span><i></i></div><div class="identified-band"><span>IDENTIFIED</span></div><div class="welcome-outline"><span>WELCOME</span></div></div>
-        <div class="credential"><span class="credential-tab">PRTS / 00</span><div class="credential-frame"><div class="credential-scan"></div><div class="credential-slashes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="credential-emblem"><span class="tower"></span><span>PRTS</span><small>ACCESS CONFIRMED</small></div></div><p id="credential-name" class="credential-name"></p></div>
+        <div class="credential"><span class="credential-tab">PRTS / 00</span><div class="credential-frame"><div class="credential-scan"></div><div class="credential-slashes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="credential-emblem"><img id="doctor-portrait" class="optional-art doctor-portrait" src="/_gate/assets/doctor.webp?v=ae-10" alt="" decoding="async"><div class="portrait-fallback"><span class="tower"></span><span>PRTS</span><small>ACCESS CONFIRMED</small></div><div class="portrait-hatch"></div></div></div><p id="credential-name" class="credential-name"></p></div>
       </div>
     </section>
   </main>
 
   <section id="entry-bridge" hidden aria-hidden="true">
     <div class="portal-fallback"><span></span><span></span><span></span></div>
-    <div class="portal-card"><div class="portal-emblem"><span class="tower"></span><b>PRTS</b></div><div class="portal-text"><span>服务器</span><h2>STARDUST</h2><p><sup>#</sup>0</p></div></div>
+    <div class="portal-card"><div class="portal-emblem"><img class="optional-art rhodes-logo" src="/_gate/assets/rhodes.webp?v=ae-10" alt="" decoding="async"><span class="tower logo-fallback"></span><b class="logo-fallback">PRTS</b></div><div class="portal-text"><span>服务器</span><h2>STARDUST</h2><p><sup>#</sup>0</p></div></div>
     <div class="portal-axis"><div class="progress-arm progress-left"><i></i></div><div class="progress-arm progress-right"><i></i></div><span class="progress-caption">ACCESS VERIFIED</span><span class="progress-meet"></span></div>
   </section>
 

@@ -49,6 +49,10 @@ deploy/stardust/auth/public/three.module.js
 deploy/stardust/auth/public/three.core.js
 deploy/stardust/auth/public/css3d.js
 deploy/stardust/auth/public/bender-regular.woff2
+# optional artwork generated from the supplied AE project; never commit original game art
+deploy/stardust/auth/public/doctor.webp
+deploy/stardust/auth/public/rhodes.webp
+deploy/stardust/auth/public/ae-sphere.json
 deploy/stardust/build/
 deploy/stardust/openi-resolver/openi-assets.json
 *.upload.checkpoint.json
