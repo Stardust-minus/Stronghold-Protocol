@@ -23,6 +23,18 @@ EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'atlas', 'skel', 'obj', 'mtl'
 TEMPLATES = Path(__file__).resolve().parent.parent / 'material-lb'
 ENTRY_KEYS = {'requestPath', 'fileName', 'bytes', 'sha256', 'mime'}
 RELEASE_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}')
+OPENI_ONLY_ALLOWLIST = frozenset({'/assets/skins/char_340_shwaz_snow_1/illustration.png'})
+MAX_MODEL_PREFIXES = 8
+OPENI_MANIFEST_KEYS = {'schemaVersion', 'release', 'fallbackBase', 'dataset', 'apiOrigin',
+                       'ossOrigin', 'ossPathPrefix', 'entries', 'mirrorReleases'}
+MODEL_MANIFEST_KEYS = {'schemaVersion', 'release', 'fallbackBase', 'repo', 'revision', 'prefix',
+                       'apiOrigin', 'deliveryStrategy', 'uploadVerified', 'entries', 'mirrorReleases',
+                       'prefixes', 'openiOnlyPaths'}
+
+
+def model_prefix_pin(value):
+    return isinstance(value, str) and value.startswith('releases/') and bool(
+        RELEASE_ID.fullmatch(value[len('releases/'):]))
 
 
 def require(condition, message):
@@ -44,7 +56,7 @@ def public_path(value):
         (parts[0] == 'assets' and parts[-1].rsplit('.', 1)[-1] in EXTENSIONS))
 
 
-def entries(manifest, models, *, release=RELEASE, model_prefix=MODEL_PREFIX):
+def entries(manifest, models, *, release=RELEASE, model_prefix=MODEL_PREFIX, model_prefixes=None):
     rows = manifest.get('entries')
     require(isinstance(rows, list) and 0 < len(rows) <= 50000, 'invalid entry count')
     result, files = {}, {}
@@ -57,7 +69,9 @@ def entries(manifest, models, *, release=RELEASE, model_prefix=MODEL_PREFIX):
         require(relative(row['fileName']), 'invalid object path')
         parts = row['fileName'].split('/')
         require(len(parts) >= 4 and parts[0] == 'releases' and parts[2] in ('assets', 'media'), 'invalid object namespace')
-        require(row['fileName'].startswith(model_prefix + '/') if models else parts[1] in mirrors, 'unapproved object release')
+        require(any(row['fileName'].startswith(pin + '/') for pin in
+                    (model_prefixes if model_prefixes is not None else [model_prefix]))
+                if models else parts[1] in mirrors, 'unapproved object release')
         require(type(row['bytes']) is int and row['bytes'] >= 0, 'invalid size')
         require(isinstance(row['sha256'], str) and re.fullmatch(r'[a-f0-9]{64}', row['sha256']), 'invalid SHA256')
         require(isinstance(row['mime'], str) and len(row['mime']) <= 128 and
@@ -72,14 +86,27 @@ def entries(manifest, models, *, release=RELEASE, model_prefix=MODEL_PREFIX):
     return result
 
 
-def render(openi, models, container_dir, *, release=RELEASE, model_revision=MODEL_REVISION, model_prefix=MODEL_PREFIX):
+def render(openi, models, container_dir, *, release=RELEASE, model_revision=MODEL_REVISION, model_prefix=MODEL_PREFIX,
+           model_prefixes=None, openi_only_paths=()):
     require(isinstance(openi, dict) and isinstance(models, dict), 'manifests must be objects')
+    require(set(openi) <= OPENI_MANIFEST_KEYS and set(models) <= MODEL_MANIFEST_KEYS, 'unknown manifest fields')
     require(isinstance(release, str) and RELEASE_ID.fullmatch(release), 'invalid release pin')
     require(isinstance(model_revision, str) and re.fullmatch(r'[a-f0-9]{40}', model_revision), 'invalid ModelScope revision pin')
-    require(isinstance(model_prefix, str) and model_prefix.startswith('releases/') and
-            RELEASE_ID.fullmatch(model_prefix[len('releases/'):]), 'invalid ModelScope prefix pin')
+    require(model_prefix_pin(model_prefix), 'invalid ModelScope prefix pin')
+    prefixes = [model_prefix] if model_prefixes is None else model_prefixes
+    require(isinstance(prefixes, (list, tuple)) and 0 < len(prefixes) <= MAX_MODEL_PREFIXES and
+            all(model_prefix_pin(pin) for pin in prefixes) and len(set(prefixes)) == len(prefixes) and
+            prefixes[0] == model_prefix, 'invalid ModelScope prefix whitelist')
+    require(len(prefixes) == 1 or model_revision != MODEL_REVISION, 'multiple prefixes require a new revision pin')
+    require(isinstance(openi_only_paths, (list, tuple)) and len(openi_only_paths) <= 1 and
+            all(isinstance(path, str) and path in OPENI_ONLY_ALLOWLIST for path in openi_only_paths) and
+            len(set(openi_only_paths)) == len(openi_only_paths), 'invalid OpenI-only exception')
+    require(models.get('prefixes', [model_prefix]) == list(prefixes), 'ModelScope prefix declarations differ')
+    require(models.get('openiOnlyPaths', []) == list(openi_only_paths), 'OpenI-only declarations differ')
     fallback = FALLBACK_ORIGIN + '/releases/' + release
-    model_base = 'https://modelscope.cn/datasets/' + MODEL_REPO + '/resolve/' + model_revision + '/' + model_prefix + '/'
+    resolve_base = 'https://modelscope.cn/datasets/' + MODEL_REPO + '/resolve/' + model_revision + '/'
+    model_bases = [resolve_base + pin + '/' for pin in prefixes]
+    model_base = model_bases[0]
     require(isinstance(container_dir, str) and container_dir.startswith(CONTAINER_PREFIX) and
             re.fullmatch(r'[A-Za-z0-9_-]{1,96}', container_dir[len(CONTAINER_PREFIX):]), 'invalid container directory')
     require(type(openi.get('schemaVersion')) is int and type(models.get('schemaVersion')) is int and
@@ -96,33 +123,44 @@ def render(openi, models, container_dir, *, release=RELEASE, model_revision=MODE
             models.get('deliveryStrategy') == '302-to-stable-public-api' and models.get('uploadVerified') is True,
             'unverified or mismatched ModelScope profile')
     oi = entries(openi, False, release=release, model_prefix=model_prefix)
-    ms = entries(models, True, release=release, model_prefix=model_prefix)
-    require(set(oi) == set(ms), 'alias inventories differ')
-    for path, row in oi.items():
-        require(all(row[k] == ms[path][k] for k in ('bytes', 'sha256', 'mime')), 'alias bytes differ')
-    urls = {p: 'https://modelscope.cn/datasets/' + MODEL_REPO + '/resolve/' + model_revision + '/' +
-            '/'.join(quote(segment, safe='') for segment in row['fileName'].split('/')) for p, row in ms.items()}
-    require(all(url.startswith(model_base) for url in urls.values()), 'invalid ModelScope target')
+    ms = entries(models, True, release=release, model_prefix=model_prefix, model_prefixes=prefixes)
+    exceptions = set(openi_only_paths)
+    require(exceptions <= set(oi), 'OpenI-only alias missing from OpenI inventory')
+    require(set(ms) == set(oi) - exceptions, 'alias inventories differ')
+    for path, row in ms.items():
+        require(all(row[k] == oi[path][k] for k in ('bytes', 'sha256', 'mime')), 'alias bytes differ')
+    urls = {p: resolve_base + '/'.join(quote(segment, safe='') for segment in row['fileName'].split('/'))
+            for p, row in ms.items()}
+    require(all(any(url.startswith(base) for base in model_bases) for url in urls.values()), 'invalid ModelScope target')
+    paths = {path: False if path in exceptions else urls[path] for path in oi}
     data = {'schemaVersion': 2, 'release': release, 'fallbackBase': fallback, 'modelscopeBase': model_base,
-            'openiWeight': 40, 'modelscopeWeight': 60, 'ningxiaWeight': 0, 'paths': urls}
+            'openiWeight': 40, 'modelscopeWeight': 60, 'ningxiaWeight': 0, 'paths': paths}
+    if len(model_bases) > 1:
+        data['modelscopeBases'] = model_bases
     q = lambda value: json.dumps(value, ensure_ascii=True)
-    lines = ['return {', '  fallback_base = ' + q(fallback) + ',',
-             '  oss_authority = ' + q(OSS_ORIGIN.removeprefix('https://')) + ',',
-             '  oss_path_prefix = ' + q(prefix) + ',', '  entries = {']
-    for row in openi['entries']:
-        lines.append('    [' + q(row['requestPath']) + '] = {fileName = ' + q(row['fileName']) +
-                     ', modelscope = ' + q(urls[row['requestPath']]) + '},')
-    lines.extend(['  }', '}'])
+    lua_bases = '{' + ', '.join(q(base) for base in model_bases) + '}'
+    lua_exceptions = '{' + ', '.join('[' + q(path) + '] = true' for path in openi_only_paths) + '}'
+    header_data = {'fallback_base': fallback, 'oss_authority': OSS_ORIGIN.removeprefix('https://'),
+                   'oss_path_prefix': prefix, 'entries': {
+                       path: {'fileName': row['fileName'], **({} if path in exceptions else {'modelscope': urls[path]})}
+                       for path, row in oi.items()}}
     access = (TEMPLATES / 'access.lua').read_text().replace('__MATERIAL_LB_DATA__', container_dir + '/routes.json')
     access = access.replace('"' + RELEASE + '"', q(release)).replace('"' + FALLBACK + '"', q(fallback)).replace('"' + MODEL_BASE + '"', q(model_base))
     access_key = 'ark_material_lb_' + container_dir[len(CONTAINER_PREFIX):].replace('-', '_')
     access = access.replace('"ark_material_lb_20261006_model60_v3"', q(access_key))
+    access = access.replace('__MATERIAL_LB_MODELSCOPE_BASES__', lua_bases).replace(
+        '__MATERIAL_LB_OPENI_ONLY__', lua_exceptions)
     key = 'ark_material_lb_header_data_' + container_dir[len(CONTAINER_PREFIX):].replace('-', '_')
     header = (TEMPLATES / 'header.lua').read_text().replace('__MATERIAL_LB_KEY__', key).replace(
-        '__MATERIAL_LB_HEADER_DATA__', container_dir + '/header-data.lua')
+        '__MATERIAL_LB_HEADER_DATA__', container_dir + '/header-data.json')
+    header = header.replace('"' + FALLBACK + '"', q(fallback)).replace(
+        '__MATERIAL_LB_MODELSCOPE_BASES__', lua_bases).replace('__MATERIAL_LB_OPENI_ONLY__', lua_exceptions)
+    header = header.replace('__MATERIAL_LB_OSS_PATH_PREFIX__', q(prefix)).replace(
+        '__MATERIAL_LB_MIRRORS__', '{' + ', '.join('[' + q(mirror) + '] = true'
+            for mirror in openi.get('mirrorReleases', [release])) + '}')
     return {'routes.json': (json.dumps(data, separators=(',', ':')) + '\n').encode(),
             'access.lua': access.encode(), 'header.lua': header.encode(),
-            'header-data.lua': ('\n'.join(lines) + '\n').encode()}
+            'header-data.json': (json.dumps(header_data, separators=(',', ':')) + '\n').encode()}
 
 
 def write_output(files, output):
@@ -148,6 +186,10 @@ def main():
     parser.add_argument('--release')
     parser.add_argument('--modelscope-revision')
     parser.add_argument('--modelscope-prefix')
+    parser.add_argument('--modelscope-allowed-prefix', action='append', dest='model_prefixes',
+                        help='complete immutable prefix whitelist, primary first; must match manifest prefixes')
+    parser.add_argument('--openi-only-path', action='append', default=[], dest='openi_only_paths',
+                        help='explicit authorized single alias; must match manifest openiOnlyPaths')
     args = parser.parse_args()
     try:
         pins = (args.release, args.modelscope_revision, args.modelscope_prefix)
@@ -155,7 +197,8 @@ def main():
         profile = dict(release=pins[0], model_revision=pins[1], model_prefix=pins[2]) if all(pins) else {}
         openi = json.loads(args.openi_manifest.read_text())
         models = json.loads(args.modelscope_manifest.read_text())
-        files = render(openi, models, args.container_dir, **profile)
+        files = render(openi, models, args.container_dir, model_prefixes=args.model_prefixes,
+                       openi_only_paths=args.openi_only_paths, **profile)
         hashes = write_output(files, args.out)
         print(json.dumps({'prepared': True, 'activated': False, 'out': str(args.out), 'filesSha256': hashes}))
     except (OSError, ValueError, TypeError, KeyError):

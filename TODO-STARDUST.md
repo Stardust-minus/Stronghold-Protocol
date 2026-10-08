@@ -7,10 +7,13 @@
 - [x] 新一轮冻结：624 个已验收 runtime 源码文件全部与最终验收摘要一致，1186 个当前皮肤文件与既有公开上传库存逐文件大小／SHA-256 一致；既有验收日志摘要重新核对，不重跑旧 one-shot。
 - [x] 新匿名只读检查：ModelScope 固定版本与 master 都仍见 1185／1186，黑「厚礼」正文均 404；正文正向对照未完成，诊断失败留档，不称素材全量通过。
 - [ ] 修复离线 JSON-header 准备工具并用真实 LuaJIT／全量尺寸验证，不再生成会触发常量上限的大 Lua 数据表。
-- [ ] 固定本批完整 commit，快进 master 并推送，核对远端 SHA 和已验收 runtime 字节。
-- [ ] 准备配套源码／依赖／引用素材／generated index／私有 JS/CSS 清单，离线构建新镜像并实际检查镜像内容和 Worker/HTTP/WS。
-- [ ] ModelScope 最小缺项修复与旧对象／attributes／visibility 审计；不能盲重传、重复提交或绕平台审核。
-- [ ] 宁夏新版本回退目录、精确库存与公网静态响应验收；正式游戏路由保持原样。
+- [x] 固定游戏 commit `8245e2ecafba404e48536755a80c3443afdf558d`，77 个候选文件逐字节核对后提交、快进 master 并非 force 推送；实际远端完整 SHA 一致，624 个已验收 runtime 字节未变，两 stash 保留。
+- [x] 游戏、依赖、引用素材、generated index 和私有 JS/CSS 本地配套完成；新离线镜像 `f8bdcb140838…` 的实际 19456 文件精确库存／哈希通过，实际镜像 Worker/HTTP/WS 等 128/128 项通过。只排除新构建上下文中 434 个无引用副本，不删源素材；镜像未传远端，私有代码未安装。
+- [x] ModelScope 缺项根因已查清：原上传正文与哈希正确，后被平台 Administrator 插入删除提交；旧 23989 个对象、attributes 精确保留审计通过，当前公开状态确认，不重传／改名／旧版本 repin 绕审核。实际用户随后提供 sensitive-content/message 提示并要求“这张图需要用openi了”，仅黑「厚礼」完整立绘改为 OpenI-only（宁夏同版回退），其余 MS60/OI40；不冒称 ModelScope 1186 全量通过。
+- [x] 宁夏新版本回退已实际完成：10780 文件／1174462825 字节全远端 SHA／库存通过，新增三个精确 include、nginx-t 无警告及静态源正常 reload；master／全局配置／旧对象不变，正常 TLS 公网 32/32 通过。首轮 416 单 Cache-Control 过严失败保留，旧／新同对象对照一致后只修新夹具特殊情况，服务未为此修改。正式游戏路由不变。
+- [ ] OpenI 配套整合：用户明确允许必要公开素材整合，仍最多两镜像；保留已上传 1186 皮肤对象，新 immutable prefix 仅合并旧 9580 对象／558813129 字节，单项立绘直接复用既有 OpenI。实际上传／注册／正文与完整库存核验仍进行中，不能只凭 draft 清单标完成。
+- [x] 新版 host-only JSON 工具补齐严格双 ModelScope 前缀与唯一 OpenI-only 例外；默认行为、固定 revision／来源／bytes 与两镜像限制保留，未知字段／非显式缺项拒绝。新 28/28 Python 测试、真实 LuaJIT 三组全量数据（含 37798 个实际 draft aliases）与 Main 真实本地 OpenResty access/header 33 项通过，唯一立绘在所有随机边界均走 OpenI，服务关闭。fixture 的编码路径归一化断言首轮失败保留，新一轮单独校验根路径私有 404，不要求私有路径带公开 CORS。真实 draft 仍不代表 OpenI 新前缀已上传登记完成。
+- [x] Main 真实匿名 Chrome 验证唯一立绘的现有 OpenI 正文与新宁夏回退：两源均为 3541555 字节、哈希 e2796a…、2048×2048，图片解码及 Canvas 可读像素通过，桌面和独立竖屏模拟截图亲自查看，problems[]、服务／浏览器关闭；OBS 实际 MIME 为 binary/octet-stream，不能误称 image/png。R0 切换 mobile viewport 后夹具重载导致竖屏空白留档，新 R1 独立页面在导航前设置 viewport 并重新完整验证；不是实体手机／线上游戏验收，也不是新 OpenI 前缀全量 ready。
 - [ ] 形成成套发布／回退材料；全部准备完成后仍等待实际正式切换授权。
 
 本轮证据 `.cache/stardust/multiplayer-release-prep-20261008-4fd5a002/`，自写脚本另目录。下方“无 Git／镜像／素材写许可”仅描述先前本地验收阶段；准备许可以上方最新实际用户选择为准，正式部署仍不允许。

@@ -4,6 +4,16 @@
 
 正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。0.1.2 + Worker 的历史发布单元见下方记录；此后每次更新都须配套验收及取得明确上线授权，提交、合并与推送不代表允许重启生产。
 
+## 本批 0.2.1 上线准备边界（2026-10-08，未激活游戏）
+
+已验收的多人与接力源码固定为 `8245e2ecafba404e48536755a80c3443afdf558d`，游戏镜像与随后 host-only 工具／记录提交分别标识。不得将较新的文档 HEAD 当作镜像中的游戏 revision。配套私有 JS/CSS、generated renderer index、公开素材和依赖有独立清单；剔除无引用的构建副本不等于删除仓库素材。
+
+当前素材准备的唯一例外为 `/assets/skins/char_340_shwaz_snow_1/illustration.png`：ModelScope 平台已删除原路径，用户明确指定该图走 OpenI，宁夏仍保留同版回退。不重传、改名或使用删除前的 pin；例外必须进入明示清单与 access/header 双端校验，不能默默把全量核验失败算通过。其他公开素材仍 MS60/OI40，OpenI 始终最多两个固定 mirrors。
+
+host profile 只能输出固定 Lua 加 JSON 数据，不再生成大型 `header-data.lua`。上线前实际执行 full-size JSON／LuaJIT 和 OpenResty access/header HTTP 测试，包括唯一例外、普通分流边界、HEAD／OPTIONS、错误 no-store、签名 TTL、CORS 去重及私有路径拒绝；语法检查不是运行验收。新 prefix、固定 revision、assigned alias／bytes／SHA 与实际供给证据必须成套，draft 或上传中 checkpoint 不是 ready。
+
+本轮许可只包含提交推送、本地镜像和公共素材新 immutable 准备；宁夏静态源必要的正常 reload 不等于正式游戏切源。正式／Beta 激活、远端镜像投递、Core 通道核对与游戏／门禁／解析器重启仍需实际后续授权；不恢复旧部署调查或一次性控制器。具体素材合同见 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)。
+
 ## 最新独立 PRTS 发布（2026-10-08）
 
 正式四入口 auth 已更新到 `ae-10`，片头默认 OFF，其余组装/成功/进入动效保留。AUTH_OVERLAY 摘要 `c44c000b5724…`、固定镜像 `ddf7f87fa8cc…`；完整身份、首轮失败回滚及实际验收见 [登录页发布记录](releases/prts-ae10-20261008-auth-c44c000b.json)。游戏仍是下节 0.2.0 热修复，未同步本地 0.2.1；上线阶段没有游戏重启、Core 访问、素材切换或 Git 发布。后续源码/记录推送不改变这一上线快照。

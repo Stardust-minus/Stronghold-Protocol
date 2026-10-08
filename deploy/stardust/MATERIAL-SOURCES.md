@@ -1,6 +1,26 @@
 # 公开素材多源分发
 
-## 当前正式活动状态（2026-10-06）
+## 最新候选准备：0.2.1 多人与皮肤（2026-10-08，未切正式入口）
+
+游戏固定源码 `8245e2ecafba404e48536755a80c3443afdf558d` 已推送，本地镜像 `f8bdcb140838…` 已逐文件核验并通过 128 项镜像测试；正式游戏、门禁、解析器和入口路由没有因此更新。宁夏新目录 `v021-multiplayer-20261008-8245e2ecafba-r0` 已完成 10780 文件全量远端 SHA-256 核验，只新增三个静态 include 并正常 reload；旧目录、全局配置及 Nginx master 保持。
+
+ModelScope 原皮肤路径 `assets/skins/char_340_shwaz_snow_1/illustration.png` 曾登记和可读，后被平台 Administrator 单文件删除。用户提供平台 sensitive-content/message 提示并明确要求该图使用 OpenI。本批只对此精确 alias 设 **OpenI-only**，宁夏仍是同版 HEAD／原失败回退；不重新上传、改名、变换 URL 或 pin 到删除前的提交。其他公开素材维持 MS60/OI40。
+
+配套 ModelScope 清单使用同一个固定 revision `7bbf312a61defa54c3ff540f5af373c9bb283551`，明确声明旧 v020 与皮肤两个 immutable prefix； assigned 库存共 37797 aliases，刻意不包含该图，不能声称皮肤镜像 1186 全部可用。OpenI 共 37798 aliases，准备合并旧素材到新前缀并复用已有皮肤对象，始终最多两个固定 mirrors。上传、登记和最终正文核验完成前，draft 清单不是远端供给就绪证明。
+
+### 当前离线工具的安全合同
+
+- `prepare-material-lb.py` 输出固定小型 `access.lua`／`header.lua` 和 `routes.json`／`header-data.json`；**不再把全量库存编译为 Lua 表**。此前大型 Lua 表触发 LuaJIT 常量上限，`nginx -t` 不能发现该运行时问题。必须用实际全量尺寸执行 JSON 解码、缓存和 HTTP filter。
+- 默认单前缀、无例外及原 60/40 行为保留；新版本要同时指定 release、40hex revision、primary prefix。多前缀以重复 `--modelscope-allowed-prefix` 明示，清单 `prefixes` 必须同序、去重且 primary 在首位；所有 URL 均绑定同一个 revision 和固定公开 repo/origin。
+- `--openi-only-path` 仅允许本批这一个精确 alias，且必须与 MS 清单 `openiOnlyPaths` 一致、存在于 OI 库存。MS alias 集合必须正好为 OI 集合减该例外；普通条目的 bytes／SHA／MIME 逐项一致。未知根字段、额外缺项、其他例外或未认可前缀均拒绝。
+- 例外在 routes 中保留为 `false`，只允许该已明示路径直接进入 OI；未知路径的 `nil` 仍拒绝。例外的 header entry 不包含 ModelScope target，因此伪造 MS Location 不能得到公开缓存。JSON 只读取／解码一次，错误数据也缓存为拒绝，避免重复解析大文件。
+- `uploadVerified=true` 仍要求真实 assigned 远端库存证据，不是执行上传命令成功；复用固定 pin 的完整 metadata 审计与全量正文重下载须分别表述。镜像数量限制、私有门禁、签名寿命、CORS、HEAD／OPTIONS／回退合同没有放宽。
+
+最新本地验收：28 项准备器测试通过，实际 LuaJIT/cjson 对默认 40000、双前缀 40001 和实际 draft 37798 aliases 全量执行通过；Main 用实际 OpenResty access/header HTTP 完成 33 项检查，唯一例外在随机边界始终走 OpenI。Main 另用真实匿名 Chrome 验证该图在既有 OpenI 与新宁夏目录的正文哈希、图片解码、可读 Canvas，并亲自查看桌面／竖屏模拟截图。OBS 正文实际 MIME 为 binary/octet-stream，浏览器能解码不代表源站已改为 image/png。这些不代替 OpenI 新前缀全部上传／登记，也不是实体设备或生产游戏验收。
+
+本批准备与正式切换分别授权；不自动安装游戏入口 profile、重建 resolver 或重启游戏。下方 2026-10-06 的 C1/Lua 数据表哈希仅为历史记录，不能当作当前工具输出或首选回退。
+
+## 历史正式活动状态（2026-10-06）
 
 - **17:12:58 +08 激活，17:19:54 +08 完成验收**：正式公开 `/assets/`、`/media/` 普通 GET 为 **ModelScope 60% / OpenI 40% / 宁夏 0%**。这是每请求随机选择，不是严格6/10轮转、玩家配额或出口字节占比；短缓存会复用已选中的302。
 - 宁夏仍是 HEAD 元数据目的地及**原 OpenI 失败回退**，并继续供给 fonts/vendor/PRTS 正文。Beta 分流、私有代码/data/认证/WS、root hooks 直接游戏的例外均未改变。
