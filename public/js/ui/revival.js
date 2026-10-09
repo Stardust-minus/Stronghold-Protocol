@@ -46,7 +46,7 @@ export function RevivalNotice({ pub }) {
   </div>`;
 }
 
-export function ReviveAction({ pub, myId, target }) {
+export function ReviveAction({ pub, myId, target, compact = false }) {
   const online = useStore((s) => s.connection.status === 'online');
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
@@ -79,12 +79,13 @@ export function ReviveAction({ pub, myId, target }) {
       if (mounted.current) setBusy(false);
     }
   };
-  return html`<div class="team-rescue-action">
+  return html`<div class=${compact ? 'team-rescue-action team-rescue-action--compact' : 'team-rescue-action'}>
     <${Tooltip} text=${reason || t('至少持有 11 生命，支付 10 点抵消队友死亡')}>
-      <${Button} variant="secondary" size="sm" icon="plus" disabled=${!!reason || busy} loading=${busy} onClick=${revive}>
-        ${target.revived ? t('复活已用') : t('复活 · −10')}
+      <${Button} variant="secondary" size="sm" icon="plus" disabled=${!!reason || busy} loading=${busy} onClick=${revive}
+        aria-label=${target.revived ? t('复活已用') : t('复活 · −10')}>
+        ${compact ? null : target.revived ? t('复活已用') : t('复活 · −10')}
       <//>
     <//>
-    ${reason ? html`<small>${reason}</small>` : null}
+    ${reason && !compact ? html`<small>${reason}</small>` : null}
   </div>`;
 }

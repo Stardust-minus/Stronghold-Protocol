@@ -110,27 +110,27 @@
 .ebubble {
   --ebubble-ttl: 3000ms;
   --ebubble-age: 0ms; /* set inline for a bubble mounted after its emote arrived: resume the timeline, never restart it */
-  position: relative; display: block; box-sizing: border-box; width: 1.08rem; height: .97rem; max-width: none; padding: 0;
+  position: relative; display: block; box-sizing: border-box; width: calc(1.08 * var(--ebubble-unit, 1rem)); height: calc(.97 * var(--ebubble-unit, 1rem)); max-width: none; padding: 0;
   background: none; border: 0; clip-path: none; color: inherit; font-size: 0; white-space: normal; filter: none;
-  transform-origin: .09rem 47%;
+  transform-origin: calc(.09 * var(--ebubble-unit, 1rem)) 47%;
   animation: emo-bubble-pop 240ms var(--ease-out) calc(0ms - var(--ebubble-age)) both,
     emo-bubble-out 300ms var(--ease-in-out) calc(var(--ebubble-ttl) - 300ms - var(--ebubble-age)) forwards;
   pointer-events: none; z-index: 3;
 }
 /* CSS look-alike of emoji_bubble_bkg: dark rounded square + tail */
 .ebubble::before {
-  content: ''; position: absolute; left: .22rem; top: .08rem; width: .76rem; height: .78rem; border-radius: .08rem;
+  content: ''; position: absolute; left: calc(.22 * var(--ebubble-unit, 1rem)); top: calc(.08 * var(--ebubble-unit, 1rem)); width: calc(.76 * var(--ebubble-unit, 1rem)); height: calc(.78 * var(--ebubble-unit, 1rem)); border-radius: calc(.08 * var(--ebubble-unit, 1rem));
   background: rgba(24, 24, 24, .86); box-shadow: 0 .02rem .08rem rgba(0, 0, 0, .45);
 }
 .ebubble::after {
-  content: ''; position: absolute; left: .09rem; top: calc(47% - .08rem); width: .14rem; height: .16rem;
+  content: ''; position: absolute; left: calc(.09 * var(--ebubble-unit, 1rem)); top: calc(47% - .08 * var(--ebubble-unit, 1rem)); width: calc(.14 * var(--ebubble-unit, 1rem)); height: calc(.16 * var(--ebubble-unit, 1rem));
   background: rgba(24, 24, 24, .86); clip-path: polygon(100% 0, 0 50%, 100% 100%);
 }
 .ebubble.has-sprite { background: var(--ebubble-bg) center / 100% 100% no-repeat; }
 .ebubble.has-sprite::before, .ebubble.has-sprite::after { content: none; }
 /* in the team panel the bubble is anchored beside the row (placement: screens/game.css .team__bubble) */
 .ebubble.team__bubble { position: absolute; }
-.ebubble__icon { position: absolute; left: .26rem; top: .12rem; width: .68rem; height: .70rem; display: grid; place-items: center; }
+.ebubble__icon { position: absolute; left: calc(.26 * var(--ebubble-unit, 1rem)); top: calc(.12 * var(--ebubble-unit, 1rem)); width: calc(.68 * var(--ebubble-unit, 1rem)); height: calc(.70 * var(--ebubble-unit, 1rem)); display: grid; place-items: center; }
 .ebubble .eart { width: 100%; height: 100%; }
 
 @keyframes emo-panel-in { from { opacity: 0; transform: translateY(.06rem) scale(.96); } }

@@ -8,49 +8,50 @@ const players = Array.from({ length: 20 }, (_, seat) => ({ seat, playerId: `p${s
 const cards = () => Array.from({ length: 6 }, (_, idx) => ({ id: `choice${idx}`, name: `Choice${idx}`, desc: `Effect${idx}` }));
 const walk = node => Array.isArray(node) ? node.flatMap(walk) : node?.props ? [node, ...walk(node.props.children)] : [];
 
-test('only a strict server repeat flag disables strategy exclusivity', () => {
-  const picks = Object.fromEntries(players.slice(0, 19).map(p => [p.playerId, 'band_a']));
-  const raw = { order: players.map(p => p.playerId), turn: 'p19', picks, allowRepeat: true };
-  const draft = normalizeDraft(raw, players);
-  assert.equal(draft.allowRepeat, true); assert.equal(draft.picks.size, 19);
-  const taken = teammateBands(draft.picks, 'p19', draft.allowRepeat);
+for (const count of [2, 5, 8, 12, 16, 20]) test(`${count} participants: only a strict server repeat flag disables strategy exclusivity`, () => {
+  const roster = players.slice(0, count), myId = roster.at(-1).playerId;
+  const picks = Object.fromEntries(roster.slice(0, -1).map(p => [p.playerId, 'band_a']));
+  const raw = { order: roster.map(p => p.playerId), turn: myId, picks, allowRepeat: true };
+  const draft = normalizeDraft(raw, roster);
+  assert.equal(draft.allowRepeat, true); assert.equal(draft.picks.size, count - 1);
+  const taken = teammateBands(draft.picks, myId, draft.allowRepeat);
   assert.equal(taken.size, 0);
   const bands = [{ bandId: 'band_a' }, { bandId: 'band_b' }];
   const options = { bands, taken, myPick: null, myTurn: true, defaultId: 'band_b' };
   assert.equal(draftSelection('band_a', options), 'band_a');
   assert.equal(autoPickBand('band_a', options), 'band_a');
   for (const value of [undefined, false, 1, 'true', {}]) {
-    const legacy = normalizeDraft({ ...raw, allowRepeat: value }, players);
+    const legacy = normalizeDraft({ ...raw, allowRepeat: value }, roster);
     assert.equal(Object.hasOwn(legacy, 'allowRepeat'), false);
-    assert.equal(teammateBands(legacy.picks, 'p19', value).get('band_a').length, 19);
+    assert.equal(teammateBands(legacy.picks, myId, value).get('band_a').length, count - 1);
   }
 });
 
-for (const family of ['bounty', 'tactic', 'supply', 'shop']) test(`${family}: all twenty players can select the same zero slot in a six-card view`, () => {
-  const rawCards = cards(), picks = {};
-  for (let turn = 0; turn < players.length; turn++) {
-    const myId = players[turn].playerId;
-    const raw = { family, cards: rawCards, order: players.map(p => p.playerId), turn: myId, picks, taken: turn ? { 0: 'p0' } : {}, allowRepeat: true };
-    const sp = normalizeSp(raw, players);
+for (const count of [8, 12, 16, 20]) for (const family of ['bounty', 'tactic', 'supply', 'shop']) test(`${count}-mode ${family}: every player can select the same zero slot in a six-card view`, () => {
+  const roster = players.slice(0, count), rawCards = cards(), picks = {};
+  for (let turn = 0; turn < roster.length; turn++) {
+    const myId = roster[turn].playerId;
+    const raw = { family, cards: rawCards, order: roster.map(p => p.playerId), turn: myId, picks, taken: turn ? { 0: 'p0' } : {}, allowRepeat: true };
+    const sp = normalizeSp(raw, roster);
     assert.equal(sp.allowRepeat, true); assert.equal(sp.cards.length, 6); assert.equal(sp.pickOf.size, turn);
     assert.equal(cardPickable(sp, sp.cards[0], { myId, solo: false }), true);
     const first = spTap(null, 0, true), second = spTap(first.armed, 0, true);
     assert.deepEqual(second, { armed: null, pick: 0 });
-    const view = ChoiceView({ pub: { players }, sp, myId, solo: false });
+    const view = ChoiceView({ pub: { players: roster }, sp, myId, solo: false });
     assert.equal(view.props['data-allow-repeat'], 'true');
-    assert.match(view.props.class, /spov--expanded/, 'a long turn list still scrolls with only six cards');
+    assert.match(view.props.class, /spov--expanded/, 'a long turn list stays bounded with only six cards');
     const buttons = walk(view).filter(n => n.type === 'button' && n.props.class?.includes('spcard--'));
     assert.equal(buttons.length, 6); assert.equal(buttons[0].props.disabled, false);
     assert.doesNotMatch(buttons[0].props.class, /is-taken/);
     assert(walk(view).some(n => n.props['data-testid'] === 'sp-repeat'));
     picks[myId] = second.pick;
-    const selected = normalizeSp({ ...raw, picks }, players);
+    const selected = normalizeSp({ ...raw, picks }, roster);
     assert.equal(selected.pickOf.get(myId), 0);
     assert.equal(cardPickable(selected, selected.cards[0], { myId, solo: false }), false, 'each player still picks only once');
   }
-  const complete = normalizeSp({ family, cards: rawCards, order: players.map(p => p.playerId), turn: null, picks, taken: { 0: 'p0' }, allowRepeat: true }, players);
-  assert.equal(complete.pickedCount, 20);
-  assert.equal(complete.pickOf.get('p19'), 0);
+  const complete = normalizeSp({ family, cards: rawCards, order: roster.map(p => p.playerId), turn: null, picks, taken: { 0: 'p0' }, allowRepeat: true }, roster);
+  assert.equal(complete.pickedCount, count);
+  assert.equal(complete.pickOf.get(roster.at(-1).playerId), 0);
   assert.equal(complete.takenBy.get(0), 'p0', 'the first picker remains display compatibility metadata');
   assert.deepEqual(rawCards, cards(), 'normalization never mutates the server templates');
 });
@@ -74,7 +75,7 @@ test('repeatable cards still honor turn, busy state and the current player’s z
   assert.equal(pickBusy(0, card, undefined, 'true'), false);
 });
 
-test('legacy exclusive-card modes do not inherit the twenty-player repeat behavior', () => {
+test('absent or non-boolean repeat flags still enforce exclusivity, even for legacy larger payloads', () => {
   for (const count of [4, 8, 12, 16]) {
     const rawCards = Array.from({ length: count + 2 }, (_, idx) => ({ id: `card${idx}` }));
     const sp = normalizeSp({ cards: rawCards, picks: { p0: 0 }, turn: 'p1' }, players.slice(0, count));

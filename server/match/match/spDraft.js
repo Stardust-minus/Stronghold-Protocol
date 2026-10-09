@@ -17,8 +17,7 @@ export class MatchSpDraft {
   enterSpDraft() {
     const alive = this.alivePlayers();
     const draft = generateDraft(this.gd, this.rngDraft, this.round, { stageId: this.stageId,
-      bondAvailable: (bondId) => this.bondLive(bondId), playerCount: alive.length,
-      experimental: this.capacityExperiment && !this.twentyPlayerMode });
+      bondAvailable: (bondId) => this.bondLive(bondId) });
     if (!draft || !alive.length) { this.enterPrep(); return; }
     this.phase = PHASE.SP_DRAFT;
     let order = alive.map((p) => p.playerId);
@@ -48,7 +47,7 @@ export class MatchSpDraft {
       if (ps && ps.alive && s.picks[ps.playerId] == null) break;
       s.idx++;
     }
-    const available = s.cards.map((c) => c.idx).filter((i) => this.twentyPlayerMode || s.taken[i] == null);
+    const available = s.cards.map((c) => c.idx).filter((i) => this.capacityExperiment || s.taken[i] == null);
     if (s.idx >= s.order.length || !available.length) { this.setDeadline(0); this.later(0, () => this.finishSpDraft()); return; }
     const token = ++this._turnToken;
     if (!s.untimed) {
@@ -58,7 +57,7 @@ export class MatchSpDraft {
         if (this.phase !== PHASE.SP_DRAFT || token !== this._turnToken) return;
         const ps = this.players.get(this.spTurn());
         if (!ps) return;
-        const avail = s.cards.map((c) => c.idx).filter((i) => this.twentyPlayerMode || s.taken[i] == null);
+        const avail = s.cards.map((c) => c.idx).filter((i) => this.capacityExperiment || s.taken[i] == null);
         if (!avail.length) { this.finishSpDraft(); return; }
         this._applyCard(ps, avail[Math.floor(this.rngDraft() * avail.length)]);
       });
@@ -77,7 +76,7 @@ export class MatchSpDraft {
       if (this.phase !== PHASE.SP_DRAFT || token !== this._turnToken || !this.sp) return;
       const ps = this.players.get(this.spTurn());
       if (!ps || !ps.botControlled) return;
-      const avail = this.sp.cards.map((c) => c.idx).filter((i) => this.twentyPlayerMode || this.sp.taken[i] == null);
+      const avail = this.sp.cards.map((c) => c.idx).filter((i) => this.capacityExperiment || this.sp.taken[i] == null);
       if (!avail.length) return;
       this._applyCard(ps, botPickCard(this, ps, this.sp.cards, avail));
     });
@@ -89,15 +88,15 @@ export class MatchSpDraft {
     if (this.sp.picks[ps.playerId] != null) return fail(ERR.ALREADY);
     if (this.spTurn() !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
     if (!Number.isInteger(idx) || idx < 0 || idx >= this.sp.cards.length) return fail(ERR.BAD_TARGET);
-    if (!this.twentyPlayerMode && this.sp.taken[idx] != null) return fail(ERR.SOLD_OUT);
+    if (!this.capacityExperiment && this.sp.taken[idx] != null) return fail(ERR.SOLD_OUT);
     this._applyCard(ps, idx);
     return OK;
   }
 
   _applyCard(ps, idx) {
     const s = this.sp;
-    if (!s || s.picks[ps.playerId] != null || (!this.twentyPlayerMode && s.taken[idx] != null)) return;
-    const card = this.twentyPlayerMode ? structuredClone(s.cards[idx]) : s.cards[idx];
+    if (!s || s.picks[ps.playerId] != null || (!this.capacityExperiment && s.taken[idx] != null)) return;
+    const card = this.capacityExperiment ? structuredClone(s.cards[idx]) : s.cards[idx];
     if (!card) return;
     s.picks[ps.playerId] = idx;
     // Repeatable drafts keep the first picker only as display metadata, never as a slot lock.

@@ -29,6 +29,7 @@ import { localAsset } from '../data.js';
 import { ReviveAction, RevivalNotice } from './revival.js';
 import { t } from '../../../shared/i18n.js';
 import { uniteRelayKey } from '../battle/observe.js';
+import { teamPanelLayout } from './teamLayout.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -112,7 +113,7 @@ export function rowLpTip(lp, cap = 10) {
 }
 
 /**
- * @param {{ pub:any, myId:string, watching:string|null, bubbles: Map<string,{id:string,seq:number}>, onWatch:(p:any)=>void,
+ * @param {{ pub:any, myId:string, watching:string|null, bubbles: Map<string,{id:string,seq:number,at?:number}>, onWatch:(p:any)=>void,
  *   compact?: boolean, teamLp?: number|null, self?: { lp?: number|null, pending: number, unite: boolean, left?: number|null } | null,
  *   cap?: number, uniteLocal?: Record<string, number> | null,
  *   observe?: null | { canObserve: (p:any) => { fieldId?: string, reason?: string|null, back?: boolean }, observing: boolean, onBack: () => void } }} props
@@ -125,6 +126,29 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
   const phaseKey = `${pub?.phase}:${pub?.round}:${uniteRelayKey(pub) || ''}`;
   useEffect(() => { setOpenPid(null); }, [phaseKey, watching, observe?.observing]);
   const players = sortedPlayers(pub);
+  const expanded = players.length > 4;
+  const panelRef = useRef(null);
+  const noticeRef = useRef(null);
+  const [layout, setLayout] = useState(() => teamPanelLayout(players.length, 0));
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const panel = panelRef.current;
+    const measure = () => {
+      if (!panel) return;
+      const css = getComputedStyle(panel);
+      const notice = noticeRef.current?.getBoundingClientRect().height || 0;
+      const height = panel.clientHeight - (parseFloat(css.paddingTop) || 0) - (parseFloat(css.paddingBottom) || 0) - notice;
+      const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 40;
+      const next = teamPanelLayout(players.length, height, root);
+      setLayout(prev => prev.columns === next.columns && prev.rows === next.rows && prev.rowHeight === next.rowHeight ? prev : next);
+    };
+    measure();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    if (panel) observer?.observe(panel);
+    if (noticeRef.current) observer?.observe(noticeRef.current);
+    window.addEventListener('resize', measure);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
+  }, [expanded, players.length, pub?.revival?.windowOpen]);
   if (!players.length) return null;
   // a boss round: the viewer's pair framed in green from the round's start (item 51 — the official bg_team_border,
   // tinted like the official green; a plain green ring without the local art)
@@ -157,9 +181,10 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
     noteAsked(p);
     onWatch(p);
   };
-  return html`<aside class=${cx('team', compact && 'team--compact', players.length > 6 && 'team--expanded')} aria-label=${t('同盟成员')}>
-    <${RevivalNotice} pub=${pub} />
-    ${players.map((p) => {
+  const style = expanded ? `--team-columns:${layout.columns};--team-rows:${layout.rows};--team-row:${layout.rowHeight}px;--team-avatar:${layout.avatar}px;--team-gap:${layout.gap}px;--ebubble-unit:${layout.avatar / 1.08}px` : undefined;
+  return html`<aside ref=${panelRef} class=${cx('team', compact && 'team--compact', expanded && 'team--expanded')} style=${style} aria-label=${t('同盟成员')}>
+    <div ref=${noticeRef} class="team__notice"><${RevivalNotice} pub=${pub} /></div>
+    <div class="team__players">${players.map((p) => {
       const self = p.playerId === myId;
       const status = p.pendingDeath ? 'rescue' : p.alive === false ? 'dead' : p.status;
       const meta = p.pendingDeath ? { ...STATUS_META.deciding, text: t('等待救援') } : STATUS_META[status] || STATUS_META.acting;
@@ -180,7 +205,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
           ${self ? html`<span class="team__you"><${Icon} name="user" /></span>` : null}
         </button>
         <div class="team__info">
-          <span class="team__name">${p.name || t('博士')}</span>
+          <span class="team__name" title=${p.name || t('博士')}>${p.name || t('博士')}</span>
           <div class="team__line">
             <${LpTower} value=${lp.lp} size="sm" tone=${Number.isFinite(lp.lp) && lp.lp - lp.pending <= 5 ? 'danger' : null} pending=${lp.pending}
               tip=${rowLpTip(lp, cap)} />
@@ -194,14 +219,14 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
             <//>
             ${watched && !self ? html`<span class="team__eye" title=${t('正在查看')}><${GIcon} name="eye" /></span>` : null}
           </div>
-          <${ReviveAction} pub=${pub} myId=${myId} target=${p} />
+          <${ReviveAction} pub=${pub} myId=${myId} target=${p} compact=${expanded} />
           ${open ? html`<button type="button" class="btn btn--primary btn--sm team__ob"
             onClick=${() => { setOpenPid(null); onWatch(p); }}><span class="btn__label">${t('前往查看')}</span></button>` : null}
           ${back ? html`<button type="button" class="btn btn--secondary btn--sm team__back"
             onClick=${() => observe.onBack()}><span class="btn__label">${t('返回战场')}</span></button>` : null}
         </div>
-        ${bubble ? html`<${EmoteBubble} key=${bubble.seq} id=${bubble.id} class="team__bubble" />` : null}
+        ${bubble ? html`<${EmoteBubble} key=${bubble.seq} id=${bubble.id} at=${bubble.at} class="team__bubble" />` : null}
       </div>`;
-    })}
+    })}</div>
   </aside>`;
 }

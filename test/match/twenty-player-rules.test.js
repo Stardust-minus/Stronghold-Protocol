@@ -1,4 +1,4 @@
-// Target twenty, never a living-player threshold: fixed four-seat pools and reusable drafts.
+// Configured capacity, never a living-player threshold: reusable expanded drafts and fixed twenty-seat pools.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ERR } from '../../shared/constants.js';
@@ -6,6 +6,7 @@ import { generateDraft } from '../../server/match/choices.js';
 import { createRng } from '../../server/sim/rng.js';
 import { createRegistry } from '../../server/match/effectsMeta.js';
 import { attachAudit } from '../../server/match/audit.js';
+import { botPickBand } from '../../server/match/bot.js';
 import { collectViolations } from '../../server/match/invariants.js';
 import { makeMatch, DATA } from './harness.js';
 import { makeBattle, chessRec } from '../helpers/battleHarness.js';
@@ -19,7 +20,7 @@ const make = (t, count = 20, extra = {}) => {
   t.after(() => h.m.dispose()); return h;
 };
 const enterBand = h => {
-  h.start(); for (const ps of h.m.order) assert.deepEqual(h.m.handle(ps.playerId, { t: 'g.infoReady' }), { ok: true });
+  h.start(); for (const ps of h.m.order) if (!ps.isBot) assert.deepEqual(h.m.handle(ps.playerId, { t: 'g.infoReady' }), { ok: true });
   h.sched.advance(0); assert.equal(h.m.phase, 'BAND_DRAFT');
 };
 
@@ -62,27 +63,29 @@ test('disableSharedPool takes precedence over fixed twenty chunks and grants eac
   for (const ps of h.m.order) for (const [id, e] of ps.pool.entries) assert.equal(e.cap, h.m.gd.poolCopies(id));
 });
 
-for (const [capacity, count, sizes, scale] of [[4, 4, [4], 1], [8, 5, [5], 1.25], [12, 9, [3, 3, 3], 1], [16, 13, [4, 3, 3, 3], 1]]) {
-  test(`non-twenty ${capacity}-mode retains prior pools, unique bands, expanded cards and draft RNG`, t => {
-    const h = make(t, count, { experimental: rules(capacity) }), m = h.m;
+for (const [capacity, count, sizes, scale] of [[4, 4, [4], 1], [8, 2, [2], 1], [8, 5, [5], 1.25], [12, 9, [3, 3, 3], 1], [16, 13, [4, 3, 3, 3], 1]]) {
+  test(`non-twenty ${capacity}-mode with ${count} participants retains prior pools and six-card draft RNG`, t => {
+    const h = make(t, count, { experimental: rules(capacity) }), m = h.m, repeat = capacity > 4;
     assert.equal(m.twentyPlayerMode, false); assert.deepEqual(m.poolGroups.map(g => g.playerIds.length), sizes);
     for (const g of m.poolGroups) for (const [id, e] of g.pool.entries) assert.equal(e.cap, Math.ceil(m.gd.poolCopies(id) * scale));
-    enterBand(h); assert.equal(Object.hasOwn(m.publicView().draft, 'allowRepeat'), false);
+    enterBand(h); assert.equal(m.publicView().draft.allowRepeat === true, repeat);
     const first = m.players.get(m.draftTurn()); assert.deepEqual(m.pickBand(first, 'band_bldsk'), { ok: true });
-    assert.equal(m.pickBand(m.players.get(m.draftTurn()), 'band_bldsk').error, ERR.BAD_TARGET);
+    const band = m.pickBand(m.players.get(m.draftTurn()), 'band_bldsk');
+    assert.deepEqual(repeat ? band : { error: band.error }, repeat ? { ok: true } : { error: ERR.BAD_TARGET });
     m.round = 3;
     const rng = createRng(m.rngDraft.state()), order = m.alivePlayers().map(p => p.playerId);
-    const original = generateDraft(m.gd, rng, 3, { stageId: m.stageId, bondAvailable: id => m.bondLive(id), playerCount: count, experimental: capacity > 4 });
+    const original = generateDraft(m.gd, rng, 3, { stageId: m.stageId, bondAvailable: id => m.bondLive(id) });
     rng.shuffle(order); m.enterSpDraft();
     assert.deepEqual(m.sp.cards, original.cards); assert.deepEqual(m.sp.order, order); assert.equal(m.rngDraft.state(), rng.state());
-    assert.equal(Object.hasOwn(m.publicView().sp, 'allowRepeat'), false);
+    assert.equal(m.sp.cards.length, 6); assert.equal(m.publicView().sp.allowRepeat === true, repeat);
     const picker = m.players.get(m.spTurn()); assert.deepEqual(m.pickCard(picker, 0), { ok: true });
-    assert.equal(m.pickCard(m.players.get(m.spTurn()), 0).error, ERR.SOLD_OUT);
+    const choice = m.pickCard(m.players.get(m.spTurn()), 0);
+    assert.deepEqual(repeat ? choice : { error: choice.error }, repeat ? { ok: true } : { error: ERR.SOLD_OUT });
   });
 }
 
-test('twenty humans may all choose the same legal band once; order, skip, focus and turn deadlines stay authoritative', t => {
-  const h = make(t), m = h.m, audit = attachAudit(m); enterBand(h);
+for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode humans may all choose the same legal band once; skip, focus and turns stay authoritative`, t => {
+  const h = make(t, capacity, { experimental: rules(capacity) }), m = h.m, audit = attachAudit(m); enterBand(h);
   assert.equal(m.publicView().draft.allowRepeat, true);
   const first = m.players.get(m.draftTurn()), second = m.players.get(m.draft.order[1]);
   assert.equal(m.pickBand(second, 'band_bldsk').error, ERR.NOT_YOUR_TURN);
@@ -94,15 +97,15 @@ test('twenty humans may all choose the same legal band once; order, skip, focus 
     assert.equal(m.bandFocus(ps, 'band_bldsk').error, ERR.ALREADY);
   }
   h.sched.advance(0); assert.equal(m.phase, 'BATTLE_CHECK');
-  assert.equal(Object.keys(m.draft.picks).length, 20); assert.equal(new Set(Object.values(m.draft.picks)).size, 1);
+  assert.equal(Object.keys(m.draft.picks).length, capacity); assert.equal(new Set(Object.values(m.draft.picks)).size, 1);
   assert.ok(m.order.every(ps => ps.bandId === 'band_bldsk' && ps.lp === m.gd.startLp('band_bldsk')));
-  assert.equal(new Set(m.order.map(ps => ps.counters)).size, 20); assert.deepEqual(audit.violations, []);
+  assert.equal(new Set(m.order.map(ps => ps.counters)).size, capacity); assert.deepEqual(audit.violations, []);
 });
 
-test('twenty repeated timeout defaults and duplicate-band prep handlers maintain separate player counters', t => {
+for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode repeated timeout defaults and duplicate-band handlers maintain separate counters`, t => {
   const registry = createRegistry({ log: { warn() {}, error() {}, info() {} } });
   registry.register('band:band_bldsk', { onRoundStart(ctx) { ctx.incCounter('same-band'); ctx.addFunds(2, 'band'); } });
-  const h = make(t, 5, { registry }), m = h.m; enterBand(h);
+  const h = make(t, 5, { registry, experimental: rules(capacity) }), m = h.m; enterBand(h);
   for (let i = 0; i < 5; i++) { assert.equal(m.defaultBand(m.draftTurn()), 'band_bldsk'); h.sched.advance(m.bandTurnMs()); }
   h.sched.advance(0); assert.equal(new Set(Object.values(m.draft.picks)).size, 1);
   m.round = 1;
@@ -112,13 +115,13 @@ test('twenty repeated timeout defaults and duplicate-band prep handlers maintain
   assert.ok(m.order.every(ps => ps.counters['same-band'] === 1 && ps.funds === 2));
 });
 
-for (const count of [1, 2, 4, 5, 6, 9, 17, 20]) for (const family of ['bounty', 'supply', 'shop', 'tactic']) {
-  test(`twenty target ${count} living ${family}: six source options and all humans can take idx zero exactly once`, t => {
-    const h = make(t, count, { data: forced(family) }), m = h.m; m.round = 3;
+for (const [capacity, count] of [[8, 2], [8, 5], [8, 8], [12, 12], [16, 16], ...[1, 2, 4, 5, 6, 9, 17, 20].map(count => [20, count])]) for (const family of ['bounty', 'supply', 'shop', 'tactic']) {
+  test(`${capacity}-mode ${count} living ${family}: six source options and all humans can take idx zero exactly once`, t => {
+    const h = make(t, count, { experimental: rules(capacity), data: forced(family) }), m = h.m; m.round = 3;
     for (const ps of m.order) ps.lp = 28;
     const audit = attachAudit(m); m.enterSpDraft(); const draft = m.sp;
     assert.equal(draft.cards.length, 6); assert.equal(draft.family, family); assert.equal(m.publicView().sp.allowRepeat, true);
-    const options = structuredClone(draft.cards), rng = createRng(m.rngDraft.state());
+    const options = structuredClone(draft.cards);
     assert.ok(draft.cards.every((card, i) => card.idx === i));
     if (count > 1) assert.equal(m.pickCard(m.players.get(draft.order[1]), 0).error, ERR.NOT_YOUR_TURN);
     while (m.spTurn()) {
@@ -133,26 +136,27 @@ for (const count of [1, 2, 4, 5, 6, 9, 17, 20]) for (const family of ['bounty', 
   });
 }
 
-test('twenty repeated team choices apply once per picker and recipient even when a content handler mutates its card copy', t => {
+for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode repeated team choices isolate nested content mutations per picker and recipient`, t => {
   const chosen = DATA.choices.cards.tactic.find(c => c.team); assert.ok(chosen);
   const data = forced('tactic'); data.choices = { ...data.choices, cards: { ...data.choices.cards, tactic: [chosen] } };
   const registry = createRegistry({ log: { warn() {}, error() {}, info() {} } });
   const calls = new Map();
   registry.register(`choice:${chosen.effectId}`, { onChoicePick(ctx, ev) {
     const seen = calls.get(ctx.playerId) || []; seen.push(ev.picker); calls.set(ctx.playerId, seen);
+    assert.equal(ctx.source.card.nested.count, 0); ctx.source.card.nested.count++;
     ctx.incCounter('repeat-team'); ctx.source.card.id = 'mutated-test-copy'; ctx.source.card.team = false;
   } });
-  const h = make(t, 20, { data, registry }), m = h.m; m.round = 3;
+  const h = make(t, capacity, { data, registry, experimental: rules(capacity) }), m = h.m; m.round = 3;
   for (const ps of m.order) ps.lp = 28;
-  m.enterSpDraft(); const draft = m.sp, source = structuredClone(draft.cards);
+  m.enterSpDraft(); m.sp.cards[0].nested = { count: 0 }; const draft = m.sp, source = structuredClone(draft.cards);
   while (m.spTurn()) { const ps = m.players.get(m.spTurn()); assert.deepEqual(m.pickCard(ps, 0), { ok: true }); m._applyCard(ps, 0); }
   h.sched.advance(0);
-  for (const ps of m.order) { assert.equal(ps.counters['repeat-team'], 20); assert.equal(calls.get(ps.playerId).length, 20); assert.equal(new Set(calls.get(ps.playerId)).size, 20); }
+  for (const ps of m.order) { assert.equal(ps.counters['repeat-team'], capacity); assert.equal(calls.get(ps.playerId).length, capacity); assert.equal(new Set(calls.get(ps.playerId)).size, capacity); }
   assert.deepEqual(draft.cards, source); assert.equal(m.errorCount, 0);
 });
 
-test('twenty SP timeout/autoplay still sees all six options after all indices have been used', t => {
-  const h = make(t, 20, { data: forced('supply') }), m = h.m; m.round = 3;
+for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode SP timeout/autoplay still sees all six options after all indices have been used`, t => {
+  const h = make(t, capacity, { data: forced('supply'), experimental: rules(capacity) }), m = h.m; m.round = 3;
   for (const ps of m.order) ps.lp = 28;
   m.enterSpDraft(); const draft = m.sp;
   for (let idx = 0; idx < 6; idx++) assert.deepEqual(m.pickCard(m.players.get(m.spTurn()), idx), { ok: true });
@@ -161,7 +165,42 @@ test('twenty SP timeout/autoplay still sees all six options after all indices ha
   m.setAutoplay(next, true); h.sched.advance(m.scaled(900));
   assert.notEqual(draft.picks[next.playerId], undefined);
   while (m.phase === 'SP_DRAFT') { const turn = m.spTurn(); if (!turn) { h.sched.advance(0); break; } h.sched.advance(m.gd.timer('spTurn') * 1000); }
-  assert.equal(m.phase, 'PREP'); assert.equal(Object.keys(draft.picks).length, 20);
+  assert.equal(m.phase, 'PREP'); assert.equal(Object.keys(draft.picks).length, capacity);
+});
+
+for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode AI seats repeat the human band and SP index with no depletion`, t => {
+  const h = make(t, 2, { bots: capacity - 2, aiPicksLast: true, data: forced('supply'), experimental: rules(capacity) }), m = h.m;
+  m.rngBots = () => 0; enterBand(h);
+  const band = botPickBand(m, m.order.find(ps => ps.isBot));
+  for (let i = 0; i < 2; i++) assert.deepEqual(m.pickBand(m.players.get(m.draftTurn()), band), { ok: true });
+  h.sched.advance(0); assert.equal(m.phase, 'BATTLE_CHECK');
+  assert.ok(Object.values(m.draft.picks).every(id => id === band));
+  m.setDeadline(0); m.round = 3; m.enterSpDraft(); const draft = m.sp;
+  const source = draft.cards[0]; draft.cards = draft.cards.map((card, idx) => ({ ...source, idx }));
+  for (let i = 0; i < 2; i++) assert.deepEqual(m.pickCard(m.players.get(m.spTurn()), 0), { ok: true });
+  assert.ok(h.run(() => m.phase === 'PREP'));
+  assert.equal(Object.keys(draft.picks).length, capacity); assert.ok(Object.values(draft.picks).every(idx => idx === 0));
+  assert.equal(m.errorCount, 0);
+});
+
+for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode timeout focus, departing defaults and later two survivors retain repeat rules`, t => {
+  const h = make(t, 5, { experimental: rules(capacity), data: forced('bounty') }), m = h.m; enterBand(h);
+  const focused = m.gd.bandIds().find(id => id !== m.gd.bandDraft.timeoutBandId); assert.ok(focused);
+  for (let i = 0; i < 2; i++) {
+    const ps = m.players.get(m.draftTurn()); assert.deepEqual(m.bandFocus(ps, focused), { ok: true });
+    h.sched.advance(m.bandTurnMs()); assert.equal(m.draft.picks[ps.playerId], focused);
+  }
+  const departing = m.players.get(m.draftTurn()); m.onLeave(departing.playerId);
+  assert.equal(m.draft.picks[departing.playerId], m.gd.bandDraft.timeoutBandId);
+  m.finishBandDraft(true);
+  assert.ok(m.order.filter(ps => ![m.draft.order[0], m.draft.order[1]].includes(ps.playerId)).every(ps => ps.bandId === m.gd.bandDraft.timeoutBandId));
+  m.setDeadline(0);
+  for (const ps of m.order.slice(2)) if (ps.alive) ps.eliminate(1);
+  m.round = 9; m.enterSpDraft(); const draft = m.sp;
+  assert.equal(m.playerCapacity, capacity); assert.equal(draft.order.length, 2); assert.equal(draft.cards.length, 6);
+  assert.equal(m.publicView().sp.allowRepeat, true);
+  for (let i = 0; i < 2; i++) assert.deepEqual(m.pickCard(m.players.get(m.spTurn()), 0), { ok: true });
+  h.sched.advance(0); assert.equal(m.phase, 'PREP'); assert.equal(Object.keys(draft.picks).length, 2);
 });
 
 test('two battle owners with the same revive strategy each retain their own three-use hook counter', () => {

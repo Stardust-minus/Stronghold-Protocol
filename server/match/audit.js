@@ -45,7 +45,6 @@ import { PHASE } from '../../shared/constants.js';
 import { collectViolations } from './invariants.js';
 import { mergeTile, pieceDir, canPlace, placeClass } from './board.js';
 import { pairPlayers, bossPoolHp, hiddenEligible } from './finalAssault.js';
-import { MAX_DRAFT_CARDS } from '../../shared/playerCapacity.js';
 import { helperOrder } from './unite.js';
 import { BAND_TURN_SECONDS } from './Match.js';
 
@@ -347,14 +346,14 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
     const s = m.sp;
     if (m.phase === PHASE.SP_DRAFT && s) check('sp draft', () => {
       const alive = m.alivePlayers().map((p) => p.playerId);
-      const want = m.capacityExperiment && !m.twentyPlayerMode && s.order.length > 4 ? Math.min(MAX_DRAFT_CARDS, Math.max(6, s.order.length + 2)) : m.isSolo ? 3 : 6;
+      const want = m.isSolo ? 3 : 6;
       if (s.cards.length > want) fail(`${s.cards.length} 机变 cards (max ${want})`);
       if (s.order.length !== alive.length) fail(`机变 order ${s.order.length} for ${alive.length} alive`);
       for (const pid of alive) {
         const idx = s.picks[pid];
         if (idx == null) fail(`${pid} ends 机变 without a card`);
         else if (!Number.isInteger(idx) || !s.cards[idx]) fail(`${pid} picked an invalid card ${idx}`);
-        else if (!m.twentyPlayerMode && s.taken[idx] !== pid) fail(`${pid} picked card ${idx} held by ${s.taken[idx]}`);
+        else if (!m.capacityExperiment && s.taken[idx] !== pid) fail(`${pid} picked card ${idx} held by ${s.taken[idx]}`);
       }
       const holders = Object.values(s.taken);
       if (new Set(holders).size !== holders.length) fail('a player took two 机变 cards');

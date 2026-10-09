@@ -98,6 +98,11 @@ band draft / 机变 / PREP deadline, and BATTLE_CHECK / ROUND_START / SETTLE run
 `m.public.overtimeAt` = when the overtime drain starts, 150 real s; both on the field clock).
 
 ### 1.1 Band draft
+Fork exception: configured expanded co-op capacities 8 / 12 / 16 / 20 allow repeated strategies, with separate player state,
+one pick per player and unchanged turn / skip rules; the server publishes `draft.allowRepeat`. This remains enabled when
+the room starts short or loses players. Ordinary four-player and solo rules below are unchanged. See
+[EXPERIMENTAL-MULTIPLAYER.md](EXPERIMENTAL-MULTIPLAYER.md).
+
 Co-op: random order (all seats, bots included), one pick per turn, ONE countdown: `BAND_TURN_SECONDS` 30 s per turn,
 published as `m.public.deadline` (= `draft.turnDeadline`; `draft.turnSeconds` its length) — no step cap; AI seats pick
 at once. A turn that runs out takes the strategy the player highlights in the draft screen (`g.bandFocus {bandId?}`,
@@ -108,6 +113,11 @@ refused (队友已选); band must list the mode type in `modeTypeList`. A single
 untimed. Solo: free pick, no timer, no skip. Starting LP = `bands[id].totalHp`.
 
 ### 1.2 机变 (SP draft)
+Fork exception: all configured expanded co-op capacities use six legal cards for every family, not living-player count + 2.
+The server publishes `sp.allowRepeat`; different players can take the same index while turn order and one pick per player
+remain authoritative. Card application clones each recipient's data, and the first `taken` entry is display metadata only.
+Ordinary four-player / solo card generation and RNG remain unchanged.
+
 Family = weighted pick from `choices.schedule[modeId].rounds[r].families`; cards: co-op 6 shared (each player takes 1,
 random order, 30 s first / 16 s others, timeout ⇒ a random remaining card), solo 3; solo and single-human drafts are
 untimed. The UI picks a card with two taps (select → 确认选择, DESIGN §18.2). A 驰援 tactic card

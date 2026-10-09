@@ -147,7 +147,7 @@ export class MatchViews {
       v.draft = {
         order: d.order.slice(), turn: this.draftTurn(), picks: { ...d.picks }, skipsLeft: { ...d.skipsLeft }, turnDeadline: d.turnDeadline || 0,
         turnSeconds: d.untimed ? 0 : this.bandTurnMs() / 1000, untimed: !!d.untimed,
-        ...(this.twentyPlayerMode ? { allowRepeat: true } : {}),
+        ...(this.capacityExperiment ? { allowRepeat: true } : {}),
       };
     }
     if (this.phase === PHASE.SP_DRAFT && this.sp) {
@@ -155,7 +155,7 @@ export class MatchViews {
       v.sp = {
         family: s.family, name: s.name, desc: s.desc, eventId: s.eventId, cards: s.cards.map(cardView), order: s.order.slice(),
         turn: this.spTurn(), picks: { ...s.picks }, taken: { ...s.taken }, untimed: !!s.untimed,
-        ...(this.twentyPlayerMode ? { allowRepeat: true } : {}),
+        ...(this.capacityExperiment ? { allowRepeat: true } : {}),
       };
     }
     if (this.phase === PHASE.UNITE && this.unitePlan) {

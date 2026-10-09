@@ -1,7 +1,7 @@
 // Band draft — BAND_DRAFT "2/2 选择策略" (research 06 §4.2, D1): left = draft order (avatar, name, state:
 // … waiting / ⌛ 决策中 / chosen band ✓), current picker highlighted; centre = grid of every band allowed
 // for the mode type (icon, name, LP); a band a teammate already picked carries the picker's avatar and is marked
-// 队友已选 — it cannot be chosen again unless the server enables allowRepeat for the twenty-player mode; right =
+// 队友已选 — it cannot be chosen again unless the server enables allowRepeat for an expanded-capacity mode; right =
 // detail pane (icon, 初始生命值, name, effect name + rich description) with 跳过 (co-op, once) and 确认选择.
 // One countdown (user playtest #4 item 4): every turn has the same clock (Match BAND_TURN_SECONDS, m.public.draft
 // turnSeconds) and the step header counts it down — m.public.deadline IS the turn's end, the same number as the

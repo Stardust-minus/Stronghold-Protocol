@@ -106,11 +106,14 @@ for (const family of ['bounty', 'tactic', 'supply', 'shop']) test(`${family}: le
   assert.deepEqual(cards[19], { id: 'card19', name: 'Choice19', desc: 'Effect19' }, 'server payload is not mutated');
 });
 
-test('large seat, teammate, strategy and contingency lists scroll inside bounded panels', () => {
+test('room and draft lists remain bounded while the compact in-game roster needs no scroll container', () => {
   assert.match(source('../../public/css/screens/room.css'), /\.seats\.seats--expanded \{[^}]*overflow-y: auto/);
-  assert.match(source('../../public/css/screens/game.css'), /\.team\.team--expanded \{[^}]*max-height:[^}]*overflow-y: auto/);
+  assert.match(source('../../public/css/screens/game.css'), /\.team\.team--expanded \{[^}]*bottom:[^}]*overflow: visible/);
+  assert.match(source('../../public/css/screens/game.css'), /\.team--expanded \.team__players \{[^}]*grid-auto-flow: column/);
+  assert.match(source('../../public/css/screens/game.css'), /\.team--expanded \.team__bubble \{[^}]*left: auto; right: 0/);
   assert.match(source('../../public/css/screens/draft.css'), /\.draft-order__players \{[^}]*overflow-y: auto/);
   assert.match(source('../../public/css/screens/game-panels.css'), /\.spov--expanded \.spov__grid \{[^}]*overflow-y: auto/);
-  assert.match(source('../../public/js/ui/teamPanel.js'), /players\.length > 6 && 'team--expanded'/);
+  assert.match(source('../../public/js/ui/teamPanel.js'), /const expanded = players\.length > 4/);
+  assert.match(source('../../public/js/ui/teamPanel.js'), /id=\$\{bubble\.id\} at=\$\{bubble\.at\}/);
   assert.match(source('../../public/js/ui/choiceOverlay.js'), /\(sp\.cards\.length > 6 \|\| order\.length > 4\) && 'spov--expanded'/);
 });

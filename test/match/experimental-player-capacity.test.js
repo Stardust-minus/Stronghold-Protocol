@@ -145,15 +145,14 @@ test('team reinforcement and fixed-list rewards route each recipient to its grou
   assert.deepEqual(collectViolations(m), []);
 });
 
-for (const count of [5, 6, 7, 8, 9, 12, 16, 20]) for (const family of ['bounty', 'supply', 'shop', 'tactic']) {
-  test(`${count} alive: ${family} draft obeys its target capacity and gives every player one pick`, t => {
+for (const [capacity, count] of [[8, 2], [8, 5], [8, 6], [8, 7], [8, 8], [12, 9], [12, 12], [16, 16], [20, 20]]) for (const family of ['bounty', 'supply', 'shop', 'tactic']) {
+  test(`${capacity}-mode ${count} alive: ${family} draft has six cards and gives every player one repeated pick`, t => {
     const round = family === 'bounty' ? 3 : 11;
     const modeId = 'mode_multi_normal';
     const data = { ...DATA, choices: { ...DATA.choices, schedule: { ...DATA.choices.schedule,
       [modeId]: { ...DATA.choices.schedule[modeId], rounds: { ...DATA.choices.schedule[modeId].rounds,
         [round]: { ...DATA.choices.schedule[modeId].rounds[round], families: [{ family, weight: 1 }] } } } } } };
-    const capacity = count <= 8 ? 8 : count <= 12 ? 12 : count <= 16 ? 16 : 20;
-    const cardCount = capacity === 20 ? 6 : count + 2;
+    const cardCount = 6;
     const h = makeMatch({ humans: count, experimental: exp(capacity), data, fake: true, seed: 55 });
     const m = h.m; t.after(() => m.dispose()); m.round = round;
     for (const ps of m.order) ps.lp = 28;
@@ -163,29 +162,28 @@ for (const count of [5, 6, 7, 8, 9, 12, 16, 20]) for (const family of ['bounty',
     assert.equal(new Set(s.cards).size, cardCount, 'every legal option is a detached object');
     while (m.spTurn()) {
       const ps = m.players.get(m.spTurn());
-      const idx = capacity === 20 ? s.idx % 6 : s.cards.find(c => s.taken[c.idx] == null).idx;
+      const idx = s.idx % 6;
       assert.deepEqual(m.pickCard(ps, idx), { ok: true });
     }
     h.sched.advance(0);
     assert.equal(m.phase, 'PREP', 'the final manual pick advances immediately without any timeout');
     assert.equal(Object.keys(s.picks).length, count);
-    assert.equal(new Set(Object.values(s.picks)).size, capacity === 20 ? 6 : count);
+    assert.equal(new Set(Object.values(s.picks)).size, Math.min(6, count));
     assert.deepEqual(audit.violations, []);
     assert.equal(m.errorCount, 0);
   });
 }
 
-test('four-player draft cards AND subsequent RNG stream stay unchanged with experiment off or <=4 alive', () => {
-  const gd = new GameData(DATA, 'mode_multi_normal');
-  for (let seed = 1; seed <= 20; seed++) for (const round of [3, 6, 9, 11]) {
-    const a = createRng(seed), b = createRng(seed);
-    const legacy = generateDraft(gd, a, round);
-    const enabled = generateDraft(gd, b, round, { experimental: true, playerCount: 4 });
-    assert.deepEqual(enabled, legacy);
-    assert.deepEqual(Array.from({ length: 8 }, () => b()), Array.from({ length: 8 }, () => a()));
-    const c = createRng(seed), d = createRng(seed);
-    assert.deepEqual(generateDraft(gd, c, round, { playerCount: 20 }), generateDraft(gd, d, round));
-    assert.equal(c(), d());
+test('four-player/solo source cards AND subsequent RNG stream stay unchanged at every expanded player count', () => {
+  for (const modeId of ['mode_multi_normal', 'mode_single_normal']) {
+    const gd = new GameData(DATA, modeId);
+    for (let seed = 1; seed <= 20; seed++) for (const round of [3, 6, 9, 11]) for (const count of [2, 4, 5, 8, 12, 16, 20]) {
+      const a = createRng(seed), b = createRng(seed);
+      const legacy = generateDraft(gd, a, round);
+      const enabled = generateDraft(gd, b, round, { experimental: true, playerCount: count });
+      assert.deepEqual(enabled, legacy);
+      assert.deepEqual(Array.from({ length: 8 }, () => b()), Array.from({ length: 8 }, () => a()));
+    }
   }
 });
 
