@@ -1,6 +1,10 @@
 # Stardust fork working guidance
 
-## Latest Git publication request (2026-10-09)
+## Latest main-only cleanup request (2026-10-09)
+
+- Actual user now requested '清理一下 只留主分支'. Fast-forward the accepted release into local master and non-force publish origin/master, then remove only the inventoried local/fork non-master branch refs after confirming the remote master and their contained history. All9local non-master tips and the1origin feature tip are already ancestors of72e92357634554581da00cca3e0aa780f846a19a; no unmerged work is discarded. Verified private branch archive `/root/git-archives/stronghold-main-only-20261009-2db4oaa_/before-main-only.bundle` and inventory preserve the original tips. Keep BOTH stashes, every upstream ref/tag, all images/material/evidence/LAN preview and production services. Remote deletion is guarded by its exact expected tip; no history rewrite, upstream push, PR or service operation. Actual final master tip/cleanup receipt is in `.claude/dual-ingress-preparation-20261009.md`; future development still starts on a new feature branch and needs its own publication/cleanup authorization.
+
+## Historical feature-branch Git publication request (2026-10-09)
 
 - After the verified Formal release, the actual user requested '推送并收尾'. Publish this accepted release and its records on the current `feat/skins-capacity-matchmaking-20261008` branch to origin, without force. This supersedes the earlier LOCAL-only/no-push boundary for that branch; it does not request master integration, PR creation, branch/stash deletion, new maintenance, image cleanup, provider operations or Core-channel renewal. Preserve both stashes and the clean runtime source. No repeated acceptance or production operations for Git publication. Actual remote tip and completion are recorded in `.claude/dual-ingress-preparation-20261009.md`; the release record's `gitPushed:false` describes its activation-time snapshot, not later publication.
 
