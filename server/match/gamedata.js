@@ -96,6 +96,8 @@ export class GameData {
     this.config = getConfig(this.raw) || {};
     this.modeId = modeId;
     this.mode = getMode(modeId, this.raw) || {};
+    /** Per-Match opt-in strategy filter; raw effects and generated data are never modified. */
+    this.disableDuckLord = false;
     this.economy = this.config.economy && typeof this.config.economy === 'object' ? this.config.economy : {};
     const chess = this.raw.chess && typeof this.raw.chess === 'object' ? this.raw.chess : {};
     this._chess = chess;
@@ -279,7 +281,11 @@ export class GameData {
   get goldenCopies() { return posIntOr(this.economy.goldenCopies, DEFAULTS.goldenCopies); }
   get itemMergeCount() { return posIntOr(this.economy.itemMergeCount, DEFAULTS.itemMergeCount); }
   get leftoverKeptBands() { return Array.isArray(this.economy.leftoverFundsKeptByBands) ? this.economy.leftoverFundsKeptByBands : DEFAULTS.leftoverFundsKeptByBands; }
-  get defaultBandId() { return typeof this.economy.defaultBandId === 'string' ? this.economy.defaultBandId : DEFAULTS.defaultBandId; }
+  get defaultBandId() {
+    const id = typeof this.economy.defaultBandId === 'string' ? this.economy.defaultBandId : DEFAULTS.defaultBandId;
+    if (!this.disableDuckLord || id !== 'band_ducklord') return id;
+    return this.bandAllowed(DEFAULTS.defaultBandId) ? DEFAULTS.defaultBandId : this.bandIds()[0] ?? DEFAULTS.defaultBandId;
+  }
   get defaultStartLp() { return posIntOr(this.economy.defaultStartLp, DEFAULTS.defaultStartLp); }
 
   rewardOffer() {
@@ -477,7 +483,8 @@ export class GameData {
     const b = this.config.bandDraft && typeof this.config.bandDraft === 'object' ? this.config.bandDraft : {};
     return {
       skipsPerPlayer: Number.isInteger(b.skipsPerPlayer) && b.skipsPerPlayer >= 0 ? b.skipsPerPlayer : DEFAULTS.bandDraft.skipsPerPlayer,
-      timeoutBandId: typeof b.timeoutBandId === 'string' && this.band(b.timeoutBandId) ? b.timeoutBandId : this.defaultBandId,
+      timeoutBandId: typeof b.timeoutBandId === 'string' && this.band(b.timeoutBandId)
+        && !(this.disableDuckLord && b.timeoutBandId === 'band_ducklord') ? b.timeoutBandId : this.defaultBandId,
     };
   }
 
@@ -489,6 +496,7 @@ export class GameData {
 
   /** Band usable in this mode type. */
   bandAllowed(bandId) {
+    if (this.disableDuckLord && bandId === 'band_ducklord') return false;
     const b = this.band(bandId);
     if (!b) return false;
     const list = Array.isArray(b.modeTypeList) ? b.modeTypeList : null;

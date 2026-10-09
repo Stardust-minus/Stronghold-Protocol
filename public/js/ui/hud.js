@@ -104,7 +104,7 @@ export function PhaseCapsule({ pub, hud, miss = null }) {
       <${Sprite} k=${phase === PHASE.UNITE ? 'hudPanel/icon_coop' : 'hudPanel/icon_battle'} class="capsule__icon"
         fallback=${html`<${Icon} name="sword" class="capsule__icon" />`} />
       <span class="capsule__kills num"><b>${hud?.resolved ?? hud?.killed ?? 0}</b>/${hud?.total ?? '--'}</span>
-      ${phase === PHASE.UNITE ? html`<span class="capsule__tag">${relayRound ? t('联防 {round}/2', { round: relayRound }) : t('联防')}</span>` : null}
+      ${phase === PHASE.UNITE ? html`<span class="capsule__tag">${relayRound === 2 ? t('联防 {round}/2', { round: relayRound }) : t('联防')}</span>` : null}
       ${phase === PHASE.UNITE && Number.isFinite(miss) ? html`<${MissTag} n=${miss} />` : null}
     </div>`;
   }

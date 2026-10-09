@@ -6,13 +6,15 @@ import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shar
 export function experimentalOptions(input) {
   const capacity = roomCapacity('coop', input);
   return { revivalEnabled: input?.revivalEnabled === true, disableSharedPool: input?.disableSharedPool === true,
+    ...(capacity > MAX_SEATS && input?.disableDuckLord === true ? { disableDuckLord: true } : {}),
     ...(capacity === MAX_SEATS ? {} : { playerCapacity: capacity }) };
 }
 
 export function experimentalSummary(input) {
   const options = experimentalOptions(input);
   const summary = t('复活 {0} · 共享卡池 {1}', { 0: options.revivalEnabled ? t('开启') : tc('toggle', '关闭'), 1: options.disableSharedPool ? tc('toggle', '关闭') : t('开启') });
-  return options.playerCapacity ? t('{rules} · {n} 人模式', { rules: summary, n: options.playerCapacity }) : summary;
+  const rules = options.disableDuckLord ? `${summary} · ${t('禁用鸭爵策略')}` : summary;
+  return options.playerCapacity ? t('{rules} · {n} 人模式', { rules, n: options.playerCapacity }) : rules;
 }
 
 export function ExperimentalSummary({ value }) {
@@ -28,7 +30,10 @@ export function ExperimentalOptions({ open, value, mode = 'coop', source = 'priv
   const setCapacity = next => {
     if (!editable || busy || mode !== 'coop' || source === 'matchmaking' || !isPlayerCapacity(next)) return;
     const { playerCapacity, ...rules } = options;
-    onChange?.(next === MAX_SEATS ? rules : { ...rules, playerCapacity: next });
+    if (next === MAX_SEATS) {
+      const { disableDuckLord, ...ordinary } = rules;
+      onChange?.(ordinary);
+    } else onChange?.({ ...rules, playerCapacity: next });
   };
   return html`<${Modal} open=${open} title=${t('实验性选项')} micro="EXPERIMENTAL" ariaLabel=${t('实验性选项')} trapFocus=${true}
       class="experimental-modal" onClose=${onClose}
@@ -54,6 +59,11 @@ export function ExperimentalOptions({ open, value, mode = 'coop', source = 'priv
         <select id="experimental-capacity" value=${capacity} disabled=${!editable || busy} onChange=${e => setCapacity(Number(e.currentTarget.value))}>
           ${PLAYER_CAPACITIES.map(n => html`<option key=${n} value=${n}>${t('{n} 人', { n })}</option>`)}
         </select>
+      </label>` : null}
+      ${mode === 'coop' && capacity > MAX_SEATS ? html`<label class="experimental-option" for="experimental-ducklord">
+        <span><strong>${t('禁用鸭爵策略')}</strong><small>${t('勾选后，本局无法选择鸭爵策略；不影响其他策略。')}</small></span>
+        <input id="experimental-ducklord" type="checkbox" checked=${options.disableDuckLord === true}
+          disabled=${!editable || busy} onChange=${e => change('disableDuckLord', e.currentTarget.checked)} />
       </label>` : null}
     </div>
     <p class="experimental-options__note">${editable ? t('开局后不可更改') : t('由房间创建者设置')}</p>

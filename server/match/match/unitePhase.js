@@ -14,14 +14,14 @@ import { msg } from '../../../shared/i18n.js';
 
 export class MatchUnite {
   startUnite(plan) {
-    if (this.twentyPlayerMode && !this.alivePlayers().length) { this.settle(null, null); return; }
+    if (this.capacityExperiment && !this.alivePlayers().length) { this.settle(null, null); return; }
     if (plan.uniteRound === 1) this._uniteRelay = { rounds: [], eligible: new Set() };
     if (plan.uniteRound && !this.clientCombat) plan.battleId = `${this.battlePrefix}.${this.round}.${++this._battleSeq}.relay${plan.uniteRound}`;
     if (this.clientCombat) { this._startUniteClient(plan); return; }
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
     const limit = this.uniteTimeLimit(plan);
-    if (this.twentyPlayerMode && !(limit > 0)) { this.settle(plan, null); return; }
+    if (this.capacityExperiment && !(limit > 0)) { this.settle(plan, null); return; }
     const opts = this._uniteOpts(plan, limit);
     const players = plan.helpers.map((p) => p.playerId);
     this.fields = [this.combatPool ? this._remoteField(opts, players)
@@ -48,27 +48,30 @@ export class MatchUnite {
     this.runner.start();
   }
 
-  /** Twenty-mode has one frozen stage budget; only a viable distinct relay reserves a second share. */
+  /** Expanded rooms allocate 300 game seconds: fixed 150+150 for a viable relay, otherwise one 300. */
   uniteTimeLimit(plan) {
     const base = this.wave ? this.wave.timeLimit : 60;
-    if (!this.twentyPlayerMode) return base;
+    if (!this.capacityExperiment) return base;
     if (!this._uniteBudget) {
       const entryAlive = this.alivePlayers().length;
-      const total = Math.min(300, (base ?? 60) * entryAlive / 4);
-      this._uniteBudget = { entryAlive, base: base ?? 60, total, remaining: total };
+      const allocations = uniteRelayHelpers(this, plan).length ? [150, 150] : [300];
+      this._uniteBudget = { entryAlive, base: base ?? 60, total: 300, remaining: 300, allocations };
     }
     const budget = this._uniteBudget;
     plan.totalBudget = budget.total;
     plan.remainingBudget = budget.remaining;
     plan.gameSpeed = this.gameSpeed;
-    plan.timeLimit = budget.remaining / (uniteRelayHelpers(this, plan).length ? 2 : 1);
+    // Early completion consumes only natural elapsed time; it never increases the next allocation.
+    plan.timeLimit = Math.min(budget.remaining, budget.allocations[plan.uniteRound === 2 ? 1 : 0] ?? 0);
     plan.budgetSpent = 0;
     return plan.timeLimit;
   }
 
   /** Natural terminals consume max parallel game time, never CPU time or an unreleased headless result. */
   _consumeUniteBudget(plan, res, field) {
-    if (!this.twentyPlayerMode || !this._uniteBudget) return;
+    if (!this.capacityExperiment || !this._uniteBudget || this.disposed || this.ended
+      || this.phase !== PHASE.UNITE || this.unitePlan !== plan || !this.fields.includes(field)
+      || (field.cc ? !field.done : !field.battle?.finished)) return;
     const time = Number.isFinite(res?.time) ? res.time : Number(field.battle?.time) || 0;
     const spent = Math.min(plan.timeLimit, Math.max(plan.budgetSpent, time, 0));
     this._uniteBudget.remaining = Math.max(0, this._uniteBudget.remaining - (spent - plan.budgetSpent));
@@ -108,7 +111,7 @@ export class MatchUnite {
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
     const limit = this.uniteTimeLimit(plan);
-    if (this.twentyPlayerMode && !(limit > 0)) { this.settle(plan, null); return; }
+    if (this.capacityExperiment && !(limit > 0)) { this.settle(plan, null); return; }
     const opts = this._uniteOpts(plan, limit);
     const f = this._ccField({ fieldId: opts.fieldId, kind: 'unite', players: plan.helpers.map((p) => p.playerId), opts });
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
@@ -137,7 +140,7 @@ export class MatchUnite {
   _finishUniteField(plan, res, field) {
     if (this.disposed || this.ended || this.phase !== PHASE.UNITE || this.unitePlan !== plan
       || !this.fields.includes(field) || field.uniteCompleted
-      || this.twentyPlayerMode && (field.cc ? !field.done : !field.battle?.finished)) return;
+      || this.capacityExperiment && (field.cc ? !field.done : !field.battle?.finished)) return;
     field.uniteCompleted = true;
     this._consumeUniteBudget(plan, res, field);
     this._collectSimErrors(field, res);
@@ -164,7 +167,7 @@ export class MatchUnite {
     this.later(this.scaled(DELAYS.COMBAT_END), () => {
       if (this.phase !== PHASE.UNITE || this.unitePlan !== plan || !this.fields.includes(field) || field.uniteReleased) return;
       field.uniteReleased = true;
-      const next = this.twentyPlayerMode && !(this._uniteBudget.remaining > 0) ? null
+      const next = this.capacityExperiment && !(Math.min(this._uniteBudget.remaining, this._uniteBudget.allocations[1] ?? 0) > 0) ? null
         : planUniteRelay(this, plan, res, field.spec?.spawns || field.battle?.opts?.spawns);
       if (next) {
         this.runner?.stop();

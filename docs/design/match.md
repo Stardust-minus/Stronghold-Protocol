@@ -7,7 +7,7 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 ### 6.1 State machine (Match.js)
 
 ```
-LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed (§18.2); all ready ⇒ skip; the operator loadout (§16) locks when it ends) → BAND_DRAFT (co-op: random order — the room option 「AI 队友最后选择」 (host, off by default; `room.setAiPicksLast`) puts every human seat before every AI seat, each group keeping the drawn order, and draws no extra random number; a skipping human goes behind the other humans still to pick and ahead of the AI seats, or to the very end when no other human remains [ASSUMED] —, ONE countdown — `BAND_TURN_SECONDS` 30 s per turn = m.public.deadline, AI seats pick at once, 1 skip each, a strategy a teammate already took is refused (队友已选), timeout ⇒ the strategy the player highlights (`g.bandFocus`) while free, else band_bldsk, else the first free one; solo: free pick, no timer, no skip; a single human: untimed) → BATTLE_CHECK (3 s)
+LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed (§18.2); all ready ⇒ skip; the operator loadout (§16) locks when it ends) → BAND_DRAFT (co-op: random order — the room option 「AI 队友最后选择」 (host, off by default; `room.setAiPicksLast`) puts every human seat before every AI seat, each group keeping the drawn order, and draws no extra random number; a skipping human goes behind the other humans still to pick and ahead of the AI seats, or to the very end when no other human remains [ASSUMED] —, ONE countdown — `BAND_TURN_SECONDS` 30 s per turn = m.public.deadline, AI seats pick at once, 1 skip each, in ordinary co-op a strategy a teammate already took is refused (队友已选; expanded fork exception below), timeout ⇒ the strategy the player highlights (`g.bandFocus`) while free, else band_bldsk, else the first free one; solo: free pick, no timer, no skip; a single human: untimed) → BATTLE_CHECK (3 s)
 → loop r = 1..lastRound:
      ROUND_START   (income, upgrade price −1 (floor 0), temp NOT wiped — what overflowed after the last prep's deadline is shown in this
                     prep (§6.2 temp overflow), unfrozen shop slots rerolled, frozen kept, <进入休整期时> effects)
@@ -34,6 +34,39 @@ LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed 
 → RESULT (per-player stats, titles, rounds passed, victory/defeat)
 ```
 Solo FUNNY has 9 rounds (boss at R9); everything is read from `data/config.json → modes[modeId]`.
+
+**Fork expanded-co-op rules (2026-10-09, local candidate):** `capacityExperiment` means configured capacities
+8 / 12 / 16 / 20, even when the room starts short or loses players. Strategies and all 机变 families allow repeated
+choices, with six legal 机变 cards, the existing turn order and one confirmation per player. The server's
+`draft.allowRepeat` / `sp.allowRepeat` authorizes reuse; current `sp.picks` identifies every confirmed picker, while
+`taken` is only first-picker display metadata. The UI shows each player's chosen card and every picker of a reused
+card; this adds no persistent pick history or private-choice exposure. Ordinary four-player / solo rules stay as above.
+
+The host may opt into `experimental.disableDuckLord` only for expanded co-op (default unchecked). It is an optional
+strict boolean, canonically omitted when false or at capacity 4. The match's own `MatchGD` filters `band_ducklord`
+from manual picks, focus, timeout/autoplay and bot/default selection, and the strategy grid applies the same room rule.
+No global band/effect data is changed; unchecked expanded rooms, ordinary four-player and solo remain unaffected.
+Host-only mutation, queue locks, preparation invalidation, rule compatibility and local / cluster match inheritance
+use the existing nested experimental configuration. The fixed four-seat card-pool chunks remain **capacity-20 only**;
+this option and the timing rules below do not extend that pool policy to capacities 8 / 12 / 16.
+
+Every expanded co-op 联防 segment has a fixed **300 game-second** budget, not a wave-base / alive-count scaling.
+The original relay admission still requires at least eight alive at normal-combat start **and** UNITE entry. With a
+viable, genuinely perfect, unused helper reserve at entry, allocations freeze at **150 + 150** game seconds; without
+one the single field receives 300. Below-eight or sparse expanded rosters still get 300, but do not gain relay admission
+or necessarily relay metadata. Each field has at most two helpers and the segment at most two rounds. Round 2 starts
+only after the first natural terminal, with re-enterable residual enemies and still-alive, unused, genuinely perfect
+helpers; killed enemies are never replayed. Both fields use the original stage and each helper's normal-combat end
+state. Early completion consumes actual virtual time but never rolls saved time into the second field's 150-second
+cap. Generation / battle identity guards, natural headless release, idempotency, earnings / damage accounting and the
+single final source-attributed LP settlement remain authoritative; no first-round LP charge or premature rescue.
+
+First-round UI says 「联防」 / 「联防阶段」, not 1/2; only an actual second field says 「联防2/2」 /
+「接力联防第2轮」. Metadata, not text, identifies fields. An originally admitted >=8 plan with no viable reserve
+explicitly has `uniteRound: 1, uniteRounds: 1`; below-eight plans retain the legacy non-relay shape. Known-single
+fields still fence current field / battle identity and do not advertise a second-generation relay key. See
+[EXPERIMENTAL-MULTIPLAYER.md](../EXPERIMENTAL-MULTIPLAYER.md). Local inline / actual-Worker regressions and browser
+fixtures cover these rules and reconnects; no deployment, full natural match or production-capacity claim is implied.
 
 ### 6.2 Player state (PlayerState.js) — authoritative per player
 

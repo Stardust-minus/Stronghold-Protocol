@@ -64,8 +64,8 @@ export function phaseBanner(phase, pub, { alive = true, spectator = false } = {}
       const names = new Map(sortedPlayers(pub).map((p) => [p.playerId, p.name || t('博士')]));
       const helpers = Array.isArray(pub?.unite?.helpers) ? pub.unite.helpers.map((id) => names.get(id)).filter(Boolean) : [];
       const relayRound = uniteRelayRound(pub);
-      return { title: relayRound ? t('接力联防 · 第 {round} 轮', { round: relayRound }) : t('联防阶段'),
-        micro: relayRound ? `JOINT DEFENSE ${relayRound}/2` : 'JOINT DEFENSE', tone: 'orange',
+      return { title: relayRound === 2 ? t('接力联防 · 第 {round} 轮', { round: relayRound }) : t('联防阶段'),
+        micro: relayRound === 2 ? `JOINT DEFENSE ${relayRound}/2` : 'JOINT DEFENSE', tone: 'orange',
         sub: helpers.length ? t('联防：{names}', { names: helpers }) : t('完美作战的博士迎战突破防线的敌人') };
     }
     case PHASE.FINAL_ASSAULT: return { title: t('最终攻势'), micro: 'FINAL ASSAULT', tone: 'red', sub: t('击败敌方领袖') };
@@ -202,7 +202,7 @@ export function countdownState(deadline, now, total, warnAt = 10) {
   return { remain, warn: remain <= warnAt, bars, text: String(Math.min(999, remain)).padStart(2, '0'), frac };
 }
 
-/** The twenty-player stage budget and its round-start balance, in game seconds (not a live countdown). */
+/** The expanded-mode stage budget and its round-start balance, in game seconds (not a live countdown). */
 export function uniteBudgetInfo(pub) {
   if (pub?.phase !== PHASE.UNITE) return null;
   const total = pub.unite?.totalBudget, remaining = pub.unite?.remainingBudget;
@@ -211,7 +211,7 @@ export function uniteBudgetInfo(pub) {
 }
 
 /**
- * Nominal real seconds of the current timed phase; twenty-player UNITE uses the authority's round limit / speed.
+ * Nominal real seconds of the current timed phase; expanded UNITE uses the authority's round limit / speed.
  * Other phases use data/config.json, or null when unknown/untimed.
  * @param {any} pub m.public
  * @param {any} config data/config.json

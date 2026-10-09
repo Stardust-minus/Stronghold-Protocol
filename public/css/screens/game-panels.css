@@ -402,7 +402,9 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .spov__who.is-done { border-color: var(--mint-800); }
 .spov__who.is-self .spov__wname { color: var(--mint-400); }
 .spov__idx { font-size: .16rem; color: var(--text-dim); width: .2rem; text-align: center; }
+.spov__wtext { display: flex; flex-direction: column; gap: .03rem; min-width: 0; max-width: 1.6rem; }
 .spov__wname { font-size: .15rem; max-width: 1.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spov__wpick { font-size: max(.13rem, 11px); color: var(--mint-400); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spov__wstate { display: grid; }
 .spov__wstate .icon { width: .2rem; height: .2rem; }
 .spov__who.is-done .spov__wstate { color: var(--mint-400); }
@@ -458,6 +460,8 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
    (flex: none) */
 .spcard__desc { flex: none; font-size: .2rem; line-height: 1.4; color: var(--text-md); display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
 .spov__grid--3 .spcard__desc { -webkit-line-clamp: 10; }
+.spcard__pickers { display: flex; align-items: center; gap: .05rem; flex: none; margin-top: auto; font-size: max(.13rem, 11px); color: var(--mint-400); }
+.spcard__pickers .icon { width: 1em; height: 1em; flex: none; }
 .spcard__tags { display: flex; flex-wrap: wrap; gap: .06rem; }
 .spcard__tag { font-size: .13rem; font-weight: 700; padding: .01rem .08rem; }
 .spcard__tag--team { background: var(--mint-500); color: var(--text-on-mint); }

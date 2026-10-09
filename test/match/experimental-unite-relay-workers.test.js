@@ -13,7 +13,7 @@ async function pump(h, predicate, timeout = 10000) {
   const deadline = Date.now() + timeout;
   while (!predicate()) {
     assert.ok(Date.now() < deadline, `worker relay timed out in ${h.m.phase}/${h.m.unitePlan?.uniteRound}`);
-    h.sched.advance(33); await delay(3);
+    h.sched.advance(330); await delay(3);
   }
 }
 async function fixture(t, count = 8, options = {}) {
@@ -34,12 +34,14 @@ async function fixture(t, count = 8, options = {}) {
     return { ...o, spawns: p.seat === 0 ? [{ time: 0, enemyKey: 'enemy_1007_slime', count: 1, interval: 0,
       routeIndex: 0, ownerPlayerId: p.playerId, mods: { hpMul: 10 } }] : [] };
   };
-  // Keep the original terrain, template routing, mods, source and helper carry; advance only fixture spawn timing.
+  // Keep terrain, routing, mods, source and carry. Schedule the fixture's real residual near the fixed allocation's
+  // end (the old one-second limit used time0), or just after it for unspawned coverage; never fabricate results.
   m._uniteOpts = function(plan, limit) {
     plan.fixtureStartAt = this.sched.now();
     const o = Match.prototype._uniteOpts.call(this, plan, limit);
     return { ...o, spawns: o.spawns.map(s => ({ ...s,
-      time: options.delayBoth || options.unspawned && plan.uniteRound === 1 ? limit + 3 : 0 })) };
+      time: options.delayBoth || options.unspawned && plan.uniteRound === 1 ? limit + 3
+        : options.earlyFirst && plan.uniteRound === 1 ? 0 : Math.max(0, limit - 1) })) };
   };
   let settlements = 0;
   const original = m.settle.bind(m);
@@ -125,7 +127,7 @@ test('real oneWorker unspawned first residual preserves actual spawn mods/source
   await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 2 && m.runner.ready);
   const first = m._uniteRelay.rounds[0].result;
   assert.equal(first.reason, 'timeout'); assert.equal(first.unspawned.length, 1);
-  assert.equal(first.unspawned[0].time, 4); assert.equal(first.unspawned[0].sourcePlayerId, 'p_0');
+  assert.equal(first.unspawned[0].time, 153); assert.equal(first.unspawned[0].sourcePlayerId, 'p_0');
   assert.ok(Object.values(first.perPlayer).every(p => p.perfect && p.leaked.length === 0));
   assert.equal(m.fields[0].spec.spawns.length, 1);
   assert.equal(m.fields[0].spec.spawns[0].mods.hpMul, 10);
@@ -151,7 +153,7 @@ test('real oneWorker seven-human expanded room retains single-round IDs/results 
 });
 
 for (const [label, options, total] of [
-  ['entry twenty then departure', { base: 1, speed: 10 }, 5],
+  ['entry twenty then departure', { base: 1, speed: 10 }, 300],
   ['capped original base120', { base: 120, speed: 20, delayBoth: true }, 300],
 ]) test(`real oneWorker twenty total-budget ${label}: Spec/deadline/public, final LP once, virtual consumption and privacy`, { timeout: 20000 }, async t => {
   const s = await fixture(t, 20, options), { h, m, pool } = s;
@@ -165,7 +167,8 @@ for (const [label, options, total] of [
   await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 2 && m.runner.ready);
   const second = m.unitePlan, f2 = m.fields[0], result1 = m._uniteRelay.rounds[0].result;
   const spent1 = Math.min(first.timeLimit, result1.time);
-  assert.equal(second.timeLimit, total - spent1); assert.equal(second.remainingBudget, total - spent1);
+  assert.equal(second.timeLimit, 150); assert.equal(second.remainingBudget, total - spent1);
+  assert.equal(first.timeLimit + second.timeLimit, 300, 'fixed allocations never carry unused first time');
   assert.equal(second.totalBudget, total); assert.equal(f2.spec.timeLimit, second.timeLimit);
   assert.equal(m.deadline - second.fixtureStartAt, Math.round(second.timeLimit / options.speed * 1000));
   assert.equal(m.order[0].lp, before); assert.equal(s.settlements(), 0);
@@ -187,15 +190,56 @@ for (const [label, options, total] of [
   await pump(h, () => pool.stats().sessions === 0 && pool.stats().pending === 0 && pool.stats().cleanup === 0);
 });
 
-for (const capacity of [8, 12, 16]) test(`real oneWorker non-twenty capacity${capacity}: both relay Specs retain the original unscaled base and DTO`, { timeout: 15000 }, async t => {
+for (const capacity of [8, 12, 16]) test(`real oneWorker capacity${capacity}: both relay Specs allocate fixed150+150 and publish the budget`, { timeout: 15000 }, async t => {
   const { h, m } = await fixture(t, capacity, { capacity });
   await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 1 && m.runner.ready);
-  assert.equal(m.fields[0].spec.timeLimit, 1);
-  for (const key of ['timeLimit', 'totalBudget', 'remainingBudget', 'gameSpeed']) assert.equal(Object.hasOwn(m.publicView().unite, key), false);
+  assert.equal(m.fields[0].spec.timeLimit, 150); assert.equal(m.publicView().unite.totalBudget, 300);
+  assert.equal(m.publicView().unite.remainingBudget, 300);
   await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 2 && m.runner.ready);
-  assert.equal(m.fields[0].spec.timeLimit, 1); assert.equal(m._uniteBudget, undefined);
+  assert.equal(m.fields[0].spec.timeLimit, 150); assert.equal(m._uniteBudget.total, 300);
   await pump(h, () => m.phase === 'SETTLE'); assert.equal(m.order[0].stats.lpLost, 1);
   assert.equal(m.errorCount, 0); assert.equal(m.simErrors, 0);
+});
+
+for (const capacity of [8, 12, 16, 20]) test(`real oneWorker sparse four capacity${capacity}: original single-field qualification and fixed300 survive departure`, { timeout: 15000 }, async t => {
+  const { h, m, pool, settlements } = await fixture(t, 4, { capacity });
+  await pump(h, () => m.phase === 'UNITE' && m.runner.ready);
+  const field = m.fields[0], plan = m.unitePlan;
+  assert.equal(m._normalAliveCount, 4); assert.equal(plan.uniteRound, undefined); assert.equal(m._uniteRelay, null);
+  assert.equal(field.spec.timeLimit, 300); assert.equal(plan.totalBudget, 300); assert.equal(plan.remainingBudget, 300);
+  assert.equal(m.publicView().uniteRound, undefined); assert.equal(m.publicView().unite.totalBudget, 300);
+  m.onLeave('p_3'); assert.equal(m._uniteBudget.entryAlive, 4); assert.equal(field.spec.timeLimit, 300);
+  await pump(h, () => m.phase === 'SETTLE');
+  assert.equal(settlements(), 1); assert.equal(m.order[0].stats.lpLost, 1); assert.equal(m.uniteResultView.rounds, undefined);
+  assert.equal(m._uniteBudget.remaining, 0); assert.equal(m.errorCount, 0); assert.equal(m.simErrors, 0);
+  await pump(h, () => pool.stats().sessions === 0 && pool.stats().pending === 0 && pool.stats().cleanup === 0);
+});
+
+test('real oneWorker early natural first leak: actual elapsed ledger never increases second allocation150', { timeout: 15000 }, async t => {
+  const { h, m, settlements } = await fixture(t, 8, { capacity: 8, earlyFirst: true });
+  await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 2 && m.runner.ready);
+  const first = m._uniteRelay.rounds[0], second = m.unitePlan;
+  assert.equal(first.result.synthetic, undefined); assert.ok(first.result.time > 0 && first.result.time < 150);
+  const residuals = Object.values(first.result.perPlayer).flatMap(pp => pp.leaked);
+  assert.equal(residuals.length, 1); assert.equal(residuals[0].sourcePlayerId, 'p_0', 'real natural residual, not a fabricated timeout result');
+  assert.equal(first.plan.timeLimit, 150); assert.equal(second.timeLimit, 150); assert.equal(m.fields[0].spec.timeLimit, 150);
+  assert.equal(second.remainingBudget, 300 - first.result.time); assert.ok(second.remainingBudget > second.timeLimit);
+  assert.equal(settlements(), 0); assert.equal(m.order[0].stats.lpLost, 0);
+  await pump(h, () => m.phase === 'SETTLE'); assert.equal(settlements(), 1); assert.equal(m.order[0].stats.lpLost, 1);
+  assert.equal(m._uniteRelay.rounds.length, 2); assert.ok(m._uniteBudget.remaining > 0);
+  assert.equal(m.errorCount, 0); assert.equal(m.simErrors, 0);
+});
+
+test('real oneWorker all unused helpers lost after entry: no extra field, single settlement and honest metadata', { timeout: 15000 }, async t => {
+  const { h, m, settlements } = await fixture(t, 8, { capacity: 12 });
+  await pump(h, () => m.phase === 'UNITE' && m.runner.ready);
+  const first = m.unitePlan, field = m.fields[0];
+  for (const ps of first.relayCandidates) ps.eliminate();
+  assert.equal(first.timeLimit, 150); assert.equal(m.publicView().uniteRounds, 1);
+  assert.equal(m.publicView().unite.battleId, field.spec.battleId);
+  await pump(h, () => m.phase === 'SETTLE');
+  assert.equal(settlements(), 1); assert.equal(m._uniteRelay.rounds.length, 1); assert.equal(m._uniteBudget.remaining, 150);
+  assert.equal(m.order[0].stats.lpLost, 1); assert.equal(m.errorCount, 0); assert.equal(m.simErrors, 0);
 });
 
 test('real oneWorker relay cancellation: queued second generation closes; late first reply cannot finalize another phase', { timeout: 15000 }, async t => {

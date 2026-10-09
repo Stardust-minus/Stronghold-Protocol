@@ -1,4 +1,4 @@
-// Expanded-room relay regressions. Ordinary four-seat/small-alive rules remain single-round.
+// Expanded-room relay regressions. Existing entry/start>=8 relay qualification stays; sparse rounds get one300.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
@@ -91,19 +91,20 @@ for (const [label, options] of [
   ['ordinary four', { humans: 4, experimental: { ...experiment, playerCapacity: 4 } }],
   ['expanded seven alive', { humans: 7 }],
   ['expanded four alive', { humans: 4 }],
-]) test(`${label}: unchanged single-round plan and DTO, own losses/rewards`, t => {
+]) test(`${label}: unchanged single-round plan/identity, expanded single300 and own losses/rewards`, t => {
   const h = fixture(t, options), m = h.m;
   first(h);
   assert.equal(m.unitePlan.uniteRound, undefined); assert.equal(m._uniteRelay, null);
   assert.equal(Object.hasOwn(m.publicView(), 'uniteRound'), false);
   assert.equal(Object.hasOwn(m.publicView().unite, 'rounds'), false);
+  if (m.capacityExperiment) assert.equal(m.unitePlan.timeLimit, 300);
   settle(h);
   assert.equal(h.ps('p_0').lp, 18);
   assert.equal(m.publicView().uniteResult.rounds, undefined);
   assert.deepEqual(m.uniteResultView.helpers, ['p_1', 'p_2']);
 });
 
-for (const when of ['normal-start', 'qualification']) test(`eight threshold uses actual alive at ${when}, not configured twenty capacity`, t => {
+for (const when of ['normal-start', 'qualification']) test(`eight threshold uses actual alive at ${when}; below threshold gets single300 without new relay eligibility`, t => {
   const h = fixture(t), m = h.m;
   if (when === 'normal-start') m.onLeave('p_7');
   else {
@@ -111,6 +112,7 @@ for (const when of ['normal-start', 'qualification']) test(`eight threshold uses
     m._afterCombat = () => { m.onLeave('p_7'); return after(); };
   }
   first(h); assert.equal(m._uniteRelay, null); assert.equal(m.unitePlan.uniteRound, undefined);
+  assert.equal(m.unitePlan.timeLimit, 300);
   settle(h); assert.equal(h.ps('p_0').lp, 18);
 });
 

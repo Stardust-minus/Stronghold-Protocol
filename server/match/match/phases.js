@@ -149,8 +149,8 @@ export class MatchPhases {
    */
   defaultBand(playerId) {
     const def = this.gd.bandDraft.timeoutBandId;
-    if (!this.bandTaken(def, playerId)) return def;
-    return this.gd.bandIds().find((b) => !this.bandTaken(b, playerId)) || def;
+    if (!this.bandTaken(def, playerId) && (!this.disableDuckLord || this.gd.bandAllowed(def))) return def;
+    return this.gd.bandIds().find((b) => !this.bandTaken(b, playerId)) || (this.disableDuckLord ? this.gd.defaultBandId : def);
   }
 
   /**

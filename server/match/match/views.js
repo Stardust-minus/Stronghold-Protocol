@@ -13,6 +13,7 @@ import { bountySpawns, previewOf } from '../waves.js';
 import { timelineAt } from '../fields.js';
 import { bossFieldPlacement } from '../finalAssault.js';
 import { battleProgress } from '../../sim/spec.js';
+import { uniteRelayHelpers } from '../unite.js';
 
 /** A reported capsule numerator clamped to its denominator, else null (unknown — never a fabricated 0). */
 const finiteOrNull = (v, cap = Infinity) => {
@@ -160,11 +161,12 @@ export class MatchViews {
     }
     if (this.phase === PHASE.UNITE && this.unitePlan) {
       v.unite = { helpers: this.unitePlan.helpers.map((p) => p.playerId), leakers: this.unitePlan.leakers.map((p) => p.playerId),
-        ...(this.twentyPlayerMode ? { timeLimit: this.unitePlan.timeLimit, totalBudget: this.unitePlan.totalBudget,
+        ...(this.capacityExperiment ? { timeLimit: this.unitePlan.timeLimit, totalBudget: this.unitePlan.totalBudget,
           remainingBudget: this.unitePlan.remainingBudget, gameSpeed: this.unitePlan.gameSpeed } : {}) };
       if (this._uniteRelay) {
         v.uniteRound = this.unitePlan.uniteRound;
-        v.uniteRounds = 2; // relay ceiling, not a promise that an empty/unavailable second field will run
+        v.uniteRounds = this.unitePlan.uniteRound === 2
+          || this._uniteBudget?.allocations.length === 2 && uniteRelayHelpers(this, this.unitePlan).length ? 2 : 1;
         v.unite.battleId = v.fields[0]?.battleId;
         v.unite.rounds = this._uniteRelay.rounds.map((r) => ({ ...r.view, helpers: r.view.helpers.slice() }));
       }

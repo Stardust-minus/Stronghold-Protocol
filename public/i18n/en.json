@@ -1,4 +1,6 @@
 {
+  "禁用鸭爵策略": "Disable the Duck Lord strategy",
+  "勾选后，本局无法选择鸭爵策略；不影响其他策略。": "When checked, Duck Lord cannot be selected in this match. Other strategies are unchanged.",
   "文件过大，请选择「导出」下载的干员预设文件": "File too large. Select an operator preset saved with Export.",
   "已导入完整干员预设": "Complete operator preset imported",
   "已导入兼容配置，仅更新文件包含的项目": "Legacy settings imported. Only the included sections were updated.",

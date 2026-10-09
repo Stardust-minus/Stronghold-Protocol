@@ -11,6 +11,9 @@ export const MATCHMAKING_DEFAULTS = Object.freeze({ maxEntries: 0, maxPerAddr: 0
 const OK = Object.freeze({ ok: true });
 const fail = (error, detail) => ({ error, detail });
 const id = () => randomBytes(16).toString('hex');
+// Preserve ordinary-room preference order; each pool appends any newer room-owned option keys.
+const LEGACY_OPTION_KEYS = Object.freeze([false, true].flatMap(revivalEnabled => [false, true]
+  .map(disableSharedPool => experimentalKey({ revivalEnabled, disableSharedPool }))));
 
 // Observe cleanup/invalid async-commit rejections without logging provider data.
 function observeThenable(value) {
@@ -357,7 +360,9 @@ export class Matchmaking {
       pool.sort((a, b) => a.sequence - b.sequence);
       const unused = new Set(pool);
       const buckets = new Map();
+      const optionKeys = new Set(LEGACY_OPTION_KEYS);
       for (const party of pool) {
+        if (party.experimental) optionKeys.add(experimentalKey(party.experimental));
         const key = `${party.entries.length}:${party.experimental ? experimentalKey(party.experimental) : '*'}`;
         if (!buckets.has(key)) buckets.set(key, { parties: [], cursor: 0 });
         buckets.get(key).parties.push(party);
@@ -368,7 +373,7 @@ export class Matchmaking {
         let rest = null;
         // Solos are wildcards; fixed-option parties only merge with compatible parties.
         // Capacity/flag buckets bound the fit to at most twenty slots, independently of queue length.
-        for (const optionKey of leader.experimental ? [experimentalKey(leader.experimental)] : ['00', '01', '10', '11']) {
+        for (const optionKey of leader.experimental ? [experimentalKey(leader.experimental)] : optionKeys) {
           const candidates = [];
           for (let size = 1; size <= remaining; size++) for (const key of ['*', optionKey]) {
             const bucket = buckets.get(`${size}:${key}`);

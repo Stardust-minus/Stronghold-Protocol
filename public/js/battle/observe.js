@@ -26,7 +26,9 @@ export const uniteRelayKey = (pub) => uniteRelayRound(pub) ? `${pub.round}:${pub
 
 /** A new relay public state may arrive before its field; never re-enter the previous helpers' battle. */
 export function currentRelayField(pub, field) {
-  if (!uniteRelayRound(pub)) return true;
+  const single = pub?.phase === PHASE.UNITE && pub.uniteRounds === 1 && pub.uniteRound === 1
+    && typeof pub.unite?.battleId === 'string';
+  if (!uniteRelayRound(pub) && !single) return true;
   const current = fields(pub).find(f => f.kind === 'unite');
   return !!current && field?.fieldId === current.fieldId
     && (!pub.unite?.battleId || !field.battleId || field.battleId === pub.unite.battleId);

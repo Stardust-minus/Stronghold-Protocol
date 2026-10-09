@@ -34,16 +34,28 @@ test('relay field admission waits for the new helper generation, including recon
   assert.equal(currentRelayField({ phase: PHASE.COMBAT }, { fieldId: 'n:p1' }), true);
 });
 
-test('banner and persistent capsule identify each relay; ordinary unite labels remain unchanged', () => {
-  for (const round of [1, 2]) {
-    const pub = relay(round), banner = phaseBanner(PHASE.UNITE, pub);
-    assert.match(banner.title, new RegExp(`第 ${round} 轮`));
-    assert.equal(banner.micro, `JOINT DEFENSE ${round}/2`);
-    assert.ok(text(PhaseCapsule({ pub, hud: { killed: 0, total: 7 } })).includes(`联防 ${round}/2`));
+test('known single-round metadata keeps the current field and battle identity fence', () => {
+  const pub = { ...relay(1), uniteRounds: 1 };
+  assert.equal(uniteRelayKey(pub), null, 'no second-generation transition is promised');
+  assert.equal(currentRelayField(pub, { fieldId: 'n:p1', battleId: first.battleId }), false);
+  assert.equal(currentRelayField(pub, { fieldId: 'u', battleId: 'old-battle' }), false);
+  assert.equal(currentRelayField(pub, { fieldId: 'u', battleId: first.battleId }), true);
+  assert.equal(currentRelayField({ ...pub, fields: [] }, { fieldId: 'u', battleId: first.battleId }), false);
+});
+
+test('first unite never promises a second round; only an actual second relay is numbered', () => {
+  for (const pub of [relay(1), { ...relay(1), uniteRounds: 1 }, { ...relay(1), uniteRounds: undefined, uniteRound: undefined }]) {
+    const banner = phaseBanner(PHASE.UNITE, pub);
+    assert.equal(banner.title, '联防阶段');
+    assert.equal(banner.micro, 'JOINT DEFENSE');
+    const capsule = text(PhaseCapsule({ pub, hud: { killed: 0, total: 7 } }));
+    assert.ok(capsule.includes('联防'));
+    assert.ok(!capsule.includes('/2'));
   }
-  const pub = { ...relay(1), uniteRounds: undefined, uniteRound: undefined };
-  assert.equal(phaseBanner(PHASE.UNITE, pub).title, '联防阶段');
-  assert.ok(text(PhaseCapsule({ pub, hud: null })).includes('联防'));
+  const pub = relay(2), banner = phaseBanner(PHASE.UNITE, pub);
+  assert.match(banner.title, /第 2 轮/);
+  assert.equal(banner.micro, 'JOINT DEFENSE 2/2');
+  assert.ok(text(PhaseCapsule({ pub, hud: { killed: 0, total: 7 } })).includes('联防 2/2'));
 });
 
 test('damage scope unions actual relay helpers, never leak sources, and reads the absolute ledger once', () => {

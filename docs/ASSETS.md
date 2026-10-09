@@ -345,7 +345,25 @@ pose carried over (`render/spine.js syncFormPose`). The forms:
 Not mapped (clip names ambiguous): “自在”, “巨大的丑东西”, 主角阵营角色 and “余音” (`*_A` / `*_B`: which of its two forms is A
 is not known) keep their manifest clips.
 
-Other renderer rules from research 07 §5.4–5.5:
+### PREP first-pose readiness
+
+The 2026-10-09 local renderer candidate selects the manifest Idle in `public/js/render/spine.js SpineActor` and
+immediately calls `spine.update(0)` before readiness, bounds measurement or first draw. With `autoUpdate` off,
+selecting a track alone need not apply its attachments / world pose. A zero-time update materializes Idle without
+advancing either actor or battle time; it does not play the `Default` or deploy `Start` clip.
+
+For Archetto's `char_332_archet_sale_14` skin, the baseline **steady 2D** Front / Back / bench scene already rendered
+correctly. The diagnostic inspected the narrower constructor interval after Idle selection but before any update:
+both sides had EMPTY bounds and undrawn slots; applying Idle at zero time supplies the first pose. The proposed
+Default / Start prerequisite was disproven. This is not evidence of a missing skeleton / atlas / texture file, nor a
+persistent disappearance in that baseline. Resource files, manifests, character / skill / audio identity, simulation
+stats, timings and RNG are unchanged. Local HTTP/WS browser checks exercised true 3D PREP, Front / Back / bench,
+landscape viewports and immediate zero-clock poses on server-Worker and browser-client paths. These bounded fixtures
+are not physical-device, full-match or production-capacity proof, and no deployment is implied.
+
+### Other renderer rules
+
+From research 07 §5.4–5.5:
 - **Choosing the model:** Front when the unit faces right or down; Front mirrored when facing left; Back when facing up — while it stands: a dead or knocked-out operator falls and lies with the Front model unless its Back skeleton has a Die clip of its own (131 of the 135 have none; DESIGN §22.1, GitHub issue #25).
 - **Attack speed:** set the attack `timeScale` to `duration / attackInterval`.
 - **Model size:** every skeleton is drawn at one `UNIT.modelScale` (render/style.js, 320 skeleton units per tile), which stands for the official standard. The official client also scales each enemy model in its battle prefab: the Graphic / FaceSwitcher / Spine transforms multiply to 0.27 for most enemies and for the operators' battle skins, but not for all of them. For example, 威龙 is 0.16, 妖怪 0.20 and 青铜镜 0.6. The skeletons themselves carry no such scale, because every enemy SkeletonDataAsset uses 0.01. So an enemy is drawn × data/enemies.json `modelScale` (its prefab's product ÷ 0.27, see docs/DATA.md; user playtest #6: 威龙 used to be drawn 1.35× a 妖怪 instead of 1.08×), and its HP bar sits on that model: at its setup-pose bounds' height × the same factors, or, for a skeleton without bounds, at the chibi headroom × `modelScale` (bosses 2.2 tiles). `tools/local-extract/enemy_scales.py` reads the products from a local client, and `tools/build-data.mjs MODEL_SCALES` keeps them. Two prefab quirks on top (PR #211 by @xcdoge; the owner's decision of 2026-10-06; docs/research/12 §3.1): the two 帝国炮火先兆者 are stretched vertically (`modelScaleY` 1.263: their Graphic scale is (0.19, 0.24, 0.24)) and 木制瑞印 is mirrored (`mirrorX`: a negative Graphic X scale) — `tools/local-extract/enemy_model_offsets.py` reads them, `tools/build-data.mjs MODEL_STRETCH_Y` / `MIRRORED_PREFABS` keep them.

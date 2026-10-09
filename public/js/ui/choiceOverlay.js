@@ -23,7 +23,7 @@ import { itemIconUrl, enemyIconUrl, uiUrl } from './assetUrls.js';
 import { richTextPlain } from './richText.js';
 import { sortedPlayers } from './gameLogic.js';
 import { data } from '../data.js';
-import { t, tName } from '../../../shared/i18n.js';
+import { t, tc, tName } from '../../../shared/i18n.js';
 import { sentText } from './lang.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -205,13 +205,17 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
       ${order.length ? html`<div class="spov__order" ref=${orderRef} aria-label=${t('决策顺序')}>
         ${order.map((pid, i) => {
           const p = players.get(pid);
-          const picked = sp.pickOf.has(pid);
+          const pick = sp.cards.find((c) => c.idx === sp.pickOf.get(pid));
+          const picked = !!pick;
+          const pickName = pick ? resolveSpCard(pick, sp.family).name : null;
           const cur = sp.turnPid === pid && !picked;
           const left = p?.status === 'left';
           return html`<div key=${pid} class=${cx('spov__who', cur && 'is-cur', picked && 'is-done', pid === myId && 'is-self')}>
             <span class="spov__idx num">${i + 1}</span>
             <${PlayerAvatar} player=${p || { name: '?' }} size="sm" self=${pid === myId} />
-            <span class="spov__wname">${p?.name || t('博士')}</span>
+            <span class="spov__wtext"><span class="spov__wname">${p?.name || t('博士')}</span>
+              ${pickName ? html`<span class="spov__wpick" data-picked-idx=${pick.idx} title=${pickName}>${pickName}</span>` : null}
+            </span>
             <span class="spov__wstate">${left ? html`<${Icon} name="exit" />` : picked ? html`<${Icon} name="check" />` : cur ? html`<${Icon} name="hourglass" />` : html`<${Icon} name="dots" />`}</span>
           </div>`;
         })}
@@ -225,7 +229,8 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
           const can = cardPickable(sp, card, { myId, solo, busyIdx });
           const busy = pickBusy(busyIdx, card, mine, sp.allowRepeat);
           const isArmed = can && armed === card.idx;
-          const takerName = taker ? (card.takenBy === myId ? t('你') : taker.name) : null;
+          const pickers = sp.allowRepeat === true ? order.filter((pid) => sp.pickOf.get(pid) === card.idx && players.has(pid)).map((pid) => players.get(pid)) : [];
+          const takerName = taker ? (card.takenBy === myId ? t('你') : taker.name) : pickers.length ? pickers.map((p) => p.name).join(tc('list', '、')) : null;
           return html`<button key=${card.idx} type="button" data-card-idx=${card.idx} class=${cx('spcard', `spcard--${r.kind}`, taken && 'is-taken', isMine && 'is-mine', can && 'is-pickable', isArmed && 'is-armed', busy && 'is-busy')}
               aria-busy=${busy ? 'true' : undefined} aria-pressed=${can ? String(isArmed) : undefined} disabled=${!can} onClick=${() => can && onTap(card.idx)}
               aria-label=${isArmed ? t('{name}，已选中，再次点击确认', { name: r.name }) : takerName ? t('{name}，{takerName}已选择', { name: r.name, takerName }) : r.name} title=${`${r.name}\n${richTextPlain(r.desc)}`}>
@@ -243,6 +248,7 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
             <${RichText} text=${r.desc} class="spcard__desc" />
             ${r.tier ? html`<${TierChip} tier=${r.tier} size="md" class="spcard__tier" />` : null}
             ${taker ? html`<span class="spcard__taker" title=${t('{name} 已选择', { name: taker.name })}><${PlayerAvatar} player=${taker} size="sm" /></span>` : null}
+            ${pickers.length ? html`<span class="spcard__pickers" data-picked-count=${pickers.length} title=${t('{name} 已选择', { name: takerName })}><${Icon} name="check" />${t('{name} 已选择', { name: takerName })}</span>` : null}
             ${isArmed ? html`<span class="spcard__confirm" role="status"><b>${t('确认选择')}</b><small>${t('再次点击')}</small></span>` : null}
             ${busy ? html`<span class="spcard__busy" role="status">${t('选择中')}</span>` : null}
           </button>`;

@@ -161,6 +161,8 @@ export class SpineActor {
     this.clipPerAttack = false;
     this.wound = false;           // clipPerAttack: wound up for the coming attack (windUp → attack)
     this._play(this._idleName(), true);
+    // Async PREP loads may be drawn or measured before the first tick; pose the idle without advancing its clock.
+    this.spine.update(0);
   }
 
   /** Enable / disable the skeleton's clipping masks. */
