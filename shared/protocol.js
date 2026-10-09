@@ -329,7 +329,7 @@ export function checkDiyPicks(picks, { data, kitted = null } = { data: null }) {
   return { ok: true, picks: kept, dropped };
 }
 
-// ---- unit stats (user playtest #4 item 7): m.unitStats units and the browser battle's live stats ---------------------
+// ---- unit stats (user playtest #4 item 7): m.unitStats units and live battle detail DTOs ----------------------------
 
 const fin = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const round1 = (v) => Math.round(v * 10) / 10;
@@ -351,8 +351,9 @@ const statView = (x) => ({
  * or the last ones the sim computed) next to its own numbers — `unit.base` with its 练度 multiplier (`unit.cultMul`,
  * 0.2.2: part of the operator's own numbers, as on the record cards; no buffs) — max HP, ATK, DEF, RES, attack interval
  * (s), block, move speed — rounded for display (the sim keeps floats), plus the current HP. The shape of the
- * `m.unitStats` units (Match.unitStats: what the board's units start their next battle with) and of the browser
- * runner's live battle stats (public/js/battle/runner.js unitStats). An ally with a range also carries `range`: the grid
+ * `m.unitStats` units (Match.unitStats: what the board's units start their next battle with), the browser runner's live
+ * battle stats (public/js/battle/runner.js unitStats), and server-streamed `b.snap.unitStats` (Battle.snapshot with
+ * includeUnitStats: true; exactly the tuple-listed units, cached `unit._s` only). An ally with a range carries `range`: the grid
  * (`[dRow, dCol]`, facing RIGHT) it attacks with now — a running skill's range, rangeExtend included, not a kit's
  * target-selection grid (the sim's `unit.liveRangeGrid`, Battle._refreshRange; community report E1 after 0.1.0: 烛煌
  * S3's 4-11 never reached the card). `dir`: the unit's facing now (UP / RIGHT / DOWN / LEFT; UnitInfo.dir is the facing
@@ -516,7 +517,8 @@ export const S2C = [
   // Operator keys identify pieces, not definitions. Damage is actual opposing HP lost, summons credited to root ops.
   // Client-authoritative combat sends available:false with owners:[] instead of trusting submitted operator stats.
   'm.damage',
-  // server-run combat streaming (legacy / SP_COMBAT=server only)
+  // server-run combat streaming (legacy / SP_COMBAT=server only); full b.snap carries unitStats: [unitStatsEntry],
+  // [] when no units are listed. Detail DTOs are display only; nine-field tuples and b.ev are unchanged.
   'b.snap', 'b.ev',
   // Low-frequency absolute field scores: b.damage { fieldId, kind, round, gt, owners } (same owner rows as m.damage).
   // Independent of b.snap; snapshots must not clear the latest score. No C2S subscription or version bump.

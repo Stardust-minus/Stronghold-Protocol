@@ -62,6 +62,7 @@ const b = new Battle({
 });
 while (!b.finished) b.step();      // 1 TICK = 1/30 game s; live battles run at the forced 2× = 60 ticks per real second
 b.snapshot();  b.drainEvents();   // every 3 ticks for watchers (§8.2 wire format)
+b.snapshot({ includeUnitStats: true }); // server-run display: current effective/base stats of the listed units
 b.result();                        // BattleResult (DESIGN §5.1) — see §1.3
 b.forceEnd('forced' | 'timeout'); // 'timeout' converts remaining enemies to leaks
 b.fieldMeta();                     // { fieldId, kind, rect, stageId, units: UnitInfo[] } for m.field

@@ -104,7 +104,9 @@ export class DeadBattle {
   step() {}
   forceEnd() {}
   result() { return this._result; }
-  snapshot() { return { fieldId: this.fieldId, t: 0, units: [], dp: 0, killed: 0, total: 0, resolved: 0 }; }
+  snapshot({ includeUnitStats = false } = {}) {
+    return { fieldId: this.fieldId, t: 0, units: [], ...(includeUnitStats ? { unitStats: [] } : {}), dp: 0, killed: 0, total: 0, resolved: 0 };
+  }
   drainEvents() { return []; }
   fieldMeta() { return { fieldId: this.fieldId, kind: this.kind, rect: this.rect, stageId: this.stageId, units: [] }; }
   on() { return null; }
@@ -246,7 +248,7 @@ export class FieldRunner {
     if (!watchers.length) return;
     let snapMsg = null;
     if (this._snapshotDue(f)) {
-      try { snapMsg = snapFrame(f.fieldId, f.battle.snapshot()); } catch (e) { this.m.reportError(`field ${f.fieldId} snapshot`, e); }
+      try { snapMsg = snapFrame(f.fieldId, f.battle.snapshot({ includeUnitStats: true })); } catch (e) { this.m.reportError(`field ${f.fieldId} snapshot`, e); }
     }
     const evMsg = ev.length ? eventFrame(f.fieldId, f.battle, ev) : null;
     if (evMsg && snapMsg) evMsg.gt = snapMsg.gt;

@@ -45,8 +45,8 @@
 // leaker's enemies still standing — runner state().uniteLeft / m.public players[].uniteLeft, the ×N tag — user
 // playtest #6 item 7); while the temp overflow row (临时整备区) holds pieces it is framed and labelled on the board
 // (ui/underframe.js TempRowNotice) and 准备就绪 / Space say why they are refused (item 3).
-// User playtest #4: the detail card shows live stats (item 7) — in battle the local sim's unit (battle/runner.js
-// unitStats), in prep an own board unit's start-of-battle stats (g.unitStats → m.unitStats); 机变 cards take two taps
+// User playtest #4: the detail card shows live stats (item 7) — in battle the local sim's unit or the shown server
+// snapshot's unitStats, in prep an own board unit's start-of-battle stats (g.unitStats → m.unitStats); 机变 cards take two taps
 // (item 2, ui/choiceOverlay.js).
 // Merges (user playtest #6 follow-up, PRTS 卫戍协议/帮助 "若消耗已部署至作战区的干员，则发送至作战区对应位置"): a shop /
 // reward card armed for a purchase that completes a merge lights, in gold, the board tile its elite will take (the
@@ -118,7 +118,7 @@ import { audio, resultSpeaker, resultVoiceSlot } from '../audio.js';
 import { useDocClass, FullscreenButton } from '../ui/device.js';
 // MatchEnded, PausedOverlay, the highlight styles and keepEarly live in ./game/*.js.
 import { HUD_HZ_MS, MERGE_HL, SEL_RANGE, cx } from './game/marks.js';
-import { keepEarly, audioEarly } from './game/early.js';
+import { keepEarly, audioEarly, snapshotStats, snapshotUnitStats, notePieceUnits } from './game/early.js';
 import { MatchEnded, PausedOverlay } from './game/overlays.js';
 import { inspectRange } from './game/range.js';
 import { t, tParts } from '../../../shared/i18n.js';
@@ -363,6 +363,8 @@ function MatchScreen() {
   const lastFieldRef = useRef(null);
   const viewModeRef = useRef(null);
   const snapUnitsRef = useRef(new Map());
+  const snapStatsRef = useRef(snapshotStats(null));
+  const pieceUnitsRef = useRef(new Map());
   // the shown battle's device units (crates / “双眼皮” turrets: UnitInfo by id) — the meta's `units` plus the 'spawn' events,
   // for the tap on a device (gameLogic.deviceTipAt); the renderer's pick skips devices, a tap on one lands in tileClick
   const deviceUnitsRef = useRef(new Map());
@@ -421,6 +423,8 @@ function MatchScreen() {
     evBufRef.current = new Map([...evBufRef.current].filter(([id]) => id === currentId));
     snapBufRef.current = new Map([...snapBufRef.current].filter(([id]) => id === currentId));
     snapUnitsRef.current = new Map();
+    snapStatsRef.current = snapshotStats(null);
+    pieceUnitsRef.current = new Map();
     hudRef.current = null;
     lastFieldRef.current = null;
     enteredFieldRef.current = null;
@@ -431,6 +435,8 @@ function MatchScreen() {
   useEffect(() => {
     if (!view) return;
     if (showPrep) {
+      snapStatsRef.current = snapshotStats(null);
+      pieceUnitsRef.current = new Map();
       if (field?.prep) staleFieldRef.current = field; // a prep scouting board is never a battle to enter
       if (viewModeRef.current !== 'prep') {
         // the battle we just left (or whatever was stored before mount) must not be re-entered next combat;
@@ -461,10 +467,12 @@ function MatchScreen() {
     reentryRef.current = null;
     viewModeRef.current = 'battle';
     snapUnitsRef.current = new Map();
+    snapStatsRef.current = snapshotStats(null);
     view.enterBattle(field);
     const early = evBufRef.current.get(field.fieldId);
     evBufRef.current.delete(field.fieldId);
     deviceUnitsRef.current = noteDeviceUnits(new Map(), { units: field.units, events: early });
+    pieceUnitsRef.current = notePieceUnits(new Map(), { infos: field.units, events: early });
     const earlySnap = snapBufRef.current.get(field.fieldId);
     snapBufRef.current.delete(field.fieldId);
     // a scouted prep board frames like the own prep with the shop folded (the bench row included, app.js camRect);
@@ -500,6 +508,7 @@ function MatchScreen() {
     }
     if (earlySnap) {
       view.pushSnapshot(earlySnap);
+      snapStatsRef.current = snapshotStats(earlySnap);
       if (Array.isArray(earlySnap.units)) {
         snapUnitsRef.current = new Map(earlySnap.units.filter(Array.isArray).map((t) => [t[0], t]));
       }
@@ -519,7 +528,11 @@ function MatchScreen() {
       if (!msg || typeof msg.fieldId !== 'string') return;
       evBufRef.current.set(msg.fieldId, []);
       snapBufRef.current.delete(msg.fieldId);
-      if (msg.fieldId === lastFieldRef.current) reentryRef.current = msg.fieldId;
+      if (msg.fieldId === lastFieldRef.current) {
+        reentryRef.current = msg.fieldId;
+        snapStatsRef.current = snapshotStats(null);
+        pieceUnitsRef.current = new Map();
+      }
     };
     // the field the view shows now (null while a re-entry of it is pending: its frames are buffered)
     const shownId = () => (reentryRef.current && reentryRef.current === lastFieldRef.current ? null : lastFieldRef.current);
@@ -531,6 +544,7 @@ function MatchScreen() {
         return;
       }
       view?.pushSnapshot(snap);
+      snapStatsRef.current = snapshotStats(snap);
       if (Array.isArray(snap.units)) {
         const mp = new Map();
         for (const t of snap.units) if (Array.isArray(t)) mp.set(t[0], t);
@@ -556,6 +570,7 @@ function MatchScreen() {
       }
       view?.pushEvents(msg);
       noteDeviceUnits(deviceUnitsRef.current, { events: msg.ev });
+      notePieceUnits(pieceUnitsRef.current, { events: msg.ev });
       audio.handleBattleEvents(msg.ev);
     };
     // 干员语音 (结算): the own battle's result just came in — the operator's line depends on how it went
@@ -1193,8 +1208,8 @@ function MatchScreen() {
   }, [hud, detail]);
 
   // ---- live stats of the detail card (user playtest #4 item 7) ------------------------------------------------------
-  // battle: the local sim's unit (battle/runner.js unitStats — a getter the panel re-reads 4× a second; any unit of the
-  // battle on screen: own, a teammate's, an enemy). Prep: an own board unit's stats at the start of its next battle,
+  // battle: the local sim's unit or the shown server field's snapshot stats (a getter the panel re-reads 4× a second;
+  // any visible unit: own, a teammate's, an enemy). Prep: an own board unit's stats at the start of its next battle,
   // asked from the server (g.unitStats → m.unitStats; only the newest request's answer counts) whenever m.private or the
   // phase changes while such a card is open — the last answer stays on show until the next one lands
   const [unitStats, setUnitStats] = useState(null);      // m.unitStats: { seq, round, units: Map<uid, entry> }
@@ -1222,7 +1237,10 @@ function MatchScreen() {
     // a battle unit's card, or an own board piece's card left open into the battle (its unit found by uid)
     const id = resolved?.unitId;
     const pieceUid = id == null && Number.isInteger(resolved?.piece?.uid) ? resolved.piece.uid : null;
-    if ((id == null && pieceUid == null) || !cc || !battleRunner || !field?.local || showPrep) return null;
+    if ((id == null && pieceUid == null) || showPrep || !field || field.prep) return null;
+    if (!cc) return () => enteredFieldRef.current === field && lastFieldRef.current === field.fieldId
+      ? snapshotUnitStats(snapStatsRef.current, field, { id, pieceUid, ownerId: myId, units: pieceUnitsRef.current }) : null;
+    if (!battleRunner || !field.local) return null;
     const fid = field.fieldId;
     return () => {
       const uid = id ?? battleRunner.unitIdOf(pieceUid, myId, fid);

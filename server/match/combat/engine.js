@@ -138,7 +138,7 @@ export class CombatEngine {
 
   _frame(f, events = []) {
     let snapshot = null, meta = null;
-    try { snapshot = f.battle.snapshot(); } catch (e) { this._error(`field ${f.fieldId} snapshot`, e); }
+    try { snapshot = f.battle.snapshot({ includeUnitStats: true }); } catch (e) { this._error(`field ${f.fieldId} snapshot`, e); }
     try { meta = f.battle.fieldMeta(); } catch (e) { this._error(`field ${f.fieldId} fieldMeta`, e); }
     if (this.wireFrames) {
       // Encode at this exact tick boundary, once for all watchers. Only immutable strings cross the

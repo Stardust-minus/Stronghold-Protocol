@@ -16,7 +16,7 @@ import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { CombatEngine } from '../../server/match/combat/engine.js';
 import { WorkerFieldRunner, RemoteBattle, MAX_WORKER_ADVANCE_TICKS } from '../../server/match/combat/runner.js';
 import { FakeBattle } from './fakeBattle.js';
-import { DATA, give, legalTileFor } from './harness.js';
+import { DATA, give, giveItem, legalTileFor } from './harness.js';
 import { TestClient } from '../helpers/wsClient.js';
 
 const captureLog = () => {
@@ -25,6 +25,15 @@ const captureLog = () => {
 };
 const quiet = captureLog().log;
 const clone = (x) => structuredClone(x);
+function assertSnapshotUnitStats(snap) {
+  assert.ok(Array.isArray(snap.unitStats), 'every server full snapshot carries the detail array, even when empty');
+  assert.deepEqual(snap.unitStats.map((u) => u.id), snap.units.map((u) => u[0]), 'details follow exact tuple visibility');
+  assert.ok(snap.units.every((u) => u.length === 9), 'the compact tuple schema is unchanged');
+  for (const u of snap.unitStats) {
+    assert.ok(u.base && Number.isFinite(u.atk) && Number.isFinite(u.base.atk) && Number.isFinite(u.def));
+    for (const key of ['buffs', '_s', 'mem', 'skill', 'player', 'ownerUnit', 'kit']) assert.equal(Object.hasOwn(u, key), false, `no raw Unit ${key}`);
+  }
+}
 async function until(predicate, label, ms = 10_000) {
   const deadline = Date.now() + ms;
   while (!predicate()) {
@@ -190,6 +199,7 @@ for (const kind of ['normal', 'unite', 'boss', 'hidden']) {
     const remote = pair[1];
     assert.ok(remote.sent.some(([, msg]) => msg.t === 'm.field' && !msg.prep));
     assert.ok(remote.sent.some(([, msg]) => msg.t === 'b.snap' && msg.gt > 0));
+    for (const h of pair) for (const [, msg] of h.sent) if (msg.t === 'b.snap') assertSnapshotUnitStats(msg);
     assert.ok(remote.sent.some(([, msg]) => msg.t === 'b.ev'));
     assert.equal(remote.sent.some(([, msg]) => msg.t === 'b.start'), false);
     assert.deepEqual(remote.logs.errors, []);
@@ -443,6 +453,7 @@ test('workers: encoded resync selects only the newest consistent frame in a dela
   assert.ok(response.dto.frames.length >= 2);
   assert.ok(response.dto.frames.every((f) => typeof f.metaWire === 'string' && typeof f.snapshotWire === 'string'));
   const latest = response.dto.frames.at(-1);
+  assertSnapshotUnitStats(JSON.parse(latest.snapshotWire));
   runner.requestField('p_0', 'n:p_0');
   const before = h.sent.length;
   await pool.deliver(response);
@@ -1067,6 +1078,8 @@ test('workers: a real WS spectator receives encoded live/resync frames without p
   const snap = await resumed.waitFor('b.snap');
   assert.equal(meta.fieldId, snapshot.fieldId);
   assert.ok(snap.gt >= snapshot.gt);
+  assertSnapshotUnitStats(snapshot);
+  assertSnapshotUnitStats(snap);
   assert.equal(resumed.log.filter((x) => x.t === 'm.field' || x.t === 'b.snap')[0].t, 'm.field');
   assert.equal(srv.lobby.stats().online, 2);
   for (const c of [observer, resumed]) assert.ok(!c.log.some((x) => ['m.private', 'm.toast', 'm.unitStats', 'b.start'].includes(x.t)));
@@ -1118,13 +1131,35 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
     if (msg.t === 'b.snap' || msg.t === 'b.ev' || (msg.t === 'm.field' && !msg.prep)) objectFrames.push(msg);
     return sendObject(pid, msg);
   };
+  // A real equipped operator: the PREP preview and the actual owning worker's initial detail DTO must agree.
+  const ps = m.players.get(a.id);
+  for (const p of ps.board.values()) if (p.kind === 'chess') ps.returnCopies(p);
+  ps.board.clear(); ps.recompute();
+  const chessId = 'chess_char_1_10_a';
+  const tile = legalTileFor(m, ps, chessId);
+  assert.ok(tile);
+  const carrier = give(m, ps, chessId, 'board', tile);
+  const blade = giveItem(m, ps, 'chess_item_3_07_e_a');
+  await ok(a, { t: 'g.equip', itemUid: blade.uid, targetUid: carrier.uid });
+  await ok(a, { t: 'g.unitStats', seq: 41 });
+  const preview = (await a.waitFor('m.unitStats', (msg) => msg.seq === 41)).units.find((u) => u.uid === carrier.uid);
+  assert.ok(preview.atk > preview.base.atk, 'the actual PREP numbers include equipment');
   // Keep the real wave but make one real enemy spawn after initialization, so the resync must refresh metadata.
   m.wave = { ...m.wave, timeLimit: 90, spawns: [{ ...m.wave.spawns[0], time: 0.2, count: 1, interval: 0 }] };
   await ok(a, { t: 'g.ready', ready: true });
   const initial = await a.waitFor('m.field', (f) => !f.prep);
-  const initialIds = new Set(initial.units.map((u) => u.id));
-  const spawned = await a.waitFor('b.snap', (s) => s.gt > 0 && s.units.some((u) => !initialIds.has(u[0])), 10_000);
-  const spawnedIds = spawned.units.filter((u) => !initialIds.has(u[0])).map((u) => u[0]);
+  const initialSnap = await a.waitFor('b.snap', (s) => s.fieldId === initial.fieldId);
+  assertSnapshotUnitStats(initialSnap);
+  assert.deepEqual(initialSnap.unitStats, [], 'initial state is not started: undeployed operators must remain private');
+  const firstLiveSnap = await a.waitFor('b.snap', (s) => s.unitStats?.some((u) => u.uid === carrier.uid));
+  assertSnapshotUnitStats(firstLiveSnap);
+  const first = firstLiveSnap.unitStats.find((u) => u.uid === carrier.uid);
+  const { id: _previewId, ...want } = preview;
+  const { id: _battleId, ...have } = first;
+  assert.deepEqual(have, want, 'the worker sends real effective/base DTOs, not record-only stats');
+  const enemyKey = m.wave.spawns[0].enemyKey;
+  const spawned = await a.waitFor('b.snap', (s) => s.gt > 0 && s.unitStats?.some((u) => u.defId === enemyKey), 10_000);
+  const spawnedIds = spawned.unitStats.filter((u) => u.defId === enemyKey).map((u) => u.id);
   assert.ok(spawnedIds.length > 0);
   assert.equal(a.log.some((x) => x.t === 'b.start'), false);
   assert.ok(m.runner instanceof WorkerFieldRunner);
@@ -1141,6 +1176,11 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
   for (const id of spawnedIds) assert.ok(refreshed.units.some((u) => u.id === id), `rejoin metadata contains spawned unit ${id}`);
   const snap = await b.waitFor('b.snap', (s) => s.fieldId === refreshed.fieldId);
   assert.ok(snap.gt >= spawned.gt);
+  assertSnapshotUnitStats(spawned);
+  assertSnapshotUnitStats(snap);
+  const resumedStats = snap.unitStats.find((u) => u.uid === carrier.uid);
+  assert.ok(resumedStats && resumedStats.atk > resumedStats.base.atk, 'the first real reconnect frame retains equipment bonuses');
+  assert.deepEqual(resumedStats.base, preview.base);
   const order = b.log.filter((x) => x.t === 'm.field' || x.t === 'b.snap');
   assert.equal(order[0].t, 'm.field', 'metadata precedes the first reconnect snapshot');
   await ok(b, { t: 'g.pause', on: true });
@@ -1155,6 +1195,8 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
   assert.ok(encoded.some((entry) => entry.wire === JSON.stringify(initial)), 'initial metadata arrives byte-equivalent to the worker wire');
   assert.ok(encoded.some((entry) => entry.wire === JSON.stringify(spawned)), 'snapshot arrives byte-equivalent to the worker wire');
   assert.ok(encoded.some((entry) => entry.wire === JSON.stringify(refreshed)), 'rejoin also uses the encoded path');
+  assert.ok(encoded.some((entry) => entry.wire === JSON.stringify(snap)), 'reconnect details arrive byte-equivalent to the worker wire');
+  for (const entry of encoded) if (entry.type === 'b.snap') assertSnapshotUnitStats(JSON.parse(entry.wire));
   assert.deepEqual(objectFrames, [], 'live worker frames never fall back to main-thread object encoding');
   assert.equal(typeof m.fields[0].battle._snapshotWire, 'string');
   assert.equal(m.fields[0].battle._snapshot, null, 'normal streaming keeps only the wire cache');

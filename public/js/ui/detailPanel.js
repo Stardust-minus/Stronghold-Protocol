@@ -23,7 +23,7 @@
 // `editable` + handlers. `side` 'right' docks the panel at the right edge (the game screen picks the side away from a
 // selected unit's underframe, gameLogic panelSide).
 // Live stats (user playtest #4 item 7 — the card used to show the fixed record numbers): `live` = the unit's current
-// stats (shared/protocol.js unitStatsEntry + `src`) — in battle the browser's own sim (battle/runner.js unitStats; a
+// stats (shared/protocol.js unitStatsEntry + `src`) — in battle the browser's own sim or the shown server snapshot (a
 // getter re-read 4× a second: current HP, max HP, ATK, DEF, RES, attack interval, block), in prep the stats the own
 // board's units start their next battle with (m.unitStats: equipment, bonds / layers, 特质, band and 机变 effects). Each
 // value is coloured against the unit's base like the official card — green when it helps (higher, or a shorter attack

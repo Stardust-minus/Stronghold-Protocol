@@ -44,7 +44,9 @@ export class BattleEvents {
   }
 
   /**
-   * Compact full snapshot of this field (DESIGN §8.2 b.snap), plus (only when non-empty):
+   * Compact full snapshot of this field (DESIGN §8.2 b.snap). With includeUnitStats: true, unitStats is always an
+   * array of detail DTOs for the exact units in the tuples, using their already-computed stats (no extra lazy s read).
+   * Server streaming opts in; the default browser/local snapshot avoids this detail copy. Plus (only when non-empty):
    *   down: [[id, respawnAt, respawnTime, state, row, col]] — operators that left the field waiting to redeploy (isDown): the
    *         game time their respawn timer ends, its length (s), constants.js DOWN_STATE and the tile they lie on (and
    *         come back on: _layBody — where they fell, or their home);
@@ -59,11 +61,13 @@ export class BattleEvents {
    * ammo / wolves / neg / stand / standCut are display only: no sim state reads them, and the nine-field unit tuples are
    * unchanged.
    */
-  snapshot() {
+  snapshot({ includeUnitStats = false } = {}) {
+    const unitStats = includeUnitStats ? [] : null;
     const snap = {
       fieldId: this.fieldId,
       t: Math.round(this.time * 1000) / 1000,
-      units: snapshotUnits(this.units, this.time),
+      units: snapshotUnits(this.units, this.time, unitStats),
+      ...(unitStats ? { unitStats } : {}),
       dp: this.players.length ? Math.floor(this.players[0].dp) : 0,
       killed: this.killed,
       total: this.total,

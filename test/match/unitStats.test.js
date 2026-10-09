@@ -8,6 +8,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ERR, PHASE } from '../../shared/constants.js';
 import { validateC2S, unitStatsEntry, S2C } from '../../shared/protocol.js';
+import { Battle } from '../../server/sim/Battle.js';
+import { Unit } from '../../server/sim/units.js';
+import { DIE_ANIM_TIME } from '../../server/sim/constants.js';
+import { DeadBattle, FieldRunner } from '../../server/match/fields.js';
 import { makeMatch, give, giveItem, chessOfTier, legalTileFor } from './harness.js';
 
 /** 阿戈尔重刃: ATK +40 % (its own multiplier), attack speed −10 (data/items.json). */
@@ -63,6 +67,176 @@ test('unitStatsEntry: effective stats next to the base, rounded for display; the
   assert.equal(plain.interval, 1.2);
   assert.equal(unitStatsEntry(null).maxHp, 0, 'never throws');
   assert.equal(unitStatsEntry({ base: { bat: 0 } }).interval, null, 'no attack');
+});
+
+test('snapshot unitStats: opt-in exposes real effective/base stats, buffs, debuffs and removal without changing tuples', (t) => {
+  const { m, ps, carrier } = setup(24);
+  t.after(() => m.dispose());
+  const b = m.newBattle(m._normalOpts(ps));
+  b.start();
+  const u = b.allyUnits.find((x) => x.uid === carrier.uid);
+  const read = () => {
+    const legacy = b.snapshot();
+    assert.equal(Object.hasOwn(legacy, 'unitStats'), false, 'local/browser snapshots keep their old shape');
+    const { unitStats, ...snap } = b.snapshot({ includeUnitStats: true });
+    assert.deepEqual(snap, legacy, 'the nine-field tuples and every old readout stay unchanged');
+    assert.deepEqual(unitStats.map((x) => x.id), snap.units.map((x) => x[0]));
+    assert.ok(snap.units.every((x) => x.length === 9));
+    const entry = unitStats.find((x) => x.uid === carrier.uid);
+    assert.deepEqual(entry, unitStatsEntry(u, u._s), 'reuse the public DTO and the tuple-computed cache');
+    return entry;
+  };
+  const initial = read();
+  assert.ok(initial.atk > initial.base.atk, 'equipped 阿戈尔重刃 is already effective');
+  assert.ok(initial.interval > initial.base.interval, 'the item also lowers attack speed');
+  b.addBuff(u, { key: 'test:boost', mods: { atkPct: 0.5, defPct: 0.3, hpPct: 0.25, aspd: 30 } });
+  const boosted = read();
+  assert.ok(boosted.atk > initial.atk && boosted.def > initial.def && boosted.maxHp > initial.maxHp);
+  assert.ok(boosted.interval < initial.interval);
+  assert.deepEqual(boosted.base, initial.base, 'the cultivated own numbers exclude temporary buffs');
+  b.addBuff(u, { key: 'test:debuff', mods: { atkMul: 0.25, defMul: 0.5, aspd: -60 }, flags: { silence: true } });
+  const reduced = read();
+  assert.ok(reduced.atk < initial.atk && reduced.def < initial.def && reduced.interval > initial.interval);
+  assert.equal(reduced.silenced, true);
+  assert.deepEqual(reduced.base, initial.base);
+  assert.equal(b.removeBuff(u, 'test:debuff'), 1);
+  assert.deepEqual(read(), boosted, 'removing a debuff restores the buffed view');
+  assert.equal(b.removeBuff(u, 'test:boost'), 1);
+  assert.deepEqual(read(), initial, 'removing both restores the equipped start stats');
+});
+
+test('snapshot unitStats: exact tuple visibility/death window, public DTO copies and no extra lazy getter reads', () => {
+  const make = () => {
+    const b = new Battle({ seed: 44, fieldId: 'privacy', content: 'none', autoFinish: false });
+    b.time = 10;
+    const reads = new Map();
+    const getStats = Object.getOwnPropertyDescriptor(Unit.prototype, 's').get;
+    const add = (id, side, state = {}) => {
+      const u = new Unit({ id, uid: side === 'ally' ? id + 100 : null, side, kind: side === 'ally' ? 'op' : 'enemy',
+        ownerId: 'p_0', defId: 'test_unit', base: { maxHp: 1000, atk: 300, def: 100, res: 20, bat: 1.2 } });
+      u.deployed = true;
+      u.liveRangeGrid = [[0, 0], [0, 1]];
+      u.mem.privateMarker = 'not-a-public-detail';
+      Object.assign(u, state);
+      Object.defineProperty(u, 's', { configurable: true, get() {
+        reads.set(id, (reads.get(id) || 0) + 1);
+        assert.ok(![4, 5, 6, 7].includes(id), `unlisted ${id} must not read lazy stats`);
+        return getStats.call(this);
+      } });
+      b.units.push(u);
+      if (side === 'ally') b.allyUnits.push(u);
+      return u;
+    };
+    const live = add(1, 'ally');
+    live.cultMul = { atk: 1.2, def: 1.2, hp: 1.2 };
+    b.addBuff(live, { key: 'test:cache', mods: { hpPct: 0.25, atkPct: 0.5 }, data: { privateMarker: 'raw-buff' } });
+    add(2, 'enemy');
+    add(3, 'ally', { alive: false, deployed: false, deathAt: 10 - DIE_ANIM_TIME / 2 });
+    add(4, 'ally', { hidden: true });
+    add(5, 'enemy', { hidden: true, alive: false, deathAt: 9.9 });
+    add(6, 'ally', { deployed: false });
+    add(7, 'enemy', { alive: false, deployed: false, deathAt: 10 - DIE_ANIM_TIME - 0.01 });
+    const dying = add(8, 'enemy', { alive: false, deployed: false, deathAt: 9.9 });
+    // A unit without a computed cache must use its base DTO, not introduce a detail-only s read.
+    const fallback = add(9, 'ally');
+    const s = getStats.call(fallback);
+    fallback._s = null;
+    Object.defineProperty(fallback, 's', { configurable: true, get() { reads.set(9, (reads.get(9) || 0) + 1); return s; } });
+    return { b, reads, live, dying, fallback };
+  };
+  const plain = make(), detailed = make();
+  const legacy = plain.b.snapshot();
+  const { unitStats, ...snap } = detailed.b.snapshot({ includeUnitStats: true });
+  assert.deepEqual(snap, legacy);
+  assert.deepEqual([...detailed.reads], [...plain.reads], 'detail DTO construction never adds an s read');
+  assert.deepEqual(unitStats.map((x) => x.id), [1, 2, 3, 8, 9], 'only the exact tuple-selected units');
+  assert.deepEqual(unitStats.map((x) => x.id), snap.units.map((x) => x[0]));
+  assert.deepEqual(unitStats[0], unitStatsEntry(detailed.live, detailed.live._s));
+  assert.equal(unitStats[0].base.maxHp, 1200);
+  assert.equal(unitStats[0].maxHp, 1500);
+  assert.equal(unitStats[2].alive, false, 'recent death animation remains visible');
+  assert.equal(unitStats[3].range, undefined, 'enemy targeting grids are not exposed');
+  assert.equal(unitStats[4].atk, unitStats[4].base.atk, 'null cache falls back to base');
+  assert.equal(detailed.fallback._s, null);
+  const publicKeys = ['id', 'uid', 'defId', 'hp', 'alive', 'maxHp', 'atk', 'def', 'res', 'interval', 'blockCnt', 'moveSpeed', 'base', 'range', 'dir', 'silenced'];
+  for (const entry of unitStats) assert.ok(Object.keys(entry).every((key) => publicKeys.includes(key)), 'only whitelisted helper fields');
+  assert.equal(JSON.stringify(unitStats).includes('privateMarker'), false, 'no raw buffs, mem or Unit serialization');
+  unitStats[0].range[0][0] = 99;
+  unitStats[0].base.atk = -1;
+  unitStats[0].atk = -1;
+  assert.deepEqual(detailed.live.liveRangeGrid[0], [0, 0], 'range DTO is detached');
+  assert.equal(detailed.live.base.atk, 300);
+  assert.ok(detailed.live._s.atk > 300);
+  for (const h of [plain, detailed]) {
+    h.b.time = 10 + DIE_ANIM_TIME;
+    h.dying.hidden = true;
+  }
+  const laterLegacy = plain.b.snapshot();
+  const later = detailed.b.snapshot({ includeUnitStats: true });
+  assert.deepEqual(later.unitStats.map((x) => x.id), later.units.map((x) => x[0]));
+  assert.deepEqual(later.unitStats.map((x) => x.id), [1, 2, 9], 'death-window expiry and hiding both remove stale details');
+  const { unitStats: _later, ...laterSnap } = later;
+  assert.deepEqual(laterSnap, laterLegacy);
+});
+
+test('snapshot unitStats: empty real and failed battles carry [] only when opted in', () => {
+  for (const b of [new Battle({ content: 'none' }), new DeadBattle({ fieldId: 'failed' })]) {
+    const legacy = b.snapshot();
+    assert.equal(Object.hasOwn(legacy, 'unitStats'), false);
+    assert.deepEqual(b.snapshot({ includeUnitStats: false }), legacy);
+    const { unitStats, ...snap } = b.snapshot({ includeUnitStats: true });
+    assert.deepEqual(unitStats, []);
+    assert.deepEqual(snap, legacy);
+  }
+});
+
+test('snapshot unitStats: opted-in seeded combat preserves state, HP, events, timing, RNG and full result', (t) => {
+  const { m, ps } = setup(25);
+  t.after(() => m.dispose());
+  const opts = { ...m._normalOpts(ps), timeLimit: 8 };
+  const [plain, detailed] = [m.newBattle(opts), m.newBattle(opts)];
+  const state = (b) => ({ time: b.time, ticks: b.tickCount, rng: b.rng.state(), finished: b.finished,
+    units: b.units.map((u) => ({ id: u.id, hp: u.hp, dirty: u._dirty, s: u._s, atkCd: u.atkCd, sp: u.skill?.sp,
+      buffs: u.buffs.map((x) => ({ key: x.key, timeLeft: x.timeLeft, stacks: x.stacks })) })) });
+  for (let i = 0; i < 300 && !plain.finished; i++) {
+    plain.step(); detailed.step();
+    const legacy = plain.snapshot();
+    const { unitStats, ...snap } = detailed.snapshot({ includeUnitStats: true });
+    assert.deepEqual(snap, legacy);
+    assert.deepEqual(unitStats.map((x) => x.id), snap.units.map((x) => x[0]));
+    assert.deepEqual(state(detailed), state(plain));
+    assert.deepEqual(detailed.drainEvents(), plain.drainEvents());
+  }
+  assert.equal(plain.finished, true, 'real combat reached a terminal state');
+  assert.deepEqual(detailed.result(), plain.result());
+  assert.equal(detailed.errorCount, 0);
+});
+
+test('snapshot unitStats: inline server periodic frames and the first reconnect frame retain effective/base DTOs', (t) => {
+  const { h, m, carrier } = setup(26, { instant: false });
+  t.after(() => m.dispose());
+  m.startCombat();
+  assert.ok(m.runner instanceof FieldRunner);
+  const initial = h.lastTo('p_0', 'b.snap');
+  assert.deepEqual(initial.unitStats, [], 'initial undeployed field is a complete empty snapshot');
+  for (let i = 0; i < 3; i++) m.runner._tick();
+  const periodic = h.lastTo('p_0', 'b.snap');
+  const u = m.fields[0].battle.allyUnits.find((x) => x.uid === carrier.uid);
+  const entry = periodic.unitStats.find((x) => x.uid === carrier.uid);
+  assert.deepEqual(entry, unitStatsEntry(u, u._s));
+  assert.ok(entry.atk > entry.base.atk);
+  m.onDisconnect('p_0');
+  const before = h.sent.length;
+  m.onReconnect('p_0');
+  const frames = h.sent.slice(before).filter(([pid, msg]) => pid === 'p_0' && ['m.field', 'b.snap'].includes(msg.t));
+  assert.equal(frames[0][1].t, 'm.field');
+  const resumed = frames.find(([, msg]) => msg.t === 'b.snap')[1];
+  assert.deepEqual(resumed.unitStats, periodic.unitStats, 'the very first rejoin snapshot, not just a later emit');
+  for (const snap of h.allTo('p_0', 'b.snap')) {
+    assert.deepEqual(snap.unitStats.map((x) => x.id), snap.units.map((x) => x[0]));
+    assert.ok(snap.units.every((x) => x.length === 9));
+  }
+  assert.deepEqual(h.logs.error, []);
 });
 
 test('g.unitStats: the board\'s start-of-battle stats (equipment in: ATK ×1.4, a slower attack), the same numbers the battle starts with; seq echoed', () => {

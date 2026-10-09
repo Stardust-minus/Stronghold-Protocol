@@ -20,6 +20,7 @@ import { UF, ANIM } from '../../shared/constants.js';
 import { DIE_ANIM_TIME, ATTACK_ANIM_TIME, DEPLOY_ANIM_TIME } from './constants.js';
 import { enemyStealthed } from './targeting.js';
 import { skinFor } from '../../shared/skins.js';
+import { unitStatsEntry } from '../../shared/protocol.js';
 
 const r2 = (v) => Math.round(v * 100) / 100;
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -168,13 +169,17 @@ export function negView(u) {
   return v > 0 ? Math.min(1, Math.max(0.01, r2(v))) : null;
 }
 
-/** Units included in a snapshot: deployed & visible, plus recently dead ones (DIE animation). */
-export function snapshotUnits(units, t) {
+/** Units included in a snapshot: deployed & visible, plus recently dead ones (DIE animation).
+ * Optional detail DTOs follow the exact same selection, using only the stats already read by the tuple.
+ */
+export function snapshotUnits(units, t, unitStats = null) {
   const out = [];
   for (const u of units) {
     if (u.hidden) continue;
-    if (u.alive && u.deployed) out.push(unitTuple(u, t));
-    else if (!u.alive && t - u.deathAt < DIE_ANIM_TIME && u.deathAt > -Infinity) out.push(unitTuple(u, t));
+    if ((u.alive && u.deployed) || (!u.alive && t - u.deathAt < DIE_ANIM_TIME && u.deathAt > -Infinity)) {
+      out.push(unitTuple(u, t));
+      if (unitStats) unitStats.push(unitStatsEntry(u, u._s || null));
+    }
   }
   return out;
 }
