@@ -157,8 +157,10 @@ test('all supplied spec fields participate in duplicate-prepare conflict detecti
 
 test('validates safe seat/id ranges, roles, loadouts, and entire assignment without constructing', t => {
   const { host, matches } = fixture(t);
+  const sparseSeats = Array(2);
+  sparseSeats[1] = seat(1, 'p1'); // keep an actual hole, not an explicit undefined entry
   const invalid = [
-    { seats: [] }, { seats: [seat(4, 'p1')] }, { seats: [seat(-1, 'p1')] }, { seats: [, seat(1, 'p1')] },
+    { seats: [] }, { seats: [seat(4, 'p1')] }, { seats: [seat(-1, 'p1')] }, { seats: sparseSeats },
     { seats: [seat(0, 'p1'), seat(0, 'p2')] }, { seats: [seat(0, 'p1'), seat(1, 'p1')] },
     { seats: Array.from({ length: 5 }, (_, i) => seat(i, `p${i}`)) },
     { seats: [seat(0, 'ai_1', { isBot: true })] }, { seats: [seat(0, 'ai_1')] },

@@ -2440,4 +2440,4 @@ export const SKIN_CATALOGUE = Object.freeze([
     "wikiIndex": 2,
     "charName": "隐现" // i18n-ignore: exact Wiki image-title lookup, not UI text
   }
-].map(Object.freeze));
+].map(skin => Object.freeze(skin)));

@@ -25,23 +25,24 @@ function matchDTO(room, seed, snapshotHz) {
   return {
     roomCode: room.code, mode: room.mode, difficulty: room.difficulty, modeId: modeIdFor(room.mode, room.difficulty),
     revivalEnabled: room.revivalState().enabled, disableSharedPool: room.experimental.disableSharedPool,
-    experimental: room.experimental, seed, matchNo: room.matchCount + 1,
+    experimental: room.experimental, aiPicksLast: room.mode !== 'solo' && room.aiPicksLast === true, seed, matchNo: room.matchCount + 1,
     seats: room.seats.filter(Boolean).map(s => ({ seat: s.seat, playerId: s.playerId, name: s.name,
       isBot: s.isBot, connected: s.connected, loadout: structuredClone(s.isBot ? null : s.loadout || null),
+      ops: structuredClone(s.isBot ? null : s.ops || null),
       notOwned: structuredClone(s.isBot ? null : s.notOwned || null), diy: structuredClone(s.isBot ? null : s.diy || null),
       skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }) })),
     spectators: room.spectators.map(s => s.playerId), ...(snapshotHz === undefined ? {} : { snapshotHz }),
   };
 }
 function optsDTO(opts) {
-  const fields = ['roomCode', 'mode', 'difficulty', 'modeId', 'revivalEnabled', 'disableSharedPool', 'experimental', 'seed', 'matchNo', 'seats', 'spectators'];
+  const fields = ['roomCode', 'mode', 'difficulty', 'modeId', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'seed', 'matchNo', 'seats', 'spectators'];
   const dto = Object.fromEntries(fields.map(key => [key, opts[key]]));
   if (opts.snapshotHz !== undefined) dto.snapshotHz = opts.snapshotHz;
   return dto;
 }
 function roomStamp(room) {
   return structuredClone({ hostId: room.hostId, mode: room.mode, difficulty: room.difficulty, matchCount: room.matchCount,
-    source: room.source, experimental: room.experimental, ownerKey: room.ownerKey, ownerKeys: room.ownerKeys ? [...room.ownerKeys].sort() : null,
+    source: room.source, experimental: room.experimental, aiPicksLast: room.aiPicksLast, ownerKey: room.ownerKey, ownerKeys: room.ownerKeys ? [...room.ownerKeys].sort() : null,
     seats: room.seats, spectators: room.spectators, disposed: room.disposed });
 }
 
@@ -65,11 +66,11 @@ class PreparedRemoteMatch {
     try { return this.plan.published && this.members.has(playerId) && this.lobby.platform.resume(this.plan.spec.assignmentId, playerId); }
     catch { return false; }
   }
-  peer(method, playerId, loadout) {
+  peer(method, playerId, loadout, ops = undefined) {
     if (!this.plan.published || this.ended || this.pendingPeers.has(playerId)
       || typeof this.lobby.platform.peer !== 'function') return Promise.resolve(fail(ERR.INTERNAL));
     try {
-      const pending = Promise.resolve(this.lobby.platform.peer(this.plan.spec.assignmentId, method, playerId, loadout))
+      const pending = Promise.resolve(this.lobby.platform.peer(this.plan.spec.assignmentId, method, playerId, loadout, ops))
         .then(result => result?.ok === true ? OK : fail(isErrCode(result?.error) ? result.error : ERR.INTERNAL), () => fail(ERR.INTERNAL))
         .catch(() => fail(ERR.INTERNAL));
       this.pendingPeers.set(playerId, pending);
@@ -122,9 +123,9 @@ class PreparedRemoteMatch {
       .then(result => { this.pendingSpectatorRemovals.delete(playerId); return result; });
     return this.lastMutation;
   }
-  setLoadout(playerId, loadout) {
+  setLoadout(playerId, loadout, ops = undefined) {
     this.loadoutSequence++;
-    this.lastLoadout = this.peer('setLoadout', playerId, loadout);
+    this.lastLoadout = this.peer('setLoadout', playerId, loadout, ops);
     return this.lastLoadout;
   }
   setSkins(playerId, choices) {
@@ -316,6 +317,7 @@ export class ClusterLobby extends Lobby {
           && s.playerCapacityVersion === clientVersions[i]) || !this.capacityClients(room)) return false;
         if (!plan.dto.seats.filter(s => !s.isBot).every(seat => this.isOnline(this.registry.byId(seat.playerId))
           && isDeepStrictEqual(this.registry.byId(seat.playerId)?.loadout || null, seat.loadout)
+          && isDeepStrictEqual(this.registry.byId(seat.playerId)?.ops || null, seat.ops)
           && isDeepStrictEqual(this.registry.byId(seat.playerId)?.notOwned || null, seat.notOwned)
           && isDeepStrictEqual(this.registry.byId(seat.playerId)?.diy || null, seat.diy)
           && isDeepStrictEqual(this.registry.byId(seat.playerId)?.skins || {}, seat.skins))) return false;

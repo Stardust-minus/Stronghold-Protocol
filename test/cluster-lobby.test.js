@@ -139,7 +139,8 @@ test('public 2+1+1 party commits only prepared DTO and publishes room state befo
   assert.equal(old.disposed, false); assert.equal(old.match, null); assert.equal(h.lobby.rooms.size, 1);
   const call = h.calls[0], spec = call.spec;
   assert.deepEqual(Object.keys(spec).sort(), ['assignmentId', 'build', 'protocol', 'roomCode', 'mode', 'difficulty', 'modeId',
-    'revivalEnabled', 'disableSharedPool', 'experimental', 'seed', 'matchNo', 'seats', 'spectators'].sort());
+    'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'seed', 'matchNo', 'seats', 'spectators'].sort());
+  assert.equal(spec.aiPicksLast, false, 'public all-human room starts with its explicit default AI option');
   assert.equal(spec.seed, 123456); assert.equal(spec.matchNo, 1); assert.equal(spec.revivalEnabled, false);
   assert.deepEqual(spec.seats[0].loadout, { synthetic_unit: { skill: 1, module: null } });
   assert.deepEqual(spec.spectators, [observer.playerId]); assert.ok(call.context.isCurrent());

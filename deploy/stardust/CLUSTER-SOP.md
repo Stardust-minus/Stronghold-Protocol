@@ -1,99 +1,82 @@
 # 统一匹配与多入口集群部署
 
-## 双 ingress 正式已完成（2026-10-09）
-
-当前正式游戏／宿主工具 commit `24ff0dba30833426ec6ec02b010a580f89c4d3e1`，client-build `9c1fd471887b`；四台入口各2ingress，共25原生角色，Core仍1coord＋16个8+2game。全部精确lease、代次、Main-only-20/reset/其他线程0、restart0通过；edge schema2 guard精确CLOSED迁移完成，不改WG恢复依赖或其他表。四入口OPEN／正常匿名门禁401，不再维护503。
-
-原入口secondary初次Docker端口绑定失败留下never-started created CID；guard拒绝未完整网络代次，健康primary保留。精确清理该已撤权CID后由active manager scoped resume成功，没有Core／primary再重启。其他3入口正常双角色保持。实际身份与失败恢复见 [发布记录](releases/next-dual-ingress-20261009-24ff0dba.json)；该记录不能授权再次运行已消费controller。仅本地feature提交，无push/master；DNS／PRTS口令／Beta／WG及其他服务保持。
-
-## 双 ingress 候选准备（历史，已切换）
-
-本批目标四物理入口各两个独立ingress，共8；同一个coord／16个8+2game／全局匹配池不变，25角色。用户已批准验收后直接正式切换及本地feature commit＋offline image、限时固定key loopback Core通道；没有push/master/DNS/PRTS口令/Beta/WG依赖变更许可。下方单入口和双profile数字保留历史，不自动拉起停用Beta或held75。
-
-CLI明确edge `--ingress-instances 2`；legacy默认1与core17保持。源于当前active vhost的WS-only双target副本只分新握手、不迁移已有WS；HTTP／门禁／private/data/material不改。管理器root-only本地UDS、durable单target维护及精确guard policy绑定合同见 [DUAL-INGRESS.md](cluster/DUAL-INGRESS.md)。nft/state中断、resume失败重试和单target启动连带拒绝三条异常路径已修复；fresh224项Python（219通过／5条件跳过）、4native、52隔离真实kernel及限定独立复核通过。新完整回归608文件／6720项为6696通过／24条件跳过／0失败、283golden一致，1371代码数据SHA0166ca3675702c377b6ca516895bc34ee0e63ed05d2bbe8f2f378c444a868ea5。旧204／44kernel或cd523366不代替新接受；固定镜像、配套及实际cutover／全部25原生role版本／lease／Main-only20／各8+2仍须另行记录。
-
-## 杭州prod-only运维约束（2026-10-07追加）
-
-杭州ark计算只运行正式profile（1协调器+16节点）；Beta17容器与旧Beta已停止，旧/Beta管理器和恢复单元禁用，正式代次/租约/健康不变。Beta当前不可用，不按下面历史验收表或旧controller自动拉起。
-
-杭州不得保留开发checkout、源码导出、测试副本或发布文档；已核对并异机保全后清理16个非运行必需树。正式镜像内的程序、6个配套宿主管理/恢复程序、运行配置与密钥挂载是必要依赖，不能删除；停用配置/闭锁接口和回滚Docker镜像保留，其他主机服务不碰。后续文档和跟进记录只留管理机/Git，不回写杭州。当前跟进状态见[prod-only记录](releases/v014-core-prod-only-20261007-5b63d51.json)。
-
-## 上线时双profile验收基线（2026-10-07，历史快照）
-
-正式与修复版Beta均已验收运行`5b63d51dddeba07292eb9891beee776850c1bb75`；完整身份与结果见[发布记录](releases/v014-cluster-formal-20261007-5b63d51.json)。两个profile各1协调器/16个8+2节点/3活跃入口（`.78/.73/.92`），40个角色实机Main-only-20/reset/其它线程0、初始CID/精确租约核验通过。`.75`0角色/闭锁，不加入DNS。
-
-公开正式入口已切换。旧f3/be27由用户明确授权直接停用；旧core管理器inactive/disabled、旧Formal-only租约关闭，不能仅reload留下旧WSS大厅。旧容器/镜像/配套私有码与素材保留，旧WG及legacyBeta不动。正式三站点复用现有代理、只正常reload，独立profile状态和门禁签名保持隔离。
-
-主助手真实五客户端三入口匹配/买卡部署/纹理/首战→第二轮/观战重连、全部音频解码及最终零异常通过；正式/Beta各312私有码TLS矩阵及跨物理入口身份恢复通过。音频CDN非audio MIME触发的主动cancel只按实际调用和精确请求链记录，不笼统忽略错误或绕TLS。历史失败记录保留。
-
-用户已自行添加正式`.73/.92`A，公共DoH返回三条A/TTL600，无`.75`；无需重启协调器/节点。旧DNS缓存和长连接不会立即迁移，DNS不严格均分，也不增加同一profile的16节点数或内存HA。未来添加其它入口须重新验收同origin/TLS/gate/privatecode/素材、全16路由及精确租约，不能只买机器加A。
-
-以下规范包含早期候选准备说明，以本条实际基线和最新授权覆盖历史“未部署”状态；已完成一次性控制器不得重放。
-
-
-> **2026-10-07本批：用户已明确授权全部修复、验收完成后推送并部署生产；DNS不自动修改。** 四台入口（含原`.78`）的目标规模为杭州16个8+2游戏节点/一个协调器，杭州上行用户确认2Gbps；当前`.75`因UDP链路故障保持禁用，不能称四入口均已就绪。Formal与Beta使用独立固定profile，详[cluster/formal/README.md](cluster/formal/README.md)。材料存在或WG恢复安装不代表角色启动、公网切换、材质或玩法验收完成。现有活动版本以实际release与实时组件身份为准，不把未提交功能分支冒称成当前HEAD的已发布镜像；旧正式/Beta单体与旧WG/recovery不能套用或顺带重启。
+本文描述固定 profile 的架构、准备与运维合同，不声明任何环境已启动或验收。Formal 与 Beta 独立，参见 [cluster/formal/README.md](cluster/formal/README.md)、[BETA-SOP.md](BETA-SOP.md)。示例域名为 `game.example.com`，主机/路径用 `<占位符>`；实际管理配置和发布回执只存私有记录。
 
 ## 拓扑与所有权
 
-- 同一正式域名可解析到多个具有独立出口带宽的入口。DNS 只分配入口，不决定玩家的游戏节点，也不保证连接数或流量严格均衡。
-- 每个入口后面是私有 `server/cluster/ingress.js` WS relay；一条浏览器 `/ws` 同时承载大厅控制与所属对局。所有入口都必须能到达协调器和已登记的游戏节点。
-- 协调器 `server/cluster/coordinator.js` 保留一个全局 SessionRegistry、Lobby、好友房、party、queue、offer、唯一房码和分配目录；不创建本地战斗/试算池，不接收逐帧战斗推流。
-- 游戏节点 `server/cluster/game-runtime.js` 拥有独立进程、战斗/试算池、完整 Match 与 PlayerState。本批目标16个节点、每节点8战斗+2试算，保持服务器权威计算；整个联防、共享Boss、复活和结算留在同一节点，不跨节点拆战斗。四入口均路由到全部16节点，逻辑每入口4节点分组不产生匹配分区。
-- 高频 `m.field/b.snap/b.ev/m.damage` 等直接从游戏节点到对应入口；入口应用既有压缩白名单和背压，不让所有战斗帧绕一个协调 MainThread。
-- 这不是恢复旧 rolling/drain/多版本更新网关。游戏进程仍保持内存状态，当前设计不承诺跨版本或跨进程迁移正在进行的对局。
+- 同一 game origin 可解析到多个入口。DNS 只选择物理入口，不分玩家区，不保证严格均分、现有连接迁移或协调高可用；增加入口/DNS 须分别授权。
+- 每入口的 `server/cluster/ingress.js` 是私有 WS relay，一条浏览器 `/ws` 承载大厅控制和所属对局；所有入口都能到达同一 coordinator 与全部已登记 game 节点。
+- `server/cluster/coordinator.js` 持有一个全局 SessionRegistry、Lobby、好友房、party、queue、offer、唯一房码及分配目录，不创建战斗/试算池，不接收逐帧战斗推流。
+- `server/cluster/game-runtime.js` 的每个独立进程持有完整 Match/PlayerState、战斗与试算池；Boss、共享 HP/LP、联防、复活和结算留在同一节点，不跨节点拆战斗。
+- 高频 `m.field/b.snap/b.ev/m.damage` 等从所属节点直接到入口，沿用压缩白名单和背压，不绕协调器 MainThread。协调器和 ingress 的 combat/trial 为 0。
+- 固定 `cluster-deploy.py` core bundle 为一个 coordinator + 十六个 game，每 game 8 combat + 2 trial；edge bundle 支持每入口一或两个 ingress，配置覆盖全部十六节点。逻辑分组不是匹配分区；这些是模板约束，不是运行数量或容量证明。
 
-## 分配、观战和重连
+不恢复 rolling/drain/多版本更新网关，不引入跨版本内存迁移。运行主机按部署者策略只保留必要镜像、宿主管理/恢复工具、runtime、密钥挂载与守卫；开发 checkout、导出、测试工具、文档和证据留开发/管理环境。必要宿主程序不能误删为开发源码。
 
-1. 协调器先验证完整队伍、确认票、房间实验性设置、原好友房、装备、观战者、期限和可选配额，保留原房直到提交。本批取消开局复活投票，复活与禁用共享卡池由房间实验性面板配置，单人匹配跟随房间；具体新规则以同版本应用代码/验收为准。
-2. 按当前已核验节点代次、版本和负载准备一个完整对局；各真人用上下文绑定的短期票据先建立游戏通道，准备阶段不执行游戏意图。
-3. 所有真人通道绑定后，节点启动但入口缓冲启动帧；协调器再次验证，单个同步turn提交房间与成员。
-4. 先发 `room.state(inMatch)`，再放行节点启动帧，最后 `queue.state(matched)`。内部 `cluster.started` 流屏障避免独立TCP通道把matched提前送到启动帧之前；生产游戏节点必须启用 `streamMarkers`。
-5. 未获得发布确认的节点对局按有界租约回收。取消、断线、迟到RPC、失败提交均有幂等补偿；不得为了显示成功丢弃原队伍、票据FIFO/TTL或发一个假的结算。
-6. 队友始终在同一对局节点，原 `g.watch` 权限保留。外部观战者跟随房间索引，不获得 `m.private/m.toast/m.unitStats`；换入口、重连仍定位原owner，不重新开局。
-7. 一份最终回执由节点身份、节点代次、actor代次和分配ID共同认证；仅低频最终public/个人result/summary分片回协调器，供原大厅和离线个人回放。不能使用终态通道上传任意战斗snapshot/event。
+## 分配、观战与重连合同
 
-## 安全边界
+1. 协调器校验完整队伍、确认票、房间规则、原好友房、装备、观战权限、期限与配额；提交前保留原房，不改变同版本应用规则。
+2. 按已核验节点 generation、build/protocol 和负载准备完整对局；每个真人用上下文绑定的短期票据建立游戏通道，准备阶段不执行游戏意图。
+3. 所有真人通道绑定后节点启动，入口缓冲启动帧；协调器再次验证，以一个同步 turn 提交房间与成员。
+4. 先发送 `room.state(inMatch)`，再释放启动帧，最后发送 `queue.state(matched)`。真实节点必须启用 `streamMarkers`；`cluster.started` 流屏障防止独立 TCP 通道提前发送 matched。
+5. 未获发布确认的对局按有界租约回收；取消、断线、迟到 RPC 和失败提交需幂等补偿。不能丢弃原队伍、FIFO/TTL 或伪造结算来显示成功。
+6. 队友在同一节点；外部观战跟随原 owner，不获得 `m.private/m.toast/m.unitStats`。换入口/重连定位原节点，不重新开局。
+7. 最终回执联合认证 node identity/generation、actor generation 与 assignment ID；只允许低频 public/个人 result/summary 回协调器，不以终态通道上传任意战斗 snapshot/event。
 
-- 入口relay、协调器和游戏监听都不是独立公共网站。外部仍经过既有TLS、共享口令、每次private请求门禁、固定Origin与安全头；公网内部health/RPC/game端点保持不可达。
-- 多入口必须采用一致的认证验证方案和同源Cookie语义，不得各自生成互不识别的认证签名key。认证/CSRF/登录限流与Host/Origin检查不放松。
-- 游戏入服和私有控制RPC使用独立的节点密钥，不借用认证签名key/口令verifier。密钥放宿主受保护runtime文件或secret mount，不进入源码、镜像层、配置样例、日志、证据、URL query或Cookie。
-- 节点目标只来自部署者固定配置；玩家不能通过消息选择任意IP/URL/上游。票据绑定session、room、assignment、node、role、build、protocol，严格有效期；微小跨主机钟差允许值有上界，不信任客户端时间。
-- 数量准入默认仍为0=不限，但四人玩法、单身份绑定、64KiB入站、每socket40/s、重发heavy2/s burst6、1MiB snapshot软丢/16MiB慢连接断开、RPC/分配期限和执行背压继续保留。
-- 所有入口提供同一固定源码的私有JS/CSS和data，仍private/no-store；公开素材仍为已验证immutable清单及现有ModelScope60/OpenI40路由。不得因扩容把业务代码或data转成公开素材。
+## 门禁、密钥与公开范围
 
-## 固定源码与生成资源身份
+TLS、共享口令、每次私有请求门禁、可信 Host/Origin、CSRF、登录限速、安全头和 private/no-store 继续有效。多入口同一 profile 使用可互认签名与同源 Cookie；Formal/Beta 使用独立签名 key、Origin、进程/房间/队列，不互相 fallback。
 
-`data/local-assets.json`是ignored的生成素材索引，但属于运行时必需资源。仅导出`git ls-files --exclude-standard`会漏掉它；服务端HTTP200返回空`groups`仍会触发程序化棋盘fallback，不能作为真实纹理验收成功。
+游戏票据/RPC 使用独立节点密钥，不能借用 auth signing key/verifier。秘密只在受保护 runtime/secret mount，不进入源码、镜像层、配置样例、日志、URL query、Cookie 或证据。玩家不得选择任意 IP/URL/上游；目标只来自受审查固定配置。票据绑定 session/room/assignment/node/role/build/protocol，严格 TTL 和有界 clock skew，不信任客户端时间。
 
-候选导出必须使用`tools/cluster-source-export.py`，给出真实完整commit、当前已核对checkout和不存在的新输出目录。导出器逐Git blob检查业务源码与Dockerfile；索引单独经`cluster-generated-assets.py`验证schema、精确计数、必需atlas/mesh和所有引用的普通非空资源，再写入resource manifest的`generated-renderer-data`项。不得提交索引/美术正文或把它冒称Git blob。
+保留数量准入 `0=不限` 与各玩法本身的容量规则，以及 64KiB 入站、每 socket 40/s、heavy 重发 2/s burst6、1MiB snapshot 软丢/16MiB 慢连接断开、RPC/分配期限和执行背压；“不限”不关闭协议防护。所有入口提供匹配固定源码的私有 JS/CSS/data；公开素材仅限已验证 immutable 清单和受审查源站 profile，不因扩容公开业务代码或内部 health/RPC/game 端点。
+
+## 固定源码、资源与镜像
+
+`data/local-assets.json` 是 ignored 的必需生成索引，不能仅用 tracked 文件导出；HTTP200 空 `groups` 的程序化棋盘 fallback 不算真实纹理成功。
+
+`tools/cluster-source-export.py` 给出完整真实 commit、与 blob 一致的 checkout 和不存在的新输出目录。源码和 `cluster/Dockerfile.cluster` 逐 Git blob 校验；`tools/cluster-generated-assets.py` 单独验证索引 schema/计数、atlas/mesh 与普通非空引用，写入 resource manifest 的 `generated-renderer-data` 项，不把索引或美术提交为 Git blob。
 
 ```sh
 python3 -I deploy/stardust/tools/cluster-source-export.py \
-  --source /root/projects/Stronghold-Protocol --revision "$COMMIT" --out "$NEW_CONTEXT"
+  --source "$REPO" --revision "$COMMIT" --out "$NEW_CONTEXT"
 ```
 
-离线镜像构建须同时给出`SOURCE_REVISION`、`SOURCE_KIND=commit`、`SOURCE_MANIFEST_SHA256`、`RESOURCE_MANIFEST_SHA256`和`APP_VERSION`。固定code commit/source digest、generated资源digest和各Docker store实际immutable image ID分别记录；源码测试、镜像逐文件检查、真实2D atlas/3D纹理与mesh渲染缺一不可。现用F3公共provider素材只有证明同字节后才可复用，不因代码commit变化重传或覆盖immutable资源。
+生成的 `identity.json`、`source-manifest.json`、`resource-manifest.json` 与 `Dockerfile` 是构建输入。离线构建绑定 `SOURCE_REVISION`、`SOURCE_KIND=commit`、`SOURCE_MANIFEST_SHA256`、`RESOURCE_MANIFEST_SHA256` 和 `APP_VERSION`，使用固定基础镜像、无 pull/网络。源码摘要、generated resource 摘要、真实 store image ID/RootFS/labels 分开核对；挂工作树的测试基础镜像不是候选镜像。依赖/同字节素材复用仍验证 lock/manifest/bytes，不覆盖 immutable 文件或因 commit 改变盲目重传。
 
-## 宿主安装前还必须完成
+私有码、resolver、公开多源 pin/alias/fallback 与 game 成套，遵循 [UPDATE-SOP.md](UPDATE-SOP.md)。工具的固定 profile/Origin/路径与冻结输入以版本化源码和实际摘要绑定，不把历史 hash 或 `game.example.com` 替换当通用配置。
 
-- 固定并核对候选源码、image ID、data/静态清单、入口私有码及回滚资料；不把基础Node24镜像的旧游戏revision冒称为挂载测试的新源码。
-- 本批新增`cluster-deploy.py`生成独立Compose/protected runtime与root policy，`cluster-host-manager.py`负责新namespace精确生命周期/租约/角色health。**旧core profile要求单体游戏12+2和GET health，不能直接套到worker0协调器或私有RPC游戏端点。** 实际安装、四机TLS/门禁/素材和开机恢复仍需主助手完成/记录，不能以材料存在冒称实机已通过。
-- 只Main nice=-20、普通SCHED_OTHER/reset-on-fork，其他线程0；不nice整个Node、不授容器CAP_SYS_NICE、不加CPU/内存hardcap，保留PIDs/read-only/no-new-privileges等保护。
-- 新入口加入WG时只精确peer/32、指定端口/容器/image/generation租约；启动核验前闭锁。不得flush/restore整张nft表，也不修改CNI/KUBE/Calico/LXD、默认路由或现有WG恢复服务。
-- 游戏节点每次真正进程启动需要新的不可复用generation；重建之后旧内存对局视为失去owner，不能把同端口重新监听等同恢复旧对局。
-- 先完成隔离本地浏览器与完整回归，再按本批明确授权只部署Beta及准备四入口。新节点/入口接正式流量、维护影响和DNS改变仍按实际许可执行，不设置05:00自动切换。宿主runtime SHA固定，不能在未准备对应新守卫批准材料时直接改文件HUP；应用append-only能力与宿主固定16profile分别说明。
+## 受保护 bundle 与双 ingress
 
-## 故障与回退限制
+`tools/cluster-deploy.py` 只生成新受保护 Compose/runtime/keys/host policy，不 SSH、Docker 或激活。输出在仓库外的允许 profile 路径，父目录受保护，拒绝链接、覆盖与跨 profile 路径；generated keys 不能进入 Git。`--profile` 明确 `formal` 或 `beta`，`--role` 为 `core` 或 `edge`，`--entry` 为 1–4。
 
-多个入口可以分散100Mbps出口压力，也允许经另一入口重连仍存活的游戏节点；并不增加同一个共享上游管道的带宽，也不保证容量按机器数线性增长。
+edge 只有显式 `--ingress-instances 2` 才生成 `ingress` 与 `ingress-02`；默认 1 保留单实例合同，core 选择 2 被拒绝。每目标有独立 runtime、容器 IP/loopback 端口、CID、process generation、priority 和租约，不能用 sibling 健康替代。
 
-**当前协调状态仍在一个协调进程的内存中，持久化/协调高可用尚未实现。** 协调器重启可能失去全局身份、队列、房间索引和分配记录；入口冗余不能被宣传成对局内存容灾。节点本身重启也丢失其对局。首次上线需要明确告知维护/刷新与状态丢失边界，不能承诺无损切换。
+[cluster/DUAL-INGRESS.md](cluster/DUAL-INGRESS.md) 规定 WS-only 代理副本、逐目标维护与 CLOSED guard 迁移。只改实际活动 vhost 的 WS upstream，新握手选择两个 target，已有 WS 不迁移；HTTP/auth/private/data/material 不改，不以升级前 retry 绕过 401/403。目录 bind 与单文件 bind 分别按身份/CAS处理，单文件保持 inode；采用实际启动配置检查及正常 reload，不新建第二公共代理。
 
-回退时将入口/privatecode/data/游戏和配套素材恢复到相互匹配的固定版本，并保留新旧目录、keys、images和证据；回退源码不能找回已经丢失的内存局。原正式与Beta、其他网站、数据库和证书不因候选试验被清理。
+## 宿主准入与 fail-closed 租约
 
-## 验收证据口径
+1. 在角色启动前建立本 profile 的 CLOSED 护栏。Docker 发布涉及 DNAT/FORWARD，绑定 WG 地址或 INPUT 规则不等于隔离；同时约束容器 IP/端口、conntrack 原目的 WG IP/发布端口、可信 WG iface/peer `/32` 和同连接反向回复。
+2. `tools/cluster-host-manager.py` 按固定 policy 验证完整 CID、immutable image/source kind/build/manifest、Compose/runtime SHA、安全设置、唯一网络/固定 IP、映射和实际进程 generation。角色健康不同：coordinator 控制健康、game 认证状态、ingress HTTP404/private-no-store 与合法 Origin WS upgrade；不套旧单体 GET health 或 Docker healthy。
+3. 仅真实 Node MainThread `nice=-20`，普通 `SCHED_OTHER` + reset-on-fork；combat/trial/V8/libuv/辅助线程0。核对每 game 8+2，coordinator/ingress 为0；不 nice 整个进程、不加容器 CAP_SYS_NICE/CPU/内存 hard cap，保留 PIDs/read-only/cap-drop/no-new-privileges。
+4. 全部条件成立才逐目标原子开放精确租约。CID/generation 不是 nft 原生字段，由 manager 认证后生成精确规则；重新监听同端口不恢复旧 owner。重建先撤旧租约，真正启动使用新的不可复用 generation。
+5. 双实例 `guard_schema:2` 持久化精确 transaction intent，绑定 policy 与 exact before/intended-after/safe rollback；`closed_owners/start_intents/unadmitted` 保存 CLOSED 所有权和逐目标准入。未知 drift 拒绝，失败目标不关闭健康 sibling，不自动 adopt 未完整网络/进程身份的容器。
+6. 单目标 `revoke/stop/resume` 经过活跃 manager 的 lifetime writer lock 和 root-only 本地 UDS（目录0700、socket0600、SO_PEERCRED uid0），绑定 policy/state SHA、CAS、target、CID/generation/control epoch。`--target` 是批准 service，不是任意名称/CID。主动停用不可被健康轮询或 manager 重启自动重开，显式恢复仍重新准入。
+7. 旧单实例 guard 迁移须取得确切 writer lock，证明 CLOSED、空租约、owned table/state、inode/原 SHA，以 CAS 只替换对应对象；不能填新 hash 冒充批准、flush/restore 整表、放开网段、删其他表或绕过外部 WG policy 审批。变更 policy bytes 要相应新批准绑定。
+8. 保持关闭护栏→WG→manager 的启动依赖，见 [WG-BOOT-RECOVERY.md](WG-BOOT-RECOVERY.md)。不得修改全局路由/CNI/KUBE/Calico/LXD 等其他网络。显式停/restart 被 `Requires` 依赖的 WG recovery 会连带停 manager/game，不能用于游戏更新；managed 角色保留 `restart=no`，不让 Docker 早于护栏恢复。
 
-- 单模块/受控mock用于分配竞争、权限和补偿，不代表真实玩法/移动端/生产容量。
-- 本地原生HTTP/WS多端点验证使用真实Registry/Lobby/Matchmaking，但其中的测试Match必须明确标识。
-- 独立Node24进程、真实Match/Worker和Chrome验证才证明实际渲染与传输接入；小型2+1池不代表本批16×8+2规模或千人容量，手机模拟不代表实体手机。新root工具的8+2 native priority与fresh-netns真实TCP/DNAT正/负验收口径详cluster/README，注入Docker元数据不冒称实际镜像身份验证。
-- 任何性能/带宽结论需要相同工作负载、相同口径的隔离对照；不得生产压测、Inspector、heapdump或注入busy。
+应用 append-only 路由能力不等于宿主固定 profile 可随意扩展。更改 runtime SHA、节点/入口或 HUP 前必须准备所有对应路由与守卫批准材料；所有 ingress 先有路由，才启用新 compute。材料存在、enable unit 或隔离启动检查不代表真实角色、公网切换或整机重启恢复通过。
+
+## 发布、故障与回退
+
+先完成固定候选和隔离验收，取得具体环境/组件的部署授权与内存状态丢失确认，再接入口流量；Beta 完成不自动切 Formal，不设定时上线。记录阶段真实结果，控制器中断先读状态，不重放已消费脚本。
+
+**协调状态仍在单个 coordinator 内存，未提供持久化/协调 HA。** 重启可能失去身份、队列、房间索引与分配；game 重启丢失所属对局。多入口只能为仍存活 owner 提供其他连接路径，不是内存容灾，不承诺容量线性增长或增加共享链路带宽。
+
+回退先核对影响和授权，按现用配置 CAS/合并恢复相互匹配的 game、入口 privatecode/data、renderer resources、素材/pin/resolver/profile；精确撤本次 owned 租约和文件，保留其他环境、共享 WG/服务、密钥、镜像、旧素材与私有证据。镜像回滚不能恢复丢失内存局，不能全局 prune/flush。
+
+## 验证和记录口径
+
+单模块/mock、原生 HTTP/WS FixtureMatch、独立真实 Node/Match/Worker、浏览器画面、实体设备与完整 profile 规模分别记录，不互相代替。Docker 元数据注入不算真实镜像身份，手机模拟不算实体手机；性能比较须同负载/口径的隔离对照，不生产压测、Inspector、heapdump 或注入 busy。
+
+真实通过、失败、skip、阶段回执和具体坐标保存在 ignored `.claude/releases/` 或仓库外私有归档，见 [releases/README.md](releases/README.md)。公开指南不保存活动数量、故障日志、历史授权或实际部署 hash，源码记录提交也不改变运行身份。

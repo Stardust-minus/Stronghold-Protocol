@@ -54,6 +54,8 @@ deploy/stardust/auth/public/doctor.webp
 deploy/stardust/auth/public/rhodes.webp
 deploy/stardust/auth/public/ae-sphere.json
 deploy/stardust/build/
+# actual deployment receipts stay private; the public directory contains guidance only
+deploy/stardust/releases/*.json
 deploy/stardust/openi-resolver/openi-assets.json
 *.upload.checkpoint.json
 **/.openi/

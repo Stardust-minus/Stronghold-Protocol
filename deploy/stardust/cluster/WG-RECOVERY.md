@@ -6,16 +6,24 @@
 
 Each host keeps `/etc/ark-cluster-beta-wg` root-owned mode0700, with root-owned mode0600 regular files (no links):
 
-- `owner.json`: exact `{owner,local,publicFingerprint}`; owner is `ark-cluster-beta-wg-20261007-7DkMrv`.
+- `owner.json`: exact `{owner,local,publicFingerprint}`; owner must equal the fixed identifier approved by the selected profile; do not invent or copy it from another deployment.
 - `bootstrap.json`: the same fields plus the original `bootstrapNftSha256` recorded at provisioning.
 - `private.key` and `ark-wg-cluster.conf`: existing host-local key/configuration; never export, print, put in argv/environment, or commit their contents.
 - `recovery.json`: created atomically by this tool; version1 pins configuration SHA256, public fingerprint, local address, boot identity, bootstrap digest and closed/handed-off phase. Handoff also pins the owning manager project.
 
-The fixed network is core `10.253.78.2/32`, entries `.11`–`.14/32`, MTU1420, UDP51838. Core has four exact keyed peers and the four fixed public entry endpoints with keepalive25; an entry has one core peer and may learn its authenticated dynamic outer endpoint. Arbitrary peers, URLs, subnets, commands and WG post-up hooks are refused. The already-validated WG config snapshot reaches `wg setconf` through stdin, not a later mutable file reopen.
+The fixed profile permits one core local `/32` and four exact entry peers; each
+entry permits one core peer. MTU, UDP port, public endpoints and keepalives must
+match that profile, not caller-chosen coordinates. A documentation-only endpoint
+example is `192.0.2.10:<APPROVED_UDP_PORT>`; it is not executable configuration.
+An entry may learn its authenticated dynamic outer endpoint. Arbitrary peers,
+URLs, subnets, commands and WG post-up hooks are refused. The validated WG config
+snapshot reaches `wg setconf` through stdin, not a later mutable file reopen.
 
 ## API and lifecycle
 
-Installed tool paths are `/opt/ark-cluster-beta/tools/`, with the same verified `cluster-host-manager.py`, `cluster-deploy.py` and `main-thread-priority.py` dependencies.
+The protected installation layout uses `/opt/ark-cluster-beta/tools/`, with the same verified `cluster-host-manager.py`, `cluster-deploy.py` and `main-thread-priority.py` dependencies.
+
+Command examples for an explicitly authorized installation, not a verification receipt:
 
 ```sh
 python3 -I /opt/ark-cluster-beta/tools/cluster-wg-recover.py --action start
@@ -46,4 +54,4 @@ External kernel/config/ownership drift refuses without flushing or replacing it.
 
 Unit tests cover protected parsing, foreign preservation, first guard/late failure, warm no-op, handoff locks/open leases/drift/CAS, reboot identity and copied `/opt/.../tools` installation layout. `cluster-wg-kernel-check.py --isolated-netns --role core|edge` runs only in a fresh empty `unshare --net` namespace, verifies real WG/nft operations and sentinel preservation, and never uses host `/run` state. It uses installed WG or the hash-pinned previously prepared local test binary, not a download.
 
-This validates startup configuration and isolated kernel behavior, **not** a whole-host reboot, real peer handshake, external reachability, traffic capacity, application state recovery or coordinator HA. Do not rerun completed `wg-prepare.py` provisioning/setup actions to install this tool.
+Such checks validate only startup configuration and isolated kernel behavior, **not** a whole-host reboot, real peer handshake, external reachability, traffic capacity, application state recovery or coordinator HA. Do not rerun completed `wg-prepare.py` provisioning/setup actions to install this tool.

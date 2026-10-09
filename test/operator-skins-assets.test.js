@@ -68,7 +68,7 @@ test('generated appearance UI names are translatable while exact Wiki title meta
   for (const skin of OPERATOR_SKINS) {
     assert.ok(marked.has(skin.name)); assert.ok(marked.has(skin.brand));
   }
-  const json = source.slice(source.indexOf('Object.freeze(') + 'Object.freeze('.length, source.lastIndexOf('.map(Object.freeze)'))
+  const json = source.slice(source.indexOf('Object.freeze(') + 'Object.freeze('.length, source.lastIndexOf('.map(skin => Object.freeze(skin))'))
     .replace(/N_\(("(?:\\.|[^"\\])*")\)/g, '$1').replace(/ \/\/ i18n-ignore:[^\n]*/g, '');
   assert.deepEqual(JSON.parse(json), OPERATOR_SKINS, 'localization never rewrites IDs, the Wiki index or exact character names');
 });

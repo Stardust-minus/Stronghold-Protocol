@@ -127,8 +127,8 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
   const closeMember = (assignmentId, sessionId) => {
     for (const conn of conns.values()) if (conn.assignmentId === assignmentId && conn.sessionId === sessionId) closeConn(conn, 1000, 'MEMBER_LEFT');
   };
-  const guardedMember = (payload, extra = []) => {
-    check(payload, ['assignmentId', 'sessionId', ...extra], ['nodeGeneration', 'actorGeneration']);
+  const guardedMember = (payload, extra = [], optional = []) => {
+    check(payload, ['assignmentId', 'sessionId', ...extra], ['nodeGeneration', 'actorGeneration', ...optional]);
     checkAssignment(payload);
     if (!id(payload.sessionId)) throw new RpcError('BAD_REQUEST');
     if (streamMarkers || payload.nodeGeneration !== undefined || payload.actorGeneration !== undefined) {
@@ -237,8 +237,8 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
       return result;
     },
     setLoadout(payload) {
-      guardedMember(payload, ['loadout']);
-      return gameHost.setLoadout(payload.assignmentId, payload.sessionId, payload.loadout);
+      guardedMember(payload, ['loadout'], ['ops']);
+      return gameHost.setLoadout(payload.assignmentId, payload.sessionId, payload.loadout, undefined, payload.ops);
     },
     setSkins(payload) {
       guardedMember(payload, ['choices']);

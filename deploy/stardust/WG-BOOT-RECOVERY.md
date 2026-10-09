@@ -1,12 +1,9 @@
 # Owned WireGuard boot recovery
 
-Installed on Jiaxing and Hangzhou at 2026-10-06 11:42 +08 from fixed host revision
-`e6087bf7a2425e998b861211c1c15eb0aaaa2f3e`. Both recovery units are active/exited and
-enabled; Hangzhou core/Beta managers are enabled with owned Requires/After drop-ins.
-Their existing program revision remains1f74299 and game/manager generations were
-preserved.180 scoped Python tests,6 isolated real-kernel cases and both live
-zero-mutation calls passed. No actual whole-host reboot was performed; this is
-verified startup configuration and isolated bootstrap, not a host-reboot claim.
+This document describes the owned startup/recovery contract, not an installed or
+verified environment. Actual host-tool revisions, protected inputs and verification
+results belong in local private release records; see [record boundaries](releases/README.md).
+A template or isolated bootstrap check does not establish a whole-host reboot.
 
 ## Scope and startup
 
@@ -71,16 +68,13 @@ can propagate explicit unit stops to those managers and interrupt active games.
 The recovery tests inject files, stores, nft and host state; temporary bash fixtures
 exercise source identity/arguments, success/failure exit codes, INT/TERM/HUP,
 redaction, and suppression of `del_if`, with no real network command or secret read.
-Related lease/manager/priority tests and `systemd-analyze verify` passed. Real-kernel
-network-none containers exercised edge/core bootstrap and exact repeated live
-preservation, foreign-interface refusal, post-up failure and final-store failure.
-The first kernel run found that device-scoped `ip -j route show dev` omits `dev`;
-only that omission is accepted now, while explicit wrong devices and the separate
-peer-route lookup remain strict. Original failure evidence was retained.
+Related lease/manager/priority tests and systemd unit verification are separate
+checks. Isolated network-none kernel fixtures should cover edge/core bootstrap,
+exact repeated-state preservation, foreign-interface refusal, post-up failure and
+final-store failure. Device-scoped route output may omit `dev`; that omission does
+not permit an explicit wrong device or weaken the separate peer-route lookup.
 
-On each live host the installed oneshot returned `liveStatePreserved=true`; manifest,
-owned table, default routes/rules and open backend leases remained exact. Dependency
-wiring used daemon-reload and enable WITHOUT manager restart or `--now`. Existing
-core/Beta container IDs, StartedAt/PIDs and manager generations stayed unchanged.
-These checks do not establish a whole-host reboot, remote peer throughput, or
-resilience to arbitrary privileged actors changing the approved network.
+A warm-start check must preserve the manifest, owned table, default routes/rules,
+backend leases and current generations exactly. Enabling dependency wiring must not
+implicitly restart a manager. None of these checks proves a whole-host reboot,
+remote peer throughput or resilience to arbitrary privileged network changes.

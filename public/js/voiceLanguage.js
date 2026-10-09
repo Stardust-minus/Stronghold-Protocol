@@ -15,6 +15,7 @@ export function voiceCandidates(manifest, charId, slot, language, random = Math.
     return urls.length ? urls[Math.floor(roll * urls.length)] : null;
   };
   const chinese = pick(line(audio.voiceByLang?.cn)) || pick(line(audio.voice));
-  const preferred = chosen === 'cn' ? chinese : pick(line(audio.voiceByLang?.[chosen]));
+  const selected = audio.voiceByLang?.[chosen] ?? (chosen === 'jp' ? audio.voiceJp : null);
+  const preferred = chosen === 'cn' ? chinese : pick(line(selected));
   return [...new Set([preferred, chosen === 'cn' ? null : chinese].filter(Boolean))];
 }

@@ -295,13 +295,13 @@ export class RemoteGamePlatform {
       actorGeneration: ctx.actorGeneration, build: this.build, protocol: this.protocol, state: ctx.state });
   }
 
-  peer(assignmentId, method, sessionId, loadout) {
+  peer(assignmentId, method, sessionId, loadout, ops = undefined) {
     const ctx = this.contexts.get(assignmentId);
     if (!ctx) return Promise.reject(new AllocationError('STALE_ASSIGNMENT'));
     ctx.pendingMembers ??= new Set();
     if (ctx.pendingMembers.has(sessionId)) return Promise.reject(new AllocationError('MEMBER_BUSY'));
     ctx.pendingMembers.add(sessionId);
-    return this.memberOperation(assignmentId, method, sessionId, loadout).finally(() => ctx.pendingMembers.delete(sessionId));
+    return this.memberOperation(assignmentId, method, sessionId, loadout, ops).finally(() => ctx.pendingMembers.delete(sessionId));
   }
 
   memberPayload(ctx, sessionId) {
@@ -354,7 +354,7 @@ export class RemoteGamePlatform {
     return work;
   }
 
-  async memberOperation(assignmentId, method, sessionId, loadout) {
+  async memberOperation(assignmentId, method, sessionId, loadout, ops = undefined) {
     const ctx = this.contexts.get(assignmentId);
     if (!ctx || ctx.state !== 'published' || !safeId(sessionId)
       || !['leave', 'removeSpectator', 'addSpectator', 'setLoadout', 'setSkins'].includes(method)) throw new AllocationError('STALE_ASSIGNMENT');
@@ -395,7 +395,7 @@ export class RemoteGamePlatform {
     }
     if (role !== 'player') throw new AllocationError('NOT_MEMBER');
     return ctx.node.client.call(method, { ...this.memberPayload(ctx, sessionId),
-      ...(method === 'setSkins' ? { choices: loadout } : { loadout }) });
+      ...(method === 'setSkins' ? { choices: loadout } : { loadout, ...(ops === undefined ? {} : { ops }) }) });
   }
 
   /** Only validated, bounded terminal frames may use the low-rate control path. */

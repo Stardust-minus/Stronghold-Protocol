@@ -38,7 +38,7 @@ battles of the normal records, the first 自选 battle of the operator kits and 
 
 The active Stardust runtime intentionally keeps its existing Boss pool rule: co-op scales by living participant seats / 4, solo by 0.25. This differs from upstream 0.2.0's living-seat / solo-1 default and is tested separately in the match and native Worker suites.
 
-The current six-family corpus is the unchanged upstream 0.2.0 reference: all 283 stored scenarios retain the official digests. `tools/golden.mjs` explicitly supplies the official Boss configuration for this comparison; it does not silently change the live fork configuration. Never regenerate these JSON files to hide a fork/default mismatch. The earlier 0.1.4 fork-adapted corpus is historical, not the baseline or regeneration policy for 0.2.0.
+The current six-family corpus is the unchanged upstream 0.2.2 reference: all 283 stored scenarios retain the official digests. `tools/golden.mjs` explicitly supplies the official Boss configuration for this comparison; it does not silently change the live fork configuration. Never regenerate these JSON files to hide a fork/default mismatch. The earlier 0.1.4 fork-adapted corpus is historical, not the baseline or regeneration policy for 0.2.2.
 
 The virtual-time goldens do not replace native Worker/trial, ordered-event/10Hz transport or human-revival tests.
 

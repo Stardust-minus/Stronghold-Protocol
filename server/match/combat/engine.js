@@ -217,6 +217,7 @@ export class CombatEngine {
         fieldId: f.fieldId, kind: f.kind, players: f.players, live: f.live,
         time: Number(b.time) || 0, tickCount: Number(b.tickCount) || 0,
         killed: Number(b.killed) || 0, total: Number(b.total) || 0,
+        resolved: Number.isFinite(b.resolved) ? Math.max(0, Math.min(Number(b.total) || 0, Math.trunc(b.resolved))) : null,
         progress, left, layerGains: battleLayerGains(b), errors: this.diagnostics.get(f.fieldId), ...(result ? { result } : {}),
         ...(this.damageBoard && !f.live ? { damageRows: f.damageRows } : {}),
       };

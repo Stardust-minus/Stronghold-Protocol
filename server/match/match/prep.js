@@ -113,7 +113,11 @@ export class MatchPrep {
       defer(0, () => drive(gen, label, then));
     };
     const ready = () => {
-      if (valid()) { ps.resolveTemp(); ps.setReady(true); }
+      if (valid()) {
+        this.autoPickPersonalChoice(ps, 'random');
+        ps.resolveTemp();
+        ps.setReady(true);
+      }
     };
     const end = (job) => {
       let gen = null;
@@ -202,6 +206,7 @@ export class MatchPrep {
     if (this.phase !== PHASE.PREP) return;
     for (const ps of this.alivePlayers()) {
       if (ps.ready) continue;
+      this.autoPickPersonalChoice(ps, 'random');
       ps.resolveTemp();
       ps.ready = true;
       ps.dirty();

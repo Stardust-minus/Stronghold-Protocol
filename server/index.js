@@ -1,10 +1,11 @@
 // server/index.js — process boot; HTTP routes, static delivery and WebSocket wiring live in server/http/.
 // Worker pools are process-owned loans to matches. Startup and shutdown keep diagnostics separate from readiness.
 // Process-entry boot checks a pending update package before listening (server/update.js).
+// The default dual-stack bind may fall back to IPv4; explicit hosts remain literal.
 
 import http from 'node:http';
 import { getData, loadData } from './data.js';
-import { ROOT, listenAddress, serveDirs, makeLogger, parseTrustProxy } from './http/config.js';
+import { ROOT, listenAddress, bindCandidates, serveDirs, makeLogger, parseTrustProxy } from './http/config.js';
 import { WS_MAX_PAYLOAD, createSessionStack, attachWebSocket } from './http/websocket.js';
 import { DATA_SHIM_JS, createStaticHandler } from './http/static.js';
 import { createPackRegistry } from './packs.js';
@@ -12,7 +13,7 @@ import { MIME, COMPRESSIBLE, acceptsGzip, parseRange } from './http/files.js';
 import { BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag } from './http/buildTag.js';
 import { createRequestHandler } from './http/routes.js';
 import { answerClientError } from './http/common.js';
-import { lanUrls, isProcessEntry, runMain } from './http/boot.js';
+import { lanUrls, displayHost, isProcessEntry, runMain } from './http/boot.js';
 import { CombatWorkerPool } from './match/combat/pool.js';
 import { createHealthMetrics, serverLoadState, publicLoadDetails } from './healthMetrics.js';
 import { resolveWsCompression } from './wsCompression.js';
@@ -95,14 +96,36 @@ export async function startServer(opts = {}) {
   const server = http.createServer(createRequestHandler({ serveStatic, health, log }));
   server.on('clientError', answerClientError);
   const wss = attachWebSocket(server, { network, log, wsCompression });
+
+  // The address actually bound. The default may fall back to IPv4; the returned host and url follow that.
+  let boundHost;
   try {
-    await new Promise((resolve, reject) => {
-      const onError = e => { server.off('listening', onListening); reject(e); };
-      const onListening = () => { server.off('error', onError); resolve(); };
-      server.once('error', onError);
-      server.once('listening', onListening);
-      server.listen(port, host);
-    });
+    // A host with IPv6 switched off refuses '::'. Fall back to IPv4 rather than not booting. Only the default is
+    // retried: an explicit HOST is literal (server/http/config.js bindCandidates).
+    let bound = null;
+    let lastError = null;
+    const candidates = bindCandidates(host);
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      try {
+        await new Promise((resolve, reject) => {
+          const onError = (e) => { server.off('listening', onListening); reject(e); };
+          const onListening = () => { server.off('error', onError); resolve(); };
+          server.once('error', onError);
+          server.once('listening', onListening);
+          server.listen(port, candidate);
+        });
+        bound = candidate;
+        break;
+      } catch (e) {
+        lastError = e;
+        const retry = ['EAFNOSUPPORT', 'EADDRNOTAVAIL', 'EINVAL'].includes(e.code) && i < candidates.length - 1;
+        if (!retry) break;
+        log.warn(`[boot] cannot bind ${candidate} (${e.code}) — falling back to IPv4 only`);
+      }
+    }
+    if (bound === null) throw lastError;
+    boundHost = bound;
   } catch (e) {
     network.close();
     lobby.shutdown('boot-failed');
@@ -120,7 +143,7 @@ export async function startServer(opts = {}) {
   }
   const addr = server.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
-  const url = `http://${host === '0.0.0.0' || host === '::' ? 'localhost' : host}:${actualPort}`;
+  const url = `http://${displayHost(boundHost)}:${actualPort}`;
   let closing = null;
   async function close() {
     if (closing) return closing;
@@ -140,7 +163,7 @@ export async function startServer(opts = {}) {
     })();
     return closing;
   }
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, packs, combatPool, trialPool, healthMetrics, close };
+  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, combatPool, trialPool, healthMetrics, close };
 }
 
 if (isProcessEntry(import.meta.url)) runMain(startServer);

@@ -103,7 +103,7 @@ test('trial serializer preserves raw undefined/Infinity/flags/loadouts and rejec
   assert.throws(() => snapshotTrialInput(symbols), { code: 'BAD_TRIAL_INPUT' });
   const hidden = input(); Object.defineProperty(hidden.candidates[0].flags, 'lost', { value: true });
   assert.throws(() => snapshotTrialInput(hidden), { code: 'BAD_TRIAL_INPUT' });
-  const accessor = input(); Object.defineProperty(accessor.candidates[0].flags, 'lost', { get() { assert.fail('must not execute getter'); }, enumerable: true });
+  const accessor = input(); Object.defineProperty(accessor.candidates[0].flags, 'lost', { get() { return assert.fail('must not execute getter'); }, enumerable: true });
   assert.throws(() => snapshotTrialInput(accessor), { code: 'BAD_TRIAL_INPUT' });
 });
 

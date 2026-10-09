@@ -1,3 +1,4 @@
+// @ts-nocheck -- pinned third-party engine, byte-verified by test/name-policy.test.js; do not edit its implementation.
 // Upstream mint-filter@4.0.3, Copyright (c) 2019 ZheLin, MIT; see NAME-FILTER-LICENSE.txt.
 export const NAME_FILTER_SOURCE = Object.freeze({
   "project": "ZhelinCheng/mint-filter",

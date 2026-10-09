@@ -16,6 +16,7 @@ export class RemoteBattle {
     this.tickCount = 0;
     this.killed = 0;
     this.total = 0;
+    this.resolved = null; // Unknown until a worker supplies its own scheduled-enemy counter.
     this.finished = false;
     this.errors = [];
     this.progress = null;
@@ -53,6 +54,7 @@ export class RemoteBattle {
     this.tickCount = view.tickCount;
     this.killed = view.killed;
     this.total = view.total;
+    this.resolved = view.resolved ?? null;
     this.finished = !view.live;
     this.errors = view.errors || [];
     this.progress = view.progress;

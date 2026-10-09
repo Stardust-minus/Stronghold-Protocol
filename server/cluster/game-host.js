@@ -12,8 +12,8 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 const identifier = (v, max = 128) => typeof v === 'string' && v.length > 0 && v.length <= max && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const integer = (v, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(v) && v >= min && v <= max;
 const plain = v => !!v && typeof v === 'object' && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
-const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'snapshotHz'];
-const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'notOwned', 'diy', 'skins'];
+const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'snapshotHz'];
+const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'ops', 'notOwned', 'diy', 'skins'];
 // Match's public observer contract, including the lobby's broadcast ticker/emote
 // and server-combat streams. Unknown types fail closed for observers.
 const SPECTATOR_TYPES = new Set(['m.public', 'm.field', 'm.result', 'm.ticker', 'm.emote', 'm.damage', 'b.start', 'b.snap', 'b.ev', 'b.pool', 'b.end', 'b.damage']);
@@ -82,6 +82,21 @@ function loadoutCopy(value) {
   return Object.fromEntries(entries);
 }
 
+// Operator settings travel independently from skill/module choices. Copy data
+// descriptors first, retaining the public protocol's bounds and no executable input.
+function opsCopy(value) {
+  if (value == null) return value;
+  const safe = dataRecord(value, undefined, LOADOUT_LIMITS.ops);
+  return Object.fromEntries(Object.entries(safe).map(([id, input]) => {
+    const entry = dataRecord(input, ['potential', 'cultivate']);
+    if (!identifier(id, 64) || ['__proto__', 'constructor', 'prototype'].includes(id)
+      || !Object.keys(entry).length
+      || (entry.potential !== undefined && !integer(entry.potential, 1, 6))
+      || (entry.cultivate !== undefined && !integer(entry.cultivate, 0, 3))) invalid();
+    return [id, { ...entry }];
+  }));
+}
+
 export function copyAssignmentSpec(input, fallbackAssignmentId) {
   const spec = dataRecord(input, SPEC_KEYS);
   if (spec.assignmentId == null && fallbackAssignmentId !== undefined) spec.assignmentId = fallbackAssignmentId;
@@ -92,6 +107,7 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
     || spec.modeId !== modeIdFor(spec.mode, spec.difficulty)
     || (spec.revivalEnabled !== undefined && typeof spec.revivalEnabled !== 'boolean')
     || (spec.disableSharedPool !== undefined && typeof spec.disableSharedPool !== 'boolean')
+    || (spec.aiPicksLast !== undefined && typeof spec.aiPicksLast !== 'boolean')
     || (spec.experimental !== undefined && (!isExperimental(spec.experimental)
       || (spec.revivalEnabled !== undefined && spec.revivalEnabled !== (spec.mode === 'coop' && spec.experimental.revivalEnabled))
       || (spec.disableSharedPool !== undefined && spec.disableSharedPool !== spec.experimental.disableSharedPool)))
@@ -113,6 +129,7 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
     if (!s.isBot) humans++;
     const seat = { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected };
     if (s.loadout !== undefined) seat.loadout = loadoutCopy(s.loadout);
+    if (s.ops !== undefined) seat.ops = opsCopy(s.ops);
     if (s.notOwned !== undefined) {
       const notOwned = s.notOwned === null ? null : dataArray(s.notOwned, OWNERSHIP_LIMITS.notOwned);
       if (notOwned !== null && !isNotOwnedList(notOwned)) invalid();
@@ -144,6 +161,7 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
     seats: players, spectators: [...spectators],
     revivalEnabled: spec.mode === 'coop' && experimental.revivalEnabled,
     disableSharedPool: experimental.disableSharedPool, experimental,
+    ...(spec.aiPicksLast === undefined ? {} : { aiPicksLast: spec.mode === 'coop' && spec.aiPicksLast }),
     ...(spec.snapshotHz === undefined ? {} : { snapshotHz: spec.snapshotHz }) });
 }
 
@@ -474,14 +492,15 @@ export class GameHost {
     return this._invoke(ctx, 'handle', playerId, msg);
   }
 
-  setLoadout(assignmentId, playerId, loadout, channel) {
+  // Keep the legacy channel fence in argument four; operator settings are optional argument five.
+  setLoadout(assignmentId, playerId, loadout, channel, ops = undefined) {
     const actor = this._actor(assignmentId, playerId, channel);
     if (!actor) return fail(ERR.NOT_IN_ROOM);
     if (actor.member.role === 'spectator') return fail(ERR.SPECTATOR);
     if (actor.ctx.state !== 'committed') return fail(ERR.WRONG_PHASE);
-    let safe;
-    try { safe = loadoutCopy(loadout); } catch { return fail(ERR.BAD_MSG); }
-    return this._invoke(actor.ctx, 'setLoadout', playerId, safe);
+    let safe, safeOps;
+    try { safe = loadoutCopy(loadout); safeOps = opsCopy(ops); } catch { return fail(ERR.BAD_MSG); }
+    return this._invoke(actor.ctx, 'setLoadout', playerId, safe, safeOps);
   }
 
   setSkins(assignmentId, playerId, choices, channel) {

@@ -108,11 +108,13 @@ test('announcements omit contacts and infrastructure; the lobby owns the copyabl
   assert.match(source('../../public/js/ui/lobbyFeedback.js'), /FEEDBACK_GROUP = '815818430'/);
 });
 
-test('modal focus remains opt-in and compact matching explains room-owned experimental rules', () => {
+test('topmost modal traps and restores focus and compact matching explains room-owned experimental rules', () => {
   const modal = source('../../public/js/ui/components.js'), matching = source('../../public/js/ui/matchmaking.js');
   const experimental = source('../../public/js/ui/experimental.js'), revival = source('../../public/js/ui/revival.js');
-  assert.match(modal, /trapFocus = false/); assert.match(modal, /aria-label=\$\{ariaLabel\}/);
-  assert.match(modal, /trapFocus && e\.key === 'Tab'/); assert.match(modal, /prevFocus\?\.focus/);
+  assert.match(modal, /aria-label=\$\{ariaLabel\}/);
+  assert.match(modal, /if \(!topmost\(\)\) return/);
+  assert.match(modal, /else if \(e\.key === 'Tab'\)/); assert.match(modal, /prevFocus\?\.focus/);
+  assert.match(modal, /window\.addEventListener\('focusin', onFocus\)/);
   assert.match(matching, /compact = false/); assert.match(matching, /compact \? null : html`<small>\$\{t\(MATCHING_RULES\)\}/);
   assert.match(matching, /\$\{t\(MATCHING_RULES\)\}<\/p><p class="modal__text">\$\{t\(EXPERIMENTAL_RULES\)\}/);
   assert.match(matching, /未完成确认者不自动回队/); assert.match(matching, /单人匹配跟随所加入房间/);

@@ -1,299 +1,94 @@
 # 游戏与静态资源协同更新 SOP
 
-适用：ark-proto.stardust.matce.cn 游戏、独立 PRTS 门禁，以及 ark-asset.hanabi-ai.cn:25442 静态源。
+适用于部署者自己的 game、独立 auth/PRTS、resolver、入口代理与公开静态源。示例 origin 为 `https://game.example.com` 和 `https://assets.example.com`，部署路径用 `<占位符>`；不是站点运行状态或执行授权。集群与独立 Beta 分别补充遵循 [CLUSTER-SOP.md](CLUSTER-SOP.md)、[BETA-SOP.md](BETA-SOP.md) 及 [双 ingress 合同](cluster/DUAL-INGRESS.md)。
 
-正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。0.1.2 + Worker 的历史发布单元见下方记录；此后每次更新都须配套验收及取得明确上线授权，提交、合并与推送不代表允许重启生产。
+## 一、权限与发布单元
 
-## 本批双 ingress 正式切换已完成（2026-10-09）
+**提交/推送、测试通过、素材上传、镜像准备、Beta 发布、用户离线或到达约定窗口都不授权正式切换。** 每次取得具体环境、组件、维护影响与执行窗口的用户授权；DNS、秘密轮换、管理通道、WG、清理和其他服务另行判断。已消费的一次性控制器不得重放；中断后先读取实际阶段状态与身份，不因本地提示中断而重复激活。
 
-游戏／宿主工具固定 `24ff0dba30833426ec6ec02b010a580f89c4d3e1`、client-build `9c1fd471887b`，四入口 OPEN／25角色／16×8+2／Main-only-20及其他线程0、161私有文件／入口实际核验通过。已上传17292素材直接复用；新宁夏3include公开供给、新同版resolver与双WS入口配套完成。没有重复全量验收、素材重传或Git push/master整合。
+一次配套发布至少绑定：
 
-失败不能抹去：宁夏首次因6秒worker等待过短回退后fresh收尾；原入口副入口Docker35402绑定失败形成never-started无网络attached容器，manager拒绝adopt；先开放健康primary恢复503，再仅删除精确已撤权created CID并用manager scoped resume恢复双入口。其他角色未再重启，WG依赖未重启，完整证据见 [实际发布记录](releases/next-dual-ingress-20261009-24ff0dba.json)。所有本批已消费controller禁止重放；新record/docs HEAD不改变运行游戏commit。
+1. 完整源码 commit 与已合并的上游基线；若使用 tree 身份，明确 source-kind 和内容摘要，不能冒称 Git commit。记录 HEAD 与运行 revision 分开。
+2. 固定基础镜像 digest、game 的 immutable image ID/OCI labels，以及 source/resource manifest 摘要。不同 Docker store 的 ID 若不同，需独立核对 RootFS/labels/内容，不能只比标签名。
+3. lockfile、已准备依赖/vendor、资源 manifest、ignored generated renderer index 与私有 JS/CSS 的精确文件/URL 清单。
+4. 新 immutable 静态 release、音频 `/media/` alias、fonts/vendor/PRTS 的独立版本；所有活动 OpenI mirrors、ModelScope immutable prefix/固定 revision 和同版本 fallback 的 path/bytes/SHA-256 对应关系。
+5. resolver 代码/镜像与挂载清单、宿主 Lua/JSON profile、Nginx includes/vhost、Compose/runtime、host policy/工具版本及回滚单元。未改组件单独保留身份，不惯例重建。
 
-## 本批切换前授权与准备（历史）
+**不能只 git pull、只换 game 镜像或覆写素材目录。** 已供给目录 immutable，一个字节变化也使用新 `<release>`。同字节素材可按证据复用，但名称相同或分流比例相同不证明配套。准备器/profile 的冻结输入应按其版本化源码、允许摘要、实际输入与输出清单重新绑定，不把某次历史 hash 当通用批准。
 
-用户已批准改完并验收后直接正式切换，并另选本地feature提交＋离线镜像／验证、有期限固定key loopback Core直连；不推送、不合入master，不重复询问维护窗口。目标每入口2独立ingress／四入口共8、1coord16game各8+2，共25角色。维护会结束内存房局，回滚镜像不能恢复；PRTS／口令／DNS／Beta／WG依赖／其他服务及生产压测限制保持。
+## 二、联网开发环境准备，离线固定构建
 
-quiet同负载与Main真实Worker／Nginx／三Chrome检查已通过；hostmanager三条异常路径已修复为dual-only schema2精确journal／CLOSED ownership／逐target startup admission，fresh224项Python（219通过／5条件跳过）、4native、52真实隔离kernel和限定独立复核已通过。最新完整回归608文件／6720项为6696通过／24条件跳过／0失败，官方283golden一致；1371代码数据库存SHA0166ca3675702c377b6ca516895bc34ee0e63ed05d2bbe8f2f378c444a868ea5，英文及相关四包通过，全局日韩繁各382既有缺译仍strict失败。双guard旧单实例迁移必须只替换经身份／inode／SHA CAS证明CLOSED的owned table/state，不向旧表填hash冒充批准，不全表flush，不关闭WG审批验证；绑定host-policy bytes的外部批准需要明确同版新SHA。具体合同见 [DUAL-INGRESS](cluster/DUAL-INGRESS.md)。固定commit／image实际验收、私有码／immutable供应与正式25角色核验仍需成套执行，不重放任何旧controller。
+1. 在独立分支同步上游已正式合并内容，固定 revision，保留原工作树。审查 manifest、lockfile、`/assets/` 和 `/media/` 路由、WS、昵称/重连、门禁、模拟和 Worker 接点。
+2. 从固定源码导出不存在的新目录；逐 blob 校验，拒绝路径穿越、链接、设备和非预期库存。依赖改变按新 lock 准备；复用也核对字节，不用旧整合包覆盖新源码。
+3. 保持 `SP_COMBAT=server`、`SP_VERIFY=off` 和必要的本地库/字体适配。宿主调度/守卫程序、systemd、秘密和证据不放进 game app 或公开素材。
+4. 集群使用 `tools/cluster-source-export.py`，单独验证 `data/local-assets.json` 与其 atlas/mesh 引用；它是运行资源，不是 Git blob。HTTP200 的空 `groups` 不能算纹理通过。
+5. 以已固定 Node 基础镜像离线构建，`--network=none --pull=false`，记录真实 image ID、OCI source/revision 与内容清单；测试使用匹配运行时。简单 `Dockerfile.offline` 与 `cluster/Dockerfile.cluster` 的构建参数不同，不混用。
+6. 按改动完成 canonical、真实进程/Worker、隔离 HTTP/WS 和浏览器验收，检查入房、重连、模拟、准备/棋盘/购买部署、Spine、音频与单一 Preact 身份。mock、软件渲染、手机模拟、库存和正文证明各自标明范围；失败/skip 不改称通过。
 
-## 先前素材准备授权（2026-10-08，目标2026-10-09）
+## 三、公开静态准备与精确映射
 
-当前用户明确批准批量皮肤和音频文件的上传／准备，以及本地20人选择与同模式整房匹配修复。本地实际271皮肤和三语声音配套清单需重新形成新immutable发布单元，不能套用旧127清单。新49动态立绘只声明、未准备；不将静态回退称完整动态支持。
+公开目录仅为 `releases/<release>/{assets,fonts,vendor}/`。清单和生成配置存运维目录，不放公开资源前缀。每个文件记录相对路径、bytes、SHA-256；归档安全和精确库存校验不能由传输退出码替代。
 
-新物料OI86086／MS86085 aliases超过原50000限制；Python准备器、双Lua与resolver消费端现共同有界100000，resolver文件读取有界64MiB。已用完整约24MB最终清单实际native LuaJIT、OpenResty access/header HTTP及resolver盘读HTTP验证，不能仅依赖语法检查。保留最多2OI mirrors、明示MS前缀及唯一Schwarz OpenI-only限制，仍是固定小Lua＋JSON缓存，不生成大Lua常量表。
-
-本地最终验收已完成：post-MIME修复显式599文件canonical R2为6524 tests／6501 pass／23 skip／0 fail或cancel；官方六类283golden全部一致，原六JSON与HEAD及前后SHA相同。主助手真实20人匹配／22槽手选、286模型实播及新增皮肤真实游戏已通过，full/lite仅dryrun。日／韩／繁体各391旧缺译仍为全局strict失败；本地验收不替代最终远端素材供给或固定源码／镜像的配套验证。
-
-实际供应源终态已完成：MS17277对象／86085alias固定5f62fa7490c4d6ef4998aa211eb00357d7e85dce，OI17278对象／86086alias、两个mirrors；47匿名完整正文／单CORS*与两项音频Range206通过。真实pin本地profile绑定R2实际38Lua向量／77OpenResty HTTP／resolver盘读和计数／64MiB边界通过，不能拿旧synthetic-pin回执重标。final-preparation-seal-r1.json已固定1360代码数据摘要72e20bf11caeb28f6e491d332f6f232292b3a74a2a4dee0c1108207225d49e7a，仅表示未提交工作树验收，不是Gitcommit或镜像。宁夏17292全文SHA仍仅正文prepared，NOinclude/reload/publicServing；providerSupplyReady=true不等于readyForProductionActivation，固定代码、镜像与私有码尚待执行授权。
-
-上传许可不包含本次正式激活／游戏或auth／resolver重启、Core管理通道续期、镜像或源码Git发布。宁夏可只预放新目录并核对正文哈希；新include、公开HTTP供给、原入口切源和配套私有代码／镜像仍需分别验证及执行授权。当前uploadVerified未完成时不能标ready，attributes自动生成格式要实际核验精确路径与git check-attr，不以去掉校验掩盖失败。旧素材、失败证据、stashes及LAN预览保留，不设定时上线任务。
-
-## 中日英配音批次：Git 推送不等于上线（2026-10-08）
-
-本地新增 `audio.voiceByLang` 与5222个日／英录音，旧中文 `audio.voice`、其他音频和127皮肤保持。源码、清单 metadata 和测试可以按用户授权推送；git-ignored 录音不能随源码提交。当前正式8245/client371cbf648323没有因此更新。
-
-若之后获得上线许可，须将已验收录音纳入新 immutable 静态库存，完整核对正文／哈希、语言化 `/media/voice/` 别名、原有供应源限制与对应私有代码，再固定新游戏镜像成对发布。旧清单兼容回退不是配套发布条件已经满足的证明，不顺带更新auth／DNS／WG／Beta。素材上传、镜像和正式切换分别判断授权；本轮都未执行。
-
-## 本批 0.2.1 实际激活完成（2026-10-08）
-
-用户分别批准配套正式切换和限时直连后，固定游戏 `8245e2ecafba404e48536755a80c3443afdf558d`／client-build `371cbf648323` 已实际上线。主控后台中断提示不代表远端失败：读取完整阶段日志／`live-r1.json` 后，新只读核验实际 21 角色、四 OPEN、16×8+2／Main-only-20、157 私有文件／入口、同镜像解析器新清单及公告通过，40 次正常 TLS 稀疏门禁／素材检查通过。未重放已消费激活、未追加停服／重启或生产玩法测试。
-
-运行游戏 commit、host-only 工具 commit `ec01bf1a…` 和后续记录分开。当前 127 套皮肤／95 干员只代表已有资源覆盖，不是完整官方目录。用户新增缺项反馈须本地诊断和验证，不沿用本轮上传／正式切换许可自动再发布。下文许可、未激活及待完成描述均为对应阶段历史。
-
-## 历史：本批 0.2.1 上线准备边界（2026-10-08，准备时未激活游戏）
-
-已验收的多人与接力源码固定为 `8245e2ecafba404e48536755a80c3443afdf558d`，游戏镜像与随后 host-only 工具／记录提交分别标识。不得将较新的文档 HEAD 当作镜像中的游戏 revision。配套私有 JS/CSS、generated renderer index、公开素材和依赖有独立清单；剔除无引用的构建副本不等于删除仓库素材。
-
-当前素材准备的唯一例外为 `/assets/skins/char_340_shwaz_snow_1/illustration.png`：ModelScope 平台已删除原路径，用户明确指定该图走 OpenI，宁夏仍保留同版回退。不重传、改名或使用删除前的 pin；例外必须进入明示清单与 access/header 双端校验，不能默默把全量核验失败算通过。其他公开素材仍 MS60/OI40，OpenI 始终最多两个固定 mirrors。
-
-host profile 只能输出固定 Lua 加 JSON 数据，不再生成大型 `header-data.lua`。上线前实际执行 full-size JSON／LuaJIT 和 OpenResty access/header HTTP 测试，包括唯一例外、普通分流边界、HEAD／OPTIONS、错误 no-store、签名 TTL、CORS 去重及私有路径拒绝；语法检查不是运行验收。新 prefix、固定 revision、assigned alias／bytes／SHA 与实际供给证据必须成套，draft 或上传中 checkpoint 不是 ready。
-
-本轮许可只包含提交推送、本地镜像和公共素材新 immutable 准备；宁夏静态源必要的正常 reload 不等于正式游戏切源。正式／Beta 激活、远端镜像投递、Core 通道核对与游戏／门禁／解析器重启仍需实际后续授权；不恢复旧部署调查或一次性控制器。具体素材合同见 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)。
-
-## 最新独立 PRTS 发布（2026-10-08）
-
-正式四入口 auth 已更新到 `ae-10`，片头默认 OFF，其余组装/成功/进入动效保留。AUTH_OVERLAY 摘要 `c44c000b5724…`、固定镜像 `ddf7f87fa8cc…`；完整身份、首轮失败回滚及实际验收见 [登录页发布记录](releases/prts-ae10-20261008-auth-c44c000b.json)。游戏仍是下节 0.2.0 热修复，未同步本地 0.2.1；上线阶段没有游戏重启、Core 访问、素材切换或 Git 发布。后续源码/记录推送不改变这一上线快照。
-
-独立 auth 更新必须核对以下实际边界，不照搬整批游戏 SOP：
-
-1. HTML、资源 Map 和 allowlist 在 auth 启动时加载，现有机制不能仅替换文件就生效。说明必要的独立 auth 替换，并取得对应授权；不能称完全零重启。保持原项目/服务，仅更新 auth 镜像，使用 `--no-deps`，不惯例重建游戏/ingress/resolver/proxy。
-2. 使用固定 auth 资源清单及真实内容摘要，未提交源码不能冒称某 Git commit。逐项核验继承的昵称策略、库/字体和新增素材，单独校验实际公开 PRTS 库；匹配时保留旧 immutable 目录，不顺带升级游戏素材。
-3. 四入口正式 auth 不等于所有带 beta 名称的服务：`.73/.92` 的正式 vhost 由既有 beta 名称的共享代理承载。只改正式段落，单文件 bind 保留 inode；CSP 只合并本批精确变更，不覆盖整份旧 vhost。
-4. Nginx 测试与 reload 使用运行容器的实际启动配置。原入口用默认配置；`.73/.92` 用 `-c /etc/ark-beta/nginx.conf`，`.219` 用 `-c /etc/ark-formal/nginx.conf`。不要对后者裸跑默认 `nginx -t/-s reload`，默认 PID 路径在只读 rootfs 下失败不代表活动配置有问题，更不能为此取消只读保护。
-5. 宿主通过 Docker 映射端口探测新 auth 时发送可信游戏 Host；容器内 loopback probe 才可使用 loopback Host。不能为错误探测 Host 放宽门禁。保持原 secret mount/权限/内容，旧 session/CSRF 兼容验证仅在内存处理，不输出或落盘 Cookie/密钥。
-6. 备份当前配置及 CAS 身份，失败只撤本批 auth/CSP，不重启游戏；记录首轮失败和回滚代次，不用新 auth 的 restart0 掩盖此前尝试。所有一次性控制器消费后不得重放。
-
-本批四 auth 最终健康/旧授权及 profile 通过，其他活跃容器 ID/image/PID/start/restarts 不变。四入口正常 TLS/全部八项新前端资源正文摘要/私有 401/内部 404 通过；主助手真实线上浏览器查看了桌面/手机模拟画面。浏览器用内部内存授权 Cookie，不是正式口令录入验收；拦截进入游戏，未创建生产玩家/房间。正式门禁切换许可不等于下一次升级/重启许可。
-
-## 最新已完成游戏热修复（2026-10-07）
-
-正式当前为 TREE `80a59be2121de90eee9579a4b2b63c65ca9b7f69` / client-build `7793c19cf0fc`，四入口 OPEN；见 [固定热修复记录](releases/v020-unite-hotfix-20261007-80a59be2.json)。联防恢复沿用原地图，服务器模拟和客户端 spec 同步；显示名称不改变节点路由，公告只说明独立地图修复。旧 `ce68` 与下方 0.1.4 状态均为历史。
-
-本次实际更新精确 21 个正式角色及匹配私有代码，保留现有素材 JSON header 修复、auth/resolver/TLS/WG/Beta/其他服务。必要镜像只经已核对的直接杭州管理通道传送，禁止回退到旧 10Mbps 跳板；临时通道有期限，失效后须重新核对实际状态，不能重放其 setup。杭州仍只保留运行必需材料，不传文档、开发 checkout 或测试脚本。
-
-用户明确要求跳过追加测试并立即上线；已经记录实际就绪、公告字节及四入口正常匿名门禁 401。旧公共玩法失败、命名浏览器夹具失败和用户跳过项目不得改称通过。Git 主分支整合、推送与分支清理不改变已运行 TREE，不产生下一次维护/重启许可。
-
-## 最新杭州主机边界：只运行prod（2026-10-07追加）
-
-用户明确要求杭州不留文档和开发源码副本、只运行正式ark计算。Beta集群17容器与旧Beta已停止，旧/Beta管理器和恢复单元已禁用；正式17个核心角色未重启且原代次/精确租约/健康保持。清理退役树前先核对精确inode/文件库存、活动挂载和进程引用，并将小型历史材料不透明保全到管理机私有目录；未删除Docker镜像、未动其他服务或全局网络。
-
-后续上线只向杭州投递运行必需镜像、正式6个配套宿主程序、runtime配置/密钥/守卫，**不传开发checkout、source export、测试工具或发布文档**。发布记录留管理机/Git，不复制回杭州；不能因旧Beta验收记录而自动恢复Beta。必要生产管理程序不是可删除的开发源码副本。详[prod-only跟进记录](releases/v014-core-prod-only-20261007-5b63d51.json)。
-
-## 已完成正式集群切换（2026-10-07，Beta停用前验收快照）
-
-用户本批明确授权上线，并随后明确允许直接停止旧正式服替换，不等待旧局自然结束。运行源码固定`5b63d51dddeba07292eb9891beee776850c1bb75`，已先非force推至origin/master再切公开路由。正式与Beta各1协调器/16个8+2完整游戏节点/3入口（`.78/.73/.92`）；`.75`保持禁用。实际结果、配套身份与旧局中断边界见[发布记录](releases/v014-cluster-formal-20261007-5b63d51.json)及[CLUSTER-SOP.md](CLUSTER-SOP.md)。
-
-本次原入口Formal vhost用目录挂载原子CAS替换；`.73/.92`是单文件bind，必须保持原inode、先隔离语法检查、备份和原字节CAS写入，再实际nginx-t/正常reload。它们复用现有代理，不新建第二443代理。正常reload会保留旧WS，所以另按已核验unit/CID停止旧f3管理器和容器，关闭其旧core-only WG租约；旧WG恢复依赖不能停止。旧容器/镜像/匹配文件保留，但内存对局不能恢复。
-
-公开F3素材60MS/40OI及原入口auth/assets/密码/TLS源保持不变；新镜像必须有独立验证的生成atlas索引，HTTP200空groups不能算通过。双profile精确Main-only策略/40角色租约、各312TLS门禁、真实五客户端纹理/购买部署/第二轮/观战重连及音频解码已通过。新增加A不重启控制/节点、不拆匹配池、不承诺DNS严格均分或HA；用户已自行添加`.73/.92`，禁止添加held`.75`。
-
-后续release记录提交不改变运行源码C。旧章节是对应时间的流程和状态，既不取消本批明确授权，也不产生下一批自动维护许可。
-
-## 历史：杭州/Beta准备与正式切换分开
-
-用户2026-10-06要求先准备独立杭州Beta和版本化业务JS/CSS本地供给，详 [BETA-SOP.md](BETA-SOP.md)。Beta拥有独立backend/会话/门禁签名/Origin/vhost，不能把Beta域名指向正式进程或绕过密码门禁。更大的12+2 Worker与`beta`/`core`宿主profile均须逐池及实际线程核对，原`prod`仍6+1。WG发布端口涉及Docker DNAT/FORWARD，精确隔离及重建fail-closed不可只用INPUT/绑定地址代替。
-
-正式更新+服务器切换只留UTC+8每天05:00–08:00低谷并取得具体执行指令；本地测试、Beta上线、提交推送、用户睡觉或时间到窗口都不是自动正式激活许可。以下旧单机步骤不能直接在新机照搬；保留现用配置并按实际目标合并，配套材料与回退仍遵循本SOP。
-
-## 最新素材供应源切换：ModelScope60 / OpenI40（2026-10-06 17:19）
-
-本批正式公开 `/assets/`、`/media/` 普通GET于17:12:58+08激活、17:19:54+08验收为ModelScope60/OpenI40/宁夏0，按请求随机选择，缓存302可复用所选源。宁夏HEAD及原OpenI故障fallback、fonts/vendor/PRTS保持，Beta分流未变。配套静态仍为C1 `v013-hangzhou-20261006-1f742992`，game7e019ee/image10c94333/CID8715f3a3，resolver063/image53ac、auth186均未更换；只有宿主Nginx/Lua与平滑reload，无容器/WG/管理器重启。
-
-当前正式vhostSHA `cefc036ffbf804c96294b66837a564f5e731172e8e40c897c903a270bbf68e06`，global397db9bc/Beta4c8fb2d5不变。ModelScope `Stardust/arknight-assets` 的immutable前缀 `releases/v013-modelscope-20261006-1f742992-174200` 固定revision `34fa98b056c7554b8dbea7a4e18e78b6c6445fbb`；7200对象/7049唯一内容SHA/403852758字节/24968aliases，全量本地hash与远端LFS SHA/size库存核对，不等于全量正文重下载。provider生成的.gitattributes扩展单独审计，8个旧文件保持。实际Chrome匿名混合来源hash、audio、Spine1053pixels通过，本批无密码输入或玩法验收。
-
-具体实现、短缓存和回退边界见 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md) 及 [活动记录](releases/v013-material-lb-20261006-modelscope60-openi40.json)。[access.lua](material-lb/access.lua)/[header.lua](material-lb/header.lua)、离线 [prepare-material-lb.py](tools/prepare-material-lb.py) 和 [test-prepare-material-lb.py](tools/test-prepare-material-lb.py) 仅当前C1/pin/60:40 profile，无上传/自动激活或通用provider env-switch。ModelScope先跳稳定pinned resolve入口再由provider到CDN，不套用auth_key TTL，也不保证所有下游CDN错误自动fallback。
-
-公开已知302的max-age<=60；OpenI另受Expires-now-30限制，只接受固定sp_request=cors|display，已知OPTIONS204保持、公开错误/OPTIONS no-store、私有门禁/no-store不变。目标OpenResty add_header在Lua之后：公开location重复原HSTS/nosniff/frame/referrer/CSP，却不继承或追加Lua管理的CC/CORS/Vary，以免重复头或漏掉安全头。
-
-**未来游戏release必须重审并匹配所有活动源、alias与fallback；不能复用当前锁定profile切新素材。** 固定源码/镜像、host配置SHA与记录提交的Git HEAD分开。本次用户请求推送不授权任何后续live操作；下一次权重、Beta接入或新材料切换仍需具体执行授权。下面的WS批和更早记录是对应时间快照，已完成one-shot不得重跑。
-
-## 当前游戏版本的历史激活：WS 压缩（2026-10-06 14:30）
-
-正式当前source `7e019ee36a2423393221cbba37bf60e40be35536`，实际HGY image10c94333/CID8715f3a3，记录 `releases/v013-ws-compression-20261006-7e019ee3-r2.json`。用户明确批准本批立即维护重建，不产生今后任意时刻重启的通用许可。Beta仍为C1/1f742992且代次未变。
-
-`SP_WS_COMPRESSION=on` 在fixed runtime.env中显式启用，Compose从同变量注入；默认off。参数、类型白名单、凭证不压缩及回退边界见 [WS-COMPRESSION.md](WS-COMPRESSION.md)。12+2、Main-only优先级、UV默认4、WG启动链不变；不能restart WG来更新游戏。
-
-此批仅四个server blobs及announcements数据变化。232game-runtime Git字节及完整C1基础RootFS核验后，复用同字节C1私有JS/CSS/shared/package/static；Auth186、resolver063、现用OpenI/宁夏素材不重建或上传，Nginx也未reload。Remote COPY元数据导致新增层与local不同，记录的是完整已验证base+精确五文件层及全部game-runtime字节证明，不能冒称整个新RootFS等于local。
-
-以下10:32迁移记录是当时快照，不是当前game版本声明。
-
-## 历史正式迁移：杭州计算 / 嘉兴入口（2026-10-06）
-
-实际活动记录：`releases/v013-hangzhou-20261006-1f742992.json`。10:32:42+08正式路由迁杭州，10:48:54旧嘉兴计算停止；旧镜像/容器/配置/资源保留。不要复用下面历史嘉兴三服务的一次性activation。
-
-- 杭州 `/opt/ark-proto/compose.core-game.yaml` + `runtime.env`，固定profile `core`，12combat+2trial，Main-only-20/reset/其他0；`ark-core-game-backend.service` 按关闭护栏→Compose→优先级→精确WG租约启动并监测。
-- 嘉兴 `/opt/ark-proto/compose.yaml` 是edge-only auth/assets；正式vhost只有一个 `10.253.77.2:3120` backend。私有代码供给按固定commit+门禁，与同版本core fallback配套。
-- 游戏source1f74299，解析器source0635506，auth仍source186，三个组件分别固定；不能说它们都等于最新Git HEAD。当前素材v013-hangzhou-20261006-1f742992，OpenI新音频与已验证同字节旧素材通过最多两个明确mirror ID复用。
-- 11:28 Beta已同步同一1f74299游戏及配套私有代码/素材/解析器；Beta auth保持源B4（与C1字节相同），不改口令/签名key。重复Beta浏览器/玩法验收由用户明确要求跳过，组件就绪检查仍完成。见 `releases/v013-beta-sync-20261006-1f742992-r2.json`。
-- 11:42两端WG恢复e6087bf已安装、active/exited并enable；杭州core/Beta管理器采用WG Requires/After drop-in并enable，现有管理器和游戏代次未变。180项Python和6项隔离真实内核测试、现网只读幂等通过；未做共享主机实际重启测试。不要停止/restart WG恢复单元，Requires可能连带停止游戏。详 `WG-BOOT-RECOVERY.md`。
-- 当时嘉兴全局variables_hash_max_size2048、两game上游HTTPidle4s；WS3600s、门禁/TLS/单upstream保持。11:42时正式vhostSHA5e123d68…、迁移激活时5b01be43…均为历史；最新素材切换后是上方cefc036f…。仅可选WebP后置，不为它再重启正式。
-- 回滚需先读现用配置，恢复旧嘉兴同配套版本并验证6+1/仅Main-20，再恢复旧单upstream/私有代码/素材映射；回滚不会恢复已丢内存对局。不整表恢复nft，不停其他服务。
-
-## 历史简单架构（2026-10-04 取消平滑更新）
-
-- 只有一个 Compose project `ark-proto`、三个固定服务/容器：游戏 `ark-proto`（127.0.0.1:3120）、门禁 `ark-proto-auth`（3141）、素材解析器 `ark-proto-assets`（3130）。Nginx 直接接游戏，普通入口 `/`、WebSocket `/ws`；不再运行网关、备用游戏实例或蓝绿素材槽位。
-- `compose.yaml` 是完整视图；`compose.auth.yaml` / `compose.assets.yaml` 是同 project、同 service key/container_name 的服务专用视图，不是另一个项目。使用同一份 `runtime.env`，只更新对应服务，禁止为更新创建第四个服务。
-- 三个服务均不配置 CPU/内存硬限额；游戏保持6个正式combat Worker、maxRooms4096，保留PIDs、只读与安全选项。D71 / v012-simple 已在2026-10-04 23:45 +08统一重建，metadata CPU/内存为0、project为ark-proto；每次仍须实时inspect确认。0.1.3新模板另外显式配置SP_TRIAL_WORKERS=1（可0/1/2），是进程内独立试算线程，不增加服务/后端。
-- `/_release/v012-alliance-20261004/` 仅是已打开页面的临时兼容路径：HTML 302 到 `/`，代码和 WS 仍接同一个游戏。未知 prefix 404，不再创建新的游戏 release URL；`/_server/presence` 仅由 Nginx 内部读取单后端健康并输出聚合人数，不暴露健康详情。
-- 游戏重建会丢失内存中的房间/对局/会话；没有平滑迁移、drain、私有控制 socket 或跨版本恢复。保持游戏在线时的普通断线重连不受此代码清理影响。
-- 此文档说明获授权发布的操作要求，不代表任何本地工作树已经部署；每次以固定commit、实时配置和验收后的release记录为准。
-
-## 一、发布单元与不可违反的边界
-
-一次游戏发布必须同时记录并核对：
-
-1. 固定的本站 fork 完整 commit，以及其包含的上游基线 commit（不使用会继续变化的分支名作为上线标识）。
-2. 由该 commit 构建的游戏镜像标签和镜像 ID。
-3. `/assets`、`/fonts`、`/vendor` 的宁夏静态release、同release `/media/`音频alias，以及文件/生成Nginx include的SHA-256；同时记录活动OpenI镜像清单、ModelScope immutable prefix和40hex revision、各源对象/alias内容一致性。
-4. 该版本的资源manifest、package-lock、部署适配补丁、准备工具与宿主Lua/路由数据摘要；实际运行game/sourceHash和组件revision与文档Git HEAD分别记录。
-5. 嘉兴vhost中四个资源路径的匹配关系：fonts/vendor仍宁夏，assets/media可以不同provider前缀，但须指向**同配套release的已验证同字节文件与精确alias**，不能只凭同名目录或源站比例认定匹配。
-
-历史 15:00 检查点（不是当前活动声明）：游戏源码 `2878299fb3b5e5b361177ed3e79e24efaab6d98e` / `0.1.2`，镜像 `ark-proto:v012-workers-20261004`，静态目录 `releases/v012-workers-20261004/`，6 Worker、maxRooms 4096（15:00 从初始 4 Worker 调整，未更换镜像或资源）。详见 `releases/v012-workers-20261004.json` 及 `releases/v012-workers-20261004-workers6.json`。上一完整回滚单元：`8cd6491e435f0a0355077b6162d1b17b77baa19e` / `0.1.1`、镜像 `ark-proto:8cd6491-20261003`、静态目录 `releases/8cd6491/`。
-
-**不能只 git pull、只换游戏镜像，或只覆写素材目录。** 已上线的版本目录为 immutable，哪怕补丁只改一个字节，也应采用新目录后缀（例如 `<commit>-r2`），不要让长期缓存拿到同一 URL 的不同内容。
-
-PRTS 是独立发布线：当前登录 HTML/脚本标记为 `ae-10`（历史片头开关修正版为 `spatial-07`），业务脚本 URL 带对应版本参数，避免旧的一小时缓存混用；基础库仍单独位于 `releases/prts-libs-20261004/`，本批实际公网正文摘要与本地一致。游戏更新不自动改变 PRTS，除非其依赖或接口确实变化。用户要求 PRTS 前端由主助手直接实现，不委派前端实现。
-
-## 二、联网本机准备，不在嘉兴运行下载和测试
-
-1. 在正式仓库 fetch upstream/master，在独立同步分支合并并记录原作者与本站两个完整 commit、提交时间和与线上版本的 diff。保留旧工作树及部署补丁，不在旧目录强制 reset；合并通过后才进入本站 master。
-   特别审查新增静态路由，例如 8cd6491 之后上游增加的 `/media/` 无扩展名音频路径：上线前必须同步适配分流和测试，不能只复制旧 `/assets/` 配置。
-2. 从固定 commit 导出全新源码。package-lock 若变化，必须按新 lock 安装依赖并生成 vendor；不能继续复用旧 node_modules/vendor。无变化时也需验证复用文件哈希。
-3. 保留去 Google Fonts 外链适配，不改变 `SP_COMBAT=server`、`SP_VERIFY=off`、密码或 PRTS 接口。
-4. 素材以新 commit 的 manifest 为准。整合包可以提供素材，但不能用旧包覆盖新源码；校验发行包摘要，确认 manifest 匹配并检查所有引用文件存在且非空。新版游戏代码、数据、前端库和素材必须配套。
-5. 构建游戏镜像并固定 OCI revision 标签；测试采用与生产一致的 Node 运行时。未来若更新 Node 基础镜像，也要记录完整摘要。
-6. 运行完整测试，并启动隔离的真实游戏做双浏览器入房、重连、开始模拟、准备阶段、棋盘、购买干员和 Spine 载入验收。单元测试通过不等于线上能运行。
-
-原始完整材料工作区：`/tmp/ark-prestage-v0.1.1-20261003/`。它是本轮工作目录，不保证跨管理机重启保留；远端保存了游戏镜像归档，静态机保存了素材归档、清单与运行文件。
-
-## 三、静态分发适配与一致性清单
-
-游戏静态 release 应包含：
-
-```text
-releases/<release>/
-  assets/    美术、音频、模型、棋盘及其配套文件
-  fonts/     字体及 fonts.css
-  vendor/    由该版本 lockfile 产生的第三方库
-```
-
-当前明确的分发适配（仅修改新静态副本，必须记录补丁及修改后哈希）：
-
-- `fonts/fonts.css`：新生成器直接输出 `url('./…')`；原始 manifest URL 仍为 `/fonts/…`。准备器只接受两种已审查的完整六-URL CSS 摘要：legacy 根路径输入会转换，新相对路径输入精确幂等。不会因为任意 CSS 看起来是相对 URL 就放行；跨域后按 CSS 最终 URL 找字体。
-- `vendor/hooks.module.js`：普通 immutable 静态副本的唯一 import 固定为 `https://ark-proto.stardust.matce.cn/vendor/preact.module.js`；正常 root 路由的 hooks 小型 sibling-import adapter **直接取游戏镜像原件**，其 `./preact.module.js` 与主游戏请求身份一致。其余 vendor/字体正文仍由匹配的宁夏 release 供给。已发布旧静态目录的 prefix 适配只是历史兼容，不覆写它，也不再生成 prefix hooks。
-- `/media/`：嘉兴只重定向到新 release 的 `/media/`，宁夏用准备时生成的精确文件 alias 供给正文。**客户端请求的无扩展名 URL 最终仍无扩展名**，不得再次重定向到 `.mp3` 等后缀。每个音频 stem 同时生成 `shared/media.js` 的 `AUDIO_EXTS` 所列后缀入口：请求后缀有文件时优先该文件，否则按共享扩展名顺序回退；Content-Type 始终由实际选中文件决定。不是开放任意路径/任意扩展名的文件解析器，也不另建一份音频目录。
-- 不盲目批量替换所有字符串或 URL。上游若调整 import 结构，现有适配条件不匹配时停止，重新分析并浏览器验收；不能忽略失败继续发布。
-- Three.js 的相对 module/core 引用以及字体 CORS 必须验收。当前公开静态源按用户要求使用 Access-Control-Allow-Origin: *，不启用 Allow-Credentials；还应从无关站点测试匿名 fetch、字体和 Canvas 读取。此设置不代表当前 Preact 适配版 vendor 对所有第三方站点通用。任何 import path 补丁都是发布单元的一部分，不是可丢失的临时修改。
-- `gate.js`、`gate.css`、`scene.js`、`entry-nav.js`、登录 HTML、游戏业务 JS/CSS、data、认证接口不放到公开静态源。PRTS 只迁移 Three.js/Core/CSS3D 和字体，不改变页面动作与授权流程。
-
-每个静态文件记录相对路径、字节数、SHA-256。清单保存在 `/opt/ark-static/` 运维目录，不需要对外开放。上传后在宁夏重新逐文件校验，不以 scp 退出码代替完整性校验。
-
-0.1.1 基线参考清单：`asset-manifest.json`、`stable-manifest.json`、`vendor-manifest.json`。新工具使用下述 `release-manifest.json` / `SHA256SUMS`；不要混淆不同发布单元的清单。归档只允许预期路径，拒绝软链接、硬链接和路径穿越。
-
-### 离线准备工具与新清单
-
-`deploy/stardust/tools/prepare-static-release.mjs` 不联网、不改源文件、不激活 release。`APP_EXPORT` 必须是与新游戏镜像相同的固定 app 导出目录，包含已核对的本地依赖/vendor/素材；`SOURCE_REVISION` 为该源码完整 40 位 commit。工具记录调用方提供的 revision 和输入摘要，**不能把带未提交改动的 checkout 自动证明为该 commit**。`STAGE` 必须是不存在的新目录，已有目录（即使为空）也拒绝覆盖。仓库内输出仅允许放在已忽略的 `deploy/stardust/build/` 下。
+`tools/prepare-static-release.mjs` 不联网、不改源文件、不激活。`APP_EXPORT` 必须与 game 内容一致；调用方给出的 revision 不是未提交工作树属于该 commit 的证明。`STAGE` 须不存在，仓库内输出只允许 ignored `deploy/stardust/build/`。
 
 ```sh
-# STATIC_RELEASE 必须使用新 immutable ID；v012-workers-20261004 和 v012-alliance-20261004 已发布，不能复用/覆盖。
 node deploy/stardust/tools/prepare-static-release.mjs \
   --source "$APP_EXPORT" --revision "$SOURCE_REVISION" \
   --release "$STATIC_RELEASE" --out "$STAGE"
 node deploy/stardust/tools/prepare-static-release.mjs --verify "$STAGE"
 ```
 
-工具先校验 manifest 中所有本地资源存在且非空，核对 package/package-lock、已安装依赖版本/lock integrity 和 vendor 源文件字节。公开副本仅来自 assets/fonts/vendor：拒绝未知字体、未知 vendor、assets 中的业务代码、点路径、软/硬链接及非普通文件；不会复制 public/js、业务 CSS、data 或认证目录。两个补丁 fail closed：fonts.css 必须匹配已审查的 legacy 或精确相对路径六 URL 模板摘要；hooks 必须是唯一的已知 Preact import，固定导向 root 游戏 origin 的 `/vendor/preact.module.js`。若上游变动导致条件失败，重新审查适配器，不能跳过校验。
+工具/模板的 game Origin 和静态坐标是受审查的固定绑定，不提供任意 Origin CLI 开关。上面命令不是其他域名的即装方案；移植需单独审查生成器、模板和门禁。
 
-生成目录：
+生成内容包括 `release-manifest.json`、`SHA256SUMS` 及 `nginx/{static-cache,static-files,static-locations,game-static-locations}.conf`。`--verify` 检查额外文件、hash、音频映射、补丁与 includes；纯静态 `game-static-locations.conf` 只是参考，不能覆盖实际多源 Lua/OpenI vhost。
 
-```text
-<STAGE>/
-  releases/<release>/{assets,fonts,vendor}/
-  release-manifest.json                 运维元数据，不放到公开资源前缀
-  SHA256SUMS                           同时覆盖资源和下面四个 include
-  nginx/static-cache.conf              加到静态源的 $asset_cache map 中
-  nginx/static-files.conf              加到静态源 http 中（精确 URI 清单）
-  nginx/static-locations.conf          加到静态源 TLS server 中
-  nginx/game-static-locations.conf     纯宁夏分流参考；不可覆盖正式多源Lua/OpenI路由
-```
+必须保留：
 
-清单 `schemaVersion: 1` 记录 release/sourceRevision/appVersion、准备器 SHA-256、源输入摘要、补丁前后摘要、共享音频 prefix/扩展名顺序、每个公开文件的 path/bytes/SHA-256、每个音频 URL 的 requestedExtension/实际文件/实际 MIME，以及四个 include 的摘要。`--verify` 校验精确库存（额外文件也拒绝）、文件哈希、音频映射和生成配置，并验证字体是精确已审查相对输出、hooks 的唯一原始 import URL 与 root 游戏地址一致。清单与配置不放入 `/srv/ark-static/releases/<release>/{assets,fonts,vendor}/`；精确 URI whitelist 即使目录中误入其他文件也不对外供给。
+- **fonts.css**：只接受准备器中版本化、已审查的完整模板/摘要；legacy 根路径转相对 URL，精确相对输出幂等。不能因任意 CSS 看似相对就放行。
+- **hooks**：普通 immutable vendor 副本的 import 绑定受审查 game origin；root hooks sibling-import adapter 取同候选 game 原件，让 `./preact.module.js` 与主游戏身份一致。上游 import 结构不匹配时停止，不盲目批量替换字符串。
+- **音频**：无扩展名 `/media/` URL 最终仍无扩展名，不另跳成 `.mp3`。显式后缀有文件时优先，否则按 `shared/media.js` 的 `AUDIO_EXTS` 顺序选文件；MIME 取实际对象。alias 是精确清单，不是任意路径解析器。
+- **公开边界**：仅审核过的 art/fonts/vendor；拒绝未知字体/vendor、业务代码、点路径、软/硬链接及非普通文件。HTML、gate/scene/entry 脚本、业务 JS/CSS、data、API/WS/auth 不进入公开源。PRTS 只公开稳定库/字体。
+- **HTTP**：匿名单个 CORS `*`、无 credentials；验收 MIME、HEAD、Range/If-Range/206、ETag/304、OPTIONS、错误 no-store、成功 immutable、目录/隐藏文件/路径穿越拒绝。实际字体/Canvas/Three/Spine/AudioContext 验证不能由库存代替。
+- **完整静态配置**：保留模板所需 `map_hash_bucket_size 512`、`map_hash_max_size 8192`；`$asset_cache` 的 `volatile` 保证 Range 后置 416 重新取 no-store，状态 CORS map 避免第二次 filter 追加重复 ACAO。配置测试不能有未处理的 hash 警告。
 
-本地测试：
+[OPENI.md](OPENI.md) 与 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md) 定义镜像、签名和多源合同。保持最多两个明确 OpenI mirrors、明示 ModelScope prefix/pin 和审核过的单资源源站例外；不重传/改名绕过例外或默默忽略全量核验失败。宿主 profile 用固定小 Lua + JSON，消费上限为 100000 aliases；resolver 清单读取有界 64MiB。对完整尺寸数据执行真实 LuaJIT、OpenResty access/header HTTP 和 resolver 盘读检查；`nginx -t` 或 synthetic pin 不能证明实际 provider 绑定。
 
-```sh
-node --test deploy/stardust/tools/prepare-static-release.test.mjs
-# 可选：使用已有 Nginx，不安装/启动系统服务；临时配置、PID、temp 和监听都隔离。
-NGINX_BIN="$LOCAL_NGINX" NGINX_MIME_TYPES="$LOCAL_MIME_TYPES" \
-  NGINX_RELEASE_DIR="$STAGE" \
-  node --test deploy/stardust/tools/prepare-static-release.test.mjs
-```
+多源 profile 不是通用 env-switch；实现见 [access.lua](material-lb/access.lua)、[header.lua](material-lb/header.lua)、[prepare-material-lb.py](tools/prepare-material-lb.py) 和 [test-prepare-material-lb.py](tools/test-prepare-material-lb.py)。已知公开 302 缓存不超过 60 秒；OpenI 另受 `Expires-now-30` 限制，只允许固定 `sp_request=cors|display`，去重 Vary Origin/Sec-Fetch-Mode。ModelScope 固定 resolve 入口不套用 OpenI auth_key TTL，也不保证所有下游 CDN 错误自动回退。目标 OpenResty 若在 Lua 后应用 add_header，公开 location 重复必要安全头，但不再次追加 Lua 管理的 Cache-Control/CORS/Vary。
 
-完整 smoke 的 STAGE 及其父路径必须可被 Nginx worker 遍历读取（例如使用 `/tmp` 下的本地测试目录，不使用私有 `/root` 父路径）。测试遍历每个文件和音频 alias，另测 MIME、HEAD、Range/If-Range、ETag/304、CORS、错误/成功缓存和隐藏文件/路径穿越/软链接拒绝。无 Nginx 时相关 smoke 明确 skip，不以 unit 测试替代真实路由验收。已用 Nginx 1.28.3 验证 5,529 文件、536 stem + 3,752 后缀 alias；这是本地验证记录，**不是生产状态声明**。
+## 四、预置与切换前检查
 
-静态配置需保留已测试的 `map_hash_bucket_size 512` / `map_hash_max_size 8192`，否则完整长路径库存可在 `nginx -t` 时失败或报警。`$asset_cache` map 的 `volatile` 也必须保留：Range filter 可能在初次 200 headers 后产生 416；重新求值确保最终带 `no-store`（其优先级高于此前已追加的 immutable/max-age）。普通 403/404 则只带 no-store。`$asset_cors_origin` 状态 map 同样不能省略：该静态 Range 416 保留初次 CORS header，因此第二次 filter 不再追加 ACAO，避免 `*, *` 导致浏览器拒绝 CORS；其他正常/错误响应仍提供单个 `*`。
+1. 将新镜像及素材预置到新标签/新目录，保持现用配置。校验归档路径/链接，再逐文件完整 hash；新静态 includes 只在取得对应供给授权、保留旧目录且真实配置测试成功后正常 reload。准备完不代表 game 已切源。
+2. 验证实际公开 TLS、正文/alias、缓存/CORS、Range/音频/模型，并检查无业务代码或秘密泄露。完整 LFS SHA/size 库存不等于逐对象重新下载正文，抽样不能写成全量正文。
+3. 从实际活动配置确认 simple/core/edge/cluster/Beta 拓扑、组件 revision、secret mount、bind 类型、启动参数、WG/manager 依赖。不要把早期单机三服务视图覆盖集群或独立环境。
+4. 私下备份当前 Compose/runtime、精确目标 inspect、image、vhost/includes、policy、secret mount 元数据及配套前缀；比较 CID/PID/StartedAt/restart count，确认预置没有动现有进程。敏感正文不进入输出或公开证据。
+5. game/cluster 重建前说明内存房间/对局会终止、客户端需刷新。正常协调玩家和空闲窗口；只有具体用户授权接受立即中断时才例外。回滚不能恢复丢失状态，不设自动切换任务。
 
-### OpenI 素材镜像接点
+## 五、获授权后的协调切换
 
-启用 OpenI 签名解析后，宁夏仍是完整回退源及 fonts/vendor/PRTS 的正文源，不能省略上述准备。另按 `OPENI.md` 上传同一批已校验的 assets 到新 immutable mirror 前缀，生成/验证同版本 resolver manifest；音频远端名保持无扩展名。记录解析器代码/镜像 ID、清单 SHA-256、平台前缀和 fallback release。
+- 重新读取当前健康、配置和身份，不依赖保存的在线计数。按角色只改本批获授权组件，先证明供给就绪，再协调 game、privatecode、renderer data、resolver manifest、所有活动 pin/alias/profile 和 fallback；不提前让旧对局混用新素材。
+- 保持同一 service/project 所有权，不另起隐藏 release project；不动数据库、其他站点、证书、秘密、DNS、Beta 或 WG。未经本批修改的 auth/resolver/代理保持镜像与代次。
+- Nginx 先使用**实际启动配置**测试，再正常 reload。目录 bind 可按已核对身份原子 CAS 替换；单文件 bind 要保留 inode、备份和原字节 CAS，不能 rename 后以为容器已读到新文件。不能因默认 PID 路径测试失败而取消只读保护。
+- 节点新启动必须用新的 generation。按 [MAIN-THREAD-PRIORITY.md](MAIN-THREAD-PRIORITY.md) 核对完整 revision/image 白名单、真实 Node Main TID、`SCHED_OTHER` + reset-on-fork、Main nice=-20、其余线程0与正确池数；不 nice 整个 Node、不加 CAP_SYS_NICE/CPU/内存 hard cap，保留 PIDs/read-only/cap-drop/no-new-privileges。
+- 集群先 CLOSED，再逐目标证明 CID/image/source/runtime/网络/generation/角色健康/priority，最后原子开放精确 WG 租约。漂移失败不自动重新开租约，不全表 flush/restore，不放开 Docker 网段；同伴健康不能替代失败目标。旧 CLOSED guard 迁移须身份/inode/SHA CAS 和新 policy 绑定，不能伪填 hash 或绕过外部审批。
+- 保留 [WG-BOOT-RECOVERY.md](WG-BOOT-RECOVERY.md) 的关闭护栏→WG→manager 顺序。显式停/restart 被 `Requires` 依赖的 recovery 会连带停止 manager/game，不能拿它作游戏更新手段。
+- 这不是跨主机原子事务或无损迁移。记录每阶段实际结果，失败只回退本次 owned 改动，不重放已消费控制器或重启健康 sibling。
 
-资源解析与游戏是独立发布线。只改变同字节素材供应源时，按实际改动仅安装新的宿主profile并平滑reload Nginx；只有解析器代码/挂载确实变化且另获授权才更新同project的 `ark-proto-assets`，不能惯例重建resolver或顺带重建游戏。本批resolver/auth都未重启。游戏版本升级时必须配套新游戏、宁夏fallback、OpenI mirror/清单，以及所有活动ModelScope pin/alias和host Lua数据；旧四路直跳模板不能覆盖现用多源路由。供给边界见 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)，不搬回fonts/vendor/PRTS正文，不在前端/serving config部署账户Token。
+### 独立 auth/PRTS 更新
 
-## 四、预更新：只上传新版本，不改变线上
+HTML、资源 map 和 allowlist 在 auth 启动时加载，替换宿主文件不自动生效；必要 auth 替换须单独授权，不能称完全零重启。保持同 project/service，服务专用更新使用 `--no-deps`，不顺带重建 game/ingress/resolver/proxy。昵称策略、公开 PRTS 库和新资源摘要分别核对。
 
-下列涉及嘉兴game/三服务重建的步骤源于旧单机基线；当前正式计算在杭州，嘉兴为edge。未来发布先核对实际core/edge/Beta Compose、独立组件revision及WG/管理器依赖，再按对应角色合并实施，不把旧单机示例当one-shot执行。本批同字节分流不需任何容器重建。
+保留 secret mount、UID/权限/字节与旧 session/CSRF 兼容。宿主端口探测发送可信 game Host；容器 loopback probe 才使用 loopback Host，不能为错误探测放宽 Host 门禁。只合并本批精确 CSP 段落、保留 bind inode，并使用实际代理配置测试/reload。只默认跳片头，保留组装/成功/进入动画与 reduced-motion/立即进入兜底，首次/重入都验证身份和 profile。
 
-1. 将游戏镜像导入嘉兴的新标签，不修改现用 Compose。
-2. 将新静态文件上传宁夏的**新目录**，不要覆盖旧版本文件。将整个 STAGE 先放到非公开的运维 staging 目录，在该目录运行 `sha256sum -c SHA256SUMS`；校验成功后才将 `releases/<release>/` 安放到 `/srv/ark-static/releases/`。归档路径/链接安全检查仍需单独完成，不能只校验哈希。
-3. 为新版本安装生成 include：`static-cache.conf → /opt/ark-static/generated/cache/<release>.conf`、`static-files.conf → generated/http/<release>.conf`、`static-locations.conf → generated/locations/<release>.conf`。将已审查的新 `static/nginx.conf` 接入这些可选 globs（并保留现用 TLS、端口、PRTS 和旧 release），先 `nginx -t -c /opt/ark-static/nginx.conf`，无 hash 警告后再平滑 reload。嘉兴的 game include 暂不接入，避免提前切全局素材版本。
-4. 通过公网 `https://ark-asset.hanabi-ai.cn:25442` 验证：正常 TLS、200/HEAD、Content-Type、CORS、ETag/304、音频 Range/206、错误 no-store、成功 immutable、不能列目录、无代码/秘密文件泄露。
-5. 对测试浏览器模拟完整重定向和 CSP，检查实际图形渲染、Spine 配套 SKEL/ATLAS/PNG、OBJ/JSON、音频、字体、Preact hooks 及重复打开时 Three.js 命中缓存。
-6. 记录线上游戏/认证容器 ID、PID、StartedAt、restart count，现用 Compose 和 vhost 哈希。预更新结束前再次比对，确认没有动到运行进程。
+## 六、验收与私有记录
 
-`3000 → 36.103.203.216:25442` 是平台唯一入站映射，不要改为假定 80/443 可用。新机不依赖 systemd，Nginx 由现有 Supervisor 的独立 `ark-static` 程序管理。
+- 逐组件 schema：simple game/auth 为 HTTP200 且 `ok:true`；resolver 在**容器内部 loopback**检查 HTTP200、合法 JSON 和清单计数，不要求不存在的 `ok`。宿主经端口转发的 resolver probe 可能被拒绝，不能据此降低保护。集群按角色检查，game 认证 status、coordinator 控制健康、ingress 合法 Origin WS，不能统判 all(health.ok)。
+- 固定镜像/源码/资源、每角色 generation/lease/priority 与 manifest 精确一致；记录失败服务/字段。新 generation 的 restart0 不擦除先前失败/回滚记录。
+- 正常 TLS、登录/CSRF/授权/退出、可信 Host/Origin、匿名/无效凭据私有请求拒绝、内部端点隐藏、安全头和 private/no-store 保持。内存授权 Cookie 检查不冒称真实口令录入，Cookie/秘密不输出落盘。
+- 真实浏览器检查同版 Preact/hooks、字体、Spine、模型/音频、邀请/匹配、实际购买部署、Worker/试算与同身份重连；只清理自己的测试房间。未获授权不在运行环境创建玩家/测试对局、生产压测、Inspector、heapdump 或 busy 注入。
+- 实际通过、失败、skip、配置备份和阶段回执放 ignored `.claude/releases/` 或仓库外私有归档，遵循 [releases/README.md](releases/README.md)。不在公开文档存管理坐标、日志、用户截图、历史授权或活动计数。
 
-## 五、实际上线：在明确窗口协调切换
+## 七、精确配套回滚与保留
 
-1. 用户确认上线后，重新读健康接口与当前配置，不依赖之前保存的对局数量。
-2. 正常情况等待无进行中对局并协调在线玩家。只有用户明确要求立即切换并接受清除对局时才例外；记录切换前房间、对局和连接数量。对局在内存中，不能在线迁移或通过镜像回滚恢复。
-3. 备份当时的三服务 Compose/runtime.env、vhost、两个正常 snippet、认证配置及运维说明，记录旧镜像与旧静态前缀。
-4. 在明确维护窗口内协调游戏镜像、OpenI清单/前缀、活动ModelScope revision/prefix及host Lua/alias数据、宁夏fallback与fonts/vendor到同一配套单元；若昵称策略变化，game/auth也须匹配。先证明全部材料公网可用，再按实际杭州core/嘉兴edge/Beta角色更新获授权的指定组件，不另起release project或照旧三服务整批重建；未改组件保持其镜像与代次。clean重建前备份inspect并核对确切目标，不触碰MySQL/OpenResty/其他站。不要在旧对局仍运行时提前切换全局素材版本。
-   `game-static-locations.conf`是纯静态参考，不覆盖现用vhost；正式 `/assets/`、`/media/`当前由宿主Lua选择ModelScope60/OpenI40，OpenI分支才继续3130原resolver。HEAD/原故障fallback及字体/vendor/PRTS仍宁夏，root hooks直接游戏。新release须先更新所有精确白名单/pin/数据并验证，不能把当前固定C1模板当通用开关。
-5. 该方案不是跨主机原子事务，也不承诺旧客户端与新服务器混用兼容。需要通知客户端刷新，重新加载新业务代码/数据。仅协议版本号不变不能证明兼容。
-6. 修改 Nginx 必须先 `nginx -t` 后 `nginx -s reload`。不要为了更新静态路由重启游戏或认证容器；真正升级游戏代码才重建游戏。
-7. 除非 PRTS 本身发布，否则保留其独立基础库版本和 CSP，不改变密码、签名密钥或开场动画。
-8. 当前game/auth/resolver均无CPU/内存限额，不能用旧配置恢复限制。PIDs/安全选项保留，核对Docker metadata及逐组件健康。Worker池按实际目标profile分别核查：现用杭州正式/Beta为combat12/trial2；历史嘉兴及默认模板6+1不代表当前池数。
-9. 三个服务健康schema不同，禁止用all(health.ok)统判：game与auth要求HTTP200且ok:true；assets须在容器内部loopback访问/healthz，核对HTTP200、合法JSON及files等清单计数，不要求不存在的ok字段。宿主机经Docker端口转发访问assets健康可能因非容器loopback而404，不据此回滚。输出具体失败服务/状态/字段；不要重演D71首轮因schema误判而回滚的事故。
-10. MainThread默认仅nice=-20的宿主策略按 [MAIN-THREAD-PRIORITY.md](MAIN-THREAD-PRIORITY.md) 固定commit/hash核对，**不混入游戏app或公开素材**。当前杭州已安装且本批只读确认，不能因推送或素材切源重新安装/reapply。未来游戏升级或回滚须在明确授权窗口核对实际revision/image ID白名单，真正Node主TID、普通SCHED_OTHER/reset-on-fork、Main=-20、其余线程0及profile对应池数。不给容器加CAP或包nice入口；策略工具失败不自行重启游戏，WG Requires依赖不能顺带restart。
+失败先核对当前身份、新对局影响与回滚授权，恢复匹配的**game + privatecode/data + renderer resources + assets/fonts/vendor/media + resolver manifest + 活动 OpenI/ModelScope pin + host Lua/alias/profile**。auth-only 则只撤本批 auth/CSP。只发生同字节源站故障时可按已审查同版本 fallback 合并路由并正常 reload，无须重启 game；不能承诺每种 CDN 错误都自动回退。
 
-## 六、上线验收清单
-
-- 游戏健康 app/image ID 与发布记录一致，三个容器 healthy，固定端口和单 project 正确；revision 由 OCI/image/发布清单核对，不新增运行时 release metadata。
-- 新浏览器从正式游戏域名进入，PRTS WebGL/重播/昵称保留正常。
-- 登录 HTML、CSRF、POST 授权和退出、游戏数据与代码不能因分流变成公开缓存；无效 Cookie、匿名代码请求仍被拒绝。
-- 新静态 origin 只能提供公开资源，不含私钥、认证文件、源代码目录、上传接口。
-- 字体/基础库/美术指向匹配release；多provider跳转须核对稳定ModelScope revision/prefix、OpenI清单对象和宁夏fallback的同字节哈希/alias，不要求不同CDN有相同目录拼法。音频无扩展名入口保留，各源精确映射同一选定对象，不变成.mp3等后缀；实际MIME/Range/AudioContext、完整Spine和浏览器CORS需验收，不能以库存校验代替正文/渲染。检查单Cache-Control、单CORS*、VaryOrigin/Sec-Fetch-Mode、已知OPTIONS204及私有门禁未变。
-- 按用户2026-10-05更正，仅auth片头默认关闭；登录界面组装、WebGL/界面动效、成功凭证和进入转场仍保留，首次/已授权重入都先做真实身份与CSRF/profile校验。`ark.prts.intro`只控制片头，旧全局0偏好不能继续禁用其他动画；减少动画偏好/立即进入兜底仍有效。检查新gate.js版本化URL，不能被旧缓存变成一闪跳过。
-- 双人邀请、刷新重连、server 模式真实对局、棋盘与一次实际购买通过；只清理测试自己的房间。
-- 留存浏览器结果、截图、文件清单、配置备份、切换时间和健康信息；不记录密码/Cookie/私钥。
-
-## 七、回滚必须成对
-
-若新版本失败：先判断是否已有新对局并获得相应授权，然后一起恢复**旧游戏镜像 + 旧assets/fonts/vendor/media配套release + 对应OpenI清单/ModelScope pin/host Lua及alias数据**（退回0.1.1时移除该版本不存在的media分流）。只回滚其中一边会造成版本错配，回滚不能恢复因重启消失的内存对局。若只是本批同字节供应源故障，按 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md) 合并当前公开location回到原direct-OpenI或获授权的同版本宁夏形态，仅平滑reload，不重启游戏。
-
-如果只发生静态源故障且游戏版本没变，可以移除/禁用对应重定向，恢复游戏镜像中自带的同版本本地文件供给；PRTS 库则回到未改动的认证容器副本。只平滑重载 Nginx，无需重启游戏。
-
-回滚时先读取现用配置，合并回退所需段落，不要用整份陈旧备份覆盖其他人的新改动。
-
-## 八、保留与清理
-
-- 至少保留当前和上一完整发布单元（含immutable静态/OpenI/ModelScope前缀、固定revision、host profile与私有备份）；正在供给或可能被旧页面引用的版本不删除。旧release JSON保持历史，不因最新LB改写旧记录。
-- 上线完成后更新两台服务器上的运维说明与 release 清单，并明确哪些版本 active、哪些仅 staged。
-- 定期检查磁盘、日志轮转、活动provider响应码与出口流量；不记录/提交签名URL query、Token、Cookie、密码、SSH/DNS凭据、verifier、证书/私钥、素材/vendor正文或日志内容。自然观察不是生产压力测试或新激活许可。
-- 证书 2027-01-02 02:34:21 UTC 到期，当前为手动 DNS-01，没有自动续期。续期或 DNS API 委派需单独安排；不要把 A 记录或当次 TXT 值当作自动续期方案。
-
-## 当前管理入口
-
-嘉兴：`/opt/ark-proto/compose.yaml`、`/opt/1panel/www/conf.d/ark-proto.stardust.matce.cn.conf`。
-宁夏：`/opt/ark-static/nginx.conf`、`/srv/ark-static/releases/`、`supervisorctl status ark-static`。
-证书：宁夏 `/opt/ark-static/tls/`；管理机私有 ACME 备份 `/root/.local/share/ark-static-acme-20261004/`（含私钥，禁止公开或放进静态目录）。
+先读现用配置，合并必要段落，不整份覆盖陈旧备份。仅撤本次 owned 文件、规则和租约，保留其他环境/共享 WG/其他服务。至少保留当前及上一完整可回退单元和可能被旧页面引用的 immutable 文件；清理须独立授权、检查活动挂载/进程引用与精确库存，不能 global prune。私有发布记录保留原始失败历史，不提交或改写成公开运行快照。证书有效期、续期方式、责任人和监测放私有记录，另行安排，不假定有自动续期。
