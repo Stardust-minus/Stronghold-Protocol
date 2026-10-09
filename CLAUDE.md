@@ -1,5 +1,9 @@
 # Stardust fork working guidance
 
+## Latest Git publication request (2026-10-09)
+
+- After the verified Formal release, the actual user requested '推送并收尾'. Publish this accepted release and its records on the current `feat/skins-capacity-matchmaking-20261008` branch to origin, without force. This supersedes the earlier LOCAL-only/no-push boundary for that branch; it does not request master integration, PR creation, branch/stash deletion, new maintenance, image cleanup, provider operations or Core-channel renewal. Preserve both stashes and the clean runtime source. No repeated acceptance or production operations for Git publication. Actual remote tip and completion are recorded in `.claude/dual-ingress-preparation-20261009.md`; the release record's `gitPushed:false` describes its activation-time snapshot, not later publication.
+
 ## Latest actual LIVE dual-ingress release (2026-10-09, ACTIVE OPEN)
 
 - Formal ACTUALLY runs game/host-tool commit24ff0dba30833426ec6ec02b010a580f89c4d3e1, client-build9c1fd471887b:1coordinator16games(each8combat+2trial)8ingress(fourphysicalentries×2)=25roles, allnativeleases/Main-only-20/reset/otherthreads0/restart0; fourOPEN,161matchedprivatefiles perentry, newresolver7ae2d404/final17278objects/86086aliases. Actual management/edgegameimage409ba9d7 and Core classic-store798a7993 have the sameverifiedRootFS/labels; not identicalstoreIDs.271skins/threevoice languages/capacity4step-partyqueue/20repeat-four-seat-pool-totalbudget/unifiedpresets are LIVE. Record deploy/stardust/releases/next-dual-ingress-20261009-24ff0dba.json, evidence .cache/stardust/dual-ingress-preparation-20261009-jgbFMp/dual-verified-live-r1.json.
