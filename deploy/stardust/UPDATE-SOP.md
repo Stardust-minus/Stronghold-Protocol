@@ -4,7 +4,13 @@
 
 正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。0.1.2 + Worker 的历史发布单元见下方记录；此后每次更新都须配套验收及取得明确上线授权，提交、合并与推送不代表允许重启生产。
 
-## 当前双 ingress 与正式切换许可（2026-10-09，进行中）
+## 本批双 ingress 正式切换已完成（2026-10-09）
+
+游戏／宿主工具固定 `24ff0dba30833426ec6ec02b010a580f89c4d3e1`、client-build `9c1fd471887b`，四入口 OPEN／25角色／16×8+2／Main-only-20及其他线程0、161私有文件／入口实际核验通过。已上传17292素材直接复用；新宁夏3include公开供给、新同版resolver与双WS入口配套完成。没有重复全量验收、素材重传或Git push/master整合。
+
+失败不能抹去：宁夏首次因6秒worker等待过短回退后fresh收尾；原入口副入口Docker35402绑定失败形成never-started无网络attached容器，manager拒绝adopt；先开放健康primary恢复503，再仅删除精确已撤权created CID并用manager scoped resume恢复双入口。其他角色未再重启，WG依赖未重启，完整证据见 [实际发布记录](releases/next-dual-ingress-20261009-24ff0dba.json)。所有本批已消费controller禁止重放；新record/docs HEAD不改变运行游戏commit。
+
+## 本批切换前授权与准备（历史）
 
 用户已批准改完并验收后直接正式切换，并另选本地feature提交＋离线镜像／验证、有期限固定key loopback Core直连；不推送、不合入master，不重复询问维护窗口。目标每入口2独立ingress／四入口共8、1coord16game各8+2，共25角色。维护会结束内存房局，回滚镜像不能恢复；PRTS／口令／DNS／Beta／WG依赖／其他服务及生产压测限制保持。
 

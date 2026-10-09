@@ -2,7 +2,13 @@
 
 本目录版本化维护本站的认证/PRTS、Nginx、公开静态源和协同发布流程，不改变上游的项目目录结构。代码遵循仓库 GPL-3.0-or-later；第三方库按原许可证，游戏素材仍受根目录 NOTICE/THIRD-PARTY-NOTICES 的限制。
 
-## 当前双 ingress 发布准备（2026-10-09，尚未切换）
+## 最新正式发布：双 ingress 与完整预设（2026-10-09）
+
+正式已实际切换到游戏／宿主工具 commit `24ff0dba30833426ec6ec02b010a580f89c4d3e1`，client-build `9c1fd471887b`。四入口均 OPEN，每入口两个独立 ingress；1协调器＋16个各8combat/2trial节点＋8ingress，共25原生角色精确租约、Main-only-20/reset/其他线程0及restart0核验通过。每入口161私有文件和新解析器／86086别名配套；公开物料复用已上传17292正文，没有重传或重跑全量验收。
+
+初次宁夏重载的6秒worker确认过短、原入口第二ingress的Docker35402绑定失败均保留实际失败及精确恢复记录；没有重放激活或重启已健康角色。最终四入口正常TLS门禁／登录页12项、公开material HEAD4项通过，无维护503。PRTSae10、口令、DNS、Beta、WG及其他容器代次保持。源码仅本地feature提交，没有push/master；记录HEAD不改变运行源码。详 [实际发布记录](releases/next-dual-ingress-20261009-24ff0dba.json)。
+
+## 本批双 ingress 准备过程（历史，已完成切换）
 
 本地271皮肤、三语音频、4步进同模式匹配、20人重复六项／四人共享池／整段联防预算及完整干员预设已经过各自本地验收。用户现明确要求每物理入口两个独立ingress，并批准改完验收后直接正式切换；另选当前功能分支本地提交＋离线镜像、重建有期限固定key loopback Core通道，不推送或合入master。目标1coordinator＋16个8+2game＋8ingress共25角色，匹配池与浏览器协议不拆分。切换结束内存房间／对局，需刷新；DNS、PRTS／口令、Beta、WG恢复依赖和其他服务保持。
 

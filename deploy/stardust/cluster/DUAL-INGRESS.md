@@ -1,5 +1,9 @@
 # 每入口两个独立 ingress
 
+## 实际正式状态（2026-10-09）
+
+已部署固定游戏／宿主工具 commit `24ff0dba30833426ec6ec02b010a580f89c4d3e1`，client-build `9c1fd471887b`。四入口各两个 ingress／25原生角色、16×8+2、Main-only-20/reset/other0、全部精确租约和schema2 edgeguard已验收，四OPEN。原入口secondary初次Docker35402绑定失败造成未启动、未附着网络的created容器；正常primary保持，精确清理撤权CID后manager scoped resume恢复第二个，没有再重启健康角色。详细失败及实际身份以 [发布记录](../releases/next-dual-ingress-20261009-24ff0dba.json) 为准；下方本地证据不是新的重测／重新激活许可。
+
 ## 范围
 
 目标为四台物理入口各两个独立 Node ingress，共八个；保持一个 coordinator、十六个游戏节点及统一大厅／匹配池。不是 worker_threads 逐帧中转，不增加入口的 100Mbps 出口，不需要浏览器 `ingressId` 或 sticky。

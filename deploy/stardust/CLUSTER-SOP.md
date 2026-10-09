@@ -1,6 +1,12 @@
 # 统一匹配与多入口集群部署
 
-## 双 ingress 当前候选（2026-10-09，尚未切换）
+## 双 ingress 正式已完成（2026-10-09）
+
+当前正式游戏／宿主工具 commit `24ff0dba30833426ec6ec02b010a580f89c4d3e1`，client-build `9c1fd471887b`；四台入口各2ingress，共25原生角色，Core仍1coord＋16个8+2game。全部精确lease、代次、Main-only-20/reset/其他线程0、restart0通过；edge schema2 guard精确CLOSED迁移完成，不改WG恢复依赖或其他表。四入口OPEN／正常匿名门禁401，不再维护503。
+
+原入口secondary初次Docker端口绑定失败留下never-started created CID；guard拒绝未完整网络代次，健康primary保留。精确清理该已撤权CID后由active manager scoped resume成功，没有Core／primary再重启。其他3入口正常双角色保持。实际身份与失败恢复见 [发布记录](releases/next-dual-ingress-20261009-24ff0dba.json)；该记录不能授权再次运行已消费controller。仅本地feature提交，无push/master；DNS／PRTS口令／Beta／WG及其他服务保持。
+
+## 双 ingress 候选准备（历史，已切换）
 
 本批目标四物理入口各两个独立ingress，共8；同一个coord／16个8+2game／全局匹配池不变，25角色。用户已批准验收后直接正式切换及本地feature commit＋offline image、限时固定key loopback Core通道；没有push/master/DNS/PRTS口令/Beta/WG依赖变更许可。下方单入口和双profile数字保留历史，不自动拉起停用Beta或held75。
 
