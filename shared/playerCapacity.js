@@ -1,9 +1,9 @@
 import { MAX_SEATS } from './constants.js';
 
-// Public matchmaking stays at MAX_SEATS; larger rooms are an opt-in friend-room experiment.
-export const PLAYER_CAPACITIES = Object.freeze([MAX_SEATS, 8, 10, 16, 20]);
+// Larger rooms and same-capacity party matchmaking are explicit opt-in experiments.
+export const PLAYER_CAPACITIES = Object.freeze([MAX_SEATS, 8, 12, 16, 20]);
 export const MAX_PLAYER_CAPACITY = 20;
-export const PLAYER_CAPACITY_VERSION = 'capacity-1';
+export const PLAYER_CAPACITY_VERSION = 'capacity-3';
 export const MAX_DRAFT_CARDS = MAX_PLAYER_CAPACITY + 2;
 export const isPlayerCapacity = value => Number.isInteger(value) && PLAYER_CAPACITIES.includes(value);
 

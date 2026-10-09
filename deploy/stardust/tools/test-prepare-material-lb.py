@@ -47,8 +47,8 @@ def full_fixture(count=40000):
     return openi, models
 
 
-def exception_fixture(full=False, multiple_prefixes=False):
-    openi, models = full_fixture() if full else fixture()
+def exception_fixture(full=False, multiple_prefixes=False, count=40000):
+    openi, models = full_fixture(count) if full else fixture()
     alias = next(iter(TOOL.OPENI_ONLY_ALLOWLIST))
     openi['entries'].append({'requestPath': alias, 'fileName': 'releases/' + TOOL.RELEASE + alias,
                              'bytes': 123, 'sha256': 'd' * 64, 'mime': 'image/png'})
@@ -288,13 +288,50 @@ class PrepareTests(unittest.TestCase):
                     self.assertIs(json.loads(denied.stdout)['prepared'], False)
                     self.assertFalse((root / ('rejected-' + str(index))).exists())
 
-    def test_entry_count_limit_is_not_relaxed(self):
-        for count in (0, 50001):
+    def test_entry_count_remains_bounded_at_next_release_limit(self):
+        self.assertEqual(TOOL.MAX_ENTRIES, 100000)
+        for count in (0, TOOL.MAX_ENTRIES + 1):
             with self.subTest(count=count):
                 openi, models = fixture()
                 for manifest in (openi, models):
                     manifest['entries'] = [manifest['entries'][0]] * count
                 with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER)
+
+    def test_inventory_accepts_old_limit_plus_one_and_exact_new_bound(self):
+        for count in (50001, TOOL.MAX_ENTRIES):
+            with self.subTest(count=count):
+                openi, models = full_fixture(count)
+                self.assertEqual(len(TOOL.entries(openi, False)), count)
+                self.assertEqual(len(TOOL.entries(models, True)), count)
+
+    def test_next_voice_inventory_keeps_three_prefixes_two_mirrors_and_one_exception(self):
+        openi, models, options = exception_fixture(full=True, multiple_prefixes=True, count=85000)
+        third = 'releases/next-voice-fixture-20261008'
+        options['model_prefixes'].append(third)
+        models['prefixes'] = list(options['model_prefixes'])
+        openi['mirrorReleases'] = [TOOL.RELEASE, 'old-material-fixture']
+        for index, row in enumerate(openi['entries']):
+            if index % 2 == 0:
+                row['fileName'] = row['fileName'].replace(TOOL.RELEASE, 'old-material-fixture')
+        for index, row in enumerate(models['entries']):
+            if index % 3 == 0:
+                row['fileName'] = third + '/' + row['fileName'].split('/', 2)[2]
+        files = TOOL.render(openi, models, CONTAINER, **options)
+        routes, headers = json.loads(files['routes.json']), json.loads(files['header-data.json'])
+        self.assertEqual(len(routes['paths']), 85001)
+        self.assertEqual(len(headers['entries']), 85001)
+        self.assertEqual(len(routes['modelscopeBases']), 3)
+        self.assertEqual(sum(target is False for target in routes['paths'].values()), 1)
+        self.assertNotIn('modelscope', headers['entries'][options['openi_only_paths'][0]])
+        for name in ('access.lua', 'header.lua'):
+            self.assertIn(('if count > ' + str(TOOL.MAX_ENTRIES) + ' then return false end').encode(), files[name])
+            self.assertNotIn(b'__MATERIAL_LB_', files[name])
+            self.assertNotIn(b'loadfile', files[name])
+            self.assertLess(len(files[name]), 16384)
+        base_openi, base_models, base_options = exception_fixture(multiple_prefixes=True)
+        baseline = TOOL.render(base_openi, base_models, CONTAINER, **base_options)
+        self.assertLess(abs(len(files['access.lua']) - len(baseline['access.lua'])), 1024)
+        self.assertLess(abs(len(files['header.lua']) - len(baseline['header.lua'])), 1024)
 
     def test_explicit_new_profile_preserves_default_profile(self):
         openi, models = fixture()

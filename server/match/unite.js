@@ -87,15 +87,21 @@ export function planUnite(m, results) {
   return plan;
 }
 
-/** Only the first field's residual enemies may enter a relay; original normal leaks never re-enter twice. */
-export function planUniteRelay(m, plan, result, fieldSpawns = null) {
-  if (plan.uniteRound !== 1 || !Array.isArray(plan.relayCandidates) || !result || result.synthetic) return null;
+/** Living, unused qualified helpers for a possible second relay (the same eligibility at entry and release). */
+export function uniteRelayHelpers(m, plan) {
+  if (plan.uniteRound !== 1 || !Array.isArray(plan.relayCandidates)) return [];
   const perfects = plan.relayCandidates.filter((ps) => {
     const r = m.lastResults.get(ps.playerId);
     return m.players.get(ps.playerId) === ps && ps.alive && !ps.left && !plan.helpers.includes(ps)
       && r && !r.synthetic && r.perfect !== false && !(r.leaked || []).some((l) => l && l.counted !== false);
   });
-  const helpers = helperOrder(m, perfects, m.lastResults).slice(0, 2);
+  return helperOrder(m, perfects, m.lastResults).slice(0, 2);
+}
+
+/** Only the first field's residual enemies may enter a relay; original normal leaks never re-enter twice. */
+export function planUniteRelay(m, plan, result, fieldSpawns = null) {
+  if (plan.uniteRound !== 1 || !result || result.synthetic) return null;
+  const helpers = uniteRelayHelpers(m, plan);
   if (!helpers.length) return null;
   const leaked = [];
   const notReentered = new Map(plan.notReentered);

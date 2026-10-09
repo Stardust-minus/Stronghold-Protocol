@@ -635,6 +635,62 @@ describe('AudioManager', () => {
       } finally { globalThis.fetch = origFetch; }
     }
   });
+
+  for (const type of ['application/octet-stream', 'binary/octet-stream', ' Application/Octet-Stream ; charset=binary', 'BINARY/OCTET-STREAM']) test(`generic audio media ${type} decodes without cancelling or requesting the raw URL`, async () => {
+    const fw = fakeWindow(), raw = manifest.audio.bgm.prep.loop, media = mediaUrl(raw), urls = [];
+    const origFetch = globalThis.fetch;
+    let cancelled = 0;
+    globalThis.fetch = async url => {
+      urls.push(url);
+      return { ok: true, headers: { get: () => type }, body: { cancel: async () => { cancelled++; } }, arrayBuffer: async () => new ArrayBuffer(8) };
+    };
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+      a.ctx = new fw.win.AudioContext();
+      assert.equal((await a._buffer(raw)).duration, 1.5);
+      assert.deepEqual(urls, [media]);
+      assert.equal(cancelled, 0);
+    } finally { globalThis.fetch = origFetch; }
+  });
+
+  for (const type of ['text/html; charset=utf-8', 'application/json', 'image/png', 'application/octet-streamx']) test(`non-audio media ${type} still cancels and falls back to the raw URL`, async () => {
+    const fw = fakeWindow(), raw = manifest.audio.bgm.prep.loop, media = mediaUrl(raw), urls = [];
+    const origFetch = globalThis.fetch;
+    let cancelled = 0;
+    globalThis.fetch = async url => {
+      urls.push(url);
+      return url === media
+        ? { ok: true, headers: { get: () => type }, body: { cancel: async () => { cancelled++; } }, arrayBuffer: async () => { throw new Error('the rejected media body must not be read'); } }
+        : { ok: true, headers: { get: () => 'audio/mpeg' }, arrayBuffer: async () => new ArrayBuffer(8) };
+    };
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+      a.ctx = new fw.win.AudioContext();
+      assert.equal((await a._buffer(raw)).duration, 1.5);
+      assert.deepEqual(urls, [media, raw]);
+      assert.equal(cancelled, 1);
+    } finally { globalThis.fetch = origFetch; }
+  });
+
+  for (const type of ['application/octet-stream', 'binary/octet-stream']) test(`failed ${type} voice decoding still falls back to Chinese`, async () => {
+    const fw = fakeWindow(), cn = '/assets/audio/voice/cn/char_a/cn_001.mp3', jp = '/assets/audio/voice/jp/char_a/cn_001.mp3', urls = [];
+    const vm = { audio: { voice: { char_a: { place: cn } }, voiceByLang: { cn: { char_a: { place: cn } }, jp: { char_a: { place: jp } } } } };
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async url => {
+      urls.push(url);
+      return { ok: true, headers: { get: () => type }, arrayBuffer: async () => Uint8Array.of(url.includes('/jp/') ? 1 : 0).buffer };
+    };
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => 0 });
+      a.install(); fw.fire('pointerdown'); a.setVoiceLanguage('jp'); a.voiceGate = new VoiceGate({ gapMs: 0 });
+      a.ctx.decodeAudioData = (body, ok, fail) => new Uint8Array(body)[0] === 1 ? fail(new Error('invalid recording')) : ok({ duration: 1.5 });
+      assert.equal(a.voice('char_a', 'place', { unitKey: 1 }), true);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      assert.deepEqual(urls, [mediaUrl(jp), mediaUrl(cn)]);
+      assert.equal(a.voiceNode.url, cn);
+      assert.equal(fw.made.started, 1);
+    } finally { globalThis.fetch = origFetch; }
+  });
 });
 
 // user playtest #4 item 6: 纯烬艾雅法拉's skill sound rang outside her skill — her manifest `hit` is her S3 impact

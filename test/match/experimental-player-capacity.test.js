@@ -22,7 +22,7 @@ const clean = m => {
   }
 };
 
-for (const [count, sizes] of [[5, [5]], [6, [6]], [7, [4, 3]], [9, [3, 3, 3]], [20, [4, 4, 4, 4, 4]]]) {
+for (const [count, sizes] of [[5, [4, 1]], [6, [4, 2]], [7, [4, 3]], [9, [4, 4, 1]], [20, [4, 4, 4, 4, 4]]]) {
   test(`${count} actual players: fixed balanced pool groups and copy conservation through grants/death`, t => {
     const h = makeMatch({ humans: count, experimental: exp(), seed: 713, fake: true }).start();
     const m = h.m; t.after(() => m.dispose()); h.toPrep(1); clean(m);
@@ -31,7 +31,7 @@ for (const [count, sizes] of [[5, [5]], [6, [6]], [7, [4, 3]], [9, [3, 3, 3]], [
     assert.deepEqual(m.publicView().poolGroups.map(g => g.playerIds.length), sizes);
     const identities = m.order.map(p => p.pool);
     for (const group of m.poolGroups) for (const [base, entry] of group.pool.entries) {
-      const expected = count < 7 ? Math.ceil(m.gd.poolCopies(base) * count / 4) : m.gd.poolCopies(base);
+      const expected = m.gd.poolCopies(base);
       assert.equal(entry.cap, expected, `${base}: complete copies in every group, including groups of three`);
     }
     const base = [...m.pool.entries.keys()].find(id => m.gd.chess(id).tier === 1);
@@ -59,7 +59,7 @@ for (const count of [5, 7, 20]) test(`${count} players: disableSharedPool takes 
 });
 
 test('Match capacity is snapshotted and bounded; solo/default limits and default public shape remain', t => {
-  for (const capacity of [8, 10, 16, 20]) {
+  for (const capacity of [8, 12, 16, 20]) {
     const options = exp(capacity);
     const h = makeMatch({ seats: seats(capacity), experimental: options }); t.after(() => h.m.dispose());
     options.playerCapacity = 4;
@@ -145,28 +145,31 @@ test('team reinforcement and fixed-list rewards route each recipient to its grou
   assert.deepEqual(collectViolations(m), []);
 });
 
-for (const count of [5, 6, 7, 9, 20]) for (const family of ['bounty', 'supply', 'shop', 'tactic']) {
-  test(`${count} alive: ${family} draft has distinct idx for every player, no human-priority reordering`, t => {
+for (const count of [5, 6, 7, 8, 9, 12, 16, 20]) for (const family of ['bounty', 'supply', 'shop', 'tactic']) {
+  test(`${count} alive: ${family} draft obeys its target capacity and gives every player one pick`, t => {
     const round = family === 'bounty' ? 3 : 11;
     const modeId = 'mode_multi_normal';
     const data = { ...DATA, choices: { ...DATA.choices, schedule: { ...DATA.choices.schedule,
       [modeId]: { ...DATA.choices.schedule[modeId], rounds: { ...DATA.choices.schedule[modeId].rounds,
         [round]: { ...DATA.choices.schedule[modeId].rounds[round], families: [{ family, weight: 1 }] } } } } } };
-    const h = makeMatch({ humans: count, experimental: exp(), data, fake: true, seed: 55 });
+    const capacity = count <= 8 ? 8 : count <= 12 ? 12 : count <= 16 ? 16 : 20;
+    const cardCount = capacity === 20 ? 6 : count + 2;
+    const h = makeMatch({ humans: count, experimental: exp(capacity), data, fake: true, seed: 55 });
     const m = h.m; t.after(() => m.dispose()); m.round = round;
     for (const ps of m.order) ps.lp = 28;
     const audit = attachAudit(m);
     m.enterSpDraft(); const s = m.sp;
-    assert.equal(s.family, family); assert.equal(s.cards.length, count + 2);
-    assert.equal(new Set(s.cards).size, count + 2, 'repeated bounty cards are detached objects');
+    assert.equal(s.family, family); assert.equal(s.cards.length, cardCount);
+    assert.equal(new Set(s.cards).size, cardCount, 'every legal option is a detached object');
     while (m.spTurn()) {
       const ps = m.players.get(m.spTurn());
-      const idx = count === 20 && s.idx === 0 ? 21 : s.cards.find(c => s.taken[c.idx] == null).idx;
+      const idx = capacity === 20 ? s.idx % 6 : s.cards.find(c => s.taken[c.idx] == null).idx;
       assert.deepEqual(m.pickCard(ps, idx), { ok: true });
     }
     h.sched.advance(0);
+    assert.equal(m.phase, 'PREP', 'the final manual pick advances immediately without any timeout');
     assert.equal(Object.keys(s.picks).length, count);
-    assert.equal(new Set(Object.values(s.picks)).size, count);
+    assert.equal(new Set(Object.values(s.picks)).size, capacity === 20 ? 6 : count);
     assert.deepEqual(audit.violations, []);
     assert.equal(m.errorCount, 0);
   });

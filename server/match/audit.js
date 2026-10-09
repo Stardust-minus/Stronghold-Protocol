@@ -347,13 +347,14 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
     const s = m.sp;
     if (m.phase === PHASE.SP_DRAFT && s) check('sp draft', () => {
       const alive = m.alivePlayers().map((p) => p.playerId);
-      const want = m.capacityExperiment && s.order.length > 4 ? Math.min(MAX_DRAFT_CARDS, Math.max(6, s.order.length + 2)) : m.isSolo ? 3 : 6;
+      const want = m.capacityExperiment && !m.twentyPlayerMode && s.order.length > 4 ? Math.min(MAX_DRAFT_CARDS, Math.max(6, s.order.length + 2)) : m.isSolo ? 3 : 6;
       if (s.cards.length > want) fail(`${s.cards.length} 机变 cards (max ${want})`);
       if (s.order.length !== alive.length) fail(`机变 order ${s.order.length} for ${alive.length} alive`);
       for (const pid of alive) {
         const idx = s.picks[pid];
         if (idx == null) fail(`${pid} ends 机变 without a card`);
-        else if (s.taken[idx] !== pid) fail(`${pid} picked card ${idx} held by ${s.taken[idx]}`);
+        else if (!Number.isInteger(idx) || !s.cards[idx]) fail(`${pid} picked an invalid card ${idx}`);
+        else if (!m.twentyPlayerMode && s.taken[idx] !== pid) fail(`${pid} picked card ${idx} held by ${s.taken[idx]}`);
       }
       const holders = Object.values(s.taken);
       if (new Set(holders).size !== holders.length) fail('a player took two 机变 cards');

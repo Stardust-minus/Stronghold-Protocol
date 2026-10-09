@@ -390,6 +390,7 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .spov__bar { color: var(--mint-700); font-weight: 400; }
 .spov__desc { font-size: .22rem; font-weight: 400; color: var(--text-lo); letter-spacing: .04em; text-shadow: none; }
 .spov__sub { font-size: .15rem; color: var(--text-dim); }
+.spov__repeat { font-size: max(.16rem, 12px); color: var(--mint-400); }
 .spov__turn { display: flex; align-items: center; gap: .24rem; }
 .spov__turntxt { display: flex; align-items: center; gap: .08rem; font-size: .24rem; font-weight: 700; color: var(--text-md); }
 .spov__turntxt .icon { width: .26rem; height: .26rem; }
@@ -410,7 +411,18 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .spov--expanded .spov__head, .spov--expanded .spov__order { flex: none; }
 .spov--expanded .spov__order { overflow-x: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-bottom: 4px; }
 .spov--expanded .spov__who { flex: none; }
-.spov--expanded .spov__grid { grid-template-rows: none; grid-auto-rows: minmax(150px, 2.6rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px; }
+.spov--expanded .spov__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: minmax(180px, 2.6rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px; }
+.spov--expanded .spov__titles { min-width: 0; }
+.spov--expanded .spov__title { flex-wrap: wrap; }
+.spov--expanded .spcard__name { font-size: max(.23rem, 14px); overflow-wrap: anywhere; }
+.spov--expanded .spcard__desc { font-size: max(.19rem, 12px); }
+.spov--expanded .spov__wname { font-size: max(.15rem, 12px); }
+.spov--expanded .spov__idx { width: auto; min-width: 1em; font-size: max(.16rem, 11px); }
+.spov--expanded .spov__sub, .spov--expanded .spov__desc { font-size: max(.15rem, 12px); }
+.spov--expanded .spov__turntxt { font-size: max(.2rem, 12px); }
+.spov--expanded .spov__confirm { min-height: 44px; font-size: max(.18rem, 14px); }
+.spov--expanded .spcard__confirm b { font-size: max(.18rem, 14px); }
+.spov--expanded .spcard__confirm small { font-size: max(.12rem, 12px); }
 .spov__grid--3 { grid-template-columns: repeat(3, minmax(0, 4.3rem)); grid-template-rows: minmax(0, 4.6rem); justify-content: center; align-content: start; gap: .36rem; margin-top: .3rem; }
 .spov__grid--3 .spcard__icon { width: 1.3rem; height: 1.3rem; }
 /* The official card (research 06 §11.5; the official 悬赏 / 机密商店 / 战术 screenshots): a framed icon at the top-left

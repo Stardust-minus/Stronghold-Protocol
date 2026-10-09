@@ -29,15 +29,16 @@ import { useStore } from '../store.js';
 import { PHASE } from '../../../shared/constants.js';
 import {
   MODULE_NONE, PROF_ORDER, PROF_NAME, rosterOf, filterRoster, recordsOf, chessOptions, effectiveChoice, setChoice, resetChoice,
-  changedCount, skillLabel, moduleBadge, attrRows, skillTags, traitLines, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES,
+  changedCount, skillLabel, moduleBadge, attrRows, skillTags, traitLines,
 } from '../ui/loadoutModel.js';
-import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport, setSkins } from '../ui/loadoutSync.js';
+import { loadoutStore, openLoadout, closeLoadout, setEntries, setNotOwned, setDiyPicks, setSkins, applyOperatorPreset } from '../ui/loadoutSync.js';
+import { serializeOperatorPreset, parseOperatorPreset, OPERATOR_PRESET_MAX_BYTES } from '../ui/operatorPresetModel.js';
 import { SkinPicker } from '../ui/skinPicker.js';
 import { ownAppearance } from '../ui/skinAssets.js';
-import { setOwned, notOwnedCount, serializeOwnership, parseOwnershipImport, OWNERSHIP_IMPORT_MAX_BYTES } from '../ui/ownershipModel.js';
+import { setOwned, notOwnedCount } from '../ui/ownershipModel.js';
 import { OwnershipPanel, useOwnershipRoster } from './ownership.js';
 import { DiyPanel, diyData } from './diy.js';
-import { diyCount, sanitizeDiyPicks, setPick, serializeDiy, parseDiyImport, DIY_IMPORT_MAX_BYTES } from '../ui/diyModel.js';
+import { diyCount, sanitizeDiyPicks, setPick } from '../ui/diyModel.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { copyText } from '../ui/clipboard.js';
 import { toast } from '../ui/toasts.js';
@@ -49,9 +50,9 @@ const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 
 // ---- export / import (干员调配 presets) -----------------------------------------------------------------------------
 //
-// The payload is the versioned envelope of ui/loadoutModel.js (exportPayload / parseImport): a downloaded file and a
-// pasted string are the SAME object, so 导出 and 导入 both funnel through applyLoadoutEntries
-// (sanitise → persist → room.loadout). The dialog is a shared Modal rendered next to the overlay, not inside it.
+// Every tab exports the same operatorPresetModel envelope: loadout, ownership, DIY/support and display-only skins.
+// File and pasted imports share validation before one local store update. Legacy envelopes patch only their section;
+// original room.* sync engines and lock boundaries remain separate. The shared Modal is next to the overlay.
 
 /** Save `text` as a download. Silent no-op when the browser refuses downloads — 复制 stays available. */
 function downloadText(filename, text) {
@@ -490,62 +491,38 @@ function LoadoutScreen({ st }) {
     if (ok) setEntries({});
   };
 
-  // 导出 / 导入 the loadout (or, on the 干员持有 tab, the not-owned list) as the versioned payload (a downloaded file,
-  // the clipboard, or the textarea); `io.kind` says which
+  // Every tab uses one portable preset. Legacy single-section files still import without clearing other settings.
   const ioText = io?.text ?? '';
-  const ioOwn = io?.kind === 'ownership';
-  const ioDiy = io?.kind === 'diy';
-  const openExport = () => setIo(tab === 'ownership'
-    ? { mode: 'export', kind: 'ownership', text: serializeOwnership(loadoutStore.get().notOwned) }
-    : tab === 'diy' ? { mode: 'export', kind: 'diy', text: serializeDiy(loadoutStore.get().diy) }
-      : { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries) });
-  const openImport = () => setIo({ mode: 'import', kind: tab, text: '' });
+  const openExport = () => setIo({ mode: 'export', text: serializeOperatorPreset(loadoutStore.get()) });
+  const openImport = () => setIo({ mode: 'import', text: '' });
   const ioCopy = async () => {
     const ok = await copyText(ioText);
     toast(ok ? t('已复制到剪贴板') : t('复制失败，请在文本框中手动全选复制'), ok ? 'success' : 'warn');
   };
-  const ioDownload = () => downloadText(exportFilename(new Date(), ioOwn ? 'ownership' : ioDiy ? 'diy' : 'loadout'), ioText);
+  const ioDownload = () => downloadText(exportFilename(new Date(), 'operator-preset'), ioText);
   const ioPick = () => fileRef.current?.click();
   const ioFile = async (e) => {
     const f = e.currentTarget.files && e.currentTarget.files[0];
     e.currentTarget.value = ''; // picking the same file twice must fire again
     if (!f) return;
     // refuse a huge pick before reading it into memory (a real payload is a few KB)
-    if (ioDiy && f.size > DIY_IMPORT_MAX_BYTES) { toast(t('文件过大，请选择「导出」下载的自选编队文件'), 'error'); return; }
-    if (f.size > (ioOwn ? OWNERSHIP_IMPORT_MAX_BYTES : LOADOUT_IMPORT_MAX_BYTES)) { toast(ioOwn ? t('文件过大，请选择「导出」下载的干员持有文件') : t('文件过大，请选择「导出」下载的调配文件'), 'error'); return; }
+    if (f.size > OPERATOR_PRESET_MAX_BYTES) { toast(t('文件过大，请选择「导出」下载的干员预设文件'), 'error'); return; }
     try { setIo({ ...io, mode: 'import', text: await readFileText(f) }); } catch { toast(t('读取文件失败'), 'error'); }
   };
   const ioApply = () => {
-    // an import before chess.json is loaded, or when it never arrived, would sanitise every entry away — refuse instead
-    // of wiping the loadout
-    const refused = importRefusal(io.kind, ready);
-    if (refused) { toast(refused.text, refused.tone); return; }
-    if (ioDiy) {
-      const r = parseDiyImport(ioText);
-      if (!r.ok) { toast(t('导入失败：{error}', { error: t(r.error, r.params) }), 'error'); return; }
-      const { applied, dropped } = applyDiyImport(r.picks, diyData(), loadoutStore.get().diyKitted || []);
-      setIo(null);
-      toast(applied ? t('已导入 {n} 个自选名额', { n: applied }) + (dropped ? t('（另有 {n} 项不可用，未导入）', { n: dropped }) : '') : t('已导入：全部名额为空'), dropped ? 'warn' : 'success');
-      return;
+    const parsed = parseOperatorPreset(ioText);
+    if (!parsed.ok) { toast(t('导入失败：{error}', { error: t(parsed.error, parsed.params) }), 'error'); return; }
+    // Never sanitise against absent data. A legacy skin-only file does not need chess or DIY data.
+    if (parsed.scope !== 'skins') {
+      const kind = Object.keys(parsed.patch.diy || {}).length ? 'diy' : 'loadout';
+      const refused = importRefusal(kind, ready);
+      if (refused) { toast(refused.text, refused.tone); return; }
     }
-    if (ioOwn) {
-      const r = parseOwnershipImport(ioText);
-      if (!r.ok) { toast(t('导入失败：{error}', { error: r.error }), 'error'); return; }
-      const { applied, dropped } = applyOwnershipImport(r.notOwned, getChess);
-      setIo(null);
-      toast(applied ? (dropped ? t('已导入：{applied} 名干员未持有（另有 {dropped} 项无效，未导入）', { applied, dropped }) : t('已导入：{applied} 名干员未持有', { applied }))
-        : t('已导入：全部持有'), dropped ? 'warn' : 'success');
-      return;
-    }
-    const res = parseImport(ioText);
-    if (!res.ok) { toast(t('导入失败：{error}', { error: res.error }), 'error'); return; }
-    const { applied, dropped } = applyLoadoutEntries(res.entries, getChess);
-    // nothing survived sanitising (unknown chess, or every choice already the default): keep the current loadout
-    if (!applied) { toast(t('导入失败：这份数据在当前版本没有可用的调配，未做任何改动'), 'error'); return; }
+    const result = applyOperatorPreset(parsed, { lookup: getChess, data: diyData(), kitted: loadoutStore.get().diyKitted });
+    if (!result.ok) { toast(t('导入失败：{error}', { error: t(result.error) }), 'error'); return; }
     setIo(null);
-    toast(dropped
-      ? t('已导入 {applied} 名干员（另有 {dropped} 项未导入）', { applied, dropped })
-      : t('已导入 {applied} 名干员的调配', { applied }), dropped ? 'warn' : 'success');
+    const done = result.scope === 'all' ? t('已导入完整干员预设') : t('已导入兼容配置，仅更新文件包含的项目');
+    toast(done + (result.dropped ? t('（另有 {n} 项不可用，未导入）', { n: result.dropped }) : ''), result.dropped ? 'warn' : 'success');
   };
 
   // Esc closes; ←/→ browse the filtered roster (not while typing in the search field)
@@ -609,21 +586,21 @@ function LoadoutScreen({ st }) {
       ${tab === 'diy' ? html`<div class="lo-top__right">
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status" data-testid="diy-sync">${t(syncText)}</span>` : null}
         <span class="lo-count">${t('已选')} <b class="num">${nDiy}</b><span class="num t-dim">/4</span></span>
-        <${Button} variant="ghost" size="sm" data-testid="diy-export" disabled=${!nDiy} onClick=${openExport} title=${t('导出自选编队（可复制或下载）')}>${t('导出')}<//>
-        <${Button} variant="ghost" size="sm" data-testid="diy-import" disabled=${!ready} onClick=${openImport} title=${t('导入自选编队（粘贴或选择文件）')}>${t('导入')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="diy-export" data-preset-action="export" onClick=${openExport} title=${t('导出完整干员预设')}>${t('导出预设')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="diy-import" data-preset-action="import" disabled=${!ready} onClick=${openImport} title=${t('导入干员预设（兼容旧配置）')}>${t('导入预设')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" data-testid="diy-reset" disabled=${!nDiy} onClick=${clearDiy}>${t('全部清空')}<//>
       </div>` : tab === 'ownership' ? html`<div class="lo-top__right">
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status" data-testid="ownership-sync">${t(syncText)}</span>` : null}
         <span class="lo-count">${t('未持有')} <b class="num">${nNotOwned}</b><span class="num t-dim">/${ownRoster.length}</span></span>
-        <${Button} variant="ghost" size="sm" data-testid="ownership-export" disabled=${!nNotOwned} onClick=${openExport} title=${t('导出干员持有（可复制或下载）')}>${t('导出')}<//>
-        <${Button} variant="ghost" size="sm" data-testid="ownership-import" disabled=${!ready} onClick=${openImport} title=${t('导入干员持有（粘贴或选择文件）')}>${t('导入')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="ownership-export" data-preset-action="export" onClick=${openExport} title=${t('导出完整干员预设')}>${t('导出预设')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="ownership-import" data-preset-action="import" disabled=${!ready} onClick=${openImport} title=${t('导入干员预设（兼容旧配置）')}>${t('导入预设')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" data-testid="ownership-reset" disabled=${!nNotOwned} onClick=${ownAll}>${t('全部持有')}<//>
       </div>` : html`<div class="lo-top__right">
         ${inMatch && hasDeadline(infoDeadline) ? html`<${Countdown} deadline=${infoDeadline} size="sm" gauge=${false} label=${t('调配截止')} class="lo-deadline" />` : null}
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status">${t(syncText)}</span>` : null}
         <span class="lo-count">${t('已调整')} <b class="num">${nChanged}</b><span class="num t-dim">/${roster.length}</span></span>
-        <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>
-        <${Button} variant="ghost" size="sm" data-testid="loadout-import" disabled=${!ready} onClick=${openImport} title=${t('导入调配（粘贴或选择文件）')}>${t('导入')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="loadout-export" data-preset-action="export" onClick=${openExport} title=${t('导出完整干员预设')}>${t('导出预设')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="loadout-import" data-preset-action="import" disabled=${!ready} onClick=${openImport} title=${t('导入干员预设（兼容旧配置）')}>${t('导入预设')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" disabled=${!nChanged} onClick=${resetAll}>${t('全部恢复默认')}<//>
       </div>`}
     </header>
@@ -652,10 +629,9 @@ function LoadoutScreen({ st }) {
       </div>
     </main>`}
   </div>
-  ${io ? html`<${Modal} open=${true} onClose=${() => setIo(null)}
-      title=${ioDiy ? t(io.mode === 'export' ? '导出自选编队' : '导入自选编队')
-        : io.mode === 'export' ? (ioOwn ? t('导出干员持有') : t('导出干员调配')) : (ioOwn ? t('导入干员持有') : t('导入干员调配'))}
-      micro=${ioOwn ? 'OPERATOR ROSTER' : ioDiy ? 'SELF-SELECT SQUAD' : 'OPERATOR LOADOUT'}
+  ${io ? html`<${Modal} open=${true} onClose=${() => setIo(null)} class="lo-preset-io"
+      title=${io.mode === 'export' ? t('导出干员预设') : t('导入干员预设')}
+      micro="OPERATOR PRESET"
       actions=${io.mode === 'export'
         ? html`<${Button} variant="ghost" onClick=${() => setIo(null)}>${t('关闭')}<//>
             <${Button} variant="secondary" icon="copy" data-testid="loadout-io-copy" onClick=${ioCopy}>${t('复制')}<//>
@@ -663,19 +639,11 @@ function LoadoutScreen({ st }) {
         : html`<${Button} variant="ghost" onClick=${() => setIo(null)}>${t('取消')}<//>
             <${Button} variant="secondary" data-testid="loadout-io-pick" onClick=${ioPick}>${t('选择文件')}<//>
             <${Button} variant="primary" icon="check" data-testid="loadout-io-apply" disabled=${!ioText.trim() || !ready} onClick=${ioApply}>${t('导入')}<//>`}>
-      <p class="lo-io__hint">${ioDiy
-        ? (io.mode === 'export'
-          ? t('共 {n} 个自选名额已选择。复制或下载这份数据，即可在别的设备或浏览器上导入。', { n: nDiy })
-          : t('把导出的自选编队数据粘贴到下方，或点「选择文件」。导入会覆盖当前的自选编队。'))
-        : ioOwn
-        ? (io.mode === 'export'
-          ? html`${tParts('共 {n} 名干员未持有。复制或下载这份数据，即可在别的设备或浏览器上导入。', { n: html`<b class="num">${nNotOwned}</b>`, count: nNotOwned })}`
-          : html`${tParts('把导出的干员持有数据粘贴到下方，或点「选择文件」。导入会{overwrite}当前的干员持有设置。', { overwrite: html`<strong>${t('覆盖')}</strong>` })}`)
-        : io.mode === 'export'
-          ? html`${tParts('共 {n} 名干员已调整。复制或下载这份数据，即可在别的设备或浏览器上导入。', { n: html`<b class="num">${nChanged}</b>`, count: nChanged })}`
-          : html`${t('把导出的内容粘贴到下方，或点「选择文件」。')}${nChanged ? html`${tParts('导入会{overwrite}当前的 {nChanged} 名干员调配。', { overwrite: html`<strong>${t('覆盖')}</strong>`, nChanged })}` : null}`}</p>
-      <textarea class="lo-io__text" data-testid="loadout-io-text" spellcheck=${false} readOnly=${io.mode === 'export'} value=${ioText}
-        placeholder=${io.mode === 'export' ? '' : ioDiy ? t('在此粘贴导出的自选编队内容…') : ioOwn ? t('在此粘贴导出的干员持有内容…') : t('在此粘贴导出的调配内容…')}
+      <p class="lo-io__hint">${io.mode === 'export'
+        ? t('一份预设包含技能、模组、干员持有、自选编队和全部外观，可复制或下载到其他设备。')
+        : t('完整预设会覆盖全部配置；旧的单项文件仅更新对应项目，其他配置保持不变。各项仍遵循原来的本局锁定规则。')}</p>
+      <textarea id="operator-preset-io" class="lo-io__text" data-testid="loadout-io-text" spellcheck=${false} readOnly=${io.mode === 'export'} value=${ioText} maxLength=${OPERATOR_PRESET_MAX_BYTES}
+        placeholder=${io.mode === 'export' ? '' : t('在此粘贴干员预设或旧的单项配置…')}
         onInput=${(e) => setIo({ ...io, text: e.currentTarget.value })}></textarea>
       <input type="file" accept=".json,application/json,text/plain" class="lo-io__file" ref=${fileRef} onChange=${ioFile} />
     <//>` : null}

@@ -4,6 +4,24 @@
 
 正式源码目录为 `/root/projects/Stronghold-Protocol`，`origin` 为 Stardust-minus 的 fork、`upstream` 为原作者；本站 `master` 是集成分支。线上基线与仓库 HEAD 分开记录。0.1.2 + Worker 的历史发布单元见下方记录；此后每次更新都须配套验收及取得明确上线授权，提交、合并与推送不代表允许重启生产。
 
+## 当前双 ingress 与正式切换许可（2026-10-09，进行中）
+
+用户已批准改完并验收后直接正式切换，并另选本地feature提交＋离线镜像／验证、有期限固定key loopback Core直连；不推送、不合入master，不重复询问维护窗口。目标每入口2独立ingress／四入口共8、1coord16game各8+2，共25角色。维护会结束内存房局，回滚镜像不能恢复；PRTS／口令／DNS／Beta／WG依赖／其他服务及生产压测限制保持。
+
+quiet同负载与Main真实Worker／Nginx／三Chrome检查已通过；hostmanager三条异常路径已修复为dual-only schema2精确journal／CLOSED ownership／逐target startup admission，fresh224项Python（219通过／5条件跳过）、4native、52真实隔离kernel和限定独立复核已通过。最新完整回归608文件／6720项为6696通过／24条件跳过／0失败，官方283golden一致；1371代码数据库存SHA0166ca3675702c377b6ca516895bc34ee0e63ed05d2bbe8f2f378c444a868ea5，英文及相关四包通过，全局日韩繁各382既有缺译仍strict失败。双guard旧单实例迁移必须只替换经身份／inode／SHA CAS证明CLOSED的owned table/state，不向旧表填hash冒充批准，不全表flush，不关闭WG审批验证；绑定host-policy bytes的外部批准需要明确同版新SHA。具体合同见 [DUAL-INGRESS](cluster/DUAL-INGRESS.md)。固定commit／image实际验收、私有码／immutable供应与正式25角色核验仍需成套执行，不重放任何旧controller。
+
+## 先前素材准备授权（2026-10-08，目标2026-10-09）
+
+当前用户明确批准批量皮肤和音频文件的上传／准备，以及本地20人选择与同模式整房匹配修复。本地实际271皮肤和三语声音配套清单需重新形成新immutable发布单元，不能套用旧127清单。新49动态立绘只声明、未准备；不将静态回退称完整动态支持。
+
+新物料OI86086／MS86085 aliases超过原50000限制；Python准备器、双Lua与resolver消费端现共同有界100000，resolver文件读取有界64MiB。已用完整约24MB最终清单实际native LuaJIT、OpenResty access/header HTTP及resolver盘读HTTP验证，不能仅依赖语法检查。保留最多2OI mirrors、明示MS前缀及唯一Schwarz OpenI-only限制，仍是固定小Lua＋JSON缓存，不生成大Lua常量表。
+
+本地最终验收已完成：post-MIME修复显式599文件canonical R2为6524 tests／6501 pass／23 skip／0 fail或cancel；官方六类283golden全部一致，原六JSON与HEAD及前后SHA相同。主助手真实20人匹配／22槽手选、286模型实播及新增皮肤真实游戏已通过，full/lite仅dryrun。日／韩／繁体各391旧缺译仍为全局strict失败；本地验收不替代最终远端素材供给或固定源码／镜像的配套验证。
+
+实际供应源终态已完成：MS17277对象／86085alias固定5f62fa7490c4d6ef4998aa211eb00357d7e85dce，OI17278对象／86086alias、两个mirrors；47匿名完整正文／单CORS*与两项音频Range206通过。真实pin本地profile绑定R2实际38Lua向量／77OpenResty HTTP／resolver盘读和计数／64MiB边界通过，不能拿旧synthetic-pin回执重标。final-preparation-seal-r1.json已固定1360代码数据摘要72e20bf11caeb28f6e491d332f6f232292b3a74a2a4dee0c1108207225d49e7a，仅表示未提交工作树验收，不是Gitcommit或镜像。宁夏17292全文SHA仍仅正文prepared，NOinclude/reload/publicServing；providerSupplyReady=true不等于readyForProductionActivation，固定代码、镜像与私有码尚待执行授权。
+
+上传许可不包含本次正式激活／游戏或auth／resolver重启、Core管理通道续期、镜像或源码Git发布。宁夏可只预放新目录并核对正文哈希；新include、公开HTTP供给、原入口切源和配套私有代码／镜像仍需分别验证及执行授权。当前uploadVerified未完成时不能标ready，attributes自动生成格式要实际核验精确路径与git check-attr，不以去掉校验掩盖失败。旧素材、失败证据、stashes及LAN预览保留，不设定时上线任务。
+
 ## 中日英配音批次：Git 推送不等于上线（2026-10-08）
 
 本地新增 `audio.voiceByLang` 与5222个日／英录音，旧中文 `audio.voice`、其他音频和127皮肤保持。源码、清单 metadata 和测试可以按用户授权推送；git-ignored 录音不能随源码提交。当前正式8245/client371cbf648323没有因此更新。

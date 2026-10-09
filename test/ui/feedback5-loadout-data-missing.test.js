@@ -2,8 +2,8 @@
 // a blocked request, a proxy, a server without its data folder). useData counts a file that failed ('missing') as
 // settled like a loaded one, so 干员调配 drew an empty roster (「没有符合条件的干员」) and the 导入 of a loadout said the data
 // had no loadout usable in this version; the 干员持有 / 自选编队 imports, sanitised against the absent data, stored an
-// empty list over the saved one. Now the tab says that the game data did not load (which files, what to try) and every
-// import is refused with the same words, before anything is parsed or applied — the saved settings stay as they are.
+// empty list over the saved one. Now the tab names missing game data and what to try. Unified imports first identify
+// the file scope without changing settings, then refuse data-dependent application; legacy skins remain data-free.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -65,18 +65,20 @@ test('every import is refused while the files load or when the game data did not
   assert.deepEqual(importRefusal('diy', true, noBackups), { text: NOT_LOADED, tone: 'error' });
 });
 
-test('the screen: the import asks importRefusal before parsing or applying anything; a tab without its data shows DataMissing', () => {
+test('the unified screen identifies the file scope, then guards data-dependent imports before any application; missing tabs still show DataMissing', () => {
   const src = readFileSync(path.join(ROOT, 'public/js/screens/loadout.js'), 'utf8');
   const at = src.indexOf('const ioApply = () => {');
   assert.ok(at > 0, 'ioApply');
   const body = src.slice(at, src.indexOf('\n  };\n', at));
-  const guard = body.indexOf('const refused = importRefusal(io.kind, ready);');
-  assert.ok(guard > 0, 'the guard');
-  assert.match(body.slice(guard), /^const refused = importRefusal\(io\.kind, ready\);\s*if \(refused\) \{ toast\(refused\.text, refused\.tone\); return; \}/);
-  for (const call of ['parseDiyImport(', 'applyDiyImport(', 'parseOwnershipImport(', 'applyOwnershipImport(', 'parseImport(', 'applyLoadoutEntries(']) {
-    assert.ok(body.indexOf(call) > guard, `${call} only after the guard`);
-  }
-  assert.ok(!/if \(!ready\)/.test(body), 'one guard for both cases');
+  const parse = body.indexOf('parseOperatorPreset(ioText)');
+  const guard = body.indexOf('const refused = importRefusal(kind, ready);');
+  const apply = body.indexOf('applyOperatorPreset(parsed,');
+  assert.ok(parse >= 0 && guard > parse && apply > guard, 'pure scope parsing precedes the guard, application follows it');
+  assert.match(body.slice(guard), /^const refused = importRefusal\(kind, ready\);\s*if \(refused\) \{ toast\(refused\.text, refused\.tone\); return; \}/);
+  assert.match(body, /if \(parsed\.scope !== 'skins'\)/, 'only legacy display-only files bypass game-data requirements');
+  assert.match(body, /Object\.keys\(parsed\.patch\.diy \|\| \{\}\)\.length \? 'diy' : 'loadout'/, 'a preset with support picks requires backups data too');
+  assert.doesNotMatch(body.slice(0, guard), /setEntries\(|setNotOwned\(|setDiyPicks\(|setSkins\(|savePref\(|loadoutStore\.set\(/);
+  assert.ok(!/if \(!ready\)/.test(body), 'one guard for loading and missing data');
   assert.match(src, /const lost = ready \? missingGameData\(tab\) : \[\];/);
   assert.match(src, /: lost\.length \? html`<\$\{DataMissing\} files=\$\{lost\} \/>` : tab === 'diy'/);
 });

@@ -21,22 +21,25 @@ async function fixture(t, count = 8, options = {}) {
   let h;
   t.after(async () => { h?.m.dispose(); await pool.close(); });
   await pool.start();
-  h = makeMatch({ humans: count, experimental: { playerCapacity: 20, revivalEnabled: true, disableSharedPool: false },
-    instant: false, seed: 20261008, spectators: ['observer'] }).start();
+  h = makeMatch({ humans: count, experimental: { playerCapacity: options.capacity ?? 20, revivalEnabled: true, disableSharedPool: false },
+    instant: false, captureFrames: false, seed: 20261008, spectators: ['observer'] }).start();
   h.toPrep(1); h.setStage('act2autochess_m04');
   const m = h.m;
   for (const p of m.order.slice(1, 5)) give(m, p, 'chess_char_1_19_a', 'board', legalTileFor(m, p, 'chess_char_1_19_a'));
-  m.wave = { ...m.wave, timeLimit: 1 };
+  m.wave = { ...m.wave, timeLimit: options.base ?? 1 };
+  if (options.speed != null) m.gameSpeed = options.speed;
   // Only the one empty board receives a slime. Other real fields naturally clear: no substituted perPlayer result.
   m._normalOpts = function(p) {
     const o = Match.prototype._normalOpts.call(this, p);
     return { ...o, spawns: p.seat === 0 ? [{ time: 0, enemyKey: 'enemy_1007_slime', count: 1, interval: 0,
-      routeIndex: 0, ownerPlayerId: p.playerId, mods: { hpMul: 10 } }] : [], timeLimit: 1 };
+      routeIndex: 0, ownerPlayerId: p.playerId, mods: { hpMul: 10 } }] : [] };
   };
   // Keep the original terrain, template routing, mods, source and helper carry; advance only fixture spawn timing.
   m._uniteOpts = function(plan, limit) {
+    plan.fixtureStartAt = this.sched.now();
     const o = Match.prototype._uniteOpts.call(this, plan, limit);
-    return { ...o, spawns: o.spawns.map(s => ({ ...s, time: options.unspawned && plan.uniteRound === 1 ? 4 : 0 })), timeLimit: 1 };
+    return { ...o, spawns: o.spawns.map(s => ({ ...s,
+      time: options.delayBoth || options.unspawned && plan.uniteRound === 1 ? limit + 3 : 0 })) };
   };
   let settlements = 0;
   const original = m.settle.bind(m);
@@ -145,6 +148,54 @@ test('real oneWorker seven-human expanded room retains single-round IDs/results 
   assert.equal(m.order[0].stats.lpLost, 1); assert.equal(m.simErrors, 0); assert.equal(m.errorCount, 0);
   assert.deepEqual(collectViolations(m), []);
   await pump(h, () => pool.stats().sessions === 0 && pool.stats().pending === 0 && pool.stats().cleanup === 0);
+});
+
+for (const [label, options, total] of [
+  ['entry twenty then departure', { base: 1, speed: 10 }, 5],
+  ['capped original base120', { base: 120, speed: 20, delayBoth: true }, 300],
+]) test(`real oneWorker twenty total-budget ${label}: Spec/deadline/public, final LP once, virtual consumption and privacy`, { timeout: 20000 }, async t => {
+  const s = await fixture(t, 20, options), { h, m, pool } = s;
+  await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 1 && m.runner.ready);
+  const first = m.unitePlan, f1 = m.fields[0];
+  assert.equal(first.totalBudget, total); assert.equal(first.remainingBudget, total); assert.equal(first.timeLimit, total / 2);
+  assert.equal(f1.spec.timeLimit, total / 2); assert.equal(f1.spec.stageId, m.stageId);
+  assert.equal(m.deadline - first.fixtureStartAt, Math.round(first.timeLimit / options.speed * 1000));
+  assert.equal(m.publicView().unite.gameSpeed, options.speed); assert.equal(m.wave.timeLimit, options.base);
+  const before = m.order[0].lp; m.onLeave('p_19'); assert.equal(m._uniteBudget.entryAlive, 20);
+  await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 2 && m.runner.ready);
+  const second = m.unitePlan, f2 = m.fields[0], result1 = m._uniteRelay.rounds[0].result;
+  const spent1 = Math.min(first.timeLimit, result1.time);
+  assert.equal(second.timeLimit, total - spent1); assert.equal(second.remainingBudget, total - spent1);
+  assert.equal(second.totalBudget, total); assert.equal(f2.spec.timeLimit, second.timeLimit);
+  assert.equal(m.deadline - second.fixtureStartAt, Math.round(second.timeLimit / options.speed * 1000));
+  assert.equal(m.order[0].lp, before); assert.equal(s.settlements(), 0);
+  const balance = m._uniteBudget.remaining; m._finishUniteField(first, result1, f1); assert.equal(m._uniteBudget.remaining, balance);
+  m.addSpectator('observer'); m.onReconnect('p_3'); m.flush(true);
+  const pub = h.lastTo('observer', 'm.public');
+  assert.equal(pub.unite.timeLimit, second.timeLimit); assert.equal(pub.unite.totalBudget, total);
+  assert.equal(pub.unite.remainingBudget, second.remainingBudget); assert.equal(pub.unite.gameSpeed, options.speed);
+  assert.equal(h.lastTo('observer', 'm.private'), null);
+  await pump(h, () => m.phase === 'SETTLE');
+  const result2 = m._uniteRelay.rounds[1].result, spent2 = Math.min(second.timeLimit, result2.time);
+  assert.equal(m._uniteBudget.remaining, Math.max(0, total - spent1 - spent2));
+  assert.ok(spent1 + spent2 <= total); assert.equal(m._uniteRelay.rounds.length, 2);
+  assert.equal(s.settlements(), 1); assert.equal(m.order[0].lp, before - m.uniteResultView.losses.p_0);
+  assert.equal(m.order[0].stats.lpLost, m.uniteResultView.losses.p_0);
+  assert.equal(new Set(m.uniteResultView.helpers).size, 4); assert.equal(m.wave.timeLimit, options.base);
+  if (options.delayBoth) { assert.equal(m._uniteBudget.remaining, 0); assert.equal(m.uniteResultView.losses.p_0, 1); }
+  assert.equal(m.simErrors, 0); assert.equal(m.errorCount, 0); assert.deepEqual(collectViolations(m), []);
+  await pump(h, () => pool.stats().sessions === 0 && pool.stats().pending === 0 && pool.stats().cleanup === 0);
+});
+
+for (const capacity of [8, 12, 16]) test(`real oneWorker non-twenty capacity${capacity}: both relay Specs retain the original unscaled base and DTO`, { timeout: 15000 }, async t => {
+  const { h, m } = await fixture(t, capacity, { capacity });
+  await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 1 && m.runner.ready);
+  assert.equal(m.fields[0].spec.timeLimit, 1);
+  for (const key of ['timeLimit', 'totalBudget', 'remainingBudget', 'gameSpeed']) assert.equal(Object.hasOwn(m.publicView().unite, key), false);
+  await pump(h, () => m.phase === 'UNITE' && m.unitePlan.uniteRound === 2 && m.runner.ready);
+  assert.equal(m.fields[0].spec.timeLimit, 1); assert.equal(m._uniteBudget, undefined);
+  await pump(h, () => m.phase === 'SETTLE'); assert.equal(m.order[0].stats.lpLost, 1);
+  assert.equal(m.errorCount, 0); assert.equal(m.simErrors, 0);
 });
 
 test('real oneWorker relay cancellation: queued second generation closes; late first reply cannot finalize another phase', { timeout: 15000 }, async t => {

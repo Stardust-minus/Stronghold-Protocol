@@ -78,7 +78,6 @@ export function partyQueueReason(room, myId, online = true) {
   if (!online) return t('连接中断，请稍候重试');
   if (room?.mode !== 'coop' || room.inMatch) return t('仅等待中的好友同盟可组队匹配');
   if (room.hostId !== myId) return t('由同盟创建者发起组队匹配');
-  if (roomCapacity(room.mode, room.experimental) > MAX_SEATS) return t('扩展人数好友房不能参与公开匹配');
   const seats = room.seats?.filter(Boolean) || [];
   if (seats.some(s => s.isBot)) return t('请先移除 AI 队友，公开匹配仅限真人');
   if (!seats.length || seats.some(s => s.connected === false)) return t('请等待所有队友连接后再匹配');
@@ -305,7 +304,7 @@ export function RoomScreen() {
       <div class="topbar__center">
         <${MicroLabel} tone="mint">${coop ? 'ALLIANCE LOBBY' : 'SOLO SIMULATION'}<//>
         <h1 class="topbar__title">${coop ? t('同盟模拟') : t('独立模拟')}<span class="topbar__sep"></span><${DifficultyTag} difficulty=${room.difficulty} size="lg" /></h1>
-        ${facts.seats.length > MAX_SEATS ? html`<span class="room-capacity">${t('实验性好友房 · {n} 人上限 · 禁用匹配', { n: facts.seats.length })}</span>` : null}
+        ${facts.seats.length > MAX_SEATS ? html`<span class="room-capacity">${t('实验性同盟 · {n} 人模式 · 支持同模式匹配', { n: facts.seats.length })}</span>` : null}
       </div>
       <div class="topbar__right">
         ${coop ? html`<${InviteBox} code=${room.code} name=${me.name} difficulty=${room.difficulty} />` : html`<div class="solo-note"><${MicroLabel}>SINGLE OPERATOR<//><span>${t('仅限 1 名博士')}</span></div>`}
@@ -315,10 +314,10 @@ export function RoomScreen() {
     ${queued ? html`<main class="room-matching screen__scroll">
       <div class="room-matching__team"><${MicroLabel} tone="mint">PARTY MATCHMAKING<//>
         <h2>${t('{n} 人好友小队', { n: facts.humans.length })}</h2>
-        <p>${t('小队整体匹配，不拆散队友。任一成员取消即可返回此房间；匹配成功后各自确认一次，直接开始四人模拟。')}</p>
+        <p>${t('小队整体匹配相同人数模式和难度，不拆散队友。任一成员取消即可返回此房间；集齐 {n} 人后各自确认一次，直接开局。', { n: facts.seats.length })}</p>
         <div class="room-matching__names">${facts.humans.map(s => html`<span key=${s.playerId}><${Icon} name="user" />${s.name}</span>`)}</div>
       </div>
-      <${MatchmakingPanel} queue=${queue} difficulty=${room.difficulty} online=${online} />
+      <${MatchmakingPanel} queue=${queue} difficulty=${room.difficulty} experimental=${room.experimental} online=${online} />
     </main>` : null}
     <main hidden=${queued} class=${`seats${coop ? '' : ' seats--solo'}${facts.seats.length > MAX_SEATS ? ' seats--expanded screen__scroll' : ''}`}>
       ${facts.seats.map((s, i) => html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
@@ -361,9 +360,9 @@ export function RoomScreen() {
       </div>
       <div class="room-bar__right">
         <${LoadoutButton} from="room" size="lg" class="room-loadout" label=${t('干员调配')} />
-        ${coop && facts.isHost ? html`<${Tooltip} text=${queueReason ? t(queueReason) : t('整队寻找同难度真人，确认后自动开局')}>
+        ${coop && facts.isHost ? html`<${Tooltip} text=${queueReason ? t(queueReason) : t('整队寻找相同人数模式和难度的真人，确认后自动开局')}>
           <${Button} variant="secondary" size="lg" icon="search" loading=${busy === 'queue'} disabled=${!!queueReason || !!busy}
-            onClick=${joinQueue}>${t('组队匹配')}<//>
+            data-testid="party-queue" onClick=${joinQueue}>${t('组队匹配')}<//>
         <//>` : null}
         ${facts.isHost
           ? html`<${Tooltip} text=${facts.canStart ? null : t('仍有博士未准备就绪')}>

@@ -9,6 +9,8 @@ const OSS_ORIGIN = 'https://obs.cn-south-222.ai.pcl.cn';
 const FALLBACK_ORIGIN = 'https://ark-asset.hanabi-ai.cn:25442';
 const DATASET = 'Stardust_minus/arknight_assets';
 const DEFAULT_MANIFEST = '/run/config/openi-assets.json';
+export const MAX_MANIFEST_ENTRIES = 100000;
+export const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/;
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f]/;
 const EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'atlas', 'skel', 'obj', 'mtl', 'json',
@@ -62,7 +64,7 @@ export function validateManifest(manifest) {
     typeof manifest.ossPathPrefix !== 'string' || !manifest.ossPathPrefix.startsWith('/') ||
     !manifest.ossPathPrefix.endsWith('/') || !safeRelative(manifest.ossPathPrefix.slice(1, -1)) ||
     manifest.ossPathPrefix.split('/').length !== 4 || !Array.isArray(manifest.entries) ||
-    manifest.entries.length === 0 || manifest.entries.length > 50000) fail('CONFIG');
+    manifest.entries.length === 0 || manifest.entries.length > MAX_MANIFEST_ENTRIES) fail('CONFIG');
   const entries = new Map(), files = new Map();
   let mirror;
   const used = new Set();
@@ -429,7 +431,7 @@ export async function startServer(options = {}) {
   if (!manifest) {
     try {
       const bytes = await readFile(manifestPath);
-      if (bytes.length > 16 * 1024 * 1024) fail('CONFIG');
+      if (bytes.length > MAX_MANIFEST_BYTES) fail('CONFIG');
       manifest = JSON.parse(bytes.toString('utf8'));
     } catch { fail('CONFIG'); }
   }

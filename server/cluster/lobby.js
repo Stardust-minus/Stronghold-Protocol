@@ -6,7 +6,7 @@ import { Lobby, Room } from '../lobby.js';
 import { encode, isErrCode } from '../net.js';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, MATCHMAKING_VERSION, modeIdFor } from '../../shared/constants.js';
 import { experimentalOptions, isExperimental, sameExperimental } from '../../shared/experimental.js';
-import { roomCapacity } from '../../shared/playerCapacity.js';
+import { MAX_PLAYER_CAPACITY, roomCapacity } from '../../shared/playerCapacity.js';
 
 const OK = Object.freeze({ ok: true });
 const fail = error => ({ error });
@@ -230,10 +230,12 @@ export class ClusterLobby extends Lobby {
   }
 
   collectMatchmade(sessions, difficulty, context) {
-    if (sessions.length !== MAX_SEATS || new Set(sessions.map(s => s.playerId)).size !== MAX_SEATS || !context.isCurrent()) invalid(ERR.BAD_TARGET);
+    if (sessions.length < MAX_SEATS || sessions.length > MAX_PLAYER_CAPACITY
+      || new Set(sessions.map(s => s.playerId)).size !== sessions.length || !context.isCurrent()) invalid(ERR.BAD_TARGET);
     const first = this.queue.entries.get(sessions[0].playerId), offer = this.queue.offers.get(context.offerId), now = this.now();
-    if (!offer || first?.offerId !== offer.id || offer.entries.length !== MAX_SEATS || now >= offer.deadline) invalid(ERR.BAD_TARGET);
-    if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== MAX_SEATS) invalid(ERR.BAD_MSG);
+    if (!offer || first?.offerId !== offer.id || offer.entries.length !== offer.required
+      || sessions.length !== offer.required || now >= offer.deadline) invalid(ERR.BAD_TARGET);
+    if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== offer.required) invalid(ERR.BAD_MSG);
     const oldRooms = new Set();
     for (const session of sessions) {
       const entry = this.queue.entries.get(session.playerId);

@@ -1,7 +1,7 @@
 // Band draft — BAND_DRAFT "2/2 选择策略" (research 06 §4.2, D1): left = draft order (avatar, name, state:
 // … waiting / ⌛ 决策中 / chosen band ✓), current picker highlighted; centre = grid of every band allowed
 // for the mode type (icon, name, LP); a band a teammate already picked carries the picker's avatar and is marked
-// 队友已选 — it cannot be chosen again (research 09 §5, guidebook 策略与轮选; the server refuses it too); right =
+// 队友已选 — it cannot be chosen again unless the server enables allowRepeat for the twenty-player mode; right =
 // detail pane (icon, 初始生命值, name, effect name + rich description) with 跳过 (co-op, once) and 确认选择.
 // One countdown (user playtest #4 item 4): every turn has the same clock (Match BAND_TURN_SECONDS, m.public.draft
 // turnSeconds) and the step header counts it down — m.public.deadline IS the turn's end, the same number as the
@@ -80,8 +80,9 @@ export function timeoutBand(bands, taken, defaultId = DEFAULT_TIMEOUT_BAND) {
  * @param {Map<string, string>} picks normalizeDraft(...).picks (playerId → bandId)
  * @param {string} myId
  */
-export function teammateBands(picks, myId) {
+export function teammateBands(picks, myId, allowRepeat = false) {
   const out = new Map();
+  if (allowRepeat === true) return out;
   for (const [pid, bid] of picks instanceof Map ? picks : []) {
     if (pid === myId || typeof bid !== 'string') continue;
     if (!out.has(bid)) out.set(bid, []);
@@ -186,7 +187,7 @@ export function BandDraftScreen() {
   const myTurn = !myPick && (solo || draft.turnPid === myId);
   const skipsLeft = draft.skipsLeft.has(myId) ? draft.skipsLeft.get(myId) : (skipped ? 0 : 1);
   const canSkip = !solo && myTurn && skipsLeft > 0 && draft.order.length > 1;
-  const taken = solo ? new Map() : teammateBands(draft.picks, myId);
+  const taken = solo ? new Map() : teammateBands(draft.picks, myId, draft.allowRepeat);
   const pickers = new Map(); // bandId → players
   for (const [pid, bid] of draft.picks) {
     const p = players.find((x) => x.playerId === pid);
@@ -249,7 +250,7 @@ export function BandDraftScreen() {
   const infoStatus = infoOpen ? draftInfoStatus({ myPick, pickName: myPick ? gd.band(myPick)?.name : null, myTurn, turnName, secs: turnSecs,
     waiting: !solo && !draft.done }) : null;
 
-  return html`<div class="screen draft">
+  return html`<div class="screen draft" data-allow-repeat=${draft.allowRepeat === true ? 'true' : undefined}>
     <div class="brief__bg" aria-hidden="true"></div>
     <${StepHeader} step=${2} of=${2} title=${t('选择策略')} micro="STRATEGY // BAND CHECK" pub=${clock ? { ...pub, deadline: clock.deadline } : { ...pub, deadline: 0 }}
       total=${clock ? clock.total : null} onExit=${() => setExit(true)} />
@@ -279,6 +280,7 @@ export function BandDraftScreen() {
         <${Button} variant="secondary" icon="search" block=${true} class="draft-order__info" data-testid="match-info-open"
           aria-haspopup="dialog" onClick=${() => setInfoOpen(true)}>${t('查看禁用盟约与干员')}<//>
         ${!solo ? html`<p class="draft-order__tip" data-testid="draft-tip">${draftTip({ timed, turnSeconds: turnLen, autoName: myPick ? null : autoName, selected: autoId === sel })}</p>` : null}
+        ${draft.allowRepeat === true ? html`<p class="draft-order__tip draft-order__tip--repeat" data-testid="draft-repeat">${t('可重复选择，每人只能选择一次')}</p>` : null}
       </aside>
 
       <section class="draft-grid" role="listbox" aria-label=${t('策略')}>
@@ -293,7 +295,7 @@ export function BandDraftScreen() {
             <span class="dband__name">${b.name}</span>
             <span class="dband__lp num"><i></i>${b.totalHp}</span>
             <${BandOffTag} names=${offNames} />
-            ${who.length ? html`<span class="dband__who">${who.slice(0, 4).map((p) => html`<${PlayerAvatar} key=${p.playerId} player=${p} size="sm" />`)}</span>` : null}
+            ${who.length ? html`<span class="dband__who" title=${who.map(p => p.name).join('、')}>${who.slice(0, 4).map((p) => html`<${PlayerAvatar} key=${p.playerId} player=${p} size="sm" />`)}${who.length > 4 ? html`<span class="dband__more num">+${who.length - 4}</span>` : null}</span>` : null}
             ${isTaken ? html`<span class="dband__taken">${t('队友已选')}</span>` : null}
           </button>`;
         })}

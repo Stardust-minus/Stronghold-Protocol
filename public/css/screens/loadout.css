@@ -612,3 +612,13 @@
 .lo-io__text:focus { border-color: var(--mint-700); }
 .lo-io__text::placeholder { color: var(--text-lo); }
 .lo-io__file { display: none; }
+
+/* One complete preset needs readable copy and controls even on a short touch viewport. */
+.lo-preset-io { width: 560px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.lo-preset-io .modal__actions { flex-wrap: wrap; gap: 8px; }
+.lo-preset-io .modal__actions .btn { min-height: 44px; padding-inline: 14px; font-size: 14px; }
+.lo-preset-io .lo-io__text { height: 160px; min-height: 120px; }
+.sp-coarse .lo [data-preset-action] { min-height: 44px; font-size: 14px; }
+@media (max-height: 520px) {
+  .lo-preset-io .lo-io__text { height: 120px; }
+}

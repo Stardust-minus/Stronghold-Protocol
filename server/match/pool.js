@@ -54,17 +54,18 @@ import { MAX_PLAYER_CAPACITY } from '../../shared/playerCapacity.js';
 
 /** Start-of-match seat groups, never rebalanced after a death or leave. Small experimental rooms share one enlarged
  * pool; at seven seats and above each balanced group keeps a complete ordinary pool, including three-seat groups. */
-export function createPoolGroups(gd, players, { banned = [], experimental = false, independent = false } = {}) {
+export function createPoolGroups(gd, players, { banned = [], experimental = false, independent = false, fixedChunks = false } = {}) {
   if (!Array.isArray(players) || players.length < 1 || players.length > MAX_PLAYER_CAPACITY) throw new RangeError('pool groups require 1..20 players');
   const sorted = players.slice().sort((a, b) => a.seat - b.seat);
   const count = sorted.length;
-  const groups = independent ? count : experimental && count >= 7 ? Math.ceil(count / 4) : 1;
+  const chunked = experimental && fixedChunks && !independent;
+  const groups = independent ? count : chunked || experimental && count >= 7 ? Math.ceil(count / 4) : 1;
   const size = Math.floor(count / groups), remainder = count % groups;
   let offset = 0;
   return Array.from({ length: groups }, (_, i) => {
-    const n = size + (i < remainder ? 1 : 0);
+    const n = chunked ? Math.min(4, count - offset) : size + (i < remainder ? 1 : 0);
     const playerIds = sorted.slice(offset, offset += n).map(p => p.playerId);
-    const scale = !independent && experimental && count > 4 && count < 7 ? count / 4 : 1;
+    const scale = !independent && !chunked && experimental && count > 4 && count < 7 ? count / 4 : 1;
     return { id: i + 1, playerIds, scale, pool: new SharedPool(gd, { banned, scale }) };
   });
 }

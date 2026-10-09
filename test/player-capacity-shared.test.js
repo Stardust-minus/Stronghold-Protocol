@@ -9,7 +9,7 @@ const rules = () => ({ revivalEnabled: false, disableSharedPool: false });
 
 test('ordinary capacity and result-player budget stay distinct from the experimental maximum', () => {
   assert.equal(MAX_SEATS, 4); assert.equal(MAX_PLAYER_CAPACITY, 20); assert.equal(MAX_DRAFT_CARDS, 22);
-  assert.deepEqual(PLAYER_CAPACITIES, [4, 8, 10, 16, 20]); assert.ok(Object.isFrozen(PLAYER_CAPACITIES));
+  assert.deepEqual(PLAYER_CAPACITIES, [4, 8, 12, 16, 20]); assert.ok(Object.isFrozen(PLAYER_CAPACITIES));
   assert.equal(RESULT_LIMITS.players, 4, 'one battlefield still has at most two participating players, not the full alliance');
   assert.equal(roomCapacity('coop', null), 4);
   for (const capacity of PLAYER_CAPACITIES) {

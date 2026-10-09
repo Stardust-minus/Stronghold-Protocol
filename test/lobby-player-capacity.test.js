@@ -113,12 +113,13 @@ test('legacy clients keep ordinary/solo room shapes but cannot create, enter, ob
   assert.equal(f.lobby.addBot(legacy).error, ERR.ROOM_FULL);
 });
 
-for (const size of [1, 2, 3, 4]) test(`expanded ${size}-human party cannot queue even before its fifth member`, t => {
+for (const size of [1, 2, 3, 4]) test(`expanded ${size}-human party enters only its eight-player queue without changing the room`, t => {
   const f = fixture(t), { room, host, members } = f.room(8, size);
   for (const p of members.slice(1)) f.lobby.ready(p, { ready: true });
   const before = room.toState();
-  assert.equal(f.lobby.queue.join(host, { difficulty: 'NORMAL', party: true }).error, ERR.BAD_MSG);
-  assert.equal(f.lobby.queue.size, 0); assert.equal(f.lobby.queue.offers.size, 0); assert.deepEqual(room.toState(), before);
+  assert.deepEqual(f.lobby.queue.join(host, { difficulty: 'NORMAL', party: true }), { ok: true });
+  assert.equal(f.lobby.queue.size, size); assert.equal(f.lobby.queue.offers.size, 0); assert.deepEqual(room.toState(), before);
+  for (const member of members) assert.equal(f.lobby.queue.state(member).required, 8);
 });
 
 test('party matchmaking requires ready nonhosts without tickets/side effects; host action is implicit ready', t => {
@@ -143,7 +144,7 @@ test('ended public matchmaking rooms cannot become expanded friend rooms; ordina
   room.match.opts.onEnd({ reason: 'fixture-ended' }); assert.equal(room.match, null);
   f.lobby.ready(players[1], { ready: true });
   const before = structuredClone(room.toState()), seats = room.seats, experimental = room.experimental, replay = room.replay, messages = players[0].messages.length;
-  for (const capacity of [8, 10, 16, 20]) {
+  for (const capacity of [8, 12, 16, 20]) {
     assert.equal(f.lobby.setExperimental(players[0], { experimental: options(capacity) }).error, ERR.BAD_MSG);
     assert.equal(room.seats, seats); assert.equal(room.experimental, experimental); assert.equal(room.replay, replay);
     assert.deepEqual(room.toState(), before); assert.equal(players[0].messages.length, messages);
@@ -176,7 +177,7 @@ test('actual native WS twenty-seat room rejects overflow/legacy resume without r
   assert.equal((await attemptedResume.request({ t: 'hello', version: 1, name: 'Wire19', token: members[19].welcome.token })).code, ERR.BAD_MSG);
   assert.equal(members[19].closeInfo, null);
   assert.equal((await members[19].request({ t: 'room.ready', ready: true })).t, 'ok');
-  assert.equal((await host.request({ t: 'queue.join', difficulty: 'NORMAL', party: true })).code, ERR.BAD_MSG);
+  assert.equal((await host.request({ t: 'queue.join', difficulty: 'NORMAL', party: true })).code, ERR.NOT_READY);
   assert.equal((await host.request({ t: 'room.kick', seat: 19, playerId: members[19].welcome.playerId })).t, 'ok');
   assert.equal((await members[19].waitFor('room.closed')).reason, 'kicked');
 });

@@ -56,7 +56,7 @@ local function valid_data(value)
             if target ~= false then return false end
         elseif not model_target_allowed(target) then return false end
         count = count + 1
-        if count > 50000 then return false end
+        if count > __MATERIAL_LB_MAX_ENTRIES__ then return false end
     end
     return count > 0
 end

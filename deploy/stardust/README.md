@@ -2,6 +2,18 @@
 
 本目录版本化维护本站的认证/PRTS、Nginx、公开静态源和协同发布流程，不改变上游的项目目录结构。代码遵循仓库 GPL-3.0-or-later；第三方库按原许可证，游戏素材仍受根目录 NOTICE/THIRD-PARTY-NOTICES 的限制。
 
+## 当前双 ingress 发布准备（2026-10-09，尚未切换）
+
+本地271皮肤、三语音频、4步进同模式匹配、20人重复六项／四人共享池／整段联防预算及完整干员预设已经过各自本地验收。用户现明确要求每物理入口两个独立ingress，并批准改完验收后直接正式切换；另选当前功能分支本地提交＋离线镜像、重建有期限固定key loopback Core通道，不推送或合入master。目标1coordinator＋16个8+2game＋8ingress共25角色，匹配池与浏览器协议不拆分。切换结束内存房间／对局，需刷新；DNS、PRTS／口令、Beta、WG恢复依赖和其他服务保持。
+
+双实例及WS-only代理、真实Worker＋三浏览器故障恢复和quiet同负载ABBA已验收。管理器三条异常路径已修复为dual-only schema2 journal／CLOSED ownership／逐目标准入；fresh224项Python（219通过／5条件跳过）、4native、52实际隔离kernel及限定独立复核通过。最新608文件完整回归6720项：6696通过／24条件跳过／0失败，官方283golden一致，1371代码数据库存SHA为0166ca3675702c377b6ca516895bc34ee0e63ed05d2bbe8f2f378c444a868ea5；英文及相关四包通过，全局日韩繁各382既有缺译仍strict失败。具体合同、closed guard迁移与证据边界见 [DUAL-INGRESS](cluster/DUAL-INGRESS.md)，当前最高进度 `.claude/dual-ingress-preparation-20261009.md`。此前cd523366／72e仅为历史；本地验收不代表已固定镜像、投递或完成正式25角色切换。
+
+## 先前准备：271皮肤、三语音频与多人匹配（尚未切换）
+
+用户本轮明确批准皮肤／音频批量准备与新immutable上传；本地还修复20人机变六项截断，容量4／8／12／16／20并支持同模式跨房间整队匹配。271皮肤已严格实装，286新增模型当前game loader／SpineActor真实浏览器通过；20真人两房匹配／手动选完／真实Worker与刷新已验收。新增皮肤真实三端游戏选择／队友默认模型／旁观私有隔离／Worker战斗与刷新、full/lite package dryrun均已通过；最终post-MIME修复599文件canonical R2已通过：6524 tests／6501 pass／23 skip／0 fail或cancel；官方283golden全部一致、六JSON前后及HEAD SHA不变。英文1611和新增161文案四包通过，日／韩／繁体各391旧缺译仍另批处理；不把全局strict失败称通过。此候选未提交、推送、构建镜像或部署。
+
+公开物料OI86086／MS86085 aliases使用同源有界100000条和64MiB消费限制，实际大型JSON／LuaJIT／OpenResty／resolver盘读HTTP通过，仍恰2OI mirrors及唯一黑「厚礼」OpenI-only例外。供应源上传和最终核验已完成：MS固定revision `5f62fa7490c4d6ef4998aa211eb00357d7e85dce`，17277 assigned对象完整LFS SHA／size／InCheck通过；OI17278 assigned对象完整注册路径／大小及新7698 PUT-MD5通过，原objects／精确attributes保持、原失败保留。47匿名完整正文样本（24OI＋23MS，20551163字节）SHA／size／单CORS*及两项音频Range206通过；不冒称两家供应源全文重下载或新浏览器验收。Main独立核对11份proof摘要、47样本对本地正文和1360代码数据封存通过。`providerSupplyReady=true`，实际固定revision的最终本地profile绑定也已通过：38native LuaJIT向量、77实际OpenResty HTTP、resolver真实盘读和100000／100001／64MiB+1边界均验证、fixture关闭；旧synthetic-pin证明仍保留原义。MIME收尾仅让有效octet-stream不再多请求原.mp3，并非旧配音完全不能播：56聚焦、主助手三真实Chrome／本地HTTP头复现与原MP3／HTTPWS＋1Worker自然三语解码、错误中文回退及刷新通过，非直接供应源browser。最终1360代码数据SHA库存摘要72e20bf11caeb28f6e491d332f6f232292b3a74a2a4dee0c1108207225d49e7a已封存。源码／镜像／私有码尚未固定，`readyForProductionActivation=false`，不能称已上线。宁夏新immutable正文17292文件已完整远端SHA通过，不安装include、不reload或切入口。正式仍为8245/client371cbf648323/ae10，下方旧无上传许可／皮肤暂停说明属相应历史。
+
 ## 新配音功能：源码与本地素材，不是正式切换（2026-10-08）
 
 大厅「语言」和游戏内原有设置复用同一套界面语言／中日英配音选项，偏好独立且只影响本浏览器。三语实播、缺档／加载失败中文回退及刷新恢复已在 localhost 真正的 HTTP/WS/Worker 中验收；日语191人、英语182人，全部7896录音已完整验证。说明见 [VOICE-LANGUAGES](../../docs/VOICE-LANGUAGES.md)。

@@ -202,8 +202,17 @@ export function countdownState(deadline, now, total, warnAt = 10) {
   return { remain, warn: remain <= warnAt, bars, text: String(Math.min(999, remain)).padStart(2, '0'), frac };
 }
 
+/** The twenty-player stage budget and its round-start balance, in game seconds (not a live countdown). */
+export function uniteBudgetInfo(pub) {
+  if (pub?.phase !== PHASE.UNITE) return null;
+  const total = pub.unite?.totalBudget, remaining = pub.unite?.remainingBudget;
+  if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(remaining) || remaining < 0 || remaining > total) return null;
+  return { total, remaining };
+}
+
 /**
- * Nominal length (s) of the current timed phase from data/config.json, or null when unknown/untimed.
+ * Nominal real seconds of the current timed phase; twenty-player UNITE uses the authority's round limit / speed.
+ * Other phases use data/config.json, or null when unknown/untimed.
  * @param {any} pub m.public
  * @param {any} config data/config.json
  * @param {string|null} [myId]
@@ -224,8 +233,11 @@ export function phaseTotalSeconds(pub, config, myId = null) {
       return first ? (num(timers.spFirst) ?? 30) : (num(timers.spTurn) ?? 16);
     }
     case PHASE.PREP: return num(mode?.rounds?.[String(pub.round)]?.prepTime);
-    case PHASE.COMBAT:
-    case PHASE.UNITE: return num(mode?.rounds?.[String(pub.round)]?.combatTimeLimit);
+    case PHASE.COMBAT: return num(mode?.rounds?.[String(pub.round)]?.combatTimeLimit);
+    case PHASE.UNITE: {
+      const limit = num(pub.unite?.timeLimit), speed = num(pub.unite?.gameSpeed);
+      return limit && speed ? limit / speed : num(mode?.rounds?.[String(pub.round)]?.combatTimeLimit);
+    }
     // 最终攻势 / 隐秘核心: m.public.deadline is the level's 120 s countdown (maxPlayTime; the battle goes on past it)
     case PHASE.FINAL_ASSAULT:
     case PHASE.HIDDEN_CORE: return bossLevelSeconds(pub, config);

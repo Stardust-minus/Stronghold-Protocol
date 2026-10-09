@@ -25,6 +25,7 @@ ENTRY_KEYS = {'requestPath', 'fileName', 'bytes', 'sha256', 'mime'}
 RELEASE_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}')
 OPENI_ONLY_ALLOWLIST = frozenset({'/assets/skins/char_340_shwaz_snow_1/illustration.png'})
 MAX_MODEL_PREFIXES = 8
+MAX_ENTRIES = 100000
 OPENI_MANIFEST_KEYS = {'schemaVersion', 'release', 'fallbackBase', 'dataset', 'apiOrigin',
                        'ossOrigin', 'ossPathPrefix', 'entries', 'mirrorReleases'}
 MODEL_MANIFEST_KEYS = {'schemaVersion', 'release', 'fallbackBase', 'repo', 'revision', 'prefix',
@@ -58,7 +59,7 @@ def public_path(value):
 
 def entries(manifest, models, *, release=RELEASE, model_prefix=MODEL_PREFIX, model_prefixes=None):
     rows = manifest.get('entries')
-    require(isinstance(rows, list) and 0 < len(rows) <= 50000, 'invalid entry count')
+    require(isinstance(rows, list) and 0 < len(rows) <= MAX_ENTRIES, 'invalid entry count')
     result, files = {}, {}
     mirrors = manifest.get('mirrorReleases', [release])
     require(isinstance(mirrors, list) and 0 < len(mirrors) <= 2 and len(set(mirrors)) == len(mirrors), 'invalid mirrors')
@@ -149,12 +150,13 @@ def render(openi, models, container_dir, *, release=RELEASE, model_revision=MODE
     access_key = 'ark_material_lb_' + container_dir[len(CONTAINER_PREFIX):].replace('-', '_')
     access = access.replace('"ark_material_lb_20261006_model60_v3"', q(access_key))
     access = access.replace('__MATERIAL_LB_MODELSCOPE_BASES__', lua_bases).replace(
-        '__MATERIAL_LB_OPENI_ONLY__', lua_exceptions)
+        '__MATERIAL_LB_OPENI_ONLY__', lua_exceptions).replace('__MATERIAL_LB_MAX_ENTRIES__', str(MAX_ENTRIES))
     key = 'ark_material_lb_header_data_' + container_dir[len(CONTAINER_PREFIX):].replace('-', '_')
     header = (TEMPLATES / 'header.lua').read_text().replace('__MATERIAL_LB_KEY__', key).replace(
         '__MATERIAL_LB_HEADER_DATA__', container_dir + '/header-data.json')
     header = header.replace('"' + FALLBACK + '"', q(fallback)).replace(
         '__MATERIAL_LB_MODELSCOPE_BASES__', lua_bases).replace('__MATERIAL_LB_OPENI_ONLY__', lua_exceptions)
+    header = header.replace('__MATERIAL_LB_MAX_ENTRIES__', str(MAX_ENTRIES))
     header = header.replace('__MATERIAL_LB_OSS_PATH_PREFIX__', q(prefix)).replace(
         '__MATERIAL_LB_MIRRORS__', '{' + ', '.join('[' + q(mirror) + '] = true'
             for mirror in openi.get('mirrorReleases', [release])) + '}')

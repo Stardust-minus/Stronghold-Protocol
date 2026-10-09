@@ -16,7 +16,7 @@
 // when the request settles, ≤ 8 s, or the phase moves on). Untimed drafts (solo, a single-human match: sp.untimed) show
 // no countdown and say so.
 
-import { useEffect, useState } from '../../vendor/hooks.module.js';
+import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, TierChip, Countdown, MicroLabel, Button } from './components.js';
 import { Img, RichText, PlayerAvatar, GIcon } from './gameComponents.js';
 import { itemIconUrl, enemyIconUrl, uiUrl } from './assetUrls.js';
@@ -82,11 +82,12 @@ export function resolveSpCard(card, family) {
 
 /**
  * Whether a card shows the in-flight pick (g.choice sent, no answer yet): only until the pick lands in m.public — the
- * player's pick is known or the card is taken — so it can never outlive the request's effect.
+ * player's pick is known (or an exclusive card is taken) — so it can never outlive the request's effect.
  * @param {number|null} busyIdx @param {{ idx: number, takenBy?: string|null }} card @param {number|null|undefined} mine
+ * @param {boolean} [allowRepeat] strict server flag; another player's pick does not finish my pending request
  */
-export function pickBusy(busyIdx, card, mine) {
-  return busyIdx != null && !!card && busyIdx === card.idx && mine == null && !card.takenBy;
+export function pickBusy(busyIdx, card, mine, allowRepeat = false) {
+  return busyIdx != null && !!card && busyIdx === card.idx && mine == null && (allowRepeat === true || !card.takenBy);
 }
 
 /**
@@ -97,7 +98,7 @@ export function pickBusy(busyIdx, card, mine) {
 export function cardPickable(sp, card, { myId, solo, busyIdx = null }) {
   if (!sp || !card) return false;
   const myTurn = solo || sp.turnPid === myId;
-  return myTurn && sp.pickOf.get(myId) == null && !card.takenBy && busyIdx == null;
+  return myTurn && sp.pickOf.get(myId) == null && (sp.allowRepeat === true || !card.takenBy) && busyIdx == null;
 }
 
 /**
@@ -132,7 +133,11 @@ export function armedCard(armed, sp, o) {
 export function ChoiceOverlay(props) {
   const { sp, myId, solo, busyIdx = null, onPick } = props;
   const [sel, setSel] = useState(null);
+  const orderRef = useRef(null);
   const armed = armedCard(sel, sp, { myId, solo, busyIdx });
+  useEffect(() => {
+    orderRef.current?.querySelector('.is-cur')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [sp?.turnPid]);
   // a selection whose card cannot be picked any more (taken, the turn moved on, a pick in flight) is dropped
   useEffect(() => { if (sel != null && armed == null) setSel(null); }, [sel, armed]);
   useEffect(() => {
@@ -148,7 +153,7 @@ export function ChoiceOverlay(props) {
     setSel(r.armed);
     if (r.pick != null) onPick(r.pick);
   };
-  return html`<${ChoiceView} ...${props} armed=${armed} onTap=${tap}
+  return html`<${ChoiceView} ...${props} orderRef=${orderRef} armed=${armed} onTap=${tap}
     onConfirm=${() => { if (armed != null) tap(armed); }} onDisarm=${() => setSel(null)} />`;
 }
 
@@ -157,7 +162,7 @@ export function ChoiceOverlay(props) {
  * @param {{ pub:any, sp:any, myId:string, solo:boolean, busyIdx?:number|null, total?:number|null, armed?:number|null,
  *   onTap?:(idx:number)=>void, onConfirm?:()=>void, onDisarm?:()=>void }} props
  */
-export function ChoiceView({ pub, sp, myId, solo, busyIdx = null, total = null, armed = null, onTap = () => {}, onConfirm = () => {}, onDisarm = () => {} }) {
+export function ChoiceView({ pub, sp, myId, solo, busyIdx = null, total = null, armed = null, onTap = () => {}, onConfirm = () => {}, onDisarm = () => {}, orderRef = null }) {
   if (!sp) return null;
   const fam = data.get('choices')?.families?.[sp.family] || null;
   const rawFam = data.getRaw('choices')?.families?.[sp.family] || null;
@@ -177,7 +182,7 @@ export function ChoiceView({ pub, sp, myId, solo, busyIdx = null, total = null, 
     if (t && typeof t.closest === 'function' && t.closest('.spcard, .spov__confirm')) return;
     onDisarm();
   };
-  return html`<div class=${cx('spov', armed != null && 'has-armed', sp.cards.length > 6 && 'spov--expanded')} role="dialog" aria-label=${t('机变阶段')} onPointerDown=${onDown}>
+  return html`<div class=${cx('spov', armed != null && 'has-armed', (sp.cards.length > 6 || order.length > 4) && 'spov--expanded')} data-allow-repeat=${sp.allowRepeat === true ? 'true' : undefined} role="dialog" aria-label=${t('机变阶段')} onPointerDown=${onDown}>
     <div class="spov__veil" aria-hidden="true"></div>
     <div class="spov__inner">
       <header class="spov__head">
@@ -185,6 +190,7 @@ export function ChoiceView({ pub, sp, myId, solo, busyIdx = null, total = null, 
           <${MicroLabel} tone="mint">${t('CONTINGENCY // 机变阶段')}</${MicroLabel}>
           <h2 class=${cx('spov__title', special && 'is-special')}>${sentText(sp.name, rawFam?.name, fam?.name) || fam?.name || t('机变')}<span class="spov__bar">|</span><span class="spov__desc"><${RichText} text=${sentText(sp.desc, rawFam?.desc, fam?.desc) || fam?.desc || t('选择一项')} /></span></h2>
           <p class="spov__sub">${timed ? t('倒计时结束后仍未选定将自动分配') : t('选择一项（无时间限制）')}${mine == null && myTurn ? t(' · 点击卡牌选中，再次点击确认') : ''}</p>
+          ${sp.allowRepeat === true ? html`<p class="spov__repeat" data-testid="sp-repeat">${t('可重复选择，每人只能选择一次')}</p>` : null}
         </div>
         <div class="spov__turn">
           ${mine != null ? html`<span class="spov__turntxt is-done"><${Icon} name="check" />${t('已完成选择')}</span>`
@@ -195,7 +201,7 @@ export function ChoiceView({ pub, sp, myId, solo, busyIdx = null, total = null, 
           ${timed ? html`<${Countdown} deadline=${pub?.deadline} total=${total ?? undefined} size="sm" />` : null}
         </div>
       </header>
-      ${order.length ? html`<div class="spov__order" aria-label=${t('决策顺序')}>
+      ${order.length ? html`<div class="spov__order" ref=${orderRef} aria-label=${t('决策顺序')}>
         ${order.map((pid, i) => {
           const p = players.get(pid);
           const picked = sp.pickOf.has(pid);
@@ -212,12 +218,14 @@ export function ChoiceView({ pub, sp, myId, solo, busyIdx = null, total = null, 
       <div class=${cx('spov__grid', sp.cards.length <= 3 && 'spov__grid--3')}>
         ${sp.cards.map((card) => {
           const r = resolveSpCard(card, sp.family);
-          const taker = card.takenBy ? players.get(card.takenBy) : null;
+          const taken = sp.allowRepeat !== true && !!card.takenBy;
+          const taker = taken ? players.get(card.takenBy) : null;
+          const isMine = sp.allowRepeat === true ? mine === card.idx : card.takenBy === myId;
           const can = cardPickable(sp, card, { myId, solo, busyIdx });
-          const busy = pickBusy(busyIdx, card, mine);
+          const busy = pickBusy(busyIdx, card, mine, sp.allowRepeat);
           const isArmed = can && armed === card.idx;
           const takerName = taker ? (card.takenBy === myId ? t('你') : taker.name) : null;
-          return html`<button key=${card.idx} type="button" class=${cx('spcard', `spcard--${r.kind}`, card.takenBy && 'is-taken', card.takenBy === myId && 'is-mine', can && 'is-pickable', isArmed && 'is-armed', busy && 'is-busy')}
+          return html`<button key=${card.idx} type="button" data-card-idx=${card.idx} class=${cx('spcard', `spcard--${r.kind}`, taken && 'is-taken', isMine && 'is-mine', can && 'is-pickable', isArmed && 'is-armed', busy && 'is-busy')}
               aria-busy=${busy ? 'true' : undefined} aria-pressed=${can ? String(isArmed) : undefined} disabled=${!can} onClick=${() => can && onTap(card.idx)}
               aria-label=${isArmed ? t('{name}，已选中，再次点击确认', { name: r.name }) : takerName ? t('{name}，{takerName}已选择', { name: r.name, takerName }) : r.name} title=${`${r.name}\n${richTextPlain(r.desc)}`}>
             <span class="spcard__glow" aria-hidden="true"></span>

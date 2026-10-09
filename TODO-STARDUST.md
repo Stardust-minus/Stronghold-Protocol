@@ -1,6 +1,53 @@
 # Stardust 当前开发 TODO
 
-## 当前收尾：大厅语言与中日英配音（2026-10-08，本地，未部署）
+## 最新追加：完整干员预设（2026-10-09，本地验收与封存完成，未上线）
+
+用户追加“还有皮肤导入导出和干员技能更换/助战耦合成一个”。此节覆盖下方旧“完整预设暂缓／仅TODO”描述；下方09948d6d是新增源码前的历史候选封存，不能作为本次预设接受。
+
+- [x] Main亲自实现统一技能／模组、持有／替补、自选编队／助战和全部外观的 `stronghold.operator-preset` v1，所有页签共用导出／导入预设，移除皮肤独立IO；编辑及原四校验／storage／room.*／锁定边界保持，不含身份或战斗快照、不宣称跨key／消息事务。
+- [x] UTF-8 256KiB，完整项预校验后一次内存更新；旧四类文件只更新原项，完全不可用项拒绝整份，合法部分沿用旧清理规则并提示。17条必要文案四包齐，公告新增完整预设及旧配置兼容。
+- [x] Main真实本地HTTP/WS、两浏览器玩家＋观众、1Worker R2通过：完整／旧／错误导入、跨浏览器导出及刷新恢复、私有0，触屏按钮3×44px且无溢出。Main亲看3张实际截图；战中截图仍有开场banner，仅作state／transport／Worker证明，不冒每个actor像素验收或实体手机。
+- [x] 首完整R0实际606文件／6703 tests：6679 pass、23 skip、1 fail，仅旧data-missing源码shape断言；保留失败。精确改为pure scope解析→数据guard→apply并补缺数据不persist/noStore与旧皮肤无游戏数据兼容行为；fresh正确路径429聚焦PASS。
+- [x] fresh完整R1：606文件／6709 tests／364 suites，6686 pass、23 skip、0 fail／cancel，205172ms；283官方golden全部match／19877ms，六原JSON前后与HEAD相同、不update。59改动JS语法、strict imports、英文1590／相关四包216文案及full+lite dryrun PASS，无ZIP。全局日韩繁各382旧缺译仍strict FAIL／errors0，另Task10，meta不削弱。
+- [x] 新seal `operator-preset-final-preparation-seal-r0.json` ACTUALok，1368代码／数据文件 SHA `cd5233668bfb06c0c4e04762b84e8b516c1b01151a9759eb48f8475336fb5a0b`；验收前后源码稳定、旧20/model/audio/供应/actualconsumer相关字节及proof SHA再核对，无网络。09948为历史。本批浏览器／服务／Worker／canonical均结束，失败证据及旧controller保留、不可重放。
+- [x] 每入口双ingress只读研究已完成：协议可支持独立双进程，不需新wire ingressId/sticky；单target服务／端口／IP／租约与policySHA的运维限制需改，不是直接scale2。未实施、未benchmark、未远端访问，100Mbps不增加、不保证容量翻倍。
+- [x] 完成本地交接与使用说明；localCandidateChecksPassed/providerSupplyReady=true，但gameCommitFrozen/imageBuilt/privateCodePrepared/ningxiaPublicServingConfigured/readyForProductionActivation/productionActivated=false。HEAD9f6／原feature分支／index未暂存正文／两stash保持，未做新生产21角色验收。Git发布／镜像／私有码／宁夏激活／正式切换／Core续接／性能实施均仍需各自新授权；LAN预览、旧immutable与失败证据保留。
+
+交接 `.claude/next-skins-capacity-release-20261008.md`；使用说明 `docs/OPERATOR-PRESETS.md`。
+
+## 最新追加：20 人规则与整段联防预算（2026-10-09，本地验收与封存完成，未上线）
+
+以下覆盖后方旧 22 选项、capacity-2、6501／72e 封存终态；后方数字保留为当时源码的历史，不是本次追加规则的验收。
+
+- [x] 仅目标容量 20 的合作实验局，按开局座位每四人固定共享一个完整库存，末组不足四人独立，死亡／退出不重分组；独立池与自选库存优先级保留。
+- [x] 20 人开局策略允许同选；四类机变固定六项、可选同一位置，每人一次、保留轮序与 deadline，完成立即转阶段。服务器 strict `draft.allowRepeat`／`sp.allowRepeat`，其他模式不新增字段；capacity-3 门禁保护。
+- [x] 20 人整段联防预算冻结为 `min(300, waveBase × entryAlive / 4)`，有不同合格候补时首轮预留一半，仅一轮用全额，二轮用实际余额。仅自然 release 后按最大有效游戏时长消费，不提前扣未来演算结果；原图／最终 LP once／救援状态保持。
+- [x] 后端 28 文件 688 聚焦通过，42 路径 SHA 稳定；Main 完成重复 UI、计数、当前轮真实秒倒计时及游戏秒起始预算说明，441 项 UI＋原浏览器静态兼容测试通过。此前四类真实 20 人和两轮／仅一轮 Worker、刷新观战及救援已通过。
+- [x] 最后完整回归发现 Main 新增 `:has()` 违反 ESR 115／旧 Safari 合同：原断言保持，改显式 `gm--unite-budget` 状态类并新增回归；旧 R1 为 6686 tests／6662 pass／23 skip／1 fail，保留失败。修复后 fresh 四类 20 人 twenty-r5、双轮 budget-two-r2／单轮 budget-one-r5 全部通过；临时库存通过原合法销毁／出售处理，不削弱准备门槛或全队叠加。
+- [x] FINAL605显式文件／6687 tests：6664 pass、23 skip、0 fail／cancel；283 官方 golden 全部一致，六 JSON 前后及 HEAD SHA 相同，不 update。53 JS 语法／strict imports／full+lite dryrun通过，无 ZIP。英文1614与相关四包95文案完整；日／韩／繁体各390旧缺译仍为global strict FAIL，另Task10，不弱化metadata。
+- [x] 新封存 `twenty-final-preparation-seal-r1.json`：1366代码／数据文件 SHA `09948d6d98f58a4f5f6a56e9d78424fa476e58551fed34eba74e380a927e199d`；全部检查前后字节一致、实际供应及consumer原件 SHA再次核对。localCandidateChecksPassed/providerSupplyReady=true，但gameCommitFrozen/imageBuilt/privateCodePrepared/readyForProductionActivation=false。Main10最终截图亲看并SHA封存，所有浏览器／服务／Worker已关闭。
+- [x] 更新最高交接并通知用户可 compact。本地追加规则任务完成；尚未授权 Git 发布、镜像、私有码安装、宁夏激活、正式切换或 Core 续接。性能和双 ingress 仍仅讨论、暂缓，等待真实继续。
+
+## 当前批次：皮肤／三语音频与多人匹配（准备下一版，目标 2026-10-09）
+
+用户已明确恢复批量皮肤与音频准备／上传，并要求修复 20 人选怪、人数步进为 4、同人数模式跨房间匹配。本地分支 `feat/skins-capacity-matchmaking-20261008`，基线9f6b6d5；此批暂不提交／推送、构建镜像或正式切换，不设置自动上线任务。
+
+- [x] 真实来源补齐144套，清单／registry实际271套；858完整模型GET200，286骨骼3.8.99／atlas region0，旧127记录、14377旧引用及三语音频精确保持。新增49动态立绘声明仅静态回退，旧11动态立绘保持。
+- [x] Main全286模型使用当前实际game loader及SpineActor浏览器核验：原生时钟／可见像素／连续帧变化全通过，含8份显示骨骼。修复`.display.skel`错误猜atlas文件名的加载接点，旧普通模型调用不变；44项loader／cache／skin回归通过。
+- [x] 修复前端机变六项截断；服务器原本已提供22槽，未改候选算法或普通四人RNG。容量改4／8／12／16／20，旧客户端不能进入新扩展局；整队同模式、同难度、兼容规则匹配，原房／取消／确认／异步分配及cluster隐私边界保留。后端327项通过。
+- [x] Main真实localhost两10人队伍／20人身份／三Chrome／1Worker，在悬赏与战术两类均手动选完20槽后即刻PREP；同模式匹配、不同4人桶隔离、准备拒绝、取消恢复、战中同identity刷新通过。第7／20张22项DOM、14/12px文字、44px确认、当前turn可见、手机无溢出，截图亲看；失败夹具保留。
+- [x] 下一版86086公开alias消费链有界扩容：Python／双Lua／resolver统一100000条与64MiB读入限制，2OI／3MS／唯一黑图例外不变；最终native76向量、真实OpenResty154HTTP、真实24MB JSON盘读resolverHTTP通过，不代表远端就绪。
+- [x] Main新增皮肤实际游戏R6：新约／统一模型／Front-only／大小写别名四真实UI选择、持久化、队友4原模型保持、外部观战私有0、真实Worker COMBAT正确owner／char／skin路径、配音defId保持及战中同identity刷新通过，截图亲看；所有浏览器／服务／Worker已关闭。
+- [x] 最终post-MIME修复599文件canonical R2：6524 tests／6501 pass／23 skip／0 fail／cancel，204173ms；官方六类283golden全部一致，六JSON前后及HEAD SHA不变、不update。R0公告断言失败和较早R1通过均保留历史，不重标旧seal；当前31个改动JS语法、strict imports及full/lite package dryrun通过，无ZIP／镜像。英文1611与新161文案四包通过；既有日／韩／繁体各391缺译仍为全局strict失败，另批处理，不冒全包PASS。
+- [x] Main最小兼容真实供应MP3的两种octet-stream，避免有效media被取消后多发原.mp3（旧raw可正常decode，并非配音全部不能播）。56聚焦通过；三真实Chrome／本地HTTP代理复现实头／原MP3／HTTPWS＋1Worker，CNJPEN自然decode/start、7GET全media无raw重试、缺EN／404／真实invalidbinary→CN及战中刷新通过，截图亲看、所有fixture关闭。不是直接供应源browser或生产验证。
+- [x] 新公开OI／MS素材上传和完整assigned库存＋必要正文验证已完成。MS固定pin5f62fa7490c4d6ef4998aa211eb00357d7e85dce，17277对象／86085alias全LFS SHA／size／InCheck通过；OI17278对象／86086alias全注册路径／大小及新7698 PUT-MD5通过，仍两mirror。47匿名完整正文（24OI＋23MS，20551163字节）SHA／size／单CORS*和两项音频Range206通过，不冒全文重下载或新浏览器验收。宁夏17292全文SHA通过但未include／reload／公开供给。providerSupplyReady=true，readyForProductionActivation=false；原失败和旧objects保留。Main独立核对11份proof哈希、47正文对本地、1360源码数据封存均通过。
+- [x] 最终实际OI／MS清单原件和固定5f62 revision已绑定并fresh本地运行：38native LuaJIT向量、77实际OpenResty HTTP、真实JSON盘读resolver、100000接受／100001及合法64MiB+1监听前拒绝通过，全部fixture关闭。原synthetic-pin回执保持历史意义，无原供应清单／源码／线上改写。
+- [x] 最终代码／证据配套封存：`final-preparation-seal-r1.json`，1360代码／数据完整SHA库存摘要72e20bf11caeb28f6e491d332f6f232292b3a74a2a4dee0c1108207225d49e7a，相比旧seal仅audio.js与audio.test.js变化；localCandidateChecksPassed=true/providerSupplyReady=true，但readyForProductionActivation=false/gameCommitFrozen=false/imageBuilt=false/privateCodePrepared=false，不能冒称可直接切服。
+- [ ] 另获固定源码发布／镜像及正式切换执行授权后，按SOP成对上线；当前不改正式8245/client371cbf648323/ae10，不续Core、不动DNS/WG/Beta/旧素材。
+
+交接 `.claude/next-skins-capacity-release-20261008.md`；下方暂停、未发现新约模型或配音无上传许可均为历史阶段，不覆盖当前明确恢复授权。既有其他翻译缺项仍另批处理，不冒全包PASS。
+
+## 已完成历史批次：大厅语言与中日英配音（2026-10-08，本地，未部署）
 
 用户已明确要求“最后处理一下多语言然后推送吧”，并指出游戏内设置已有语言切换；大厅和原设置复用同一个组件，不各自保存两份状态。仅授权验收后功能分支提交、快进master／非force推送，不上传素材、构建镜像或部署。
 

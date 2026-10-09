@@ -56,7 +56,16 @@ class Profile:
 
     @property
     def edge_ip(self):
-        return self.edge_subnet.split('/')[0].rsplit('.', 1)[0] + '.2'
+        return self.ingress_ip(1)
+
+    def ingress_ip(self, instance=1):
+        if type(instance) is not int or instance not in (1, 2):
+            raise ValueError('only one or two fixed ingress instances supported')
+        return self.edge_subnet.split('/')[0].rsplit('.', 1)[0] + '.' + str(instance + 1)
+
+    def ingress_host_port(self, instance=1):
+        self.ingress_ip(instance)  # Validate before deriving a fixed mapping.
+        return self.ingress_port + instance - 1
 
     @property
     def endpoints(self):
@@ -72,7 +81,7 @@ class Profile:
                 Path('/www/sites') / self.site, Path('/opt/ark-proto-' + self.name),
                 Path('/etc/ark-proto-' + self.name),
                 Path('/run/ark-cluster-' + self.name + '-wg.lock'),
-                *(Path('/run/' + project + suffix) for project in projects for suffix in ('.guard.json', '.lock')))
+                *(Path('/run/' + project + suffix) for project in projects for suffix in ('.guard.json', '.lock', '.control')))
 
 
 PROFILES = MappingProxyType({

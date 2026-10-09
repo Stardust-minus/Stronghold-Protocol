@@ -1,6 +1,7 @@
 // Public queue remains separate from solo and invite rooms; all assignments come from the server.
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
+import { isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
 import { html, Button, Icon, MicroLabel, Modal, useTicker } from './components.js';
 import { useStore, serverNow } from '../store.js';
 import { net } from '../net.js';
@@ -10,6 +11,11 @@ import { ExperimentalSummary } from './experimental.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 export const queueActive = (q) => q?.state === 'queued' || q?.state === 'offered';
+
+export function queueCapacity(queue, experimental) {
+  return isPlayerCapacity(queue?.required) ? queue.required
+    : roomCapacity('coop', queue?.experimental ?? experimental);
+}
 
 export function queueTime(q, now) {
   if (q?.state === 'offered') return Math.max(0, Math.ceil(((q.deadline || 0) - now) / 1000));
@@ -40,7 +46,7 @@ export function OnlinePlayers() {
 const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。');
 const EXPERIMENTAL_RULES = N_('好友小队沿用房间的实验性选项，单人匹配跟随所加入房间。四名单人组局时，复活和禁用共享卡池默认关闭。');
 
-export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = false, compact = false }) {
+export function MatchmakingPanel({ queue, difficulty, experimental, online, onJoin, joining = false, compact = false }) {
   useTicker(1000);
   const [busy, setBusy] = useState(null);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -51,6 +57,7 @@ export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = 
   const cancelling = cancellation?.ticketId === queue?.ticketId && ['sending', 'recovering', 'confirming'].includes(cancellation?.status);
   const cancelFailed = cancellation?.ticketId === queue?.ticketId && cancellation?.status === 'failed';
   const active = queueActive(queue);
+  const capacity = queueCapacity(queue, experimental);
   const offered = queue?.state === 'offered';
   const allocating = offered && queue.allocationPending === true;
   const seconds = queueTime(queue, serverNow());
@@ -70,21 +77,21 @@ export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = 
       if (mounted.current) setBusy(null);
     }
   };
-  return html`<section class=${`matchmaking${offered ? ' is-offered' : ''}${active ? ' is-active' : ''}${compact ? ' matchmaking--compact' : ''}`} aria-label=${t('公开多人匹配')}>
+  return html`<section class=${`matchmaking${offered ? ' is-offered' : ''}${active ? ' is-active' : ''}${compact ? ' matchmaking--compact' : ''}`} aria-label=${t('公开多人匹配')} data-player-capacity=${capacity}>
     <header><${Icon} name=${offered ? 'users' : 'search'} /><${MicroLabel} tone="mint">PUBLIC MATCHMAKING<//></header>
     <h2>${allocating ? t('正在创建对局') : offered ? t('队友已集结') : active ? t('正在寻找队友') : t('寻找同盟博士')}${compact && offered && Number.isInteger(queue.acceptedCount)
-      ? html`<span class="matchmaking__count">${t('{acceptedCount} / 4 已确认', { acceptedCount: queue.acceptedCount })}</span>` : null}</h2>
-    <p>${t('{0} · 4 名真人 · 不自动补 AI', { 0: t(DIFFICULTY_NAMES[queue?.difficulty || difficulty]) })}${queue?.partySize > 1 ? t(' · {partySize} 人小队整体匹配', { partySize: queue.partySize }) : ''}</p>
+      ? html`<span class="matchmaking__count">${t('{acceptedCount} / {n} 已确认', { acceptedCount: queue.acceptedCount, n: capacity })}</span>` : null}</h2>
+    <p>${t('{0} · {n} 名真人 · 不自动补 AI', { 0: t(DIFFICULTY_NAMES[queue?.difficulty || difficulty]), n: capacity })}${queue?.partySize > 1 ? t(' · {partySize} 人小队整体匹配', { partySize: queue.partySize }) : ''}</p>
     <div class="matchmaking__status" role="status">
       ${cancelling ? t('正在确认取消，等待服务器同步…') : !online ? t('连接中断，重连后同步匹配状态') : offered
         ? allocating ? t('全员已确认，正在连接游戏节点 · {seconds} 秒', { seconds }) : queue.accepted ? t('你已确认，等待其他博士 · {seconds} 秒', { seconds }) : t('请在 {seconds} 秒内确认入场', { seconds })
-        : active ? t('已等待 {0} 分 {1} 秒', { 0: Math.floor(seconds / 60), 1: String(seconds % 60).padStart(2, '0') }) : t('按难度匹配，集齐后由每位博士确认')}
+        : active ? t('已等待 {0} 分 {1} 秒', { 0: Math.floor(seconds / 60), 1: String(seconds % 60).padStart(2, '0') }) : t('按人数模式和难度匹配，集齐后由每位博士确认')}
     </div>
     ${cancelFailed && active ? html`<p class="matchmaking__reason" role="status">${compact
       ? t('取消尚未确认，请重连后重试；当前为服务器最后确认的状态。')
       : t('尚未确认取消，请恢复连接后重试；下方仍显示服务器最后确认的匹配状态。')}</p>` : null}
     ${queue?.reason && REASONS[queue.reason] ? html`<p class="matchmaking__reason">${t(REASONS[queue.reason])}</p>` : null}
-    ${!compact && offered && Number.isInteger(queue.acceptedCount) ? html`<p>${t('{acceptedCount} / 4 位博士已确认', { acceptedCount: queue.acceptedCount })}</p>` : null}
+    ${!compact && offered && Number.isInteger(queue.acceptedCount) ? html`<p>${t('{acceptedCount} / {n} 位博士已确认', { acceptedCount: queue.acceptedCount, n: capacity })}</p>` : null}
     ${offered ? html`<div class="matchmaking__options"><${ExperimentalSummary} value=${queue.experimental} /></div>` : null}
     <div class="matchmaking__actions">
       ${active ? html`
@@ -103,7 +110,7 @@ export function MatchmakingPanel({ queue, difficulty, online, onJoin, joining = 
     ${compact && rulesOpen ? html`<${Modal} open=${true} title=${t('多人匹配规则')} micro="MATCHMAKING RULES"
         ariaLabel=${t('多人匹配规则')} trapFocus=${true} class="lobby-dialog" onClose=${() => setRulesOpen(false)}
         actions=${html`<${Button} icon="close" onClick=${() => setRulesOpen(false)}>${t('关闭说明')}<//>`}>
-      <p class="modal__text">${t('4 名真人按相同难度匹配，不自动补 AI；好友小队保持整队。')}</p>
+      <p class="modal__text">${t('{n} 名真人按相同人数模式和难度匹配，不自动补 AI；好友小队保持整队。', { n: capacity })}</p>
       <p class="modal__text">${t(MATCHING_RULES)}</p><p class="modal__text">${t(EXPERIMENTAL_RULES)}</p>
     <//>` : null}
   </section>`;

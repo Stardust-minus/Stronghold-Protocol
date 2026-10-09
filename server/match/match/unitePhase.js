@@ -6,7 +6,7 @@
 import { PHASE, GEO } from '../../../shared/constants.js';
 import { WorkerFieldRunner } from '../combat/runner.js';
 import { deriveSeed } from '../../sim/rng.js';
-import { uniteBattleOpts, uniteSurvivors, planUniteRelay } from '../unite.js';
+import { uniteBattleOpts, uniteSurvivors, planUniteRelay, uniteRelayHelpers } from '../unite.js';
 import { FieldRunner, timelineAt, uniteBillBounds } from '../fields.js';
 import { uniteLeft } from '../../sim/spec.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
@@ -14,12 +14,14 @@ import { msg } from '../../../shared/i18n.js';
 
 export class MatchUnite {
   startUnite(plan) {
+    if (this.twentyPlayerMode && !this.alivePlayers().length) { this.settle(null, null); return; }
     if (plan.uniteRound === 1) this._uniteRelay = { rounds: [], eligible: new Set() };
     if (plan.uniteRound && !this.clientCombat) plan.battleId = `${this.battlePrefix}.${this.round}.${++this._battleSeq}.relay${plan.uniteRound}`;
     if (this.clientCombat) { this._startUniteClient(plan); return; }
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
-    const limit = this.wave ? this.wave.timeLimit : 60;
+    const limit = this.uniteTimeLimit(plan);
+    if (this.twentyPlayerMode && !(limit > 0)) { this.settle(plan, null); return; }
     const opts = this._uniteOpts(plan, limit);
     const players = plan.helpers.map((p) => p.playerId);
     this.fields = [this.combatPool ? this._remoteField(opts, players)
@@ -44,6 +46,33 @@ export class MatchUnite {
     this._defaultWatch();
     this.markPublic();
     this.runner.start();
+  }
+
+  /** Twenty-mode has one frozen stage budget; only a viable distinct relay reserves a second share. */
+  uniteTimeLimit(plan) {
+    const base = this.wave ? this.wave.timeLimit : 60;
+    if (!this.twentyPlayerMode) return base;
+    if (!this._uniteBudget) {
+      const entryAlive = this.alivePlayers().length;
+      const total = Math.min(300, (base ?? 60) * entryAlive / 4);
+      this._uniteBudget = { entryAlive, base: base ?? 60, total, remaining: total };
+    }
+    const budget = this._uniteBudget;
+    plan.totalBudget = budget.total;
+    plan.remainingBudget = budget.remaining;
+    plan.gameSpeed = this.gameSpeed;
+    plan.timeLimit = budget.remaining / (uniteRelayHelpers(this, plan).length ? 2 : 1);
+    plan.budgetSpent = 0;
+    return plan.timeLimit;
+  }
+
+  /** Natural terminals consume max parallel game time, never CPU time or an unreleased headless result. */
+  _consumeUniteBudget(plan, res, field) {
+    if (!this.twentyPlayerMode || !this._uniteBudget) return;
+    const time = Number.isFinite(res?.time) ? res.time : Number(field.battle?.time) || 0;
+    const spent = Math.min(plan.timeLimit, Math.max(plan.budgetSpent, time, 0));
+    this._uniteBudget.remaining = Math.max(0, this._uniteBudget.remaining - (spent - plan.budgetSpent));
+    plan.budgetSpent = spent;
   }
 
   /**
@@ -78,7 +107,8 @@ export class MatchUnite {
   _startUniteClient(plan) {
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
-    const limit = this.wave ? this.wave.timeLimit : 60;
+    const limit = this.uniteTimeLimit(plan);
+    if (this.twentyPlayerMode && !(limit > 0)) { this.settle(plan, null); return; }
     const opts = this._uniteOpts(plan, limit);
     const f = this._ccField({ fieldId: opts.fieldId, kind: 'unite', players: plan.helpers.map((p) => p.playerId), opts });
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
@@ -106,8 +136,10 @@ export class MatchUnite {
   /** Archive a natural terminal once; a distinct field/generation owns the next relay. No LP is charged here. */
   _finishUniteField(plan, res, field) {
     if (this.disposed || this.ended || this.phase !== PHASE.UNITE || this.unitePlan !== plan
-      || !this.fields.includes(field) || field.uniteCompleted) return;
+      || !this.fields.includes(field) || field.uniteCompleted
+      || this.twentyPlayerMode && (field.cc ? !field.done : !field.battle?.finished)) return;
     field.uniteCompleted = true;
+    this._consumeUniteBudget(plan, res, field);
     this._collectSimErrors(field, res);
     field.live = false;
     this.deadline = 0;
@@ -132,7 +164,8 @@ export class MatchUnite {
     this.later(this.scaled(DELAYS.COMBAT_END), () => {
       if (this.phase !== PHASE.UNITE || this.unitePlan !== plan || !this.fields.includes(field) || field.uniteReleased) return;
       field.uniteReleased = true;
-      const next = planUniteRelay(this, plan, res, field.spec?.spawns || field.battle?.opts?.spawns);
+      const next = this.twentyPlayerMode && !(this._uniteBudget.remaining > 0) ? null
+        : planUniteRelay(this, plan, res, field.spec?.spawns || field.battle?.opts?.spawns);
       if (next) {
         this.runner?.stop();
         this.runner = null;

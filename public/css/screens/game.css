@@ -65,6 +65,14 @@
 .gtop__right { display: flex; flex-direction: column; align-items: flex-end; gap: .1rem; justify-self: end; }
 .gtop__right .countdown { --cd-h: .7rem; filter: drop-shadow(0 0 .12rem rgba(0, 0, 0, .8)); }
 .gtop__clock { display: flex; align-items: flex-start; gap: .14rem; }
+.gtop__budget {
+  grid-column: 1 / -1; justify-self: center;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: .04rem .2rem; max-width: 100%;
+  font-size: max(.14rem, 12px); line-height: 1.4; color: var(--text-md);
+  text-align: center; text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+}
+.gtop__budget span { overflow-wrap: anywhere; }
+.gm--unite-budget .gm__bonds { top: 1.8rem; }
 
 /* solo pause / resume (ui/hud.js PauseButton, official battle pause: two bars on a dark square) */
 .pausebtn {
@@ -678,6 +686,11 @@
   .gm--expanded .ticker { top: 2.7rem; max-width: calc(100% - 32px); }
   .gm--expanded .gm__bonds { top: 3.2rem; right: .3rem; }
   .gm--expanded .team--expanded { top: 4.1rem; max-height: calc(100% - 6.4rem); }
+  .gm--expanded.gm--unite-budget .gtop { grid-template-areas: "connection clock" "phase phase" "budget budget"; }
+  .gm--expanded .gtop__budget { grid-area: budget; }
+  .gm--expanded.gm--unite-budget .ticker { top: 3.7rem; }
+  .gm--expanded.gm--unite-budget .gm__bonds { top: 4.2rem; }
+  .gm--expanded.gm--unite-budget .team--expanded { top: 5.1rem; max-height: calc(100% - 7.4rem); }
 }
 
 /* fallback view: enemy preview pen (setCamera('pen')) */

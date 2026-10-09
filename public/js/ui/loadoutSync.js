@@ -25,6 +25,7 @@ import { toast } from './toasts.js';
 import { cleanSkinChoices } from '../../../shared/skins.js';
 import { SKINS_PREF, parseStoredSkins, toStoredSkins } from './skinsModel.js';
 import { t, N_ } from '../../../shared/i18n.js';
+import { prepareOperatorPreset } from './operatorPresetModel.js';
 
 export const SYNC_DEBOUNCE_MS = 500;
 export const RETRY_MS = 1500;
@@ -46,6 +47,22 @@ export function setSkins(choices) {
   const next = cleanSkinChoices(choices);
   try { savePref(SKINS_PREF, toStoredSkins(next)); } catch { /* private mode: the session keeps the choice */ }
   loadoutStore.set({ skins: next });
+}
+
+/** Validate all included sections, then publish one local change; existing ordered sync engines retain their locks. */
+export function applyOperatorPreset(parsed, deps, { target = loadoutStore, persist = savePref } = {}) {
+  const result = prepareOperatorPreset(parsed, deps);
+  if (!result.ok) return result;
+  const formats = {
+    entries: [LOADOUT_PREF, toStored], notOwned: [OWNERSHIP_PREF, toStoredOwnership],
+    diy: [DIY_PREF, toStoredDiy], skins: [SKINS_PREF, toStoredSkins],
+  };
+  for (const [key, value] of Object.entries(result.patch)) {
+    const [pref, format] = formats[key];
+    try { persist(pref, format(value)); } catch { /* blocked storage: keep the coherent in-memory preset */ }
+  }
+  target.set(result.patch);
+  return result;
 }
 
 /** Loadout + ownership + screen state (separate from the app store: it must survive room / match resets). */

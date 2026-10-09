@@ -32,6 +32,7 @@
 .dorder.is-done { border-color: var(--mint-800); }
 .dorder.is-self .dorder__name { color: var(--mint-400); }
 .draft-order__tip { margin-top: auto; font-size: .13rem; line-height: 1.6; color: var(--text-dim); }
+.draft-order__tip--repeat { margin-top: 0; font-size: max(.16rem, 12px); color: var(--mint-400); }
 
 .draft-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(1.36rem, 1fr)); grid-auto-rows: min-content; gap: .12rem;
@@ -49,6 +50,7 @@
 .dband__lp i { width: .12rem; height: .14rem; background: var(--mint-500); clip-path: polygon(0 0, 30% 0, 30% 20%, 45% 20%, 45% 0, 55% 0, 55% 20%, 70% 20%, 70% 0, 100% 0, 100% 35%, 85% 50%, 85% 80%, 100% 90%, 100% 100%, 0 100%, 0 90%, 15% 80%, 15% 50%, 0 35%); }
 .dband__who { position: absolute; right: .04rem; top: .04rem; display: flex; flex-direction: column; gap: .02rem; }
 .dband__who .pavatar { --pa: .3rem; border-radius: 50%; overflow: hidden; border: 2px solid var(--mint-400); }
+.dband__more { min-width: .3rem; padding: .01rem .03rem; text-align: center; font-size: max(.12rem, 11px); color: var(--mint-400); background: rgba(12, 15, 14, .9); border: 1px solid var(--mint-800); }
 .dband.is-sel { border-color: var(--mint-400); background: linear-gradient(180deg, rgba(78, 216, 175, .18), rgba(12, 15, 14, .85)); box-shadow: 0 0 0 1px var(--mint-400), 0 0 .24rem rgba(23, 249, 183, .2); }
 .dband.is-mine::after { content: '已选择'; position: absolute; left: 0; top: 0; font-size: .11rem; font-weight: 700; padding: 0 .06rem; background: var(--mint-500); color: var(--text-on-mint); }
 

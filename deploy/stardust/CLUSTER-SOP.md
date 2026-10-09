@@ -1,5 +1,11 @@
 # 统一匹配与多入口集群部署
 
+## 双 ingress 当前候选（2026-10-09，尚未切换）
+
+本批目标四物理入口各两个独立ingress，共8；同一个coord／16个8+2game／全局匹配池不变，25角色。用户已批准验收后直接正式切换及本地feature commit＋offline image、限时固定key loopback Core通道；没有push/master/DNS/PRTS口令/Beta/WG依赖变更许可。下方单入口和双profile数字保留历史，不自动拉起停用Beta或held75。
+
+CLI明确edge `--ingress-instances 2`；legacy默认1与core17保持。源于当前active vhost的WS-only双target副本只分新握手、不迁移已有WS；HTTP／门禁／private/data/material不改。管理器root-only本地UDS、durable单target维护及精确guard policy绑定合同见 [DUAL-INGRESS.md](cluster/DUAL-INGRESS.md)。nft/state中断、resume失败重试和单target启动连带拒绝三条异常路径已修复；fresh224项Python（219通过／5条件跳过）、4native、52隔离真实kernel及限定独立复核通过。新完整回归608文件／6720项为6696通过／24条件跳过／0失败、283golden一致，1371代码数据SHA0166ca3675702c377b6ca516895bc34ee0e63ed05d2bbe8f2f378c444a868ea5。旧204／44kernel或cd523366不代替新接受；固定镜像、配套及实际cutover／全部25原生role版本／lease／Main-only20／各8+2仍须另行记录。
+
 ## 杭州prod-only运维约束（2026-10-07追加）
 
 杭州ark计算只运行正式profile（1协调器+16节点）；Beta17容器与旧Beta已停止，旧/Beta管理器和恢复单元禁用，正式代次/租约/健康不变。Beta当前不可用，不按下面历史验收表或旧controller自动拉起。

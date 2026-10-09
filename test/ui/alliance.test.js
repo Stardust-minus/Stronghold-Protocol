@@ -90,7 +90,7 @@ test('party matching hints require a waiting coop, host, online humans and no AI
   assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'bot', isBot: true }] }, 'p1'), /移除 AI/);
   assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'p3', connected: false }] }, 'p1'), /所有队友/);
   assert.match(partyQueueReason({ ...room, seats: [...room.seats, { playerId: 'p3', connected: true, ready: false }] }, 'p1'), /未准备/);
-  assert.match(partyQueueReason({ ...room, experimental: { revivalEnabled: false, disableSharedPool: false, playerCapacity: 8 } }, 'p1'), /不能参与公开匹配/);
+  assert.equal(partyQueueReason({ ...room, experimental: { revivalEnabled: false, disableSharedPool: false, playerCapacity: 8 } }, 'p1'), null);
 });
 
 test('experimental rules display room options without a revival ballot', () => {

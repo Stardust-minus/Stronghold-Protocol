@@ -1,9 +1,10 @@
-// Four-human matchmaking with optional admission caps and explicit opt-in async preparation.
+// Same-capacity human matchmaking with optional admission caps and opt-in async preparation.
 // Parties are indivisible session identities, never sockets. Every human explicitly accepts
 // before the lobby atomically commits its room-owned rules; the legacy allocate path stays synchronous.
 import { randomBytes } from 'node:crypto';
 import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, sameExperimental } from '../shared/experimental.js';
+import { PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
 
 // Quantity/per-network admission caps use 0 = unlimited; ticket and acceptance deadlines stay bounded.
 export const MATCHMAKING_DEFAULTS = Object.freeze({ maxEntries: 0, maxPerAddr: 0, waitMs: 600_000, acceptMs: 30_000 });
@@ -55,13 +56,13 @@ export class Matchmaking {
     const e = this.entries.get(session.playerId);
     if (!e) {
       const matched = session.matchmakingResult;
-      return matched && session.roomCode === matched.code ? { t: 'queue.state', state: 'matched', required: MAX_SEATS, ...matched }
+      return matched && session.roomCode === matched.code ? { t: 'queue.state', state: 'matched', required: matched.required ?? MAX_SEATS, ...matched }
         : { t: 'queue.state', state: 'idle', ticketId: null, required: MAX_SEATS };
     }
     const offer = e.offerId ? this.offers.get(e.offerId) : null;
     return {
       t: 'queue.state', state: offer ? 'offered' : 'queued', ticketId: e.ticketId,
-      difficulty: e.difficulty, required: MAX_SEATS, joinedAt: e.joinedAt,
+      difficulty: e.difficulty, required: e.party.required, joinedAt: e.joinedAt,
       deadline: offer ? offer.deadline : e.expiresAt, ...this.partyState(e.party),
       ...(e.reason ? { reason: e.reason } : {}),
       ...(offer ? { offerId: offer.id, accepted: e.accepted, experimental: { ...offer.experimental }, acceptedCount: offer.entries.filter((x) => x.accepted).length,
@@ -87,12 +88,21 @@ export class Matchmaking {
     }
     const group = this.members(session, difficulty, party);
     if (!group || group.error) return group || fail(ERR.INTERNAL, 'could not inspect party');
+    let experimental = null;
+    try { if (group.roomCode) experimental = experimentalOptions(group.experimental ?? EXPERIMENTAL_DEFAULTS); }
+    catch { return fail(ERR.BAD_MSG, 'invalid party experimental options'); }
+    // Room inspection owns the mode; lobby solos remain in the ordinary four-player pool.
+    const required = roomCapacity('coop', experimental);
     const sessions = group.sessions;
-    if (!Array.isArray(sessions) || sessions.length < 1 || sessions.length > MAX_SEATS
+    if (!Array.isArray(sessions) || sessions.length < 1 || sessions.length > required
+      || sessions.some(member => !member || typeof member.playerId !== 'string')
       || new Set(sessions.map((s) => s.playerId)).size !== sessions.length) return fail(ERR.BAD_TARGET, 'invalid party');
     for (const member of sessions) {
       if (this.has(member)) return fail(ERR.QUEUED, 'party member already queued');
-      if (member.matchmakingVersion !== MATCHMAKING_VERSION) return fail(ERR.BAD_MSG, 'all party members must refresh the page');
+      if (member.matchmakingVersion !== MATCHMAKING_VERSION
+        || (required > MAX_SEATS && member.playerCapacityVersion !== PLAYER_CAPACITY_VERSION)) {
+        return fail(ERR.BAD_MSG, 'all party members must refresh the page');
+      }
     }
     this.sweep();
     if (this.opts.maxEntries > 0 && this.entries.size + sessions.length > this.opts.maxEntries) return fail(ERR.RATE, 'matchmaking queue is full');
@@ -103,11 +113,8 @@ export class Matchmaking {
       if ([...counts.values()].some((count) => count > this.opts.maxPerAddr)) return fail(ERR.RATE, 'too many queued players from your network');
     }
     const now = this.now();
-    let experimental = null;
-    try { if (group.roomCode) experimental = experimentalOptions(group.experimental ?? EXPERIMENTAL_DEFAULTS); }
-    catch { return fail(ERR.BAD_MSG, 'invalid party experimental options'); }
     const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId,
-      experimental, sequence: ++this.sequence, entries: [] };
+      experimental, required, sequence: ++this.sequence, entries: [] };
     unit.entries = sessions.map((member) => ({
       session: member, key: member.limitKey, ticketId: id(), difficulty, version: member.matchmakingVersion, party: unit,
       joinedAt: now, expiresAt: now + this.opts.waitMs, sequence: unit.sequence, offerId: null, accepted: false, revivalVote: null,
@@ -174,7 +181,7 @@ export class Matchmaking {
       this.entries.delete(member.session.playerId);
       this.parties.delete(member.party.id);
       member.session.matchmakingResult = {
-        ticketId: member.ticketId, offerId: offer.id, difficulty: member.difficulty, code: result.code,
+        ticketId: member.ticketId, offerId: offer.id, difficulty: member.difficulty, required: offer.required, code: result.code,
         experimental: { ...offer.experimental }, ...this.partyState(member.party),
       };
     }
@@ -195,7 +202,7 @@ export class Matchmaking {
   prepareAllocation(offer) {
     if (offer.allocation || this.offers.get(offer.id) !== offer || this.closed) return;
     const allocation = {
-      controller: new AbortController(), offerId: offer.id, experimental: offer.experimental,
+      controller: new AbortController(), offerId: offer.id, experimental: offer.experimental, required: offer.required,
       cancelled: false, cleaned: false, completed: false, result: null,
       entries: offer.entries.map((entry) => ({ entry, session: entry.session, playerId: entry.session.playerId,
         ticketId: entry.ticketId, version: entry.version, party: entry.party, difficulty: entry.difficulty,
@@ -221,7 +228,9 @@ export class Matchmaking {
     try {
       if (this.closed || allocation.cancelled || allocation.controller.signal.aborted || offer.allocation !== allocation
         || this.offers.get(allocation.offerId) !== offer || offer.id !== allocation.offerId
-        || offer.entries.length !== allocation.entries.length || offer.experimental !== allocation.experimental) return false;
+        || offer.entries.length !== allocation.entries.length || offer.experimental !== allocation.experimental
+        || offer.required !== allocation.required || offer.entries.length !== offer.required
+        || roomCapacity('coop', offer.experimental) !== offer.required) return false;
       const now = this.now();
       if (offer.deadline !== allocation.deadline || now >= allocation.deadline) return false;
       return allocation.entries.every((saved, index) => {
@@ -230,7 +239,9 @@ export class Matchmaking {
           && e.session.playerId === saved.playerId && e.ticketId === saved.ticketId && e.version === saved.version
           && e.offerId === allocation.offerId && e.party === saved.party && this.parties.get(e.party.id) === e.party
           && e.difficulty === saved.difficulty && e.expiresAt === saved.expiresAt && e.sequence === saved.sequence
-          && e.party.experimental === saved.experimental && (!e.party.experimental || sameExperimental(e.party.experimental, offer.experimental))
+          && e.party.required === allocation.required && e.party.experimental === saved.experimental
+          && (!e.party.experimental || sameExperimental(e.party.experimental, offer.experimental))
+          && (allocation.required <= MAX_SEATS || e.session.playerCapacityVersion === PLAYER_CAPACITY_VERSION)
           && e.accepted === true && e.revivalVote === saved.revivalVote && e.expiresAt > now
           && e.session.matchmakingVersion === saved.version && (e.session.limitKey || null) === (e.key || null)
           && (!inspectAvailable || this.available(e.session, e));
@@ -278,7 +289,7 @@ export class Matchmaking {
       this.entries.delete(member.session.playerId);
       this.parties.delete(member.party.id);
       member.session.matchmakingResult = {
-        ticketId: member.ticketId, offerId: offer.id, difficulty: member.difficulty, code: result.code,
+        ticketId: member.ticketId, offerId: offer.id, difficulty: member.difficulty, required: offer.required, code: result.code,
         experimental: { ...offer.experimental }, ...this.partyState(member.party),
       };
     }
@@ -338,7 +349,7 @@ export class Matchmaking {
     for (const party of this.parties.values()) {
       const e = party.entries[0];
       if (e.offerId) continue;
-      const key = `${e.version}:${e.difficulty}`;
+      const key = `${e.version}:${e.difficulty}:${party.required}`;
       if (!pools.has(key)) pools.set(key, []);
       pools.get(key).push(party);
     }
@@ -353,10 +364,10 @@ export class Matchmaking {
       }
       for (const leader of pool) {
         if (!unused.has(leader)) continue;
-        const remaining = MAX_SEATS - leader.entries.length;
+        const remaining = leader.required - leader.entries.length;
         let rest = null;
         // Solos are wildcards; fixed-option parties only merge with compatible parties.
-        // Four flag combinations and size buckets bound each fit search independently of queue length.
+        // Capacity/flag buckets bound the fit to at most twenty slots, independently of queue length.
         for (const optionKey of leader.experimental ? [experimentalKey(leader.experimental)] : ['00', '01', '10', '11']) {
           const candidates = [];
           for (let size = 1; size <= remaining; size++) for (const key of ['*', optionKey]) {
@@ -370,17 +381,25 @@ export class Matchmaking {
             }
           }
           candidates.sort((a, b) => a.sequence - b.sequence);
-          const fit = (at, slots) => {
-            if (!slots) return [];
-            for (let i = at; i < candidates.length; i++) {
-              const size = candidates[i].entries.length;
-              if (size > slots) continue;
-              const tail = fit(i + 1, slots - size);
-              if (tail) return [candidates[i], ...tail];
+          // Suffix reachability preserves the earliest feasible FIFO combination without
+          // exponential backtracking when larger rooms have many incompatible party sizes.
+          const reachable = Array.from({ length: candidates.length + 1 }, () => new Uint8Array(remaining + 1));
+          reachable[candidates.length][0] = 1;
+          for (let i = candidates.length - 1; i >= 0; i--) {
+            const size = candidates[i].entries.length;
+            for (let slots = 0; slots <= remaining; slots++) {
+              reachable[i][slots] = reachable[i + 1][slots] || (slots >= size && reachable[i + 1][slots - size]);
             }
-            return null;
-          };
-          const found = fit(0, remaining);
+          }
+          let found = null;
+          if (reachable[0][remaining]) {
+            found = [];
+            let slots = remaining;
+            for (let i = 0; i < candidates.length && slots; i++) {
+              const size = candidates[i].entries.length;
+              if (size <= slots && reachable[i + 1][slots - size]) { found.push(candidates[i]); slots -= size; }
+            }
+          }
           if (found && (!rest || found.some((party, i) => party.sequence !== rest[i]?.sequence
             && found.slice(0, i).every((p, j) => p === rest[j]) && party.sequence < (rest[i]?.sequence ?? Infinity)))) rest = found;
         }
@@ -388,7 +407,8 @@ export class Matchmaking {
         const parties = [leader, ...rest];
         const entries = parties.flatMap((party) => party.entries);
         const experimental = parties.find(party => party.experimental)?.experimental ?? EXPERIMENTAL_DEFAULTS;
-        const offer = { id: id(), experimental, deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries };
+        const offer = { id: id(), experimental, required: leader.required,
+          deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries };
         this.offers.set(offer.id, offer);
         for (const party of parties) unused.delete(party);
         for (const e of entries) { e.offerId = offer.id; e.accepted = false; e.revivalVote = null; e.reason = null; }
@@ -399,10 +419,11 @@ export class Matchmaking {
 
   stale(e, now) {
     return e.expiresAt <= now || !this.available(e.session, e) || e.session.matchmakingVersion !== e.version
+      || (e.party.required > MAX_SEATS && e.session.playerCapacityVersion !== PLAYER_CAPACITY_VERSION)
       || (e.session.limitKey || null) !== (e.key || null);
   }
 
-  /** Hello/repeated accepts inspect at most one four-seat offer, never the entire queue per frame. */
+  /** Hello/repeated accepts inspect at most one bounded offer, never the entire queue per frame. */
   refresh(session) {
     const e = this.entries.get(session.playerId);
     if (!e) return;

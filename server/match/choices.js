@@ -433,11 +433,13 @@ export function cardView(c) {
 export function applyCard(m, ps, card) {
   const targets = card.kind === 'tactic' && card.team ? [ps, ...m.alivePlayers().filter((p) => p !== ps)] : [ps];
   for (const p of targets) {
-    const ev = { card: { ...card }, family: card.family, picker: ps.playerId, forTeammate: p !== ps };
-    const handled = m.dispatcher.runKey(p, `choice:${card.id}`, 'onChoicePick', { kind: 'choice', card }, ev);
-    if (!handled) applyDefault(m, p, card);
+    const chosen = m.twentyPlayerMode ? structuredClone(card) : card;
+    const ev = { card: { ...chosen }, family: chosen.family, picker: ps.playerId, forTeammate: p !== ps };
+    const key = `choice:${chosen.id}`;
+    const handled = m.dispatcher.runKey(p, key, 'onChoicePick', { kind: 'choice', card: chosen }, ev);
+    if (!handled) applyDefault(m, p, chosen);
     // every other source observes the pick (the card's own key already ran above)
-    m.dispatch(p, 'onChoicePick', ev, { skipKey: `choice:${card.id}` });
+    m.dispatch(p, 'onChoicePick', ev, { skipKey: key });
     p.recompute();
   }
 }

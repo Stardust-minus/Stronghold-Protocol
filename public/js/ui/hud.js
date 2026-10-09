@@ -32,6 +32,7 @@ import { serverNow } from '../store.js';
 import { ServerStatusModal } from './serverStatus.js';
 import { isCombatPhase, isBossPhase, prepCapsuleLabel, bossFrac, bossPctText, fmtNum, shopBlockReason } from './gameLogic.js';
 import { overtimeState, overtimeDrainPerSec, remainAt } from './matchStatus.js';
+import { uniteBudgetInfo } from './gameLogic/phases.js';
 import { hotkeyLabelOf } from './settings.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { uniteRelayRound } from '../battle/observe.js';
@@ -303,6 +304,17 @@ export function PauseButton({ paused, busy = false, onToggle }) {
   <//>`;
 }
 
+/** A frozen stage budget / round-start balance. The changing real-time countdown stays separate. */
+export function UniteBudgetNote({ pub }) {
+  const budget = uniteBudgetInfo(pub);
+  if (!budget) return null;
+  const total = Math.round(budget.total * 100) / 100, remaining = Math.round(budget.remaining * 100) / 100;
+  return html`<div class="gtop__budget" data-testid="unite-budget" data-total=${budget.total} data-remaining=${budget.remaining}>
+    <span>${t('联防总预算：{total} 游戏秒', { total })}</span>
+    <span>${t('本轮起始剩余：{remaining} 游戏秒', { remaining })}</span>
+  </div>`;
+}
+
 /**
  * Top bar.
  * @param {{ pub:any, priv:any, conn:any, hud:any, total:number|null, drawer:string|null, onExit:Function, onDrawer:(tab:string)=>void,
@@ -378,6 +390,7 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
       <${OvertimeWarning} ot=${ot} />
       ${showReady ? html`<${ReadyToggle} priv=${priv} onToggle=${onReady} busy=${readyBusy} readyCount=${readyCount} total=${playerCount} />` : null}
     </div>
+    <${UniteBudgetNote} pub=${pub} />
   </header>`;
 }
 

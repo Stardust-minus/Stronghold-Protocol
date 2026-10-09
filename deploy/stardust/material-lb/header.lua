@@ -110,7 +110,7 @@ local function valid_data(value)
             if not model_object or (alias:sub(1, 7) == "/media/" and model_object:sub(1, 6) ~= "media/") then return false end
         end
         count = count + 1
-        if count > 50000 then return false end
+        if count > __MATERIAL_LB_MAX_ENTRIES__ then return false end
     end
     return count > 0
 end

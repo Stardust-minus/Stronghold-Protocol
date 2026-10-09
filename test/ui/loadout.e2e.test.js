@@ -161,9 +161,12 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     assert.equal(box.inside, false, 'a sibling of .lo, so `.lo > *` needs no exception for it');
     assert.ok(Math.abs(box.y + box.h / 2 - box.vh / 2) < 2, `centred vertically (${JSON.stringify(box)})`);
     const payload = JSON.parse(await page.$eval('[data-testid="loadout-io-text"]', (t) => t.value));
-    assert.equal(payload.kind, 'stronghold.loadout');
+    assert.equal(payload.kind, 'stronghold.operator-preset');
     assert.equal(payload.v, 1);
     assert.deepEqual(payload.entries, stored.entries, 'what is exported is what is stored');
+    assert.deepEqual(payload.notOwned, []);
+    assert.deepEqual(payload.diy, {});
+    assert.deepEqual(payload.skins, {}, 'the shared export includes all explicit sections');
     await page.screenshot({ path: path.join(OUT, 'loadout-export.png') });
     await page.evaluate(() => [...document.querySelectorAll('.modal__actions .btn')].find((b) => b.textContent.trim() === '关闭').click());
     await page.waitForFunction(() => !document.querySelector('.modal'), { timeout: 3000 });
@@ -193,7 +196,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     // a payload this build cannot use at all (every chess unknown) must leave the loadout alone too (review fix)
     await page.$eval('[data-testid="loadout-io-text"]', (t) => { t.value = '{"v":1,"entries":{"chess_not_here":{"skill":0}}}'; t.dispatchEvent(new Event('input', { bubbles: true })); });
     await page.click('[data-testid="loadout-io-apply"]');
-    await page.waitForFunction(() => /没有可用的调配/.test(document.body.textContent || ''), { timeout: 5000 });
+    await page.waitForFunction(() => /当前版本不可用的配置/.test(document.body.textContent || ''), { timeout: 5000 });
     assert.ok(await page.$('.modal'), 'the dialog stays open for the player to fix the payload');
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.loadout')).entries), stored.entries, 'an import that keeps nothing changes nothing');
     assert.deepEqual(problems, []);

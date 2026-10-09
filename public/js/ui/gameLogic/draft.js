@@ -1,6 +1,7 @@
 // ui/gameLogic/draft.js — 机变 and band-draft normalisation. Re-exported from ../gameLogic.js.
 
 import { isObj } from './shared.js';
+import { MAX_DRAFT_CARDS } from '../../../../shared/playerCapacity.js';
 
 
 // ---- 机变 / band draft normalisation ----------------------------------------------------------------------
@@ -32,7 +33,7 @@ export function normalizeDraft(draft, players = []) {
   const sk = draft?.skipsLeft ?? draft?.skips;
   if (isObj(sk)) for (const [k, v] of Object.entries(sk)) if (Number.isFinite(v)) skipsLeft.set(k, v);
   const done = order.length > 0 && order.every((pid) => picks.has(pid));
-  return { order, turnPid, picks, skipsLeft, done };
+  return { order, turnPid, picks, skipsLeft, done, ...(draft?.allowRepeat === true ? { allowRepeat: true } : {}) };
 }
 
 /**
@@ -43,24 +44,26 @@ export function normalizeDraft(draft, players = []) {
  */
 export function normalizeSp(sp, players = []) {
   if (!isObj(sp)) return null;
+  const allowRepeat = sp.allowRepeat === true;
   const ids = (Array.isArray(players) ? players : []).filter(isObj).map((p) => p.playerId);
   const order = Array.isArray(sp.order) && sp.order.length ? sp.order.filter((x) => typeof x === 'string') : ids;
-  const cards = (Array.isArray(sp.cards) ? sp.cards : []).slice(0, 6).map((c, idx) => {
+  const cards = (Array.isArray(sp.cards) ? sp.cards : []).slice(0, MAX_DRAFT_CARDS).map((c, idx) => {
     const card = typeof c === 'string' ? { id: c } : isObj(c) ? { ...c } : {};
     return { ...card, idx, takenBy: typeof card.takenBy === 'string' ? card.takenBy : null };
   });
   const takenBy = new Map(); // idx → playerId
   const pickOf = new Map(); // playerId → idx
   const src = sp.picks;
-  const add = (pid, idx) => {
+  const add = (pid, idx, compatibility = false) => {
     if (typeof pid !== 'string' || !Number.isInteger(idx) || idx < 0 || idx >= cards.length) return;
-    takenBy.set(idx, pid);
+    if (allowRepeat && compatibility && pickOf.has(pid)) return;
+    if (!allowRepeat || !takenBy.has(idx)) takenBy.set(idx, pid);
     pickOf.set(pid, idx);
   };
   if (Array.isArray(src)) src.forEach((v, i) => { if (isObj(v)) add(v.playerId, v.idx); else if (Number.isInteger(v) && order[i]) add(order[i], v); });
   else if (isObj(src)) for (const [k, v] of Object.entries(src)) add(k, v);
-  if (isObj(sp.taken)) for (const [k, v] of Object.entries(sp.taken)) add(v, Number(k));
-  for (const c of cards) if (c.takenBy) add(c.takenBy, c.idx);
+  if (isObj(sp.taken)) for (const [k, v] of Object.entries(sp.taken)) add(v, Number(k), true);
+  for (const c of cards) if (c.takenBy) add(c.takenBy, c.idx, true);
   for (const c of cards) c.takenBy = takenBy.get(c.idx) ?? null;
   let turnPid = null;
   if (typeof sp.turn === 'string') turnPid = sp.turn;
@@ -70,6 +73,6 @@ export function normalizeSp(sp, players = []) {
     name: typeof sp.name === 'string' && sp.name ? sp.name : null,
     desc: typeof sp.desc === 'string' && sp.desc ? sp.desc : null,
     untimed: !!sp.untimed,
-    cards, order, turnPid, pickOf, takenBy, pickedCount: pickOf.size,
+    cards, order, turnPid, pickOf, takenBy, pickedCount: pickOf.size, ...(allowRepeat ? { allowRepeat: true } : {}),
   };
 }

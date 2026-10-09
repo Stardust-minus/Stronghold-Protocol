@@ -128,6 +128,7 @@ export class MatchViews {
       v.draft = {
         order: d.order.slice(), turn: this.draftTurn(), picks: { ...d.picks }, skipsLeft: { ...d.skipsLeft }, turnDeadline: d.turnDeadline || 0,
         turnSeconds: d.untimed ? 0 : this.bandTurnMs() / 1000, untimed: !!d.untimed,
+        ...(this.twentyPlayerMode ? { allowRepeat: true } : {}),
       };
     }
     if (this.phase === PHASE.SP_DRAFT && this.sp) {
@@ -135,10 +136,13 @@ export class MatchViews {
       v.sp = {
         family: s.family, name: s.name, desc: s.desc, eventId: s.eventId, cards: s.cards.map(cardView), order: s.order.slice(),
         turn: this.spTurn(), picks: { ...s.picks }, taken: { ...s.taken }, untimed: !!s.untimed,
+        ...(this.twentyPlayerMode ? { allowRepeat: true } : {}),
       };
     }
     if (this.phase === PHASE.UNITE && this.unitePlan) {
-      v.unite = { helpers: this.unitePlan.helpers.map((p) => p.playerId), leakers: this.unitePlan.leakers.map((p) => p.playerId) };
+      v.unite = { helpers: this.unitePlan.helpers.map((p) => p.playerId), leakers: this.unitePlan.leakers.map((p) => p.playerId),
+        ...(this.twentyPlayerMode ? { timeLimit: this.unitePlan.timeLimit, totalBudget: this.unitePlan.totalBudget,
+          remainingBudget: this.unitePlan.remainingBudget, gameSpeed: this.unitePlan.gameSpeed } : {}) };
       if (this._uniteRelay) {
         v.uniteRound = this.unitePlan.uniteRound;
         v.uniteRounds = 2; // relay ceiling, not a promise that an empty/unavailable second field will run

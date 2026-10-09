@@ -99,7 +99,7 @@ import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, MATCHMAKING_VERSION, mod
 import { checkLoadout, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
 import { isSkinChoices } from '../shared/skins.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isExperimental, sameExperimental } from '../shared/experimental.js';
-import { PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
+import { MAX_PLAYER_CAPACITY, PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { isCompressibleType } from './wsCompression.js';
 import { getData as defaultGetData, lookup } from './data.js';
@@ -609,7 +609,7 @@ export class Lobby {
     if (room.match) return fail(ERR.ROOM_STARTED);
     if (this.roomQueued(room)) return fail(ERR.QUEUED);
     const capacity = roomCapacity(room.mode, experimental);
-    if (capacity > MAX_SEATS && room.source !== 'private') return fail(ERR.BAD_MSG, 'expanded capacity is only available in friend rooms');
+    if (room.source !== 'private' && capacity !== room.capacity) return fail(ERR.BAD_MSG, 'matchmade room capacity cannot change');
     if (capacity > MAX_SEATS && (!this.supportsCapacity(session) || !this.capacityClients(room, capacity))) return fail(ERR.BAD_MSG);
     // Reject before touching options, ready flags, replay or seats, including a
     // disconnected human / AI in a high slot. A shrink never reassigns seats.
@@ -772,7 +772,7 @@ export class Lobby {
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.mode !== 'coop' || room.match) return fail(ERR.WRONG_PHASE, 'party matchmaking requires a waiting cooperative room');
-    if (room.capacity > MAX_SEATS || !room.validCapacity()) return fail(ERR.BAD_MSG, 'expanded friend rooms cannot enter public matchmaking');
+    if (!room.validCapacity() || !this.capacityClients(room)) return fail(ERR.BAD_MSG, 'all room members must support its capacity');
     if (difficulty !== room.difficulty) return fail(ERR.BAD_MSG, 'party difficulty must match the room');
     if (room.seats.some((seat) => seat?.isBot)) return fail(ERR.BAD_MSG, 'public matchmaking has no AI players');
     if (room.activeHumans().some(seat => !seat.connected || (seat.playerId !== room.hostId && seat.ready !== true))) return fail(ERR.NOT_READY);
@@ -787,7 +787,7 @@ export class Lobby {
     const party = entry?.party;
     if (!party?.roomCode) return !room;
     if (!room || room.code !== party.roomCode || room.match || room.mode !== 'coop'
-      || room.capacity > MAX_SEATS || !room.validCapacity()
+      || room.capacity !== party.required || !room.validCapacity() || !this.capacityClients(room)
       || room.activeHumans().some(seat => !seat.connected || (seat.playerId !== room.hostId && seat.ready !== true))
       || room.hostId !== party.leaderId || room.difficulty !== entry.difficulty
       || !sameExperimental(room.experimental, party.experimental)
@@ -800,14 +800,16 @@ export class Lobby {
   roomCharges(room, key) { return room.ownerKey === key || !!room.ownerKeys?.has(key); }
   matchCharges(room, key) { return room.matchKey === key || !!room.matchKeys?.has(key); }
 
-  /** Build/start privately, then commit all four seats together; failed starts cannot publish or retain a room. */
+  /** Build/start privately, then commit the whole cohort together; failed starts retain the old rooms. */
   allocateMatchmadeRoom(sessions, difficulty) {
-    if (sessions.length !== MAX_SEATS || new Set(sessions.map((s) => s.playerId)).size !== MAX_SEATS) return fail(ERR.BAD_TARGET);
+    if (sessions.length < MAX_SEATS || sessions.length > MAX_PLAYER_CAPACITY
+      || new Set(sessions.map((s) => s.playerId)).size !== sessions.length) return fail(ERR.BAD_TARGET);
     const first = this.queue.entries.get(sessions[0].playerId);
     const offer = first?.offerId ? this.queue.offers.get(first.offerId) : null;
     const now = this.now();
-    if (!offer || offer.entries.length !== MAX_SEATS || offer.deadline <= now) return fail(ERR.BAD_TARGET, 'expired matchmaking offer');
-    if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== MAX_SEATS) return fail(ERR.BAD_MSG);
+    if (!offer || offer.entries.length !== offer.required || sessions.length !== offer.required
+      || offer.deadline <= now) return fail(ERR.BAD_TARGET, 'expired matchmaking offer');
+    if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== offer.required) return fail(ERR.BAD_MSG);
     const oldRooms = new Set();
     for (const session of sessions) {
       const entry = this.queue.entries.get(session.playerId);

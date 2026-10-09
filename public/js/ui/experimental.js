@@ -12,7 +12,7 @@ export function experimentalOptions(input) {
 export function experimentalSummary(input) {
   const options = experimentalOptions(input);
   const summary = t('复活 {0} · 共享卡池 {1}', { 0: options.revivalEnabled ? t('开启') : tc('toggle', '关闭'), 1: options.disableSharedPool ? tc('toggle', '关闭') : t('开启') });
-  return options.playerCapacity ? t('{rules} · {n} 人好友房', { rules: summary, n: options.playerCapacity }) : summary;
+  return options.playerCapacity ? t('{rules} · {n} 人模式', { rules: summary, n: options.playerCapacity }) : summary;
 }
 
 export function ExperimentalSummary({ value }) {
@@ -45,14 +45,14 @@ export function ExperimentalOptions({ open, value, mode = 'coop', source = 'priv
           disabled=${!editable || busy} onChange=${e => change('disableSharedPool', e.currentTarget.checked)} />
       </label>
       ${mode === 'coop' && source !== 'matchmaking' ? html`<label class="experimental-option" for="experimental-multiplayer">
-        <span><strong>${t('扩展同盟人数')}</strong><small>${t('仅限好友房；开启后禁用组队匹配。所有成员需更新页面，人数较多时等待与演算时间可能增加。')}</small></span>
+        <span><strong>${t('扩展同盟人数')}</strong><small>${t('可直接开局，或整队匹配相同人数模式的房间。所有成员需更新页面，人数较多时等待与演算时间可能增加。')}</small></span>
         <input id="experimental-multiplayer" type="checkbox" role="switch" checked=${capacity > MAX_SEATS}
           disabled=${!editable || busy} onChange=${e => setCapacity(e.currentTarget.checked ? 8 : MAX_SEATS)} />
       </label>` : null}
       ${mode === 'coop' && source !== 'matchmaking' && capacity > MAX_SEATS ? html`<label class="experimental-capacity" for="experimental-capacity">
-        <span>${t('好友房人数上限')}</span>
+        <span>${t('同盟人数模式')}</span>
         <select id="experimental-capacity" value=${capacity} disabled=${!editable || busy} onChange=${e => setCapacity(Number(e.currentTarget.value))}>
-          ${PLAYER_CAPACITIES.filter(n => n > MAX_SEATS).map(n => html`<option key=${n} value=${n}>${t('{n} 人', { n })}</option>`)}
+          ${PLAYER_CAPACITIES.map(n => html`<option key=${n} value=${n}>${t('{n} 人', { n })}</option>`)}
         </select>
       </label>` : null}
     </div>

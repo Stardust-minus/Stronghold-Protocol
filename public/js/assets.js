@@ -576,7 +576,10 @@ export async function loadSpineData(entry, opts) {
   const PIXI = globalThis.PIXI;
   if (!PIXI || !PIXI.Assets || !PIXI.spine) throw new Error('PIXI / pixi-spine not loaded');
   if (opts && opts.fresh) forgetPendingSpine(entry, opts.keep);
-  const res = await PIXI.Assets.load(entry.skel);
+  const atlas = str(entry.atlas);
+  const source = atlas && atlas !== entry.skel.replace(/\.skel$/, '.atlas')
+    ? { src: entry.skel, data: { spineAtlasFile: atlas } } : entry.skel;
+  const res = await PIXI.Assets.load(source);
   const data = res && (res.spineData || res);
   if (!data || !Array.isArray(data.animations)) throw new Error(`bad spine data: ${entry.skel}`);
   return data;

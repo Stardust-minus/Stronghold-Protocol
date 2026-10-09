@@ -297,6 +297,7 @@ export class Match {
     this.disableSharedPool = this.experimental.disableSharedPool;
     this.playerCapacity = roomCapacity(this.isSolo ? 'solo' : this.mode, this.experimental);
     this.capacityExperiment = !this.isSolo && this.playerCapacity > 4;
+    this.twentyPlayerMode = this.capacityExperiment && this.playerCapacity === 20;
     if (opts.seats.length > this.playerCapacity) throw new RangeError('Match: seats exceed room capacity');
     /** SETTLE-only rescue state: { round, eligible: Set<playerId>, windowOpen, deadline }. */
     this._revival = null;
@@ -355,7 +356,7 @@ export class Match {
     this.staticInactiveBonds = bans.staticOff;
     this.bannedChess = bans.banned;
     this.poolGroups = createPoolGroups(this.gd, this.order, { banned: bans.banned,
-      experimental: this.capacityExperiment, independent: this.disableSharedPool });
+      experimental: this.capacityExperiment, independent: this.disableSharedPool, fixedChunks: this.twentyPlayerMode });
     // `pool` remains the ordinary diagnostic/bond-availability view; transactions always route via poolFor/ps.pool.
     this.pool = this.disableSharedPool ? new SharedPool(this.gd, { banned: bans.banned }) : this.poolGroups[0].pool;
     this.playerPools = this.disableSharedPool || this.capacityExperiment

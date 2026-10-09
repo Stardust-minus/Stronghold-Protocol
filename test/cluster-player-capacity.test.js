@@ -9,7 +9,7 @@ import { RemoteGamePlatform } from '../server/cluster/platform.js';
 import { startGameNode } from '../server/cluster/game-node.js';
 import { SessionRegistry } from '../server/net.js';
 import { ERR, MATCHMAKING_VERSION } from '../shared/constants.js';
-import { PLAYER_CAPACITY_VERSION } from '../shared/playerCapacity.js';
+import { PLAYER_CAPACITIES, PLAYER_CAPACITY_VERSION } from '../shared/playerCapacity.js';
 import { OPERATOR_SKINS } from '../shared/skins.js';
 
 const options = capacity => ({ revivalEnabled: false, disableSharedPool: false, playerCapacity: capacity });
@@ -210,6 +210,48 @@ test('cluster party rejects unready nonhost then rechecks readiness during four-
   assert.equal(counts.abort, 1); assert.equal(counts.publish, 0); assert.equal(room.disposed, false); assert.equal(room.match, null);
 });
 
+for (const capacity of PLAYER_CAPACITIES) test(`cluster ${capacity}-mode parties prepare privately then commit the full cohort once`, async t => {
+  const f = lobbyFixture(t), a = f.room(capacity, 1), b = f.room(capacity, capacity - 1), members = [...a.members, ...b.members];
+  for (const group of [a, b]) assert.deepEqual(f.lobby.queue.join(group.host, { difficulty: 'NORMAL', party: true }), { ok: true });
+  for (const p of members) assert.deepEqual(f.lobby.queue.accept(p, f.lobby.queue.state(p)), { ok: true });
+  const call = f.calls[0]; assert.equal(f.calls.length, 1); assert.equal(call.spec.seats.length, capacity);
+  assert.equal(call.spec.experimental.playerCapacity ?? 4, capacity);
+  assert.ok(call.context.isCurrent()); assert.equal(a.room.match, null); assert.equal(b.room.match, null);
+  assert.ok(members.every(p => f.lobby.queue.state(p).allocationPending && f.lobby.queue.state(p).required === capacity));
+  const counts = f.complete(call); await nextTurn();
+  assert.deepEqual(counts, { abort: 0, commit: 1, publish: 1 });
+  const room = f.lobby.roomOf(a.host); assert.equal(room.capacity, capacity); assert.equal(room.source, 'matchmaking');
+  assert.deepEqual(room.seats.map(s => s.seat), Array.from({ length: capacity }, (_, i) => i));
+  assert.ok(members.every(p => p.roomCode === room.code && f.lobby.queue.state(p).state === 'matched' && f.lobby.queue.state(p).required === capacity));
+  assert.equal(a.room.disposed, true); assert.equal(b.room.disposed, true);
+});
+
+for (const cause of ['cancel', 'client capability', 'observer capability', 'ready', 'rules', 'offer capacity', 'commit failure']) {
+  test(`cluster twenty-mode ${cause} during preparation compensates without consuming either room`, async t => {
+    const f = lobbyFixture(t), a = f.room(20, 8), b = f.room(20, 12), members = [...a.members, ...b.members], observer = f.player();
+    f.lobby.spectate(observer, { code: a.room.code });
+    for (const group of [a, b]) f.lobby.queue.join(group.host, { difficulty: 'NORMAL', party: true });
+    for (const p of members) f.lobby.queue.accept(p, f.lobby.queue.state(p));
+    const call = f.calls[0], oldSeats = [a.room.seats, b.room.seats];
+    assert.equal(call.spec.seats.length, 20); assert.ok(call.context.isCurrent());
+    if (cause === 'cancel') f.lobby.queue.cancel(a.members[7], f.lobby.queue.state(a.members[7]));
+    if (cause === 'client capability') b.members.at(-1).playerCapacityVersion = 'capacity-1';
+    if (cause === 'observer capability') observer.playerCapacityVersion = 'capacity-1';
+    if (cause === 'ready') b.room.seats[11].ready = false;
+    if (cause === 'rules') a.room.experimental = Object.freeze(options(16));
+    if (cause === 'offer capacity') f.lobby.queue.offers.get(f.lobby.queue.state(a.host).offerId).required = 16;
+    const counts = f.complete(call, cause === 'commit failure' ? { commit() { throw new Error('fixture commit failure'); } } : {});
+    await nextTurn(); await nextTurn();
+    assert.equal(counts.abort, 1); assert.equal(counts.publish, 0); assert.equal(f.lobby.queue.offers.size, 0);
+    for (const [i, group] of [a, b].entries()) {
+      assert.equal(f.lobby.rooms.get(group.room.code), group.room); assert.equal(group.room.disposed, false);
+      assert.equal(group.room.match, null); assert.equal(group.room.seats, oldSeats[i]);
+      assert.ok(group.members.every(p => p.roomCode === group.room.code && !p.messages.some(m => m.inMatch)));
+    }
+    assert.equal(observer.roomCode, a.room.code);
+  });
+}
+
 function executableAssignment(kind) {
   let reads = 0;
   const input = spec({ seats: seats(5), experimental: options(8) });
@@ -318,6 +360,44 @@ test('actual unchanged private HTTP/RPC and WS admit twenty humans, preserve obs
   assert.equal(f.platform.directory.bySession('p19').nodeId, handle.nodeId);
   assert.equal(f.node.gameHost.stats().matches, 1);
   assert.ok(f.controls.every(frame => frame.type.startsWith('cluster.')));
+});
+
+test('actual cluster twenty-mode party match binds all humans, preserves observer privacy and resumes seat nineteen', async t => {
+  const f = await networkFixture(t), registry = new SessionRegistry();
+  const lobby = new ClusterLobby({ registry, platform: f.platform, getData: () => ({}), seedFn: () => 17 });
+  t.after(() => lobby.shutdown());
+  const players = Array.from({ length: 21 }, (_, i) => {
+    const s = registry.create(`PartyWire${i}`); s.connected = true; s.playerCapacityVersion = PLAYER_CAPACITY_VERSION;
+    s.matchmakingVersion = MATCHMAKING_VERSION; s.skins = Object.freeze({ ...skin }); s.messages = [];
+    s.ws = { readyState: 1, bufferedAmount: 0, send(raw, cb) { s.messages.push(JSON.parse(raw)); cb?.(); } }; return s;
+  });
+  const members = players.slice(0, 20), observer = players[20], groups = [members.slice(0, 7), members.slice(7)];
+  const old = groups.map(group => {
+    assert.deepEqual(lobby.create(group[0], { mode: 'coop', difficulty: 'NORMAL', experimental: options(20) }), { ok: true });
+    const room = lobby.roomOf(group[0]);
+    for (const p of group.slice(1)) { assert.deepEqual(lobby.join(p, { code: room.code }), { ok: true }); lobby.ready(p, { ready: true }); }
+    return room;
+  });
+  assert.deepEqual(lobby.spectate(observer, { code: old[0].code }), { ok: true });
+  for (const group of groups) assert.deepEqual(lobby.queue.join(group[0], { difficulty: 'NORMAL', party: true }), { ok: true });
+  for (const p of members) assert.deepEqual(lobby.queue.accept(p, lobby.queue.state(p)), { ok: true });
+  await until(() => lobby.queue.state(members[0]).state === 'matched');
+  const room = lobby.roomOf(members[0]), assignment = f.platform.directory.bySession(members[19].playerId);
+  assert.equal(room.capacity, 20); assert.equal(room.seats.length, 20); assert.equal(room.seats[19].playerId, members[19].playerId);
+  assert.ok(old.every(r => r.disposed)); assert.equal(observer.roomCode, room.code);
+  assert.ok(members.every(p => lobby.queue.state(p).required === 20));
+  assert.equal(f.node.gameHost.get(assignment.assignmentId).seats.length, 20);
+  await until(() => players.every(p => f.channels.get(p.playerId)?.messages.some(m => m.t === (p === observer ? 'm.public' : 'm.private'))));
+  for (const p of players) {
+    const messages = f.channels.get(p.playerId).messages.filter(m => m.t === 'm.private');
+    if (p === observer) assert.equal(messages.length, 0);
+    else assert.ok(messages.length > 0 && messages.every(m => m.playerId === p.playerId && JSON.stringify(m.skins) === JSON.stringify(skin)));
+  }
+  const high = members[19], original = f.channels.get(high.playerId); original.socket.close();
+  assert.equal(f.platform.resume(assignment.assignmentId, high.playerId), true);
+  await until(() => f.channels.get(high.playerId) !== original && f.channels.get(high.playerId).bound);
+  assert.equal(f.platform.directory.bySession(high.playerId).assignmentId, assignment.assignmentId);
+  assert.equal(f.node.gameHost.stats().matches, 1);
 });
 
 test('twenty individually valid loadouts over the unchanged 64 KiB RPC budget fail before reservation and preserve original room', async t => {

@@ -5,6 +5,26 @@ Owner: `tools/fetch-assets.mjs` and `tools/assets/*`. Research background: `docs
 All art, Spine models and audio are **downloaded at install time**. They are never committed; `public/assets/` is git-ignored.
 Everything the client needs is listed in **`data/assets.json`**. The client should only request URLs that appear in that manifest.
 
+## Targeted skin battle preparation
+
+The targeted importer `tools/prepare-operator-skins.mjs` reads the current PRTS `char_spine/<charId>/meta.json`
+source rather than guessing legacy `/spine38/skin/` URLs. It validates the character prefix, exact official skin/name
+binding, safe file paths, Spine 3.8 animations, every atlas region, and complete PNG data before admitting a skin.
+Metadata declarations alone are not installed resources. Directory case aliases and camelCase basenames are preserved
+separately; the importer never lowercases or reconstructs a declared file stem.
+
+The local 2026-10-08 candidate covers all **271 official fashions within the current 209-character scope**. Existing
+127 records and all installed CN/JP/EN audio are retained. The added 144 comprise 142 distinct front/rear pairs,
+one front-only model and one explicitly unified battle model (`battleModelKind: 'unified'`), not a fabricated rear file.
+Their 286 skeleton sides were parsed and actually rendered through the current client loader and `SpineActor` in a
+local browser. This does not claim complete original-game effects, summons, animation parity, or deployment.
+New dynamic-illustration declarations still use verified static images until separately prepared; the existing eleven
+dynamic illustrations are preserved.
+
+Display skeleton copies remove only editor image/audio root paths. Their manifest `atlas` path remains authoritative:
+when it differs from the skeleton-derived filename, the client passes `spineAtlasFile` to the Pixi loader instead of
+requesting a nonexistent `.display.atlas`. Original source files and animation data remain unchanged.
+
 ## Running
 
 ```bash

@@ -88,10 +88,12 @@ test('shipped announcement data validates; optional board is mounted from the lo
 test('shipped notices contain only the concise latest update and initial introduction', () => {
   const entries = parseAnnouncements(JSON.parse(source('../../data/announcements.json')));
   assert.equal(entries.length, 2);
-  assert.equal(entries[0].title, '0.2.1 更新：干员时装与实验性多人');
+  assert.equal(entries[0].title, '多人匹配与外观更新');
+  assert.equal(entries[0].date, '2026-10-09');
   assert.equal(entries[1].title, '欢迎游玩卫戍协议！卫来！');
   const text = entries[0].paragraphs.join('\n');
-  for (const feature of ['0.2.1', '时装', '动态立绘', '本机保存', '单独导入导出', '实验性多人', '默认关闭', '房主', '普通公开匹配仍为四人', '队友复活', '共享卡池', '联防沿用本局原地图', '实时同步']) assert.ok(text.includes(feature), feature);
+  for (const feature of ['每四人共享一卡池', '策略可重复', '统一六项、可重复选择', '每人仍只选一次', '整段预算', '300 游戏秒', '两轮共用', '4／8／12／16／20', '整队匹配相同人数模式', '全员确认后直接开局', '匹配前仍需队友准备', '普通大厅匹配默认四人', '271 套时装战斗模型', '部分动态立绘仍待补', '界面语言和中／日／英配音', '一份完整预设', '兼容旧的单项配置', '回退中文', '实验性多人默认关闭', '接力联防']) assert.ok(text.includes(feature), feature);
+  assert.doesNotMatch(text, /8／10／16／20|开启后禁用匹配/);
   assert.match(text, /不改变技能、模组或战斗属性/);
   assert.match(text, /中断旧房间与对局/);
   assert.match(entries[1].paragraphs.join('\n'), /纯公益.*非官方/);

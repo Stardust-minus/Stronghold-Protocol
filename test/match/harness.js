@@ -119,7 +119,7 @@ export function makeMatch(o = {}) {
         if (m.phase === 'INFO_CHECK' && !ps.infoReady) m.handle(ps.playerId, { t: 'g.infoReady' });
         if (m.phase === 'BAND_DRAFT' && m.draftTurn() === ps.playerId) m.handle(ps.playerId, { t: 'g.band', bandId: band });
         if (m.phase === 'SP_DRAFT' && m.spTurn() === ps.playerId) {
-          const idx = m.sp.cards.map((c) => c.idx).find((k) => m.sp.taken[k] == null);
+          const idx = m.sp.cards.map((c) => c.idx).find((k) => m.twentyPlayerMode || m.sp.taken[k] == null);
           if (idx != null) m.handle(ps.playerId, { t: 'g.choice', idx });
         }
         if (ready && m.phase === 'PREP' && ps.alive && !ps.ready) {

@@ -429,6 +429,8 @@ export class VoiceGate {
  * missing path with 200 + the SPA's index.html instead, and fetching *that* would fail to decode as silently as a
  * 404 would — so the fallback looks at the declared type too.
  *
+ * Object-storage providers also serve valid recordings as application/octet-stream or binary/octet-stream.
+ * Those replies still have to pass Web Audio decoding; they should not trigger a second request to the raw URL.
  * A response that declares no type at all is not treated as wrong: absence of a header is not evidence of an HTML
  * page, and fetch stubs / minimal hosts legitimately omit it.
  * @param {{ ok?: boolean, headers?: { get?: (n: string) => string | null } }} res
@@ -436,7 +438,7 @@ export class VoiceGate {
 function isAudioResponse(res) {
   if (!res || !res.ok) return false;
   const type = res.headers?.get?.('content-type');
-  return !type || /^\s*audio\//i.test(type);
+  return !type || /^\s*audio\//i.test(type) || /^\s*(?:application|binary)\/octet-stream\s*(?:;|$)/i.test(type);
 }
 export class AudioManager {
   /**
