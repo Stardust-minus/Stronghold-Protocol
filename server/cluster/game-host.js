@@ -503,6 +503,18 @@ export class GameHost {
     return this._invoke(actor.ctx, 'setLoadout', playerId, safe, safeOps);
   }
 
+  // The coordinator owns host authorization; the actor still checks live membership and setup/vote revisions.
+  rerollSetup(assignmentId, playerId, value, cancel = false, channel) {
+    const actor = this._actor(assignmentId, playerId, channel);
+    if (!actor) return fail(ERR.NOT_IN_ROOM);
+    if (actor.member.role === 'spectator') return fail(ERR.SPECTATOR);
+    if (actor.ctx.state !== 'committed') return fail(ERR.WRONG_PHASE);
+    if (!Number.isInteger(value) || value < (cancel ? 1 : 0) || value > 2 ** 31) return fail(ERR.BAD_MSG);
+    const method = cancel ? 'cancelSetupReroll' : 'requestSetupReroll';
+    if (typeof actor.ctx.match?.[method] !== 'function') return fail(ERR.WRONG_PHASE);
+    return this._invoke(actor.ctx, method, playerId, value);
+  }
+
   setSkins(assignmentId, playerId, choices, channel) {
     const actor = this._actor(assignmentId, playerId, channel);
     if (!actor) return fail(ERR.NOT_IN_ROOM);

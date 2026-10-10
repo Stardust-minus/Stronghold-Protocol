@@ -11,9 +11,10 @@
 // Texts go through t() (docs/I18N.md); the module-level tables hold msgids (N_) translated where they are shown, the
 // config.json mode texts come localized from data.js.
 
+import { ResumeMatchButton } from '../ui/resumeMatch.js';
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor, ERR } from '../../../shared/constants.js';
-import { html, Button, Icon, MicroLabel, Modal, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
+import { html, Button, Icon, MicroLabel, Modal, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo, confirmDialog } from '../ui/components.js';
 import { AnnouncementBoard, announcementRevision, announcementDismissed, dismissAnnouncement } from '../ui/announcements.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { LobbyFeedback } from '../ui/lobbyFeedback.js';
@@ -23,6 +24,7 @@ import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton } from '../ui/guide.js';
 import { openStats } from './stats.js';
 import { SettingsButton } from '../ui/settings.js';
+import { PwaInstallButton } from '../ui/device.js';
 import { LoadoutButton } from './loadout.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
@@ -167,6 +169,34 @@ export function parseRoomParam(search) {
   }
 }
 
+/** Join a room, or offer its read-only spectator seat when the server says it has started. */
+export async function joinRoom(code, { connection = net, confirm = confirmDialog, getState = store.get } = {}) {
+  const viewer = getState().me;
+  const current = () => {
+    const s = getState();
+    return viewer.playerId != null && connection.status === 'online' && s.session.entered && !s.room && !queueActive(s.queue)
+      && s.me.playerId === viewer.playerId && s.me.token === viewer.token;
+  };
+  if (!current()) return false;
+  try {
+    await connection.request('room.join', { code });
+    return true;
+  } catch (err) {
+    if (err?.code !== ERR.ROOM_STARTED) throw err;
+    if (!current()) return false;
+    const accepted = await confirm({
+      title: t('同盟已开始模拟'),
+      text: t('同盟 {code} 已经开局，不能再加入博士席位。是否使用原密钥进入观战？', { code }),
+      okText: t('观战'),
+      cancelText: t('取消'),
+      micro: 'SPECTATE STARTED ALLIANCE',
+    });
+    if (!accepted || !current()) return false;
+    await connection.request('room.spectate', { code });
+    return true;
+  }
+}
+
 /** Recently joined/created co-op room codes (most recent first). */
 export function recentRooms() {
   const list = loadPref('recentRooms', []);
@@ -263,6 +293,7 @@ export function LobbyScreen() {
   const conn = useStore((s) => s.connection, shallowEqual);
   useData('config', 'announcements');
   const queue = useStore((s) => s.queue);
+  const pendingJoin = useStore((s) => s.ui.pendingJoin);
   const queued = queueActive(queue);
   const [roomMode, setRoomMode] = useState(() => {
     const mode = loadPref('lobby.mode', 'coop');
@@ -308,8 +339,8 @@ export function LobbyScreen() {
     return () => { current = false; };
   }, [noticeStatus, noticeValue]);
   useEffect(() => {
-    if (online && !queued && !busy && overlay == null && announcements.revision && !announcementDismissed(announcements.revision)) setOverlay('announcements');
-  }, [online, queued, busy, overlay, announcements.revision]);
+    if (online && !queued && !busy && !pendingJoin && overlay == null && announcements.revision && !announcementDismissed(announcements.revision)) setOverlay('announcements');
+  }, [online, queued, busy, pendingJoin, overlay, announcements.revision]);
   const closeAnnouncements = () => { dismissAnnouncement(announcements.revision); setOverlay(null); };
 
   const pickMode = (m) => { setRoomMode(m); savePref('lobby.mode', m); };
@@ -333,7 +364,7 @@ export function LobbyScreen() {
     // Click callbacks may pass an event; only an explicit string overrides the typed key.
     const k = codeArg(c, code);
     if (!k) { toast(t('同盟密钥为 {ROOM_CODE_LEN} 位字母或数字', { ROOM_CODE_LEN }), 'warn'); return; }
-    run('join', () => net.request('room.join', { code: k }));
+    run('join', () => joinRoom(k));
   };
   // a spectator seat: no player seat taken, nothing to do but watch (also a match already running)
   const spectate = (c = code) => {
@@ -380,6 +411,8 @@ export function LobbyScreen() {
         <${Button} class="lobby-announcements" variant="secondary" size="sm" icon="info" aria-haspopup="dialog"
           onClick=${() => setOverlay('announcements')}>${t('公告')}<//>
         <${Button} variant="secondary" size="sm" icon="chart" class="stats-entry" onClick=${openStats} title=${t('统计数据')} aria-label=${t('统计数据')}>${t('统计')}<//>
+        <${ResumeMatchButton} />
+        <${PwaInstallButton} class="lobby-pwa" />
         <${SettingsButton} class="lobby-settings" variant="secondary" label=${t('设置')} />
         <${GuideButton} class="lobby-guide" variant="secondary" label=${t('玩法说明')} />
         <${LoadoutButton} from="lobby" size="sm" class="lobby-loadout" label=${t('干员调配')} />
@@ -414,6 +447,7 @@ export function LobbyScreen() {
               <${Button} variant="secondary" size="lg" icon="eye" class="join-spectate" loading=${busy === 'spectate'} disabled=${!codeOk || !online || queued || !!busy} onClick=${spectate}>${t('观战')}<//>
             <//>
           </div>
+          <p class="t-lo">${t('开局后仍可使用原同盟密钥观战。')}</p>
           <div class="join-foot">
             ${recent.length ? html`<span class="t-lo">${t('最近的同盟')}</span>
               ${recent.map((c) => html`<button key=${c} type="button" class="code-chip num" title=${t('填入密钥（不会直接加入）')}

@@ -51,7 +51,7 @@ node deploy/stardust/tools/prepare-static-release.mjs --verify "$STAGE"
 - **HTTP**：匿名单个 CORS `*`、无 credentials；验收 MIME、HEAD、Range/If-Range/206、ETag/304、OPTIONS、错误 no-store、成功 immutable、目录/隐藏文件/路径穿越拒绝。实际字体/Canvas/Three/Spine/AudioContext 验证不能由库存代替。
 - **完整静态配置**：保留模板所需 `map_hash_bucket_size 512`、`map_hash_max_size 8192`；`$asset_cache` 的 `volatile` 保证 Range 后置 416 重新取 no-store，状态 CORS map 避免第二次 filter 追加重复 ACAO。配置测试不能有未处理的 hash 警告。
 
-[OPENI.md](OPENI.md) 与 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md) 定义镜像、签名和多源合同。保持最多两个明确 OpenI mirrors、明示 ModelScope prefix/pin 和审核过的单资源源站例外；不重传/改名绕过例外或默默忽略全量核验失败。宿主 profile 用固定小 Lua + JSON，消费上限为 100000 aliases；resolver 清单读取有界 64MiB。对完整尺寸数据执行真实 LuaJIT、OpenResty access/header HTTP 和 resolver 盘读检查；`nginx -t` 或 synthetic pin 不能证明实际 provider 绑定。
+[OPENI.md](OPENI.md) 与 [MATERIAL-SOURCES.md](MATERIAL-SOURCES.md) 定义镜像、签名和多源合同。保持最多三个明确审核、固定且去重的 OpenI mirrors（旧单／双mirror兼容，第四个拒绝；本次仅已有两目录加固定0.2.3增量目录），ModelScope现有最多八个明确 prefix/pin 及审核过的单资源源站例外；不重传/改名绕过例外或默默忽略全量核验失败。宿主 profile 用固定小 Lua + JSON，消费上限为 100000 aliases；resolver 清单读取有界 64MiB。对完整尺寸数据执行真实 LuaJIT、OpenResty access/header HTTP 和 resolver 盘读检查；`nginx -t` 或 synthetic pin 不能证明实际 provider 绑定。
 
 多源 profile 不是通用 env-switch；实现见 [access.lua](material-lb/access.lua)、[header.lua](material-lb/header.lua)、[prepare-material-lb.py](tools/prepare-material-lb.py) 和 [test-prepare-material-lb.py](tools/test-prepare-material-lb.py)。已知公开 302 缓存不超过 60 秒；OpenI 另受 `Expires-now-30` 限制，只允许固定 `sp_request=cors|display`，去重 Vary Origin/Sec-Fetch-Mode。ModelScope 固定 resolve 入口不套用 OpenI auth_key TTL，也不保证所有下游 CDN 错误自动回退。目标 OpenResty 若在 Lua 后应用 add_header，公开 location 重复必要安全头，但不再次追加 Lua 管理的 Cache-Control/CORS/Vary。
 

@@ -16,6 +16,9 @@
 //   --no-research  ignore docs/research (research-only fields fall back to defaults; for testing)
 //   --force        write the output even when integrity checks fail (default: keep the old files)
 // Unknown options are errors (exit code 2).
+// Historical-cache fallback (only the pinned 0.2.2/fork/0.2.3 assets/config blobs):
+//   --merge-release-snapshots --base-snapshot <dir> --fork-snapshot <dir>
+//   --official-snapshot <dir> --out <new-dir>; records exact source/output hashes.
 //
 // Official files are cached under <repo>/.cache/gamedata/<repo path> (e.g. excel/activity_table.json)
 // and downloaded from https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/zh_CN/gamedata/
@@ -42,6 +45,18 @@ import { extendedGrid } from '../shared/loadoutRecord.js';
 import { FULL_RANK, atRank, stripPotential } from '../shared/potential.js';
 
 // ===== CLI & IO ==================================================================================
+
+// Dispatch before table loads or ordinary-generator output/cache handling.
+if (process.argv.includes('--merge-release-snapshots')) {
+  try {
+    const { mergeReleaseFromArgs } = await import('./merge-generated-release.mjs');
+    await mergeReleaseFromArgs(process.argv.slice(2));
+    process.exit(0);
+  } catch (error) {
+    console.error(`build-data snapshot merge failed: ${error.message}`);
+    process.exit(1);
+  }
+}
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RESEARCH_DIR = join(ROOT, 'docs', 'research');
@@ -3697,8 +3712,8 @@ function buildConfig(ctx, waves, stages, bands) {
     timers: {
       infoCheck: step('INFO_CHECK')?.time ?? 25, infoCheckHint: step('INFO_CHECK')?.hintTime ?? 5,
       // bandTurn: one turn of the co-op strategy draft = its only countdown (server/match/Match.js BAND_TURN_SECONDS,
-      // [ASSUMED] — user playtest #4 item 4; the official data only has the whole step's 50 s, kept for reference)
-      bandDraft: step('BAND_CHECK')?.time ?? 50, bandDraftHint: step('BAND_CHECK')?.hintTime ?? 15, bandTurn: 30,
+      // owner official-play report 2026-10-10: 50 s per turn; the official whole-step value stays as reference)
+      bandDraft: step('BAND_CHECK')?.time ?? 50, bandDraftHint: step('BAND_CHECK')?.hintTime ?? 15, bandTurn: 50,
       battleCheck: step('BATTLE_CHECK')?.time ?? 3,
       spFirst: 30, spTurn: act.modeDataDict.mode_multi_normal?.specialPhaseTime ?? 16,
       soloPrepTimeData: 300, soloSpTimeData: act.modeDataDict.mode_single_normal?.specialPhaseTime ?? 150,

@@ -1,7 +1,9 @@
 // Same-mode parties remain whole across offers, failures and actual wire admission.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Lobby } from '../server/lobby.js';
+import crypto from 'node:crypto';
+import { syncBuiltinESMExports } from 'node:module';
+import { CODE_ALPHABET, Lobby } from '../server/lobby.js';
 import { SessionRegistry } from '../server/net.js';
 import { Matchmaking } from '../server/matchmaking.js';
 import { ERR, MATCHMAKING_VERSION } from '../shared/constants.js';
@@ -18,6 +20,9 @@ class RecordingMatch {
     for (const seat of this.opts.seats) this.opts.send(seat.playerId, { t: 'm.private', playerId: seat.playerId, loadout: seat.loadout });
   }
   dispose() {} onDisconnect() {} onReconnect() {} onLeave() {}
+}
+class ObserverMatch extends RecordingMatch {
+  addSpectator(playerId) { this.opts.send(playerId, { t: 'm.public', phase: 'INFO_CHECK', roomCode: this.opts.roomCode, observing: true }); }
 }
 function fixture(t, MatchClass = RecordingMatch) {
   let clock = 10_000, count = 0;
@@ -152,6 +157,140 @@ test('failed twenty-player construction keeps both rooms, FIFO tickets and full 
     assert.ok(!p.messages.some(m => m.t === 'room.state' && m.inMatch));
   }
   assert.ok([a, b].every(g => !g.room.disposed && g.room.match === null && g.members.every(p => p.roomCode === g.room.code)));
+  assert.equal(f.lobby.spectatorAliases.size, 0, 'failed allocation cannot bind old party codes');
+});
+
+for (const fault of ['constructor', 'ended-start', 'async-start']) test(`local ${fault} allocation failure leaves source party codes unaliased`, t => {
+  class BrokenMatch extends RecordingMatch {
+    constructor(opts) { super(opts); if (fault === 'constructor') throw new Error('fixture constructor failure'); }
+    start() {
+      super.start();
+      if (fault === 'ended-start') this.opts.onEnd({ reason: 'fixture startup end' });
+      else return Promise.reject(new Error('fixture asynchronous startup failure'));
+    }
+  }
+  const f = fixture(t, BrokenMatch), a = f.party(4, 2), b = f.party(4, 2), members = [...a.members, ...b.members];
+  f.join(a); f.join(b);
+  const results = f.accept(members);
+  assert.equal(results.at(-1).error, ERR.INTERNAL); assert.equal(f.lobby.spectatorAliases.size, 0);
+  assert.ok([a, b].every(group => f.lobby.getRoom(group.room.code) === group.room && !group.room.disposed && !group.room.match));
+  assert.ok(members.every(member => !member.messages.some(message => message.t === 'm.public' || message.t === 'm.private')));
+});
+
+function matchedParties(f, capacity = 4) {
+  const a = f.party(capacity, 2), b = f.party(capacity, capacity - 2);
+  assert.deepEqual(f.join(a), { ok: true }); assert.deepEqual(f.join(b), { ok: true });
+  assert.ok(f.accept([...a.members, ...b.members]).every(result => result.ok));
+  return { a, b, room: f.lobby.roomOf(a.host), members: [...a.members, ...b.members] };
+}
+
+test('consumed party codes admit only late observers to the committed local match, not player seats or unrelated room history', t => {
+  const f = fixture(t, ObserverMatch), history = f.party(4, 1), historyCode = history.room.code;
+  assert.deepEqual(f.lobby.leave(history.host), { ok: true });
+  const manual = f.party(4, 1); assert.deepEqual(f.lobby.start(manual.host), { ok: true });
+  const { a, b, room, members } = matchedParties(f), observer = f.player();
+  assert.deepEqual([...f.lobby.spectatorAliases.keys()].sort(), [a.room.code, b.room.code].sort());
+  assert.equal(f.lobby.getRoom(a.room.code), null, 'aliases are not rooms/public roster entries');
+  assert.equal(f.lobby.spectate(observer, { code: historyCode }).error, ERR.ROOM_NOT_FOUND);
+  const before = room.toState();
+  assert.equal(f.lobby.join(observer, { code: a.room.code }).error, ERR.ROOM_STARTED);
+  assert.equal(observer.roomCode, null); assert.deepEqual(room.toState(), before);
+  assert.equal(f.lobby.spectate(a.host, { code: b.room.code }).error, ERR.ALREADY);
+  assert.deepEqual(f.lobby.spectate(observer, { code: ` ${a.room.code.toLowerCase()} ` }), { ok: true });
+  assert.equal(observer.roomCode, room.code); assert.equal(room.spectators.length, 1);
+  assert.equal(room.seats.length, members.length); assert.equal(room.seatOf(observer.playerId), null);
+  assert.ok(observer.messages.some(m => m.t === 'm.public' && m.observing && m.roomCode === room.code));
+  assert.ok(observer.messages.filter(m => m.t === 'room.state').every(m => m.code === room.code));
+  assert.equal(observer.messages.some(m => m.t === 'm.private'), false);
+  assert.deepEqual(f.lobby.spectate(observer, { code: b.room.code }), { ok: true });
+  assert.equal(room.spectators.length, 1, 'both aliases share the same canonical observer identity');
+  assert.equal(f.lobby.join(observer, { code: b.room.code }).error, ERR.ROOM_STARTED);
+  assert.equal(f.lobby.ready(observer, { ready: true }).error, ERR.SPECTATOR);
+  assert.equal(f.lobby.routeGame(observer, { t: 'g.infoReady' }).error, ERR.SPECTATOR);
+  assert.equal(f.lobby.removeSpectator(members[1], { playerId: observer.playerId }).error, ERR.NOT_HOST);
+  assert.deepEqual(f.lobby.removeSpectator(a.host, { playerId: observer.playerId }), { ok: true });
+  assert.equal(observer.roomCode, null); assert.equal(observer.messages.at(-1).reason, 'kicked');
+  assert.deepEqual(f.lobby.spectate(observer, { code: manual.room.code }), { ok: true });
+  assert.equal(observer.roomCode, manual.room.code, 'ordinary manually started room codes still work');
+});
+
+test('party aliases preserve queued, current-running-room, malformed-code, solo and capacity admission fences', t => {
+  const f = fixture(t), { a, room } = matchedParties(f, 8), legacy = f.player();
+  legacy.playerCapacityVersion = null;
+  assert.equal(f.lobby.spectate(legacy, { code: a.room.code }).error, ERR.BAD_MSG);
+  assert.equal(f.lobby.join(legacy, { code: a.room.code }).error, ERR.BAD_MSG);
+  assert.equal(legacy.roomCode, null);
+  const queued = f.player(); assert.deepEqual(f.lobby.queue.join(queued, { difficulty: 'NORMAL' }), { ok: true });
+  assert.equal(f.lobby.spectate(queued, { code: a.room.code }).error, ERR.QUEUED);
+  assert.equal(f.lobby.join(queued, { code: a.room.code }).error, ERR.QUEUED);
+  assert.equal(queued.roomCode, null); assert.equal(f.lobby.queue.has(queued), true);
+  const current = f.party(4, 1); assert.deepEqual(f.lobby.start(current.host), { ok: true });
+  assert.equal(f.lobby.spectate(current.host, { code: a.room.code }).error, ERR.ROOM_STARTED);
+  assert.equal(f.lobby.join(current.host, { code: a.room.code }).error, ERR.ROOM_STARTED);
+  assert.equal(current.host.roomCode, current.room.code);
+  const observer = f.player(); assert.deepEqual(f.lobby.spectate(observer, { code: current.room.code }), { ok: true });
+  assert.equal(f.lobby.spectate(observer, { code: a.room.code }).error, ERR.ROOM_STARTED);
+  for (const code of ['', 'ABC', 'ABCDE', '1234']) assert.equal(f.lobby.spectate(f.player(), { code }).error, ERR.ROOM_NOT_FOUND);
+  const solo = f.player(); assert.deepEqual(f.lobby.create(solo, { mode: 'solo', difficulty: 'NORMAL' }), { ok: true });
+  assert.equal(f.lobby.spectate(f.player(), { code: solo.roomCode }).error, ERR.ROOM_FULL);
+  assert.equal(room.spectators.length, 0);
+});
+
+test('local aliases expire at end, do not enter the next match, and never accumulate a chain of old codes', t => {
+  const f = fixture(t), { a, b, room, members } = matchedParties(f), oldMatch = room.match, probe = f.player();
+  oldMatch.opts.onEnd({ reason: 'fixture' });
+  assert.equal(f.lobby.spectatorAliases.size, 0); assert.equal(f.lobby.getRoom(room.code), room); assert.equal(room.match, null);
+  for (const code of [a.room.code, b.room.code]) {
+    assert.equal(f.lobby.spectate(probe, { code }).error, ERR.ROOM_NOT_FOUND);
+    assert.equal(f.lobby.join(probe, { code }).error, ERR.ROOM_NOT_FOUND);
+  }
+  assert.deepEqual(f.lobby.spectate(probe, { code: room.code }), { ok: true });
+  for (const member of members.slice(1)) assert.deepEqual(f.lobby.ready(member, { ready: true }), { ok: true });
+  assert.deepEqual(f.lobby.start(a.host), { ok: true });
+  const next = room.match; oldMatch.opts.onEnd({ reason: 'stale' }); assert.equal(room.match, next);
+  assert.equal(f.lobby.spectate(f.player(), { code: a.room.code }).error, ERR.ROOM_NOT_FOUND);
+  next.opts.onEnd({ reason: 'fixture' });
+  for (const member of members.slice(1)) f.lobby.ready(member, { ready: true });
+  assert.deepEqual(f.lobby.queue.join(a.host, { difficulty: 'NORMAL', party: true }), { ok: true });
+  assert.ok(f.accept(members).every(result => result.ok));
+  const rematched = f.lobby.roomOf(a.host);
+  assert.notEqual(rematched, room); assert.equal(probe.roomCode, rematched.code);
+  assert.deepEqual([...f.lobby.spectatorAliases.keys()], [room.code]);
+  assert.equal(f.lobby.spectate(f.player(), { code: a.room.code }).error, ERR.ROOM_NOT_FOUND);
+  assert.deepEqual(f.lobby.spectate(f.player(), { code: room.code }), { ok: true });
+});
+
+for (const cause of ['last-human', 'dispose', 'shutdown']) test(`local ${cause} removes aliases before a destination code is reused`, t => {
+  const f = fixture(t), { a, b, room, members } = matchedParties(f), observer = f.player();
+  assert.deepEqual(f.lobby.spectate(observer, { code: a.room.code }), { ok: true });
+  if (cause === 'last-human') for (const member of members) assert.deepEqual(f.lobby.leave(member), { ok: true });
+  if (cause === 'dispose') f.lobby.disposeRoom(room, 'shutdown');
+  if (cause === 'shutdown') f.lobby.shutdown();
+  assert.equal(f.lobby.spectatorAliases.size, 0); assert.equal(observer.roomCode, null); assert.equal(room.disposed, true);
+  const probe = f.player();
+  for (const code of [a.room.code, b.room.code]) assert.equal(f.lobby.spectate(probe, { code }).error, ERR.ROOM_NOT_FOUND);
+  if (cause !== 'shutdown') {
+    f.lobby.genCode = () => room.code; // Force a legitimate later room incarnation, not an alias target mutation.
+    assert.deepEqual(f.lobby.create(probe, { mode: 'coop', difficulty: 'NORMAL' }), { ok: true });
+    assert.notEqual(f.lobby.roomOf(probe), room);
+    for (const code of [a.room.code, b.room.code]) assert.equal(f.lobby.spectate(f.player(), { code }).error, ERR.ROOM_NOT_FOUND);
+  }
+});
+
+test('genCode reserves active party aliases and releases them after their exact match ends', t => {
+  const f = fixture(t), { a, room } = matchedParties(f), candidate = ['AAAA', 'BBBB', 'CCCC'].find(code => !f.lobby.rooms.has(code) && !f.lobby.spectatorAliases.has(code));
+  let draws = 0;
+  const entropy = t.mock.method(crypto, 'randomInt', () => CODE_ALPHABET.indexOf((draws < 4 ? a.room.code : candidate)[draws++ % 4]));
+  syncBuiltinESMExports();
+  try {
+    assert.equal(f.lobby.genCode(), candidate, 'the first candidate is a reserved active alias, not a free code');
+    room.match.opts.onEnd({ reason: 'fixture' }); draws = 0;
+    const newHost = f.player(); assert.deepEqual(f.lobby.create(newHost, { mode: 'coop', difficulty: 'NORMAL' }), { ok: true });
+    assert.equal(newHost.roomCode, a.room.code, 'expired alias codes may be reused by actual new rooms');
+    const fresh = f.lobby.roomOf(newHost), observer = f.player();
+    assert.notEqual(fresh, room); assert.deepEqual(f.lobby.spectate(observer, { code: a.room.code }), { ok: true });
+    assert.equal(observer.roomCode, fresh.code); assert.equal(room.spectatorOf(observer.playerId), null);
+  } finally { entropy.mock.restore(); syncBuiltinESMExports(); }
 });
 
 test('large unfillable queue has bounded size-fit search and cannot split parties', t => {
@@ -211,4 +350,36 @@ test('actual HTTP/WS twenty-mode queues two rooms, cancels intact, then commits 
   }
   const room = members[19].log.findLast(m => m.t === 'room.state' && m.inMatch);
   assert.equal(room.seats[19].playerId, members[19].welcome.playerId);
+});
+
+test('actual local HTTP/WS late observer confirms with the consumed party code and receives only canonical public state', async t => {
+  const srv = await startServer({ host: '127.0.0.1', port: 0, quiet: true, MatchClass: ObserverMatch }), clients = [];
+  t.after(async () => { await Promise.all(clients.map(c => c.terminate())); await srv.close(); });
+  const connect = async name => {
+    const client = await TestClient.connect(`ws://127.0.0.1:${srv.port}/ws`); clients.push(client);
+    client.welcome = await client.hello(name, undefined, { matchmakingVersion: MATCHMAKING_VERSION }); return client;
+  };
+  const players = [];
+  for (let i = 0; i < 4; i++) players.push(await connect(`AliasWire${i}`));
+  assert.equal((await players[0].request({ t: 'room.create', mode: 'coop', difficulty: 'NORMAL' })).t, 'ok');
+  const source = await players[0].waitFor('room.state');
+  assert.equal((await players[1].request({ t: 'room.join', code: source.code })).t, 'ok');
+  assert.equal((await players[1].request({ t: 'room.ready', ready: true })).t, 'ok');
+  assert.equal((await players[0].request({ t: 'queue.join', difficulty: 'NORMAL', party: true })).t, 'ok');
+  for (const player of players.slice(2)) assert.equal((await player.request({ t: 'queue.join', difficulty: 'NORMAL' })).t, 'ok');
+  for (const player of players) {
+    const offer = await player.waitFor('queue.state', state => state.state === 'offered');
+    assert.equal((await player.request({ t: 'queue.accept', ticketId: offer.ticketId, offerId: offer.offerId })).t, 'ok');
+  }
+  const matched = await players[0].waitFor('queue.state', state => state.state === 'matched'), observer = await connect('AliasWatch');
+  assert.notEqual(matched.code, source.code);
+  assert.equal((await observer.request({ t: 'room.join', code: source.code })).code, ERR.ROOM_STARTED);
+  assert.equal((await observer.request({ t: 'room.spectate', code: source.code.toLowerCase() })).t, 'ok');
+  const state = await observer.waitFor('room.state', state => state.inMatch), publicState = await observer.waitFor('m.public', state => state.observing);
+  assert.equal(state.code, matched.code); assert.equal(publicState.roomCode, matched.code);
+  assert.equal(state.seats.some(seat => seat?.playerId === observer.welcome.playerId), false);
+  assert.equal(state.spectators[0].playerId, observer.welcome.playerId);
+  assert.equal(srv.registry.byId(observer.welcome.playerId).roomCode, matched.code);
+  assert.equal((await observer.request({ t: 'g.infoReady' })).code, ERR.SPECTATOR);
+  assert.equal(observer.log.some(message => message.t === 'm.private'), false);
 });

@@ -105,7 +105,8 @@ test('skin sync uses its own message and state, resends on welcome and keeps loc
 });
 test('installed catalogue has complete files, does not change the default operator assets', { skip: !existsSync(new URL(`../public/assets/skins/${id}/avatar.png`, import.meta.url)) && 'install ignored skin artwork first' }, () => {
   const manifest = JSON.parse(readFileSync(new URL('../data/assets.json', import.meta.url)));
-  assert.equal(Object.keys(manifest.chars).length, 209);
+  assert.equal(Object.keys(manifest.chars).length, 210);
+  assert(manifest.chars.char_4231_clemnt, '0.2.3 includes Clementia alongside the unchanged skin catalogue');
   for (const skin of OPERATOR_SKINS) {
     const rec = manifest.skins[skin.id]; assert.equal(rec.charId, skin.charId);
     for (const url of [rec.avatar, rec.portrait, rec.illustration, ...['front', 'back'].filter(side => rec.spine[side]).flatMap(side => [rec.spine[side].skel, rec.spine[side].atlas, ...rec.spine[side].textures])]) {

@@ -110,6 +110,7 @@ test('0.2.0 ownership and DIY follow a public party and fence changes during all
   const done = h.complete(); await flush();
   assert.equal(done.counts.publish, 0);
   assert.equal(done.counts.abort, 1);
+  assert.equal(h.lobby.spectatorAliases.size, 0);
   assert.ok(!players.some(s => h.lobby.roomOf(s)?.match));
 });
 
@@ -137,6 +138,7 @@ test('public 2+1+1 party commits only prepared DTO and publishes room state befo
   assert.equal(h.calls.length, 1); assert.equal(h.seeds(), 1); assert.equal(h.localMatches(), 0);
   assert.ok(players.slice(0, 2).every(s => s.roomCode === old.code)); assert.equal(observer.roomCode, old.code);
   assert.equal(old.disposed, false); assert.equal(old.match, null); assert.equal(h.lobby.rooms.size, 1);
+  assert.equal(h.lobby.spectatorAliases.size, 0, 'pending preparation must not bind a party alias');
   const call = h.calls[0], spec = call.spec;
   assert.deepEqual(Object.keys(spec).sort(), ['assignmentId', 'build', 'protocol', 'roomCode', 'mode', 'difficulty', 'modeId',
     'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'seed', 'matchNo', 'seats', 'spectators'].sort());
@@ -173,6 +175,7 @@ for (const changed of ['loadout', 'observer', 'network', 'experimental']) test(`
   if (changed === 'experimental') h.lobby.queue.offers.get(states[0].offerId).experimental = { revivalEnabled: true, disableSharedPool: true };
   const done = h.complete(); await flush();
   assert.deepEqual(done.counts, { commit: 0, publish: 0, abort: 1 });
+  assert.equal(h.lobby.spectatorAliases.size, 0);
   assert.equal(h.lobby.getRoom(old.code), old); assert.equal(old.disposed, false); assert.equal(old.match, null);
   assert.ok(players.slice(0, 2).every(s => s.roomCode === old.code));
   assert.ok(players.every(s => !s.messages.some(m => m.inMatch === true)));
@@ -206,6 +209,7 @@ for (const fault of ['commit', 'factory', 'dto', 'map-transfer', 'session-transf
   const done = h.complete(0, fault === 'commit' ? { commit() { commitAttempts++; throw new Error('synthetic commit failure'); } } : {});
   await flush();
   assert.equal(done.counts.abort, 1); assert.equal(done.counts.publish, 0);
+  assert.equal(h.lobby.spectatorAliases.size, 0, 'rolled-back membership must not leave an alias');
   if (fault === 'commit') assert.equal(commitAttempts, 1);
   assert.equal(h.lobby.getRoom(old.code), old); assert.equal(old.disposed, false); assert.equal(old.replay, replay);
   assert.equal(h.lobby.rooms.size, 1); assert.equal(old.match, null); assert.equal(old.matchCount, 0);
@@ -219,6 +223,7 @@ test('prepare rejection preserves original party and FIFO without allocation ret
   const h = harness(t), players = h.group(), old = h.privateRoom(players.slice(0, 2)), states = h.queue(players), before = tickets(h, players);
   h.accept(players, states); h.calls[0].work.reject(new Error('synthetic provider failure')); await flush();
   preserved(h, players, before); assert.equal(h.lobby.getRoom(old.code), old); assert.equal(h.calls.length, 1);
+  assert.equal(h.lobby.spectatorAliases.size, 0);
 });
 
 test('cancel and new offer race aborts a late actor without changing fresh tickets/rooms', async t => {
@@ -283,7 +288,31 @@ test('commit rechecks room and network capacity after await', async t => {
   const other = h.player(); h.privateRoom([other], 'solo');
   const done = h.complete(); await flush();
   assert.deepEqual(done.counts, { commit: 0, publish: 0, abort: 1 });
+  assert.equal(h.lobby.spectatorAliases.size, 0);
   assert.equal(h.lobby.rooms.size, 1); assert.ok(players.every(s => s.roomCode === null && h.lobby.queue.state(s).state === 'queued'));
+});
+
+test('cluster setup reroll stays host-only and waits for the owning actor acknowledgement', async t => {
+  const h = harness(t), players = h.group(), room = h.privateRoom(players.slice(0, 2));
+  const started = h.lobby.start(players[0]); h.complete(); await started;
+  const added = h.lobby.spectate(players[2], { code: room.code });
+  h.peers.at(-1).work.resolve({ ok: true }); await added;
+  const before = h.peers.length;
+  assert.equal(h.lobby.rerollSetup(players[1], { setupRevision: 3 }).error, ERR.NOT_HOST);
+  assert.equal(h.lobby.rerollSetup(players[2], { setupRevision: 3 }).error, ERR.SPECTATOR);
+  assert.equal(h.peers.length, before);
+  const requested = h.lobby.rerollSetup(players[0], { setupRevision: 3 });
+  assert.equal(typeof requested.then, 'function');
+  assert.equal(h.peers.at(-1).method, 'requestSetupReroll');
+  assert.equal(h.peers.at(-1).loadout, 3);
+  h.peers.at(-1).work.resolve({ error: ERR.BAD_TARGET });
+  assert.deepEqual(await requested, { error: ERR.BAD_TARGET });
+  const cancelled = h.lobby.rerollSetup(players[0], { voteId: 7 }, true);
+  assert.equal(h.peers.at(-1).method, 'cancelSetupReroll');
+  assert.equal(h.peers.at(-1).loadout, 7);
+  h.peers.at(-1).work.resolve({ ok: true });
+  assert.deepEqual(await cancelled, { ok: true });
+  assert.equal(h.localMatches(), 0);
 });
 
 test('proxy reconnect resumes routing, coordination disconnect never drives engine, game input fails closed', async t => {
@@ -372,6 +401,7 @@ for (const trigger of ['deadline', 'disconnect', 'shutdown']) test(`pending publ
   await flush(); assert.equal(call.context.signal.aborted, true);
   const done = h.complete(); await flush();
   assert.deepEqual(done.counts, { commit: 0, publish: 0, abort: 1 });
+  assert.equal(h.lobby.spectatorAliases.size, 0);
   assert.ok(players.every(s => !s.messages.some(m => m.inMatch === true)));
   if (trigger === 'deadline') { preserved(h, players, before); assert.equal(h.lobby.getRoom(old.code), old); }
 });
@@ -424,4 +454,148 @@ test('permanent player leave waits behind one in-flight loadout RPC rather than 
   assert.deepEqual(await loadout, { ok: true });
   h.peers[1].work.resolve({ ok: true }); assert.deepEqual(await left, { ok: true });
   assert.equal(match.members.has(owner.playerId), false); assert.equal(h.releases.length, 0);
+});
+
+async function matchedParties(h) {
+  const players = h.group(), oldRooms = [h.privateRoom(players.slice(0, 2)), h.privateRoom(players.slice(2))];
+  const states = h.queue(players); h.accept(players, states);
+  assert.equal(h.lobby.spectatorAliases.size, 0);
+  const done = h.complete(); await flush();
+  assert.deepEqual(done.counts, { commit: 1, publish: 1, abort: 0 });
+  return { players, oldRooms, room: h.lobby.roomOf(players[0]), done };
+}
+function endReceipt(done, room) {
+  return { assignmentId: done.handle.assignmentId, generation: done.handle.generation, roomCode: room.code,
+    lastPublic: { t: 'm.public', phase: 'END' }, results: {}, summary: { reason: 'fixture' } };
+}
+
+test('committed remote party aliases retain canonical membership, explicit join rejection and exact spectator peer acknowledgement', async t => {
+  const h = harness(t), { players, oldRooms, room, done } = await matchedParties(h), observer = h.player();
+  assert.deepEqual([...h.lobby.spectatorAliases.keys()].sort(), oldRooms.map(old => old.code).sort());
+  assert.equal(h.lobby.getRoom(oldRooms[0].code), null);
+  const before = room.toState();
+  assert.equal(h.lobby.join(observer, { code: oldRooms[0].code }).error, ERR.ROOM_STARTED);
+  assert.equal(observer.roomCode, null); assert.deepEqual(room.toState(), before);
+  assert.equal(h.lobby.spectate(players[0], { code: oldRooms[1].code }).error, ERR.ALREADY);
+  const added = h.lobby.spectate(observer, { code: ` ${oldRooms[0].code.toLowerCase()} ` });
+  const repeat = h.lobby.spectate(observer, { code: oldRooms[1].code });
+  assert.equal(h.peers.length, 1, 'both old codes share one pending observer admission');
+  assert.equal(h.peers[0].assignmentId, done.handle.assignmentId); assert.equal(h.peers[0].method, 'addSpectator');
+  assert.equal(h.peers[0].playerId, observer.playerId); assert.equal(observer.roomCode, room.code);
+  assert.equal(room.seatOf(observer.playerId), null); assert.equal(room.spectators.length, 1);
+  h.peers[0].work.resolve({ ok: true });
+  assert.deepEqual(await added, { ok: true }); assert.deepEqual(await repeat, { ok: true });
+  assert.ok(observer.messages.filter(m => m.t === 'room.state').every(m => m.code === room.code));
+  assert.equal(observer.messages.some(m => m.t === 'm.private'), false);
+  assert.equal(h.lobby.join(observer, { code: oldRooms[1].code }).error, ERR.ROOM_STARTED);
+  assert.equal(h.lobby.ready(observer, { ready: true }).error, ERR.SPECTATOR);
+  assert.equal(h.lobby.routeGame(observer, { t: 'g.infoReady' }).error, ERR.SPECTATOR);
+  const badEnd = { ...endReceipt(done, room), generation: 'stale-generation' };
+  assert.equal(h.lobby.receiveEnd(done.handle.assignmentId, badEnd), false);
+  assert.equal(h.lobby.spectatorAliases.size, 2, 'an untrusted/stale end cannot revoke the live alias');
+});
+
+test('remote party aliases preserve queued/current/solo/bad-code fences and admission failure rollback', async t => {
+  const h = harness(t), { oldRooms, room } = await matchedParties(h), queued = h.player();
+  assert.deepEqual(h.lobby.queue.join(queued, { difficulty: 'NORMAL' }), { ok: true });
+  assert.equal(h.lobby.spectate(queued, { code: oldRooms[0].code }).error, ERR.QUEUED);
+  assert.equal(h.lobby.join(queued, { code: oldRooms[0].code }).error, ERR.QUEUED);
+  assert.equal(queued.roomCode, null); assert.equal(h.lobby.queue.has(queued), true);
+  const current = h.player(), manual = h.privateRoom([current]), started = h.lobby.start(current); h.complete(); await started;
+  assert.equal(h.lobby.spectate(current, { code: oldRooms[0].code }).error, ERR.ROOM_STARTED);
+  assert.equal(h.lobby.join(current, { code: oldRooms[0].code }).error, ERR.ROOM_STARTED);
+  assert.equal(current.roomCode, manual.code);
+  const solo = h.player(); h.privateRoom([solo], 'solo');
+  assert.equal(h.lobby.spectate(h.player(), { code: solo.roomCode }).error, ERR.ROOM_FULL);
+  for (const code of ['', 'ABC', 'ABCDE', '1234']) assert.equal(h.lobby.spectate(h.player(), { code }).error, ERR.ROOM_NOT_FOUND);
+  const observer = h.player(), rejected = h.lobby.spectate(observer, { code: oldRooms[0].code });
+  assert.ok(rejected && typeof rejected.then === 'function'); h.peers.at(-1).work.resolve({ error: ERR.WRONG_PHASE });
+  assert.equal((await rejected).error, ERR.WRONG_PHASE);
+  assert.equal(observer.roomCode, null); assert.equal(room.spectatorOf(observer.playerId), null);
+  const admitted = h.lobby.spectate(observer, { code: oldRooms[1].code });
+  h.peers.at(-1).work.resolve({ ok: true }); assert.deepEqual(await admitted, { ok: true });
+  assert.equal(observer.roomCode, room.code);
+});
+
+test('alias spectator departure wins over pending remote authorization even when repeated through another source code', async t => {
+  const h = harness(t), { oldRooms, room } = await matchedParties(h), observer = h.player();
+  const added = h.lobby.spectate(observer, { code: oldRooms[0].code }), repeat = h.lobby.spectate(observer, { code: oldRooms[1].code });
+  const left = h.lobby.leave(observer);
+  assert.equal(h.peers.length, 1); assert.equal(observer.roomCode, null);
+  assert.equal(h.lobby.spectate(observer, { code: oldRooms[1].code }).error, ERR.WRONG_PHASE);
+  h.peers[0].work.resolve({ ok: true }); await flush();
+  assert.equal(h.peers.length, 2); assert.equal(h.peers[1].method, 'removeSpectator');
+  assert.deepEqual(await added, { ok: true }); assert.deepEqual(await repeat, { ok: true });
+  h.peers[1].work.resolve({ ok: true }); assert.deepEqual(await left, { ok: true });
+  assert.equal(observer.roomCode, null); assert.equal(room.spectatorOf(observer.playerId), null);
+  assert.equal(room.match.members.has(observer.playerId), false);
+});
+
+test('remote alias lifetime ends with its trusted receipt, not the room, next match or later party rematching', async t => {
+  const h = harness(t), { players, oldRooms, room, done } = await matchedParties(h), receipt = endReceipt(done, room);
+  assert.equal(h.lobby.receiveEnd(done.handle.assignmentId, receipt), true);
+  assert.equal(h.lobby.spectatorAliases.size, 0); assert.equal(h.lobby.getRoom(room.code), room); assert.equal(room.match, null);
+  for (const old of oldRooms) {
+    assert.equal(h.lobby.spectate(h.player(), { code: old.code }).error, ERR.ROOM_NOT_FOUND);
+    assert.equal(h.lobby.join(h.player(), { code: old.code }).error, ERR.ROOM_NOT_FOUND);
+  }
+  const observer = h.player(); assert.deepEqual(h.lobby.spectate(observer, { code: room.code }), { ok: true });
+  for (const player of players.slice(1)) h.lobby.ready(player, { ready: true });
+  const restarted = h.lobby.start(players[0]), second = h.complete(); assert.deepEqual(await restarted, { ok: true });
+  assert.notEqual(second.handle.assignmentId, done.handle.assignmentId);
+  assert.equal(h.lobby.receiveEnd(done.handle.assignmentId, receipt), false);
+  assert.equal(h.lobby.spectate(h.player(), { code: oldRooms[0].code }).error, ERR.ROOM_NOT_FOUND);
+  assert.equal(h.lobby.receiveEnd(second.handle.assignmentId, endReceipt(second, room)), true);
+  for (const player of players.slice(1)) h.lobby.ready(player, { ready: true });
+  const states = h.queue(players); h.accept(players, states); h.complete(); await flush();
+  const rematched = h.lobby.roomOf(players[0]); assert.notEqual(rematched, room);
+  assert.equal(observer.roomCode, rematched.code);
+  assert.deepEqual([...h.lobby.spectatorAliases.keys()], [room.code], 'only the party actually consumed in this commit becomes an alias');
+  assert.equal(h.lobby.spectate(h.player(), { code: oldRooms[0].code }).error, ERR.ROOM_NOT_FOUND);
+  const late = h.player(), added = h.lobby.spectate(late, { code: room.code });
+  h.peers.at(-1).work.resolve({ ok: true }); assert.deepEqual(await added, { ok: true });
+  assert.equal(late.roomCode, rematched.code);
+});
+
+for (const cause of ['last-human', 'dispose', 'shutdown']) test(`remote ${cause} removes aliases before destination code reuse and stale receipts`, async t => {
+  const h = harness(t), { players, oldRooms, room, done } = await matchedParties(h), observer = h.player();
+  const added = h.lobby.spectate(observer, { code: oldRooms[0].code }); h.peers.at(-1).work.resolve({ ok: true }); await added;
+  if (cause === 'last-human') for (const player of players) {
+    const left = h.lobby.leave(player); h.peers.at(-1).work.resolve({ ok: true }); assert.deepEqual(await left, { ok: true });
+  }
+  if (cause === 'dispose') h.lobby.disposeRoom(room, 'shutdown');
+  if (cause === 'shutdown') h.lobby.shutdown();
+  assert.equal(h.lobby.spectatorAliases.size, 0); assert.equal(observer.roomCode, null); assert.equal(room.disposed, true);
+  for (const old of oldRooms) assert.equal(h.lobby.spectate(h.player(), { code: old.code }).error, ERR.ROOM_NOT_FOUND);
+  if (cause !== 'shutdown') {
+    h.lobby.genCode = () => room.code;
+    const host = h.player(), fresh = h.privateRoom([host]); assert.notEqual(fresh, room); assert.equal(fresh.code, room.code);
+    const started = h.lobby.start(host), latest = h.complete(); assert.deepEqual(await started, { ok: true });
+    assert.notEqual(latest.handle.assignmentId, done.handle.assignmentId);
+    assert.equal(h.lobby.receiveEnd(done.handle.assignmentId, endReceipt(done, room)), false);
+    assert.ok(fresh.match);
+    for (const old of oldRooms) assert.equal(h.lobby.spectate(h.player(), { code: old.code }).error, ERR.ROOM_NOT_FOUND);
+  }
+});
+
+test('pending remote allocation cannot commit a destination code that became an active alias in another actual cohort', async t => {
+  const h = harness(t), first = h.group(), firstStates = h.queue(first); h.accept(first, firstStates);
+  const reservedByPreparation = h.calls[0].spec.roomCode, genCode = h.lobby.genCode;
+  h.lobby.genCode = () => reservedByPreparation;
+  const second = h.group(), old = h.privateRoom(second);
+  h.lobby.genCode = genCode;
+  const secondStates = h.queue(second); h.accept(second, secondStates); const committed = h.complete(1); await flush();
+  const destination = h.lobby.roomOf(second[0]); assert.ok(destination.match); assert.equal(old.disposed, true);
+  assert.equal(h.lobby.rooms.has(reservedByPreparation), false); assert.equal(h.lobby.spectatorRoom(reservedByPreparation), destination);
+  assert.equal(h.calls[0].context.isCurrent(), false, 'alias reservation survives the source room being consumed');
+  const aborted = h.complete(0); await flush();
+  assert.deepEqual(aborted.counts, { commit: 0, publish: 0, abort: 1 });
+  assert.deepEqual(committed.counts, { commit: 1, publish: 1, abort: 0 });
+  assert.equal(h.lobby.spectatorRoom(reservedByPreparation), destination);
+  assert.ok(first.every(player => player.roomCode === null));
+});
+
+test('solo public queue allocations do not create spectator aliases', async t => {
+  const h = harness(t), players = h.group(), states = h.queue(players); h.accept(players, states); h.complete(); await flush();
+  assert.ok(h.lobby.roomOf(players[0]).match); assert.equal(h.lobby.spectatorAliases.size, 0);
 });

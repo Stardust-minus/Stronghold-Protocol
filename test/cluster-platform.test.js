@@ -41,6 +41,30 @@ async function fixture(t, extra = {}) {
 }
 const code = expected => e => e instanceof AllocationError && e.code === expected;
 
+test('setup reroll RPC forwards one bounded revision with fixed node/actor epochs and player-only authority', async t => {
+  const f = await fixture(t), staged = await f.platform.prepare(spec('ABCD', { spectators: ['watcher'] }));
+  staged.commit(); staged.publish();
+  await f.platform.contexts.get(staged.assignmentId).publication;
+  const selected = f.peers.find(p => p.nodeId === staged.nodeId), calls = [], invoke = selected.client.call;
+  selected.client.call = async (method, payload) => {
+    if (!method.endsWith('SetupReroll')) return invoke(method, payload);
+    calls.push({ method, payload }); return method === 'requestSetupReroll' ? { error: 'BAD_TARGET' } : { ok: true };
+  };
+  assert.deepEqual(await f.platform.peer(staged.assignmentId, 'requestSetupReroll', 'ABCD-p0', 3), { error: 'BAD_TARGET' });
+  assert.deepEqual(await f.platform.peer(staged.assignmentId, 'cancelSetupReroll', 'ABCD-p0', 7), { ok: true });
+  const ctx = f.platform.contexts.get(staged.assignmentId);
+  assert.deepEqual(calls, [
+    { method: 'requestSetupReroll', payload: { assignmentId: staged.assignmentId, sessionId: 'ABCD-p0',
+      nodeGeneration: selected.generation, actorGeneration: ctx.actorGeneration, setupRevision: 3 } },
+    { method: 'cancelSetupReroll', payload: { assignmentId: staged.assignmentId, sessionId: 'ABCD-p0',
+      nodeGeneration: selected.generation, actorGeneration: ctx.actorGeneration, voteId: 7 } },
+  ]);
+  await assert.rejects(f.platform.peer(staged.assignmentId, 'requestSetupReroll', 'watcher', 0), code('NOT_MEMBER'));
+  await assert.rejects(f.platform.peer(staged.assignmentId, 'requestSetupReroll', 'ABCD-p0', -1), code('BAD_REQUEST'));
+  await assert.rejects(f.platform.peer(staged.assignmentId, 'cancelSetupReroll', 'ABCD-p0', 0), code('BAD_REQUEST'));
+  assert.equal(calls.length, 2);
+});
+
 test('platform stages every player on one node, starts privately, and only publishes after local commit', async t => {
   const f = await fixture(t);
   const input = spec('ABCD', { spectators: ['watcher'] });

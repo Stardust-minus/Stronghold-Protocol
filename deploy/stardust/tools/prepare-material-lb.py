@@ -25,6 +25,7 @@ ENTRY_KEYS = {'requestPath', 'fileName', 'bytes', 'sha256', 'mime'}
 RELEASE_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}')
 OPENI_ONLY_ALLOWLIST = frozenset({'/assets/skins/char_340_shwaz_snow_1/illustration.png'})
 MAX_MODEL_PREFIXES = 8
+MAX_OPENI_MIRRORS = 3
 MAX_ENTRIES = 100000
 OPENI_MANIFEST_KEYS = {'schemaVersion', 'release', 'fallbackBase', 'dataset', 'apiOrigin',
                        'ossOrigin', 'ossPathPrefix', 'entries', 'mirrorReleases'}
@@ -62,8 +63,9 @@ def entries(manifest, models, *, release=RELEASE, model_prefix=MODEL_PREFIX, mod
     require(isinstance(rows, list) and 0 < len(rows) <= MAX_ENTRIES, 'invalid entry count')
     result, files = {}, {}
     mirrors = manifest.get('mirrorReleases', [release])
-    require(isinstance(mirrors, list) and 0 < len(mirrors) <= 2 and len(set(mirrors)) == len(mirrors), 'invalid mirrors')
+    require(isinstance(mirrors, list) and 0 < len(mirrors) <= MAX_OPENI_MIRRORS, 'invalid mirrors')
     require(all(isinstance(m, str) and RELEASE_ID.fullmatch(m) for m in mirrors), 'invalid mirror IDs')
+    require(len(set(mirrors)) == len(mirrors), 'duplicate mirrors')
     for row in rows:
         require(isinstance(row, dict) and set(row) == ENTRY_KEYS, 'invalid entry fields')
         require(public_path(row['requestPath']) and row['requestPath'] not in result, 'invalid or duplicate path')

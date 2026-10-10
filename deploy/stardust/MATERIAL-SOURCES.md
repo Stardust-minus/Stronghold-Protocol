@@ -4,7 +4,7 @@
 
 ## 离线工具的安全合同
 - `prepare-material-lb.py` 输出固定小型 `access.lua`／`header.lua` 和 `routes.json`／`header-data.json`；**不再把全量库存编译为 Lua 表**。大型 Lua 表可能触发 LuaJIT 常量上限，`nginx -t` 不能证明运行时filter可执行。必须用实际全量尺寸执行 JSON 解码、缓存和 HTTP filter。
-- 默认单前缀、无例外及原 60/40 行为保留；新版本要同时指定 release、40hex revision、primary prefix；公开材料消费者上限为100000 aliases／64MiB输入，OpenI最多两个固定mirror、ModelScope最多三个明确批准的prefix。多前缀以重复 `--modelscope-allowed-prefix` 明示，清单 `prefixes` 必须同序、去重且 primary 在首位；所有 URL 均绑定同一个 revision 和固定公开 repo/origin。
+- 默认单前缀、无例外及原 60/40 行为保留；新版本要同时指定 release、40hex revision、primary prefix；公开材料消费者上限为100000 aliases／64MiB输入，OpenI最多三个明确审核、固定且去重的mirror目录，保持单／双目录兼容并拒绝第四个；本次只增加已有两目录之外的固定0.2.3增量目录，不提供自动发现或任意host/root/path。ModelScope现有上限仍为八个明确批准的prefix。多前缀以重复 `--modelscope-allowed-prefix` 明示，清单 `prefixes` 必须同序、去重且 primary 在首位；所有 URL 均绑定同一个 revision 和固定公开 repo/origin。
 - `--openi-only-path` 仅允许 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 这一精确批准的素材例外，且必须与 MS 清单 `openiOnlyPaths` 一致、存在于 OI 库存。MS alias 集合必须正好为 OI 集合减该例外；普通条目的 bytes／SHA／MIME 逐项一致。未知根字段、额外缺项、其他例外或未认可前缀均拒绝。
 - 例外在 routes 中保留为 `false`，只允许该已明示路径直接进入 OI；未知路径的 `nil` 仍拒绝。例外的 header entry 不包含 ModelScope target，因此伪造 MS Location 不能得到公开缓存。JSON 只读取／解码一次，错误数据也缓存为拒绝，避免重复解析大文件。
 - `uploadVerified=true` 仍要求真实 assigned 远端库存证据，不是执行上传命令成功；复用固定 pin 的完整 metadata 审计与全量正文重下载须分别表述。镜像数量限制、私有门禁、签名寿命、CORS、HEAD／OPTIONS／回退合同没有放宽。
@@ -18,7 +18,7 @@
 | 源 | 配套要求（不是实际部署坐标） |
 |---|---|
 | ModelScope | 批准的公开数据集、immutable prefix和完整40hex固定revision，不用可变master |
-| OpenI | 最多两个固定mirror；签名、安全校验、singleflight及有界失败回退见[OPENI.md](OPENI.md) |
+| OpenI | 最多三个明确审核的固定mirror目录，拒绝第四个；不放宽host/root/path，签名、安全校验、singleflight及有界失败回退见[OPENI.md](OPENI.md) |
 | 静态回退源 | 同版本完整目录；可继续供给fonts/vendor/PRTS，普通GET权重0不等于停用 |
 
 解析器容器清单挂载为 `/run/config/openi-assets.json`。宿主来源应使用新revision-suffixed文件，例如 `openi-assets-<SOURCE_REVISION>.json`；必须核对实际mount、完整库存及摘要，不能凭文件名或旧记录推断。

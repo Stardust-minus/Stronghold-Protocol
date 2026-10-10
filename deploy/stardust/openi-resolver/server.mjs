@@ -11,6 +11,7 @@ const DATASET = 'Stardust_minus/arknight_assets';
 const DEFAULT_MANIFEST = '/run/config/openi-assets.json';
 export const MAX_MANIFEST_ENTRIES = 100000;
 export const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
+export const MAX_OPENI_MIRRORS = 3;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/;
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f]/;
 const EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'atlas', 'skel', 'obj', 'mtl', 'json',
@@ -56,7 +57,7 @@ export function validateManifest(manifest) {
   keys(manifest, ['schemaVersion', 'release', 'dataset', 'apiOrigin', 'ossOrigin', 'ossPathPrefix', 'fallbackBase', 'entries',
     ...(reuse ? ['mirrorReleases'] : [])]);
   const approved = reuse ? manifest.mirrorReleases : null;
-  if (reuse && (!Array.isArray(approved) || approved.length < 1 || approved.length > 2 ||
+  if (reuse && (!Array.isArray(approved) || approved.length < 1 || approved.length > MAX_OPENI_MIRRORS ||
     approved.some(id => typeof id !== 'string' || !ID.test(id)) || new Set(approved).size !== approved.length)) fail('CONFIG');
   if (manifest.schemaVersion !== 1 || typeof manifest.release !== 'string' || !ID.test(manifest.release) ||
     manifest.dataset !== DATASET || manifest.apiOrigin !== API_ORIGIN || manifest.ossOrigin !== OSS_ORIGIN ||

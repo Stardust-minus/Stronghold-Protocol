@@ -191,3 +191,6 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
   .lobby-dialog .micro { font-size: 10px; }
 
 }
+
+.rotate-hint__pwa { pointer-events: auto; margin-top: 6px; }
+.rotate-hint__pwa[hidden] { display: none; }

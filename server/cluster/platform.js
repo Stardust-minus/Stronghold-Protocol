@@ -357,7 +357,7 @@ export class RemoteGamePlatform {
   async memberOperation(assignmentId, method, sessionId, loadout, ops = undefined) {
     const ctx = this.contexts.get(assignmentId);
     if (!ctx || ctx.state !== 'published' || !safeId(sessionId)
-      || !['leave', 'removeSpectator', 'addSpectator', 'setLoadout', 'setSkins'].includes(method)) throw new AllocationError('STALE_ASSIGNMENT');
+      || !['leave', 'removeSpectator', 'addSpectator', 'setLoadout', 'setSkins', 'requestSetupReroll', 'cancelSetupReroll'].includes(method)) throw new AllocationError('STALE_ASSIGNMENT');
     const removing = ['leave', 'removeSpectator'].includes(method);
     const role = ctx.members.get(sessionId) ?? (removing ? ctx.revokedMembers.get(sessionId) : undefined);
     if (removing) {
@@ -394,6 +394,11 @@ export class RemoteGamePlatform {
       return result;
     }
     if (role !== 'player') throw new AllocationError('NOT_MEMBER');
+    const setupField = method === 'requestSetupReroll' ? 'setupRevision' : method === 'cancelSetupReroll' ? 'voteId' : null;
+    if (setupField) {
+      if (!Number.isInteger(loadout) || loadout < (setupField === 'voteId' ? 1 : 0) || loadout > 2 ** 31) throw new AllocationError('BAD_REQUEST');
+      return ctx.node.client.call(method, { ...this.memberPayload(ctx, sessionId), [setupField]: loadout });
+    }
     return ctx.node.client.call(method, { ...this.memberPayload(ctx, sessionId),
       ...(method === 'setSkins' ? { choices: loadout } : { loadout, ...(ops === undefined ? {} : { ops }) }) });
   }

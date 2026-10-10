@@ -9,6 +9,7 @@ import { uniteSurvivors } from '../unite.js';
 import { buildResult } from '../results.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg } from '../../../shared/i18n.js';
+import { onSettle, resetRoundCounters } from '../botEmotes.js';
 
 export class MatchSettle {
   settle(plan, uniteResult) {
@@ -91,6 +92,7 @@ export class MatchSettle {
     this.setDeadline(rescue ? REVIVAL_WINDOW_SECONDS : DELAYS.SETTLE / 1000, () => this.afterSettle({ reason: 'window-expired' }), { silent: !rescue && this.soloUntimed });
     if (rescue) { this._revival.windowOpen = true; this._revival.deadline = this.deadline; }
     this.markPublic();
+    onSettle(this); // one emote per alive AI per round (enabled by default; SP_BOT_EMOTES=0 silences it)
   }
 
   /**
@@ -121,6 +123,7 @@ export class MatchSettle {
     // A forced transition without that provenance is classified from the original deadline instead.
     this._finalizePendingDeaths({ reason });
     if (!this.alivePlayers().length) { this.finish({ victory: false, reason: 'eliminated' }); return; }
+    resetRoundCounters(this); // AI bot merge-counter resets each round (server/match/botEmotes.js)
     this.startRound(this.round + 1);
   }
 

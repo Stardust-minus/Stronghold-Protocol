@@ -381,10 +381,60 @@ class PrepareTests(unittest.TestCase):
                          TOOL.MODEL_BASE + 'assets/other/pixel.png')
         self.assertIn(b'["old-mirror"] = true', files['header.lua'])
 
-    def test_mirror_quantity_limit_is_not_relaxed(self):
+    def test_three_reviewed_mirrors_keep_exact_targets_and_reject_four(self):
+        self.assertEqual(TOOL.MAX_OPENI_MIRRORS, 3)
         openi, models = fixture()
-        openi['mirrorReleases'] = [TOOL.RELEASE, 'old-mirror', 'third-mirror']
+        mirrors = [TOOL.RELEASE, 'old-second-fixture', 'v023-delta-fixture']
+        openi['mirrorReleases'] = mirrors
+        for mirror, row in zip(mirrors, openi['entries']):
+            row['fileName'] = 'releases/' + mirror + '/' + row['fileName'].split('/', 2)[2]
+        files = TOOL.render(openi, models, CONTAINER)
+        headers = json.loads(files['header-data.json'])
+        routes = json.loads(files['routes.json'])
+        self.assertEqual((routes['modelscopeWeight'], routes['openiWeight'], routes['ningxiaWeight']), (60, 40, 0))
+        for mirror, row in zip(mirrors, openi['entries']):
+            self.assertEqual(headers['entries'][row['requestPath']]['fileName'], row['fileName'])
+            self.assertIn(('[' + json.dumps(mirror) + '] = true').encode(), files['header.lua'])
+        self.assertNotIn(b'fourth-fixture', files['header.lua'])
+        openi['mirrorReleases'] = mirrors + ['fourth-fixture']
         with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER)
+
+    def test_three_mirror_validation_does_not_allow_arbitrary_hosts_roots_or_objects(self):
+        for mirrors in ([TOOL.RELEASE, 'old', 'https://evil.test/delta'], [TOOL.RELEASE, 'old', '../delta'],
+                        [TOOL.RELEASE, 'old', 'releases/delta'], [TOOL.RELEASE, 'old', 'old'],
+                        [TOOL.RELEASE, 'old', []]):
+            with self.subTest(mirrors=mirrors):
+                openi, models = fixture()
+                openi['mirrorReleases'] = mirrors
+                with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER)
+        for target in ('releases/fourth-fixture/assets/test/pixel.png', 'other/v023-delta-fixture/assets/test/pixel.png',
+                       'https://evil.test/releases/v023-delta-fixture/assets/test/pixel.png',
+                       'releases/v023-delta-fixture/data/test/pixel.png'):
+            with self.subTest(target=target):
+                openi, models = fixture()
+                openi['mirrorReleases'] = [TOOL.RELEASE, 'old-second-fixture', 'v023-delta-fixture']
+                openi['entries'][0]['fileName'] = target
+                with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER)
+        openi, models = fixture()
+        openi['mirrorReleases'] = [TOOL.RELEASE]
+        self.assertEqual(TOOL.render(openi, models, CONTAINER), TOOL.render(*fixture(), CONTAINER),
+                         'explicit single mirror and legacy default remain byte-identical')
+
+    def test_modelscope_existing_eight_prefix_bound_is_not_expanded(self):
+        self.assertEqual(TOOL.MAX_MODEL_PREFIXES, 8)
+        for count in (4, 8, 9):
+            with self.subTest(count=count):
+                openi, models = fixture()
+                prefixes = ['releases/model-prefix-fixture-' + str(index) for index in range(count)]
+                models.update(prefix=prefixes[0], prefixes=prefixes, revision='c' * 40)
+                for index, row in enumerate(models['entries']):
+                    row['fileName'] = prefixes[index % count] + '/' + row['fileName'].split('/', 2)[2]
+                options = dict(model_revision='c' * 40, model_prefix=prefixes[0], model_prefixes=prefixes)
+                if count > TOOL.MAX_MODEL_PREFIXES:
+                    with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER, **options)
+                else:
+                    data = json.loads(TOOL.render(openi, models, CONTAINER, **options)['routes.json'])
+                    self.assertEqual(len(data['modelscopeBases']), count)
 
     def test_manifest_root_and_schema_types(self):
         openi, models = fixture()

@@ -14,6 +14,8 @@ SPEC = importlib.util.spec_from_file_location('cluster_generated_assets', Path(_
 assets = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(assets)
 HEX40 = re.compile(r'[a-f0-9]{40}')
+APP_ICON_FILES = ('app-192.png', 'app-512.png', 'app-maskable-192.png', 'app-maskable-512.png',
+                  'app.svg', 'apple-touch-icon.png', 'favicon-16.png', 'favicon-32.png', 'favicon-48.png', 'favicon.ico')
 AUTH_FILES = ('name-policy.mjs', 'name-dictionary.mjs', 'name-sensitive-dictionary.mjs',
               'name-filter-vendor.mjs', 'name-filter-node.mjs', 'NAME-DICTIONARY-LICENSE.txt',
               'NAME-FILTER-LICENSE.txt', 'NAME-CATEGORIES-LICENSE.txt', 'NAME-POLITICAL-LICENSE.txt')
@@ -28,7 +30,8 @@ def canonical(value):
 
 
 def code_path(name):
-    return name in ('package.json', 'package-lock.json', 'public/index.html') \
+    return name in ('package.json', 'package-lock.json', 'public/index.html', 'public/manifest.json') \
+        or name in tuple('public/icons/' + file for file in APP_ICON_FILES) \
         or name.startswith(('server/', 'shared/', 'data/', 'public/js/', 'public/css/')) \
         or re.fullmatch(r'public/i18n/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\.json', name) is not None \
         or name in tuple('deploy/stardust/auth/' + file for file in AUTH_FILES)

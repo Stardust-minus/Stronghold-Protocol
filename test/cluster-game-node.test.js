@@ -113,6 +113,58 @@ async function fixture(t, options = {}) {
 }
 
 // Real loopback HTTP/WS; no pool creation, external service or production traffic.
+test('guarded setup reroll RPC and direct human votes mutate one real actor, never spectator or stale epochs', async t => {
+  const real = [];
+  class RealMatch extends Match { constructor(opts) { super({ ...opts, now: f.now }); real.push(this); } }
+  const data = { chess: { chess_fixture: { chessId: 'chess_fixture', visible: true, tier: 1, bonds: [] } } };
+  const f = await fixture(t, { MatchClass: RealMatch, data, streamMarkers: true });
+  const { p1, p2, s1 } = await f.start(), actor = f.node.gameHost.get('allocation-a');
+  const member = { assignmentId: actor.assignmentId, sessionId: 'p1', nodeGeneration: 'node-generation-1', actorGeneration: actor.generation };
+  for (const change of [{ nodeGeneration: 'old-node' }, { actorGeneration: actor.generation + 1 },
+    { nodeGeneration: undefined }, { setupRevision: -1 }, { setupRevision: '0' }]) {
+    await assert.rejects(f.rpc.call('requestSetupReroll', { ...member, setupRevision: 0, ...change }),
+      error => ['STALE_ASSIGNMENT', 'BAD_REQUEST'].includes(error.code));
+  }
+  assert.deepEqual(await f.rpc.call('requestSetupReroll', { ...member, sessionId: 's1', setupRevision: 0 }), { error: ERR.SPECTATOR });
+  assert.equal(real[0].setupVote, null);
+  assert.deepEqual(await f.rpc.call('requestSetupReroll', { ...member, setupRevision: 0 }), { ok: true });
+  const vote = (await p1.wait('m.public', m => m.rerollVote)).rerollVote.id;
+  s1.send({ t: 'g.rerollVote', voteId: vote, agree: true, rid: 91 });
+  assert.equal((await s1.wait('error', m => m.rid === 91)).code, ERR.SPECTATOR);
+  p1.send({ t: 'room.rerollSetup', setupRevision: 0, rid: 92 });
+  assert.equal((await p1.wait('error', m => m.rid === 92)).code, ERR.BAD_MSG);
+  assert.equal((await f.rpc.call('cancelSetupReroll', { ...member, voteId: vote + 1 })).error, ERR.BAD_TARGET);
+  assert.deepEqual(await f.rpc.call('cancelSetupReroll', { ...member, voteId: vote }), { ok: true });
+  assert.equal(real[0].setupRevision, 0); assert.equal(real[0].setupVote, null);
+  f.advance(300);
+  assert.deepEqual(await f.rpc.call('requestSetupReroll', { ...member, setupRevision: 0 }), { ok: true });
+  const nextVote = real[0].setupVote.id;
+  p2.send({ t: 'g.rerollVote', voteId: nextVote, agree: true, rid: 93 });
+  await p2.wait('ok', m => m.rid === 93);
+  await p1.wait('m.public', m => m.setupRevision === 1);
+  assert.equal(real[0].setupRevision, 1);
+  p2.send({ t: 'g.infoReady', setupRevision: 0, rid: 94 });
+  assert.equal((await p2.wait('error', m => m.rid === 94)).code, ERR.BAD_TARGET);
+  f.advance(300);
+  assert.deepEqual(await f.rpc.call('requestSetupReroll', { ...member, setupRevision: 1 }), { ok: true });
+  p2.ws.terminate(); await p2.closed;
+  await p1.wait('m.public', m => m.setupRevision === 1 && m.rerollVote === null && m.players.some(p => p.playerId === 'p2' && !p.connected));
+  assert.equal(real[0].setupVote, null, 'actual game-channel disconnect cancels consent');
+  assert.equal((await f.rpc.call('requestSetupReroll', { ...member, setupRevision: 1 })).error, ERR.NOT_READY);
+  assert.equal(s1.log.some(m => m.t === 'm.private' || m.t === 'm.unitStats'), false);
+  assert.equal(real.length, 1);
+});
+
+test('setup reroll RPC requires both epochs even on a legacy stream without cluster markers', async t => {
+  const f = await fixture(t); await f.start();
+  const request = { assignmentId: 'allocation-a', sessionId: 'p1', setupRevision: 0 };
+  await assert.rejects(f.rpc.call('requestSetupReroll', request), code('BAD_REQUEST'));
+  const actor = f.node.gameHost.get('allocation-a');
+  assert.deepEqual(await f.rpc.call('requestSetupReroll', { ...request, nodeGeneration: 'node-generation-1', actorGeneration: actor.generation }),
+    { error: ERR.WRONG_PHASE }, 'a legacy actor missing reroll support does not acknowledge success');
+  await assert.rejects(f.rpc.call('cancelSetupReroll', { assignmentId: 'allocation-a', sessionId: 'p1', voteId: 1 }), code('BAD_REQUEST'));
+});
+
 test('active game pongs retain safe cached load details and diagnostic failures cannot break heartbeat', async t => {
   const f = await fixture(t, { getLoadState: () => 'busy', getLoadDetails: () => ({ windowMs: 10000, ageMs: 1,
     cpuPercent: 123, rssMiB: 200, heapMiB: 30, eluPercent: 80, p95Ms: 22, p99Ms: 30,

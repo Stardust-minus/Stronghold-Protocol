@@ -40,6 +40,7 @@ import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, setNotO
 import { serializeOperatorPreset, parseOperatorPreset, OPERATOR_PRESET_MAX_BYTES } from '../ui/operatorPresetModel.js';
 import { SkinPicker } from '../ui/skinPicker.js';
 import { ownAppearance } from '../ui/skinAssets.js';
+import { OperatorVoice } from '../ui/operatorVoice.js';
 import { CultivationSelects, CultivationSection } from './cultivation.js';
 import { atPotential } from '../../../shared/potential.js';
 import { setOwned, notOwnedCount } from '../ui/ownershipModel.js';
@@ -390,6 +391,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
     </div>
     <div class="lo-detail__body" ref=${bodyRef}>
       <${SkinPicker} m=${m} charId=${chess.charId} record=${golden || chess} choices=${skins} sync=${skinSync} onChange=${setSkins} locked=${locked} />
+      <${OperatorVoice} charId=${chess.charId} />
       <${CultivationSection} charId=${chess.charId} ops=${ops} onSet=${onOps} standIn=${notOwned} />
       <${LoadoutGarrisons} chess=${level === 'elite' && golden ? golden : chess} m=${m} />
       <section class="lo-sec">

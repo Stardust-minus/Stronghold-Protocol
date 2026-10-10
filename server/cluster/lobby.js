@@ -123,6 +123,8 @@ class PreparedRemoteMatch {
       .then(result => { this.pendingSpectatorRemovals.delete(playerId); return result; });
     return this.lastMutation;
   }
+  requestSetupReroll(playerId, revision) { return this.peer('requestSetupReroll', playerId, revision); }
+  cancelSetupReroll(playerId, voteId) { return this.peer('cancelSetupReroll', playerId, voteId); }
   setLoadout(playerId, loadout, ops = undefined) {
     this.loadoutSequence++;
     this.lastLoadout = this.peer('setLoadout', playerId, loadout, ops);
@@ -275,7 +277,7 @@ export class ClusterLobby extends Lobby {
     let plan;
     const valid = () => {
       try {
-        if (this.clusterClosed || this.rooms.has(code)) return false;
+        if (this.clusterClosed || this.rooms.has(code) || this.spectatorAliases.has(code)) return false;
         const current = this.collectMatchmade(sessions, difficulty, context);
         if (!sameSet(current.oldRooms, initial.oldRooms) || !sameSet(current.keys, initial.keys)
           || !isDeepStrictEqual(current.spectators, initial.spectators) || !sameExperimental(current.experimental, initial.experimental)) return false;
@@ -402,6 +404,8 @@ export class ClusterLobby extends Lobby {
     synchronous(plan.handle.publish()); // Then let the ingress release node startup frames.
     plan.published = true; plan.detach(); clearTimeout(plan.timer);
     this.assignments.set(plan.spec.assignmentId, plan);
+    // Bind only after committed membership and successful publication. The exact ctx pins the remote proxy/assignment.
+    this.bindSpectatorAliases(plan.oldRooms, plan.room);
     // Clear old timers only at final publication, never during rollback-capable commit.
     for (const old of plan.oldRooms) for (const s of [...old.activeHumans(), ...old.spectators]) { this.clearGrace(s.playerId); this.clearResync(s.playerId); }
     return OK;
@@ -482,7 +486,7 @@ export class ClusterLobby extends Lobby {
     return !result.error && match instanceof PreparedRemoteMatch && match.mutationSequence !== before ? match.lastMutation : result;
   }
   spectate(session, message) {
-    const room = this.getRoom(String(message.code).trim()), match = room?.match, before = match?.mutationSequence;
+    const room = this.spectatorRoom(message.code), match = room?.match, before = match?.mutationSequence;
     if (match instanceof PreparedRemoteMatch && match.pendingSpectatorRemovals.has(session.playerId)) return fail(ERR.WRONG_PHASE);
     if (match instanceof PreparedRemoteMatch && session.roomCode === room.code && match.pendingSpectators.has(session.playerId)) {
       return match.pendingSpectators.get(session.playerId);

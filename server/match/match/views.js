@@ -78,6 +78,13 @@ export class MatchViews {
       difficulty: this.difficulty,
       experimental: { ...this.experimental },
       stageId: this.stageId,
+      setupRevision: this.setupRevision,
+      rerollVote: this.setupVote ? {
+        id: this.setupVote.id,
+        proposerId: this.setupVote.proposerId,
+        voters: this.setupVote.voters.slice(),
+        agreed: [...this.setupVote.agreed],
+      } : null,
       factions: this.factions.slice(),
       disabledBonds: [...new Set([...this.disabledBonds, ...this.staticInactiveBonds])].sort(),
       drawnDisabledBonds: this.disabledBonds.slice(),

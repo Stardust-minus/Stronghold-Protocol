@@ -4,7 +4,7 @@ import http from 'node:http';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import OpenIResolver, { requestPath, validateManifest, validateDestination, startServer } from '../server.mjs';
+import OpenIResolver, { requestPath, validateManifest, validateDestination, startServer, MAX_OPENI_MIRRORS } from '../server.mjs';
 
 const NOW = 1791072000000;
 const MIRROR = 'v012-openi-test';
@@ -132,6 +132,56 @@ test('immutable byte reuse requires an exact bounded explicit mirror allowlist',
     } });
   for (const e of values) assert.equal((await resolver.resolve(e.requestPath)).location, signed(manifest(values), e.fileName));
   assert.deepEqual(calls, values.map(e => e.fileName));
+});
+
+test('three reviewed mirrors accept a fixed delta but reject a fourth, undeclared objects and arbitrary hosts/roots', () => {
+  assert.equal(MAX_OPENI_MIRRORS, 3);
+  assert.deepEqual(validateManifest({ ...manifest(), mirrorReleases: [MIRROR] }).mirrorReleases, [MIRROR]);
+  const mirrors = [MIRROR, 'old-second-fixture', 'v023-delta-fixture'];
+  const values = mirrors.map((mirror, i) => entry(`/assets/mirror_${i}.png`, `releases/${mirror}/assets/mirror_${i}.png`));
+  const input = { ...manifest(values), mirrorReleases: mirrors };
+  assert.deepEqual(validateManifest(input).mirrorReleases, mirrors);
+  const fourth = 'fourth-fixture';
+  assert.throws(() => validateManifest({ ...manifest([...values, entry('/assets/fourth.png', `releases/${fourth}/assets/fourth.png`)]),
+    mirrorReleases: [...mirrors, fourth] }), { message: 'CONFIG' });
+  for (const invalid of ['../delta', 'https://evil.test/delta', 'releases/delta', '.hidden']) {
+    assert.throws(() => validateManifest({ ...input, mirrorReleases: [MIRROR, mirrors[1], invalid] }), { message: 'CONFIG' });
+  }
+  for (const fileName of ['releases/unapproved/assets/mirror_2.png', 'other/v023-delta-fixture/assets/mirror_2.png',
+    'https://evil.test/releases/v023-delta-fixture/assets/mirror_2.png', 'releases/v023-delta-fixture/data/mirror_2.png']) {
+    assert.throws(() => validateManifest({ ...input, entries: [...values.slice(0, 2), { ...values[2], fileName }] }), { message: 'CONFIG' });
+  }
+  assert.throws(() => validateManifest({ ...input, mirrorReleases: [MIRROR, mirrors[1], mirrors[1]] }), { message: 'CONFIG' });
+  assert.throws(() => validateManifest({ ...input, entries: values.slice(0, 2) }), { message: 'CONFIG' }, 'unused declared mirrors still fail');
+});
+
+test('native mounted three-mirror JSON resolves each exact directory and rejects unknown paths without provider calls', async t => {
+  const mirrors = [MIRROR, 'old-second-fixture', 'v023-delta-fixture'];
+  const values = mirrors.map((mirror, i) => entry(`/assets/mirror_${i}.png`, `releases/${mirror}/assets/mirror_${i}.png`));
+  const config = { ...manifest(values), mirrorReleases: mirrors };
+  const directory = await mkdtemp(join(tmpdir(), 'openi-three-mirror-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const manifestPath = join(directory, 'manifest.json');
+  await writeFile(manifestPath, JSON.stringify(config));
+  const calls = [];
+  const app = await startServer({ manifestPath, host: '127.0.0.1', port: 0, prewarm: false, clock: () => NOW, maxRetries: 0,
+    fetchImpl: async target => {
+      const fileName = new URL(target).searchParams.get('file_name'); calls.push(fileName);
+      return response(signed(config, fileName));
+    } });
+  t.after(() => app.close());
+  const base = 'http://127.0.0.1:' + app.server.address().port;
+  for (const value of values) {
+    const result = await rawRequest(base, value.requestPath);
+    assert.equal(result.status, 302);
+    assert.equal(result.headers['cache-control'], 'no-store');
+    assert.equal(decodeURIComponent(new URL(result.headers.location).pathname), config.ossPathPrefix + value.fileName);
+  }
+  assert.deepEqual(calls, values.map(value => value.fileName));
+  for (const path of ['/assets/unlisted.png', '/releases/fourth-fixture/assets/mirror_2.png', '/data/assets.json']) {
+    assert.equal((await rawRequest(base, path)).status, 404);
+  }
+  assert.equal(calls.length, 3, 'unknown roots/paths must not select new mirrors or contact the provider');
 });
 
 test('a cached exact capability is reused, with no client query or headers in the public API call', async t => {

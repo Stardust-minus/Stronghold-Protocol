@@ -58,6 +58,31 @@ function fixture(t, options = {}) {
 }
 
 // Tests exercise only the actor, with no HTTP/WS listeners or Worker pools.
+test('setup reroll actor hooks preserve role, phase, transport, value and synchronous-result fences', t => {
+  const f = fixture(t, { construct: m => {
+    m.requestSetupReroll = (id, revision) => { m.calls.push(['requestSetupReroll', id, revision]); return { error: ERR.BAD_TARGET }; };
+    m.cancelSetupReroll = (id, voteId) => { m.calls.push(['cancelSetupReroll', id, voteId]); return { ok: true }; };
+  } });
+  const handle = f.prepare(), channels = f.bindAll(), id = handle.assignmentId;
+  assert.equal(f.host.rerollSetup(id, 'p1', 0).error, ERR.WRONG_PHASE);
+  f.host.commit(id);
+  assert.equal(f.host.rerollSetup(id, 's1', 0).error, ERR.SPECTATOR);
+  assert.equal(f.host.rerollSetup(id, 'stranger', 0).error, ERR.NOT_IN_ROOM);
+  assert.equal(f.host.rerollSetup(id, 'p1', -1).error, ERR.BAD_MSG);
+  assert.equal(f.host.rerollSetup(id, 'p1', 0, true).error, ERR.BAD_MSG);
+  assert.deepEqual(f.host.rerollSetup(id, 'p1', 3), { error: ERR.BAD_TARGET });
+  assert.deepEqual(f.host.rerollSetup(id, 'p1', 7, true), { ok: true });
+  const replacement = channel(); f.host.bind(id, 'p1', replacement);
+  assert.equal(f.host.rerollSetup(id, 'p1', 4, false, channels.p1).error, ERR.NOT_IN_ROOM);
+  assert.deepEqual(f.matches[0].calls.filter(c => c[0].endsWith('SetupReroll')), [
+    ['requestSetupReroll', 'p1', 3], ['cancelSetupReroll', 'p1', 7],
+  ]);
+  delete f.matches[0].requestSetupReroll;
+  assert.equal(f.host.rerollSetup(id, 'p1', 0).error, ERR.WRONG_PHASE, 'missing feature never fabricates success');
+  f.matches[0].requestSetupReroll = () => Promise.resolve({ ok: true });
+  assert.equal(f.host.rerollSetup(id, 'p1', 0).error, ERR.INTERNAL);
+});
+
 test('prepare constructs silently; commit publishes buffered copies once and is idempotent', t => {
   const frame = { t: 'm.public', phase: 'constructed', nested: { n: 1 } };
   const { host, matches, prepare, bindAll } = fixture(t, { construct: m => m.opts.broadcast(frame),

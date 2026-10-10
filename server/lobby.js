@@ -293,6 +293,8 @@ export class Lobby {
     this.opts = { ...LOBBY_DEFAULTS, ...options };
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
+    /** Consumed party codes are spectator-only aliases for one exact live match context. */
+    this.spectatorAliases = new Map();
     /** @type {Map<string, NodeJS.Timeout>} lobby grace timers by playerId */
     this.graceTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} deferred (coalesced) resyncs by playerId */
@@ -313,6 +315,32 @@ export class Lobby {
 
   /** @param {string} code @returns {Room | null} */
   getRoom(code) { return this.rooms.get(String(code).toUpperCase()) || null; }
+
+  /** Only spectator lookup follows a consumed party code; never follow it into another room/match incarnation. */
+  spectatorRoom(code) {
+    const norm = String(code).trim().toUpperCase();
+    if (norm.length !== ROOM_CODE_LEN) return null;
+    const room = this.rooms.get(norm);
+    if (room) return room;
+    const alias = this.spectatorAliases.get(norm);
+    if (!alias) return null;
+    const { room: destination, ctx } = alias;
+    if (!destination.disposed && this.rooms.get(destination.code) === destination && destination.match
+      && destination.matchCtx === ctx && destination.match === ctx.match && ctx.live && !ctx.ended && !ctx.disposed) return destination;
+    this.spectatorAliases.delete(norm);
+    return null;
+  }
+
+  bindSpectatorAliases(oldRooms, room) {
+    const ctx = room.matchCtx;
+    if (room.disposed || this.rooms.get(room.code) !== room || !room.match || room.match !== ctx?.match
+      || !ctx.live || ctx.ended || ctx.disposed) return;
+    for (const old of oldRooms) this.spectatorAliases.set(old.code, { room, ctx });
+  }
+
+  clearSpectatorAliases(ctx) {
+    for (const [code, alias] of this.spectatorAliases) if (alias.ctx === ctx) this.spectatorAliases.delete(code);
+  }
 
   /** Counters for /healthz. */
   stats() {
@@ -434,6 +462,8 @@ export class Lobby {
       case 'room.removeBot': return this.removeBot(session, msg);
       case 'room.kick': return this.kick(session, msg);
       case 'room.start': return this.start(session);
+      case 'room.rerollSetup': return this.rerollSetup(session, msg);
+      case 'room.cancelReroll': return this.rerollSetup(session, msg, true);
       case 'room.loadout': return this.loadout(session, msg);
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
@@ -487,6 +517,7 @@ export class Lobby {
     this.presenceTimer = null;
     this.online.clear();
     for (const room of [...this.rooms.values()]) this.disposeRoom(room, reason);
+    this.spectatorAliases.clear();
     for (const t of this.graceTimers.values()) clearTimeout(t);
     this.graceTimers.clear();
     for (const t of this.resyncTimers.values()) clearTimeout(t);
@@ -532,7 +563,13 @@ export class Lobby {
   join(session, { code }) {
     const norm = String(code).trim().toUpperCase();
     const room = norm.length === ROOM_CODE_LEN ? this.rooms.get(norm) : undefined;
-    if (!room) return fail(ERR.ROOM_NOT_FOUND);
+    if (!room) {
+      const aliasRoom = this.spectatorRoom(norm);
+      if (!aliasRoom) return fail(ERR.ROOM_NOT_FOUND);
+      if (aliasRoom.capacity > MAX_SEATS && !this.supportsCapacity(session)) return fail(ERR.BAD_MSG);
+      if (this.queue.has(session)) return fail(ERR.QUEUED);
+      return fail(ERR.ROOM_STARTED); // The client must explicitly confirm spectating; never admit a player via an alias.
+    }
     if (room.capacity > MAX_SEATS && !this.supportsCapacity(session)) return fail(ERR.BAD_MSG);
     const cur = this.roomOf(session);
     // idempotent for players; a spectator may take a free player seat below, but never while the party is queued
@@ -570,8 +607,7 @@ export class Lobby {
    * running match the match registers the spectator and resends what it may see (Match.addSpectator).
    */
   spectate(session, { code }) {
-    const norm = String(code).trim().toUpperCase();
-    const room = norm.length === ROOM_CODE_LEN ? this.rooms.get(norm) : undefined;
+    const room = this.spectatorRoom(code);
     if (!room) return fail(ERR.ROOM_NOT_FOUND);
     if (room.capacity > MAX_SEATS && !this.supportsCapacity(session)) return fail(ERR.BAD_MSG);
     const cur = this.roomOf(session);
@@ -776,6 +812,17 @@ export class Lobby {
     return this.startMatch(room, key, room.ownerKeys ? keys : null);
   }
 
+  /** Host authorization stays in the lobby; the match owns the vote and setup. */
+  rerollSetup(session, msg, cancel = false) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    const method = cancel ? 'cancelSetupReroll' : 'requestSetupReroll';
+    if (!room.match || typeof room.match[method] !== 'function') return fail(ERR.WRONG_PHASE);
+    return this.callMatch(room, method, session.playerId, cancel ? msg.voteId : msg.setupRevision) || fail(ERR.INTERNAL);
+  }
+
   /**
    * room.loadout (DESIGN §16): check the operator loadout — and its per-operator 潜能 / 练度 `ops` (0.2.2) — against the
    * game data, store both on the session and the seat, and — while a match runs — hand them to the match (accepted only
@@ -918,6 +965,7 @@ export class Lobby {
     for (const session of [...sessions, ...spectators.map((s) => this.registry.byId(s.playerId))]) {
       session.roomCode = code; session.notice = null; session.pendingResult = null;
     }
+    this.bindSpectatorAliases(oldRooms, room);
     return { code, publish: result.publish };
   }
 
@@ -1097,6 +1145,7 @@ export class Lobby {
   onMatchEnd(room, ctx, summary) {
     if (ctx.ended || !ctx.live || room.matchCtx !== ctx || room.disposed) return;
     ctx.ended = true;
+    this.clearSpectatorAliases(ctx);
     room.lastSummary = summary ?? null;
     room.match = null;
     room.matchCtx = null;
@@ -1275,6 +1324,7 @@ export class Lobby {
 
   disposeMatchCtx(ctx) {
     if (ctx.disposed) return;
+    this.clearSpectatorAliases(ctx);
     ctx.disposed = true;
     ctx.live = false;
     try { ctx.match?.dispose?.(); } catch (e) { this.log.error('[lobby] match.dispose threw', e); }
@@ -1435,7 +1485,7 @@ export class Lobby {
     for (let attempt = 0; attempt < 1000; attempt++) {
       let code = '';
       for (let i = 0; i < ROOM_CODE_LEN; i++) code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
-      if (!this.rooms.has(code)) return code;
+      if (!this.rooms.has(code) && !this.spectatorAliases.has(code)) return code;
     }
     return null;
   }

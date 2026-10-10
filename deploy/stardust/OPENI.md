@@ -60,6 +60,6 @@ MP3 远端名映射为 `media/<stem>`，不带扩展名；所有对应的 `/asse
 
 ## 多源与验证边界
 
-公开材料消费者限额为100000 aliases／64MiB输入，OpenI最多两个固定mirror、ModelScope最多三个明确批准的prefix。唯一批准的素材例外为 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 的OpenI-only供给；不通过改名重传或旧pin绕过provider限制，也不泛化其他例外。
+公开材料消费者限额为100000 aliases／64MiB输入，OpenI最多三个明确审核、固定且去重的mirror目录（保持旧单／双mirror兼容，拒绝第四个）；本次新增供给仅为已有两目录之外的固定0.2.3增量目录，不授权自动发现或扩容。ModelScope现有上限仍为八个明确批准的prefix。唯一批准的素材例外为 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 的OpenI-only供给；不通过改名重传或旧pin绕过provider限制，也不泛化其他例外。
 
 不能把ModelScope CDN `auth_key` 的签发时间当OpenI `Expires`，或套用固定TTL。本站只302到稳定、40hex revision-pinned的ModelScope resolve入口，不保存或自行解释临时CDN链接。metadata库存核验、远端正文抽样、完整正文重下载和浏览器验收须分别记录；这些不自动构成密码输入、玩法或容量验收，也不能保证任意下游CDN错误自动回退。

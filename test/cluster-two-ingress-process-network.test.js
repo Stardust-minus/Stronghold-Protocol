@@ -11,7 +11,7 @@ import { WebSocket } from 'ws';
 import { startCoordinator } from '../server/cluster/coordinator.js';
 import { startGameNode } from '../server/cluster/game-node.js';
 import { CLOSE } from '../server/net.js';
-import { MATCHMAKING_VERSION, PROTOCOL_VERSION } from '../shared/constants.js';
+import { ERR, MATCHMAKING_VERSION, PROTOCOL_VERSION } from '../shared/constants.js';
 
 const ORIGIN = 'https://two-ingress-process-fixture.invalid';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
@@ -167,10 +167,18 @@ async function fixture(t) {
     });
     return connection;
   };
-  const match = async () => {
+  const match = async ({ party = false } = {}) => {
     const players = [];
     for (let i = 0; i < 4; i++) players.push(await join(`TwinPlayer${i}`, i % 2));
-    for (const player of players) await player.request('queue.join', { difficulty: 'NORMAL' });
+    let sourceCode = null;
+    if (party) {
+      await players[0].request('room.create', { mode: 'coop', difficulty: 'NORMAL' });
+      sourceCode = players[0].frames.findLast(frame => frame.t === 'room.state').code;
+      await players[1].request('room.join', { code: sourceCode });
+      await players[1].request('room.ready', { ready: true });
+      await players[0].request('queue.join', { difficulty: 'NORMAL', party: true });
+      for (const player of players.slice(2)) await player.request('queue.join', { difficulty: 'NORMAL' });
+    } else for (const player of players) await player.request('queue.join', { difficulty: 'NORMAL' });
     await until(() => players.every(player => player.frames.some(frame => frame.t === 'queue.state' && frame.state === 'offered')), 'shared offer');
     const offers = players.map(player => player.frames.filter(frame => frame.t === 'queue.state' && frame.state === 'offered').at(-1));
     assert.equal(new Set(offers.map(offer => offer.offerId)).size, 1, 'both processes share one coordinator offer/pool');
@@ -183,7 +191,7 @@ async function fixture(t) {
     await coordinator.platform.contexts.get(owner.assignmentId).publication;
     const room = coordinator.lobby.getRoom(roomFrame.code), context = game.gameHost.contexts.get(owner.assignmentId);
     assert.equal(matches.length, 1);
-    return { players, owner, room, context, fixtureMatch: context.match };
+    return { players, owner, room, context, sourceCode, fixtureMatch: context.match };
   };
   const watch = async (player, fieldId) => {
     const offset = player.raws.length;
@@ -319,6 +327,34 @@ test('spectator resumes across independent ingress processes with the same owner
   assert.equal(f.game.gameHost.member(group.owner.assignmentId, resumed.playerId).role, 'spectator');
   assert.equal(f.game.gameHost.stats().matches, 1);
   await f.watch(resumed, group.players[1].playerId);
+  assert.equal(observer.frames.some(frame => frame.t === 'm.private'), false);
+  assert.equal(resumed.frames.some(frame => frame.t === 'm.private'), false);
+  f.assertNoRoutingLeak([...group.players, observer, resumed]);
+});
+
+test('consumed party code across independent ingresses admits a late observer to the exact committed actor without private frames', { timeout: 20000 }, async t => {
+  const f = await fixture(t), group = await f.match({ party: true }), observer = await f.join('PartyWatch', 1);
+  assert.notEqual(group.sourceCode, group.room.code);
+  await assert.rejects(observer.request('room.join', { code: group.sourceCode }), error => error.code === ERR.ROOM_STARTED);
+  assert.equal(f.coordinator.registry.byId(observer.playerId).roomCode, null);
+  assert.equal(f.game.gameHost.stats().matches, 1);
+  await observer.request('room.spectate', { code: group.sourceCode.toLowerCase() });
+  await until(() => observer.frames.some(frame => frame.t === 'm.public' && frame.observing), 'late party observer bound');
+  assert.equal(f.coordinator.registry.byId(observer.playerId).roomCode, group.room.code);
+  assert.equal(observer.frames.findLast(frame => frame.t === 'room.state').code, group.room.code);
+  assert.equal(f.coordinator.platform.directory.bySession(observer.playerId).assignmentId, group.owner.assignmentId);
+  assert.strictEqual(f.game.gameHost.contexts.get(group.owner.assignmentId), group.context);
+  assert.equal(f.game.gameHost.member(group.owner.assignmentId, observer.playerId).role, 'spectator');
+  await f.watch(observer, group.players[0].playerId);
+  await assert.rejects(observer.request('g.infoReady'), error => error.code === ERR.SPECTATOR);
+  const resumed = await f.join('PartyWatch', 0, observer.token);
+  await until(() => resumed.frames.some(frame => frame.t === 'm.public' && frame.observing), 'late party observer cross-ingress resume');
+  assert.equal((await observer.closed).code, CLOSE.REPLACED);
+  assert.equal(resumed.playerId, observer.playerId); assert.equal(resumed.welcome.resumed, true);
+  assert.equal(f.coordinator.registry.byId(resumed.playerId).roomCode, group.room.code);
+  assert.equal(f.coordinator.platform.directory.bySession(resumed.playerId).assignmentId, group.owner.assignmentId);
+  await f.watch(resumed, group.players[1].playerId);
+  assert.equal(f.game.gameHost.stats().matches, 1);
   assert.equal(observer.frames.some(frame => frame.t === 'm.private'), false);
   assert.equal(resumed.frames.some(frame => frame.t === 'm.private'), false);
   f.assertNoRoutingLeak([...group.players, observer, resumed]);

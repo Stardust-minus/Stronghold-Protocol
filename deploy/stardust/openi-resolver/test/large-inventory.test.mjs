@@ -7,11 +7,11 @@ import { join } from 'node:path';
 import { MAX_MANIFEST_ENTRIES, MAX_MANIFEST_BYTES, validateManifest, startServer } from '../server.mjs';
 
 const NOW = 1791072000000;
-const mirrors = ['large-old-fixture', 'large-new-fixture'];
+const mirrors = ['large-old-fixture', 'large-new-fixture', 'large-v023-delta-fixture'];
 function manifest(count) {
   const entries = Array.from({ length: count }, (_, i) => ({
     requestPath: `/assets/large-fixture/item_${i}.png`,
-    fileName: `releases/${mirrors[i % 2]}/assets/large-fixture/item_${i}.png`,
+    fileName: `releases/${mirrors[i % mirrors.length]}/assets/large-fixture/item_${i}.png`,
     bytes: i + 1, sha256: String(i + 1).padStart(64, '0'), mime: 'image/png',
   }));
   return { schemaVersion: 1, release: 'large-next-fixture', dataset: 'Stardust_minus/arknight_assets',
@@ -45,9 +45,9 @@ test('manifest accepts the old limit plus one and the exact bounded next-release
   assert.throws(() => validateManifest(manifest(MAX_MANIFEST_ENTRIES + 1)), { code: 'CONFIG' });
 });
 
-test('large inputs still reject a third mirror, duplicate paths, private namespaces and conflicting bytes', () => {
+test('large three-mirror inputs still reject a fourth mirror, duplicate paths, private namespaces and conflicting bytes', () => {
   for (const change of [
-    input => input.mirrorReleases.push('third-mirror'),
+    input => input.mirrorReleases.push('fourth-mirror'),
     input => { input.entries.at(-1).requestPath = input.entries[0].requestPath; },
     input => { input.entries.at(-1).requestPath = '/data/assets.json'; },
     input => { input.entries.at(-1).fileName = input.entries[0].fileName; },

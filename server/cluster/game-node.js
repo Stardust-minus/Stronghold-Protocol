@@ -127,11 +127,11 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
   const closeMember = (assignmentId, sessionId) => {
     for (const conn of conns.values()) if (conn.assignmentId === assignmentId && conn.sessionId === sessionId) closeConn(conn, 1000, 'MEMBER_LEFT');
   };
-  const guardedMember = (payload, extra = [], optional = []) => {
+  const guardedMember = (payload, extra = [], optional = [], requireEpochs = false) => {
     check(payload, ['assignmentId', 'sessionId', ...extra], ['nodeGeneration', 'actorGeneration', ...optional]);
     checkAssignment(payload);
     if (!id(payload.sessionId)) throw new RpcError('BAD_REQUEST');
-    if (streamMarkers || payload.nodeGeneration !== undefined || payload.actorGeneration !== undefined) {
+    if (requireEpochs || streamMarkers || payload.nodeGeneration !== undefined || payload.actorGeneration !== undefined) {
       if (!id(payload.nodeGeneration) || !int(payload.actorGeneration, 1, Number.MAX_SAFE_INTEGER)) throw new RpcError('BAD_REQUEST');
       if (payload.nodeGeneration !== generation || gameHost.get(payload.assignmentId)?.generation !== payload.actorGeneration) {
         throw new RpcError('STALE_ASSIGNMENT');
@@ -239,6 +239,16 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
     setLoadout(payload) {
       guardedMember(payload, ['loadout'], ['ops']);
       return gameHost.setLoadout(payload.assignmentId, payload.sessionId, payload.loadout, undefined, payload.ops);
+    },
+    requestSetupReroll(payload) {
+      guardedMember(payload, ['setupRevision'], [], true);
+      if (!int(payload.setupRevision, 0, 2 ** 31)) throw new RpcError('BAD_REQUEST');
+      return gameHost.rerollSetup(payload.assignmentId, payload.sessionId, payload.setupRevision);
+    },
+    cancelSetupReroll(payload) {
+      guardedMember(payload, ['voteId'], [], true);
+      if (!int(payload.voteId, 1, 2 ** 31)) throw new RpcError('BAD_REQUEST');
+      return gameHost.rerollSetup(payload.assignmentId, payload.sessionId, payload.voteId, true);
     },
     setSkins(payload) {
       guardedMember(payload, ['choices']);
