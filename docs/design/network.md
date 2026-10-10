@@ -54,6 +54,14 @@ alias codes are reserved against reuse. No historical-match lookup or new public
 The destination room's normal code retains its existing post-match lobby behavior. All queue, capacity, session,
 observer-role and remote-owner fences remain authoritative.
 
+Fork queue feedback candidate (2026-10-11): `queue.state` may include optional `waitingCount` only in
+`queued` state. It counts valid waiting session identities in the ticket-frozen matchmaking version/difficulty/
+required-capacity bucket, including the requesting party. Offered/allocation/matched identities are excluded.
+It is not natural-person deduplication, compatible-party population, a filled-seat progress bar or ETA; the
+count can exceed the target size. Count-only complete snapshots are coalesced/change-only around one second;
+lifecycle and hello synchronization remain immediate. Delayed work resolves the current ticket/state before
+sending, and close/clear cancels it. Offline/new-socket clients show unknown until a fresh queue snapshot.
+
 ### 8.2 Match
 C→S (all carry `rid`): `g.infoReady {setupRevision?}` · `g.band {bandId}` · `g.bandSkip` · `g.bandFocus {bandId?}` (the strategy highlighted in the draft screen — what a timed-out turn takes; absent / null clears it; `WRONG_PHASE` outside BAND_DRAFT, `ALREADY` after the pick, `BAD_TARGET` for a band not allowed; §18.2) · `g.buy {slot}` · `g.refresh` · `g.freeze` · `g.levelUp` · `g.sell {uid}` · `g.move {uid, to:{area:'board', row, col}|{area:'hand', idx}, dir?}` · `g.equip {itemUid, targetUid, replaceUid?}` (`replaceUid`: which equipped item a third one replaces, §6.2) · `g.art {itemUid, row, col, dir?}` (`dir` ∈ UP|RIGHT|DOWN|LEFT from the deploy wheel, §3; absent ⇒ `to.dir`, then RIGHT; `g.move` onto the piece's own tile re-orients it; board pieces in `m.private` / `m.field {prep:true}` carry `dir`) · `g.destroy {uid}` (hand / temp items only; equipped items are locked, §6.2) · `g.reward {idx}` · `g.choice {idx, choiceId?}` (with an ID: the recipient's PREP personal choice; without one: the public SP_DRAFT; stale or wrong IDs never fall through to the public draft) · `g.ready {ready}` · `g.emote {id}` · `g.watch {fieldId, playerId?}` (`playerId`: the player tapped — a shared 联防 / boss pair field shows two; what an eliminated viewer follows, §25) · `g.autoplay {on}` · `g.pause {on}` (solo battles only, §14 Solo pause) · `g.unitStats {seq?}` (ROUND_START / SP_DRAFT / PREP, else `WRONG_PHASE`; eliminated: `ELIMINATED`) → push `m.unitStats` (§18.5) · `g.leave`
 S→C:

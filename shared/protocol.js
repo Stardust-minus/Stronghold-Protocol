@@ -505,6 +505,10 @@ export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'room.state', 'room.closed',
   // Aggregate online identities and the requester's own matchmaking ticket (never other queue members).
+  // queue.state is a complete snapshot. Optional waitingCount exists only while queued: valid waiting human
+  // identities, including the requester/party, in the ticket's frozen version:difficulty:required pool.
+  // Excludes offered/allocation/matched identities; not compatible-party progress, online count or an ETA.
+  // Lifecycle/hello snapshots are immediate; count-only changes coalesce at ~1s. Absent count means unknown.
   'presence.state', 'queue.state',
   // Expanded relay only: m.public.uniteRound (1|2), uniteRounds (2); unite.rounds / uniteResult.rounds
   // retain completed { round, fieldId, battleId, helpers, through } rows. Current field helpers <=2,

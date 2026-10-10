@@ -38,6 +38,21 @@
 .matchmaking.is-offered { border-color: var(--mint-500); }
 .matchmaking.is-offered .matchmaking__status { color: var(--mint-400); }
 .matchmaking .matchmaking__reason { color: var(--amber); }
+.matchmaking__population { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-block: 8px; font-size: max(calc(.15 * var(--t)), 12px); color: var(--text-md); }
+.matchmaking__population strong { font-size: max(calc(.3 * var(--t)), 22px); color: var(--mint-400); }
+.matchmaking__population small { font-size: 12px; color: var(--text-lo); }
+.matchmaking__motion { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
+.matchmaking__motion i { width: 5px; height: 5px; background: var(--mint-400); opacity: .5; }
+.matchmaking[data-motion="searching"] .matchmaking__motion i { animation: queue-search 1.4s ease-in-out infinite; }
+.matchmaking[data-motion="searching"] .matchmaking__motion i:nth-child(2) { animation-delay: .15s; }
+.matchmaking[data-motion="searching"] .matchmaking__motion i:nth-child(3) { animation-delay: .3s; }
+.matchmaking[data-motion="allocating"] .matchmaking__motion { animation: queue-search 1s ease-in-out infinite; }
+.matchmaking[data-motion="offered"] .matchmaking__motion { animation: queue-found .22s ease-out; }
+.matchmaking[data-motion="idle"] .matchmaking__motion { display: none; }
+@keyframes queue-search { 0%, 100% { transform: translateY(0); opacity: .4; } 50% { transform: translateY(-3px); opacity: 1; } }
+@keyframes queue-found { from { transform: scale(.8); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .matchmaking .matchmaking__motion, .matchmaking .matchmaking__motion i { animation: none !important; } }
+.sp-reduced-motion .matchmaking .matchmaking__motion, .sp-reduced-motion .matchmaking .matchmaking__motion i { animation: none; }
 .matchmaking__revival { margin: .12rem 0; padding: .12rem .15rem; background: rgba(23, 36, 30, .65); border-left: 2px solid var(--mint-700); font-size: calc(.15 * var(--t)); }
 .matchmaking__revival strong { color: var(--text-hi); }
 .matchmaking__revival p { font-size: calc(.13 * var(--t)); line-height: 1.6; }

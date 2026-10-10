@@ -215,6 +215,10 @@ test('workers: coalesced in-flight resync sends only newest matching metadata/sn
   now += 500;
   h.runner._pump();
   const latest = pool.queue[0].dto.frames.findLast((f) => f.fieldId === 'n:p0' && f.snapshotWire);
+  const opening = JSON.parse(pool.queue[0].dto.frames.find((f) => f.fieldId === 'n:p0' && f.startMetaWire).startMetaWire);
+  const meta = JSON.parse(latest.metaWire);
+  const listed = new Set(meta.units.map(u => u.id));
+  const resyncMetaWire = JSON.stringify({ ...meta, unitStats: opening.unitStats.filter(u => listed.has(u.id)) });
   assert.ok(pool.queue[0].dto.frames.some((f) => f.eventsWire && !f.snapshotWire));
   h.m.watchers.set('p0', 'n:p0');
   h.runner.requestField('p0', 'n:p0');
@@ -222,7 +226,7 @@ test('workers: coalesced in-flight resync sends only newest matching metadata/sn
   await pool.deliver();
   const received = h.frames.slice(before).filter(([, , wire]) => JSON.parse(wire).fieldId === 'n:p0');
   assert.deepEqual(received.filter(([, type]) => type !== 'b.damage'),
-    [['p0', 'm.field', latest.metaWire], ['p0', 'b.snap', latest.snapshotWire]]);
+    [['p0', 'm.field', resyncMetaWire], ['p0', 'b.snap', latest.snapshotWire]]);
   assert.equal(h.runner.resync.size, 0);
   assert.equal(h.fields[0].battle.snapshot().t, JSON.parse(latest.snapshotWire).gt);
   assert.equal(h.commands.at(-1)[0], 'state', 'a coalesced advance cannot satisfy fresh damage resync with an old 1Hz sample');

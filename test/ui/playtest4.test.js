@@ -202,7 +202,7 @@ describe('7: the detail card shows live stats against the base', () => {
     assert.deepEqual(liveStat({ atk: 501, base: { atk: 501 } }, 'atk', 501), { v: '501', tone: null, sub: null, title: '基础 501' });
   });
 
-  test('a rendered card: live values coloured, the 实时 / 开战时 tag, the battle HP bar from the live HP', async () => {
+  test('a rendered card: opening values coloured, the 开战时 tag, the battle HP bar from the live HP', async () => {
     await data.loadAll('chess', 'garrisons', 'assets', 'bonds', 'items');
     const c = data.lookup('chess', 'chess_char_1_01_a');
     assert.ok(c);
@@ -222,7 +222,8 @@ describe('7: the detail card shows live stats against the base', () => {
     assert.ok(hasClass(cell('攻击'), 'is-down') && !hasClass(cell('攻击间隔'), 'is-down'));
     assert.ok(hasClass(cell('攻击间隔'), 'is-up'), 'a shorter interval is a buff');
     assert.ok(!hasClass(cell('防御'), 'is-up') && !hasClass(cell('防御'), 'is-down'), 'unchanged');
-    assert.ok(textOf(stats).includes('实时'));
+    assert.ok(textOf(stats).includes('开战时'), 'battle panels use the inherited first-tick cache label');
+    assert.ok(!textOf(stats).includes('实时'), 'the frozen opening panel does not claim per-tick live attributes');
     const head = blocks.find((b) => b.key === 'head');
     const hp = [...walk(head)].find((n) => hasClass(n, 'dhp'));
     assert.ok(textOf(hp).includes(`300 / ${live.maxHp.toLocaleString('en-US')}`), 'the live HP');

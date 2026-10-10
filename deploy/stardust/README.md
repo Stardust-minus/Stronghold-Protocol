@@ -62,8 +62,8 @@ docker build --network=none --pull=false \
 
 ## 不可降低的安全合同
 
-1. 保持共享口令、昵称校验、CSRF、可信 Host/Origin、登录限速、private/no-store 与 TLS 安全头。公网内部 health/RPC 端点不可达；不能直接暴露 game/coordinator/ingress/resolver 监听。
-2. 公开范围仅为审核过的 assets/fonts/vendor 与 PRTS 稳定库/字体，允许匿名 CORS `*`，不启用 credentials。业务 JS/CSS、data、认证/API/WS 不能因静态分流变为公开资源。
+1. 保持共享口令、昵称校验、CSRF、可信 Host/Origin、登录限速、private/no-store 与 TLS 安全头。只为精确根路径 `/healthz` 的 GET/HEAD 关闭请求门禁；内部 status/RPC、health 别名及 game/coordinator/ingress/resolver 监听仍不公开。
+2. 允许匿名 CORS `*` 的公开资源仅为审核过的 assets/fonts/vendor 与 PRTS 稳定库/字体，不启用 credentials；精确 `/healthz` 是无 CORS 的诊断例外。业务 JS/CSS、data、认证/API/WS 不能因静态分流变为公开资源。
 3. game 镜像、私有码、generated renderer index、依赖、公开素材、音频 alias、所有活动 provider pin 和同版本 fallback 必须配套。immutable 目录不覆写；回滚成对恢复。
 4. 主机策略默认仅真实 Node MainThread `nice=-20`、普通 `SCHED_OTHER` + reset-on-fork，其他 Worker/V8/libuv/辅助线程均为 0。不 nice 整个进程，不授容器 `CAP_SYS_NICE`，不加 CPU/内存 hard cap；保留 PIDs、read-only、cap-drop、no-new-privileges 等保护。
 5. 先关闭护栏，再验证完整 CID/image/source/runtime/网络/进程 generation/角色健康与优先级，最后开放精确租约。漂移、重建或身份不明必须 fail closed；不能全表 flush、放开 Docker 网段或停止被 manager 依赖的 WG recovery 来更新游戏。
@@ -73,9 +73,11 @@ docker build --network=none --pull=false \
 
 game/auth 要按各自 schema 验证；resolver 的内部 loopback `/healthz` 不要求不存在的 `ok` 字段。集群 game 使用认证角色状态，ingress 使用合法 Origin 的 WS upgrade，不能统一套单体 GET health 或 Docker healthy。
 
-game 的 `performance` 为独立缓存：监听成功后约每 10 秒采样，GET/HEAD 不触发采样或 reset；状态区分 `warming/ready/unavailable/stopped`。`windowMs` 取实际单调时长，冷窗口/空统计用 null。主线程 ELU/delay、进程 CPU/RSS 与主线程 heap 口径不同；CPU 一个核满载为 100%，可超过 100%。性能采集失败或 trial 降级不单独改变原健康判定。公网 `/healthz` 仍隐藏，presence 不转发这些诊断。
+game 的 `performance` 为独立缓存：监听成功后约每 10 秒采样，GET/HEAD 不触发采样或 reset；状态区分 `warming/ready/unavailable/stopped`。`windowMs` 取实际单调时长，冷窗口/空统计用 null。主线程 ELU/delay、进程 CPU/RSS 与主线程 heap 口径不同；CPU 一个核满载为 100%，可超过 100%。性能采集失败或 trial 降级不单独改变原健康判定；presence 继续只投影原聚合字段，不转发这些诊断。
 
-隔离 Nginx smoke 位于 `nginx/test/simple.test.mjs`，须显式 opt-in 和实际 binary；stock Nginx 无 Lua、原生运行时缺失或环境不支持时明确 skip。单元/mock、真实 HTTP/WS、浏览器渲染、实体设备、完整规模与性能对照是不同证据，不互相代替，不在运行环境压测或清理他人房间。
+Formal/Beta Nginx 源模板的公网精确 `/healthz` 匿名代理各自内部 status 所用的同一个固定 HTTP 目标。原生 rich JSON 是不含凭据的原始诊断，包含 build、计数、池及 performance 等字段，不裁剪或重写正文/HTTP 状态；HEAD 保留原状态且无正文，其他方法返回 405 与 `Allow: GET, HEAD`。保持 no-store、原 Origin 防护且不加 CORS `*`，不向上游转发 Cookie/Authorization、请求正文或 query，也不开放编码/斜杠/前缀别名。connect/send/read 分别有 1/3/3 秒超时，不重试或把上游故障改成 200：不可达/超时保留代理 502/504。集群 coordinator 200 只表示其原控制健康判定，不承诺 game 可分配；native ingress HTTP404 和宿主逐角色准入检查不变。源码模板须与实际配置配对核对，安装或 reload 仍需单独授权。
+
+隔离 Nginx smoke 位于 `nginx/test/simple.test.mjs`，精确 health TLS 检查使用 `HEALTH_NGINX_SMOKE=1` 与 `NGINX_BIN` 显式 opt-in；stock Nginx 无 Lua 时仅替换 presence 正文的 fixture，仍验证门禁，实际 Lua 聚合不冒称通过。原生运行时缺失或环境不支持时明确 skip。单元/mock、真实 HTTP/WS、浏览器渲染、实体设备、完整规模与性能对照是不同证据，不互相代替，不在运行环境压测或清理他人房间。
 
 ## 上游同步与记录卫生
 

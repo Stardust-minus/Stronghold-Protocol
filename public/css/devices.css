@@ -194,3 +194,45 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 
 .rotate-hint__pwa { pointer-events: auto; margin-top: 6px; }
 .rotate-hint__pwa[hidden] { display: none; }
+
+/* Keep lobby actions within their real rows; expanded touch rosters start folded. */
+@media (max-height: 600px) and (pointer: coarse), (max-width: 767px) {
+  .lobby-screen .topbar { height: auto; min-height: 48px; padding-block: 4px; }
+  .lobby-screen .topbar__left { flex-wrap: nowrap; }
+  .lobby-screen .topbar__right { min-width: 0; }
+  .lobby-screen .online-players, .lobby-screen .me-chip { display: none; }
+  .lobby-screen .topbar .btn, .lobby-tools > summary { min-height: 44px; }
+  .lobby-body { padding-block: 6px; }
+  .gm .team { top: max(2.6rem, 104px); bottom: 88px; width: min(340px, calc(100vw - 32px)); max-height: calc(100% - 192px); padding: 4px; gap: 4px; }
+  .gm .team.is-folded { bottom: auto; width: 164px; }
+  .team .team__players { min-height: 0; overflow-y: auto; overflow-x: hidden; pointer-events: auto; touch-action: pan-y; overscroll-behavior: contain; }
+  .gm .team:not(.team--expanded) .team__row { min-height: 56px; gap: 10px; padding: 4px; background: rgba(10, 18, 15, .9); }
+  .gm .team .team__btn { min-width: 44px; min-height: 44px; }
+  .gm .team .team__name { font-size: max(calc(.16 * var(--t)), 14px); max-width: 100%; }
+  .gm .team .lp--sm { font-size: 14px; }
+  .gm .team .team__ob, .gm .team .team__back { min-height: 44px; position: static; font-size: 14px; }
+  .gm .scard__name, .gm .lvcard__label, .gm .toolbtn, .gm .readybtn__label { font-size: max(.19rem, 12px); }
+  .gm .scard__class, .gm .scard__bond, .gm .scard__idesc, .gm .lvcard__micro, .gm .funds__label, .gm .shopbar__remain { font-size: max(.13rem, 10px); }
+  .gm .funds__collapse, .gm .shopbar-tab__btn { min-height: 44px; font-size: 12px; }
+  .gm .chud__prog, .gm .chud__pname { font-size: 12px; }
+  .gm .chud__progress { max-height: 96px; overflow-y: auto; pointer-events: auto; touch-action: pan-y; }
+  .gm .chud__prog .num { font-size: 12px; }
+  .set-row__label { font-size: max(calc(.17 * var(--t)), 13px); }
+  .set-row .set-toggle, .set-row .set-seg button { min-height: 44px; font-size: 12px; }
+  .set-row { gap: 10px; }
+  .set-hint { font-size: max(calc(.14 * var(--t)), 12px); }
+}
+@media (max-width: 600px) and (min-height: 461px) {
+  .lobby-screen .topbar { min-height: 96px; }
+  .lobby-screen .topbar__right { justify-content: flex-start; }
+}
+@media (max-height: 460px) and (min-width: 601px) {
+  .lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr); }
+  .lobby-screen .topbar__right { flex-wrap: nowrap; justify-content: flex-end; }
+  .lobby-screen .ping--load { max-width: 88px; }
+  .lobby-screen .mode-card { min-height: 56px; }
+  .lobby-screen .diff-card { min-height: 54px; }
+  .lobby-screen .join-panel .panel__body { padding: 6px; }
+  .lobby-screen .join-foot { min-height: 0; }
+  .lobby-screen .join-foot > .t-dim { display: none; }
+}

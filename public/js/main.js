@@ -158,6 +158,8 @@ function onWelcome(msg) {
   }
   store.set({ me: { playerId: msg.playerId ?? null, name, token: typeof msg.token === 'string' ? msg.token : null } });
   welcomeAt = Date.now();
+  // A retained ticket is not a fresh population sample from this new socket.
+  if (Object.hasOwn(prev.queue || {}, 'waitingCount')) store.set({ queue: { ...prev.queue, waitingCount: undefined } });
 
   if (prevId != null && prevId !== msg.playerId) {
     // A brand-new server session (the server restarted — crashed / killed, so no room.closed arrived — or this session
@@ -213,6 +215,8 @@ function wireNet() {
   net.on('status', (snap) => {
     const cur = store.get().connection;
     store.set({
+      ...(snap.status !== 'online' && Object.hasOwn(store.get().queue || {}, 'waitingCount')
+        ? { queue: { ...store.get().queue, waitingCount: undefined } } : {}),
       connection: {
         status: snap.status, ping: snap.ping, loadState: snap.loadState ?? 'unknown', loadDetails: snap.loadDetails ?? null, clusterLoad: snap.clusterLoad ?? null, attempt: snap.attempt, retryAt: snap.retryAt,
         lastError: snap.lastError, everOnline: cur.everOnline || snap.status === 'online',

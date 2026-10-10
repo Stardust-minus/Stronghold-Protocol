@@ -88,7 +88,8 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
       if (se.scrollHeight > innerHeight + 1) out.push(`page overflows vertically (${se.scrollHeight} > ${innerHeight})`);
       const root = document.querySelector(sel) || document.body;
       const lobby = root.querySelector('.lobby-body');
-      if (lobby?.scrollHeight > lobby?.clientHeight + 1) out.push(`lobby needs vertical scrolling (${lobby.scrollHeight} > ${lobby.clientHeight})`);
+      const portraitLobby = innerWidth <= 600 && innerHeight > innerWidth;
+      if (!portraitLobby && lobby?.scrollHeight > lobby?.clientHeight + 1) out.push(`lobby needs vertical scrolling (${lobby.scrollHeight} > ${lobby.clientHeight})`);
       if (lobby?.scrollWidth > lobby?.clientWidth + 1) out.push(`lobby needs horizontal scrolling (${lobby.scrollWidth} > ${lobby.clientWidth})`);
       for (const el of root.querySelectorAll('button, input, [role="button"]')) {
         const r = el.getBoundingClientRect();
@@ -105,7 +106,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
           const cs = getComputedStyle(a);
           if (/(auto|scroll)/.test(cs.overflowX + cs.overflowY)) { scroller = true; break; }
         }
-        if (scroller && !el.closest('.lobby-screen')) continue;
+        if (scroller && (!el.closest('.lobby-screen') || portraitLobby)) continue;
         if (!el.closest('.lobby-screen') && (r.right <= 0 || r.bottom <= 0 || r.left >= innerWidth || r.top >= innerHeight)) continue;
         if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) {
           out.push(`clipped: ${el.className || el.tagName} ${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 12)} [${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}]`);

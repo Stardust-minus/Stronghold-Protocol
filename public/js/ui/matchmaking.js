@@ -43,6 +43,11 @@ export function OnlinePlayers() {
   </span>`;
 }
 
+export function queuePopulation(q, online, cancelling = false) {
+  return online && !cancelling && q?.state === 'queued' && Number.isSafeInteger(q.waitingCount) && q.waitingCount >= 0
+    ? q.waitingCount : null;
+}
+
 const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。');
 const EXPERIMENTAL_RULES = N_('好友小队沿用房间的实验性选项，单人匹配跟随所加入房间。四名单人组局时，复活和禁用共享卡池默认关闭。');
 
@@ -61,6 +66,8 @@ export function MatchmakingPanel({ queue, difficulty, experimental, online, onJo
   const offered = queue?.state === 'offered';
   const allocating = offered && queue.allocationPending === true;
   const seconds = queueTime(queue, serverNow());
+  const population = queuePopulation(queue, online, cancelling || cancelFailed);
+  const motion = online && active && !cancelling && !cancelFailed ? allocating ? 'allocating' : offered ? 'offered' : 'searching' : 'idle';
   const act = async (kind) => {
     if (!online || inFlight.current || cancelling || !queue?.ticketId || (kind === 'accept' && (queue.accepted || seconds === 0))) return;
     if (kind === 'cancel') { queueCancellation.cancel(queue.ticketId); return; }
@@ -77,12 +84,18 @@ export function MatchmakingPanel({ queue, difficulty, experimental, online, onJo
       if (mounted.current) setBusy(null);
     }
   };
-  return html`<section class=${`matchmaking${offered ? ' is-offered' : ''}${active ? ' is-active' : ''}${compact ? ' matchmaking--compact' : ''}`} aria-label=${t('公开多人匹配')} data-player-capacity=${capacity}>
+  return html`<section class=${`matchmaking${offered ? ' is-offered' : ''}${active ? ' is-active' : ''}${compact ? ' matchmaking--compact' : ''}`} aria-label=${t('公开多人匹配')} data-player-capacity=${capacity} data-motion=${motion}>
     <header><${Icon} name=${offered ? 'users' : 'search'} /><${MicroLabel} tone="mint">PUBLIC MATCHMAKING<//></header>
     <h2>${allocating ? t('正在创建对局') : offered ? t('队友已集结') : active ? t('正在寻找队友') : t('寻找同盟博士')}${compact && offered && Number.isInteger(queue.acceptedCount)
       ? html`<span class="matchmaking__count">${t('{acceptedCount} / {n} 已确认', { acceptedCount: queue.acceptedCount, n: capacity })}</span>` : null}</h2>
     <p>${t('{0} · {n} 名真人 · 不自动补 AI', { 0: t(DIFFICULTY_NAMES[queue?.difficulty || difficulty]), n: capacity })}${queue?.partySize > 1 ? t(' · {partySize} 人小队整体匹配', { partySize: queue.partySize }) : ''}</p>
+    ${active && !offered ? html`<div class="matchmaking__population" data-testid="queue-population">
+      <span>${t('本难度 · {n} 人模式等待队列', { n: capacity })}</span>
+      <strong class="num">${population == null ? '—' : population}</strong><span>${t('人')}</span>
+      <small>${queue?.partySize > 1 ? t('含本队 {n} 人', { n: queue.partySize }) : t('含你')}</small>
+    </div>` : null}
     <div class="matchmaking__status" role="status">
+      <span class="matchmaking__motion" aria-hidden="true"><i></i><i></i><i></i></span>
       ${cancelling ? t('正在确认取消，等待服务器同步…') : !online ? t('连接中断，重连后同步匹配状态') : offered
         ? allocating ? t('全员已确认，正在连接游戏节点 · {seconds} 秒', { seconds }) : queue.accepted ? t('你已确认，等待其他博士 · {seconds} 秒', { seconds }) : t('请在 {seconds} 秒内确认入场', { seconds })
         : active ? t('已等待 {0} 分 {1} 秒', { 0: Math.floor(seconds / 60), 1: String(seconds % 60).padStart(2, '0') }) : t('按人数模式和难度匹配，集齐后由每位博士确认')}
@@ -112,6 +125,7 @@ export function MatchmakingPanel({ queue, difficulty, experimental, online, onJo
         actions=${html`<${Button} icon="close" onClick=${() => setRulesOpen(false)}>${t('关闭说明')}<//>`}>
       <p class="modal__text">${t('{n} 名真人按相同人数模式和难度匹配，不自动补 AI；好友小队保持整队。', { n: capacity })}</p>
       <p class="modal__text">${t(MATCHING_RULES)}</p><p class="modal__text">${t(EXPERIMENTAL_RULES)}</p>
+      <p class="modal__text">${t('等待人数包含同难度、同人数模式的待匹配博士；小队保持完整，人数充足不代表已组成对局。')}</p>
     <//>` : null}
   </section>`;
 }

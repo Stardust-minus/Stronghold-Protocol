@@ -121,6 +121,7 @@ export function rowLpTip(lp, cap = 10) {
  */
 export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal = null }) {
   const [openPid, setOpenPid] = useState(null);
+  const [rosterOpen, setRosterOpen] = useState(() => !globalThis.matchMedia?.('(max-height: 600px) and (pointer: coarse), (max-width: 767px)')?.matches && sortedPlayers(pub).length <= 4);
   // the playerId whose avatar just called onWatch, so the other click of a double-click does not open the view again
   const askedAt = useRef(/** @type {{ id: string|null, at: number }} */ ({ id: null, at: 0 }));
   const phaseKey = `${pub?.phase}:${pub?.round}:${uniteRelayKey(pub) || ''}`;
@@ -129,6 +130,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
   const expanded = players.length > 4;
   const panelRef = useRef(null);
   const noticeRef = useRef(null);
+  const headerRef = useRef(null);
   const [layout, setLayout] = useState(() => teamPanelLayout(players.length, 0));
   useEffect(() => {
     if (!expanded) return undefined;
@@ -137,9 +139,11 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
       if (!panel) return;
       const css = getComputedStyle(panel);
       const notice = noticeRef.current?.getBoundingClientRect().height || 0;
-      const height = panel.clientHeight - (parseFloat(css.paddingTop) || 0) - (parseFloat(css.paddingBottom) || 0) - notice;
+      const header = headerRef.current?.getBoundingClientRect().height || 0;
+      const height = panel.clientHeight - (parseFloat(css.paddingTop) || 0) - (parseFloat(css.paddingBottom) || 0) - notice - header;
       const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 40;
-      const next = teamPanelLayout(players.length, height, root);
+      const width = panel.clientWidth - (parseFloat(css.paddingLeft) || 0) - (parseFloat(css.paddingRight) || 0);
+      const next = teamPanelLayout(players.length, height, root, width, document.documentElement.classList.contains('sp-coarse'));
       setLayout(prev => prev.columns === next.columns && prev.rows === next.rows && prev.rowHeight === next.rowHeight ? prev : next);
     };
     measure();
@@ -148,7 +152,11 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
     if (noticeRef.current) observer?.observe(noticeRef.current);
     window.addEventListener('resize', measure);
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
-  }, [expanded, players.length, pub?.revival?.windowOpen]);
+  }, [expanded, players.length, pub?.revival?.windowOpen, rosterOpen]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    return () => cancelAnimationFrame(frame);
+  }, [expanded, rosterOpen]);
   if (!players.length) return null;
   // a boss round: the viewer's pair framed in green from the round's start (item 51 — the official bg_team_border,
   // tinted like the official green; a plain green ring without the local art)
@@ -182,9 +190,14 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
     onWatch(p);
   };
   const style = expanded ? `--team-columns:${layout.columns};--team-rows:${layout.rows};--team-row:${layout.rowHeight}px;--team-avatar:${layout.avatar}px;--team-gap:${layout.gap}px;--ebubble-unit:${layout.avatar / 1.08}px` : undefined;
-  return html`<aside ref=${panelRef} class=${cx('team', compact && 'team--compact', expanded && 'team--expanded')} style=${style} aria-label=${t('同盟成员')}>
+  return html`<aside ref=${panelRef} class=${cx('team', compact && 'team--compact', expanded && 'team--expanded', !rosterOpen && 'is-folded')} style=${style} aria-label=${t('同盟成员')}>
+    <div ref=${headerRef} class="team__header">
+      <button type="button" class="team__toggle" aria-expanded=${String(rosterOpen)} aria-controls="team-roster" onClick=${() => setRosterOpen(on => !on)}>
+        <${Icon} name="users" /><span>${t('同盟成员')}</span><b class="num">${players.length}</b><${Icon} name="chevronRight" />
+      </button>
+    </div>
     <div ref=${noticeRef} class="team__notice"><${RevivalNotice} pub=${pub} /></div>
-    <div class="team__players">${players.map((p) => {
+    <div class="team__players" id="team-roster" hidden=${!rosterOpen}>${players.map((p) => {
       const self = p.playerId === myId;
       const status = p.pendingDeath ? 'rescue' : p.alive === false ? 'dead' : p.status;
       const meta = p.pendingDeath ? { ...STATUS_META.deciding, text: t('等待救援') } : STATUS_META[status] || STATUS_META.acting;
@@ -196,8 +209,8 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
       const title = observe ? (self ? (observe.observing ? t('返回战场') : t('你自己')) : t('查看 {name} 的战场', { name: p.name })) : (self ? t('查看自己的阵地') : t('查看 {name} 的阵地', { name: p.name }));
       const lp = rowLp(p, pub, self ? selfLive : null, { uniteLocal, cap });
       const inTeam = team.has(p.playerId);
-      return html`<div key=${p.playerId} class=${cx('team__row', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && !p.pendingDeath && 'is-dead', p.pendingDeath && 'is-pending', open && 'is-open')}>
-        <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${inTeam && !self ? `${title} · ${t('与你在同一战场')}` : title} aria-expanded=${observe && !self ? String(open) : undefined}>
+      return html`<div key=${p.playerId} data-seat=${p.seat} class=${cx('team__row', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && !p.pendingDeath && 'is-dead', p.pendingDeath && 'is-pending', open && 'is-open')}>
+        <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${inTeam && !self ? `${title} · ${t('与你在同一战场')}` : title} aria-label=${title} aria-expanded=${observe && !self ? String(open) : undefined}>
           <${PlayerAvatar} player=${p} self=${self} />
           ${inTeam ? html`<span class=${cx('team__frame', !frameArt && 'team__frame--plain')} style=${frameArt ? `--frame:url("${frameArt}")` : undefined} aria-hidden="true"></span>` : null}
           <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>

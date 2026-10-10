@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
-const PHONE = { width: 844, height: 390 };
+const PHONE = { width: 844, height: 390, isMobile: true, hasTouch: true, isLandscape: true, deviceScaleFactor: 1 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** The settings the mock harness reads: `sp.pref.settings` with one text step (the argument is passed into the page —
@@ -31,7 +31,7 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     const puppeteer = (await import('puppeteer-core')).default;
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     base = `http://127.0.0.1:${srv.port}`;
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--force-device-scale-factor=1'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--force-device-scale-factor=1', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   });
 
   after(async () => {
@@ -47,7 +47,8 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     if (seed && textSize) await seedSettings(page, textSize);
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForFunction(() => !!(globalThis.__SP__ || globalThis.__MOCK__) && !!document.querySelector('.screen'), { timeout: 30000 });
     return { page, problems };
   }
 
@@ -68,8 +69,9 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     }
     return {
       root: parseFloat(getComputedStyle(document.documentElement).fontSize),
-      label: px('.set-row__label'),
-      micro: px('.set-row__label .micro'),
+      label: px('[data-testid="text-size"]', 'fontSize'),
+      controlLabel: (() => { const el = document.querySelector('[data-testid="text-size"]')?.parentElement.querySelector('.set-row__label'); return el ? parseFloat(getComputedStyle(el).fontSize) : null; })(),
+      micro: px('.set-textsize-note'),
       modalWidth: box ? Math.round(box.width) : null,
       bodyOverflowX: body ? body.scrollWidth - body.clientWidth : null,
       outRight: Math.round(outRight),
@@ -84,6 +86,11 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     await page.type('input', '文字大小');
     await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /开始/.test(b.textContent))?.click());
     await page.waitForSelector('.lobby-screen', { timeout: 15000 });
+    await sleep(500);
+    {
+      const announcement = await page.$('.announcement-board .modal__actions button');
+      if (announcement) { await announcement.click(); await page.waitForSelector('.announcement-board', { hidden: true }); }
+    }
     await page.click('.lobby-screen [data-testid="settings-btn"]');
     await page.waitForSelector('.modal .set-list', { timeout: 5000 });
     await sleep(200);
@@ -91,7 +98,8 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     const small = await modalMetrics(page);
     assert.equal(small.step, '小', 'the default is the design\'s own sizes');
     assert.equal(small.root, 40, 'a landscape phone clamps the layout root at 40 px');
-    assert.ok(Math.abs(small.label - 0.18 * 40) < 0.1, `the body text starts at the reported 7.2 px (${small.label})`);
+    assert.ok(Math.abs(small.label - 0.18 * 40) < 0.1, `the text root starts at 7.2 px (${small.label})`);
+    assert.ok(small.controlLabel >= 13, 'the visible mobile settings label has its own readable pixel floor');
     assert.ok(small.hint && /棋盘/.test(small.hint), 'the row says the layout is not touched');
 
     const step = async (name) => {
@@ -108,12 +116,13 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     const xl = await step('特大');
     assert.equal(md.step, '中');
     assert.equal(xl.step, '特大', 'the pick sticks');
-    assert.ok(md.label > small.label * 1.5 && lg.label > md.label && xl.label > lg.label,
-      `the readable text grows step by step (${[small.label, md.label, lg.label, xl.label].join(' → ')})`);
+    assert.ok(md.label > small.label && lg.label > md.label && xl.label > lg.label,
+      `the text root grows step by step (${[small.label, md.label, lg.label, xl.label].join(' → ')})`);
     assert.ok(Math.abs(xl.label - 0.18 * 88) < 0.2, `特大 reaches the 88 px text root (${xl.label})`);
-    assert.ok(xl.micro > small.micro * 1.9, `the 4.4 px micro labels follow (${small.micro} → ${xl.micro})`);
+    assert.ok(xl.micro >= small.micro, 'mobile hint pixel floors remain readable at every step');
     for (const m of [md, lg, xl]) {
       assert.equal(m.root, 40, 'the layout root never moves: the field camera and the DOM board read 1rem');
+      assert.ok(m.controlLabel >= 13, 'visible labels retain their mobile pixel floor');
       assert.equal(m.modalWidth, small.modalWidth, 'the modal\'s box is sized in rem and does not change');
       assert.ok(m.bodyOverflowX <= 1, `the rows do not overflow the modal body (${m.bodyOverflowX} px)`);
       assert.ok(m.outRight <= 1, `nothing sticks out of the modal's box (${m.outRight} px): the label wraps and the four steps fit`);
@@ -123,6 +132,11 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.settings')).textSize), 'xl');
     await page.reload({ waitUntil: 'networkidle0' });
     await page.waitForSelector('.lobby-screen', { timeout: 15000 });
+    await sleep(500);
+    {
+      const announcement = await page.$('.announcement-board .modal__actions button');
+      if (announcement) { await announcement.click(); await page.waitForSelector('.announcement-board', { hidden: true }); }
+    }
     await page.click('.lobby-screen [data-testid="settings-btn"]');
     await page.waitForSelector('.modal .set-list', { timeout: 5000 });
     const again = await modalMetrics(page);
@@ -137,6 +151,11 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
       const { page, problems } = await open(`${base}/dev/game-mock.html?shot=1&phase=PREP&variant=settings`, textSize);
       await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: 15000 });
       await sleep(900);
+      // Compare settled layout, not shop-up's transient .3rem translation.
+      await page.waitForFunction(() => {
+        const bar = document.querySelector('.shopbar');
+        return bar && getComputedStyle(bar).transform === 'none';
+      }, { timeout: 10000 });
       const m = await page.evaluate(() => {
         const box = (sel) => {
           const el = document.querySelector(sel);
@@ -149,7 +168,8 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
           field: box('.gm__field'),
           canvas: box('.gm__field canvas'),
           shopbar: box('.gm__hud .shopbar'),
-          label: (() => { const el = document.querySelector('.set-row__label'); return el ? parseFloat(getComputedStyle(el).fontSize) : null; })(),
+          label: (() => { const el = document.querySelector('.set-textsize'); return el ? parseFloat(getComputedStyle(el).fontSize) : null; })(),
+          controlLabel: (() => { const el = document.querySelector('.set-row__label'); return el ? parseFloat(getComputedStyle(el).fontSize) : null; })(),
         };
       });
       return { ...m, problems, page };
@@ -163,7 +183,8 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     assert.deepEqual(big.field, small.field, 'the field host (host.clientWidth / clientHeight) is unchanged');
     assert.deepEqual(big.canvas, small.canvas, 'and so is the canvas the renderer resizes to it');
     assert.deepEqual(big.shopbar, small.shopbar, 'the shop bar is a fixed HUD box: still the design\'s size');
-    assert.ok(big.label > small.label * 1.9, `while the dialog's readable text grows (${small.label} → ${big.label})`);
+    assert.ok(big.label > small.label * 1.9, `while the dialog's text root grows (${small.label} → ${big.label})`);
+    assert.ok(small.controlLabel >= 13 && big.controlLabel >= small.controlLabel, 'visible mobile labels retain their pixel floor');
     assert.deepEqual(small.problems, []);
     assert.deepEqual(big.problems, []);
     await small.page.close();

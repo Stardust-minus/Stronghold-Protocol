@@ -6,6 +6,7 @@ import { damageFrame, emptyDamageRows } from '../../sim/damageBoard.js';
 
 // Bound each FIFO worker turn, not the active game-time debt. At 2x this covers a 533 ms service cycle.
 export const MAX_WORKER_ADVANCE_TICKS = 32;
+const TERMINAL_SNAPSHOT_RETRY_MS = 1000;
 
 /** Read-only view of the last accepted worker state, not a resumable simulation snapshot. */
 export class RemoteBattle {
@@ -86,6 +87,8 @@ export class WorkerFieldRunner {
     this.inflight = false;
     this.ready = false;
     this.held = null;
+    this.heldForceSnapshots = false;
+    this.terminalSnapshots = new Map();
     this.acc = 0;
     this.last = 0;
     this.resync = new Map();
@@ -117,6 +120,8 @@ export class WorkerFieldRunner {
     this.damageResync.clear();
     this.controls.clear();
     this.held = null;
+    this.heldForceSnapshots = false;
+    this.terminalSnapshots.clear();
   }
 
   _release() {
@@ -132,8 +137,10 @@ export class WorkerFieldRunner {
     this.acc = 0;
     if (this.held && this.active) {
       const out = this.held;
+      const forceSnapshots = this.heldForceSnapshots;
       this.held = null;
-      this._receive(out);
+      this.heldForceSnapshots = false;
+      this._receive(out, false, forceSnapshots);
     }
   }
 
@@ -172,18 +179,18 @@ export class WorkerFieldRunner {
     if (!this.active || this.inflight) return;
     this.inflight = true;
     try {
-      this.session.request(op, payload).then((out) => this._receive(out), (e) => this._fail(e));
+      this.session.request(op, payload).then((out) => this._receive(out, false, op === 'state'), (e) => this._fail(e));
     } catch (e) { this._fail(e); }
   }
 
-  _receive(out, initial = false) {
+  _receive(out, initial = false, forceSnapshots = false) {
     if (!this.active) return;
     this.inflight = false;
     if (initial) { this.ready = true; this.last = this.m.sched.now(); }
-    if (this.m.paused) { this.held = out; return; }
+    if (this.m.paused) { this.held = out; this.heldForceSnapshots = forceSnapshots; return; }
     this.m.guard(() => {
       try {
-        this._apply(out);
+        this._apply(out, forceSnapshots);
         // One reply can admit at most one new bounded command. No timer/microtask spin when there is no debt;
         // the pool's existing FIFO still places this turn after other phases already waiting on the worker.
         if (this.active && !this.m.paused) this._pump();
@@ -191,7 +198,11 @@ export class WorkerFieldRunner {
     });
   }
 
-  _apply(out) {
+  _apply(out, forceSnapshots = false) {
+    for (const [pid, sent] of this.terminalSnapshots) {
+      const ps = this.m.players.get(pid) || this.m.spectators.get(pid);
+      if (!ps?.connected || ps.left || this.m.watchers.get(pid) !== sent.fieldId) this.terminalSnapshots.delete(pid);
+    }
     const before = this.ticks;
     this.ticks = out.ticks;
     for (const view of out.fields) {
@@ -259,7 +270,7 @@ export class WorkerFieldRunner {
         }
         if (frame.snapshotWire || frame.eventsWire) {
           if (frame.eventsWire) this.m.sendEncoded(pid, 'b.ev', frame.eventsWire);
-          if (frame.snapshotWire) this.m.sendEncoded(pid, 'b.snap', frame.snapshotWire);
+          if (frame.snapshotWire) this._sendSnapshot(pid, f, frame, forceSnapshots || out.done);
         } else {
           if (frame.events?.length) this.m.sendTo(pid, { t: 'b.ev', fieldId: f.fieldId, gt: frame.gt ?? frame.snapshot.t, ev: frame.events });
           if (frame.snapshot) this.m.sendTo(pid, snapFrame(f.fieldId, frame.snapshot));
@@ -285,6 +296,24 @@ export class WorkerFieldRunner {
     });
   }
 
+  _sendSnapshot(pid, f, frame, force = false) {
+    if (f.live) {
+      this.terminalSnapshots.delete(pid);
+      this.m.sendEncoded(pid, 'b.snap', frame.snapshotWire);
+      return;
+    }
+    const now = this.m.sched.now();
+    const sent = this.terminalSnapshots.get(pid);
+    const elapsed = sent ? now - sent.at : Infinity;
+    // Acceptance is not an end-to-end ACK: an ingress may still drop b.snap softly. Retry unchanged
+    // terminal baselines while the phase runs; state/resync and phase-final sends always bypass this.
+    if (!f.live && !force && sent?.fieldId === f.fieldId && sent.snapshotWire === frame.snapshotWire
+      && sent.metaWire === frame.metaWire && elapsed >= 0 && elapsed < TERMINAL_SNAPSHOT_RETRY_MS) return;
+    if (this.m.sendEncoded(pid, 'b.snap', frame.snapshotWire) && !f.live) {
+      this.terminalSnapshots.set(pid, { fieldId: f.fieldId, snapshotWire: frame.snapshotWire, metaWire: frame.metaWire, at: now });
+    }
+  }
+
   _sendDamageCached(pid, f) {
     const b = f.battle;
     if (b._damageWire) this.m.sendEncoded(pid, 'b.damage', b._damageWire);
@@ -296,7 +325,7 @@ export class WorkerFieldRunner {
     if (b._metaWire && b._snapshotWire) {
       this.m.sendEncoded(pid, 'm.field', b._startUnitStats
         ? JSON.stringify(b.fieldMeta({ includeUnitStats: true })) : b._metaWire);
-      this.m.sendEncoded(pid, 'b.snap', b._snapshotWire);
+      this._sendSnapshot(pid, f, { snapshotWire: b._snapshotWire, metaWire: b._metaWire }, true);
       this._sendDamageCached(pid, f);
       return true;
     }
@@ -310,6 +339,7 @@ export class WorkerFieldRunner {
   requestField(pid, fieldId) {
     const f = this.fields.find((x) => x.fieldId === fieldId);
     if (!f || this.stopped || this.m.disposed || this.m.ended) return;
+    this.terminalSnapshots.delete(pid);
     // A pending advance may satisfy the snapshot resync but carry a previous 1Hz damage sample.
     // Keep one bounded state request owed independently, even after that snapshot removed the watcher entry.
     if (!this.done) this.damageResync.set(pid, fieldId);

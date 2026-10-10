@@ -17,13 +17,15 @@ function plainReference(input) {
 }
 
 function protocolFrames(dto) {
-  return dto.frames.map((frame) => ({
-    fieldId: frame.fieldId,
-    snapshotWire: JSON.stringify(snapFrame(frame.fieldId, frame.snapshot)),
-    eventsWire: frame.events.length ? JSON.stringify({ t: 'b.ev', fieldId: frame.fieldId, gt: frame.snapshot.t, ev: frame.events }) : null,
-    metaWire: JSON.stringify({ t: 'm.field', ...frame.meta, fieldId: frame.fieldId,
-      kind: dto.fields.find((f) => f.fieldId === frame.fieldId).kind, live: frame.wireLive }),
-  }));
+  return dto.frames.map((frame) => frame.startMeta
+    ? { fieldId: frame.fieldId, startMetaWire: JSON.stringify(frame.startMeta) }
+    : {
+      fieldId: frame.fieldId,
+      snapshotWire: JSON.stringify(snapFrame(frame.fieldId, frame.snapshot)),
+      eventsWire: frame.events.length ? JSON.stringify({ t: 'b.ev', fieldId: frame.fieldId, gt: frame.snapshot.t, ev: frame.events }) : null,
+      metaWire: JSON.stringify({ t: 'm.field', ...frame.meta, fieldId: frame.fieldId,
+        kind: dto.fields.find((f) => f.fieldId === frame.fieldId).kind, live: frame.wireLive }),
+    });
 }
 
 function assertEquivalent(wire, plain, { diagnostics = false } = {}) {
@@ -38,6 +40,13 @@ function assertEquivalent(wire, plain, { diagnostics = false } = {}) {
   };
   assert.deepEqual(withoutFrames(wire), withoutFrames(plain), 'full results, fields and ordered effects are unchanged');
   for (const frame of wire.frames) {
+    if (frame.startMetaWire) {
+      assert.deepEqual(Object.keys(frame), ['fieldId', 'startMetaWire']);
+      const opening = JSON.parse(frame.startMetaWire);
+      assert.equal(opening.t, 'm.field');
+      assert.ok(Array.isArray(opening.unitStats));
+      continue;
+    }
     assert.deepEqual(Object.keys(frame), ['fieldId', 'snapshotWire', 'eventsWire', 'metaWire']);
     assert.equal(JSON.parse(frame.snapshotWire).t, 'b.snap');
     assert.equal(JSON.parse(frame.metaWire).t, 'm.field');

@@ -29,7 +29,9 @@ TLS、共享口令、每次私有请求门禁、可信 Host/Origin、CSRF、登�
 
 游戏票据/RPC 使用独立节点密钥，不能借用 auth signing key/verifier。秘密只在受保护 runtime/secret mount，不进入源码、镜像层、配置样例、日志、URL query、Cookie 或证据。玩家不得选择任意 IP/URL/上游；目标只来自受审查固定配置。票据绑定 session/room/assignment/node/role/build/protocol，严格 TTL 和有界 clock skew，不信任客户端时间。
 
-保留数量准入 `0=不限` 与各玩法本身的容量规则，以及浏览器 64KiB 入站、每 socket 40/s、heavy 重发 2/s burst6、1MiB snapshot 软丢/16MiB 慢连接断开、RPC/分配期限和执行背压；“不限”不关闭协议防护。普通控制 RPC 请求及所有 RPC 回复仍为 64KiB。仅大于 64KiB 的开局 `prepare` 使用固定私有 `/_cluster/rpc/prepare`，请求上限 2MiB；HMAC 绑定该精确路径与正文，接收端先认证后解析且该路径只允许 `prepare`。完整配置仍逐字段校验、一次准备，超过总预算在任何分配、票据或 actor 创建前拒绝；不删减玩家配置、不新增暂存分片或放宽 WS/其他操作。小开局请求保留原 RPC 路径与签名合同，新大开局路径须协调器和 game 同版配套发布。所有入口提供匹配固定源码的私有 JS/CSS/data；公开素材仅限已验证 immutable 清单和受审查源站 profile，不因扩容公开业务代码或内部 health/RPC/game 端点。
+保留数量准入 `0=不限` 与各玩法本身的容量规则，以及浏览器 64KiB 入站、每 socket 40/s、heavy 重发 2/s burst6、1MiB snapshot 软丢/16MiB 慢连接断开、RPC/分配期限和执行背压；“不限”不关闭协议防护。普通控制 RPC 请求及所有 RPC 回复仍为 64KiB。仅大于 64KiB 的开局 `prepare` 使用固定私有 `/_cluster/rpc/prepare`，请求上限 2MiB；HMAC 绑定该精确路径与正文，接收端先认证后解析且该路径只允许 `prepare`。完整配置仍逐字段校验、一次准备，超过总预算在任何分配、票据或 actor 创建前拒绝；不删减玩家配置、不新增暂存分片或放宽 WS/其他操作。小开局请求保留原 RPC 路径与签名合同，新大开局路径须协调器和 game 同版配套发布。所有入口提供匹配固定源码的私有 JS/CSS/data；公开素材仅限已验证 immutable 清单和受审查源站 profile，不因扩容公开业务代码、内部 status/RPC 或 game 监听。
+
+公网 health 仅允许精确根路径 GET/HEAD `/healthz` 匿名代理现有内部 status 的固定 HTTP 目标，不转发 Cookie/Authorization、正文或 query，不为别名或业务/API/WS/presence 放宽门禁，也不加 CORS `*`。原生 rich JSON 是非秘密诊断，原样保留正文和 HTTP 状态，不裁字段或缩减 coordinator 的 native schema；HEAD 无正文，其他方法 405。保持 no-store 和既有 Origin 防护；代理 connect/send/read 超时为 1/3/3 秒，不重试，上游不可达/超时不能假报 200。coordinator 200 不保证任何 game 可分配，不新增公开请求触发的节点 RPC/准入/分配。native ingress HTTP404、game 认证状态和宿主逐角色准入保持原合同；源码模板与实际固定 HTTP upstream 必须配对，生产安装/reload 另行授权。
 
 ## 固定源码、资源与镜像
 

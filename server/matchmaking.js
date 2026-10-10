@@ -46,6 +46,7 @@ export class Matchmaking {
     this.offers = new Map();
     this.sequence = 0;
     this.timer = null;
+    this.populationTimer = null;
     this.closed = false;
   }
 
@@ -55,7 +56,24 @@ export class Matchmaking {
     return { partyId: party.id, partySize: party.entries.length, partyLeaderId: party.leaderId, partyRoomCode: party.roomCode };
   }
 
-  state(session) {
+  poolKey(e) { return `${e.version}:${e.difficulty}:${e.party.required}`; }
+
+  /** Read-only population: no sweep, offer creation, deadline or party mutation. */
+  waitingPopulation() {
+    const counts = new Map(), waiting = [];
+    const now = this.now();
+    for (const party of this.parties.values()) {
+      if (party.entries.some(e => e.offerId || this.entries.get(e.session.playerId) !== e || this.stale(e, now))) continue;
+      for (const e of party.entries) {
+        const key = this.poolKey(e);
+        counts.set(key, (counts.get(key) || 0) + 1);
+        waiting.push({ entry: e, session: e.session, playerId: e.session.playerId, ticketId: e.ticketId });
+      }
+    }
+    return { counts, waiting };
+  }
+
+  state(session, counts = null) {
     const e = this.entries.get(session.playerId);
     if (!e) {
       const matched = session.matchmakingResult;
@@ -67,15 +85,59 @@ export class Matchmaking {
       t: 'queue.state', state: offer ? 'offered' : 'queued', ticketId: e.ticketId,
       difficulty: e.difficulty, required: e.party.required, joinedAt: e.joinedAt,
       deadline: offer ? offer.deadline : e.expiresAt, ...this.partyState(e.party),
+      ...(!e.offerId ? { waitingCount: (counts || this.waitingPopulation().counts).get(this.poolKey(e)) || 0 } : {}),
       ...(e.reason ? { reason: e.reason } : {}),
       ...(offer ? { offerId: offer.id, accepted: e.accepted, experimental: { ...offer.experimental }, acceptedCount: offer.entries.filter((x) => x.accepted).length,
         ...(offer.allocation ? { allocationPending: true } : {}) } : {}),
     };
   }
 
-  sync(session) { this.refresh(session); this.send(session, this.state(session)); }
-  push(e) { this.send(e.session, this.state(e.session)); }
+  sync(session) {
+    this.refresh(session);
+    const e = this.entries.get(session.playerId);
+    if (e) this.push(e);
+    else this.send(session, this.state(session));
+  }
+  push(e, counts = null) {
+    if (this.entries.get(e.session.playerId) !== e) return;
+    const state = this.state(e.session, counts);
+    e.lastWaitingCount = state.waitingCount;
+    this.send(e.session, state);
+  }
+  pushAll(entries) {
+    const counts = entries.some(e => !e.offerId) ? this.waitingPopulation().counts : null;
+    for (const e of entries) this.push(e, counts);
+  }
   idle(e, reason) { this.send(e.session, { t: 'queue.state', state: 'idle', ticketId: null, required: MAX_SEATS, reason }); }
+
+  notifyPopulation() {
+    const { counts, waiting } = this.waitingPopulation();
+    for (const saved of waiting) {
+      const e = saved.entry;
+      // A preceding send can cancel/rejoin, replace an identity or create an offer.
+      // Resolve a complete current snapshot, never replay a saved queued frame.
+      if (this.entries.get(saved.playerId) !== e || e.session !== saved.session || e.session.playerId !== saved.playerId
+        || e.ticketId !== saved.ticketId || e.offerId || this.stale(e, this.now())) continue;
+      if (e.lastWaitingCount !== (counts.get(this.poolKey(e)) || 0)) this.push(e, counts);
+    }
+  }
+
+  armPopulation() {
+    if (this.closed || ![...this.entries.values()].some(e => !e.offerId)) {
+      if (this.populationTimer != null) this.timers.clearTimeout(this.populationTimer);
+      this.populationTimer = null;
+      return;
+    }
+    if (this.populationTimer != null) return;
+    const timer = this.timers.setTimeout(() => {
+      if (this.populationTimer !== timer) return;
+      this.populationTimer = null;
+      this.notifyPopulation();
+      this.armPopulation();
+    }, 1000);
+    this.populationTimer = timer;
+    timer?.unref?.();
+  }
 
   join(session, { difficulty, party = false }) {
     this.refresh(session);
@@ -125,7 +187,7 @@ export class Matchmaking {
     if (unit.entries.some((e) => !this.available(e.session, e))) return fail(ERR.WRONG_PHASE, 'party member unavailable');
     this.parties.set(unit.id, unit);
     for (const e of unit.entries) { e.session.matchmakingResult = null; this.entries.set(e.session.playerId, e); }
-    for (const e of unit.entries) this.push(e);
+    this.pushAll(unit.entries);
     this.pump();
     this.arm();
     return OK;
@@ -162,7 +224,7 @@ export class Matchmaking {
     }
     e.revivalVote = false; // Legacy bookkeeping only; no player vote selects room rules.
     e.accepted = true;
-    for (const member of offer.entries) this.push(member);
+    this.pushAll(offer.entries);
     if (!offer.entries.every((x) => x.accepted)) return OK;
     if (this.asyncAllocate) {
       this.prepareAllocation(offer);
@@ -214,7 +276,7 @@ export class Matchmaking {
     offer.allocation = allocation;
     offer.deadline = Math.min(offer.deadline, this.now() + this.allocationMs);
     allocation.deadline = offer.deadline;
-    for (const member of offer.entries) this.push(member);
+    this.pushAll(offer.entries);
     this.arm();
     const context = Object.freeze({ signal: allocation.controller.signal, offerId: offer.id,
       isCurrent: () => this.allocationCurrent(offer, allocation) });
@@ -331,6 +393,7 @@ export class Matchmaking {
     for (const party of new Set([...removedParties, ...unconfirmedParties])) {
       if (this.parties.get(party.id) === party) this.parties.delete(party.id);
     }
+    const retained = [];
     for (const e of offer.entries) {
       if (this.entries.get(e.session.playerId) !== e) continue;
       e.offerId = null;
@@ -341,9 +404,10 @@ export class Matchmaking {
         this.idle(e, removedParties.has(e.party) ? reason : 'unconfirmed');
       } else {
         e.reason = reason === 'cancelled' ? 'peer_cancelled' : reason === 'disconnected' ? 'peer_disconnected' : reason;
-        this.push(e);
+        retained.push(e);
       }
     }
+    this.pushAll(retained);
   }
 
   pump() {
@@ -352,7 +416,7 @@ export class Matchmaking {
     for (const party of this.parties.values()) {
       const e = party.entries[0];
       if (e.offerId) continue;
-      const key = `${e.version}:${e.difficulty}:${party.required}`;
+      const key = this.poolKey(e);
       if (!pools.has(key)) pools.set(key, []);
       pools.get(key).push(party);
     }
@@ -417,7 +481,7 @@ export class Matchmaking {
         this.offers.set(offer.id, offer);
         for (const party of parties) unused.delete(party);
         for (const e of entries) { e.offerId = offer.id; e.accepted = false; e.revivalVote = null; e.reason = null; }
-        for (const e of entries) this.push(e);
+        this.pushAll(entries);
       }
     }
   }
@@ -466,6 +530,7 @@ export class Matchmaking {
   }
 
   arm() {
+    this.armPopulation();
     if (this.timer != null) { this.timers.clearTimeout(this.timer); this.timer = null; }
     if (this.closed || !this.entries.size) return;
     let at = Infinity;
@@ -477,7 +542,9 @@ export class Matchmaking {
 
   clear(reason) {
     if (this.timer != null) this.timers.clearTimeout(this.timer);
+    if (this.populationTimer != null) this.timers.clearTimeout(this.populationTimer);
     this.timer = null;
+    this.populationTimer = null;
     const entries = [...this.entries.values()], offers = [...this.offers.values()];
     this.entries.clear();
     this.parties.clear();

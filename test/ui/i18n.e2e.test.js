@@ -2,7 +2,7 @@
 //
 //   SP_E2E=1 node --test test/ui/i18n.e2e.test.js
 //
-// The title screen opens in Chinese; 中文 | English → English in place (no reload): the title, the start button, the
+// The title screen opens in Chinese; Settings → language switches in place (no reload): the title, the start button, the
 // connection line, <html lang>, the tab title; the choice is kept across a reload (localStorage sp.pref.lang) and the
 // game-data overlay (data/i18n/en.json) is applied; `?lang=zh` switches back and leaves the address bar. Language packs
 // (docs/I18N.md "Adding a language", docs/PACKS.md): a pack file dropped into public/i18n/ and a pack folder dropped
@@ -43,10 +43,20 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
 
   const text = (page, sel) => page.$eval(sel, (el) => el.textContent.replace(/\s+/g, ' ').trim());
   /** The menu's languages, [code, label] — its buttons, or the options of its list. */
-  const menu = (page) => page.$$eval('[data-testid="lang-toggle"] button, [data-testid="lang-toggle"] option',
-    (els) => els.map((e) => [e.dataset.lang ?? e.value, e.textContent.trim()]));
+  const openLanguageSettings = async (page) => {
+    if (!await page.$('.modal [data-testid="lang-toggle"]')) {
+      await page.click('.title-settings');
+      await page.waitForSelector('.modal [data-testid="lang-toggle"]');
+    }
+  };
+  const menu = async (page) => {
+    await openLanguageSettings(page);
+    return page.$$eval('[data-testid="lang-toggle"] button, [data-testid="lang-toggle"] option',
+      (els) => els.map((e) => [e.dataset.lang ?? e.value, e.textContent.trim()]));
+  };
   /** Pick a language: its button, or its option in the list. */
   const pick = async (page, code) => {
+    await openLanguageSettings(page);
     if (await page.$('[data-testid="lang-toggle"] select')) await page.select('[data-testid="lang-toggle"] select', code);
     else await page.click(`[data-testid="lang-toggle"] button[data-lang="${code}"]`);
   };
@@ -61,7 +71,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
   const MT_NOTE = '当前语言的界面文字为机器翻译，可能不够准确，欢迎在 GitHub 上指正。';
   /** The note under the language switch in 设置 (null when there is none); the dialog opens from the title screen and closes. */
   const settingsNote = async (page) => {
-    await page.click('.title-settings');
+    await openLanguageSettings(page);
     await page.waitForSelector('.modal .set-list');
     const note = await page.$eval('.modal [data-testid="lang-mt-note"]', (el) => el.textContent.trim()).catch(() => null);
     await page.click('.modal__actions .btn--primary'); // 完成 (an Esc right after the dialog shows may beat its key listener)
@@ -79,7 +89,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('response', (r) => { if (r.status() >= 400 && !/fonts\.(googleapis|gstatic)/.test(r.url())) problems.push(`http ${r.status()}: ${r.url()}`); });
     await page.goto(`${base}/`, { waitUntil: 'networkidle0' });
-    await page.waitForSelector('.title-screen [data-testid="lang-toggle"]');
+    await openLanguageSettings(page);
     assert.equal(await text(page, '.title-cn'), '卫戍协议：盟约');
     assert.equal(await text(page, '.title-login .btn--primary'), '开始');
     assert.equal(await page.evaluate(() => document.documentElement.lang), 'zh-CN');
@@ -126,7 +136,8 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
       fs.writeFileSync(path.join(PACK_DIR, 'ui.json'), JSON.stringify({ 开始: 'Qab-Start' }));
       await sleep(1100); // the server's registry looks at the folders again after a second
       await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
-      await page.waitForFunction(() => [...document.querySelectorAll('.title-screen [data-testid="lang-toggle"] :is(button, option)')].some((e) => (e.dataset.lang ?? e.value) === 'qaa'), { timeout: 8000 });
+      await openLanguageSettings(page);
+      await page.waitForFunction(() => [...document.querySelectorAll('.modal [data-testid="lang-toggle"] :is(button, option)')].some((e) => (e.dataset.lang ?? e.value) === 'qaa'), { timeout: 8000 });
       assert.deepEqual(await menu(page), [...SHIPPED.slice(0, 4), ['qaa', 'Testisch'], ['qab', 'Qabisch'], SHIPPED[4]]);
 
       await pick(page, 'qaa');
@@ -165,7 +176,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('response', (r) => { if (r.status() >= 400 && !/fonts\.(googleapis|gstatic)/.test(r.url())) problems.push(`http ${r.status()}: ${r.url()}`); });
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
-    await page.waitForSelector('.title-screen [data-testid="lang-toggle"]');
+    await openLanguageSettings(page);
     assert.equal(await settingsNote(page), null, 'Chinese: no machine-translation note');
     for (const code of ['ja', 'ko', 'zh-TW']) {
       await pick(page, code);

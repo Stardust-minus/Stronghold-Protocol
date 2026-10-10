@@ -164,7 +164,7 @@ test('REAL Beta isolated stock Nginx TLS, gate, localcode fallback and WS bounda
     }
     await waitFor(async () => {
       if (nginx.exitCode !== null) throw new Error('Nginx failed: ' + nginxLog);
-      try { return (await request('/healthz')).status === 404; } catch { return false; }
+      try { return (await request('/login')).status === 200; } catch { return false; }
     }, 'loopback TLS', 10000);
     let cookie;
     await t.test('real createGate beta profile login with full Beta Host and test-only password', async () => {
@@ -224,7 +224,7 @@ test('REAL Beta isolated stock Nginx TLS, gate, localcode fallback and WS bounda
         const response = await request(uri, { headers: { cookie, origin: ORIGIN } }); assert.equal(response.status, 200, uri); privateHeaders(response);
         for (const origin of [ALPHA, 'https://foreign.test']) assert.equal((await request(uri, { headers: { cookie, origin, 'x-forwarded-origin': ORIGIN } })).status, 403, uri);
       }
-      for (const uri of ['/healthz', '/_ark_beta_status', '/_gate/check', '/localcode/js/local.js', '/dev/a', '/_release/unknown/ws']) {
+      for (const uri of ['/healthz/', '/public/healthz', '/control', '/_material', '/_ark_beta_status', '/_gate/check', '/localcode/js/local.js', '/dev/a', '/_release/unknown/ws']) {
         for (const headers of [{}, { cookie }]) assert.equal((await request(uri, { headers })).status, 404, uri);
       }
       for (const uri of ['/js/local.js', '/js/foo.js']) assert.equal((await request(uri, { headers: { cookie, origin: ALPHA } })).status, 403);
@@ -249,7 +249,15 @@ test('REAL Beta isolated stock Nginx TLS, gate, localcode fallback and WS bounda
       const echoed = new Promise(resolve => connected.socket.once('message', data => resolve(data.toString())));
       connected.socket.send('beta-test-only-ping'); assert.equal(await echoed, 'beta-test-only-ping'); connected.socket.terminate();
     });
-    await t.test('HTTP and WS forwarded headers overwrite fake IP/proto/host; internal health is not externally proxied', async () => {
+    await t.test('exact public health bypasses only its gate, strips credentials and keeps HEAD/no-store', async () => {
+      const before = (await command('observed')).filter(row => row.path === '/healthz').length;
+      const health = await request('/healthz', { headers: { ...spoof, authorization: 'Bearer test-only', 'proxy-authorization': 'Basic test-only' } });
+      assert.equal(health.status, 200); assert.equal(JSON.parse(health.body).ok, true); privateHeaders(health);
+      const head = await request('/healthz', { method: 'HEAD' });
+      assert.equal(head.status, 200); assert.equal(head.body, ''); privateHeaders(head);
+      assert.equal((await command('observed')).filter(row => row.path === '/healthz').length, before + 2, 'only public GET/HEAD added health requests');
+    });
+    await t.test('HTTP and WS overwrite fake forwarding; only exact public health is externally proxied', async () => {
       assert.equal((await request('/client-build', { headers: spoof })).status, 200);
       const rows = await command('observed');
       for (const kind of ['http', 'ws']) {
@@ -258,7 +266,12 @@ test('REAL Beta isolated stock Nginx TLS, gate, localcode fallback and WS bounda
         assert.equal(row.headers['x-forwarded-for'], '127.0.0.1'); assert.equal(row.headers['x-forwarded-proto'], 'https');
         for (const key of ['cf-connecting-ip', 'forwarded', 'x-forwarded-host']) assert.equal(row.headers[key], undefined);
       }
-      assert.equal(rows.filter(row => row.path === '/healthz').length, 0);
+      const healthRows = rows.filter(row => row.path === '/healthz');
+      assert.ok(healthRows.length >= 2, 'public GET/HEAD are observed; internal Lua presence may also read health');
+      for (const row of healthRows) {
+        assert.equal(row.hasCookie, false);
+        for (const key of ['authorization', 'proxy-authorization', 'upgrade']) assert.equal(row.headers[key], undefined);
+      }
     });
     await t.test('public assets alone get wildcard CORS; fixture static release fixed and credentials stripped', async () => {
       const response = await request('/assets/DummyBody.png?fixture=1', { headers: { ...spoof, origin: 'https://foreign.test', authorization: 'Bearer test-only', 'proxy-authorization': 'Basic test-only' } });

@@ -106,10 +106,12 @@ for (const family of ['bounty', 'tactic', 'supply', 'shop']) test(`${family}: le
   assert.deepEqual(cards[19], { id: 'card19', name: 'Choice19', desc: 'Effect19' }, 'server payload is not mutated');
 });
 
-test('room and draft lists remain bounded while the compact in-game roster needs no scroll container', () => {
+test('room, draft and readable in-game lists keep every seat in bounded scrollers', () => {
   assert.match(source('../../public/css/screens/room.css'), /\.seats\.seats--expanded \{[^}]*overflow-y: auto/);
   assert.match(source('../../public/css/screens/game.css'), /\.team\.team--expanded \{[^}]*bottom:[^}]*overflow: visible/);
-  assert.match(source('../../public/css/screens/game.css'), /\.team--expanded \.team__players \{[^}]*grid-auto-flow: column/);
+  assert.match(source('../../public/css/screens/game.css'), /\.team--expanded \.team__players \{[^}]*grid-auto-flow: column[^}]*overflow-y: auto/);
+  assert.match(source('../../public/js/ui/teamPanel.js'), /aria-controls="team-roster"/);
+  assert.match(source('../../public/css/screens/game.css'), /\.team--expanded \.team__btn \{[^}]*min-width: 44px; min-height: 44px/);
   assert.match(source('../../public/css/screens/game.css'), /\.team--expanded \.team__bubble \{[^}]*left: auto; right: 0/);
   assert.match(source('../../public/css/screens/draft.css'), /\.draft-order__players \{[^}]*overflow-y: auto/);
   assert.match(source('../../public/css/screens/game-panels.css'), /\.spov--expanded \.spov__grid \{[^}]*overflow-y: auto/);

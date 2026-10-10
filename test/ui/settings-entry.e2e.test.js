@@ -53,6 +53,9 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
     await page.waitForSelector('.lobby-screen', { timeout: 15000 });
     await sleep(500);
 
+    const announcement = await page.$('.announcement-board .modal__actions button');
+    if (announcement) { await announcement.click(); await page.waitForSelector('.announcement-board', { hidden: true }); }
+    assert.equal(await page.$('.lobby-language'), null, 'language has no duplicate lobby entry');
     assert.ok(await settingsBeforeGuide(page, '.lobby-screen .topbar__right', 'lobby-guide'), '设置 sits right before 玩法说明 in the lobby\'s top bar');
     assert.equal(await modalText(page), null, 'closed until asked');
     await page.click('.lobby-screen [data-testid="settings-btn"]');

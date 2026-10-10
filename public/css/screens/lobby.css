@@ -5,11 +5,11 @@
 .lobby-body {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: .4rem;
+  gap: .28rem;
   width: 100%;
   max-width: 19.2rem;
   margin: 0 auto;
-  padding: .2rem .5rem .22rem;
+  padding: .16rem .5rem .18rem;
   align-content: start;
 }
 .lobby-left, .lobby-right { display: flex; flex-direction: column; min-width: 0; }
@@ -18,7 +18,7 @@
 .lobby-feedback .icon { width: 16px; height: 16px; }
 
 /* ---- mode cards ------------------------------------------------------------------------------------ */
-.mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .16rem; margin-bottom: .22rem; }
+.mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .16rem; margin-bottom: .14rem; }
 .mode-card {
   --bk-c: transparent;
   --bk-l: .2rem;
@@ -26,9 +26,9 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: .14rem;
-  min-height: 3.05rem;
-  padding: .24rem .26rem .22rem;
+  gap: .1rem;
+  min-height: 2.65rem;
+  padding: .18rem .22rem;
   overflow: hidden;
   text-align: left;
   background: linear-gradient(180deg, rgba(28, 34, 31, .92), rgba(13, 16, 15, .94));
@@ -137,8 +137,8 @@
 /* ---- tips -------------------------------------------------------------------------------------------- */
 .tips {
   --bk-c: var(--line-3);
-  margin-top: .18rem;
-  padding: .12rem .2rem .14rem;
+  margin-top: .1rem;
+  padding: .08rem .16rem;
   background: rgba(8, 10, 9, .55);
   border: 1px solid var(--line);
 }
@@ -243,10 +243,17 @@
 .create-box__hint { display: flex; align-items: center; justify-content: center; min-height: .3rem; font-size: calc(.14 * var(--t)); color: var(--text-lo); }
 
 /* Lobby-only chrome and optional readers; no changes to the game/room scale. */
-.lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: .16rem; padding-inline: .32rem; }
+.lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: .16rem; padding-inline: .32rem; height: auto; min-height: 1.1rem; padding-block: .12rem; }
 .lobby-screen .topbar__center { min-width: 0; }
 .lobby-screen .topbar__title { font-size: max(calc(.25 * var(--t)), 14px); letter-spacing: .06em; text-wrap: balance; }
 .lobby-screen .topbar__right { gap: .1rem; flex-wrap: wrap; }
+.lobby-tools { position: relative; }
+.lobby-tools > summary { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line-2); color: var(--text-md); background: var(--bg-1); cursor: pointer; font-size: max(calc(.16 * var(--t)), 12px); list-style: none; }
+.lobby-tools > summary::-webkit-details-marker { display: none; }
+.lobby-tools > summary .icon { width: 16px; height: 16px; }
+.lobby-tools__menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; gap: 6px; width: 180px; padding: 8px; background: var(--bg-1); border: 1px solid var(--line-2); box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
+.lobby-tools__menu .btn, .lobby-tools__menu .fsbtn { width: 100%; min-height: 44px; justify-content: flex-start; font-size: 14px; }
+.lobby-tools:not([open]) .lobby-tools__menu { display: none; }
 .lobby-screen .me-chip__name { max-width: 1.5rem; }
 .lobby-screen .join-row .field { min-width: 0; }
 .lobby-protocol-help { margin-left: auto; height: .36rem; font-size: calc(.14 * var(--t)); }

@@ -18,7 +18,6 @@ import { html, Button, Icon, MicroLabel, Modal, Panel, TextField, PingPill, Avat
 import { AnnouncementBoard, announcementRevision, announcementDismissed, dismissAnnouncement } from '../ui/announcements.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { LobbyFeedback } from '../ui/lobbyFeedback.js';
-import { LanguageButton } from '../ui/languageSettings.js';
 import { FullscreenButton } from '../ui/device.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton } from '../ui/guide.js';
@@ -406,13 +405,17 @@ export function LobbyScreen() {
         <h1 class="topbar__title">${t('选择模拟协议')}</h1>
       </div>
       <div class="topbar__right">
-        <${LanguageButton} />
-        <${FullscreenButton} class="lobby-fullscreen" showUnavailable=${true} />
-        <${Button} class="lobby-announcements" variant="secondary" size="sm" icon="info" aria-haspopup="dialog"
-          onClick=${() => setOverlay('announcements')}>${t('公告')}<//>
-        <${Button} variant="secondary" size="sm" icon="chart" class="stats-entry" onClick=${openStats} title=${t('统计数据')} aria-label=${t('统计数据')}>${t('统计')}<//>
+        <details class="lobby-tools" onKeyDown=${(e) => { if (e.key === 'Escape' && !e.target.closest('.modal')) e.currentTarget.open = false; }}>
+          <summary aria-label=${t('更多')}><${Icon} name="dots" />${t('更多')}</summary>
+          <div class="lobby-tools__menu">
+            <${FullscreenButton} class="lobby-fullscreen" showUnavailable=${true} />
+            <${Button} class="lobby-announcements" variant="secondary" size="sm" icon="info" aria-haspopup="dialog"
+              onClick=${() => setOverlay('announcements')}>${t('公告')}<//>
+            <${Button} variant="secondary" size="sm" icon="chart" class="stats-entry" onClick=${openStats} title=${t('统计数据')} aria-label=${t('统计数据')}>${t('统计')}<//>
+            <${PwaInstallButton} class="lobby-pwa" />
+          </div>
+        </details>
         <${ResumeMatchButton} />
-        <${PwaInstallButton} class="lobby-pwa" />
         <${SettingsButton} class="lobby-settings" variant="secondary" label=${t('设置')} />
         <${GuideButton} class="lobby-guide" variant="secondary" label=${t('玩法说明')} />
         <${LoadoutButton} from="lobby" size="sm" class="lobby-loadout" label=${t('干员调配')} />
