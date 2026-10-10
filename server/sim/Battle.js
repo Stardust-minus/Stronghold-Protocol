@@ -157,6 +157,7 @@ export class Battle {
     this.errorCount = 0;
     this._errKeys = new Set();
     this._result = null;
+    this._startUnitStats = null;
     this._skills = { onDamaged: (u) => { if (u.skill) u.skill.onDamaged(); } };
     this.remainingDistance = (e) => remainingDistance(this, e);
 

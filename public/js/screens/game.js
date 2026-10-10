@@ -46,7 +46,7 @@
 // playtest #6 item 7); while the temp overflow row (临时整备区) holds pieces it is framed and labelled on the board
 // (ui/underframe.js TempRowNotice) and 准备就绪 / Space say why they are refused (item 3).
 // User playtest #4: the detail card shows live stats (item 7) — in battle the local sim's unit or the shown server
-// snapshot's unitStats, in prep an own board unit's start-of-battle stats (g.unitStats → m.unitStats); 机变 cards take two taps
+// opening field's unitStats, in prep an own board unit's start-of-battle stats (g.unitStats → m.unitStats); 机变 cards take two taps
 // (item 2, ui/choiceOverlay.js).
 // Merges (user playtest #6 follow-up, PRTS 卫戍协议/帮助 "若消耗已部署至作战区的干员，则发送至作战区对应位置"): a shop /
 // reward card armed for a purchase that completes a merge lights, in gold, the board tile its elite will take (the
@@ -467,7 +467,7 @@ function MatchScreen() {
     reentryRef.current = null;
     viewModeRef.current = 'battle';
     snapUnitsRef.current = new Map();
-    snapStatsRef.current = snapshotStats(null);
+    snapStatsRef.current = snapshotStats(field);
     view.enterBattle(field);
     const early = evBufRef.current.get(field.fieldId);
     evBufRef.current.delete(field.fieldId);
@@ -508,7 +508,6 @@ function MatchScreen() {
     }
     if (earlySnap) {
       view.pushSnapshot(earlySnap);
-      snapStatsRef.current = snapshotStats(earlySnap);
       if (Array.isArray(earlySnap.units)) {
         snapUnitsRef.current = new Map(earlySnap.units.filter(Array.isArray).map((t) => [t[0], t]));
       }
@@ -544,7 +543,6 @@ function MatchScreen() {
         return;
       }
       view?.pushSnapshot(snap);
-      snapStatsRef.current = snapshotStats(snap);
       if (Array.isArray(snap.units)) {
         const mp = new Map();
         for (const t of snap.units) if (Array.isArray(t)) mp.set(t[0], t);
@@ -1195,7 +1193,8 @@ function MatchScreen() {
   const resolved = useMemo(() => resolveDetail(detailTarget, placeCtx.pieces, { priv, backups: gd.backups }), [detailTarget, placeCtx, gd.ready, data.locale()]);
   useEffect(() => { if (detail && !resolved && detail.kind === 'piece') setDetail(null); }, [resolved]);
   const snapHp = (() => {
-    const id = resolved?.unitId;
+    const id = resolved?.unitId ?? (!showPrep && !field?.prep && Number.isInteger(resolved?.piece?.uid)
+      ? [...pieceUnitsRef.current.values()].find(u => u.uid === resolved.piece.uid && u.ownerId === myId)?.id : null);
     const t = id != null ? snapUnitsRef.current.get(id) : null;
     return t ? { hp: t[3], max: t[4] } : null;
   })();
@@ -1208,8 +1207,8 @@ function MatchScreen() {
   }, [hud, detail]);
 
   // ---- live stats of the detail card (user playtest #4 item 7) ------------------------------------------------------
-  // battle: the local sim's unit or the shown server field's snapshot stats (a getter the panel re-reads 4× a second;
-  // any visible unit: own, a teammate's, an enemy). Prep: an own board unit's stats at the start of its next battle,
+  // battle: the frozen first-tick stats from the local sim or the shown server field's m.field cache; later spawns
+  // fall back to record values. The getter only reads the cache. Prep: an own board unit's stats at the next battle start,
   // asked from the server (g.unitStats → m.unitStats; only the newest request's answer counts) whenever m.private or the
   // phase changes while such a card is open — the last answer stays on show until the next one lands
   const [unitStats, setUnitStats] = useState(null);      // m.unitStats: { seq, round, units: Map<uid, entry> }

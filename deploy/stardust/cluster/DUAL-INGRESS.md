@@ -36,7 +36,9 @@ node deploy/stardust/tools/prepare-dual-ingress-proxy.mjs \
   --source REVIEWED_ACTIVE_VHOST.conf --profile formal --out NEW_DIRECTORY
 ```
 
-必须输入实际活动 vhost 的已审查副本，而非拿仓库早期单机模板覆盖线上。工具只将根 `/ws` 和已有精确 legacy WS location 的 named upstream 改为双 loopback `least_conn`，保留原 HTTP／auth／privatecode／data／material／Origin／可信转发头与超时字节。未知、重复、禁用门禁、retry 歧义及已准备输入拒绝，不 silently rewrite。
+必须输入实际活动 vhost 的已审查副本，而非拿仓库早期单机模板覆盖线上。工具只将根 `/ws` 和已有精确 legacy WS location 的 named upstream 改为双实例 `least_conn`：Formal 固定 profile 使用两个容器 IP 的原生监听，绕过 `docker-proxy`；loopback 发布端口保留供管理／回退，不能因为增加第二实例而重新让业务 WS 走用户态端口代理。Beta 保留原 loopback 行为，不由 Formal 修改连带切换。保留原 HTTP／auth／privatecode／data／material／Origin／可信转发头与超时字节。未知、重复、禁用门禁、retry 歧义及已准备输入拒绝，不 silently rewrite。
+
+直连只能用于已核实固定网络／容器 IP、host-network 代理可达、同版 guard 已准入的实际实例；不改 Docker daemon、发布端口或 guard。自定义端口 API 仅为隔离 loopback fixture，manifest 的 `deploymentPortsMatchProfile:false` 不可当作生产批准材料。
 
 只分新 WS 握手；已有 WS 不迁移。`proxy_next_upstream error timeout`／tries2 只处理升级前的连接错误；不把 Origin403／门禁401 变成重试绕过。Nginx least_conn 不承诺所有 worker 全局严格均分。原单文件 bind 的 vhost 需保留 inode、备份与 CAS 写入，采用实际启动配置语法检查及正常 reload；HTTP 和密码门禁不接到 ingress 的404监听上。
 

@@ -351,9 +351,9 @@ const statView = (x) => ({
  * or the last ones the sim computed) next to its own numbers — `unit.base` with its 练度 multiplier (`unit.cultMul`,
  * 0.2.2: part of the operator's own numbers, as on the record cards; no buffs) — max HP, ATK, DEF, RES, attack interval
  * (s), block, move speed — rounded for display (the sim keeps floats), plus the current HP. The shape of the
- * `m.unitStats` units (Match.unitStats: what the board's units start their next battle with), the browser runner's live
- * battle stats (public/js/battle/runner.js unitStats), and server-streamed `b.snap.unitStats` (Battle.snapshot with
- * includeUnitStats: true; exactly the tuple-listed units, cached `unit._s` only). An ally with a range carries `range`: the grid
+ * `m.unitStats` units (Match.unitStats: what the board's units start their next battle with), the browser runner's frozen
+ * opening stats, and server-streamed `m.field.unitStats` (first-tick cache, filtered to the current field metadata).
+ * Periodic b.snap frames carry no panel DTOs. An ally with a range carries `range`: the grid
  * (`[dRow, dCol]`, facing RIGHT) it attacks with now — a running skill's range, rangeExtend included, not a kit's
  * target-selection grid (the sim's `unit.liveRangeGrid`, Battle._refreshRange; community report E1 after 0.1.0: 烛煌
  * S3's 4-11 never reached the card). `dir`: the unit's facing now (UP / RIGHT / DOWN / LEFT; UnitInfo.dir is the facing

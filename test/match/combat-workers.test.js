@@ -25,11 +25,15 @@ const captureLog = () => {
 };
 const quiet = captureLog().log;
 const clone = (x) => structuredClone(x);
-function assertSnapshotUnitStats(snap) {
-  assert.ok(Array.isArray(snap.unitStats), 'every server full snapshot carries the detail array, even when empty');
-  assert.deepEqual(snap.unitStats.map((u) => u.id), snap.units.map((u) => u[0]), 'details follow exact tuple visibility');
+function assertCompactSnapshot(snap) {
+  assert.equal(Object.hasOwn(snap, 'unitStats'), false, 'periodic and resync snapshots carry no panel DTOs');
   assert.ok(snap.units.every((u) => u.length === 9), 'the compact tuple schema is unchanged');
-  for (const u of snap.unitStats) {
+}
+function assertOpeningUnitStats(meta) {
+  assert.ok(Array.isArray(meta.unitStats), 'opening/resync metadata carries the frozen panel cache');
+  const listed = new Set(meta.units.map(u => u.id));
+  for (const u of meta.unitStats) {
+    assert.ok(listed.has(u.id), 'only currently visible metadata units may expose cached details');
     assert.ok(u.base && Number.isFinite(u.atk) && Number.isFinite(u.base.atk) && Number.isFinite(u.def));
     for (const key of ['buffs', '_s', 'mem', 'skill', 'player', 'ownerUnit', 'kit']) assert.equal(Object.hasOwn(u, key), false, `no raw Unit ${key}`);
   }
@@ -199,7 +203,7 @@ for (const kind of ['normal', 'unite', 'boss', 'hidden']) {
     const remote = pair[1];
     assert.ok(remote.sent.some(([, msg]) => msg.t === 'm.field' && !msg.prep));
     assert.ok(remote.sent.some(([, msg]) => msg.t === 'b.snap' && msg.gt > 0));
-    for (const h of pair) for (const [, msg] of h.sent) if (msg.t === 'b.snap') assertSnapshotUnitStats(msg);
+    for (const h of pair) for (const [, msg] of h.sent) if (msg.t === 'b.snap') assertCompactSnapshot(msg);
     assert.ok(remote.sent.some(([, msg]) => msg.t === 'b.ev'));
     assert.equal(remote.sent.some(([, msg]) => msg.t === 'b.start'), false);
     assert.deepEqual(remote.logs.errors, []);
@@ -451,14 +455,18 @@ test('workers: encoded resync selects only the newest consistent frame in a dela
   const response = pool.queue[0];
   assert.equal(response.op, 'advance');
   assert.ok(response.dto.frames.length >= 2);
-  assert.ok(response.dto.frames.every((f) => typeof f.metaWire === 'string' && typeof f.snapshotWire === 'string'));
+  assert.ok(response.dto.frames.filter(f => !f.startMetaWire).every((f) => typeof f.metaWire === 'string' && typeof f.snapshotWire === 'string'));
+  const opening = JSON.parse(response.dto.frames.find(f => f.startMetaWire).startMetaWire);
+  assertOpeningUnitStats(opening);
   const latest = response.dto.frames.at(-1);
-  assertSnapshotUnitStats(JSON.parse(latest.snapshotWire));
+  assertCompactSnapshot(JSON.parse(latest.snapshotWire));
   runner.requestField('p_0', 'n:p_0');
   const before = h.sent.length;
   await pool.deliver(response);
   const frames = h.sent.slice(before).filter(([, msg]) => ['m.field', 'b.snap', 'b.ev'].includes(msg.t)).map(([, msg]) => msg);
-  assert.deepEqual(frames, [JSON.parse(latest.metaWire), JSON.parse(latest.snapshotWire)],
+  const currentMeta = JSON.parse(latest.metaWire);
+  const ids = new Set(currentMeta.units.map(u => u.id));
+  assert.deepEqual(frames, [{ ...currentMeta, unitStats: opening.unitStats.filter(u => ids.has(u.id)) }, JSON.parse(latest.snapshotWire)],
     'rejoin sends the newest metadata/snapshot pair, not older events or backwards snapshots');
   assert.equal(runner.resync.size, 0);
   const remote = m.fields[0].battle;
@@ -1078,8 +1086,8 @@ test('workers: a real WS spectator receives encoded live/resync frames without p
   const snap = await resumed.waitFor('b.snap');
   assert.equal(meta.fieldId, snapshot.fieldId);
   assert.ok(snap.gt >= snapshot.gt);
-  assertSnapshotUnitStats(snapshot);
-  assertSnapshotUnitStats(snap);
+  assertCompactSnapshot(snapshot);
+  assertCompactSnapshot(snap);
   assert.equal(resumed.log.filter((x) => x.t === 'm.field' || x.t === 'b.snap')[0].t, 'm.field');
   assert.equal(srv.lobby.stats().online, 2);
   for (const c of [observer, resumed]) assert.ok(!c.log.some((x) => ['m.private', 'm.toast', 'm.unitStats', 'b.start'].includes(x.t)));
@@ -1149,18 +1157,20 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
   await ok(a, { t: 'g.ready', ready: true });
   const initial = await a.waitFor('m.field', (f) => !f.prep);
   const initialSnap = await a.waitFor('b.snap', (s) => s.fieldId === initial.fieldId);
-  assertSnapshotUnitStats(initialSnap);
-  assert.deepEqual(initialSnap.unitStats, [], 'initial state is not started: undeployed operators must remain private');
-  const firstLiveSnap = await a.waitFor('b.snap', (s) => s.unitStats?.some((u) => u.uid === carrier.uid));
-  assertSnapshotUnitStats(firstLiveSnap);
-  const first = firstLiveSnap.unitStats.find((u) => u.uid === carrier.uid);
+  assertCompactSnapshot(initialSnap);
+  assert.equal(initial.unitStats, undefined, 'initial state is not started: undeployed operators must remain private');
+  const opening = await a.waitFor('m.field', (f) => f.unitStats?.some((u) => u.uid === carrier.uid));
+  assertOpeningUnitStats(opening);
+  const first = opening.unitStats.find((u) => u.uid === carrier.uid);
   const { id: _previewId, ...want } = preview;
   const { id: _battleId, ...have } = first;
   assert.deepEqual(have, want, 'the worker sends real effective/base DTOs, not record-only stats');
   const enemyKey = m.wave.spawns[0].enemyKey;
-  const spawned = await a.waitFor('b.snap', (s) => s.gt > 0 && s.unitStats?.some((u) => u.defId === enemyKey), 10_000);
-  const spawnedIds = spawned.unitStats.filter((u) => u.defId === enemyKey).map((u) => u.id);
+  const event = await a.waitFor('b.ev', (e) => e.ev.some(x => x[0] === 'spawn' && x[1].defId === enemyKey));
+  const spawnedIds = event.ev.filter(x => x[0] === 'spawn' && x[1].defId === enemyKey).map(x => x[1].id);
+  const spawned = await a.waitFor('b.snap', s => spawnedIds.some(id => s.units.some(u => u[0] === id)), 10_000);
   assert.ok(spawnedIds.length > 0);
+  assert.equal(a.log.filter(x => x.t === 'm.field' && Array.isArray(x.unitStats)).length, 1, 'one reliable panel update at battle start');
   assert.equal(a.log.some((x) => x.t === 'b.start'), false);
   assert.ok(m.runner instanceof WorkerFieldRunner);
   assert.ok(m.fields.every((f) => f.battle instanceof RemoteBattle));
@@ -1176,11 +1186,13 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
   for (const id of spawnedIds) assert.ok(refreshed.units.some((u) => u.id === id), `rejoin metadata contains spawned unit ${id}`);
   const snap = await b.waitFor('b.snap', (s) => s.fieldId === refreshed.fieldId);
   assert.ok(snap.gt >= spawned.gt);
-  assertSnapshotUnitStats(spawned);
-  assertSnapshotUnitStats(snap);
-  const resumedStats = snap.unitStats.find((u) => u.uid === carrier.uid);
-  assert.ok(resumedStats && resumedStats.atk > resumedStats.base.atk, 'the first real reconnect frame retains equipment bonuses');
+  assertCompactSnapshot(spawned);
+  assertCompactSnapshot(snap);
+  assertOpeningUnitStats(refreshed);
+  const resumedStats = refreshed.unitStats.find((u) => u.uid === carrier.uid);
+  assert.deepEqual(resumedStats, first, 'reconnect reuses the opening panel without recalculating live buffs');
   assert.deepEqual(resumedStats.base, preview.base);
+  assert.ok(spawnedIds.every(id => !refreshed.unitStats.some(u => u.id === id)), 'later spawns use record values');
   const order = b.log.filter((x) => x.t === 'm.field' || x.t === 'b.snap');
   assert.equal(order[0].t, 'm.field', 'metadata precedes the first reconnect snapshot');
   await ok(b, { t: 'g.pause', on: true });
@@ -1196,7 +1208,7 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
   assert.ok(encoded.some((entry) => entry.wire === JSON.stringify(spawned)), 'snapshot arrives byte-equivalent to the worker wire');
   assert.ok(encoded.some((entry) => entry.wire === JSON.stringify(refreshed)), 'rejoin also uses the encoded path');
   assert.ok(encoded.some((entry) => entry.wire === JSON.stringify(snap)), 'reconnect details arrive byte-equivalent to the worker wire');
-  for (const entry of encoded) if (entry.type === 'b.snap') assertSnapshotUnitStats(JSON.parse(entry.wire));
+  for (const entry of encoded) if (entry.type === 'b.snap') assertCompactSnapshot(JSON.parse(entry.wire));
   assert.deepEqual(objectFrames, [], 'live worker frames never fall back to main-thread object encoding');
   assert.equal(typeof m.fields[0].battle._snapshotWire, 'string');
   assert.equal(m.fields[0].battle._snapshot, null, 'normal streaming keeps only the wire cache');

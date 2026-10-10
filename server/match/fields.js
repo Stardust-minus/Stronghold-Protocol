@@ -202,6 +202,7 @@ export class FieldRunner {
         this._forceField(f, 'timeout');
       }
       if (b.finished) { f.live = false; this.m.markPublic(); }
+      if (this.ticks === 1) this._emitStart(f);
       if (this.ticks % SNAP_EVERY === 0 || !f.live) this._emit(f);
     }
     if (this.onTick) {
@@ -238,6 +239,16 @@ export class FieldRunner {
     if (last != null && this.ticks - last < this.snapshotEvery) return false;
     this.snapshotAt.set(f.fieldId, this.ticks);
     return true;
+  }
+
+  _emitStart(f) {
+    if (!this.emit || !Array.isArray(f.battle._startUnitStats)) return;
+    try {
+      const meta = f.battle.fieldMeta({ includeUnitStats: true });
+      if (!Array.isArray(meta.unitStats)) return;
+      const msg = { t: 'm.field', ...meta, fieldId: f.fieldId, kind: f.kind, live: !!f.live };
+      for (const pid of this.m.watchersOf(f.fieldId)) this.m.sendTo(pid, msg);
+    } catch (e) { this.m.reportError(`field ${f.fieldId} start stats`, e); }
   }
 
   _emit(f) {

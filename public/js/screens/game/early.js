@@ -17,11 +17,11 @@ export const keepEarly = (e) => Array.isArray(e) && (STATE_EV.has(e[0]) || fxFor
  */
 export const audioEarly = (early) => (Array.isArray(early) ? early.filter((e) => Array.isArray(e) && e[0] === 'spawn') : []);
 
-/** Replace, never merge, the shown field's server stats; legacy snapshots clear the previous values too. */
+/** Replace, never merge, the shown field's opening stats from m.field; compact b.snap never changes this cache. */
 export function snapshotStats(snap) {
   const units = new Map();
   if (Array.isArray(snap?.unitStats) && snap.unitStats.length) {
-    const listed = new Set((Array.isArray(snap.units) ? snap.units : []).filter(Array.isArray).map(t => t[0]));
+    const listed = new Set((Array.isArray(snap.units) ? snap.units : []).map(u => Array.isArray(u) ? u[0] : u?.id));
     for (const entry of snap.unitStats) {
       if (entry && Number.isInteger(entry.id) && listed.has(entry.id)) units.set(entry.id, entry);
     }

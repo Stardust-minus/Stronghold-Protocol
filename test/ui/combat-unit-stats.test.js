@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { snapshotStats, snapshotUnitStats, notePieceUnits } from '../../public/js/screens/game/early.js';
-import { liveStat } from '../../public/js/ui/detailPanel.js';
+import { liveStat, hpOf } from '../../public/js/ui/detailPanel.js';
 
 const field = { fieldId: 'n:p0', units: [
   { id: 1, uid: 7, ownerId: 'p1' },
@@ -25,6 +25,16 @@ test('server battle cards show effective values, green bonuses and their own bas
   assert.equal(liveStat(live, 'interval', 1).sub, '−0.20');
   assert.deepEqual(live.range, [[0, 0], [0, 1]]);
   assert.equal(live.dir, 'RIGHT');
+});
+
+test('HP follows compact snapshots rather than the frozen opening panel', () => {
+  const opening = { ...entry(2), hp: 1200, src: 'battle' };
+  assert.deepEqual(hpOf(opening, { hp: 500, max: 1300 }), { hp: 500, max: 1300 });
+  assert.deepEqual(hpOf(opening, { hp: 0, max: 1300 }), { hp: 0, max: 1300 });
+  assert.deepEqual(hpOf(opening, null), { hp: 1200, max: 1200 });
+  const src = readFileSync(new URL('../../public/js/ui/detailPanel.js', import.meta.url), 'utf8');
+  assert.match(src, />\$\{t\('开战时'\)\}<\/span>/);
+  assert.doesNotMatch(src, /battle \? t\('实时'\)/);
 });
 
 test('an own prep card left open resolves by piece uid AND owner, not the first matching teammate uid', () => {
@@ -85,6 +95,18 @@ test('unlisted or malformed entries cannot expose hidden or removed units, and p
   assert.equal(JSON.stringify(snap), before);
 });
 
+test('opening metadata caches unit details independently from subsequent compact snapshots', () => {
+  const opening = { ...field, unitStats: [entry(2, 780)] };
+  const stats = snapshotStats(opening);
+  const compact = { fieldId: field.fieldId, units: [[2, 3, 10, 600, 1200, 5, 10, 0, 0]] };
+  const early = new Map([[field.fieldId, compact]]);
+  early.set(field.fieldId, { ...compact, gt: 10 });
+  assert.equal(snapshotUnitStats(stats, field, { id: 2 }).atk, 780, 'compact frames do not erase the opening bonuses');
+  assert.equal(snapshotUnitStats(snapshotStats({ ...field, unitStats: undefined }), field, { id: 2 }), null,
+    'a legacy field entry replaces the cache and cannot reuse the previous round');
+  assert.equal(snapshotUnitStats(snapshotStats(opening), field, { id: 2 }).atk, 780, 'reconnect metadata restores the same values');
+});
+
 test('early buffered frames and reconnects contain a full stats replacement', () => {
   const buffered = new Map([[field.fieldId, frame([entry(2, 780)])]]);
   const stats = snapshotStats(buffered.get(field.fieldId));
@@ -107,11 +129,11 @@ test('empty initial field metadata gains piece identities from spawn events, inc
     'removed ids cannot shadow the currently listed incarnation');
 });
 
-test('game wiring resets stats at field/relay/prep boundaries, replays early data and preserves client live getters', () => {
+test('game wiring reads opening metadata, never updates panels from periodic/early snapshots, and resets at field boundaries', () => {
   const src = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');
-  assert.match(src, /snapStatsRef\.current = snapshotStats\(earlySnap\)/);
-  assert.match(src, /snapStatsRef\.current = snapshotStats\(snap\)/);
-  assert.ok((src.match(/snapStatsRef\.current = snapshotStats\(null\)/g) || []).length >= 4);
+  assert.match(src, /snapStatsRef\.current = snapshotStats\(field\)/);
+  assert.doesNotMatch(src, /snapStatsRef\.current = snapshotStats\((?:earlySnap|snap)\)/);
+  assert.ok((src.match(/snapStatsRef\.current = snapshotStats\(null\)/g) || []).length >= 3);
   assert.match(src, /enteredFieldRef\.current === field && lastFieldRef\.current === field\.fieldId/);
   assert.match(src, /snapshotUnitStats\(snapStatsRef\.current, field, \{ id, pieceUid, ownerId: myId, units: pieceUnitsRef\.current \}\)/);
   assert.match(src, /notePieceUnits\(new Map\(\), \{ infos: field\.units, events: early \}\)/);

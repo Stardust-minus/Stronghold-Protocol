@@ -19,7 +19,9 @@ for (const [profile, source] of Object.entries(sources)) test(profile + ' prepar
   const r = prepareDualIngressProxy(source, { profile });
   assert.equal(r.manifest.activated, false); assert.equal(r.manifest.ingressInstances, 2);
   assert.equal(r.manifest.existingSocketsMigrated, false); assert.equal(r.manifest.deploymentPortsMatchProfile, true);
-  assert.deepEqual(r.manifest.endpoints, profile === 'formal' ? ['127.0.0.1:35401', '127.0.0.1:35402'] : ['127.0.0.1:35301', '127.0.0.1:35302']);
+  assert.deepEqual(r.manifest.endpoints, profile === 'formal' ? ['172.30.246.2:3000', '172.30.246.3:3000'] : ['127.0.0.1:35301', '127.0.0.1:35302']);
+  assert.deepEqual(r.manifest.publishedPorts, profile === 'formal' ? [35401, 35402] : [35301, 35302]);
+  assert.equal(r.manifest.upstreamTransport, profile === 'formal' ? 'container-direct' : 'loopback');
   assert.match(r.vhost, /least_conn;/); assert.doesNotMatch(r.vhost.slice(0, r.vhost.indexOf('\n\n')), /keepalive|ip_hash|hash \$/);
   let restored = r.vhost.slice(r.vhost.indexOf('\n\n') + 2);
   const previous = r.manifest.webSocketLocations[0].previousUpstream;
@@ -27,6 +29,17 @@ for (const [profile, source] of Object.entries(sources)) test(profile + ' prepar
   restored = restored.replaceAll(`proxy_pass http://${r.manifest.upstream};\n        proxy_next_upstream error timeout;\n        proxy_next_upstream_tries 2;`, `proxy_pass http://${previous};`);
   assert.equal(restored, source, 'no unrelated location, gate, Origin, headers, timeout, provider or HTTP backend changed');
   assert.equal(r.manifest.webSocketLocations.length, profile === 'formal' ? 2 : 1);
+});
+
+test('Formal explicit profile ports retain direct bypass; custom ports remain unapproved loopback fixtures', () => {
+  const formal = prepareDualIngressProxy(sources.formal, { ports: [35401, 35402] });
+  assert.deepEqual(formal.manifest.endpoints, ['172.30.246.2:3000', '172.30.246.3:3000']);
+  assert.equal(formal.manifest.deploymentPortsMatchProfile, true);
+  assert.doesNotMatch(formal.vhost.slice(0, formal.vhost.indexOf('\n\n')), /127\.0\.0\.1:3540/);
+  const fixture = prepareDualIngressProxy(sources.formal, { ports: [42001, 42002] });
+  assert.deepEqual(fixture.manifest.endpoints, ['127.0.0.1:42001', '127.0.0.1:42002']);
+  assert.equal(fixture.manifest.deploymentPortsMatchProfile, false);
+  assert.equal(fixture.manifest.upstreamTransport, 'loopback');
 });
 
 test('quoted/commented braces and non-BMP comments retain source offsets', () => {

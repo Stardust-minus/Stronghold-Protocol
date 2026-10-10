@@ -22,12 +22,12 @@
 // match (research 09 §5, ui/underframe.js): the panel's own 出售 / 销毁 buttons only render for callers that pass
 // `editable` + handlers. `side` 'right' docks the panel at the right edge (the game screen picks the side away from a
 // selected unit's underframe, gameLogic panelSide).
-// Live stats (user playtest #4 item 7 — the card used to show the fixed record numbers): `live` = the unit's current
-// stats (shared/protocol.js unitStatsEntry + `src`) — in battle the browser's own sim or the shown server snapshot (a
-// getter re-read 4× a second: current HP, max HP, ATK, DEF, RES, attack interval, block), in prep the stats the own
+// Panel stats (user playtest #4 item 7 — the card used to show fixed record numbers): `live` = opening attributes
+// (shared/protocol.js unitStatsEntry + `src`) — in battle a frozen first-tick cache, with live HP from the compact
+// snapshot independently. In prep these are the stats the own
 // board's units start their next battle with (m.unitStats: equipment, bonds / layers, 特质, band and 机变 effects). Each
 // value is coloured against the unit's base like the official card — green when it helps (higher, or a shorter attack
-// interval) with the difference beside it, red when it hurts — and a 实时 / 开战时 tag says which it is. The 攻击范围
+// interval) with the difference beside it, red when it hurts — and an 开战时 tag names the frozen values. The 攻击范围
 // mini-map follows the live entry's `range` too (cardRangeGrid: the grid the unit attacks with now — a running skill's
 // range such as 烛煌 S3's 4-11, rangeExtend included; community report E1 after 0.1.0, it used to stay the base grid);
 // a grid larger than the box (RANGE_FIT) draws smaller cells (rangeGridStyle), a whole-field one reads 全场.
@@ -156,21 +156,22 @@ export function liveStat(live, key, fallback, fmt = fmtNum) {
   return { v: fmt(cur), tone, sub, title: base != null ? t('基础 {v}', { v: fmt(base) }) : undefined };
 }
 
-/** The tag of a live stats block: 实时 (battle) / 开战时 (the prep preview). */
+/** Both the current battle's frozen panel and the next battle's prep preview show opening values. */
 function LiveTag({ live }) {
   if (!live) return null;
   const battle = live.src === 'battle';
-  return html`<span class=${cx('dstats__tag', battle && 'is-battle')} title=${battle ? t('当前作战中的实时数值（绿色为增益，红色为减益）')
-    : t('下一场作战开始时的数值：已计入装备、盟约层数、特质、策略与机变效果（不含技能与作战中的临时效果）')}>${battle ? t('实时') : t('开战时')}</span>`;
+  return html`<span class=${cx('dstats__tag', battle && 'is-battle')} title=${battle ? t('开战时')
+    : t('下一场作战开始时的数值：已计入装备、盟约层数、特质、策略与机变效果（不含技能与作战中的临时效果）')}>${t('开战时')}</span>`;
 }
 
 const fmtInterval = (v) => (Number.isFinite(v) && v > 0 ? `${v.toFixed(2)}s` : '—');
 const fmtRes = (v) => (Number.isFinite(v) ? String(Math.round(v * 10) / 10) : '0');
 
-/** HP bar of the card header: the live HP in battle, else the snapshot's. */
-function hpOf(live, snapHp) {
+/** HP stays live through compact snapshots even when the attribute panel is frozen at battle start. */
+export function hpOf(live, snapHp) {
+  if (snapHp) return snapHp;
   if (live && live.src === 'battle' && Number.isFinite(live.hp) && Number.isFinite(live.maxHp)) return { hp: live.hp, max: live.maxHp };
-  return snapHp || null;
+  return null;
 }
 
 function Section({ title, micro, children, class: cls }) {

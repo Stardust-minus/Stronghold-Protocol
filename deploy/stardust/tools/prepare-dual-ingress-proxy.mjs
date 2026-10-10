@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
 const profiles = {
-  formal: { name: 'ark_cluster_formal_ingress_ws', ports: [35401, 35402] },
+  formal: { name: 'ark_cluster_formal_ingress_ws', ports: [35401, 35402], direct: ['172.30.246.2:3000', '172.30.246.3:3000'] },
   beta: { name: 'ark_cluster_beta_ingress_ws', ports: [35301, 35302] },
 };
 const paths = ['/ws', '/_release/v012-alliance-20261004/ws'];
@@ -73,13 +73,17 @@ export function prepareDualIngressProxy(source, { profile = 'formal', ports } = 
   }
   let vhost = source;
   for (const item of [...locations].sort((a, b) => b.start - a.start)) vhost = vhost.slice(0, item.start) + item.body + vhost.slice(item.end);
-  const upstream = `# New handshakes only; established WebSockets stay on their original ingress.\nupstream ${spec.name} {\n    least_conn;\n    server 127.0.0.1:${ports[0]} max_fails=1 fail_timeout=5s;\n    server 127.0.0.1:${ports[1]} max_fails=1 fail_timeout=5s;\n}\n\n`;
+  const deploymentPortsMatchProfile = ports.every((p, i) => p === spec.ports[i]);
+  // Formal business traffic bypasses docker-proxy; published ports remain for management/rollback.
+  // Custom ports are isolated loopback fixtures, never an approved production profile.
+  const endpoints = spec.direct && deploymentPortsMatchProfile ? spec.direct.slice() : ports.map(p => `127.0.0.1:${p}`);
+  const upstream = `# New handshakes only; established WebSockets stay on their original ingress.\nupstream ${spec.name} {\n    least_conn;\n    server ${endpoints[0]} max_fails=1 fail_timeout=5s;\n    server ${endpoints[1]} max_fails=1 fail_timeout=5s;\n}\n\n`;
   const prepared = upstream + vhost;
   return { vhost: prepared, manifest: { activated: false, profile, ingressInstances: 2, services: ['ingress', 'ingress-02'],
-    endpoints: ports.map(p => `127.0.0.1:${p}`), upstream: spec.name,
+    endpoints, publishedPorts: ports.slice(), upstreamTransport: spec.direct && deploymentPortsMatchProfile ? 'container-direct' : 'loopback', upstream: spec.name,
     webSocketLocations: locations.map(({ path, previousUpstream }) => ({ path, previousUpstream })),
     sourceSha256: sha(source), preparedSha256: sha(prepared), existingHttpAuthPrivateAndMaterialPathsUnchanged: true,
-    deploymentPortsMatchProfile: ports.every((p, i) => p === spec.ports[i]),
+    deploymentPortsMatchProfile,
     requiresReviewedActiveVhostAndApprovedGuardPolicy: true, existingSocketsMigrated: false } };
 }
 

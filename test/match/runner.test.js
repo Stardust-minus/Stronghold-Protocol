@@ -414,30 +414,36 @@ test('live leaks: a boss field is not counted (the merged team LP moves through 
   r2.runner.dispose();
 });
 
-test('live unit stats (user playtest #4 item 7): unitStats(id) reads the battle on screen — the sim\'s last computed stats, never unit.s (no recompute from the UI)', async () => {
+test('opening unit stats: unitStats(id) reuses first-tick panel data and never reads live Unit stats', async () => {
   const start = realStart(7305);
   const r = rig();
   r.net.emit('b.start', start);
   await r.settle();
   const e = r.runner._entries.get(start.battleId);
+  let captures = 0;
+  const capture = e.battle.captureStartUnitStats;
+  e.battle.captureStartUnitStats = function () { captures++; return capture.call(this); };
+  r.advance(20);
+  const opening = structuredClone(e.battle._startUnitStats);
   r.advance(2000);
+  assert.equal(captures, 1, 'panel DTOs are generated on the first tick only');
+  assert.deepEqual(e.battle._startUnitStats, opening);
   const ally = e.battle.allyUnits.find((u) => u.alive && u.deployed && u.kind === 'op');
   assert.ok(ally, 'a deployed operator');
   // a trap on the lazy getter: reading the live stats must not recompute them (it would move the sim's floats)
+  const cached = opening.find(u => u.id === ally.id);
   const s = ally._s;
+  ally._s = { ...s, atk: s.atk + 10000 };
   Object.defineProperty(ally, 's', { configurable: true, get() { throw new Error('unit.s read by the UI'); } });
   const got = r.runner.unitStats(ally.id);
   delete ally.s;
+  ally._s = s;
   assert.ok(got, 'the unit of the battle on screen');
   assert.equal(got.id, ally.id);
   assert.equal(got.uid, ally.uid);
   assert.equal(got.defId, ally.defId);
-  assert.equal(got.atk, Math.round(s.atk));
-  assert.equal(got.maxHp, Math.round(s.maxHp));
-  assert.equal(got.def, Math.round(s.def));
-  assert.equal(got.interval, Math.round(s.interval * 100) / 100);
-  assert.equal(got.blockCnt, s.blockCnt);
-  assert.equal(got.hp, Math.round(ally.hp));
+  assert.deepEqual(got, cached, 'later live stat changes do not update the panel');
+  assert.equal(got, r.runner.unitStats(ally.id), 'even repeated reads reuse the DTO');
   // the unit's own numbers: its base with its 练度 (0.2.2: the match states 精英2 Lv.60 by default — ×1.1)
   assert.equal(ally.cultivate, 3);
   assert.equal(got.base.atk, Math.round(ally.base.atk * ally.cultMul.atk));
@@ -467,8 +473,8 @@ test('live unit stats (user playtest #4 item 7): unitStats(id) reads the battle 
   const foe = e.battle.enemies.find((x) => x.alive);
   if (foe) {
     const fs = r.runner.unitStats(foe.id);
-    assert.ok(fs && fs.maxHp > 0 && fs.base.maxHp > 0, 'an enemy\'s live stats');
-    assert.equal(fs.moveSpeed, Math.round((foe._s || foe.base).moveSpeed * 100) / 100);
+    assert.deepEqual(fs, opening.find(u => u.id === foe.id) ?? null,
+      'later enemy spawns have no panel DTO and use record values');
   }
   r.runner.clear();
   assert.equal(r.runner.unitStats(ally.id), null, 'nothing on screen after the battles were dropped');

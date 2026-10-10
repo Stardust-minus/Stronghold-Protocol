@@ -110,6 +110,7 @@ export class BattleLifecycle {
     } finally {
       this._stepping = false;
     }
+    if (this.tickCount === 1 && this._startUnitStats == null) this.captureStartUnitStats();
     if (this._endReq && !this.finished) {
       try { this.forceEnd(this._endReq); } catch (e) { this._handlerError('internal:forceEnd', null, e); this._hardFinish(this._endReq); }
     }

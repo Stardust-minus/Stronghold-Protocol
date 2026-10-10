@@ -15,6 +15,7 @@ const finite = (n, d = 0) => Number.isFinite(n) ? n : d;
 
 // Keep FieldRunner's actual step / onTick / second-finished-check semantics. Only the transport differs.
 class EngineRunner extends FieldRunner {
+  _emitStart(field) { this.m.engine._emitStart(field); }
   _emit(field) { this.m.engine._emit(field); }
   _forceField(field, reason) {
     this.m.engine._saveErrors(field);
@@ -136,6 +137,17 @@ export class CombatEngine {
     this.effects.push({ type: 'lpLoss', amount: n });
   }
 
+  _emitStart(f) {
+    if (!Array.isArray(f.battle._startUnitStats)) return;
+    try {
+      const meta = f.battle.fieldMeta({ includeUnitStats: true });
+      if (!Array.isArray(meta.unitStats)) return;
+      const msg = { t: 'm.field', ...meta, fieldId: f.fieldId, kind: f.kind, live: !!f.live };
+      this.frames.push(this.wireFrames ? { fieldId: f.fieldId, startMetaWire: JSON.stringify(msg) }
+        : structuredClone({ fieldId: f.fieldId, startMeta: msg }));
+    } catch (e) { this._error(`field ${f.fieldId} start stats`, e); }
+  }
+
   _frame(f, events = []) {
     let snapshot = null, meta = null;
     try { snapshot = f.battle.snapshot(); } catch (e) { this._error(`field ${f.fieldId} snapshot`, e); }
@@ -240,6 +252,7 @@ export class CombatEngine {
       const latest = new Map();
       const events = [];
       for (const frame of this.frames) {
+        if (frame.startMetaWire) events.push(frame);
         if (frame.snapshotWire) latest.set(frame.fieldId, { ...frame, eventsWire: null });
         if (frame.eventsWire) events.push({ fieldId: frame.fieldId, eventsWire: frame.eventsWire });
       }

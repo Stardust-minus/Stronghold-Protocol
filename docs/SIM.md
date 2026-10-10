@@ -1401,6 +1401,10 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   `mem.shadows` of `mem.wolfCapacity`) and `negView` (`unit.negFill()`, set by 斩业星熊's T1 业火: the 我执 pool as a share of its cap);
   UnitInfo `ammoSkill` marks an ally whose skill is an ammo magazine (DESIGN §8.2).
   `fieldMeta()` lists the knocked-out operators too (a client joining mid-battle shows them; DESIGN §18.3).
+  `fieldMeta({ includeUnitStats: true })` additionally filters the immutable first-tick panel cache to these units.
+  It never regenerates detail DTOs: the first tick captures visible deployed units from their cached `_s`, later spawns
+  use record values, and periodic snapshots/Worker metadata omit the panel list. Explicit diagnostic
+  `snapshot({ includeUnitStats: true })` remains available but is not used by streaming/watch/resync.
   `stand: [[id, until]]` (only when non-empty) = the game time each enemy's attack recovery ends (`atkStandUntil`: it
   stands for the rest of its attack clip, §1.2 `attackStand`) — enemies alive, deployed, visible, neither feared nor stunned;
   display metadata the battle never reads (PR #381). When `until` falls between two snapshots the renderer holds the older

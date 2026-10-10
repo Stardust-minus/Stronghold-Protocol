@@ -5,6 +5,7 @@
 import { EVENT_BUFFER_CAP } from '../constants.js';
 import { damageRows } from '../damageBoard.js';
 import { elementView } from '../damage.js';
+import { unitStatsEntry } from '../../../shared/protocol.js';
 import { unitInfo, snapshotUnits, ammoView, wolfView, negView } from '../snapshot.js';
 
 export class BattleEvents {
@@ -46,7 +47,7 @@ export class BattleEvents {
   /**
    * Compact full snapshot of this field (DESIGN §8.2 b.snap). With includeUnitStats: true, unitStats is always an
    * array of detail DTOs for the exact units in the tuples, using their already-computed stats (no extra lazy s read).
-   * Server streaming opts in; the default browser/local snapshot avoids this detail copy. Plus (only when non-empty):
+   * An explicit diagnostic call may opt in; periodic streaming never copies these details. Plus (only when non-empty):
    *   down: [[id, respawnAt, respawnTime, state, row, col]] — operators that left the field waiting to redeploy (isDown): the
    *         game time their respawn timer ends, its length (s), constants.js DOWN_STATE and the tile they lie on (and
    *         come back on: _layBody — where they fell, or their home);
@@ -117,16 +118,27 @@ export class BattleEvents {
     return snap;
   }
 
+  /** Freeze the detail panel after the first tick; reading it never triggers lazy stat recomputation. */
+  captureStartUnitStats() {
+    if (this._startUnitStats != null) return;
+    this._startUnitStats = this.units.filter(u => u.alive && u.deployed && !u.hidden)
+      .map(u => unitStatsEntry(u, u._s || null));
+  }
+
   /**
-   * Field meta for m.field: { fieldId, kind, rect, stageId, units: UnitInfo[] } — the units on the field, knocked-out
-   * operators waiting to redeploy included (a client joining mid-battle shows them down).
+   * Field meta for m.field: deployed units and knocked-out operators waiting to redeploy. The optional detail cache
+   * is sent only on entry/start/resync and filtered to this view's units, never regenerated during combat.
    */
-  fieldMeta() {
+  fieldMeta({ includeUnitStats = false } = {}) {
+    const units = this.units.filter((u) => (u.alive && u.deployed && !u.hidden) || this.isDown(u))
+      .map(u => unitInfo(u, includeUnitStats ? u._s || u.base : null));
+    const listed = includeUnitStats ? new Set(units.map(u => u.id)) : null;
     return {
       fieldId: this.fieldId, kind: this.kind, rect: { ...this.rect }, stageId: this.stageId,
       players: this.players.map((p) => p.playerId),
       sides: Object.fromEntries(this.players.map((p) => [p.playerId, p.half])),
-      units: this.units.filter((u) => (u.alive && u.deployed && !u.hidden) || this.isDown(u)).map(unitInfo),
+      units,
+      ...(includeUnitStats && this._startUnitStats ? { unitStats: this._startUnitStats.filter(u => listed.has(u.id)) } : {}),
     };
   }
   damageRows() { return damageRows(this); }

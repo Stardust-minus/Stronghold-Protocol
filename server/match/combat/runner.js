@@ -27,6 +27,7 @@ export class RemoteBattle {
     this._snapshot = null;
     this._metaWire = null;
     this._snapshotWire = null;
+    this._startUnitStats = null;
     this._damageRows = emptyDamageRows(spec);
     this._damageWire = null;
     this._damageGt = 0;
@@ -41,7 +42,12 @@ export class RemoteBattle {
     }
     return this._damageRows;
   }
-  fieldMeta() { return this._meta || (this._metaWire ? JSON.parse(this._metaWire) : null); }
+  fieldMeta({ includeUnitStats = false } = {}) {
+    const meta = this._meta || (this._metaWire ? JSON.parse(this._metaWire) : null);
+    if (!meta || !includeUnitStats || !this._startUnitStats) return meta;
+    const listed = new Set((meta.units || []).map(u => u.id));
+    return { ...meta, unitStats: this._startUnitStats.filter(u => listed.has(u.id)) };
+  }
   snapshot() {
     if (this._snapshot || !this._snapshotWire) return this._snapshot;
     const { t, gt, ...rest } = JSON.parse(this._snapshotWire);
@@ -228,6 +234,16 @@ export class WorkerFieldRunner {
     for (const frame of out.frames || []) {
       const f = this.fields.find((x) => x.fieldId === frame.fieldId);
       if (!f) continue;
+      if (frame.startMetaWire || frame.startMeta) {
+        const meta = frame.startMeta || JSON.parse(frame.startMetaWire);
+        f.battle._startUnitStats = meta.unitStats;
+        for (const pid of this._watchers(f.fieldId)) {
+          if (this.resync.get(pid) === f.fieldId) continue;
+          if (frame.startMetaWire) this.m.sendEncoded(pid, 'm.field', frame.startMetaWire);
+          else this.m.sendTo(pid, meta);
+        }
+        continue;
+      }
       // Catch-up event-only frames retain their original gt/order without replacing a consistent cached view.
       if (frame.snapshotWire || frame.snapshot) {
         f.battle._meta = frame.meta || null;
@@ -278,13 +294,14 @@ export class WorkerFieldRunner {
   _sendCached(pid, f) {
     const b = f.battle;
     if (b._metaWire && b._snapshotWire) {
-      this.m.sendEncoded(pid, 'm.field', b._metaWire);
+      this.m.sendEncoded(pid, 'm.field', b._startUnitStats
+        ? JSON.stringify(b.fieldMeta({ includeUnitStats: true })) : b._metaWire);
       this.m.sendEncoded(pid, 'b.snap', b._snapshotWire);
       this._sendDamageCached(pid, f);
       return true;
     }
     if (!b._meta || !b._snapshot) return false;
-    this.m.sendTo(pid, { t: 'm.field', ...b._meta, fieldId: f.fieldId, kind: f.kind, live: !!f.live });
+    this.m.sendTo(pid, { t: 'm.field', ...b.fieldMeta({ includeUnitStats: true }), fieldId: f.fieldId, kind: f.kind, live: !!f.live });
     this.m.sendTo(pid, snapFrame(f.fieldId, b._snapshot));
     this._sendDamageCached(pid, f);
     return true;

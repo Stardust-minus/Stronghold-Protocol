@@ -79,14 +79,15 @@ S→C:
   listed enemy's recovery was cut or ignored (失衡, fear, stun, hiding, leaving): an interval with a cut inside it stays
   linear. A newest snapshot showing a death, a stun or a block is not extrapolated. Old snapshots without them
   interpolate linearly; nothing is inferred from the attack animation.
-  Fork display correction (2026-10-09): server-run snapshots also carry `unitStats: [unitStatsEntry]` for the units
-  listed in that snapshot, including an empty array for an empty field. These are current effective attributes next to
-  their unbuffed base, with the live range/facing and HP, not prep previews or raw buffs. Inline and Worker streams,
-  first watch and reconnect use the same payload; no new per-frame RPC is added. The serializer opts in with
-  `snapshot({ includeUnitStats: true })`; default browser-local snapshots retain their existing lightweight shape.
-  The detail card re-reads the current field's replacement cache, resolves a prep piece by uid **and owner**, and
-  clears old values on field/round re-entry, prep or an older snapshot without this list. Its client-sim getter and
-  the nine-field tuples are unchanged. This corrects display only, not combat aggregation or gameplay rules.
+  Fork bandwidth correction (2026-10-10): periodic and resync `b.snap` carry **no unitStats** and retain the nine-field
+  tuples. At the end of the first simulation tick, visible deployed units' detail DTOs are cached once from `unit._s`
+  (no additional lazy stat reads) and sent in a reliable, compressible `m.field {unitStats: [unitStatsEntry]}` update.
+  Watch/reconnect metadata reuses this opening cache, filtered to the units the current metadata lists. The cache is
+  never recomputed during combat or attached to periodic Worker snapshot/meta wires; later spawns use record values.
+  Client-sim panel getters likewise reuse the first-tick cache. Buffs, skills and facing/range changes no longer update
+  the panel; HP/SP bars, simulation, events, damage boards and settlement remain live and unchanged. The client takes
+  panel data from m.field, not b.snap: compact snapshots never erase it; new field/round/relay/prep entries replace it,
+  including legacy metadata without the cache. An own prep card still resolves the battle unit by uid **and owner**.
 - `b.ev` — `{ fieldId, ev: [ ... ] }` event tuples: `['spawn', UnitInfo]`, `['atk', srcId, tgtId, projKind]`, `['dmg', tgtId, amount, type]`, `['heal', tgtId, amount]`, `['skill', id, on:0|1]`, `['die', id, reason]` (reason `'killed'`, `'retreat'`, `'expired'` …; only `'killed'` plays an operator's knock-down sound), `['status', id, key, on]`, `['fx', kind, x, y, extra]` (`'hitCap' {id, n}` = a cancelled 限伤 hit, drawn as nothing, §20.12; `extra.form` = the unit's model form from then on (an enemy's mode, a 傀儡师's 替身 §22.11) — `shared/protocol.js fxForm`, state like a spawn: never dropped by the client, §21.4), `['layer', playerId, bondId, n]`, `['bounty', playerId, coins]`, `['deploy', id]`
 - `m.toast {kind, text}` · `m.ticker {text, id, type, priority, playerId}` (the strip plays the highest priority first, §21.10) · `m.emote {playerId, id}` · `m.result {...}`
 - `m.unitStats {seq, round, units: [unitStatsEntry]}` — the answer to `g.unitStats` (`seq` echoed): every own board operator / summon by uid with `{id, uid, defId, hp, alive, maxHp, atk, def, res, interval, blockCnt, moveSpeed, range?, base: {…same}}` and `dir?` (shared/protocol.js `unitStatsEntry`; `range` = an ally's live range grid, facing RIGHT, never a target-selection grid, §21.16; `dir` = the unit's facing now, UP|RIGHT|DOWN|LEFT — the snapshot tuples carry none and UnitInfo `dir` is the facing at send time — which the detail card's range overlay rotates by, GitHub PR #281) as its next battle starts (§18.5)

@@ -25,8 +25,8 @@ import { unitStatsEntry } from '../../shared/protocol.js';
 const r2 = (v) => Math.round(v * 100) / 100;
 const r1 = (v) => Math.round(v * 10) / 10;
 
-/** Static per-unit info sent on spawn / in m.field. */
-export function unitInfo(u) {
+/** Static per-unit info sent on spawn / in m.field; opening metadata may supply already-computed stats. */
+export function unitInfo(u, stats = null) {
   const d = u.def || {};
   return {
     id: u.id,
@@ -44,7 +44,7 @@ export function unitInfo(u) {
     y: r2(u.y),
     facing: u.facing ?? 1,
     dir: u.dir ?? 'RIGHT',
-    maxHp: Math.max(1, Math.round(u.s.maxHp)),
+    maxHp: Math.max(1, Math.round((stats && typeof stats === 'object' ? stats : u.s).maxHp)),
     motion: u.motion === 'FLY' ? 'FLY' : undefined,
     boss: u.isBoss ? true : undefined,
     // the unit's current model form (an enemy's content/enemies/helpers.js setForm, a 傀儡师's 替身 — render/units.js FORMS): a
