@@ -88,17 +88,19 @@ test('shipped announcement data validates; optional board is mounted from the lo
 test('shipped notices contain only the concise latest update and initial introduction', () => {
   const entries = parseAnnouncements(JSON.parse(source('../../data/announcements.json')));
   assert.equal(entries.length, 2);
-  assert.equal(entries[0].title, '0.2.3 更新与观战开放');
+  assert.equal(entries[0].title, '0.2.2／0.2.3 累计更新');
   assert.equal(entries[0].date, '2026-10-10');
   assert.equal(entries[1].title, '欢迎游玩卫戍协议！卫来！');
   const text = entries[0].paragraphs.join('\n');
-  for (const feature of ['上游 0.2.3', '克莱门莎', '黍、乌尔比安的新模组', '四档文字大小', '逐干员配音偏好', '安装到桌面', '恢复已关闭窗口的对局', '不会顶掉仍在使用的窗口', '全体真人一致同意后重刷', '每四人共享一卡池', '扩容模式策略可重复', '统一六项、可重复选择', '每人仍只选一次', '固定 300 游戏秒', '两场各 150 秒', '单场为 300 秒', '提前结束不延长下一场', '4／8／12／16／20', '整队匹配相同人数模式', '全员确认后直接开局', '匹配前仍需队友准备', '普通大厅匹配默认四人', '原同盟密钥或旧邀请链接观战', '仅观看当前对局', '271 套时装战斗模型', '部分动态立绘仍待补', '界面语言和中／日／英配音', '一份完整预设', '兼容旧的单项配置', '回退中文', '实验性多人默认关闭', '接力联防', '禁用鸭爵，默认不禁用', '队友机变显示', '准备区模型首帧', '战斗数值展示']) assert.ok(text.includes(feature), feature);
+  for (const feature of ['0.2.3 · 新内容与便利功能', '克莱门莎', '黍、乌尔比安的新模组', '四档文字大小', '逐干员配音偏好', '安装到桌面', '恢复已关闭窗口的对局', '不会顶掉仍在使用的窗口', '全体真人一致同意后重刷', '每四人共享一卡池', '扩容模式策略可重复', '统一六项、可重复选择', '每人仍只选一次', '固定 300 游戏秒', '两场各 150 秒', '单场为 300 秒', '提前结束不延长下一场', '4／8／12／16／20', '整队匹配相同人数模式', '全员确认后直接开局', '匹配前仍需队友准备', '普通大厅匹配默认四人', '原同盟密钥或旧邀请链接观战', '仅观看当前对局', '271 套时装战斗模型', '部分动态立绘仍待补', '界面语言和中／日／英配音', '一份完整预设', '兼容旧的单项配置', '回退中文', '实验性多人默认关闭', '接力联防', '禁用鸭爵，默认不禁用', '队友机变显示', '准备区模型首帧', '战斗数值展示']) assert.ok(text.includes(feature), feature);
   assert.doesNotMatch(text, /8／10／16／20|开启后禁用匹配|两轮共用|提前结束保留余额/);
   assert.match(text, /不改变技能、模组或战斗属性/);
   assert.match(text, /中断旧房间与对局/);
   assert.match(entries[1].paragraphs.join('\n'), /纯公益.*非官方/);
   assert.match(entries[1].paragraphs.join('\n'), /github\.com\/sganggs\/Stronghold-Protocol/);
-  assert.ok(entries.flatMap(entry => entry.paragraphs).join('\n').length < 750, 'the complete introduction and update stay concise');
+  for (const feature of ['0.2.2 与 0.2.3', '潜能 1–6', '默认潜能 6、精英阶段2-60级', '行内快捷选择技能、模组', '本机统计数据', '历史结算回看', '可导入导出', '记录只在本机浏览器保存', '点选干员语音', '场地装置', '当前攻击范围', 'AI 队友最后选择', '双击队友头像', '领袖场传送门', '位移失衡', '杜宾教鞭三选一', '每人 50 秒', '至少 11 生命时支付 10 点救援', '每局最多获救一次', '不刷新其干员、装备或经济', '优化静态资源 CDN 加载', '脚本、字体和游戏素材', '实际加载仍受网络与源站状态影响']) assert.ok(text.includes(feature), feature);
+  assert.doesNotMatch(text, /自动切源|自动选择最优|保证不卡顿|完全消除卡顿/);
+  assert.ok(entries.flatMap(entry => entry.paragraphs).join('\n').length < 1500, 'the expanded cumulative update and introduction stay bounded');
 });
 
 test('announcements omit contacts and infrastructure; the lobby owns the copyable group number', () => {
