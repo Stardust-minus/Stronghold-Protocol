@@ -9,7 +9,7 @@
 - `server/cluster/coordinator.js` 持有一个全局 SessionRegistry、Lobby、好友房、party、queue、offer、唯一房码及分配目录，不创建战斗/试算池，不接收逐帧战斗推流。
 - `server/cluster/game-runtime.js` 的每个独立进程持有完整 Match/PlayerState、战斗与试算池；Boss、共享 HP/LP、联防、复活和结算留在同一节点，不跨节点拆战斗。
 - 高频 `m.field/b.snap/b.ev/m.damage` 等从所属节点直接到入口，沿用压缩白名单和背压，不绕协调器 MainThread。协调器和 ingress 的 combat/trial 为 0。
-- 固定 `cluster-deploy.py` core bundle 为一个 coordinator + 十六个 game，每 game 8 combat + 2 trial；edge bundle 支持每入口一或两个 ingress，配置覆盖全部十六节点。逻辑分组不是匹配分区；这些是模板约束，不是运行数量或容量证明。
+- 固定 `cluster-deploy.py` core bundle 为一个 coordinator + 十六个 game，每 game 8 combat + 2 trial；Formal edge bundle 支持每入口 1–8 个 ingress，Beta 保留 1–2 个，配置覆盖全部十六节点。逻辑分组不是匹配分区；这些是模板约束，不是运行数量或容量证明。
 
 不恢复 rolling/drain/多版本更新网关，不引入跨版本内存迁移。运行主机按部署者策略只保留必要镜像、宿主管理/恢复工具、runtime、密钥挂载与守卫；开发 checkout、导出、测试工具、文档和证据留开发/管理环境。必要宿主程序不能误删为开发源码。
 
@@ -52,9 +52,9 @@ python3 -I deploy/stardust/tools/cluster-source-export.py \
 
 `tools/cluster-deploy.py` 只生成新受保护 Compose/runtime/keys/host policy，不 SSH、Docker 或激活。输出在仓库外的允许 profile 路径，父目录受保护，拒绝链接、覆盖与跨 profile 路径；generated keys 不能进入 Git。`--profile` 明确 `formal` 或 `beta`，`--role` 为 `core` 或 `edge`，`--entry` 为 1–4。
 
-edge 只有显式 `--ingress-instances 2` 才生成 `ingress` 与 `ingress-02`；默认 1 保留单实例合同，core 选择 2 被拒绝。每目标有独立 runtime、容器 IP/loopback 端口、CID、process generation、priority 和租约，不能用 sibling 健康替代。
+edge 默认 1 保留单实例合同。Formal 显式 `--ingress-instances 2..8` 生成 `ingress`、`ingress-02` 至批准数量的目标；Beta 仍只接受 1 或 2，core 的 ingress 参数仍固定为 1。每目标有独立 runtime、容器 IP/loopback 端口、CID、process generation、priority 和租约，不能用 sibling 健康替代。扩展实例保持相同的 coordinator 与全部十六节点路由。
 
-[cluster/DUAL-INGRESS.md](cluster/DUAL-INGRESS.md) 规定 WS-only 代理副本、逐目标维护与 CLOSED guard 迁移。只改实际活动 vhost 的 WS upstream，新握手选择两个 target，已有 WS 不迁移；HTTP/auth/private/data/material 不改，不以升级前 retry 绕过 401/403。目录 bind 与单文件 bind 分别按身份/CAS处理，单文件保持 inode；采用实际启动配置检查及正常 reload，不新建第二公共代理。
+[cluster/DUAL-INGRESS.md](cluster/DUAL-INGRESS.md) 规定 WS-only 代理副本、逐目标维护与 CLOSED guard 迁移。只改实际活动 vhost 的 WS upstream，新握手选择批准的全部 target，已有 WS 不迁移；HTTP/auth/private/data/material 不改，不以升级前 retry 绕过 401/403。目录 bind 与单文件 bind 分别按身份/CAS处理，单文件保持 inode；采用实际启动配置检查及正常 reload，不新建第二公共代理。
 
 ## 宿主准入与 fail-closed 租约
 
@@ -62,7 +62,7 @@ edge 只有显式 `--ingress-instances 2` 才生成 `ingress` 与 `ingress-02`�
 2. `tools/cluster-host-manager.py` 按固定 policy 验证完整 CID、immutable image/source kind/build/manifest、Compose/runtime SHA、安全设置、唯一网络/固定 IP、映射和实际进程 generation。角色健康不同：coordinator 控制健康、game 认证状态、ingress HTTP404/private-no-store 与合法 Origin WS upgrade；不套旧单体 GET health 或 Docker healthy。
 3. 仅真实 Node MainThread `nice=-20`，普通 `SCHED_OTHER` + reset-on-fork；combat/trial/V8/libuv/辅助线程0。核对每 game 8+2，coordinator/ingress 为0；不 nice 整个进程、不加容器 CAP_SYS_NICE/CPU/内存 hard cap，保留 PIDs/read-only/cap-drop/no-new-privileges。
 4. 全部条件成立才逐目标原子开放精确租约。CID/generation 不是 nft 原生字段，由 manager 认证后生成精确规则；重新监听同端口不恢复旧 owner。重建先撤旧租约，真正启动使用新的不可复用 generation。
-5. 双实例 `guard_schema:2` 持久化精确 transaction intent，绑定 policy 与 exact before/intended-after/safe rollback；`closed_owners/start_intents/unadmitted` 保存 CLOSED 所有权和逐目标准入。未知 drift 拒绝，失败目标不关闭健康 sibling，不自动 adopt 未完整网络/进程身份的容器。
+5. 多实例 `guard_schema:2` 持久化精确 transaction intent，绑定 policy 与 exact before/intended-after/safe rollback；Formal 3–8 实例的本地守卫日志上限为 256KiB，容纳双份租约账本及原 nft 快照，写入前拒绝超界；其余 policy/runtime 文件仍为 64KiB，本地控制请求仍为 4KiB。`closed_owners/start_intents/unadmitted` 保存 CLOSED 所有权和逐目标准入。未知 drift 拒绝，失败目标不关闭健康 sibling，不自动 adopt 未完整网络/进程身份的容器。
 6. 单目标 `revoke/stop/resume` 经过活跃 manager 的 lifetime writer lock 和 root-only 本地 UDS（目录0700、socket0600、SO_PEERCRED uid0），绑定 policy/state SHA、CAS、target、CID/generation/control epoch。`--target` 是批准 service，不是任意名称/CID。主动停用不可被健康轮询或 manager 重启自动重开，显式恢复仍重新准入。
 7. 旧单实例 guard 迁移须取得确切 writer lock，证明 CLOSED、空租约、owned table/state、inode/原 SHA，以 CAS 只替换对应对象；不能填新 hash 冒充批准、flush/restore 整表、放开网段、删其他表或绕过外部 WG policy 审批。变更 policy bytes 要相应新批准绑定。
 8. 保持关闭护栏→WG→manager 的启动依赖，见 [WG-BOOT-RECOVERY.md](WG-BOOT-RECOVERY.md)。不得修改全局路由/CNI/KUBE/Calico/LXD 等其他网络。显式停/restart 被 `Requires` 依赖的 WG recovery 会连带停 manager/game，不能用于游戏更新；managed 角色保留 `restart=no`，不让 Docker 早于护栏恢复。

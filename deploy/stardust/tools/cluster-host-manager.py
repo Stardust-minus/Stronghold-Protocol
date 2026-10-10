@@ -33,11 +33,13 @@ Refused, NotReady, Stopped = priority.Refused, priority.NotReady, priority.Stopp
 ENV = priority.DOCKER_ENV
 PROTOCOL = 1
 LIMIT = 65536
+GUARD_JOURNAL_LIMIT = 256 * 1024
 CONTROL_LIMIT = 4096
 
 
 def dual_ingress(policy):
-    return policy['host_role'] == 'edge' and policy.get('ingress_instances', 1) == 2
+    # Schema2 keeps the same independent ownership contract for every multi-instance edge.
+    return policy['host_role'] == 'edge' and policy.get('ingress_instances', 1) > 1
 
 
 def require(ok, diagnostic):
@@ -45,7 +47,8 @@ def require(ok, diagnostic):
         raise Refused(diagnostic)
 
 
-def protected_read(path, *, exact_bytes=None, private=False):
+def protected_read(path, *, exact_bytes=None, private=False, limit=LIMIT):
+    require(type(limit) is int and 0 < limit <= GUARD_JOURNAL_LIMIT, 'invalid protected file size bound')
     path = deploy.no_symlink(path)
     for parent in path.parents:
         info = parent.stat()
@@ -54,18 +57,18 @@ def protected_read(path, *, exact_bytes=None, private=False):
     try:
         info = os.fstat(fd)
         require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o027
-                and 0 < info.st_size <= LIMIT and (not private or stat.S_IMODE(info.st_mode) == 0o600)
+                and 0 < info.st_size <= limit and (not private or stat.S_IMODE(info.st_mode) == 0o600)
                 and (exact_bytes is None or info.st_size == exact_bytes), 'unsafe protected file')
-        raw = os.read(fd, LIMIT + 1)
+        raw = os.read(fd, limit + 1)
         require(len(raw) == info.st_size, 'protected file changed during read')
         return raw
     finally:
         os.close(fd)
 
 
-def protected_json(path, *, private=False):
+def protected_json(path, *, private=False, limit=LIMIT):
     try:
-        return json.loads(protected_read(path, private=private))
+        return json.loads(protected_read(path, private=private, limit=limit))
     except (ValueError, UnicodeError):
         raise Refused('invalid protected policy JSON') from None
 
@@ -78,7 +81,7 @@ def parse_policy(value, *, profile='beta'):
     require(isinstance(value, dict) and set(value) in (fields, fields | {'ingress_instances'}), 'invalid cluster policy fields')
     role, entry = value['host_role'], value['entry']
     count = value.get('ingress_instances', 1)
-    require(type(count) is int and count in (1, 2) and (role == 'edge' or 'ingress_instances' not in value),
+    require(type(count) is int and 1 <= count <= p.max_ingress_instances and (role == 'edge' or 'ingress_instances' not in value),
             'invalid fixed ingress instance count')
     require(type(value['version']) is int and value['version'] == 1 and value['namespace'] == p.name
             and role in ('core', 'edge') and type(entry) is int and entry in range(1, 5), 'invalid fixed cluster role')
@@ -100,7 +103,7 @@ def parse_policy(value, *, profile='beta'):
     targets = value['targets']
     require(isinstance(targets, list) and len(targets) == (17 if role == 'core' else count), 'fixed target inventory required')
     expected_services = ({'coordinator', *('game-' + format(index, '02d') for index in range(1, 17))} if role == 'core'
-                         else {deploy.ingress_service(index) for index in range(1, count + 1)})
+                         else {deploy.ingress_service(index, profile) for index in range(1, count + 1)})
     require(all(isinstance(row, dict) and isinstance(row.get('service'), str) for row in targets)
             and {row['service'] for row in targets} == expected_services, 'fixed target services required')
     for row in targets:
@@ -124,7 +127,7 @@ def parse_policy(value, *, profile='beta'):
         elif service == 'coordinator':
             ip, port = p.core_ip(2), p.coordinator_port
         else:
-            instance = 1 if service == 'ingress' else 2
+            instance = 1 if service == 'ingress' else int(service.removeprefix('ingress-'))
             ip, port = p.ingress_ip(instance), p.ingress_host_port(instance)
         maps = [{'container_port': 3000, 'host_ip': host, 'host_port': port}
                 for host in (('127.0.0.1', p.wg_core) if role == 'core' else ('127.0.0.1',))]
@@ -438,7 +441,7 @@ def validate_leases(policy, leases):
     """Dual-ingress grants require exact independent process/target generations."""
     require(isinstance(leases, dict) and set(leases) <= {row['service'] for row in policy['targets']},
             'unknown cluster lease target')
-    if policy.get('ingress_instances', 1) != 2:
+    if not dual_ingress(policy):
         return  # Preserve the existing core/single guard contract.
     targets = {row['service']: row for row in policy['targets']}
     fields = set(priority.Generation.__dataclass_fields__) | {'network_id', 'container_ip', 'runtime_sha256', 'node_generation'}
@@ -647,10 +650,16 @@ class Guard:
         self.state_file = Path(state_file or ('/run/' + policy['project'] + '.guard.json'))
         require(deploy.profiles.path_allowed(self.state_file, policy['namespace']), 'cross-profile guard state refused')
 
+    def state_limit(self):
+        # Expanded journals include both exact lease ledgers and the prior nft snapshot.
+        return GUARD_JOURNAL_LIMIT if self.policy['namespace'] == 'formal' and self.policy.get('ingress_instances', 1) > 2 else LIMIT
+
     def state(self):
-        return protected_json(self.state_file, private=True)
+        return protected_json(self.state_file, private=True, limit=self.state_limit())
 
     def save(self, value, before):
+        raw = deploy.canonical(value)
+        require(0 < len(raw) <= self.state_limit(), 'owned guard journal exceeds fixed size bound')
         if before is None:
             require(not self.state_file.exists(), 'guard state appeared concurrently')
         else:
@@ -661,7 +670,7 @@ class Guard:
         try:
             with os.fdopen(fd, 'wb') as output:
                 os.fchmod(output.fileno(), 0o600)
-                output.write(deploy.canonical(value))
+                output.write(raw)
                 output.flush()
                 os.fsync(output.fileno())
             if before is None:
@@ -895,7 +904,7 @@ class Guard:
                  'nft_sha256': digest(after), 'leases': leases,
                  'owned_leases': {**before.get('owned_leases', {}), **leases},
                  'retired_leases': ({name: lease for name, lease in retired.items() if name not in leases}
-                                    if self.policy.get('ingress_instances', 1) == 2
+                                    if dual_ingress(self.policy)
                                     else {} if leases else before.get('leases') or before.get('retired_leases', {}))}
         if dual_ingress(self.policy) and commands:
             pending = {'version': 1, 'policy_sha256': self.policy_sha(), 'before': before, 'after': json.loads(deploy.canonical(value)),

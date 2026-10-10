@@ -120,14 +120,15 @@ def target(role, project, service_name, name, ip, mappings, config_file, config_
     return value
 
 
-def ingress_service(instance):
-    require(type(instance) is int and instance in (1, 2), 'only one or two fixed ingress instances supported')
-    return 'ingress' if instance == 1 else 'ingress-02'
+def ingress_service(instance, profile='beta'):
+    p = profiles.get_profile(profile)
+    require(type(instance) is int and 1 <= instance <= p.max_ingress_instances, 'unsupported fixed ingress instance')
+    return 'ingress' if instance == 1 else 'ingress-' + format(instance, '02d')
 
 
 def generate(out, *, image, build, manifest_sha256, source_kind, role, entry=1, profile='beta', ingress_instances=1):
     p = profiles.get_profile(profile)
-    require(type(ingress_instances) is int and ingress_instances in (1, 2)
+    require(type(ingress_instances) is int and 1 <= ingress_instances <= p.max_ingress_instances
             and (role == 'edge' or ingress_instances == 1), 'invalid fixed ingress instance count')
     require(source_kind in ('commit', 'tree'), 'invalid source identity kind')
     require(isinstance(build, str) and HEX40.fullmatch(build), 'fixed 40-hex build required')
@@ -199,7 +200,7 @@ def generate(out, *, image, build, manifest_sha256, source_kind, role, entry=1, 
                              'url': f'http://{p.wg_core}:{p.game_first_port + index - 1}'} for index in range(1, 17)],
                   'origins': [p.origin], 'wsCompression': 'on', 'trustProxy': 'auto'}
         for instance in range(1, ingress_instances + 1):
-            service_name = ingress_service(instance)
+            service_name = ingress_service(instance, profile)
             directory, file, sha = add_runtime(service_name, config)
             ip, port = p.ingress_ip(instance), p.ingress_host_port(instance)
             mappings = [{'container_port': 3000, 'host_ip': '127.0.0.1', 'host_port': port}]
@@ -217,14 +218,14 @@ def generate(out, *, image, build, manifest_sha256, source_kind, role, entry=1, 
               'compose_sha256': hashlib.sha256(compose_bytes).hexdigest(), 'project': project,
               'subnet': subnet, 'wg_interface': p.wg_interface, 'wg_local': local, 'wg_peers': peers,
               'origin': p.origin, 'targets': targets,
-              **({'ingress_instances': 2} if ingress_instances == 2 else {})}
+              **({'ingress_instances': ingress_instances} if ingress_instances > 1 else {})}
     write_new(out / 'host-policy.json', canonical(policy), mode=0o600, gid=0)
     # This summary contains no secret bytes and is safe to inspect. It is not an activation receipt.
     write_new(out / 'bundle-summary.json', canonical({
         'version': 1, **({'profile': p.name} if p.name != 'beta' else {}), 'prepared': True, 'activated': False, 'sourceKind': source_kind, 'build': build,
         'manifestSha256': manifest_sha256, 'imageId': image, 'role': role,
         'entry': entry, 'gameNodes': 16 if role == 'core' else 0,
-        **({'ingressInstances': 2} if ingress_instances == 2 else {}),
+        **({'ingressInstances': ingress_instances} if ingress_instances > 1 else {}),
         'combatWorkersPerGame': 8, 'trialWorkersPerGame': 2, 'ingressRoutes': 16,
         'ingressLogicalGroup': list(range((entry - 1) * 4 + 1, entry * 4 + 1)) if role == 'edge' else None,
         'coordinatorHighAvailability': False,
@@ -238,7 +239,7 @@ def main():
     parser.add_argument('--out', required=True)
     parser.add_argument('--role', required=True, choices=('core', 'edge'))
     parser.add_argument('--entry', type=int, default=1, choices=range(1, 5))
-    parser.add_argument('--ingress-instances', type=int, default=1, choices=(1, 2))
+    parser.add_argument('--ingress-instances', type=int, default=1, choices=range(1, 9))
     parser.add_argument('--image-id', required=True)
     parser.add_argument('--build', required=True)
     parser.add_argument('--manifest-sha256', required=True)

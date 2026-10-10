@@ -7,7 +7,7 @@
 ## 架构与发布边界
 
 - **简单部署模板**：`compose.yaml` 为同一 project 的 game/auth/assets 三服务视图；`compose.auth.yaml`、`compose.assets.yaml` 只更新同一服务，不创建另一个 project。普通入口 `/`、WebSocket `/ws` 经过反向代理和门禁，原生监听只供受保护的内部访问。
-- **集群部署**：一个 coordinator 管理全局身份、大厅、房间与匹配；game 节点持有完整对局与战斗/试算池；ingress 直接中继所属节点的战斗流。所有入口属于同一个匹配池，不按 DNS 或入口拆分玩家区。固定生成器支持一个 coordinator、十六个各 8 combat + 2 trial 的节点，以及每入口一个或两个 ingress；这是模板规模，不是运行数量声明。
+- **集群部署**：一个 coordinator 管理全局身份、大厅、房间与匹配；game 节点持有完整对局与战斗/试算池；ingress 直接中继所属节点的战斗流。所有入口属于同一个匹配池，不按 DNS 或入口拆分玩家区。固定生成器支持一个 coordinator、十六个各 8 combat + 2 trial 的节点；Formal 每入口支持 1–8 个 ingress，Beta 保留 1–2 个。这是模板规模，不是运行数量声明。
 - **Formal 与 Beta 独立**：运行配置、进程、房间、队列、签名密钥、Origin、私有码和租约分别绑定。部署或停用一个环境不授权操作另一个环境。
 - **发布线独立**：game、auth/PRTS、resolver、宿主工具和公开素材分别记录身份；源码 HEAD、镜像中的 revision、宿主策略摘要及记录提交不是同一个标识。提交、合并、推送、准备或到达维护窗口都不代表部署许可。
 - **内存状态会丢失**：重建 game/coordinator 会失去其内存房间、会话、队列或对局；入口冗余与镜像回滚不能恢复它们。每次中断性操作须明确说明影响并取得用户授权。

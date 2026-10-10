@@ -42,6 +42,23 @@ test('Formal explicit profile ports retain direct bypass; custom ports remain un
   assert.equal(fixture.manifest.upstreamTransport, 'loopback');
 });
 
+test('Formal eight-instance preparation preserves all non-WS bytes and exact profile ports', () => {
+  const source = sources.formal, r = prepareDualIngressProxy(source, { ingressInstances: 8 });
+  assert.equal(r.manifest.activated, false); assert.equal(r.manifest.ingressInstances, 8);
+  assert.deepEqual(r.manifest.endpoints, Array.from({ length: 8 }, (_, i) => `172.30.246.${i + 2}:3000`));
+  assert.deepEqual(r.manifest.publishedPorts, Array.from({ length: 8 }, (_, i) => 35401 + i));
+  assert.deepEqual(r.manifest.services, ['ingress', 'ingress-02', 'ingress-03', 'ingress-04', 'ingress-05', 'ingress-06', 'ingress-07', 'ingress-08']);
+  assert.equal(r.manifest.upstreamTransport, 'container-direct'); assert.equal(r.manifest.existingSocketsMigrated, false);
+  let restored = r.vhost.slice(r.vhost.indexOf('\n\n') + 2);
+  for (const location of r.manifest.webSocketLocations) {
+    restored = restored.replace(`proxy_pass http://${r.manifest.upstream};\n        proxy_next_upstream error timeout;\n        proxy_next_upstream_tries 2;`, `proxy_pass http://${location.previousUpstream};`);
+  }
+  assert.equal(restored, source);
+  for (const ingressInstances of [0, 1, 9, true, '8', 2.5]) assert.throws(() => prepareDualIngressProxy(source, { ingressInstances }));
+  assert.throws(() => prepareDualIngressProxy(sources.beta, { profile: 'beta', ingressInstances: 8 }));
+  assert.throws(() => prepareDualIngressProxy(source, { ingressInstances: 8, ports: [35401, 35402] }));
+});
+
 test('quoted/commented braces and non-BMP comments retain source offsets', () => {
   const source = '# 🔒 { location = /ws { proxy_pass http://ignored; } }\n' + sources.formal.replace('proxy_buffering off;', 'set $test_note "brace } # not a directive";\n        proxy_buffering off;');
   const r = prepareDualIngressProxy(source);
@@ -76,7 +93,7 @@ async function stop(child) {
   const timeout = setTimeout(() => child.kill('SIGKILL'), 3000); await exit; clearTimeout(timeout);
 }
 
-test('REAL isolated OpenResty keeps HTTP/gate separate, balances new WS and survives one relay loss', { skip: !enabled, timeout: 45000 }, async t => {
+for (const ingressInstances of [2, 8]) test(`REAL isolated OpenResty with ${ingressInstances} relays keeps HTTP/gate separate and survives one relay loss`, { skip: !enabled, timeout: 45000 }, async t => {
   const scratch = process.env.CLAUDE_JOB_DIR ? path.join(process.env.CLAUDE_JOB_DIR, 'tmp') : fileURLToPath(new URL('../../../../.cache/stardust/', import.meta.url));
   const dir = await fs.mkdtemp(path.join(scratch, 'dual-ingress-proxy-'));
   await fs.mkdir(path.join(dir, 'logs'));
@@ -94,7 +111,7 @@ test('REAL isolated OpenResty keeps HTTP/gate separate, balances new WS and surv
     res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('UNCHANGED_HTTP_BACKEND:' + req.url);
   });
   main.listen(0, '127.0.0.1'); await once(main, 'listening'); fixtures.push({ server: main });
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < ingressInstances; i++) {
     const server = http.createServer((req, res) => { res.writeHead(404); res.end(); });
     const wss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
     server.on('upgrade', (req, socket, head) => wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req)));
@@ -103,7 +120,7 @@ test('REAL isolated OpenResty keeps HTTP/gate separate, balances new WS and surv
   }
   const port = await freePort(), mainPort = main.address().port;
   const source = `upstream original_http { server 127.0.0.1:${mainPort}; }\nmap $http_upgrade $ws_connection { default upgrade; '' ''; }\nserver {\nlisten 127.0.0.1:${port};\nauth_request /_gate/check;\nadd_header Cache-Control "private, no-store" always;\nproxy_http_version 1.1;\nproxy_set_header Host $host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $remote_addr;\nproxy_set_header CF-Connecting-IP "";\nproxy_set_header Forwarded "";\nproxy_set_header Upgrade $http_upgrade;\nproxy_set_header Connection $ws_connection;\nlocation = /_gate/check { internal; auth_request off; proxy_pass http://original_http/check; proxy_pass_request_body off; proxy_set_header Content-Length ""; }\nlocation = /ws {\n  if ($http_origin != '${origin}') { return 403; }\n  proxy_pass http://original_http;\n  proxy_buffering off;\n  proxy_read_timeout 3600s;\n  proxy_send_timeout 3600s;\n}\nlocation / { proxy_pass http://original_http; }\n}\n`;
-  const prepared = prepareDualIngressProxy(source, { ports: fixtures.slice(1).map(f => f.server.address().port) });
+  const prepared = prepareDualIngressProxy(source, { ingressInstances, ports: fixtures.slice(1).map(f => f.server.address().port) });
   const luaLib = process.env.DUAL_INGRESS_NGINX_LUALIB;
   const lua = luaLib ? `lua_package_path "${luaLib}/?.lua;${luaLib}/?/init.lua;;"; lua_package_cpath "${luaLib}/?.so;;";` : '';
   const config = `user root;\nworker_processes 1;\npid ${dir}/nginx.pid;\nerror_log stderr warn;\nevents { worker_connections 128; }\nhttp { ${lua} access_log off; client_body_temp_path ${dir}/body; proxy_temp_path ${dir}/proxy; ${prepared.vhost} }\n`;
@@ -138,13 +155,17 @@ test('REAL isolated OpenResty keeps HTTP/gate separate, balances new WS and surv
   assert.equal((await connect({ origin })).refused, 401);
   assert.equal((await connect({ origin: 'http://wrong.local', cookie: 'local-proof=1' })).refused, 403);
   const active = [];
-  for (let i = 0; i < 6; i++) active.push(await connect());
-  assert.deepEqual(active.map(x => x.relay).sort(), [0, 0, 0, 1, 1, 1]);
+  for (let i = 0; i < ingressInstances * 3; i++) active.push(await connect());
+  assert.deepEqual(active.map(x => x.relay).sort((a, b) => a - b),
+    Array.from({ length: ingressInstances }, (_, i) => [i, i, i]).flat());
   for (const ws of fixtures[2].wss.clients) ws.terminate();
   await new Promise(resolve => fixtures[2].server.close(resolve));
   const survivor = active.find(x => x.relay === 0).ws;
   const echoed = once(survivor, 'message'); survivor.send('surviving-old-ws'); assert.equal((await echoed)[0].toString(), 'surviving-old-ws');
-  for (let i = 0; i < 3; i++) assert.equal((await connect()).relay, 0);
-  await fs.writeFile(path.join(dir, 'native-proxy-result.json'), JSON.stringify({ ok: true, localOnly: true, echoFixtureNotGameWorker: true, sixInitialDistribution: active.map(x => x.relay), healthyEstablishedSocketPreserved: true, newHandshakeFallback: true, anonymous401: true, invalidOrigin403: true, httpBackendUnchanged: true, productionAccessed: false, nginxLog: log }, null, 2) + '\n', { flag: 'wx' });
+  for (let i = 0; i < 3; i++) {
+    const relay = (await connect()).relay; assert.notEqual(relay, 1);
+    assert.ok(relay >= 0 && relay < ingressInstances);
+  }
+  await fs.writeFile(path.join(dir, 'native-proxy-result.json'), JSON.stringify({ ok: true, localOnly: true, echoFixtureNotGameWorker: true, ingressInstances, initialDistribution: active.map(x => x.relay), healthyEstablishedSocketPreserved: true, newHandshakeFallback: true, anonymous401: true, invalidOrigin403: true, httpBackendUnchanged: true, productionAccessed: false, nginxLog: log }, null, 2) + '\n', { flag: 'wx' });
   t.diagnostic('Real local OpenResty result retained at ' + dir + '; echo fixtures are NOT actual game/Worker proof');
 });

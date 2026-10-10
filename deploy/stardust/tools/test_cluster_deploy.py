@@ -390,7 +390,7 @@ class PredicateTests(Fixture):
 class IdentityTests(Fixture):
     def system_fixture(self, role='game', stopped=False, ingress_instances=1, instance=1):
         policy = self.generate('fixture-' + role, role='edge' if role == 'ingress' else 'core', ingress_instances=ingress_instances)
-        target = (next(row for row in policy['targets'] if row['service'] == deploy.ingress_service(instance))
+        target = (next(row for row in policy['targets'] if row['service'] == deploy.ingress_service(instance, self.profile))
                   if role == 'ingress' else self.target(policy, role))
         config = host.Config(policy, target)
         ports = {}
@@ -771,7 +771,8 @@ class DualIngressTests(Fixture):
         self.assertEqual(len(names), 8)
 
     def test_unsupported_counts_and_core_expansion_refuse_before_creating_output(self):
-        for count in (0, 3, -1, True, False, None, '2', 2.0):
+        maximum = deploy.profiles.get_profile(self.profile).max_ingress_instances
+        for count in (0, maximum + 1, -1, True, False, None, '2', 2.0):
             with self.subTest(count=count), self.assertRaises(deploy.Refused):
                 self.generate('invalid', role='edge', ingress_instances=count)
             self.assertFalse((self.root / 'invalid').exists())
@@ -779,7 +780,7 @@ class DualIngressTests(Fixture):
             self.generate('invalid-core', ingress_instances=2)
         self.assertFalse((self.root / 'invalid-core').exists())
         p = deploy.profiles.get_profile(self.profile)
-        for count in (0, 3, True, '2'):
+        for count in (0, maximum + 1, True, '2'):
             with self.assertRaises(ValueError): p.ingress_ip(count)
             with self.assertRaises(ValueError): p.ingress_host_port(count)
 

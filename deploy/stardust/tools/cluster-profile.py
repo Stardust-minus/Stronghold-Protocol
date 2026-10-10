@@ -58,9 +58,13 @@ class Profile:
     def edge_ip(self):
         return self.ingress_ip(1)
 
+    @property
+    def max_ingress_instances(self):
+        return 8 if self.name == 'formal' else 2
+
     def ingress_ip(self, instance=1):
-        if type(instance) is not int or instance not in (1, 2):
-            raise ValueError('only one or two fixed ingress instances supported')
+        if type(instance) is not int or not 1 <= instance <= self.max_ingress_instances:
+            raise ValueError('unsupported fixed ingress instance')
         return self.edge_subnet.split('/')[0].rsplit('.', 1)[0] + '.' + str(instance + 1)
 
     def ingress_host_port(self, instance=1):

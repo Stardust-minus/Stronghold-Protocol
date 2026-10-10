@@ -66,6 +66,66 @@ class FormalProfileTests(beta.Fixture):
         with self.assertRaises(TypeError):
             FORMAL.endpoints['10.253.79.12'] = '115.231.235.75:51839'
 
+    def test_formal_three_four_and_eight_targets_keep_exact_fixed_identity_and_routes(self):
+        self.assertEqual(FORMAL.max_ingress_instances, 8)
+        self.assertEqual(BETA.max_ingress_instances, 2)
+        for count in (3, 4, 8):
+            policy = self.generate('expanded-' + str(count), role='edge', entry=2, ingress_instances=count)
+            self.assertEqual(policy['ingress_instances'], count)
+            self.assertEqual(host.load_policy(Path(policy['bundle']) / 'host-policy.json', profile='formal'), policy)
+            self.assertEqual([row['service'] for row in policy['targets']],
+                             ['ingress', *('ingress-' + format(i, '02d') for i in range(2, count + 1))])
+            self.assertEqual([row['container_ip'] for row in policy['targets']],
+                             ['172.30.246.' + str(i) for i in range(2, count + 2)])
+            self.assertEqual([row['mappings'][0]['host_port'] for row in policy['targets']],
+                             list(range(35401, 35401 + count)))
+            runtimes = [json.loads(Path(row['runtime_file']).read_bytes()) for row in policy['targets']]
+            self.assertTrue(all(runtime == runtimes[0] for runtime in runtimes))
+            self.assertEqual(runtimes[0]['coordinatorUrl'], 'http://10.253.79.2:35400')
+            self.assertEqual(len(runtimes[0]['nodes']), 16)
+            self.assertTrue(all((row['combat_workers'], row['trial_workers']) == (0, 0)
+                                for row in policy['targets']))
+        for count in (0, 9, True, '8', 8.0):
+            with self.assertRaises(deploy.Refused):
+                self.generate('invalid-expanded', role='edge', ingress_instances=count)
+            self.assertFalse((self.root / 'invalid-expanded').exists())
+        with self.assertRaises(deploy.Refused):
+            deploy.ingress_service(8, 'beta')
+
+    def test_eight_target_guard_retains_independent_ownership_and_scoped_resume(self):
+        policy = self.generate('eight-guard', role='edge', entry=2, ingress_instances=8)
+        leases = beta.independent_leases(policy)
+        host.validate_leases(policy, leases)
+        variants = []
+        for field in ('container_id', 'main_pid', 'init_pid'):
+            changed = deepcopy(leases); changed['ingress-08'][field] = changed['ingress'][field]
+            variants.append(changed)
+        changed = deepcopy(leases); changed['ingress-08']['container_ip'] = leases['ingress']['container_ip']
+        variants.append(changed)
+        changed = deepcopy(leases); changed['ingress-08']['node_generation'] = 'foreign'
+        variants.append(changed)
+        for changed in variants:
+            with self.assertRaises(host.Refused): host.validate_leases(policy, changed)
+        guard = host.Guard(policy, nft=beta.MemoryNft(), state_file=self.root / 'eight.guard.json')
+        closed = guard.update({})
+        self.assertEqual(guard.state_limit(), host.GUARD_JOURNAL_LIMIT)
+        self.assertEqual(closed['guard_schema'], 2)
+        self.assertEqual(set(closed['desired']), set(leases))
+        before_bytes = guard.state_file.read_bytes()
+        oversized = {**closed, 'pending': {'untrusted': 'x' * host.GUARD_JOURNAL_LIMIT}}
+        with self.assertRaises(host.Refused): guard.save(oversized, closed)
+        self.assertEqual(guard.state_file.read_bytes(), before_bytes)
+        self.assertEqual(host.LIMIT, 65536); self.assertEqual(host.CONTROL_LIMIT, 4096)
+        with self.assertRaises(host.Refused): host.protected_json(guard.state_file, limit=host.GUARD_JOURNAL_LIMIT + 1)
+        guard.update(leases); guard.check(leases)
+        retained = host.revoke(policy, guard, 'ingress-08')
+        self.assertEqual(retained, {name: lease for name, lease in leases.items() if name != 'ingress-08'})
+        self.assertEqual(guard.state()['desired']['ingress-08'], 'revoked')
+        with self.assertRaises(host.Refused): guard.update(leases)
+        guard.check(retained)
+        guard.update(leases, resume='ingress-08'); guard.check(leases)
+        self.assertTrue(all(value == 'running' for value in guard.state()['desired'].values()))
+
     def test_commit_manifest_sixteen_games_and_four_all_route_ingresses(self):
         policy = deploy.generate(self.root / 'commit', profile='formal', image=beta.IMAGE,
                                  build=COMMIT, manifest_sha256=beta.MANIFEST,

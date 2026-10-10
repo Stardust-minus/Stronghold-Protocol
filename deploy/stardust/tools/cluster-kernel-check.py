@@ -23,11 +23,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--isolated-netns', action='store_true')
     parser.add_argument('--profile', choices=tuple(host.deploy.profiles.PROFILES), default='beta')
-    parser.add_argument('--ingress-instances', type=int, choices=(1, 2), default=1)
+    parser.add_argument('--ingress-instances', type=int, choices=range(1, 9), default=1)
     parser.add_argument('--tmp-parent', default='/root')
     args = parser.parse_args()
     if not args.isolated_netns:
         raise SystemExit('isolated network namespace required')
+    if args.ingress_instances > host.deploy.profiles.get_profile(args.profile).max_ingress_instances:
+        raise SystemExit('unsupported fixed ingress instance count')
     # Parent namespace must differ, and a fresh namespace must contain no host interfaces/tables.
     if os.geteuid() != 0 or os.readlink('/proc/self/ns/net') == os.readlink('/proc/1/ns/net'):
         raise SystemExit('host namespace refused')
@@ -68,7 +70,7 @@ def main():
             assert opened['leases'] == leases
             cases += 1
             if host.dual_ingress(policy):
-                for service in ('ingress', 'ingress-02'):
+                for service in (target['service'] for target in policy['targets']):
                     retained = host.revoke(policy, guard, service)
                     assert retained == {name: lease for name, lease in leases.items() if name != service}
                     guard.check(retained)

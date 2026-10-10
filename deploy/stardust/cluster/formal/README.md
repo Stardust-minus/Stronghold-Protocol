@@ -51,6 +51,8 @@ python3 -I /opt/ark-cluster-formal/tools/cluster-deploy.py \
 
 镜像OCI source固定为本站fork、revision=full commit，另有source-kind/manifest标签；manager核对实际sha256:imageID、CID、project/role、source/config、RO mounts、精确bridge/发布port、PID/startTicks/StartedAt/restart/节点epoch。Docker经典引擎mount顺序只在严格验证后排序，保留全部字段；IPAM只兼容未设置IPRange省略/空字符串，真实非空range或额外语义仍拒绝。
 
+Formal edge显式`--ingress-instances 1..8`生成固定数量的独立target；Beta仍只接受1或2。每个实例保持全部十六节点的相同路由，profile固定IP/loopback端口按序分配，不能用共享进程代次或伪造CID代替逐个核验。
+
 每game8combat+2trial、control/ingress0，capacity/maxRooms0、server/off、10Hz、压缩on。容器UID1000/read-only/cap-drop ALL/no-new-privileges/PIDs128，没有CPU/memory hardcap、CAP_SYS_NICE或whole-Node nice。root host先reset-on-fork再仅Main=-20，其他线程必须nice0/SCHED_OTHER。
 
 ## Formal WG exact schema
