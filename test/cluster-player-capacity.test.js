@@ -4,13 +4,15 @@ import { setImmediate as nextTurn } from 'node:timers/promises';
 import WebSocket from 'ws';
 import { ClusterLobby } from '../server/cluster/lobby.js';
 import { ClusterDirectory } from '../server/cluster/directory.js';
-import { GameHost } from '../server/cluster/game-host.js';
+import { GameHost, copyAssignmentSpec } from '../server/cluster/game-host.js';
 import { RemoteGamePlatform } from '../server/cluster/platform.js';
 import { startGameNode } from '../server/cluster/game-node.js';
 import { SessionRegistry } from '../server/net.js';
 import { ERR, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { PLAYER_CAPACITIES, PLAYER_CAPACITY_VERSION } from '../shared/playerCapacity.js';
-import { OPERATOR_SKINS } from '../shared/skins.js';
+import { OPERATOR_SKINS, SKIN_LIMITS } from '../shared/skins.js';
+import { LOADOUT_LIMITS, OWNERSHIP_LIMITS, DIY_LIMITS, validateC2S } from '../shared/protocol.js';
+import { PREPARE_MAX_BYTES } from '../server/cluster/rpc.js';
 
 const options = capacity => ({ revivalEnabled: false, disableSharedPool: false, playerCapacity: capacity });
 const skin = { [OPERATOR_SKINS[0].charId]: OPERATOR_SKINS[0].id };
@@ -400,7 +402,33 @@ test('actual cluster twenty-mode party match binds all humans, preserves observe
   assert.equal(f.node.gameHost.stats().matches, 1);
 });
 
-test('twenty individually valid loadouts over the unchanged 64 KiB RPC budget fail before reservation and preserve original room', async t => {
+test('twenty maximally sized structural preference maps fit prepare while individual messages stay below 64 KiB', () => {
+  const id = i => (`unit_${i}_`).padEnd(64, 'x'), choices = {};
+  for (const skin of OPERATOR_SKINS) if (!choices[skin.charId] || skin.id.length > choices[skin.charId].length) choices[skin.charId] = skin.id;
+  const preferences = {
+    loadout: Object.fromEntries(Array.from({ length: LOADOUT_LIMITS.entries }, (_, i) => [id(i), { skill: 9, module: id(i) }])),
+    ops: Object.fromEntries(Array.from({ length: LOADOUT_LIMITS.ops }, (_, i) => [id(i), { potential: 1, cultivate: 0 }])),
+    notOwned: Array.from({ length: OWNERSHIP_LIMITS.notOwned }, (_, i) => id(i)),
+    diy: Object.fromEntries(Array.from({ length: DIY_LIMITS.slots }, (_, i) => [id(i), { charId: id(i), skillIndex: 9, uniEquipId: id(i) }])),
+    skins: Object.fromEntries(Object.entries(choices).slice(0, SKIN_LIMITS.choices)),
+  };
+  // Synthetic longest IDs bound the wire shape; only skins need the real catalogue.
+  // This is not a claim that these unknown operator IDs pass semantic admission.
+  for (const message of [
+    { t: 'room.loadout', entries: preferences.loadout, ops: preferences.ops },
+    { t: 'room.ownership', notOwned: preferences.notOwned },
+    { t: 'room.diy', picks: preferences.diy },
+    { t: 'room.skins', choices: preferences.skins },
+  ]) {
+    assert.equal(validateC2S(message), null);
+    assert.ok(Buffer.byteLength(JSON.stringify({ ...message, rid: 2 ** 31 })) <= 64 * 1024);
+  }
+  const safe = copyAssignmentSpec(spec({ spectators: [], seats: seats(20).map((seat, i) => ({ ...seat, ...preferences, playerId: id(i + 1000), name: '中'.repeat(12) })) }));
+  const bytes = Buffer.byteLength(JSON.stringify({ id: '0'.repeat(32), op: 'prepare', payload: safe }));
+  assert.ok(bytes > 64 * 1024); assert.ok(bytes <= PREPARE_MAX_BYTES);
+});
+
+test('twenty individually valid loadouts over 64 KiB start atomically through the bounded prepare route', async t => {
   const f = await networkFixture(t), registry = new SessionRegistry();
   const lobby = new ClusterLobby({ registry, platform: f.platform, getData: () => ({}) }); t.after(() => lobby.shutdown());
   const loadout = Object.fromEntries(Array.from({ length: 160 }, (_, i) => [`unit_${i}`, { skill: 1, module: 'module'.repeat(8) }]));
@@ -410,9 +438,24 @@ test('twenty individually valid loadouts over the unchanged 64 KiB RPC budget fa
   });
   lobby.create(members[0], { mode: 'coop', difficulty: 'NORMAL', experimental: options(20) }); const room = lobby.roomOf(members[0]);
   for (const p of members.slice(1)) { lobby.join(p, { code: room.code }); lobby.ready(p, { ready: true }); }
-  const before = structuredClone(room.toState()), array = room.seats, pending = lobby.start(members[0]);
-  assert.equal((await pending).error, ERR.INTERNAL);
-  assert.equal(room.match, null); assert.equal(room.seats, array); assert.deepEqual(room.toState(), before);
+  const array = room.seats, pending = lobby.start(members[0]);
+  assert.deepEqual(await pending, { ok: true });
+  assert.ok(room.match); assert.equal(room.seats, array); assert.equal(room.matchCount, 1);
+  const assignment = f.platform.directory.byRoom(room.code);
+  await f.platform.contexts.get(assignment.assignmentId).publication;
+  const actor = f.node.gameHost.contexts.get(assignment.assignmentId);
+  assert.equal(actor.state, 'committed'); assert.equal(actor.match.opts.seats.length, 20);
+  assert.ok(actor.match.opts.seats.every(seat => JSON.stringify(seat.loadout) === JSON.stringify(loadout)));
+  assert.equal(f.platform.directory.rooms.size, 1); assert.equal(f.platform.directory.sessions.size, 20);
+  assert.equal(f.platform.contexts.size, 1); assert.equal(f.node.gameHost.contexts.size, 1);
+  assert.equal(f.controls.filter(frame => frame.type === 'cluster.prepare').length, 20);
+});
+
+test('prepare envelopes exceeding the finite 2 MiB budget fail before reservations, channels or actors', async t => {
+  const f = await networkFixture(t);
+  const spectators = Array.from({ length: 32000 }, (_, i) => (`observer_${i}_`).padEnd(64, 'x'));
+  await assert.rejects(f.platform.prepare(spec({ spectators })), error => error.code === 'TOO_LARGE');
   assert.equal(f.platform.directory.rooms.size, 0); assert.equal(f.platform.directory.sessions.size, 0);
-  assert.equal(f.platform.contexts.size, 0); assert.equal(f.node.gameHost.contexts.size, 0); assert.equal(f.controls.length, 0);
+  assert.equal(f.platform.contexts.size, 0); assert.equal(f.node.gameHost.contexts.size, 0);
+  assert.equal(f.controls.length, 0); assert.equal(f.channels.size, 0);
 });

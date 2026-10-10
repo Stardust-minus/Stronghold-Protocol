@@ -3,7 +3,7 @@
 import { randomBytes, createHash } from 'node:crypto';
 import { ClusterDirectory, AllocationError } from './directory.js';
 import { createTicketAuthority } from './tickets.js';
-import { createRpcAuthenticator, createRpcClient } from './rpc.js';
+import { createRpcAuthenticator, createRpcClient, PREPARE_MAX_BYTES } from './rpc.js';
 import { normalizeClusterLoad, normalizeGameLoad, publicGameLabel, MAX_PUBLIC_GAME_NODES } from '../../shared/cluster-load.js';
 import { copyAssignmentSpec, GameHostError } from './game-host.js';
 
@@ -171,9 +171,9 @@ export class RemoteGamePlatform {
       throw error;
     }
     if (spec.build !== this.build || spec.protocol !== this.protocol) throw new TypeError('invalid remote match');
-    // The actual RPC envelope has a 32-hex-character nonce. Check its unchanged
-    // 64 KiB budget BEFORE any reservation, ingress ticket or actor side effect.
-    if (Buffer.byteLength(JSON.stringify({ id: '0'.repeat(32), op: 'prepare', payload: spec })) > 64 * 1024) throw new AllocationError('TOO_LARGE');
+    // The actual RPC envelope has a 32-hex-character nonce. Check the bounded
+    // prepare-only budget BEFORE any reservation, ingress ticket or actor side effect.
+    if (Buffer.byteLength(JSON.stringify({ id: '0'.repeat(32), op: 'prepare', payload: spec })) > PREPARE_MAX_BYTES) throw new AllocationError('TOO_LARGE');
     if (this.contexts.has(spec.assignmentId)) throw new AllocationError('ASSIGNMENT_CONFLICT');
     const assignment = this.directory.prepare({ assignmentId: spec.assignmentId, roomCode: spec.roomCode,
       sessionIds: spec.seats.filter(s => !s.isBot).map(s => s.playerId), build: this.build, protocol: this.protocol,

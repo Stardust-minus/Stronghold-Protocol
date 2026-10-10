@@ -117,15 +117,19 @@ test('v0.2.2 AI-picks-last mutation follows the existing queued-room fence witho
   assert.deepEqual(room.toState(), before); assert.equal(f.lobby.queue.has(f.player), true);
 });
 
-test('v0.2.2 dense twenty-seat settings retain the 64 KiB native envelope refusal before any side effect', async t => {
+test('v0.2.2 dense twenty-seat settings fit the prepare-only budget and reach unchanged node allocation', async t => {
   const calls = [], frames = [], client = { close() {}, call(...args) { calls.push(args); throw new Error('must not dispatch'); } };
   const platform = new RemoteGamePlatform({ nodes: [{ nodeId: NODE, key: Buffer.alloc(32, 0x23), client }], build: BUILD, protocol: 1,
     sendControl(...args) { frames.push(args); return true; } }); t.after(() => platform.close());
   const ops = Object.fromEntries(Array.from({ length: LOADOUT_LIMITS.ops }, (_, i) => [`char_${i}`, { potential: 1, cultivate: 0 }]));
   const input = spec({ seats: Array.from({ length: 20 }, (_, i) => seat(i, `p${i}`, { ops })),
     experimental: { revivalEnabled: false, disableSharedPool: false, playerCapacity: 20 } });
-  await assert.rejects(platform.prepare(input), e => e.code === 'TOO_LARGE');
+  assert.ok(Buffer.byteLength(JSON.stringify({ id: '0'.repeat(32), op: 'prepare', payload: input })) > 64 * 1024);
+  // No node was refreshed/admitted: a valid large spec must pass size preflight,
+  // then fail node allocation without dispatching a request or reserving a room.
+  await assert.rejects(platform.prepare(input), e => e.code === 'NO_NODE');
   assert.deepEqual(calls, []); assert.deepEqual(frames, []); assert.equal(platform.contexts.size, 0);
+  assert.equal(platform.directory.rooms.size, 0);
 });
 
 // Actual ephemeral loopback RPC, with in-process ingress channels. No external service/credentials or Worker pool.

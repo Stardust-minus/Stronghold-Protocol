@@ -5,7 +5,12 @@ import https from 'node:https';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const PATH = '/_cluster/rpc';
+const PREPARE_PATH = '/_cluster/rpc/prepare';
 const MAX_BYTES = 64 * 1024;
+// Twenty bounded player preference maps can exceed one ordinary control frame.
+// Only the authenticated prepare route gets this budget; replies remain small.
+export const PREPARE_MAX_BYTES = 2 * 1024 * 1024;
+const bodyLimit = path => path === PATH ? MAX_BYTES : path === PREPARE_PATH ? PREPARE_MAX_BYTES : 0;
 const safeId = v => typeof v === 'string' && v.length > 0 && v.length <= 128 && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const plain = v => !!v && Object.getPrototypeOf(v) === Object.prototype;
 const keys = (v, allowed) => plain(v) && Object.keys(v).length === allowed.length && Object.keys(v).every(k => allowed.includes(k));
@@ -21,25 +26,27 @@ export function createRpcAuthenticator({ key, scope, now = Date.now, maxAgeMs = 
     || !Number.isSafeInteger(maxFutureMs) || maxFutureMs < 0 || maxFutureMs > 2000) throw new RangeError('invalid RPC time budget');
   const signingKey = Buffer.from(key), seen = new Map();
   const clock = () => { const t = now(); if (!safeTime(t)) throw new RangeError('invalid RPC clock'); return t; };
-  const digest = (timestamp, nonce, body) => createHmac('sha256', signingKey)
-    .update(`stronghold-rpc-v1\nPOST\n${PATH}\n${scope}\n${timestamp}\n${nonce}\n`)
+  const digest = (timestamp, nonce, body, path) => createHmac('sha256', signingKey)
+    .update(`stronghold-rpc-v1\nPOST\n${path}\n${scope}\n${timestamp}\n${nonce}\n`)
     .update(createHash('sha256').update(body).digest('hex')).digest();
-  const sign = body => {
-    if (!Buffer.isBuffer(body) || body.length > MAX_BYTES) throw new TypeError('invalid RPC body');
+  const sign = (body, path = PATH) => {
+    const limit = bodyLimit(path);
+    if (!limit || !Buffer.isBuffer(body) || body.length > limit) throw new TypeError('invalid RPC body');
     const timestamp = String(clock()), nonce = randomBytes(16).toString('hex');
     return { 'x-ark-cluster-scope': scope, 'x-ark-cluster-time': timestamp, 'x-ark-cluster-nonce': nonce,
-      'x-ark-cluster-signature': digest(timestamp, nonce, body).toString('hex') };
+      'x-ark-cluster-signature': digest(timestamp, nonce, body, path).toString('hex') };
   };
-  const verify = (headers, body) => {
+  const verify = (headers, body, path = PATH) => {
     try {
-      if (!Buffer.isBuffer(body) || body.length > MAX_BYTES || !headers) return false;
+      const limit = bodyLimit(path);
+      if (!limit || !Buffer.isBuffer(body) || body.length > limit || !headers) return false;
       const timestamp = headers['x-ark-cluster-time'], nonce = headers['x-ark-cluster-nonce'], signature = headers['x-ark-cluster-signature'];
       if (headers['x-ark-cluster-scope'] !== scope || typeof timestamp !== 'string' || !/^(0|[1-9]\d{0,15})(?![\s\S])/.test(timestamp)
         || typeof nonce !== 'string' || !/^[a-f0-9]{32}(?![\s\S])/.test(nonce)
         || typeof signature !== 'string' || !/^[a-f0-9]{64}(?![\s\S])/.test(signature)) return false;
       const at = Number(timestamp), t = clock();
       if (!safeTime(at) || at > t + maxFutureMs || at + maxAgeMs <= t) return false;
-      if (!timingSafeEqual(Buffer.from(signature, 'hex'), digest(timestamp, nonce, body))) return false;
+      if (!timingSafeEqual(Buffer.from(signature, 'hex'), digest(timestamp, nonce, body, path))) return false;
       for (const [id, until] of seen) if (until <= t) seen.delete(id);
       if (seen.has(nonce)) return false;
       seen.set(nonce, at + maxAgeMs);
@@ -88,23 +95,26 @@ export function createRpcHandler({ authority, operations, readTimeoutMs = 5000 }
     || !Object.entries(operations).every(([name, fn]) => safeId(name) && typeof fn === 'function')) throw new TypeError('invalid RPC handler');
   if (!Number.isSafeInteger(readTimeoutMs) || readTimeoutMs < 1 || readTimeoutMs > 10_000) throw new RangeError('invalid RPC read deadline');
   return async (req, res) => {
-    if (req.url !== PATH) { reply(res, 404, { ok: false, code: 'NOT_FOUND' }); return; }
+    const prepare = req.url === PREPARE_PATH && Object.hasOwn(operations, 'prepare');
+    if (req.url !== PATH && !prepare) { reply(res, 404, { ok: false, code: 'NOT_FOUND' }); return; }
+    const limit = prepare ? PREPARE_MAX_BYTES : MAX_BYTES;
     if (req.method !== 'POST') { reply(res, 405, { ok: false, code: 'METHOD' }); return; }
     if (req.headers['content-type'] !== 'application/json') { reply(res, 415, { ok: false, code: 'CONTENT_TYPE' }); return; }
     const declared = req.headers['content-length'];
-    if (declared != null && (!/^\d+(?![\s\S])/.test(declared) || Number(declared) > MAX_BYTES)) {
+    if (declared != null && (!/^\d+(?![\s\S])/.test(declared) || Number(declared) > limit)) {
       reply(res, 413, { ok: false, code: 'TOO_LARGE' }); req.resume(); return;
     }
     const timer = setTimeout(() => { reply(res, 408, { ok: false, code: 'TIMEOUT' }); req.destroy(); }, readTimeoutMs);
     timer.unref?.();
     let body;
-    try { body = await readBody(req, MAX_BYTES); }
+    try { body = await readBody(req, limit); }
     catch (e) { clearTimeout(timer); reply(res, e?.code === 'TOO_LARGE' ? 413 : 400, { ok: false, code: e?.code === 'TOO_LARGE' ? 'TOO_LARGE' : 'BAD_REQUEST' }); return; }
     clearTimeout(timer);
-    if (!authority.verify(req.headers, body)) { reply(res, 401, { ok: false, code: 'UNAUTHORIZED' }); return; }
+    if (!authority.verify(req.headers, body, req.url)) { reply(res, 401, { ok: false, code: 'UNAUTHORIZED' }); return; }
     let message;
     try { message = JSON.parse(body.toString('utf8')); } catch { reply(res, 400, { ok: false, code: 'BAD_REQUEST' }); return; }
-    if (!keys(message, ['id', 'op', 'payload']) || !safeId(message.id) || !safeId(message.op) || !plain(message.payload)) {
+    if (!keys(message, ['id', 'op', 'payload']) || !safeId(message.id) || !safeId(message.op) || !plain(message.payload)
+      || (prepare && message.op !== 'prepare')) {
       reply(res, 400, { ok: false, code: 'BAD_REQUEST' }); return;
     }
     if (!Object.hasOwn(operations, message.op)) { reply(res, 404, { id: message.id, ok: false, code: 'UNKNOWN_OPERATION' }); return; }
@@ -135,9 +145,13 @@ export function createRpcClient({ url, authority, timeoutMs = 6000 }) {
     if (closed) return Promise.reject(new RpcError('CLOSED'));
     if (!safeId(op) || !plain(payload)) return Promise.reject(new RpcError('BAD_REQUEST'));
     const id = randomBytes(16).toString('hex');
-    let body, headers;
-    try { body = Buffer.from(JSON.stringify({ id, op, payload })); headers = authority.sign(body); }
-    catch { return Promise.reject(new RpcError('BAD_REQUEST')); }
+    let body, headers, path;
+    try {
+      body = Buffer.from(JSON.stringify({ id, op, payload }));
+      path = op === 'prepare' && body.length > MAX_BYTES ? PREPARE_PATH : PATH;
+      if (body.length > bodyLimit(path)) throw new RpcError('TOO_LARGE');
+      headers = authority.sign(body, path);
+    } catch { return Promise.reject(new RpcError('BAD_REQUEST')); }
     if (signal?.aborted) return Promise.reject(new RpcError('ABORTED'));
     return new Promise((resolve, reject) => {
       let settled = false, timer;
@@ -148,7 +162,7 @@ export function createRpcClient({ url, authority, timeoutMs = 6000 }) {
         signal?.removeEventListener('abort', abort);
         if (error) reject(error); else resolve(value);
       };
-      const request = transport.request(endpoint, { method: 'POST', agent, headers: { ...headers, 'content-type': 'application/json', 'content-length': body.length } }, async res => {
+      const request = transport.request(new URL(path, endpoint), { method: 'POST', agent, headers: { ...headers, 'content-type': 'application/json', 'content-length': body.length } }, async res => {
         try {
           const bytes = await readBody(res, MAX_BYTES);
           const message = JSON.parse(bytes.toString('utf8'));

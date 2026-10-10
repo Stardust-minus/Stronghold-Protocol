@@ -29,7 +29,7 @@ TLS、共享口令、每次私有请求门禁、可信 Host/Origin、CSRF、登�
 
 游戏票据/RPC 使用独立节点密钥，不能借用 auth signing key/verifier。秘密只在受保护 runtime/secret mount，不进入源码、镜像层、配置样例、日志、URL query、Cookie 或证据。玩家不得选择任意 IP/URL/上游；目标只来自受审查固定配置。票据绑定 session/room/assignment/node/role/build/protocol，严格 TTL 和有界 clock skew，不信任客户端时间。
 
-保留数量准入 `0=不限` 与各玩法本身的容量规则，以及 64KiB 入站、每 socket 40/s、heavy 重发 2/s burst6、1MiB snapshot 软丢/16MiB 慢连接断开、RPC/分配期限和执行背压；“不限”不关闭协议防护。所有入口提供匹配固定源码的私有 JS/CSS/data；公开素材仅限已验证 immutable 清单和受审查源站 profile，不因扩容公开业务代码或内部 health/RPC/game 端点。
+保留数量准入 `0=不限` 与各玩法本身的容量规则，以及浏览器 64KiB 入站、每 socket 40/s、heavy 重发 2/s burst6、1MiB snapshot 软丢/16MiB 慢连接断开、RPC/分配期限和执行背压；“不限”不关闭协议防护。普通控制 RPC 请求及所有 RPC 回复仍为 64KiB。仅大于 64KiB 的开局 `prepare` 使用固定私有 `/_cluster/rpc/prepare`，请求上限 2MiB；HMAC 绑定该精确路径与正文，接收端先认证后解析且该路径只允许 `prepare`。完整配置仍逐字段校验、一次准备，超过总预算在任何分配、票据或 actor 创建前拒绝；不删减玩家配置、不新增暂存分片或放宽 WS/其他操作。小开局请求保留原 RPC 路径与签名合同，新大开局路径须协调器和 game 同版配套发布。所有入口提供匹配固定源码的私有 JS/CSS/data；公开素材仅限已验证 immutable 清单和受审查源站 profile，不因扩容公开业务代码或内部 health/RPC/game 端点。
 
 ## 固定源码、资源与镜像
 
