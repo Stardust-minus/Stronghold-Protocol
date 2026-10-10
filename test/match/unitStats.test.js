@@ -212,28 +212,38 @@ test('snapshot unitStats: opted-in seeded combat preserves state, HP, events, ti
   assert.equal(detailed.errorCount, 0);
 });
 
-test('snapshot unitStats: inline server periodic frames and the first reconnect frame retain effective/base DTOs', (t) => {
+test('snapshot unitStats: inline first-tick and reconnect metadata retain the frozen effective/base cache; periodic snapshots stay compact', (t) => {
   const { h, m, carrier } = setup(26, { instant: false });
   t.after(() => m.dispose());
   m.startCombat();
   assert.ok(m.runner instanceof FieldRunner);
   const initial = h.lastTo('p_0', 'b.snap');
-  assert.deepEqual(initial.unitStats, [], 'initial undeployed field is a complete empty snapshot');
-  for (let i = 0; i < 3; i++) m.runner._tick();
-  const periodic = h.lastTo('p_0', 'b.snap');
+  assert.deepEqual(initial.units, [], 'initial undeployed field is a complete empty snapshot');
+  assert.equal(Object.hasOwn(initial, 'unitStats'), false, 'snapshots never duplicate the panel cache');
+  m.runner._tick();
+  const opening = h.lastTo('p_0', 'm.field');
   const u = m.fields[0].battle.allyUnits.find((x) => x.uid === carrier.uid);
-  const entry = periodic.unitStats.find((x) => x.uid === carrier.uid);
+  const entry = opening.unitStats.find((x) => x.uid === carrier.uid);
   assert.deepEqual(entry, unitStatsEntry(u, u._s));
   assert.ok(entry.atk > entry.base.atk);
+  const cached = structuredClone(opening.unitStats);
+  for (let i = 0; i < 2; i++) m.runner._tick();
+  const periodic = h.lastTo('p_0', 'b.snap');
+  assert.equal(Object.hasOwn(periodic, 'unitStats'), false);
+  assert.equal(h.allTo('p_0', 'm.field').filter(msg => Array.isArray(msg.unitStats)).length, 1, 'the running field sends the first-tick cache once');
   m.onDisconnect('p_0');
   const before = h.sent.length;
   m.onReconnect('p_0');
   const frames = h.sent.slice(before).filter(([pid, msg]) => pid === 'p_0' && ['m.field', 'b.snap'].includes(msg.t));
   assert.equal(frames[0][1].t, 'm.field');
+  assert.deepEqual(frames[0][1].unitStats, cached, 'the very first rejoin metadata carries the original effective/base panel cache');
+  const listed = new Set(frames[0][1].units.map(x => x.id));
+  assert.ok(frames[0][1].unitStats.every(x => listed.has(x.id)), 'reconnect exposes cached details only for this view listed units');
   const resumed = frames.find(([, msg]) => msg.t === 'b.snap')[1];
-  assert.deepEqual(resumed.unitStats, periodic.unitStats, 'the very first rejoin snapshot, not just a later emit');
+  assert.equal(Object.hasOwn(resumed, 'unitStats'), false, 'the first rejoin snapshot is compact too');
+  assert.deepEqual(resumed.units, periodic.units);
   for (const snap of h.allTo('p_0', 'b.snap')) {
-    assert.deepEqual(snap.unitStats.map((x) => x.id), snap.units.map((x) => x[0]));
+    assert.equal(Object.hasOwn(snap, 'unitStats'), false);
     assert.ok(snap.units.every((x) => x.length === 9));
   }
   assert.deepEqual(h.logs.error, []);

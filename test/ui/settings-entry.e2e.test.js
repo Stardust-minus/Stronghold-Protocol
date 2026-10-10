@@ -36,7 +36,7 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
   const settingsBeforeGuide = (page, screen, guideClass) => page.evaluate((s, g) => {
     const btn = document.querySelector(`${s} [data-testid="settings-btn"]`);
     const guide = document.querySelector(`${s} .${g}`);
-    return !!btn && !!guide && btn.nextElementSibling === guide && /设置/.test(btn.textContent) && btn.querySelector('svg.btn__icon') != null;
+    return !!btn && !!guide && btn.nextElementSibling === guide && /设置/.test(btn.getAttribute('aria-label') || btn.textContent) && btn.querySelector('svg.btn__icon') != null;
   }, screen, guideClass);
   const modalText = (page) => page.evaluate(() => document.querySelector('.modal')?.textContent.replace(/\s+/g, ' ').trim() ?? null);
 

@@ -60,14 +60,30 @@ test('engine: cumulative gains cross the DTO boundary without snapshots or watch
   t.after(() => engine.dispose());
   const out = engine.advance(6);
   assert.equal(out.done, false);
-  assert.deepEqual(out.frames, []);
+  assert.equal(out.frames.length, 1, 'the first tick publishes the immutable panel cache even without watchers');
+  const opening = out.frames[0];
+  assert.deepEqual(Object.keys(opening).sort(), ['fieldId', 'startMeta']);
+  assert.equal(opening.fieldId, opts.fieldId);
+  assert.equal(opening.startMeta.t, 'm.field');
+  assert.equal(opening.startMeta.live, true);
+  assert.ok(opening.startMeta.unitStats.length > 0);
+  const listed = new Set(opening.startMeta.units.map(u => u.id));
+  assert.ok(opening.startMeta.unitStats.every(u => listed.has(u.id)), 'only listed units have cached details');
+  const savedOpening = structuredClone(opening);
   const live = engine.fields[0].battle._perPlayer[ps.playerId].layerGains;
   assert.ok(live.kazimierzShip > 0);
   assert.deepEqual(out.fields[0].layerGains, { [ps.playerId]: live });
   const saved = structuredClone(out.fields[0].layerGains);
   engine.fields[0].battle.addLayers(ps.playerId, 'kazimierzShip', 1, 'fixture');
   assert.deepEqual(out.fields[0].layerGains, saved, 'later simulation cannot mutate an accepted DTO');
-  assert.equal(engine.state().fields[0].layerGains[ps.playerId].kazimierzShip, saved[ps.playerId].kazimierzShip + 1);
+  const next = engine.advance(6);
+  assert.equal(next.done, false, 'opening metadata never completes or settles the battle');
+  assert.deepEqual(next.frames, [], 'no second opening cache, periodic snapshots or events without watchers');
+  assert.equal(next.fields[0].layerGains[ps.playerId].kazimierzShip, saved[ps.playerId].kazimierzShip + 1);
+  const state = engine.state();
+  assert.deepEqual(state.frames, [], 'a state query does not replay first-tick metadata');
+  assert.equal(state.fields[0].layerGains[ps.playerId].kazimierzShip, saved[ps.playerId].kazimierzShip + 1);
+  assert.deepEqual(opening, savedOpening, 'the opening cache is detached from later simulation');
 });
 
 test('real Worker: an unwatched field persists layers before finishing; resync and settlement do not double them', async t => {

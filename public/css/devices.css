@@ -200,7 +200,9 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
   .lobby-screen .topbar { height: auto; min-height: 48px; padding-block: 4px; }
   .lobby-screen .topbar__left { flex-wrap: nowrap; }
   .lobby-screen .topbar__right { min-width: 0; }
-  .lobby-screen .online-players, .lobby-screen .me-chip { display: none; }
+  .lobby-screen .me-chip { display: none; }
+  .lobby-screen .online-players { display: inline-flex; position: absolute; top: 100%; left: 16px; min-height: 40px; font-size: 12px; gap: 4px; }
+  .lobby-screen .online-players .icon { width: 16px; height: 16px; }
   .lobby-screen .topbar .btn, .lobby-tools > summary { min-height: 44px; }
   .lobby-body { padding-block: 6px; }
   .gm .team { top: max(2.6rem, 104px); bottom: 88px; width: min(340px, calc(100vw - 32px)); max-height: calc(100% - 192px); padding: 4px; gap: 4px; }
@@ -211,7 +213,34 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
   .gm .team .team__name { font-size: max(calc(.16 * var(--t)), 14px); max-width: 100%; }
   .gm .team .lp--sm { font-size: 14px; }
   .gm .team .team__ob, .gm .team .team__back { min-height: 44px; position: static; font-size: 14px; }
-  .gm .scard__name, .gm .lvcard__label, .gm .toolbtn, .gm .readybtn__label { font-size: max(.19rem, 12px); }
+  /* Keep phone cards readable at the 40 px root floor. Larger shops scroll their offers instead of shrinking;
+     the level, item and funds stay reachable, and the left corner keeps its own touch area. */
+  .gm:not(.is-collapsed) .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: 148px; }
+  .gm .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 96px) * 55 / 151 + max(.56rem, 34px)); }
+  .gm .shopbar { max-width: calc(100% - 164px - .26rem); }
+  .gm .shopbar__row { max-width: 100%; min-width: 0; gap: 4px; padding: 4px; align-items: flex-end; }
+  .gm .shopbar__cards, .gm .shopbar__rwcards { min-width: 0; gap: 4px; overflow-x: auto; padding: 10px 4px 4px;
+    touch-action: pan-x; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .gm .shopbar__cards { flex: 0 1 auto; }
+  .gm .shopbar__reward { min-width: 0; flex: 0 1 auto; gap: 4px; padding: 0; }
+  .gm .shopbar__reward::before { inset: 0; }
+  .gm .rwtag { flex: none; width: 44px; }
+  .gm .rwtag__later { min-height: 44px; font-size: 12px; }
+  .gm .shopbar .scard { flex: none; width: max(1.56rem, 80px); height: max(2.24rem, 112px); }
+  .gm .shopbar .scard-wrap, .gm .shopbar__item { flex: none; }
+  .gm .shopbar__item { gap: 4px; padding-left: 4px; }
+  .gm .lvcard { flex: none; width: max(1.24rem, 52px); height: max(2.24rem, 112px); }
+  .gm .lvcard__num { font-size: max(calc(.66 * var(--t)), 32px); }
+  .gm .funds { flex: none; width: max(1.18rem, 56px); align-self: stretch; }
+  .gm .funds__num { font-size: max(calc(.36 * var(--t)), 24px); }
+  .gm .funds__hex { width: max(1rem, 44px); height: max(.9rem, 40px); }
+  .gm .shopbar .hex { --hex-h: max(.32rem, 20px); }
+  .gm .shopbar .tier { --tier-h: max(.28rem, 16px); }
+  .gm .scard__skill { width: max(.3rem, 18px); height: max(.3rem, 18px); }
+  .gm .scard__confirm b { font-size: max(.18rem, 12px); letter-spacing: .04em; }
+  .gm .scard__confirm small { font-size: max(.11rem, 10px); }
+  .gm .scard__name { font-size: max(.19rem, 13px); }
+  .gm .lvcard__label, .gm .toolbtn, .gm .readybtn__label { font-size: max(.19rem, 12px); }
   .gm .scard__class, .gm .scard__bond, .gm .scard__idesc, .gm .lvcard__micro, .gm .funds__label, .gm .shopbar__remain { font-size: max(.13rem, 10px); }
   .gm .funds__collapse, .gm .shopbar-tab__btn { min-height: 44px; font-size: 12px; }
   .gm .chud__prog, .gm .chud__pname { font-size: 12px; }
@@ -224,12 +253,13 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 }
 @media (max-width: 600px) and (min-height: 461px) {
   .lobby-screen .topbar { min-height: 96px; }
-  .lobby-screen .topbar__right { justify-content: flex-start; }
+  .lobby-screen .topbar__right { justify-content: flex-start; grid-column: 1; grid-row: auto; }
 }
 @media (max-height: 460px) and (min-width: 601px) {
   .lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr); }
   .lobby-screen .topbar__right { flex-wrap: nowrap; justify-content: flex-end; }
-  .lobby-screen .ping--load { max-width: 88px; }
+  .lobby-screen .latency-status { max-width: 224px; }
+  .lobby-screen .lobby-tools > summary { white-space: nowrap; }
   .lobby-screen .mode-card { min-height: 56px; }
   .lobby-screen .diff-card { min-height: 54px; }
   .lobby-screen .join-panel .panel__body { padding: 6px; }

@@ -43,14 +43,32 @@ for (const capacity of [8, 12, 16, 20]) for (const family of ['bounty', 'supply'
     assert.equal(Object.keys(match.draft.picks).length, capacity); assert.equal(new Set(Object.values(match.draft.picks)).size, 1);
     match.setDeadline(0); match.round = 3; match.enterSpDraft(); const draft = match.sp;
     assert.equal(match.publicView().sp.allowRepeat, true); assert.equal(draft.cards.length, 6);
-    for (let i = 0; i < 7; i++) { const id = match.spTurn(); assert.deepEqual(host.handle(spec.assignmentId, id, { t: 'g.choice', idx: 0 }, channels.get(id)), { ok: true }); }
+    const firstCard = draft.cards[0];
+    const firstStock = firstCard.kind === 'item' ? Math.floor(match.itemPool.left(firstCard.id) / match.itemPool.need(firstCard.id)) : Infinity;
+    const select = () => {
+      const id = match.spTurn();
+      if (!match.spCardAvailable(firstCard)) {
+        assert.equal(firstCard.kind, 'item'); assert.equal(match.itemPool.canGain(firstCard.id), false);
+        assert.equal(host.handle(spec.assignmentId, id, { t: 'g.choice', idx: 0 }, channels.get(id)).error, ERR.SOLD_OUT);
+        assert.equal(draft.picks[id], undefined, 'exhausted equipment cannot consume an actor confirmation');
+      }
+      const card = draft.cards.find(c => match.spCardAvailable(c));
+      assert.ok(card, 'the seeded actor fixture has enough different legal stock for every member');
+      assert.deepEqual(host.handle(spec.assignmentId, id, { t: 'g.choice', idx: card.idx }, channels.get(id)), { ok: true });
+      assert.equal(draft.picks[id], card.idx);
+      assert.equal(host.handle(spec.assignmentId, id, { t: 'g.choice', idx: card.idx }, channels.get(id)).error, ERR.ALREADY);
+    };
+    for (let i = 0; i < 7; i++) select();
     const high = `p${capacity - 1}`, old = channels.get(high), replacement = channel(); host.bind(spec.assignmentId, high, replacement); channels.set(high, replacement);
     assert.equal(host.handle(spec.assignmentId, high, { t: 'g.choice', idx: 0 }, old).error, ERR.NOT_IN_ROOM);
     const snapshot = replacement.messages.findLast(m => m.t === 'm.public');
     assert.equal(snapshot.sp.allowRepeat, true); assert.equal(snapshot.sp.cards.length, 6); assert.deepEqual(snapshot.sp.picks, draft.picks);
-    while (match.spTurn()) { const id = match.spTurn(); assert.deepEqual(host.handle(spec.assignmentId, id, { t: 'g.choice', idx: 0 }, channels.get(id)), { ok: true }); }
+    while (match.spTurn()) select();
     await until(() => match.phase === 'PREP');
-    assert.equal(Object.keys(draft.picks).length, capacity); assert.ok(Object.values(draft.picks).every(idx => idx === 0));
+    assert.equal(Object.keys(draft.picks).length, capacity);
+    assert.equal(draft.picks[draft.order[0]], 0); assert.equal(draft.picks[draft.order[1]], 0, 'same index remains legal within its real stock');
+    assert.equal(Object.values(draft.picks).filter(idx => idx === 0).length, Math.min(capacity, firstStock));
+    if (firstCard.kind !== 'item') assert.ok(Object.values(draft.picks).every(idx => idx === 0));
     for (const [id, c] of channels) {
       const personal = c.messages.filter(m => m.t === 'm.private');
       if (id === 'observer') assert.equal(personal.length, 0);
@@ -97,7 +115,8 @@ for (const [capacity, count] of [[4, 4], [8, 2], [8, 5], [12, 5], [16, 5], [20, 
       if (Object.keys(match.draft.picks).length === 1) assert.equal((await c.request({ t: 'g.band', bandId })).code, ERR.ALREADY);
     }
     await until(() => match.phase === 'BATTLE_CHECK'); match.setDeadline(0); match.round = 3; match.enterSpDraft();
-    const draft = match.sp;
+    const draft = match.sp, firstCard = draft.cards[0];
+    const firstStock = firstCard.kind === 'item' ? Math.floor(match.itemPool.left(firstCard.id) / match.itemPool.need(firstCard.id)) : Infinity;
     assert.equal(draft.cards.length, 6); assert.equal(match.publicView().sp.allowRepeat === true, repeat);
     const first = f.channels.get(match.spTurn()); assert.equal((await first.request({ t: 'g.choice', idx: 0 })).t, 'ok');
     assert.equal((await first.request({ t: 'g.choice', idx: 0 })).code, ERR.ALREADY);
@@ -108,13 +127,24 @@ for (const [capacity, count] of [[4, 4], [8, 2], [8, 5], [12, 5], [16, 5], [20, 
     assert.equal(recovered.sp.cards.length, 6); assert.equal(recovered.sp.allowRepeat === true, repeat); assert.deepEqual(recovered.sp.picks, draft.picks);
     await old.closed;
     while (match.spTurn()) {
-      const c = f.channels.get(match.spTurn());
-      if (!repeat) assert.equal((await c.request({ t: 'g.choice', idx: 0 })).code, ERR.SOLD_OUT);
-      const idx = repeat ? 0 : draft.cards.find(card => draft.taken[card.idx] == null).idx;
-      assert.equal((await c.request({ t: 'g.choice', idx })).t, 'ok');
+      const id = match.spTurn(), c = f.channels.get(id);
+      if (!match.spCardAvailable(firstCard)) {
+        if (repeat) { assert.equal(firstCard.kind, 'item'); assert.equal(match.itemPool.canGain(firstCard.id), false); }
+        assert.equal((await c.request({ t: 'g.choice', idx: 0 })).code, ERR.SOLD_OUT);
+        assert.equal(draft.picks[id], undefined, 'exhausted stock leaves the resumed owner confirmation available');
+      }
+      const card = draft.cards.find(card => match.spCardAvailable(card));
+      assert.ok(card, 'this real-RPC fixture has enough different legal stock for all members');
+      assert.equal((await c.request({ t: 'g.choice', idx: card.idx })).t, 'ok');
+      assert.equal(draft.picks[id], card.idx);
+      if (Object.keys(draft.picks).length < count) assert.equal((await c.request({ t: 'g.choice', idx: card.idx })).code, ERR.ALREADY);
     }
     await until(() => match.phase === 'PREP');
-    assert.equal(Object.keys(draft.picks).length, count); assert.equal(new Set(Object.values(draft.picks)).size, repeat ? 1 : count);
+    assert.equal(Object.keys(draft.picks).length, count);
+    if (repeat) {
+      assert.equal(draft.picks[draft.order[0]], 0); assert.equal(draft.picks[draft.order[1]], 0, 'same index survives owner reconnect within stock');
+      assert.equal(Object.values(draft.picks).filter(idx => idx === 0).length, Math.min(count, firstStock));
+    } else assert.equal(new Set(Object.values(draft.picks)).size, count);
     await until(() => spec.seats.every(s => f.channels.get(s.playerId).log.some(m => m.t === 'm.private')));
     for (const [id, c] of f.channels) {
       const personal = c.log.filter(m => m.t === 'm.private');

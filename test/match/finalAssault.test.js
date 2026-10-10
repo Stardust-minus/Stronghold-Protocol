@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 import { PHASE, GEO } from '../../shared/constants.js';
 import { pairPlayers, bossPoolHp, SharedBossPool, hiddenEligible } from '../../server/match/finalAssault.js';
 import { GameData } from '../../server/match/gamedata.js';
+import { Match } from '../../server/match/Match.js';
+import { CombatWorkerPool } from '../../server/match/combat/pool.js';
+import { WorkerFieldRunner } from '../../server/match/combat/runner.js';
 import { FakeBattle } from './fakeBattle.js';
 import { DATA, makeMatch, checkInvariants } from './harness.js';
 
@@ -76,6 +79,7 @@ for (const n of [1, 2, 3, 4]) {
     assert.equal(pool.maxHp, bossPoolHp(m.gd, m.bossId, n));
     for (const f of fields) {
       assert.deepEqual(f.opts.rect, GEO.BOSS_RECT);
+      assert.equal(f.opts.modeId, 'mode_multi_funny', '#475: an unpaired field retains multiplayer mode despite its solo wave template');
       assert.equal(f.opts.timeLimit, Infinity);
       assert.equal(f.opts.flags.layerGainsEnabled, false);
       assert.deepEqual(f.opts.flags.enemyScale, m.gd.enemyScale(14), 'the round\'s enemy effects for the leader\'s summons (PR #272)');
@@ -203,7 +207,7 @@ test('a departure during Final Assault never dynamically resizes the current sha
   assert.deepEqual(h.logs.error, []);
 });
 
-test('overtime: −1 team LP per REAL second after 150 real s (300 game s at 2×); team LP 0 ends every field → defeat (13 rounds passed)', () => {
+test('all-human overtime: −1 team LP per REAL second after 120 real s (240 game s at 2×); team LP 0 ends every field → defeat (13 rounds passed)', () => {
   const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, seed: 50, fake: true, script: (b) => (b.kind === 'boss' ? { bossDps: 1 } : {}) }).start();
   const m = h.m;
   h.drive(() => m.phase === PHASE.PREP && m.round === 14);
@@ -214,10 +218,58 @@ test('overtime: −1 team LP per REAL second after 150 real s (300 game s at 2×
   const end = h.runToEnd();
   assert.equal(end.victory, false);
   assert.equal(end.roundsPassed, 13);
-  assert.ok(Math.abs(f.time - 340) < 2.5, `ended ≈ 300 + 2 × 20 game s (${f.time})`);
+  assert.ok(Math.abs(f.time - 280) < 2.5, `ended ≈ 240 + 2 × 20 game s (${f.time})`);
   assert.equal(m.teamLp, 0);
   m.dispose();
 });
+
+for (const hidden of [false, true]) for (const bots of [0, 1]) {
+  test(`actual Worker freezes the ${hidden ? 'hidden' : 'ordinary'} boss overtime clock (AI teammates=${bots})`, { timeout: 15_000 }, async (t) => {
+    const errors = [];
+    const log = { info() {}, warn() {}, error: (...args) => errors.push(args.map(String).join(' ')) };
+    const pool = new CombatWorkerPool({ size: 1, data: DATA, log });
+    let m;
+    t.after(async () => { m?.dispose(); await pool.close(); });
+    await pool.start();
+    m = new Match({ mode: 'coop', difficulty: 'NORMAL', seed: 50, data: DATA, log,
+      seats: Array.from({ length: 2 + bots }, (_, seat) => ({ seat, playerId: `p_${seat}`,
+        name: `P${seat}`, isBot: seat >= 2, connected: true })),
+      send() { return true; }, broadcast() {}, onEnd() {}, clientCombat: false, combatPool: pool, botRehearsal: 0 });
+    m.phase = PHASE.PREP; m.round = hidden ? m.gd.hiddenRound : m.gd.bossRound;
+    for (const ps of m.order) { ps.lp = 40; ps.bandId = 'band_bldsk'; ps.round = m.round; }
+    if (hidden) m.teamLp = m.order.length * 40;
+    // An empty controlled wave isolates overtime from enemy leaks/damage. The actual shared-pool boss field remains
+    // live until Match/Worker ends it; no production clock, Worker transport or simulation method is replaced.
+    m.bossWaves = pairPlayers(m.order).map(g => ({ players: g.map(p => p.playerId),
+      wave: { spawns: [], routes: [], templateId: 'test-overtime', overrides: {} } }));
+    m.startFinalAssault(hidden);
+    const runner = m.runner;
+    assert.ok(runner instanceof WorkerFieldRunner);
+    let out = await runner.session.ready;
+    m.sched.clearInterval(runner.interval); runner.interval = null;
+    const after = bots ? m.gd.bossOvertimeAfterReal : m.gd.bossLevelTime(m.round);
+    assert.equal(runner.boss.bossOvertimeAfterReal, after, 'the frozen Match clock crosses the Worker DTO boundary');
+    assert.equal(m.bossOvertimeStartReal, after);
+    const initialLp = m.teamLp;
+    const advanceTo = async (realSeconds) => {
+      const ticks = Math.round(realSeconds * m.gd.combatTimeScale * 30);
+      while (out.ticks < ticks) {
+        out = await runner.session.request('advance', { ticks: Math.min(1024, ticks - out.ticks) });
+        runner._apply(out);
+      }
+      return out.boss;
+    };
+    assert.equal((await advanceTo(after + 0.9)).teamLp, initialLp);
+    assert.equal((await advanceTo(after + 1)).teamLp, initialLp - 1);
+    assert.equal(m.teamLp, initialLp - 1, 'main-thread authoritative mirror accepts the same deduction');
+    assert.equal(m.overtimeApplied, 1);
+    assert.equal((await advanceTo(after + 3)).teamLp, initialLp - 3);
+    assert.equal(m.teamLp, initialLp - 3);
+    assert.equal(m.overtimeApplied, 3);
+    assert.deepEqual(errors, []);
+    checkInvariants(m);
+  });
+}
 
 test('Final Assault leaks cost their lpr from the merged LP', () => {
   const h = makeMatch({ mode: 'solo', difficulty: 'FUNNY', seed: 51, fake: true, instant: false, script: (b) => (b.kind === 'boss' ? { bossDps: 1, leakEvents: [{ at: 5, lpr: 1 }, { at: 10, lpr: 30, boss: true }] } : {}) }).start();

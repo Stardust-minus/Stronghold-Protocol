@@ -162,8 +162,18 @@ for (const [capacity, count] of [[8, 2], [8, 5], [8, 6], [8, 7], [8, 8], [12, 9]
     assert.equal(new Set(s.cards).size, cardCount, 'every legal option is a detached object');
     while (m.spTurn()) {
       const ps = m.players.get(m.spTurn());
-      const idx = s.idx % 6;
+      const preferred = s.idx % 6;
+      if (!m.spCardAvailable(s.cards[preferred])) {
+        assert.equal(s.cards[preferred].kind, 'item');
+        assert.equal(m.itemPool.canGain(s.cards[preferred].id), false);
+        assert.equal(m.pickCard(ps, preferred).error, 'SOLD_OUT');
+        assert.equal(s.picks[ps.playerId], undefined, 'an exhausted attempt never consumes the player confirmation');
+      }
+      const idx = m.spCardAvailable(s.cards[preferred]) ? preferred : s.cards.find(c => m.spCardAvailable(c))?.idx;
+      assert.notEqual(idx, undefined, 'this seeded fixture has enough different legal equipment for all players');
       assert.deepEqual(m.pickCard(ps, idx), { ok: true });
+      assert.equal(s.picks[ps.playerId], idx);
+      assert.equal(m.pickCard(ps, idx).error, 'ALREADY');
     }
     h.sched.advance(0);
     assert.equal(m.phase, 'PREP', 'the final manual pick advances immediately without any timeout');

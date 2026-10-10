@@ -419,13 +419,14 @@ export function LobbyScreen() {
         <${SettingsButton} class="lobby-settings" variant="secondary" label=${t('设置')} />
         <${GuideButton} class="lobby-guide" variant="secondary" label=${t('玩法说明')} />
         <${LoadoutButton} from="lobby" size="sm" class="lobby-loadout" label=${t('干员调配')} />
-        <div class="me-chip" title=${me.name || t('博士')}>
+        <button type="button" class="me-chip me-chip--btn stats-entry" onClick=${openStats} title=${t('统计数据')} aria-label=${t('统计数据')}>
           <${AvatarFrame} size="sm" name=${me.name} seat=${0} self=${true} />
-          <div class="me-chip__text">
+          <span class="me-chip__text">
             <span class="me-chip__name">${me.name || t('博士')}</span>
             <${MicroLabel}>${me.playerId != null ? `DOCTOR #${doctorNo(me.playerId)}` : 'DOCTOR'}<//>
-          </div>
-        </div>
+          </span>
+          <${Icon} name="chart" class="me-chip__stats" />
+        </button>
       </div>
     </header>
 

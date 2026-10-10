@@ -308,7 +308,7 @@
 .fullscreen-help { width: min(max(5.4rem, 320px), calc(100vw - 32px)); }.fullscreen-help p { font-size: max(calc(.17 * var(--t)), 14px); line-height: 1.65; }.fullscreen-help p + p { margin-top: 12px; }
 .announcement-board .modal__actions .btn, .server-status-modal .modal__actions .btn, .fullscreen-help .modal__actions .btn { min-height: 40px; font-size: max(calc(.17 * var(--t)), 14px); padding-inline: 16px; }
 .lobby-fullscreen .icon { width: 20px; height: 20px; }
-@media (max-width: 400px) { .lobby-screen .topbar__left .online-players { display: none; } .lobby-screen .topbar__right { gap: 4px; } }
+@media (max-width: 400px) { .lobby-screen .topbar__right { gap: 4px; } }
 
 @media (max-width: 1100px) {
   .lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr); gap: .16rem; }

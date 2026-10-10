@@ -85,6 +85,7 @@ export function hudBands(kind, size, opts) {
   let safeTop = 0;
   let safeBottom = 0;
   let corner = 0;
+  let shopRow = 0;
   try {
     rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 100;
     // the HUD layer starts below the top safe-area inset and ends above the bottom one (css/devices.css .gm__hud)
@@ -93,11 +94,15 @@ export function hudBands(kind, size, opts) {
     if (folded) {
       if (hud && hud.bottom > 0) safeBottom = Math.max(0, h - hud.bottom);
       corner = cornerBand(h);
+    } else {
+      // Phone cards have a readable pixel floor; reserve their actual row, not the old rem-only height.
+      const row = document.querySelector('.gm__hud > .shopbar .shopbar__row')?.getBoundingClientRect();
+      if (row && row.height > 0) shopRow = Math.max(0, h - row.top);
     }
   } catch { /* ignore */ }
   const bottom = folded
     ? Math.max(safeBottom + rem * HUD_REM.shopTabTop + HUD_REM.shopTabBorderPx, corner || safeBottom + rem * HUD_REM.cornerTop)
-    : rem * HUD_REM.shopBarTop + HUD_REM.shopBarBorderPx;
+    : Math.max(rem * HUD_REM.shopBarTop + HUD_REM.shopBarBorderPx, shopRow);
   return {
     top: Math.min(h * 0.4, safeTop + rem * HUD_REM.bondStripBottom),
     bottom: Math.min(h * 0.4, bottom),
@@ -268,31 +273,46 @@ export async function mountFieldView(host, { signal } = {}) {
  */
 export function useFieldView(hostRef) {
   const [state, setState] = useState({ view: null, kind: 'loading' });
+  const [attempt, setAttempt] = useState(0);
+  const retries = useRef(0);
   const viewRef = useRef(null);
   useEffect(() => {
-    let dead = false;
+    let dead = false, retrying = false;
     const host = hostRef.current;
     if (!host) return undefined;
+    setState({ view: null, kind: 'loading' });
     const controller = new AbortController();
     mountFieldView(host, { signal: controller.signal }).then((view) => {
       if (dead) { view.destroy(); return; }
       viewRef.current = view;
+      if (view.kind === 'engine') retries.current = 0;
       globalThis.__SP_VIEW__ = view; // dev / E2E introspection (view.raw.stats?.())
       setState({ view, kind: view.kind });
     }, (err) => { if (!dead && !controller.signal.aborted) console.error('[field] mount failed', err); });
     const unsub = settingsStore.subscribe((s) => viewRef.current?.setSettings?.(s));
     const onResize = () => viewRef.current?.resize();
+    // A temporary network/vendor failure must not pin this mounted match to fallback forever. Retry on a useful
+    // user event, at most twice in succession; the effect cleanup disposes the old view before creating its successor.
+    const onRetry = () => {
+      if (dead || retrying || viewRef.current?.kind !== 'fallback' || renderPref() === 'fallback'
+        || document.visibilityState !== 'visible' || globalThis.navigator?.onLine === false || retries.current >= 2) return;
+      retrying = true; retries.current++; setAttempt((n) => n + 1);
+    };
     window.addEventListener('resize', onResize);
+    window.addEventListener('online', onRetry);
+    document.addEventListener('visibilitychange', onRetry);
     return () => {
       dead = true;
       controller.abort();
       unsub();
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('online', onRetry);
+      document.removeEventListener('visibilitychange', onRetry);
       // the dev hook must not keep the destroyed view — and through its host the whole detached match screen — alive
       if (viewRef.current && globalThis.__SP_VIEW__ === viewRef.current) globalThis.__SP_VIEW__ = null;
       viewRef.current?.destroy();
       viewRef.current = null;
     };
-  }, []);
+  }, [attempt]);
   return state;
 }

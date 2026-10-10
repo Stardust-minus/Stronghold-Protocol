@@ -86,7 +86,7 @@ legal from R14 into R15. The client mirrors it
 | PREP | `modes[m].rounds[r].prepTime` (co-op; solo / single human untimed) |
 | COMBAT / ordinary 联防 | `modes[m].rounds[r].combatTimeLimit` (= the level's `maxPlayTime`) real seconds = 2× that in game seconds |
 | expanded-co-op 联防 | fixed 300 game s per segment; viable admitted relay 150 + 150, otherwise single 300 (§4); each field's real duration = its game-second cap / `gameSpeed` |
-| 最终攻势 / 隐秘核心 | no hard stop: countdown `rounds[r].levelMaxPlayTime` 120 real s; overtime drain from `bossOvertimeAfter` 150 real s, 1 team LP per real s (§3) |
+| 最终攻势 / 隐秘核心 | no hard stop: countdown `rounds[r].levelMaxPlayTime` 120 real s; overtime drain at 120 real s for all-human teams, configured 150 real s with a non-departed AI teammate; 1 team LP per real s (§3) |
 | ROUND_START / after combat / SETTLE | 2 / 1.5 / 3 (presentation delays, `Match.DELAYS`) |
 | bot action delay | 0.9 s (+0.35 s per seat) |
 
@@ -96,7 +96,7 @@ band draft / 机变 / PREP deadline, and BATTLE_CHECK / ROUND_START / SETTLE run
 (draft order and skip, 6 机变 cards, 联防) stay.
 `m.public.deadline` is the absolute end of the current timer (ms epoch, 0 = untimed; combat: estimated end at 2×;
 最终攻势 / 隐秘核心: the boss level's `levelMaxPlayTime` countdown, 120 real s — the battle goes on past it — with
-`m.public.overtimeAt` = when the overtime drain starts, 150 real s; both on the field clock).
+`m.public.overtimeAt` = when the overtime drain starts: 120 real s for all-human teams, 150 real s with an AI teammate at fight start; both on the field clock).
 
 ### 1.1 Band draft
 Fork exception: configured expanded co-op capacities 8 / 12 / 16 / 20 allow repeated strategies, with separate player state,
@@ -574,8 +574,14 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   extra slots at once, empty (the cards shown stay; the empty slots fill on the next roll); `MAX_LEVEL` at 6. One freeze
   toggle freezes every unsold slot until the next round start; a manual refresh rerolls everything (new slots stay
   frozen). Unfrozen slots are cleared at combat start. Slot positions are stable (frozen slots keep their index).
-* **Pool**: copies 12/14/18/16/8/5 (缪尔赛思 4); a normal piece holds 1 copy, an elite 3; displays never reserve copies;
-  selling, temp resolution and elimination return exactly what a piece holds (`left + held = cap` always).
+* **Pool**: single-player base copies 12/14/18/16/8/5 with measured identity overrides
+  (`economy.poolCopiesOverrides`); co-op ordinary stock is twice that (`coopPoolMultiplier: 2`), while DIY stays private.
+  A normal piece holds 1 copy, an elite 3; displays never reserve copies. Granted / promoted elites and Mimic copies
+  may overdraw stock but retain their full occupation; raw signed `left + held = cap`, available stock is never negative.
+  Selling, temp resolution and elimination return exactly what a piece holds. Fork `poolForPlayer` / grouped pools
+  remain: capacity-20 rooms use fixed seat-order chunks of four; other expanded rooms keep their existing small-room
+  scaling / balanced groups, frozen at match start. `disableSharedPool` selects independent chess stock; gifts draw
+  from the recipient's pool. These rules do not change shared equipment stock (§29.8 below).
 * **自选编队 (0.2.0, `player/diy.js`; research 0.2.0 §2, the owner's decisions of 2026-10-05)**: a human's `seat.diy`
   picks (room.diy, checked again against the match's data and kits) are fixed for the match; bots field none [ASSUMED].
   The player's `ps.gd` is then a view of the match's GameData whose `chess(id)` of a slotted slot (normal and elite) is
@@ -696,20 +702,25 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   battle; the Battle / 联防 limit is `gd.combatTimeLimit(r)` = 2 × that in game seconds (`config.combatTimeScale`,
   default 2). Read as game seconds the rounds' own spawn schedules would not fit (R2's last flyer spawns at 43 s of
   45 s, R3's at 62 s of 55 s); × 2 every limit ≈ last spawn + one flyer crossing. docs/BALANCE.md §2.1.
-* **SETTLE**: LP −min(counted leaks, 10) (after 联防: survivors attributed to their source, same cap); IN_BATTLE layer
-  gains applied, each bond up to `BOND_LAYER_CAP` (999, `layerGainRoom`, as `PlayerState.addLayers`); kill-bounty coins (paid by the Battle to the killer — a 联防 helper included; a death no operator caused pays the card's owner, in 联防 the helper whose half it fell on: `Battle._bountyPayee`) and perfect-bounty coins
+* **SETTLE**: LP −min(counted leaks, 10) (after 联防: survivors attributed to their source, same cap); reconcile only
+  uncredited cumulative IN_BATTLE layer gains, each bond up to `BOND_LAYER_CAP` (999, `layerGainRoom`, as
+  `PlayerState.addLayers`), never repeat live milestone rewards; kill-bounty coins (paid by the Battle to the killer — a 联防 helper included; a death no operator caused pays the card's owner, in 联防 the helper whose half it fell on: `Battle._bountyPayee`) and perfect-bounty coins
   (own phase perfect) go to pending funds; bounty rounds decrement; LP ≤ 0 ⇒ eliminated (all copies back to the pool).
 * **Final Assault / Hidden Core**: finalAssault.js header. Boards are passed in board coordinates; the sim maps board
   rows 9–12 onto boss rows 2–5 (`BOSS_ROW_OFFSET` −7, matching every stage's boss rows) and mirrors the right side.
-  Pool (`finalAssault.js bossPoolHp` → `GameData.bossPoolShare`, DESIGN §20.10): one pool shared by every boss field
-  (official tip "最终攻势中，所有人将一起对敌方领袖造成伤害"); co-op = `bloodPoint[difficulty] × alive / aliveFull` (4)
-  with configured `bossHpScale.aliveScaling` default true (user-approved 2026-10-05). Count living participant seats
-  after revival settlement at each ordinary / hidden boss start: AI counts, spectators do not; the pool stays fixed
-  during the fight. Explicit mode false keeps bloodPoint. Notice 5114's "敌方领袖的总生命值不变" describes mirrored
-  copies sharing the pool, not player count; the proportion remains [ASSUMED] (巴哈姆特 12294 gives none). Solo stays ×
-  `bossHpScale.solo` (0.25 = one player of four [ASSUMED]); leader HP is never scaled by `enemyScale`. The merged team LP loses leaks (`lpr`), the overtime drain
-  (`bossTurnHpReduceTime` 150 counts REAL seconds, like the boss level's 120 s maxPlayTime that runs out first — the
-  battle goes on — so 1 LP per real second from 150 real s = 300 game s on the 2× field clock; `gd.bossOvertimeDue`)
+  Pool (`finalAssault.js bossPoolHp` → `GameData.bossPoolShare` → `gamedata.js bossPoolShareOf`, DESIGN §20.10,
+  §25.13.4): one pool shared by every boss field (official tip "最终攻势中，所有人将一起对敌方领袖造成伤害"); active fork
+  co-op = `bloodPoint[difficulty] × alive / aliveFull` (4), with `bossHpScale.perPlayer: false` and configured
+  `bossHpScale.aliveScaling` default true (user-approved 2026-10-05). Count living participant seats after revival
+  settlement at each ordinary / hidden boss start: AI counts, spectators do not; the pool stays fixed during the fight.
+  Explicit mode false keeps bloodPoint. Notice 5114's "敌方领袖的总生命值不变" describes mirrored copies sharing the
+  pool, not player count; the proportion remains [ASSUMED] (巴哈姆特 12294 gives none). Solo stays ×
+  `bossHpScale.solo` (0.25 = one player of four [ASSUMED]); upstream's co-op ×alive / solo ×1 profile remains a
+  supported counterfactual, not this fork's default. Leader HP is never scaled by `enemyScale`; parts and escorts keep
+  their own HP. The merged team LP loses leaks (`lpr`), the overtime drain
+  (the boss level's 120 real-second countdown for all-human teams; `bossTurnHpReduceTime` 150 real seconds only with
+  a non-departed AI teammate at fight start. The first deduction follows one complete real second after that threshold;
+  `gd.bossOvertimeDue` receives the fight's frozen threshold — DESIGN §29.1)
   and leader "扣除目标生命" effects (the sim's `lpLoss` hook: boss_7 Doom, 斥退 …); after every change it is written back
   to the alive players as shares of the LP each brought in (`lpAtFinal`, largest remainder), so `lp` in m.public /
   m.private / m.result is what is left (Σ = team LP).
@@ -740,9 +751,10 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   runs and the server's verification share the rule, so digests agree.
 
 ### 3.1 Balance layer (data/tuning.json)
-`data/config.json` is generated and stays research-faithful. There is **no custom balance** any more (DESIGN §14
-corrections, research 08 §6): enemy numbers are the official ones (the PRTS `enemyScale` table, the leader table
-`bloodPoint` — × the players alive by the owner's decision of 2026-10-06, §25.13.4). `data/tuning.json` (hand-maintained, loaded as `data.tuning`, layered on the config by gamedata.js only)
+`data/config.json` is generated. Enemy statistics use the official PRTS `enemyScale` table without custom
+multipliers (DESIGN §14 corrections, research 08 §6); the leader table `bloodPoint` has the separately approved
+Stardust co-op ×alive/4 / solo ×0.25 profile (§3 above). Upstream's ×alive / solo ×1 profile is supported but inactive.
+`data/tuning.json` (hand-maintained, loaded as `data.tuning`, layered on the config by gamedata.js only)
 keeps just the result-title rules:
 
 ```jsonc
@@ -849,13 +861,17 @@ PREP ready/acting · COMBAT/boss combat/done · UNITE helping/done · others don
 (+ the player's bounty enemies, tag `bounty`; boss rounds: the player's boss field, tag `boss` — the leader's entry with its
 spawn tile `start`, where the boss-field prep shows it —, + its bounties).
 
-Bond layers in the views (DESIGN §20.15): from the end of COMBAT (`_finishCombat`, every normal result in) until SETTLE,
-`m.private bonds` and `m.public players[].bonds` add the finished battle's IN_BATTLE gains (`PlayerState.pendingLayerGains`
-= the result's `layerGains`; `bondsMeta.bondsWithGains`: floored, at most up to `BOND_LAYER_CAP`, like the settlement), so
-the strip keeps the layers the battle reached through the COMBAT_END pause and the 联防. The 联防 field fights with the
-same counts (its input's `bonds` come from `bondsView()`, PlayerState.battleInput `reached`; since 0.1.3). `ps.bonds` /
-`ps.layers` (rules, `activatedLayers`) are untouched; SETTLE clears the pending gains as it adds them to `ps.layers`
-(once); the next round start clears them too.
+Bond layers in the views (DESIGN §20.15, active fork): normal server battles commit cumulative gains to `ps.layers`
+and dispatch milestone rewards live through `Match._syncNormalLayers` / `_applyBattleLayerGains`. Worker updates are
+independent of watchers; per-round `ps.battleLayerGains` watermarks advance before dispatch and reconcile final
+results once. The views therefore expose committed layers, not a second copy of the same gains. Legacy / reference
+unsynchronized results may use `PlayerState.pendingLayerGains` for only the uncredited remainder
+(`bondsMeta.bondsWithGains`: floored, capped at 999); the tools-only official golden profile still defers rewards to
+SETTLE. Legacy client combat retains its validated completion callback, without new midbattle client-layer authority.
+The COMBAT_END pause and 联防 keep the reached counts; 联防 input reads `bondsView()` / `battleInput reached` and
+never earns or adds those layers again. SETTLE reconciles only a missing cumulative delta and clears the overlay;
+the next round resets the watermark and overlay. Hidden/noStack layers, the 999 cap and no-gain 联防 / boss / hidden
+flags remain. Precomputed headless results wait for their natural field-clock release.
 
 `m.field` = `{ fieldId, kind, rect, stageId, units, live }`; during prep `g.watch 'n:<pid>'` returns that board
 with `prep: true` and sends it again when the board changes (GitHub #87).
@@ -982,3 +998,27 @@ requests cannot affect a new opening. See DESIGN §28.21 for cancellation and ti
 `botEmotes.js` is isolated from bot decisions and RNG. It sends the existing `m.emote` only in mixed matches, under
 normal cooldown/whitelist rules; `SP_BOT_EMOTES=0` disables it. The cooperation score in `bot.js` and these cosmetic
 choices are explicitly [ASSUMED]; DESIGN §28.15–16 records the source and validation.
+
+### Community follow-up contracts (DESIGN §29)
+
+- `triggerGarrisons` includes `source.copiedFrom` for copied effects. Only Ptilopsis copying Yu/Gladiia at SERVER_PREP_START skips the three-in-row prerequisite, as confirmed by the original-game recording; Saria and other copies keep existing conditions.
+- Jessica's placeable shield uses `shared/summonPlacement.js` for the four orthogonal neighbors, independent of her selected skill, facing or module. Client preview and server moves/swaps use the same grid.
+- Client result statistics resolve DIY and stand-in names from the authoritative BattleSpec. A client cannot replace those names.
+
+### Shared inventory after 0.2.3 (DESIGN §29.8)
+
+`SharedItemPool` derives equipment availability from current ownership across all players: ordinary 1, upgraded 2.
+Equips, merges and returns cannot lose reservations. Consumptions/destruction release ownership [ASSUMED removal
+interpretation]. Shop/reward displays reserve nothing; rejected exhausted purchases retain funds and offers.
+整备 upgrades the purchased item only when `left` still has the golden's second copy; otherwise the item stays
+normal and the charge remains.
+`m.public.sp.cards[].soldOut` disables duplicates when a preceding choice used the final copy; timer/bot choices
+use the same availability. Non-shop effect-only equipment is unlimited.
+
+Operator capacities use measured single-player exceptions and twice those counts in co-op; DIY remains private.
+Fork grouped / player chess pools and the host's `disableSharedPool` option remain; the new `SharedItemPool` accounts
+for equipment across all match players, not per chess-pool group. Expanded `sp.allowRepeat` permits repeated card
+indices but never bypasses item availability: `soldOut`, manual picks, timers and bots all re-check the same stock.
+`take(..., { overdraw: true })` records full occupation of a granted/promoted elite or a Mimic copy beyond capacity;
+normal takes remain bounded. Negative internal balance is a deficit, never negative available stock. Existing
+item selection probabilities and explicit grant weights remain unchanged.

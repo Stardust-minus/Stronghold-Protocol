@@ -121,18 +121,23 @@ export class MatchBoss {
     this._beginDamage(hidden ? 'hidden' : 'boss');
     this.overtimeApplied = 0;
     // HUD: the boss level's countdown (maxPlayTime, 120 real s — the battle goes on past it) and the moment the
-    // overtime drain starts (150 real s), both on the field clock
+    // overtime drain starts (120 real s, or 150 with an AI teammate), both on the field clock
     const onClock = (realS) => this.sched.now() + Math.round(((realS * this.gd.combatTimeScale) / this.gameSpeed) * 1000);
     const levelTime = this.gd.bossLevelTime(this.round);
+    // Maintainer 2026-10-10: only teams with an AI teammate keep the extra grace after the visible countdown.
+    // Freeze this choice for the fight; a disconnect / host transfer cannot change its LP clock midway.
+    const team = this.order.filter((p) => !p.left);
+    this.bossOvertimeStartReal = team.length > 1 && team.some((p) => p.isBot)
+      ? this.gd.bossOvertimeAfterReal : (levelTime || this.gd.bossOvertimeAfterReal);
     this.deadline = this.sched.instant || !levelTime ? 0 : onClock(levelTime);
-    this.overtimeAt = this.sched.instant ? 0 : onClock(this.gd.bossOvertimeAfterReal);
+    this.overtimeAt = this.sched.instant ? 0 : onClock(this.bossOvertimeStartReal);
     if (this.clientCombat) { this._flushDamage(true); this._startFinalClient(hidden); return; }
     const Runner = this.combatPool ? WorkerFieldRunner : FieldRunner;
     this.runner = new Runner(this, this.fields, {
       onTick: (runner) => this._bossTick(runner),
       onDone: (runner) => this._finalDone(runner, hidden),
       boss: { maxHp: pool.maxHp, hp: pool.hp, teamLp: this.teamLp, overtimeApplied: 0,
-        combatTimeScale: this.gd.combatTimeScale, bossOvertimeAfterReal: this.gd.bossOvertimeAfterReal,
+        combatTimeScale: this.gd.combatTimeScale, bossOvertimeAfterReal: this.bossOvertimeStartReal,
         bossOvertimeDrainReal: this.gd.bossOvertimeDrainReal },
     });
     this._defaultWatch();
@@ -484,11 +489,11 @@ export class MatchBoss {
   }
 
   /**
-   * Overtime drain on the boss field clock (`gt` game seconds): 1 team LP per real second from the 150 real-second mark
-   * (bossTurnHpReduceTime, gamedata.js bossOvertimeDue).
+   * Overtime drain on the boss field clock (`gt` game seconds): 1 team LP per real second after the fight's frozen
+   * threshold (120 real seconds, or 150 with an AI teammate; gamedata.js bossOvertimeDue).
    */
   _applyOvertime(gt) {
-    const due = this.gd.bossOvertimeDue(gt);
+    const due = this.gd.bossOvertimeDue(gt, this.bossOvertimeStartReal);
     if (due > this.overtimeApplied) {
       const loss = due - this.overtimeApplied;
       this.overtimeApplied = due;

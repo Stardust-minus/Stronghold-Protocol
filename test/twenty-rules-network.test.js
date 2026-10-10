@@ -16,7 +16,7 @@ for (const capacity of [4, 8, 12, 16, 20]) for (const family of capacity === 4 ?
         const choices = opts.data.choices, mode = choices.schedule.mode_multi_normal;
         const data = { ...opts.data, choices: { ...choices, schedule: { ...choices.schedule,
           mode_multi_normal: { ...mode, rounds: { ...mode.rounds, 3: { ...mode.rounds[3], families: [{ family, weight: 1 }] } } } } } };
-        super({ ...opts, data, clientCombat: false, botRehearsal: 0 }); this.jumped = false;
+        super({ ...opts, data, seed: 713, clientCombat: false, botRehearsal: 0 }); this.jumped = false;
       }
       enterBattleCheck() { super.enterBattleCheck(); this.setDeadline(0.01, () => this.startRound(1)); }
       startRound(round) { if (!this.jumped) { this.jumped = true; round = 3; } super.startRound(round); }
@@ -66,7 +66,8 @@ for (const capacity of [4, 8, 12, 16, 20]) for (const family of capacity === 4 ?
     assert.equal(selections, capacity); assert.equal(new Set(match.order.map(ps => ps.bandId)).size, repeat ? 1 : capacity);
     const sp = await members[0].waitFor('m.public', m => m.phase === 'SP_DRAFT', 6000);
     assert.equal(sp.sp.allowRepeat === true, repeat); assert.equal(sp.sp.cards.length, 6); assert.equal(sp.sp.family, family);
-    const draft = match.sp;
+    const draft = match.sp, firstCard = draft.cards[0];
+    const firstStock = firstCard.kind === 'item' ? Math.floor(match.itemPool.left(firstCard.id) / match.itemPool.need(firstCard.id)) : Infinity;
     assert.equal((await byId.get(draft.order[1]).request({ t: 'g.choice', idx: 0 })).code, ERR.NOT_YOUR_TURN);
     const first = byId.get(match.spTurn());
     assert.equal((await first.request({ t: 'g.choice', idx: 6 })).code, ERR.BAD_TARGET);
@@ -74,10 +75,17 @@ for (const capacity of [4, 8, 12, 16, 20]) for (const family of capacity === 4 ?
     const replies = await Promise.all([first.request({ t: 'g.choice', idx: 0 }), first.request({ t: 'g.choice', idx: 0 })]);
     assert.deepEqual(replies.map(r => r.t === 'ok' ? 'ok' : r.code), ['ok', ERR.ALREADY]);
     const select = async () => {
-      const c = byId.get(match.spTurn());
-      if (!repeat) assert.equal((await c.request({ t: 'g.choice', idx: 0 })).code, ERR.SOLD_OUT);
-      const idx = repeat ? 0 : draft.cards.find(card => draft.taken[card.idx] == null).idx;
-      assert.equal((await c.request({ t: 'g.choice', idx })).t, 'ok');
+      const pid = match.spTurn(), c = byId.get(pid);
+      if (!match.spCardAvailable(firstCard)) {
+        if (repeat) { assert.equal(firstCard.kind, 'item'); assert.equal(match.itemPool.canGain(firstCard.id), false); }
+        assert.equal((await c.request({ t: 'g.choice', idx: 0 })).code, ERR.SOLD_OUT);
+        assert.equal(draft.picks[pid], undefined, 'a failed stock/taken check never consumes the confirmation');
+      }
+      const card = draft.cards.find(card => match.spCardAvailable(card));
+      assert.ok(card, 'the seeded fixture has enough legal card stock for every human');
+      assert.equal((await c.request({ t: 'g.choice', idx: card.idx })).t, 'ok');
+      assert.equal(draft.picks[pid], card.idx);
+      if (Object.keys(draft.picks).length < capacity) assert.equal((await c.request({ t: 'g.choice', idx: card.idx })).code, ERR.ALREADY);
     };
     const beforeResume = Math.min(7, capacity - 1);
     for (let i = 1; i < beforeResume; i++) await select();
@@ -88,7 +96,12 @@ for (const capacity of [4, 8, 12, 16, 20]) for (const family of capacity === 4 ?
     assert.deepEqual(recovered.sp.picks, draft.picks); assert.equal(Object.keys(draft.picks).length, beforeResume);
     while (match.spTurn()) await select();
     await members[0].waitFor('m.public', m => m.phase === 'PREP');
-    assert.equal(Object.keys(draft.picks).length, capacity); assert.equal(new Set(Object.values(draft.picks)).size, repeat ? 1 : capacity);
+    assert.equal(Object.keys(draft.picks).length, capacity);
+    if (repeat) {
+      assert.equal(draft.picks[draft.order[0]], 0); assert.equal(draft.picks[draft.order[1]], 0, 'same band and same index are permitted within stock');
+      assert.equal(Object.values(draft.picks).filter(idx => idx === 0).length, Math.min(capacity, firstStock));
+      if (firstCard.kind !== 'item') assert.equal(new Set(Object.values(draft.picks)).size, 1);
+    } else assert.equal(new Set(Object.values(draft.picks)).size, capacity);
     for (const c of members) assert.equal((await c.request({ t: 'g.ready', ready: true })).t, 'ok');
     await members[0].waitFor('m.public', m => m.phase === 'COMBAT', 6000);
     const runner = match.runner; assert.ok(runner instanceof WorkerFieldRunner);

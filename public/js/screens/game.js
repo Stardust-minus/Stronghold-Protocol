@@ -99,7 +99,7 @@ import {
   phaseMode, phaseBanner, isCombatPhase, showDeadPill, isBossPhase, placementContext, canPlace, boardTargets, dropIntent,
   battleOverSfx, uniteResultBox, battleResultBox,
   snapHud, activeBubbles, shortcutFor, shortcutBlocked, selectionShortcutAllowed, closesOnFieldPress, phaseTotalSeconds, homeFieldId, ownFieldId, normalizeSp, normalizePersonalChoice, sortedPlayers,
-  terrainInfo, deviceInfo, deviceTipAt, noteDeviceUnits,
+  terrainInfo, deviceInfo, deviceTipAt, noteDeviceUnits, deviceUnitsForEntry,
   countdownState, shopBlockReason, stageOverrides, effectiveStage, watchTarget, dropFailureReason,
   previewEnemyKey, prepCamera, prepCameraFor, foldCamera, deployFieldOf, fieldTile, panelSide, panelSlots, bondPopupPlace, unitLoadout, deployedRecord,
   mergeTarget, modeOffBonds, readyFundsPrompt, readyShopFold, ownerBandId, ownDiyRecord, ownStandIn,
@@ -412,6 +412,7 @@ function MatchScreen() {
   live.current.deviceBattle = !!shownField && !shownField.prep;
   const staleFieldRef = useRef(null);
   const enteredFieldRef = useRef(null);
+  const enteredViewRef = useRef(null);
   const pressSel = useRef(null);                         // the selected piece when the current field press began
   const enteredRelayRef = useRef(null);
   useEffect(() => {
@@ -433,6 +434,19 @@ function MatchScreen() {
     setDetail(d => d?.kind === 'unit' ? null : d);
   }, [relayKey]);
   useEffect(() => {
+    // Read before a view change clears the refs. A later refresh of this same field (g.watch / reshow replaces the
+    // field object) must still know which battle the device units already noted belong to.
+    const previousFieldId = lastFieldRef.current;
+    const previousDevices = deviceUnitsRef.current;
+    if (enteredViewRef.current !== view) {
+      // A replacement engine has no field, even when the match's m.field object did not change. While it loads,
+      // buffer frames instead of sending them to a null/destroyed view; its subscription below asks for fresh meta.
+      enteredViewRef.current = view;
+      enteredFieldRef.current = null;
+      lastFieldRef.current = null;
+      viewModeRef.current = null;
+      reentryRef.current = null;
+    }
     if (!view) return;
     if (showPrep) {
       snapStatsRef.current = snapshotStats(null);
@@ -468,11 +482,19 @@ function MatchScreen() {
     viewModeRef.current = 'battle';
     snapUnitsRef.current = new Map();
     snapStatsRef.current = snapshotStats(field);
-    view.enterBattle(field);
     const early = evBufRef.current.get(field.fieldId);
     evBufRef.current.delete(field.fieldId);
-    deviceUnitsRef.current = noteDeviceUnits(new Map(), { units: field.units, events: early });
+    // Crates and turrets are absent from a start-of-battle meta and arrive once, as spawn events. Re-entering the
+    // same field from a refresh that repeats that meta (the subscription below asks for one) must not drop them.
+    const noted = noteDeviceUnits(new Map(), { units: field.units, events: early });
+    deviceUnitsRef.current = deviceUnitsForEntry(previousDevices, noted, previousFieldId != null && previousFieldId === field.fieldId);
     pieceUnitsRef.current = notePieceUnits(new Map(), { infos: field.units, events: early });
+    // The renderer clears its unit metadata on entry too. Restore known devices there as well as in the card lookup;
+    // otherwise their next HP tuple becomes an unknown enemy whose pieceClick consumes the device's tileClick.
+    const units = Array.isArray(field.units) ? [...field.units] : [];
+    const ids = new Set(units.map((u) => u?.id));
+    for (const [id, info] of deviceUnitsRef.current) if (!ids.has(id)) units.push(info);
+    view.enterBattle({ ...field, units });
     const earlySnap = snapBufRef.current.get(field.fieldId);
     snapBufRef.current.delete(field.fieldId);
     // a scouted prep board frames like the own prep with the shop folded (the bench row included, app.js camRect);
@@ -597,6 +619,15 @@ function MatchScreen() {
     };
     const offs = [net.on('m.field', onFieldMeta), net.on('b.snap', onSnap), net.on('b.ev', onEv)];
     if (battleRunner) offs.push(battleRunner.on('field', onFieldMeta), battleRunner.on('snap', onSnap), battleRunner.on('ev', onEv), battleRunner.on('result', onResult));
+    // Metadata must include enemies/tokens spawned before this renderer existed, not only events buffered during
+    // loading. Subscribe first so the reshow's metadata and snapshot take the ordinary buffered re-entry path.
+    if (view && !showPrep && field?.fieldId) {
+      if (field.local) battleRunner?.reshow();
+      else if (combat || watchingOther) {
+        const who = watchWho?.fieldId === field.fieldId ? watchWho.playerId : null;
+        net.request('g.watch', { fieldId: field.fieldId, ...(who ? { playerId: who } : {}) }).catch(() => {});
+      }
+    }
     return () => { for (const off of offs) { try { off(); } catch { /* ignore */ } } clearTimeout(pending); };
   }, [view]);
 

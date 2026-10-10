@@ -6,7 +6,7 @@ import { EVENT_BUFFER_CAP } from '../constants.js';
 import { damageRows } from '../damageBoard.js';
 import { elementView } from '../damage.js';
 import { unitStatsEntry } from '../../../shared/protocol.js';
-import { unitInfo, snapshotUnits, ammoView, wolfView, negView } from '../snapshot.js';
+import { unitInfo, snapshotUnits, ammoView, wolfView, negView, coinView } from '../snapshot.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -53,13 +53,14 @@ export class BattleEvents {
    *         come back on: _layBody — where they fell, or their home);
    *   elem: [[id, element, fill, cooldownEnd, cooldown]] — the element gauge each unit shows (damage.js elementView);
    *   ammo: [[id, rounds left, rounds in the magazine]] — a running ammo skill, whole rounds (snapshot.js ammoView): the segmented bar;
+   *   coins: [[id, balance, cap]] — a live Swire skill purse, zero included (snapshot.js coinView);
    *   wolves: [[id, 狼影 left, the talent's maximum]] — 伺夜's 狼群 (snapshot.js wolfView): the pips under the HP bar;
    *   neg: [[id, fill]] — the share of its cap a negative-HP pool holds (snapshot.js negView; 斩业星熊's 我执): the red bar;
    *   stand: [[id, until]] — when each enemy's attack recovery ends (atkStandUntil; alive, deployed, visible, not
    *         feared or stunned) — display metadata (render/interp.js holds the position until then);
    *   standCut: [[id, at]] — the latest time each listed enemy's recovery was cut or ignored (_cutAttackStand), the
    *         dying ones in their death window included.
-   * ammo / wolves / neg / stand / standCut are display only: no sim state reads them, and the nine-field unit tuples are
+   * ammo / coins / wolves / neg / stand / standCut are display only: no sim state reads them, and the nine-field unit tuples are
    * unchanged.
    */
   snapshot({ includeUnitStats = false } = {}) {
@@ -108,6 +109,8 @@ export class BattleEvents {
       if (wv) (wolves || (wolves = [])).push([u.id, wv[0], wv[1]]);
       const ng = negView(u);
       if (ng) (neg || (neg = [])).push([u.id, ng]);
+      const purse = coinView(u);
+      if (purse) (snap.coins || (snap.coins = [])).push([u.id, ...purse]);
     }
     if (elem) snap.elem = elem;
     if (ammo) snap.ammo = ammo;

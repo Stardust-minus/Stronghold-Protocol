@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { startServer } from '../server/index.js';
 import { Match } from '../server/match/Match.js';
 import { TestClient } from './helpers/wsClient.js';
-import { MATCHMAKING_VERSION } from '../shared/constants.js';
+import { ERR, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../shared/playerCapacity.js';
 
 const rules = { revivalEnabled: false, disableSharedPool: false, playerCapacity: 20 };
@@ -14,7 +14,7 @@ for (const family of ['bounty', 'supply', 'shop', 'tactic']) test(`actual twenty
       const original = opts.data.choices, mode = original.schedule.mode_multi_normal;
       const data = { ...opts.data, choices: { ...original, schedule: { ...original.schedule,
         mode_multi_normal: { ...mode, rounds: { ...mode.rounds, 3: { ...mode.rounds[3], families: [{ family, weight: 1 }] } } } } } };
-      super({ ...opts, data, clientCombat: false, botRehearsal: 0 });
+      super({ ...opts, data, seed: 713, clientCombat: false, botRehearsal: 0 });
     }
     start() { this.startRound(3); }
   }
@@ -43,11 +43,21 @@ for (const family of ['bounty', 'supply', 'shop', 'tactic']) test(`actual twenty
   assert.equal(publicFrame.sp.family, family); assert.equal(publicFrame.sp.order.length, 20);
   const match = srv.lobby.roomOf(srv.registry.byId(clients[0].welcome.playerId)).match, draft = match.sp;
   const byId = new Map(clients.map(c => [c.welcome.playerId, c]));
-  const picks = Array.from({ length: 20 }, (_, i) => i % 6);
+  const picks = [];
   for (const [i, playerId] of publicFrame.sp.order.entries()) {
     assert.equal(match.spTurn(), playerId);
-    assert.equal((await byId.get(playerId).request({ t: 'g.choice', idx: picks[i] })).t, 'ok');
-    assert.equal(draft.picks[playerId], picks[i]);
+    const preferred = i % 6, client = byId.get(playerId);
+    if (!match.spCardAvailable(draft.cards[preferred])) {
+      assert.equal(draft.cards[preferred].kind, 'item');
+      assert.equal(match.itemPool.canGain(draft.cards[preferred].id), false);
+      assert.equal((await client.request({ t: 'g.choice', idx: preferred })).code, ERR.SOLD_OUT);
+      assert.equal(draft.picks[playerId], undefined, 'an exhausted request consumes no manual pick');
+    }
+    const idx = match.spCardAvailable(draft.cards[preferred]) ? preferred : draft.cards.find(c => match.spCardAvailable(c))?.idx;
+    assert.notEqual(idx, undefined, 'the seeded six-card fixture holds enough different legal stock for all twenty humans');
+    assert.equal((await client.request({ t: 'g.choice', idx })).t, 'ok');
+    assert.equal(draft.picks[playerId], idx); picks.push(idx);
+    if (i + 1 < publicFrame.sp.order.length) assert.equal((await client.request({ t: 'g.choice', idx })).code, ERR.ALREADY);
   }
   await clients[0].waitFor('m.public', m => m.phase === 'PREP', 2000);
   assert.equal(match.phase, 'PREP'); assert.equal(Object.keys(draft.picks).length, 20);
