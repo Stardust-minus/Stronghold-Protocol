@@ -77,7 +77,8 @@ export function maxTicksPerInterval(speed) {
  */
 export function snapFrame(fieldId, snap) {
   const { t: gt, ...rest } = snap || {};
-  return { ...rest, t: 'b.snap', fieldId, gt: typeof gt === 'number' && Number.isFinite(gt) ? gt : 0 };
+  // Ingress classifies the leading type for compression and snapshot backpressure.
+  return { t: 'b.snap', ...rest, fieldId, gt: typeof gt === 'number' && Number.isFinite(gt) ? gt : 0 };
 }
 
 /** Synthetic per-player result used when a field could not run at all (never punishes the player). */
@@ -248,7 +249,7 @@ export class FieldRunner {
     if (!watchers.length) return;
     let snapMsg = null;
     if (this._snapshotDue(f)) {
-      try { snapMsg = snapFrame(f.fieldId, f.battle.snapshot({ includeUnitStats: true })); } catch (e) { this.m.reportError(`field ${f.fieldId} snapshot`, e); }
+      try { snapMsg = snapFrame(f.fieldId, f.battle.snapshot()); } catch (e) { this.m.reportError(`field ${f.fieldId} snapshot`, e); }
     }
     const evMsg = ev.length ? eventFrame(f.fieldId, f.battle, ev) : null;
     if (evMsg && snapMsg) evMsg.gt = snapMsg.gt;
