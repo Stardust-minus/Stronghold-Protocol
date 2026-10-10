@@ -71,7 +71,7 @@ class Profile:
     def endpoints(self):
         return MappingProxyType(dict(zip(self.wg_peers, (
             host + ':' + str(self.wg_port)
-            for host in ('115.231.235.78', '115.231.235.219' if self.name == 'formal' else '115.231.235.75',
+            for host in ('115.231.235.78', '103.239.185.77' if self.name == 'formal' else '115.231.235.75',
                          '115.231.235.73', '115.231.235.92')))))
 
     @property
