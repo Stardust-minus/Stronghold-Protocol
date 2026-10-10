@@ -92,6 +92,13 @@ for segment in path:gmatch("[^/]+") do
         return ngx.exit(404)
     end
 end
+-- The browser retries the canonical alias, not a provider/signature URL. A fixed selector cannot open arbitrary sources.
+local force_openi = false
+local query = target:match("%?(.*)$")
+if query ~= nil then
+    if query ~= "sp_source=openi" then return ngx.exit(404) end
+    force_openi = true
+end
 local model_target = db.paths[path]
 if model_target == nil then return ngx.exit(404) end
 if openi_only[path] then
@@ -108,6 +115,10 @@ if method == "HEAD" then
     -- Preserve the existing metadata-probe/fallback contract; ordinary GET has no Ningxia allocation.
     ngx.ctx.material_lb_selected = "ningxia"
     return ngx.redirect(ngx.ctx.material_lb_fallback, 302)
+end
+if force_openi then
+    ngx.ctx.material_lb_selected = "openi"
+    return
 end
 local request_id = ngx.var.request_id or ""
 if #request_id ~= 32 or not request_id:match("^[%da-fA-F]+$") then return ngx.exit(500) end

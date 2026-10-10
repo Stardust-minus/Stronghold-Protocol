@@ -27,6 +27,7 @@ import { tileKey, hasFlag, UF, penPlacement, PEN, fieldTile, ownStandIn, ownDiyR
 import { t } from '../../../shared/i18n.js';
 import { ownAppearance, appearanceEntry } from './skinAssets.js';
 import { Img } from './gameComponents.js';
+import { MaterialImage } from './materialImage.js';
 
 const DRAG_PX = 6;
 const DMG_TTL = 900;
@@ -304,7 +305,7 @@ export function createFallbackView(host, opts = {}) {
       return html`<button key=${mdl.k} type="button" class=${cx('ff-unit', 'is-enemy', 'ff-pen__enemy', (mdl.elite || mdl.boss) && 'is-boss', mdl.fly && 'is-fly')}
           data-enemy=${mdl.enemyKey} title=${name} aria-label=${name}
           style=${`transform:translate(${x}px,${y}px);width:${size}px;height:${size}px;z-index:${10 + mdl.slot}`} onClick=${tap}>
-        <div class="ff-unit__art">${src ? html`<img src=${src} alt="" draggable=${false} />` : html`<span>${[...name][0]}</span>`}</div>
+        <div class="ff-unit__art">${src ? html`<${MaterialImage} src=${src} alt="" draggable=${false} />` : html`<span>${[...name][0]}</span>`}</div>
       </button>`;
     });
     return html`<div class="ff-board ff-board--pen" style=${`left:${left}px;top:${top}px;width:${bw}px;height:${tile * rows}px;--tile:${tile}px`}>
@@ -374,7 +375,7 @@ export function createFallbackView(host, opts = {}) {
       const hr = root.getBoundingClientRect();
       const src = pieceArt(d.piece);
       return html`<div class=${cx('ff-ghost', d.piece.golden && 'is-golden')} style=${`left:${d.x - hr.left - L.tile / 2}px;top:${d.y - hr.top - L.tile / 2}px;width:${L.tile}px;height:${L.tile}px`}>
-        ${src ? html`<img src=${src} alt="" />` : null}</div>`;
+        ${src ? html`<${MaterialImage} src=${src} alt="" />` : null}</div>`;
     })() : null;
     if (st.camera === 'pen') { render(html`${penView()}<div class="ff-badge">SIMPLIFIED VIEW</div>`, root); return; }
     render(html`<div class=${cx('ff-board', `ff-board--${st.mode}`, `ff-cam--${st.camera}`)} style=${`left:${L.left}px;top:${L.top}px;width:${L.bw}px;height:${L.bh}px;--tile:${L.tile}px`}>

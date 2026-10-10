@@ -7,6 +7,7 @@ import { data, useData, localAsset } from '../data.js';
 import { parseRichText, rtClassName } from './richText.js';
 import { t as tr } from '../../../shared/i18n.js';
 import { appearanceRecord } from './skinAssets.js';
+import { MaterialImage } from './materialImage.js';
 import {
   uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
 } from './assetUrls.js';
@@ -67,7 +68,7 @@ export function Img({ src, class: cls, alt = '', fallback = null, fallbackSrc = 
   const [bad, setBad] = useState(null);
   if (!src || bad === src) return fallbackSrc && fallbackSrc !== src
     ? html`<${Img} src=${fallbackSrc} class=${cls} alt=${alt} fallback=${fallback} style=${style} />` : fallback;
-  return html`<img class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onError=${() => setBad(src)} />`;
+  return html`<${MaterialImage} class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onError=${() => setBad(src)} />`;
 }
 
 /** Official UI sprite by 'group/key' with a fallback. */

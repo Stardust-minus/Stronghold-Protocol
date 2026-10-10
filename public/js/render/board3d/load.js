@@ -12,6 +12,7 @@
 
 import { resolveUvTable } from './atlas.js';
 import { parseObj } from './obj.js';
+import { fetchMaterial } from '../../materialFallback.js';
 
 export const THREE_URL = '/vendor/three.module.js';
 
@@ -82,11 +83,17 @@ export async function boardArtListed(assets) {
   return typeof u === 'string' && u.length > 0;
 }
 
-async function fetchText(url) {
-  try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.text() : null; } catch { return null; }
+async function fetchMesh(url) {
+  try {
+    return await fetchMaterial(url, async r => {
+      const mesh = parseObj(await r.text());
+      if (!mesh) throw new Error('invalid material mesh');
+      return mesh;
+    });
+  } catch { return null; }
 }
 async function fetchJson(url) {
-  try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch { return null; }
+  try { return await fetchMaterial(url, r => r.json()); } catch { return null; }
 }
 
 /**
@@ -120,8 +127,7 @@ export function loadBoardPack(assets) {
     const meshes = { gate: {} };
     await Promise.all(Object.entries(PACK_MESHES).map(async ([k, [g, n]]) => {
       const u = url(g, n);
-      const text = u ? await fetchText(u) : null;
-      const m = text ? parseObj(text) : null;
+      const m = u ? await fetchMesh(u) : null;
       if (m) meshes[k] = m;
     }));
     const prefab = Array.isArray(fxPrefab) ? fxPrefab : [];
@@ -129,8 +135,7 @@ export function loadBoardPack(assets) {
       const rec = prefab.find((p) => p && p.name === node && (node !== 'Start_back' || p.parent === '[opt]start_box'));
       const key = rec && typeof rec.mesh === 'string' ? rec.mesh : node;
       const u = url('map/fx', key);
-      const text = u ? await fetchText(u) : null;
-      const m = text ? parseObj(text) : null;
+      const m = u ? await fetchMesh(u) : null;
       if (m) meshes.gate[slot] = { mesh: m, material: rec && Array.isArray(rec.materials) ? rec.materials[0] || null : null };
     }));
     return {

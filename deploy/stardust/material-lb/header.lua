@@ -135,13 +135,15 @@ end
 if type(data) ~= "table" then return end
 local raw = ngx.var.request_uri
 if type(raw) ~= "string" or #raw > 8192 or raw:find("[%s%z\1-\31\127-\159#]") then return end
+local query = raw:match("%?(.*)$")
+if query ~= nil and query ~= "sp_source=openi" then return end
 local request_path = path(raw:match("^[^?]*"))
 local entry = request_path and data.entries[request_path]
 if not entry then return end
 local location = header["Location"]
 if type(location) ~= "string" or #location > 8192 or location:find("[%s%z\1-\31\127-\159#]") then return end
 -- This is the stable, public, immutable-revision URL; no CDN auth_key is stored or interpreted.
-if entry.modelscope and location == entry.modelscope then
+if query == nil and entry.modelscope and location == entry.modelscope then
     header["Cache-Control"] = "public, max-age=60"
     return
 end

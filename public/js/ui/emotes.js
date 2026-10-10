@@ -22,6 +22,7 @@
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { EMOTE_THEMES, EMOTE_COOLDOWN_MS, EMOTE_BUBBLE_MS, emoteInfo, emoteArtGroup } from '../../../shared/constants.js';
 import { html } from './components.js';
+import { MaterialImage } from './materialImage.js';
 import { GIcon } from './gameComponents.js';
 import { data, useData, localAsset, artUrls, nextArtUrl } from '../data.js';
 import { loadPref, savePref } from '../store.js';
@@ -174,7 +175,7 @@ export function EmoteArt({ id, class: cls }) {
   const [bad, setBad] = useState(() => new Set()); // URLs that failed to load
   const src = nextArtUrl(emoteArtUrls(id), bad);
   if (src) {
-    return html`<img key=${src} class=${cx('eart', cls)} src=${src} alt="" draggable=${false} decoding="async"
+    return html`<${MaterialImage} key=${src} class=${cx('eart', cls)} src=${src} alt="" draggable=${false} decoding="async"
       onError=${() => setBad((s) => new Set(s).add(src))} />`;
   }
   if (emoteInfo(id) && artManifestsPending()) return html`<span class=${cx('eart', 'eart--pending', cls)} aria-hidden="true"></span>`;

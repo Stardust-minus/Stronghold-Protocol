@@ -74,6 +74,35 @@ Display skeleton copies remove only editor image/audio root paths. Their manifes
 when it differs from the skeleton-derived filename, the client passes `spineAtlasFile` to the Pixi loader instead of
 requesting a nonexistent `.display.atlas`. Original source files and animation data remain unchanged.
 
+## Browser public-material failover
+
+`public/js/materialFallback.js` retries a failed canonical, same-origin `/assets/` or `/media/` load once with
+`?sp_source=openi`. Healthy requests are not duplicated. The paired entrance profile must support this fixed selector:
+its existing release-bound inventory chooses the OpenI object; the browser never constructs provider paths, parses
+redirects/signatures or holds an account token. A frontend-only change cannot force an old entrance to select OpenI.
+
+Each eligible attempt is bounded to 8 seconds. Network/CORS, HTTP errors, stalled bodies and decode/parse failures
+are handled inside the attempt. Caller cancellation never retries; explicit OpenI requests cannot recurse. Missing
+OpenI resources retain the existing glyph/optional-art/silent-audio behavior. DOM images use `ui/materialImage.js`;
+offscreen lazy images do not start their timeout until visible. New URLs and unmounted components cannot inherit
+an older image's timeout/error. Canvas images and preloads use the shared image cache. Pixi skeleton/atlas/page
+loads keep their canonical cache and unload keys, retrying each failed resource independently. Public texture
+fetch/decode stays within that promise rather than the stock image worker, including the older-browser Image path;
+late textures are disposed. Existing model concurrency/refcounts and outer model timeout remain in force.
+
+Audio keeps the extension-less `/media/` route. Only missing-route or wrong-MIME failures after the OpenI attempt
+can additionally try the original URL for static-host compatibility, without another OpenI attempt. Voice-language
+fallback stays separate. Board JSON/OBJ is consumed and parsed inside failover. Shadow and bond-pop textures use
+the same image loader without delaying the pop's timing. The title's ridge background follows its loaded image URL.
+Raw stylesheet-only decorative backgrounds, fonts, vendor, private code/data, auth, API, WS and external/signed
+URLs are outside this loader contract; global fetch, CSP and credentials policies are not broadened.
+
+Regression: `node --test test/material-fallback.test.js test/ui/audio.test.js test/skin-spine-loader.test.js`.
+`SP_E2E=1 node --test test/ui/material-fallback.e2e.test.js` exercises a localhost app, WS and real combat Worker
+with synthetic two-redirect/CORS/body/timeout failures and screenshots. It does not probe live providers or prove
+physical-device compatibility, full-match correctness or deployment. Entrance checks are documented in
+[public material sources](../deploy/stardust/MATERIAL-SOURCES.md).
+
 ## Running
 
 ```bash

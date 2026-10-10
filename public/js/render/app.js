@@ -436,6 +436,21 @@ export async function createFieldView(host, options = {}) {
   const boardReady = Promise.all([threePromise, packPromise]).then(([THREE, pack]) => (THREE && pack ? enable3d(THREE, pack) : false), () => false);
   // the official soft shadow sprite replaces the procedural one once loaded (may already be cached; asked again when the
   // manifest arrives late)
+  const materialTextures = new Map();
+  setupCleanup.push(() => { for (const texture of materialTextures.values()) texture.destroy(true); materialTextures.clear(); });
+  function materialTexture(url) {
+    if (!url || !assets.image) return null;
+    if (!materialTextures.has(url)) {
+      const base = new P.BaseTexture();
+      const texture = new P.Texture(base);
+      materialTextures.set(url, texture);
+      assets.image(url).then(img => {
+        if (!img || destroyed || base.destroyed) return;
+        try { base.setResource(new P.ImageResource(img, { createBitmap: false })); } catch { /* optional image */ }
+      }, () => {});
+    }
+    return materialTextures.get(url);
+  }
   let shadowAsked = false;
   let offShadow = null;
   setupCleanup.push(() => offShadow?.());
@@ -444,7 +459,8 @@ export async function createFieldView(host, options = {}) {
     if (!shadowUrl) return;
     shadowAsked = true;
     try {
-      const t = P.Texture.from(shadowUrl);
+      const t = materialTexture(shadowUrl);
+      if (!t) return;
       const use = () => {
         if (destroyed) return;
         ctx.shadowTex = t;
@@ -1500,7 +1516,7 @@ export async function createFieldView(host, options = {}) {
         layerPops.set(k, { t: now, n });
         const url = assets.bondIcon ? assets.bondIcon(bondId) : null;
         let tex = null;
-        if (url) { try { tex = P.Texture.from(url); } catch { tex = null; } }
+        if (url) { try { tex = materialTexture(url); } catch { tex = null; } }
         fx.pop(tex, `+${n}`, 0xffffff, layerPops.size);
         break;
       }

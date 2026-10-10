@@ -52,6 +52,16 @@ OpenI目标只接受原Signature V2字段与固定HTTP wrapper `sp_request=cors|
 
 仅返回302的服务看不到浏览器之后的全部CDN错误；**不保证任何ModelScope/OpenI下游CDN失败都自动回退**。现有OpenI解析/队列/上游错误回退仍保留，不能将它包装成通用多源熔断引擎。
 
+## Browser failure selector
+
+浏览器只有在公开素材加载失败后才追加一次 `?sp_source=openi`，并从原始本站 alias 发起新请求，绕过已缓存的普通分流 302。`access.lua` 仅接受无查询或这一精确单字段：重复字段、未知字段、其他 source 值、编码变体及空查询均404；已知 alias、safe raw path、方法、同release清单检查仍先行。GET 强制继续现有 OpenI proxy，不改变正常请求的权重或 OpenI-only 例外；HEAD 仍同版本静态回退，OPTIONS 仍原 resolver，其他方法405。选择标记不转发为签名字段，也不能指定任意 URL、provider、镜像目录或版本。
+
+`header.lua` 对强制请求只认可匹配清单的 OpenI/同版本静态回退目标，误回 ModelScope 的 Location 不获得公开短缓存。现有 CORS/Vary 和签名TTL边界保留。不同请求 URL 隔离普通分流与强制跳转的缓存；不加随机 cache-buster，不公开临时签名或把素材正文转发经过游戏节点。
+
+前端和入口profile必须配套发布；只改浏览器、只改解析器，或旧人工权重工具覆盖新 `access.lua` 都不能证明此功能有效。新profile须离线生成、检查实际权重切换工具兼容性，再独立核验/授权安装；提交、合并、推送均不触发安装/reload。原人工切源能力保留为独立操作，浏览器不会永久改变客户端/全站源偏好。raw CSS-only装饰、fonts/vendor及私有请求不由这一客户端加载器处理。它可以捕获客户端观察到的下游失败，但不承诺双源都不可达时仍成功。
+
+本地 opt-in真实 OpenResty 验证：设置 `MATERIAL_OPENRESTY_RUNTIME` 指向已有可用的隔离runtime（包含 `ld-linux-x86-64.so.2`、`openresty/nginx/sbin/nginx`、配套libraries和cjson），执行 `python3 -I deploy/stardust/tools/test-prepare-material-lb.py`。该测试只启动localhost、使用synthetic清单/签名并检查重定向，不跟随 Location 或联系provider；未提供runtime时明确SKIP这一项。浏览器入口与边界见 [ASSETS.md](../../docs/ASSETS.md#browser-public-material-failover)。
+
 ## 版本化实现与离线准备
 
 - [material-lb/access.lua](material-lb/access.lua)：精确alias白名单、raw target验证、HEAD/OPTIONS、60:40选择；GET使用request_id前32随机bits，边界2576980378，精度误差小于1/2³²。

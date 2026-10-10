@@ -11,6 +11,8 @@
 // (board3d/load.js, which reads the manifest only) and this art share one download — also when the manifest lists
 // the WebP copy tools/local-extract writes and the table still names the PNG.
 
+import { fetchMaterial } from '../materialFallback.js';
+
 let cached = null;
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -42,8 +44,7 @@ export function loadBoardArt(assets) {
     const dir = atlasUrl.replace(/\/[^/]*$/, '');
     let tiles = null;
     try {
-      const res = await fetch(`${dir}/tiles.json`, { cache: 'no-cache' });
-      tiles = res.ok ? await res.json() : null;
+      tiles = await fetchMaterial(`${dir}/tiles.json`, r => r.json());
     } catch { tiles = null; }
     if (!isObj(tiles) || !isObj(tiles.materials) || !isObj(tiles.source)) return null;
     const images = {};

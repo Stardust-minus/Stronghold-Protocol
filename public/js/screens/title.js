@@ -26,6 +26,7 @@ import { t, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { GIcon } from '../ui/gameComponents.js';
 import { SettingsModal } from '../ui/settings.js';
+import { MaterialImage } from '../ui/materialImage.js';
 
 // Same character classes as server/net.js sanitizeName (control, zero-width, bidi, BOM), so a name
 // the client accepts is never rejected by the server's hello validation.
@@ -197,6 +198,7 @@ export function TitleScreen() {
   // Track load/fail per URL (not as booleans reset in effects: an image can load before an effect runs).
   const [bgLoadedUrl, setBgLoadedUrl] = useState(null);
   const [ridgesLoadedUrl, setRidgesLoadedUrl] = useState(null);
+  const [ridgeSource, setRidgeSource] = useState(null);
   const [ridgesFailedUrl, setRidgesFailedUrl] = useState(null);
   const bgLoaded = !!backdrop && bgLoadedUrl === backdrop;
   const ridgesLoaded = !!ridges && ridgesLoadedUrl === ridges;
@@ -219,14 +221,14 @@ export function TitleScreen() {
   const alphabetic = scriptOf(t('卫戍协议')) === 'alphabetic';
   return html`<div class="screen title-screen">
     <div class=${`title-bg${bgLoaded ? ' has-art' : ''}${ridgesLoaded ? ' has-ridges' : ''}`} aria-hidden="true">
-      ${backdrop ? html`<img class="title-bg__art" src=${backdrop} alt="" draggable=${false}
+      ${backdrop ? html`<${MaterialImage} class="title-bg__art" src=${backdrop} alt="" draggable=${false}
         onLoad=${() => setBgLoadedUrl(backdrop)} />` : null}
       <div class="title-bg__glow"></div>
       <div class="title-bg__radar"><div class="title-bg__sweep"></div></div>
       <div class="title-bg__target"></div>
       ${cssRidges ? html`<${Ridges} />` : null}
-      ${ridges && !ridgesFailed ? html`<div class="title-bg__ridge-art" style=${`background-image:url("${ridges}")`}>
-        <img src=${ridges} alt="" hidden onLoad=${() => setRidgesLoadedUrl(ridges)} onError=${() => setRidgesFailedUrl(ridges)} />
+      ${ridges && !ridgesFailed ? html`<div class="title-bg__ridge-art" style=${`background-image:url("${ridgeSource?.original === ridges ? ridgeSource.source : ridges}")`}>
+        <${MaterialImage} src=${ridges} alt="" hidden onLoad=${e => { setRidgesLoadedUrl(ridges); setRidgeSource({ original: ridges, source: e.currentTarget.getAttribute('src') }); }} onError=${() => setRidgesFailedUrl(ridges)} />
       </div>` : null}
       <div class="title-bg__haze"></div>
       <span class="cross" style="left:7%;top:22%"></span>

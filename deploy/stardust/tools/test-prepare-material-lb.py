@@ -2,6 +2,11 @@
 import copy
 import importlib.util
 import json
+import http.client
+import os
+import shutil
+import socket
+import time
 import subprocess
 import sys
 import tempfile
@@ -66,6 +71,118 @@ def exception_fixture(full=False, multiple_prefixes=False, count=40000):
 
 
 class PrepareTests(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get('MATERIAL_OPENRESTY_RUNTIME'), 'opt-in local OpenResty runtime not supplied')
+    def test_force_openi_actual_http(self):
+        runtime = Path(os.environ['MATERIAL_OPENRESTY_RUNTIME'])
+        binary = runtime / 'openresty/nginx/sbin/nginx'
+        loader = runtime / 'ld-linux-x86-64.so.2'
+        libraries = ':'.join(str(runtime / p) for p in ('openresty/openssl3/lib', 'openresty/pcre2/lib', 'openresty/luajit/lib')) + ':' + str(runtime)
+        with tempfile.TemporaryDirectory(prefix='material-force-openi-') as directory:
+            work = Path(directory)
+            (work / 'logs').mkdir()
+            (work / 'lualib').mkdir()
+            shutil.copyfile(runtime / 'openresty/lualib/cjson.so', work / 'lualib/cjson.so')
+            files = TOOL.render(*fixture(), CONTAINER)
+            for name, body in files.items():
+                text = body.decode()
+                if name.endswith('.lua'):
+                    text = text.replace(CONTAINER + '/', str(work) + '/')
+                    if name == 'access.lua':
+                        text = text.replace('ngx.var.request_id', 'ngx.var.fixture_request_id')
+                (work / name).write_text(text)
+            # Synthetic signatures only; the test never follows Location or contacts either provider.
+            (work / 'content.lua').write_text('''local cjson = require 'cjson.safe'
+local f = assert(io.open('__DATA__', 'rb'))
+local db = assert(cjson.decode(f:read('*a'))); f:close()
+if ngx.req.get_method() == 'OPTIONS' then return ngx.exit(204) end
+local row = db.entries[ngx.ctx.material_lb_path or ngx.var.uri]
+if not row then return ngx.exit(404) end
+if ngx.req.get_headers()['X-Fixture-Model'] == '1' then ngx.header['Location'] = row.modelscope
+else ngx.header['Location'] = 'https://' .. db.oss_authority .. db.oss_path_prefix .. row.fileName
+    .. '?AWSAccessKeyId=synthetic-fixture&Expires=' .. math.floor(ngx.now()+90) .. '&Signature=synthetic-fixture'
+end
+return ngx.exit(302)
+'''.replace('__DATA__', str(work / 'header-data.json')))
+            with socket.socket() as sock:
+                sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+            public = f'''set $fixture_request_id $http_x_fixture_request_id;
+access_by_lua_file {work}/access.lua;
+content_by_lua_file {work}/content.lua;
+header_filter_by_lua_file {work}/header.lua;'''
+            (work / 'nginx.conf').write_text(f'''daemon off;
+master_process off;
+worker_processes 1;
+error_log {work}/error.log notice;
+pid {work}/nginx.pid;
+events {{ worker_connections 64; }}
+http {{
+access_log off;
+client_body_temp_path {work}/client_temp;
+lua_package_path '{runtime}/openresty/lualib/?.lua;{runtime}/openresty/lualib/?/init.lua;;';
+lua_package_cpath '{work}/lualib/?.so;;';
+server {{
+listen 127.0.0.1:{port};
+location /assets/ {{ {public} }}
+location /media/ {{ {public} }}
+location /js/ {{ add_header Cache-Control 'private, no-store' always; return 401; }}
+location / {{ return 404; }}
+}}
+}}
+''')
+            command = [str(loader), '--library-path', libraries, str(binary), '-p', str(work) + '/', '-c', str(work / 'nginx.conf')]
+            checked = subprocess.run(command + ['-t'], capture_output=True, timeout=10)
+            self.assertEqual(checked.returncode, 0, checked.stderr.decode())
+            with (work / 'stdout').open('wb') as log:
+                process = subprocess.Popen(command, stdout=log, stderr=log)
+                try:
+                    for _ in range(100):
+                        try:
+                            with socket.create_connection(('127.0.0.1', port), timeout=0.1): break
+                        except OSError:
+                            if process.poll() is not None: self.fail('local OpenResty exited before listen')
+                            time.sleep(0.05)
+                    def request(path, method='GET', request_id='0' * 32, extra=None):
+                        connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+                        try:
+                            connection.request(method, path, headers={'X-Fixture-Request-Id': request_id, **(extra or {})})
+                            response = connection.getresponse(); response.read()
+                            return response.status, {k.lower(): v for k, v in response.getheaders()}
+                        finally: connection.close()
+                    for path in ('/assets/test/pixel.png', '/media/voice/test', '/assets/audio/voice/test.mp3'):
+                        status, headers = request(path)
+                        self.assertEqual(status, 302)
+                        self.assertTrue(headers['location'].startswith(TOOL.MODEL_BASE))
+                        status, headers = request(path, request_id='f' * 32)
+                        self.assertEqual(status, 302)
+                        self.assertTrue(headers['location'].startswith(TOOL.OSS_ORIGIN))
+                        status, headers = request(path + '?sp_source=openi')
+                        self.assertEqual(status, 302)
+                        self.assertTrue(headers['location'].startswith(TOOL.OSS_ORIGIN))
+                        self.assertEqual(headers['access-control-allow-origin'], '*')
+                        self.assertNotIn('access-control-allow-credentials', headers)
+                        self.assertTrue(headers['cache-control'].startswith('public, max-age='))
+                        self.assertEqual(request(path + '?sp_source=openi', 'OPTIONS')[0], 204)
+                        status, headers = request(path + '?sp_source=openi', 'HEAD')
+                        self.assertEqual(status, 302)
+                        self.assertEqual(headers['location'], TOOL.FALLBACK + path)
+                    for query in ('?', '?sp_source=modelscope', '?sp_source=openi&sp_source=openi', '?sp_source=openi&next=x', '?sp_source=OPENI', '?%73p_source=openi'):
+                        status, headers = request('/assets/test/pixel.png' + query)
+                        self.assertEqual(status, 404, query)
+                        self.assertEqual(headers['cache-control'], 'no-store')
+                    self.assertEqual(request('/assets/unknown.png?sp_source=openi')[0], 404)
+                    self.assertEqual(request('/assets/test/pixel.png?sp_source=openi', 'POST')[0], 405)
+                    status, headers = request('/assets/test/pixel.png?sp_source=openi', extra={'X-Fixture-Model': '1'})
+                    self.assertEqual(status, 302)
+                    self.assertEqual(headers['cache-control'], 'no-store', 'forced requests cannot cache a ModelScope response')
+                    status, headers = request('/js/main.js?sp_source=openi')
+                    self.assertEqual(status, 401)
+                    self.assertEqual(headers['cache-control'], 'private, no-store')
+                    self.assertNotIn('access-control-allow-origin', headers)
+                finally:
+                    process.terminate()
+                    try: process.wait(timeout=5)
+                    except subprocess.TimeoutExpired: process.kill(); process.wait(timeout=5)
+
     def test_valid_profile(self):
         openi, models = fixture()
         files = TOOL.render(openi, models, CONTAINER)
@@ -147,6 +264,7 @@ class PrepareTests(unittest.TestCase):
         self.assertIn(b'if model_target == nil then return ngx.exit(404) end', files['access.lua'])
         self.assertIn(b'if model_target ~= false then return ngx.exit(500) end', files['access.lua'])
         self.assertIn(b'if model_target ~= false and number < 2576980378 then', files['access.lua'])
+        self.assertIn(b'if force_openi then', files['access.lua'])
         self.assertIn(b'if entry.modelscope ~= nil then return false end', files['header.lua'])
         self.assertNotIn(b'__MATERIAL_LB_', files['access.lua'] + files['header.lua'])
         normal = TOOL.render(*fixture(), CONTAINER)

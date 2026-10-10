@@ -68,6 +68,7 @@
 import { sanitizeVoiceOverrides, voiceLangFor } from './voicePrefs.js';
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
+import { fetchMaterial } from './materialFallback.js';
 import { normalizeVoiceLanguage, voiceCandidates } from './voiceLanguage.js';
 
 const MAX_VOICES = 8;
@@ -717,22 +718,29 @@ export class AudioManager {
     }
     const p = (async () => {
       try {
-        // Extension-less URL first so download managers leave the BGM alone; a host without /media/ still works.
+        const decode = async res => {
+          if (!isAudioResponse(res)) {
+            try { void res.body?.cancel?.().catch(() => {}); } catch { /* unusable audio */ }
+            throw Object.assign(new Error('audio response unavailable'), { badAudioType: true });
+          }
+          const ab = await res.arrayBuffer();
+          const buf = await new Promise(resolve => {
+            try {
+              const r = this.ctx.decodeAudioData(ab, resolve, () => resolve(null));
+              if (r && typeof r.then === 'function') r.then(resolve, () => resolve(null));
+            } catch { resolve(null); }
+          });
+          if (!buf) throw new Error('audio decode failed');
+          return buf;
+        };
+        // Keep the extension-less route, including its one OpenI retry. Static hosts without /media/ retain
+        // their original-URL compatibility attempt, but cannot trigger a second OpenI retry for the same audio.
         const media = mediaUrl(url);
-        let res = await fetch(media);
-        if (media !== url && !isAudioResponse(res)) {
-          // Drop the unusable response (404, or a 200 that is really index.html) before trying the original URL.
-          try { await res.body?.cancel?.(); } catch { /* the fallback request matters more than draining this one */ }
-          res = await fetch(url);
+        try { return await fetchMaterial(media, decode); }
+        catch (err) {
+          if (media === url || !(err?.status === 404 || err?.badContentType || err?.badAudioType)) throw err;
+          return await fetchMaterial(url, decode, { fallback: false });
         }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const ab = await res.arrayBuffer();
-        return await new Promise((resolve) => {
-          try {
-            const r = this.ctx.decodeAudioData(ab, resolve, () => resolve(null));
-            if (r && typeof r.then === 'function') r.then(resolve, () => resolve(null));
-          } catch { resolve(null); }
-        });
       } catch (err) {
         this._warn(url, err);
         return null;

@@ -43,6 +43,8 @@
 // caller falls back (docs/ASSETS.md "Other fallbacks").
 
 import { appearanceEntry } from './ui/skinAssets.js';
+import { loadMaterialImage } from './materialFallback.js';
+import { installPixiMaterialFallback } from './render/materialLoader.js';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' && v ? v : null);
@@ -569,21 +571,14 @@ export function localAssetUrl(m, group, name) {
 
 /** Default browser image loader. */
 export function loadImageElement(url) {
-  return new Promise((resolve, reject) => {
-    if (typeof Image === 'undefined') { reject(new Error('no Image in this environment')); return; }
-    const img = new Image();
-    img.decoding = 'async';
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`image failed: ${url}`));
-    img.src = url;
-  });
+  return loadMaterialImage(url);
 }
 
 /** Default Spine loader: PIXI.Assets.load(skel) → spineData (needs globalThis.PIXI + PIXI.spine). */
 export async function loadSpineData(entry, opts) {
   const PIXI = globalThis.PIXI;
   if (!PIXI || !PIXI.Assets || !PIXI.spine) throw new Error('PIXI / pixi-spine not loaded');
+  installPixiMaterialFallback(PIXI);
   if (opts && opts.fresh) forgetPendingSpine(entry, opts.keep);
   const atlas = str(entry.atlas);
   const source = atlas && atlas !== entry.skel.replace(/\.skel$/, '.atlas')

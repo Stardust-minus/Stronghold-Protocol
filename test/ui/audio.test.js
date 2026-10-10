@@ -15,7 +15,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'data', 'assets.json'), 'utf8'));
 
 // audio.js 取音频时**先请求无扩展名的 /media/…**（正是为了躲开下载管理器对 .mp3 后缀的嗅探），
-// 只有那样 404 了才回退到 manifest 里的原始地址。所以「某个音效响了没有」不能拿原始地址去比对——
+// 原路径失败先尝试同版本 OpenI；/media/ 两边都缺失才兼容 manifest 原始地址。「某个音效响了没有」不能拿原始地址去比对——
 // 那样断言的是一个客户端永远不会请求的 URL。下面两个助手把比对放到同一条换算上。
 /** 这个 manifest 地址被请求过吗（/media/ 形式或 404 后的原始形式）。 */
 const asked = (urls, raw) => urls.includes(mediaUrl(raw)) || urls.includes(raw);
@@ -662,7 +662,7 @@ describe('AudioManager', () => {
       console.warn = origWarn;
     }
   });
-  test('音频先走无扩展名的 /media/ 路由；只有它 404 才回退到带扩展名的原地址', async () => {
+  test('音频先走 /media/；OpenI 也缺失时保留原地址静态托管兼容', async () => {
     const raw = manifest.audio.bgm.prep.loop;
     const media = mediaUrl(raw);
     assert.notEqual(media, raw, '前提：manifest 地址确实会被换算成 /media/ 路径');
@@ -674,7 +674,7 @@ describe('AudioManager', () => {
       const origFetch = globalThis.fetch;
       globalThis.fetch = async (u) => {
         urls.push(u);
-        return u === media ? { ok: false, status: 404 } : { ok: true, arrayBuffer: async () => new ArrayBuffer(8) };
+        return u.startsWith(media) ? { ok: false, status: 404 } : { ok: true, arrayBuffer: async () => new ArrayBuffer(8) };
       };
       try {
         const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
@@ -715,7 +715,7 @@ describe('AudioManager', () => {
       const origFetch = globalThis.fetch;
       globalThis.fetch = async (u) => {
         urls.push(u);
-        if (u !== media) return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) };
+        if (!u.startsWith(media)) return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) };
         return {
           ok: true,
           status: 200,
@@ -731,7 +731,8 @@ describe('AudioManager', () => {
         a.playBgm('prep');
         await new Promise((r) => setTimeout(r, 25));
         assert.ok(urls.includes(raw), '内容不是音频时回退到原地址');
-        assert.equal(cancelled, 1, '丢掉那个用不上的响应，别把连接挂着');
+        assert.equal(cancelled, 2, '丢掉两个用不上的响应，别把连接挂着');
+        assert.ok(urls.includes(media + '?sp_source=openi'), '先尝试同版本 OpenI');
       } finally { globalThis.fetch = origFetch; }
     }
 
@@ -781,7 +782,7 @@ describe('AudioManager', () => {
     } finally { globalThis.fetch = origFetch; }
   });
 
-  for (const type of ['text/html; charset=utf-8', 'application/json', 'image/png', 'application/octet-streamx']) test(`non-audio media ${type} still cancels and falls back to the raw URL`, async () => {
+  for (const type of ['text/html; charset=utf-8', 'application/json', 'image/png', 'application/octet-streamx']) test(`non-audio media ${type} cancels and tries OpenI before the raw compatibility URL`, async () => {
     const fw = fakeWindow(), raw = manifest.audio.bgm.prep.loop, media = mediaUrl(raw), urls = [];
     const origFetch = globalThis.fetch;
     let cancelled = 0;
@@ -795,7 +796,7 @@ describe('AudioManager', () => {
       const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
       a.ctx = new fw.win.AudioContext();
       assert.equal((await a._buffer(raw)).duration, 1.5);
-      assert.deepEqual(urls, [media, raw]);
+      assert.deepEqual(urls, [media, media + '?sp_source=openi']);
       assert.equal(cancelled, 1);
     } finally { globalThis.fetch = origFetch; }
   });
@@ -814,7 +815,7 @@ describe('AudioManager', () => {
       a.ctx.decodeAudioData = (body, ok, fail) => new Uint8Array(body)[0] === 1 ? fail(new Error('invalid recording')) : ok({ duration: 1.5 });
       assert.equal(a.voice('char_a', 'place', { unitKey: 1 }), true);
       await new Promise(resolve => setTimeout(resolve, 10));
-      assert.deepEqual(urls, [mediaUrl(jp), mediaUrl(cn)]);
+      assert.deepEqual(urls, [mediaUrl(jp), mediaUrl(jp) + '?sp_source=openi', mediaUrl(cn)]);
       assert.equal(a.voiceNode.url, cn);
       assert.equal(fw.made.started, 1);
     } finally { globalThis.fetch = origFetch; }
