@@ -1831,6 +1831,14 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .cardpick__star.r6 { background: #ffcf5a; } .cardpick__star.r5 { background: #f2e06b; }
 .cardpick__note { display: flex; align-items: center; gap: .06rem; margin: .12rem 0 0; font-size: max(calc(.15 * var(--t)), 10px); color: var(--text-lo); }
 .cardpick__note .icon { flex: none; width: 1.1em; height: 1.1em; }
+/* the art of the picked operator — Elite 1 / Elite 2 / one of its own skins (room.card art/face) */
+.cardpick__variants { display: flex; flex-wrap: wrap; align-items: center; gap: .06rem; margin: 0 0 .1rem; }
+.cardpick__variant { height: max(.44rem, 26px); padding: 0 .12rem; font: inherit; font-size: max(calc(.15 * var(--t)), 10px); color: var(--text-md); background: rgba(0, 0, 0, .4); border: 1px solid var(--line-2); cursor: pointer; }
+.cardpick__variant:hover { border-color: var(--line-3); color: var(--text-hi); }
+.cardpick__variant.is-on { color: #08221b; background: var(--mint-500); border-color: var(--mint-400); }
+.cardpick__foot { display: flex; justify-content: flex-end; margin-top: .12rem; }
+.cardpick__ok { height: max(.5rem, 30px); padding: 0 .24rem; font: inherit; font-weight: 700; color: #08221b; background: var(--mint-500); border: 1px solid var(--mint-400); cursor: pointer; }
+.cardpick__ok:hover { background: var(--mint-400); }
 
 .rs-foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: .2rem; padding: .1rem .3rem .2rem .22rem; z-index: 2; }
 .rs-foot__left { min-width: 0; }

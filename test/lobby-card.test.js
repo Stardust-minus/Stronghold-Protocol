@@ -141,6 +141,46 @@ test(`at most ${CARD_CHANGES} changes per ${CARD_WINDOW_MS / 1000} s per session
   assert.equal(card(a, { trophies: 100 }).error, ERR.RATE);
 });
 
+// 2026-10-17 (card variants): `art` / `face` say which variant the card's `charId` / `avatar` is drawn as — Elite 1
+// (`e1`), Elite 2 (`e2`, also the default for an empty string) or one of that operator's own skins (`skin:<id>`).
+// Display-only, like the rest of the card; a made-up or foreign skin is dropped on its own, the rest of the card lands.
+test('room.card art / face variants: Elite 1 / Elite 2 always, a skin only when it is that operator\'s own', (t) => {
+  const ok = (msg) => assert.equal(validateC2S({ t: 'room.card', ...msg }), null, JSON.stringify(msg));
+  const bad = (msg, field) => assert.equal(validateC2S({ t: 'room.card', ...msg }), `bad field ${field}`, JSON.stringify(msg));
+  ok({});
+  ok({ art: '', face: '' });
+  ok({ art: 'e1', face: 'e2' });
+  ok({ face: 'skin:char_290_vigna_summer_1' });
+  for (const v of ['E1', 'elite', 'skin:', 'skin:has-dash', `skin:${'a'.repeat(CARD_LIMITS.idLength + 1)}`, null, 7]) bad({ art: v }, 'art');
+  bad({ face: 'e3' }, 'face');
+
+  const { lobby, player, states, card } = fixture(t);
+  const a = player(), b = player();
+  assert.deepEqual(card(a, { charId: AMIYA, art: 'e1', face: 'e2' }), { ok: true });
+  assert.deepEqual(a.card, { charId: AMIYA, art: 'e1', face: 'e2' }, 'the variants sit on the card');
+  assert.deepEqual(lobby.create(a, { mode: 'coop', difficulty: 'NORMAL' }), { ok: true });
+  assert.deepEqual(lobby.join(b, { code: lobby.roomOf(a).code }), { ok: true });
+  assert.deepEqual(states(b).at(-1).seats[0].card, { charId: AMIYA, art: 'e1', face: 'e2' }, 'and reach the room');
+
+  // a variant-only change is a change: the room is told, the seat plate follows the card
+  const before = states(b).length;
+  assert.deepEqual(card(a, { art: 'e2' }), { ok: true });
+  assert.equal(states(b).length, before + 1);
+  assert.equal(states(b).at(-1).seats[0].card.art, 'e2');
+
+  // a made-up skin is dropped on its own (that field falls back to Elite 2) while the rest of the card still lands
+  assert.deepEqual(card(a, { art: 'skin:not_a_real_skin', trophies: 3 }), { ok: true });
+  assert.deepEqual(a.card, { charId: AMIYA, face: 'e2', trophies: 3 });
+  assert.equal(states(b).length, before + 2);
+  // '' clears a variant back to the default too (the UI stores '' for Elite 2)
+  assert.deepEqual(card(a, { face: '' }), { ok: true });
+  assert.deepEqual(a.card, { charId: AMIYA, trophies: 3 });
+  assert.equal(states(b).length, before + 3);
+  // the same card again is no change
+  assert.deepEqual(card(a, { charId: AMIYA, trophies: 3 }), { ok: true });
+  assert.equal(states(b).length, before + 3);
+});
+
 test('the card never enters a match: local seats and the cluster DTO carry none, and an edit cannot abort a pending start', async (t) => {
   const local = fixture(t);
   const a = local.player(), b = local.player();

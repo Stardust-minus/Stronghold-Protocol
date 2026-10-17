@@ -45,7 +45,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../store.js';
 import { data, useData } from '../data.js';
 import { CARD_PREF, cardOperators, seatPortrait, cardAvatarUrl } from '../ui/seatArt.js';
-import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, cardMessage, seatCardMatches } from '../ui/playerCard.js';
+import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardArt, setCardFace, cardMessage, seatCardMatches } from '../ui/playerCard.js';
 import { OperatorPicker, AvatarPicker } from '../ui/opPicker.js';
 import { NameCardLayer, NameCardPicker } from '../ui/namecards.js';
 import { TrophyBadge } from '../ui/trophies.js';
@@ -257,8 +257,8 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
       ${isMe && onPickAvatar
         ? html`<button type="button" class="rseat__ava" onClick=${onPickAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>
-            <${AvatarFrame} size="sm" name=${seat.name} src=${cardAvatarUrl(card?.avatar, portraits.m)} seat=${index} self=${true} /><span class="rseat__ava-pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
-        : html`<${AvatarFrame} size="sm" name=${seat.name} src=${seat.isBot ? null : cardAvatarUrl(card?.avatar, portraits.m)} seat=${index} bot=${seat.isBot} self=${isMe} />`}
+            <${AvatarFrame} size="sm" name=${seat.name} src=${cardAvatarUrl(card?.avatar, portraits.m, card?.face)} seat=${index} self=${true} /><span class="rseat__ava-pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
+        : html`<${AvatarFrame} size="sm" name=${seat.name} src=${seat.isBot ? null : cardAvatarUrl(card?.avatar, portraits.m, card?.face)} seat=${index} bot=${seat.isBot} self=${isMe} />`}
       <span class="rseat__who">
         ${seat.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<b class=${`rseat__name${owner ? ' sp-owner-name' : ''}`}>${seat.name || t('博士')}</b>
         <${OwnerBadge} seat=${seat} />
@@ -375,13 +375,15 @@ export function RoomScreen() {
   const portraits = useMemo(() => ({
     pool: cardList.filter((c) => (c.rarity ?? 0) >= 5).sort((a, b) => (a.charId < b.charId ? -1 : 1)),
     byChar: new Map(cardList.map((c) => [c.charId, c])), m, myId: me.playerId, myCard: myCard.charId,
-  }), [cardList, m, me.playerId, myCard.charId]);
+    variant: myCard.art, // the art the seat plate shows: Elite 1 / Elite 2 / a skin of that operator
+  }), [cardList, m, me.playerId, myCard.charId, myCard.art]);
   // tell the server (teammates see the card) once it knows room.card; a server that refuses it keeps the card local
   const cardRefused = useRef(false);
   const mineCard = room ? roomFacts(room, me.playerId).mine?.card : null;
   const known = (id) => (id && portraits.byChar.has(id) ? id : '');
   const cardMsg = cardMessage({ ...myCard, charId: known(myCard.charId), avatar: known(myCard.avatar) });
-  const cardKey = `${cardMsg.charId}|${cardMsg.avatar}|${cardMsg.bg}|${cardMsg.trophies}`;
+  // the art variants are part of the card, so they re-send it (and the seat plate follows them)
+  const cardKey = `${cardMsg.charId}|${cardMsg.avatar}|${cardMsg.art}|${cardMsg.face}|${cardMsg.bg}|${cardMsg.trophies}`;
   useEffect(() => {
     if (!CARD_SYNC || cardRefused.current || !room || room.inMatch || conn.status !== 'online' || myCard.trophies == null) return;
     if (!roomFacts(room, me.playerId).mine || seatCardMatches(mineCard, cardMsg)) return;
@@ -582,10 +584,12 @@ export function RoomScreen() {
     ${bandSeat != null && facts.isHost && facts.seats[bandSeat]?.isBot ? html`<${BotBandPicker} seat=${facts.seats[bandSeat]} room=${room} gd=${gd}
       busy=${busy === `band${bandSeat}`} onClose=${() => setBandSeat(null)} onPick=${(bandId) => setBotBand(bandSeat, bandId)} />` : null}
     ${picking === 'op' ? html`<${OperatorPicker} title=${t('名片干员')} micro="SEAT CARD" current=${myCard.charId} list=${cardList} m=${m}
+      variant=${myCard.art} variants=${true} faceOf=${(c, v) => cardAvatarUrl(c.charId, m, v) || chessAvatarUrl(m, c)}
       autoLabel=${t('默认')} autoTitle=${t('按博士编号自动分配')}
       note=${CARD_SYNC ? t('选择后，同盟里的博士都会看到这张立绘') : t('目前只有你自己看得到；服务器下次更新后，同盟里的其他博士也能看到你的选择')}
-      onPick=${(id) => { setCardOperator(id); setPicking(null); }} onClose=${() => setPicking(null)} />` : null}
-    ${picking === 'avatar' ? html`<${AvatarPicker} current=${myCard.avatar} list=${cardList} m=${m} onPick=${(id) => { setCardAvatar(id); setPicking(null); }} onClose=${() => setPicking(null)} />` : null}
+      onPick=${(id, v) => { setCardOperator(id); setCardArt(v); setPicking(null); }} onClose=${() => setPicking(null)} />` : null}
+    ${picking === 'avatar' ? html`<${AvatarPicker} current=${myCard.avatar} list=${cardList} m=${m} variant=${myCard.face}
+      onPick=${(id, v) => { setCardAvatar(id); setCardFace(v); setPicking(null); }} onClose=${() => setPicking(null)} />` : null}
     ${picking === 'bg' ? html`<${NameCardPicker} current=${myCard.bg} onPick=${setCardBackground} onClose=${() => setPicking(null)} />` : null}
     ${protoShown ? html`<${RoomProtocol} room=${room} busy=${busy} onClose=${() => setPicker(false)} onPick=${setDifficulty} leaving=${protoLeaving} />` : null}
   </div>`;

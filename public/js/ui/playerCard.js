@@ -9,7 +9,7 @@ import { useEffect } from '../../vendor/hooks.module.js';
 import { createStore, loadPref, savePref, useStore, shallowEqual } from '../store.js';
 import { useData } from '../data.js';
 import { peekStatsRecords, selfRowOf } from './stats.js';
-import { CARD_PREF, cardAvatarUrl } from './seatArt.js';
+import { CARD_PREF, isCardVariant, cardAvatarUrl } from './seatArt.js';
 import { NAMECARD_PREF, namecardOf } from './namecards.js';
 import { C2S } from '../../../shared/protocol.js';
 
@@ -30,10 +30,19 @@ export function trophyTotal(records) {
 
 /** 头像: the operator whose official avatar stands for the player ('' = none: the strategy icon / the name's glyph). */
 export const AVATAR_PREF = 'room.avatar';
+/** 项目 5 (个性化, 2026-10-16): which art of the 名片干员 the seat portrait shows ('' = 精二, 'e1' = 精一, 'skin:<id>'). */
+export const ART_PREF = 'room.art';
+/** 项目 5: which art of the 头像 operator the avatar shows ('' = 精二, 'e1' = 精一, 'skin:<id>'). */
+export const FACE_PREF = 'room.face';
+
+/** Only a real variant is stored and sent ('' / 'e1' / 'e2' / 'skin:<id>'): junk never reaches the wire. */
+const variant = (v) => (isCardVariant(v) ? v : '');
 
 export const cardStore = createStore({
   charId: str(loadPref(CARD_PREF, '')),
   avatar: str(loadPref(AVATAR_PREF, '')),
+  art: variant(loadPref(ART_PREF, '')),
+  face: variant(loadPref(FACE_PREF, '')),
   bg: str(loadPref(NAMECARD_PREF, '')),
   trophies: null, // read from the stats on first use
 });
@@ -49,6 +58,10 @@ export function refreshTrophies() {
 export function setCardOperator(charId) { savePref(CARD_PREF, str(charId)); cardStore.set({ charId: str(charId) }); }
 /** @param {string} charId '' = none */
 export function setCardAvatar(charId) { savePref(AVATAR_PREF, str(charId)); cardStore.set({ avatar: str(charId) }); }
+/** 项目 5: the 名片干员's art — '' / 'e1' / 'e2' / 'skin:<id>' (anything else falls back to 精二). */
+export function setCardArt(v) { const id = variant(v); savePref(ART_PREF, id); cardStore.set({ art: id }); }
+/** 项目 5: the 头像's art — '' / 'e1' / 'e2' / 'skin:<id>' (anything else falls back to 精二). */
+export function setCardFace(v) { const id = variant(v); savePref(FACE_PREF, id); cardStore.set({ face: id }); }
 /** @param {string} bg '' = none */
 export function setCardBackground(bg) { const id = namecardOf(bg) ? bg : ''; savePref(NAMECARD_PREF, id); cardStore.set({ bg: id }); }
 
@@ -61,13 +74,19 @@ export function useMyCard() {
 /** The room.card message of a card: empty fields as '' (the server drops them), trophies bounded. */
 export function cardMessage(card) {
   const trophies = Number.isSafeInteger(card?.trophies) ? Math.max(0, Math.min(1_000_000, card.trophies)) : 0;
-  return { charId: str(card?.charId), avatar: str(card?.avatar), bg: namecardOf(card?.bg) ? card.bg : '', trophies };
+  return {
+    charId: str(card?.charId), avatar: str(card?.avatar),
+    art: variant(card?.art), face: variant(card?.face), // 项目 5
+    bg: namecardOf(card?.bg) ? card.bg : '', trophies,
+  };
 }
 
 /** Whether a seat's card (room.state seats[].card) already says what `msg` would. */
 export function seatCardMatches(seatCard, msg) {
   const c = seatCard && typeof seatCard === 'object' ? seatCard : {};
-  return str(c.charId) === msg.charId && str(c.avatar) === msg.avatar && str(c.bg) === msg.bg
+  return str(c.charId) === msg.charId && str(c.avatar) === msg.avatar
+    && str(c.art) === str(msg.art) && str(c.face) === str(msg.face) // 项目 5
+    && str(c.bg) === msg.bg
     && (Number.isSafeInteger(c.trophies) ? c.trophies : 0) === msg.trophies;
 }
 
@@ -80,9 +99,11 @@ export function useCardAvatar(playerId) {
   useData('assets');
   const self = useStore((s) => playerId != null && s.me?.playerId === playerId);
   const mine = useStore((c) => c.avatar, Object.is, cardStore);
+  const myFace = useStore((c) => c.face, Object.is, cardStore);
   const seat = useStore((s) => {
     const card = Array.isArray(s.room?.seats) ? s.room.seats.find((x) => x && x.playerId === playerId)?.card : null;
-    return card && typeof card === 'object' ? str(card.avatar) : '';
+    return card && typeof card === 'object' ? card : null;
   });
-  return cardAvatarUrl(self ? mine : seat);
+  // 项目 5: the avatar's own art variant — one's own pick, else the seat card's ('' = 精二)
+  return cardAvatarUrl(self ? mine : str(seat?.avatar), undefined, self ? myFace : str(seat?.face));
 }

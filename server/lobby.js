@@ -187,7 +187,7 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges } from '../shared/protocol.js';
-import { isSkinChoices } from '../shared/skins.js';
+import { isSkinChoices, skinFor } from '../shared/skins.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isExperimental, sameExperimental } from '../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
 import { encode, isErrCode, sendEncodedMany, sendMessage, sendRaw, sendSession, TokenBucket } from './net.js';
@@ -310,7 +310,9 @@ function cardCharIds(data) {
   }
   return ids;
 }
-const sameCard = (a, b) => (a?.charId ?? '') === (b?.charId ?? '') && (a?.avatar ?? '') === (b?.avatar ?? '') && (a?.bg ?? '') === (b?.bg ?? '')
+const sameCard = (a, b) => (a?.charId ?? '') === (b?.charId ?? '') && (a?.avatar ?? '') === (b?.avatar ?? '')
+  && (a?.art ?? '') === (b?.art ?? '') && (a?.face ?? '') === (b?.face ?? '')
+  && (a?.bg ?? '') === (b?.bg ?? '')
   && (a?.trophies ?? 0) === (b?.trophies ?? 0);
 
 /**
@@ -1823,17 +1825,29 @@ export class Lobby {
    * room.card (header): merge the message into the session's display card — a field left out keeps its value, '' / 0
    * clears it; an unknown operator is BAD_MSG — and copy it to the player's seat (never a spectator's), broadcasting the
    * room state when it changed. An unchanged card costs nothing; a change beyond CARD_CHANGES per CARD_WINDOW_MS is RATE.
+   * `art` / `face` are the Elite 1 / Elite 2 / skin variants of `charId` / `avatar` (see CARD_LIMITS): a skin that is
+   * not that operator's own is dropped while the rest of the card still lands.
    */
-  setCard(session, { charId, avatar, bg, trophies }) {
+  setCard(session, { charId, avatar, art, face, bg, trophies }) {
     const known = cardCharIds(this.safeData());
     if ((charId && !known.has(charId)) || (avatar && !known.has(avatar))) return fail(ERR.BAD_MSG, 'unknown operator');
     const prev = session.card || {};
     const next = {};
     const id = charId === undefined ? prev.charId : charId, back = bg === undefined ? prev.bg : bg;
-    const face = avatar === undefined ? prev.avatar : avatar;
+    const faceId = avatar === undefined ? prev.avatar : avatar;
     const count = trophies === undefined ? prev.trophies : trophies;
+    const variant = (value, keep, who) => {
+      const v = value === undefined ? keep : value;
+      if (!v) return '';
+      if (v === 'e1' || v === 'e2') return v;
+      const skinId = v.startsWith('skin:') ? v.slice(5) : '';
+      return skinId && skinFor(who, skinId) ? v : '';
+    };
+    const artV = variant(art, prev.art, id), faceV = variant(face, prev.face, faceId);
     if (id) next.charId = id;
-    if (face) next.avatar = face;
+    if (faceId) next.avatar = faceId;
+    if (artV) next.art = artV;
+    if (faceV) next.face = faceV;
     if (back) next.bg = back;
     if (count > 0) next.trophies = count;
     const card = Object.keys(next).length ? Object.freeze(next) : null;

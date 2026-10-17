@@ -21,7 +21,7 @@ import { data } from '../data.js';
 import { peekStatsRecords, aggregateStats, countsTowardStats, selfRowOf, roundsOf, FULL_KEEP } from './stats.js';
 import { TrophyBadge } from './trophies.js';
 import { NameCardLayer, NameCardPicker } from './namecards.js';
-import { useMyCard, trophyTotal, setCardBackground, setCardAvatar } from './playerCard.js';
+import { useMyCard, trophyTotal, setCardBackground, setCardAvatar, setCardFace } from './playerCard.js';
 import { cardOperators, cardAvatarUrl } from './seatArt.js';
 import { AvatarPicker } from './opPicker.js';
 import { Emblem } from './emblem.js';
@@ -298,8 +298,8 @@ function TitleHex({ titles, gd }) {
 function Plate({ me, card, s, p, done, total, gd, onAvatar, onBg }) {
   const lv = levelOf(s.exp);
   const opRec = card.charId && gd.ready ? gd.list('chess').find((c) => c.charId === card.charId) : null;
-  // 头像 (room.card avatar), else the 名片干员's avatar, else the name's first letter
-  const face = cardAvatarUrl(card.avatar, gd.m) || (opRec ? chessAvatarUrl(gd.m, opRec) : null);
+  // 头像 (room.card avatar + its 精一/精二/皮肤 变体, 项目 5), else the 名片干员's avatar, else the name's first letter
+  const face = cardAvatarUrl(card.avatar, gd.m, card.face) || (opRec ? chessAvatarUrl(gd.m, opRec) : null);
   return html`<div class="ach-plate">
     <div class=${cx('ach-card', card.bg && 'has-nc')}>
       <${NameCardLayer} card=${card.bg} />
@@ -484,7 +484,8 @@ export function AchievementPanel({ me, onClose }) {
       <span class="ach__foot">${t('本机记录 · 保存在这台设备的浏览器里 · 每局结束后更新')}</span>
     </div>`}
     ${picking === 'bg' ? html`<${NameCardPicker} current=${card.bg} onPick=${setCardBackground} onClose=${() => setPicking(null)} />` : null}
-    ${picking === 'avatar' ? html`<${AvatarPicker} current=${card.avatar} list=${cardList} m=${gd.m} onPick=${(id) => { setCardAvatar(id); setPicking(null); }}
+    ${picking === 'avatar' ? html`<${AvatarPicker} current=${card.avatar} list=${cardList} m=${gd.m} variant=${card.face}
+      onPick=${(id, v) => { setCardAvatar(id); setCardFace(v); setPicking(null); }}
       onClose=${() => setPicking(null)} />` : null}
   </div>`;
 }
