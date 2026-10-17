@@ -461,8 +461,8 @@ export function OpCard({ m, chess, golden, entries, ops = {}, skins = {}, select
       <div class="lo-op__rail">
         <${TierChip} tier=${chess.tier} size="sm" class="lo-op__tier" />
         <span class="lo-op__lv" title=${t('普通 / 精锐等级')}>
-          <span class="lo-op__lvrow"><i class="lo-op__chev"></i><b class="num">${chess.status?.level ?? '—'}</b></span>
-          ${golden ? html`<span class="lo-op__lvrow is-elite"><i class="lo-op__chev"></i><b class="num">${golden.status?.level ?? '—'}</b></span>` : null}
+          <span class="lo-op__lvrow" data-phase=${chess.status?.phase ?? (chess.tier <= 2 ? 1 : 2)}><i class="lo-op__chev"></i><b class="num">${chess.status?.level ?? '—'}</b></span>
+          ${golden ? html`<span class="lo-op__lvrow is-elite" data-phase=${golden.status?.phase ?? 2}><i class="lo-op__chev"></i><b class="num">${golden.status?.level ?? '—'}</b></span>` : null}
         </span>
         ${changed ? html`<span class="lo-op__mark" title=${t('已调整')} aria-label=${t('已调整')}></span>` : null}
       </div>

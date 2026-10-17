@@ -803,13 +803,16 @@
 .lo-op.is-sel .lo-op__card { border-color: var(--mint-400); box-shadow: 0 0 0 1px var(--mint-400), 0 0 .18rem rgba(89, 244, 202, .3); }
 .lo-op__rail { grid-row: 1 / 3; grid-column: 1; display: flex; flex-direction: column; align-items: center; gap: max(.08rem, 4px); padding-top: 2px; }
 .lo-op__tier.tier { width: 100%; }
-.lo-op__lv { display: flex; flex-direction: column; align-items: center; gap: max(.05rem, 3px); width: 86%; padding: max(.06rem, 3px) 0;
+.lo-op__lv { display: flex; flex-direction: column; align-items: center; gap: max(.05rem, 3px); width: 86%; margin-top: max(.16rem, 13px); padding: max(.06rem, 3px) 0;
   background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .14); border-radius: 999px; }
 .lo-op__lvrow { display: flex; flex-direction: column; align-items: center; line-height: 1; }
 .lo-op__lvrow b { font-size: max(.15rem, 10px); color: var(--text-md); }
 .lo-op__lvrow.is-elite b { color: var(--gold-2); }
+/* 精一 = one chevron, 精二 = two. The count follows the record's own `status.phase` (1 = 精一, 2 = 精二), never the
+   tier: a tier 1/2 operator's elite row is 精二 (level 50 / 55), so it shows two chevrons. */
 .lo-op__chev { width: max(.18rem, 11px); height: max(.12rem, 7px); background: currentColor; color: var(--text-lo);
-  clip-path: polygon(0 40%, 50% 0, 100% 40%, 100% 62%, 50% 22%, 0 62%, 0 100%, 50% 60%, 100% 100%, 100% 78%, 50% 38%, 0 78%); }
+  clip-path: polygon(0 40%, 50% 0, 100% 40%, 100% 62%, 50% 22%, 0 62%); }
+.lo-op__lvrow[data-phase="2"] .lo-op__chev { clip-path: polygon(0 40%, 50% 0, 100% 40%, 100% 62%, 50% 22%, 0 62%, 0 100%, 50% 60%, 100% 100%, 100% 78%, 50% 38%, 0 78%); }
 .lo-op__lvrow.is-elite .lo-op__chev { color: var(--gold-2); }
 .lo-op__mark { width: max(.12rem, 8px); height: max(.12rem, 8px); margin-top: auto; background: var(--mint-400); transform: rotate(45deg); box-shadow: 0 0 6px rgba(89, 244, 202, .6); }
 .lo-op__pick { grid-row: 1; grid-column: 2; position: relative; display: block; min-height: 0; padding: 0; overflow: hidden; cursor: pointer;
