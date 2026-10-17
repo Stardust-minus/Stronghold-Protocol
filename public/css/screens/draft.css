@@ -255,6 +255,7 @@
 .minfo-dlg .brief-bonds, .minfo-dlg .brief-banned { padding: max(.16rem, 6px) max(.2rem, 8px) max(.2rem, 8px); }
 .minfo-dlg .brief-h { font-size: max(.21rem, 12px); margin-bottom: max(.12rem, 5px); }
 .minfo-dlg .brief-h::before { width: max(.06rem, 3px); height: max(.2rem, 11px); }
+.minfo-dlg .brief-h__boss { margin-left: auto; font-size: max(.16rem, 10px); }
 .minfo-dlg .brief-bonds__row { gap: max(.16rem, 6px) max(.1rem, 4px); }
 .minfo-dlg .brief-bond { width: max(1rem, 50px); }
 .minfo-dlg .brief-bond .bond { --disc: max(.66rem, 32px); }
@@ -265,11 +266,24 @@
 .minfo-dlg .brief-legend__off { width: max(.16rem, 9px); height: max(.16rem, 9px); }
 .minfo-dlg .brief-legend__ban { width: max(.2rem, 12px); height: max(.18rem, 11px); }
 .minfo-dlg .brief-legend__ban .icon { width: max(.12rem, 8px); height: max(.12rem, 8px); }
-.minfo-dlg .brief-banned__n { font-size: max(.22rem, 13px); }
-.minfo-dlg .brief-banned__grid { grid-template-columns: repeat(auto-fill, minmax(max(.6rem, 34px), 1fr)); gap: max(.08rem, 3px); }
-.minfo-dlg .brief-banned__grid .uthumb { --ut: max(.6rem, 34px); }
+.minfo-dlg .brief-banned__n { font-size: max(.24rem, 15px); }
+.minfo-dlg .brief-banned__grid { grid-template-columns: repeat(auto-fill, minmax(max(.76rem, 44px), 1fr)); gap: max(.1rem, 4px); }
+.minfo-dlg .brief-banned__grid .uthumb { --ut: max(.76rem, 44px); }
+/* the grouped 本局禁用干员 at the dialog's size (the fixed name column keeps every bond's avatars on one x) */
+.minfo-dlg .brief-banned__groups { gap: max(.12rem, 6px); column-gap: max(.14rem, 8px); }
+.minfo-dlg .brief-banned__ghead { gap: max(.06rem, 3px); }
+.minfo-dlg .brief-banned__ghead .bond { --disc: max(.48rem, 24px); }
+.minfo-dlg .brief-banned__gname { font-size: max(.21rem, 14px); }
+.minfo-dlg .brief-banned__gcount { font-size: max(.18rem, 12px); }
 .minfo-dlg .brief-banned__diy { font-size: max(.14rem, 12px); }
 .minfo-dlg .t-dim { font-size: max(.16rem, 10px); }
+/* 本局特训敌人 in the dialog (the room's briefingSpecialEnemies flag; the .brief-factions tiles are global CSS).
+   The owner (2026-10-16): it has to read like the other blocks — same framed box, same padding — not bare tiles. */
+.minfo-dlg .brief-sec--special { display: block; margin-bottom: max(.16rem, 9px); padding: max(.16rem, 6px) max(.2rem, 8px) max(.2rem, 8px);
+  background: rgba(12, 15, 14, .8); border: 1px solid var(--line); }
+.minfo-dlg .brief-factions { padding-right: 0; gap: max(.2rem, 12px); }
+.minfo-dlg .brief-faction { width: max(1.3rem, 74px); gap: max(.08rem, 5px); }
+.minfo-dlg .brief-faction__name { font-size: max(.16rem, 10px); white-space: normal; }
 
 /* the fork's own (2026-10): 预选盟约 under the order rows and in each row; 已指定给 AI 队友 reuses the 队友已选 look
    (.dband.is-taken); a room of up to 20 seats scrolls its rows; allowRepeat (an expanded room) names it under the list

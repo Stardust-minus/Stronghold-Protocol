@@ -74,24 +74,24 @@ describe('room.setAiPicksLast (lobby)', () => {
     assert.deepEqual(cap.errors, [], 'no server errors logged');
   });
 
-  test('off by default; host-only; every seat sees it in room.state; a change un-readies the guests like the difficulty', async () => {
+  test('on by default; host-only; every seat sees it in room.state; a change un-readies the guests like the difficulty', async () => {
     const host = await pool.player('Host');
     const st = await createRoom(host);
-    assert.equal(st.aiPicksLast, false);
+    assert.equal(st.aiPicksLast, true, 'the owner defaulted it on (2026-10-16)');
     const guest = await pool.player('Guest');
     const js = await joinRoom(guest, st.code);
-    assert.equal(js.aiPicksLast, false);
-    await err(guest, { t: 'room.setAiPicksLast', on: true }, ERR.NOT_HOST);
+    assert.equal(js.aiPicksLast, true);
+    await err(guest, { t: 'room.setAiPicksLast', on: false }, ERR.NOT_HOST);
     await ok(guest, { t: 'room.ready', ready: true });
     await host.waitFor('room.state', (s) => seatOf(s, guest.id)?.ready);
-    await ok(host, { t: 'room.setAiPicksLast', on: true });
-    const on = await guest.waitFor('room.state', (s) => s.aiPicksLast === true);
-    assert.equal(seatOf(on, guest.id).ready, false, 'the rules changed: the guest confirms again');
-    await host.waitFor('room.state', (s) => s.aiPicksLast === true);
-    // the same value again changes nothing (no broadcast needed, still ok)
-    await ok(host, { t: 'room.setAiPicksLast', on: true });
     await ok(host, { t: 'room.setAiPicksLast', on: false });
-    await guest.waitFor('room.state', (s) => s.aiPicksLast === false);
+    const off = await guest.waitFor('room.state', (s) => s.aiPicksLast === false);
+    assert.equal(seatOf(off, guest.id).ready, false, 'the rules changed: the guest confirms again');
+    await host.waitFor('room.state', (s) => s.aiPicksLast === false);
+    // the same value again changes nothing (no broadcast needed, still ok)
+    await ok(host, { t: 'room.setAiPicksLast', on: false });
+    await ok(host, { t: 'room.setAiPicksLast', on: true });
+    await guest.waitFor('room.state', (s) => s.aiPicksLast === true);
     // a malformed value never reaches the lobby
     await err(host, { t: 'room.setAiPicksLast', on: 'yes' }, ERR.BAD_MSG);
   });
@@ -133,13 +133,24 @@ describe('room.setAiPicksLast (lobby)', () => {
     await guest.waitFor('room.state', (s) => s.aiPicksLast === false);
   });
 
-  test('without the option the match gets aiPicksLast false', async () => {
+  test('the room default reaches the match (on); switched off the match gets false', async () => {
     const host = await pool.player('Host');
     await createRoom(host);
     await ok(host, { t: 'room.addBot' });
-    const n = started.length;
+    let n = started.length;
     await ok(host, { t: 'room.start' });
     await host.waitFor('room.state', (s) => s.inMatch);
-    assert.equal(started[n].aiPicksLast, false);
+    assert.equal(started[n].aiPicksLast, true, 'no one touched it: the room default (on)');
+    // a second room where the host switches it off before starting
+    const host2 = await pool.player('Host2');
+    const st2 = await createRoom(host2);
+    assert.equal(st2.aiPicksLast, true);
+    await ok(host2, { t: 'room.setAiPicksLast', on: false });
+    await host2.waitFor('room.state', (s) => s.aiPicksLast === false);
+    await ok(host2, { t: 'room.addBot' });
+    n = started.length;
+    await ok(host2, { t: 'room.start' });
+    await host2.waitFor('room.state', (s) => s.inMatch);
+    assert.equal(started[n].aiPicksLast, false, 'switched off');
   });
 });

@@ -10,16 +10,16 @@
 // (css/screens/briefing.css 开局转场).
 
 import { useState } from '../../vendor/hooks.module.js';
-import { html, Button, Icon, MicroLabel, Tooltip } from '../ui/components.js';
+import { html, Button, Icon, MicroLabel } from '../ui/components.js';
 import { useGameData, Img, RichText } from '../ui/gameComponents.js';
 import { StepHeader, ExitModal } from '../ui/matchChrome.js';
-import { MatchBondRow, MatchLegend, BannedOperators, matchInfoModel } from '../ui/matchInfo.js';
+import { MatchBondRow, MatchLegend, BannedOperators, SpecialEnemies, matchInfoModel } from '../ui/matchInfo.js';
 import { LoadoutButton } from './loadout.js';
 import { UnofficialMark } from '../ui/pluginTag.js';
 import { SetupReroll } from '../ui/setupReroll.js';
 import { actions } from '../ui/gameActions.js';
 import { factionTypes, sortedPlayers, phaseTotalSeconds } from '../ui/gameLogic.js';
-import { enemyIconUrl, factionIconUrl } from '../ui/assetUrls.js';
+import { enemyIconUrl } from '../ui/assetUrls.js';
 import { useStore } from '../store.js';
 import { data } from '../data.js';
 import { t } from '../../../shared/i18n.js';
@@ -87,14 +87,7 @@ export function BriefingScreen() {
             </ul>` : null}
             <span class="brief-stage"><${Icon} name="rook" /><b>${stage?.name || pub.stageId || '—'}</b>${pool ? html`<span class="brief-stage__pool">${pool}</span>` : null}</span>
           </div>
-          <div class="brief-factions">
-            ${types.length ? types.map((ty) => html`<${Tooltip} key=${ty} text=${factions[ty]?.desc || null}>
-              <div class="brief-faction" tabindex="0">
-                <span class="brief-faction__icon"><${Img} src=${factionIconUrl(m, factions[ty]?.icon)} /></span>
-                <b class="brief-faction__name">${factions[ty]?.name || ty}</b>
-              </div>
-            <//>`) : html`<p class="t-dim">${t('本局没有特训敌人')}</p>`}
-          </div>
+          <${SpecialEnemies} types=${types} factions=${factions} assets=${m} />
         </div>
       </section>
 

@@ -349,10 +349,11 @@ export class Room {
     this.mode = mode;
     this.difficulty = difficulty;
     /**
-     * 「AI 队友最后选择」 (room.setAiPicksLast, GitHub #338; co-op only, off by default): the match's strategy and 机变 drafts
-     * put every human seat before every AI seat (Match opts.aiPicksLast). Kept across the room's matches.
+     * 「AI 队友最后选择」 (room.setAiPicksLast, GitHub #338; co-op only, on by default since 2026-10-16): the
+     * match's strategy and 机变 drafts put every human seat before every AI seat (Match opts.aiPicksLast). The host may
+     * switch it off in the room. Kept across the room's matches.
      */
-    this.aiPicksLast = false;
+    this.aiPicksLast = mode !== 'solo';
     /** @type {string | null} */
     this.hostId = null;
     /** @type {(Seat | null)[]} */

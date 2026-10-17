@@ -98,10 +98,10 @@ test('v0.2.2 settings changed during native preparation invalidate staged admiss
   for (const field of ['ops', 'aiPicksLast']) {
     const f = admissionFixture(t), room = f.lobby.roomOf(f.player), starting = f.lobby.start(f.player);
     assert.deepEqual(f.calls[0].spec.seats[0].ops, settings(2));
-    assert.equal(f.calls[0].spec.aiPicksLast, false);
+    assert.equal(f.calls[0].spec.aiPicksLast, true, 'the room default is on (the owner, 2026-10-16)');
     assert.equal(f.calls[0].context.isCurrent(), true);
     if (field === 'ops') f.lobby.loadout(f.player, { entries: {}, ops: settings(1) });
-    else f.lobby.setAiPicksLast(f.player, { on: true });
+    else f.lobby.setAiPicksLast(f.player, { on: false });
     assert.equal(f.calls[0].context.isCurrent(), false, field);
     f.finish(); assert.equal((await starting).error, ERR.WRONG_PHASE);
     assert.equal(room.match, null); assert.equal(room.matchCount, 0);

@@ -260,19 +260,35 @@ export function memberHeadCount(rows, countsHand = false) {
 }
 
 /**
- * Banned-member count per bond (briefing / info drawer red badge).
+ * The banned MEMBERS of every bond (本局禁用干员 grouped by bond, maintenance 2026-10-16). A member carries every bond of
+ * its operator, so one id can appear under several bonds — that is the point of the grouping (the maintainer's decision:
+ * 每个盟约都列出来), and the header count of the block stays the DE-DUPLICATED total. Every known bond gets an entry,
+ * often an empty array: callers use `.get(id) || []`, not `.has()`.
  * @param {any[]} bonds bonds.json records
  * @param {string[]} bannedChess
- * @returns {Map<string, number>}
+ * @returns {Map<string, string[]>} bondId → its banned member ids, in the bond's own member order
  */
-export function bannedPerBond(bonds, bannedChess) {
+export function bannedMembersByBond(bonds, bannedChess) {
   const banned = new Set(Array.isArray(bannedChess) ? bannedChess : []);
   const out = new Map();
   for (const b of Array.isArray(bonds) ? bonds : []) {
     if (!isObj(b)) continue;
     const members = Array.isArray(b.visibleMembers) ? b.visibleMembers : [];
-    out.set(b.bondId, members.filter((id) => banned.has(id)).length);
+    out.set(b.bondId, members.filter((id) => banned.has(id)));
   }
+  return out;
+}
+
+/**
+ * Banned-member count per bond (briefing / info drawer red badge) — the LENGTH of bannedMembersByBond, so the number and
+ * the list can never disagree.
+ * @param {any[]} bonds bonds.json records
+ * @param {string[]} bannedChess
+ * @returns {Map<string, number>}
+ */
+export function bannedPerBond(bonds, bannedChess) {
+  const out = new Map();
+  for (const [bondId, ids] of bannedMembersByBond(bonds, bannedChess)) out.set(bondId, ids.length);
   return out;
 }
 

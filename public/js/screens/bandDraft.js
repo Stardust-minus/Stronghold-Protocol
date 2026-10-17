@@ -485,7 +485,7 @@ export function BandDraftScreen() {
     <${ExitModal} open=${exit} onClose=${() => setExit(false)} solo=${solo} />
     <${BondPlanPicker} open=${planOpen && canPlan} onClose=${() => setPlanOpen(false)} bonds=${planBonds} value=${myPlan}
       holders=${bondPlanHolders(players, myId)} off=${offBonds} busy=${planBusy} onPick=${pickPlan} />
-    <${MatchInfoDialog} open=${infoOpen} onClose=${() => setInfoOpen(false)} model=${info}
+    <${MatchInfoDialog} open=${infoOpen} onClose=${() => setInfoOpen(false)} model=${info} pub=${pub}
       status=${infoStatus ? html`<span class=${cx('minfo-dlg__turn', `is-${infoStatus.tone}`)}>
         <${Icon} name=${infoStatus.tone === 'mint' ? 'check' : 'hourglass'} />${infoStatus.text}${infoStatus.secs != null ? html`<b class="num">${infoStatus.secs}s</b>` : null}
       </span>` : null} />
