@@ -467,7 +467,7 @@ function HistoryRow({ rec, gd, onOpen, onFav, onExport }) {
         title=${rec.fav ? t('取消收藏') : t('收藏')} aria-label=${rec.fav ? t('取消收藏') : t('收藏')}
         onClick=${(e) => { e.stopPropagation(); onFav?.(rec); }}>${rec.fav ? '★' : '☆'}</button>
       <button type="button" class="st-dlbtn" title=${t('导出这一局')} aria-label=${t('导出这一局')}
-        onClick=${(e) => { e.stopPropagation(); onExport?.(rec); }}><${Icon} name="exit" /></button>
+        onClick=${(e) => { e.stopPropagation(); onExport?.(rec); }}><${Icon} name="download" /></button>
     </td>
     <td class="st-go" aria-hidden="true">${view ? html`<${Icon} name="chevronRight" />` : null}</td>
   </tr>`;
