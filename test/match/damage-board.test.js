@@ -152,3 +152,34 @@ test('malformed/nonfinite/unknown-owner rows are rejected atomically and additiv
   assert.equal(sum(b).total, 10);
   assert.ok(S2C.includes('m.damage') && S2C.includes('b.damage'));
 });
+
+test('bossRounds archives the Final Assault and Hidden Core scopes for the settlement record (项目 4)', () => {
+  const b = new DamageBoard('fixtureMatch');
+  assert.equal(b.bossRounds(), null, 'nothing fought yet');
+  b.startCombat(1, 'normal', owners);
+  put(b, [score('p0', 11)]);
+  b.freeze();
+  assert.equal(b.bossRounds(), null, 'a normal round is not part of the boss ledger');
+  b.startCombat(14, 'boss', owners);
+  put(b, [score('p0', 200), score('p1', 300)], { round: 14, phase: 'boss', fieldId: 'b1', final: true });
+  b.freeze();
+  const afterBoss = b.bossRounds();
+  assert.equal(afterBoss.boss.round, 14);
+  assert.equal(afterBoss.boss.phase, 'boss');
+  assert.equal(afterBoss.boss.owners.reduce((n, o) => n + o.total, 0), 500);
+  assert.equal(afterBoss.hidden, null);
+  // the hidden round adds its own scope without disturbing the boss one
+  b.startCombat(15, 'hidden', owners);
+  put(b, [score('p0', 7)], { round: 15, phase: 'hidden', fieldId: 'h1', final: true });
+  b.freeze();
+  const both = b.bossRounds();
+  assert.equal(both.hidden.round, 15);
+  assert.equal(both.hidden.owners.find((o) => o.playerId === 'p0').total, 7);
+  assert.equal(both.boss.owners.reduce((n, o) => n + o.total, 0), 500);
+  // per-operator rows ride along, and the archive is a snapshot: a later round's reset leaves it alone
+  const op = both.boss.owners.find((o) => o.playerId === 'p0').operators[0];
+  assert.equal(op.key, operatorDamageKey('p0', op.uid));
+  b.startCombat(16, 'normal', owners);
+  assert.equal(b.bossRounds().boss.round, 14);
+  assert.equal(b.bossRounds().hidden.round, 15);
+});

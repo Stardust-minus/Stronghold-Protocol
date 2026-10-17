@@ -2882,5 +2882,12 @@
   "对局中不下载素材，回到大厅后再开始。": "No downloads during a match: start it back in the lobby.",
   "这个页面还不能把素材保存在本地（浏览器不支持，或需要刷新一次页面），下载的素材可能不会保留。": "This page cannot keep art locally yet (the browser lacks support, or the page needs one reload), so downloaded art may not be kept.",
   "浏览器可用空间约 {gb} GB，可能放不下这一档素材。": "The browser has about {gb} GB free, which may not hold this tier.",
-  "素材更新后需要重新下载；清除浏览器数据也会删掉已下载的素材。": "After an art update the download is needed again; clearing the browser's data also removes downloaded art."
+  "素材更新后需要重新下载；清除浏览器数据也会删掉已下载的素材。": "After an art update the download is needed again; clearing the browser's data also removes downloaded art.",
+  "Boss 关伤害": "Boss rounds' damage",
+  "收藏": "Favorite",
+  "取消收藏": "Remove favorite",
+  "只看收藏": "Favorites only",
+  "还没有收藏的对局 —— 点记录行里的星号收藏。": "No favorites yet — click the star on a history row to bookmark it.",
+  "导出这一局": "Export this match",
+  "已导出该局记录": "Exported that match"
 }

@@ -50,7 +50,7 @@ import { MAX_PLAYER_CAPACITY } from '../../../shared/playerCapacity.js';
 import { sanitizeName } from './playerName.js';
 
 /** Current record-envelope version (bump + add a MIGRATIONS step when the record shape changes). */
-export const STATS_VERSION = 2;
+export const STATS_VERSION = 3;
 /** localStorage key under the app's `sp.pref.` prefix (store.js loadPref). */
 export const STATS_PREF_KEY = 'stats';
 /** Oldest records are dropped beyond this many matches. */
@@ -90,6 +90,7 @@ const num = (v) => (Number.isFinite(v) ? v : null);
 const bool = (v, d = false) => (typeof v === 'boolean' ? v : d);
 /** A non-empty string, cut to `max` characters. */
 const str = (v, max = 64) => (typeof v === 'string' && v.length ? v.slice(0, max) : null);
+const amt = (v) => (Number.isFinite(v) && v >= 0 ? Math.round(v) : 0);
 
 // per-record bounds (an imported file is foreign data: nothing a row holds may grow without limit)
 const MAX_PLAYERS = MAX_PLAYER_CAPACITY; // preserve every supported seat, still bounded for foreign records
@@ -143,6 +144,46 @@ function fnv1a(s) {
 export function recordId(res, myId) {
   const r = isObj(res) ? res : {};
   return `r1.${fnv1a([r.seed ?? '-', r.durationMs ?? '-', r.modeId ?? '-', r.roundsPassed ?? '-', r.victory ? 1 : 0, myId ?? '-'].join('|'))}`;
+}
+
+/**
+ * 项目 4 (2026-10-16): the boss rounds' per-player / per-operator damage, as `m.result.bossDamage` carries it
+ * (`{ boss, hidden }`, each `{ round, phase, owners: [m.damage owner rows] }`). Bounded hard: owners are the match's
+ * seats, operators the pieces a seat fielded (a lineup is ≤ MAX_LINEUP). Null when neither scope was fought — a
+ * client-authoritative match never gets operator rows (the server refuses to trust submitted operator stats).
+ * @param {any} raw
+ * @returns {{ boss: any, hidden: any }|null}
+ */
+function normalizeBossDamage(raw) {
+  if (!isObj(raw)) return null;
+  const scope = (s, phase) => {
+    if (!isObj(s) || !Array.isArray(s.owners)) return null;
+    const owners = s.owners.filter(isObj).slice(0, MAX_PLAYERS).map((o) => {
+      const operators = (Array.isArray(o.operators) ? o.operators : []).filter(isObj).slice(0, MAX_LINEUP).map((op) => ({
+        key: str(op.key, 64),
+        uid: Number.isSafeInteger(op.uid) ? op.uid : null,
+        defId: str(op.defId),
+        damage: amt(op.damage),
+        healing: amt(op.healing),
+      })).filter((op) => op.key);
+      return {
+        playerId: str(o.playerId),
+        name: str(o.name, MAX_NAME),
+        seat: Number.isInteger(o.seat) ? o.seat : null,
+        total: amt(o.total),
+        healing: amt(o.healing),
+        seconds: num(o.seconds),
+        otherDamage: amt(o.otherDamage),
+        otherHealing: amt(o.otherHealing),
+        operators,
+      };
+    }).filter((o) => o.playerId);
+    if (!owners.length) return null;
+    return { round: num(s.round), phase, owners };
+  };
+  const boss = scope(raw.boss, 'boss');
+  const hidden = scope(raw.hidden, 'hidden');
+  return boss || hidden ? { boss, hidden } : null;
 }
 
 /**
@@ -235,6 +276,9 @@ export function normalizeRecord(raw) {
     vs: vsOf(r.vs),
     // the room's gameplay plugins (see the header): its content set, null for the original game
     content: contentOf(r.content),
+    // 项目 4: 收藏 (a local bookmark, survives compaction) and the boss rounds' damage ledger
+    fav: bool(r.fav),
+    bossDamage: normalizeBossDamage(r.bossDamage),
     players,
   };
   if (r.compact === true) rec.compact = true;
@@ -251,10 +295,13 @@ export function normalizeRecord(raw) {
  *         original game (null). The same step covers PR #509's fields (§32.14.16): a v1 row has no `creditedKills`
  *         (the actual player kills stay unknown rather than guessed) and a compacted v1 row lost its bonds
  *         (`usedBondIds` stays absent) — nothing to rewrite, the version keeps an older build from stripping them.
+ *   2 → 3 (项目 4, 2026-10-16): the record carries the boss rounds' per-player / per-operator damage (`bossDamage`)
+ *         and a local 收藏 mark (`fav`). A v2 record simply has neither — nothing to rewrite.
  * @type {Record<number, (stats: any) => any>}
  */
 export const MIGRATIONS = {
   1: (stats) => ({ v: 2, records: (Array.isArray(stats.records) ? stats.records : []).map((r) => (isObj(r) ? { ...r, content: null } : r)) }),
+  2: (stats) => ({ v: 3, records: (Array.isArray(stats.records) ? stats.records : []).map((r) => (isObj(r) ? { ...r, fav: r.fav === true } : r)) }),
 };
 
 /** Newest first (the stored order): by time, then id. */
@@ -337,7 +384,7 @@ export function peekStatsRecords() {
 // ---- compaction + the storage budget ---------------------------------------------------------------------------
 
 const COMPACT_FRAME = ['id', 'v', 't', 'end', 'victory', 'roundsPassed', 'lastRound', 'hiddenReached', 'hiddenCleared', 'reason', 'modeId',
-  'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content'];
+  'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content', 'fav'];
 
 /**
  * The compact form of a record: the frame and the player's OWN row without lineup, bonds and name — everything the
@@ -374,7 +421,9 @@ export function fitToBudget(records, maxChars = MAX_CHARS) {
   let used = 40; // the envelope itself
   const peakId = highestBondRecord(records.slice(0, MAX_RECORDS))?.record.id;
   records.slice(0, MAX_RECORDS).forEach((r, i) => {
-    const rec = i < FULL_KEEP || r.id === peakId ? r : compactRecord(r);
+    // 项目 4: a 收藏 record keeps its full detail (the boss-round damage included) however old it is; the budget below
+    // still bounds the envelope, and saveStats retries with half the history if the browser refuses the write
+    const rec = i < FULL_KEEP || r.id === peakId || r.fav === true ? r : compactRecord(r);
     const n = JSON.stringify(rec).length + 1;
     if (kept.length && used + n > maxChars) return;
     used += n;
@@ -472,6 +521,8 @@ export function buildRecord(res, ctx = {}) {
     vs: vsOf(ctx.vs),
     content: contentOf(ctx.content),
     players: r.players,
+    // 项目 4: the boss rounds' per-player / per-operator damage, straight from the settlement payload
+    bossDamage: r.bossDamage,
   });
 }
 
@@ -603,9 +654,31 @@ export function recordToResult(rec) {
     durationMs: r.durationMs,
     teamLp: r.teamLp,
     players: r.players,
+    // 项目 4: the replayed settlement shows the same boss-round damage the live one did
+    bossDamage: r.bossDamage ?? null,
   };
   if (Number.isFinite(r.lastRound)) res.lastRound = r.lastRound;
   return res;
+}
+
+/**
+ * 项目 4: flip one record's 收藏 mark. Returns the next envelope (the caller saves it), or the same one when the id is
+ * unknown — the mark lives in the record, so it travels with export / import and survives compaction.
+ * @param {{ v: number, records: any[] }} stats
+ * @param {string} id
+ * @param {boolean} fav
+ * @returns {{ v: number, records: any[] }}
+ */
+export function withFavorite(stats, id, fav) {
+  const key = str(id);
+  if (!key) return stats;
+  let hit = false;
+  const records = (Array.isArray(stats.records) ? stats.records : []).map((r) => {
+    if (!isObj(r) || r.id !== key) return r;
+    hit = true;
+    return { ...r, fav: fav === true };
+  });
+  return hit ? { ...stats, records } : stats;
 }
 
 /**

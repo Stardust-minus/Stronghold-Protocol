@@ -20,6 +20,7 @@ import { html, Button, Icon, MicroLabel, DifficultyTag } from '../ui/components.
 import { useGameData, Img, UnitThumb, BandIcon, PlayerAvatar, BondGlyph, LpTower, Sprite } from '../ui/gameComponents.js';
 import { normalizeResult, fmtNum, diyRecordFor, cardStandIn, standInForText } from '../ui/gameLogic.js';
 import { data } from '../data.js';
+import { damageNumber, damageRate } from '../ui/damageBoard.js';
 import { appearanceRecord } from '../ui/skinAssets.js';
 import { enemyIconUrl, titleIconUrl, uiUrl } from '../ui/assetUrls.js';
 import { store, useStore, emptyMatch } from '../store.js';
@@ -29,6 +30,21 @@ import { UnofficialMark } from '../ui/pluginTag.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
+
+// 项目 4 (2026-10-16): the damage ledger's rows carry the operator's *charId* (`char_290_vigna`), not a chess id
+// (`chess_char_290_vigna_a`), so `gd.chess(id)` misses them and the row fell back to the raw id with a 「?」 thumb.
+// Resolve the char's chess record once — any tier variant answers for the name and the avatar.
+let chessByChar = null;
+const chessRecordOf = (gd, defId) => {
+  if (!defId) return null;
+  const hit = gd?.chess?.(defId);
+  if (hit) return hit;
+  if (!chessByChar) {
+    chessByChar = new Map();
+    for (const c of Object.values(data.get('chess') || {})) if (c?.charId && !chessByChar.has(c.charId)) chessByChar.set(c.charId, c);
+  }
+  return chessByChar.get(defId) || null;
+};
 
 // The first seven present are shown (+ remaining LP = a 4×2 grid); the title (评语) stats come first.
 // `gold` is the funds a player SPENT (server/match/player/economy.js spend(); the 挥金如土 title stat).
@@ -105,6 +121,49 @@ function PlayerCard({ p, myId, titles, best, solo = false }) {
   </article>`;
 }
 
+/**
+ * 项目 4 (2026-10-16): 对局记录里 boss 关的分玩家/分干员伤害台账 (`m.result.bossDamage`, 见
+ * server/match/damageBoard.js 的 bossRounds(): 最终攻势与隐秘核心各自留存一份)。每场打过的关一个块、每个座位一组、
+ * 每个干员一行 —— 只列真出过手（伤害或治疗 > 0）的干员，与伤害榜口径一致。
+ * 客户端权威的对局（SP_COMBAT=client）服务端拿不到干员数据 (`owners: []`) ⇒ 这里自然什么都不画。
+ * @param {{ ledger: any, gd: any, names: Map<string, string> }} props
+ */
+function BossDamageLedger({ ledger, gd, names }) {
+  const blocks = [['boss', t('最终攻势')], ['hidden', t('隐秘核心')]]
+    .map(([key, label]) => ({ key, label, scope: ledger?.[key] }))
+    .filter((b) => b.scope && Array.isArray(b.scope.owners) && b.scope.owners.length);
+  if (!blocks.length) return null;
+  return html`<section class="result__boss">
+    <h2 class="brief-h"><span>${t('Boss 关伤害')}</span><${MicroLabel}>BOSS DAMAGE</${MicroLabel}></h2>
+    ${blocks.map((b) => html`<div key=${b.key} class="result__bossround">
+      <p class="result__bossphase t-lo">${t('第 {round} 回合 · {1}', { round: b.scope.round ?? '?', 1: b.label })}</p>
+      ${b.scope.owners.map((o) => {
+    const rows = (Array.isArray(o.operators) ? o.operators : []).filter((op) => op && (op.damage > 0 || op.healing > 0));
+    const seconds = Number.isFinite(o.seconds) && o.seconds > 0 ? o.seconds : null;
+    return html`<div key=${o.playerId} class="result__bossowner">
+        <div class="result__bosshead">
+          <span class="result__bossname">${names.get(o.playerId) || o.name || t('队友')}</span>
+          <b class="num">${damageNumber(o.total)}</b>
+        </div>
+        <div class="result__bossrows">
+          ${rows.length ? rows.map((op) => {
+      const chess = chessRecordOf(gd, op.defId);
+      const dps = damageRate(op.damage, seconds);
+      return html`<div key=${op.key} class="result__bossop">
+              ${op.defId ? html`<${UnitThumb} kind="chess" id=${op.defId} rec=${chess} size="sm" />` : null}
+              <span class="result__bossopname">${chess?.name || op.defId || t('干员')}</span>
+              <b class="num">${damageNumber(op.damage)}</b>
+              ${dps ? html`<span class="result__bossdps t-lo num">DPS ${damageNumber(dps)}</span>` : null}
+              ${op.healing ? html`<span class="result__bossheal t-lo num">${t('治疗')} ${damageNumber(op.healing)}</span>` : null}
+            </div>`;
+    }) : html`<p class="t-dim">${t('暂无结算数据')}</p>`}
+        </div>
+      </div>`;
+  })}
+    </div>`)}
+  </section>`;
+}
+
 /** RESULT screen of the match on screen: reads the store; 返回同盟 / 返回大厅 drops the match. */
 export function ResultScreen() {
   const res = useStore((s) => s.match.result);
@@ -174,6 +233,7 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
         <h2 class="brief-h"><span>${t('同盟成员')}</span><${MicroLabel}>ALLIANCE REPORT</${MicroLabel}></h2>
         ${r.players.length ? r.players.map((p) => html`<${PlayerCard} key=${p.playerId} p=${p} myId=${myId} titles=${titles} best=${best} solo=${r.players.length < 2} />`)
           : html`<p class="t-dim">${t('暂无结算数据')}</p>`}
+        <${BossDamageLedger} ledger=${res?.bossDamage} gd=${gd} names=${new Map(r.players.map((p) => [p.playerId, p.name]))} />
       </section>
       <div class="ui-slot" data-ui-slot="result.tab" aria-label=${t('界面插件')} dangerouslySetInnerHTML=${{ __html: '' }}></div>
     </main>

@@ -152,6 +152,8 @@ export function buildResult(m, outcome) {
     hiddenBossId: m.hiddenBossId,
     seed: m.seed,
     durationMs: Math.max(0, m.sched.now() - m.startedAt),
+    // 项目 4 对局记录: the boss rounds' per-player / per-operator damage (null when neither scope was fought)
+    bossDamage: typeof m.damageBoard?.bossRounds === 'function' ? m.damageBoard.bossRounds() : null,
     players: rows,
   };
 }

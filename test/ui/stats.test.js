@@ -14,7 +14,7 @@ import {
   STATS_VERSION, MAX_RECORDS, MAX_CHARS, FULL_KEEP, emptyStats, buildRecord, recordId, appendRecord, recordResult, recordQuit,
   loadStats, peekStatsRecords, saveStats, migrateStats, normalizeRecord, importStats, exportStats, aggregateStats, selfRowOf, roomModeOf,
   recordToResult, compactRecord, fitToBudget, countsTowardStats, roundsOf, clearedRounds, createLiveMatch, observeMatch,
-  buildQuitRecord, installStatsRecorder, liveMatch, MIGRATIONS,
+  buildQuitRecord, installStatsRecorder, liveMatch, MIGRATIONS, withFavorite,
   trophyMedalOf,
 } from '../../public/js/ui/stats.js';
 import { createStore, emptyMatch } from '../../public/js/store.js';
@@ -881,5 +881,115 @@ describe('local stats: recordToResult (history row → settlement re-view)', () 
     assert.equal('lastRound' in recordToResult(rec), false);
     assert.equal(recordToResult(null), null);
     assert.equal(recordToResult({ players: [] }), null);
+  });
+});
+
+// ---- 项目 4: boss 关的分玩家/分干员伤害台账 + 收藏 (2026-10-16) ------------------------------------------------
+
+/** A ledger in the shape server/match/damageBoard.js bossRounds() emits (`{ boss, hidden }`, each `{ round, phase, owners }`). */
+function bossLedger(over = {}) {
+  return {
+    boss: {
+      round: 14, phase: 'boss',
+      owners: [
+        {
+          playerId: 'p1', name: '罗宾', seat: 0, total: 1234.6, healing: 12.4, seconds: 42, otherDamage: 5, otherHealing: 0,
+          operators: [
+            { key: '["p1",7]', uid: 7, defId: 'chess_char_5_diy1_a', damage: 1200.2, healing: 12.4 },
+            { key: '["p1",8]', uid: 8, defId: null, damage: 34.4, healing: 0 },
+          ],
+        },
+        { playerId: 'p2', name: '队友B', seat: 1, total: 90, healing: 0, seconds: 10, otherDamage: 90, otherHealing: 0, operators: [] },
+      ],
+    },
+    hidden: null,
+    ...over,
+  };
+}
+
+describe('local stats: boss 关伤害台账 (项目 4)', () => {
+  test('a record keeps the ledger bounded: counts round, unknown ids stay null, junk rows drop', () => {
+    const rec = normalizeRecord(buildRecord(baseResult({ bossDamage: bossLedger() }), { myId: 'p1', now: 1 }));
+    assert.equal(rec.bossDamage.boss.round, 14);
+    assert.equal(rec.bossDamage.boss.phase, 'boss');
+    assert.equal(rec.bossDamage.hidden, null);
+    const [p1, p2] = rec.bossDamage.boss.owners;
+    assert.equal(p1.total, 1235); // 1234.6 rounds
+    assert.equal(p1.healing, 12);
+    assert.equal(p1.seconds, 42);
+    assert.equal(p1.otherDamage, 5);
+    assert.equal(p1.operators.length, 2);
+    assert.deepEqual(p1.operators[0], { key: '["p1",7]', uid: 7, defId: 'chess_char_5_diy1_a', damage: 1200, healing: 12 });
+    assert.equal(p1.operators[1].defId, null); // no chess id (a summon) stays null, never a guess
+    assert.deepEqual(p2.operators, []);
+  });
+
+  test('the ledger is hard-bounded and tolerates junk: bad scopes → null, rows without an id drop, phase coerces', () => {
+    const junk = {
+      bossDamage: {
+        boss: {
+          round: 3, phase: 'nope',
+          owners: [
+            { playerId: '', operators: [] },
+            { playerId: 'p1', operators: [{ key: '', damage: -5 }, { key: 'k', uid: 'x', damage: NaN }] },
+          ],
+        },
+        hidden: 'nope',
+      },
+    };
+    const bad = normalizeRecord(buildRecord(baseResult(junk), { myId: 'p1', now: 1 }));
+    assert.equal(bad.bossDamage.boss.round, 3);
+    assert.equal(bad.bossDamage.boss.phase, 'boss'); // anything but 'hidden' reads as the Final Assault
+    assert.equal(bad.bossDamage.boss.owners.length, 1); // the id-less row dropped
+    assert.deepEqual(bad.bossDamage.boss.owners[0].operators, [{ key: 'k', uid: null, defId: null, damage: 0, healing: 0 }]);
+    assert.equal(bad.bossDamage.hidden, null); // a non-object scope
+    const none = normalizeRecord(buildRecord(baseResult(), { myId: 'p1', now: 1 }));
+    assert.equal(none.bossDamage, null); // a match with no boss round (or a client-authoritative one) stores null
+    assert.equal(normalizeRecord(buildRecord(baseResult({ bossDamage: { boss: { owners: [] } } }), { myId: 'p1', now: 1 })).bossDamage, null);
+  });
+
+  test('the ledger reaches the settlement re-view and rides the export envelope', () => {
+    const stats = appendRecord(emptyStats(), buildRecord(baseResult({ bossDamage: bossLedger() }), { myId: 'p1', now: 1 })).stats;
+    const rec = stats.records[0];
+    assert.equal(rec.bossDamage.boss.owners.length, 2);
+    assert.equal(recordToResult(rec).bossDamage.boss.owners[0].operators[0].defId, 'chess_char_5_diy1_a');
+    const payload = exportStats(stats);
+    assert.equal(payload.records[0].bossDamage.boss.round, 14);
+    assert.equal(payload.records[0].bossDamage.boss.owners[0].operators[0].damage, 1200);
+  });
+
+  test('a v2 envelope migrates to v3: fav defaults off, the ledger is simply absent', () => {
+    const v2 = { v: 2, records: [{ id: 'a', t: 1, players: [{ playerId: 'p1', name: '罗宾', stats: { kills: 1 } }], content: null }] };
+    const { stats, changed } = migrateStats(v2);
+    assert.equal(stats.v, STATS_VERSION);
+    assert.equal(changed, true);
+    assert.equal(stats.records[0].fav, false);
+    assert.equal(stats.records[0].bossDamage, null);
+  });
+
+  test('收藏 is pure, survives compaction, and comes back through export → import', () => {
+    const stats = manyRecords(3);
+    const id = stats.records[0].id;
+    const starred = withFavorite(stats, id, true);
+    assert.equal(starred.records[0].fav, true);
+    assert.equal(stats.records[0].fav, false); // the old envelope is untouched
+    assert.equal(withFavorite(stats, 'nope', true), stats); // unknown id: same reference
+    assert.equal(compactRecord(starred.records[0]).fav, true); // a compacted row keeps its star
+    const payload = JSON.parse(JSON.stringify(exportStats(starred)));
+    assert.equal(payload.records.find((r) => r.id === id).fav, true);
+    const back = importStats(payload, emptyStats());
+    assert.equal(back.added, 3);
+    assert.equal(back.stats.records.find((r) => r.id === id).fav, true);
+  });
+
+  test('fitToBudget keeps a favorite whole even past the full-replay window', () => {
+    const stats = manyRecords(FULL_KEEP + 12);
+    const old = stats.records[FULL_KEEP + 4]; // beyond the window: would be compacted
+    const starred = withFavorite(stats, old.id, true);
+    const kept = fitToBudget(starred.records);
+    const row = kept.find((r) => r.id === old.id);
+    assert.equal(row.fav, true);
+    assert.equal(row.compact, undefined);
+    assert.equal(row.players.length, 2);
   });
 });

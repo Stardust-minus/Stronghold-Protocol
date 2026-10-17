@@ -126,3 +126,29 @@ test('co-op trophies / victory follow each player\'s OWN rounds passed: a teamma
   assert.equal(res.victory, true, 'the team result is still a win');
   m.dispose();
 });
+
+test('m.result carries the boss rounds\' damage ledger for the record (项目 4); a match that fought none carries null', async () => {
+  const { buildResult } = await import('../../server/match/results.js');
+  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', humans: 1, seed: 7, fake: true }).start();
+  h.toPrep(14);
+  const m = h.m;
+  assert.equal(buildResult(m, { victory: true, reason: 'victory' }).bossDamage, null);
+  const ps = h.ps('p_0');
+  const owner = { playerId: ps.playerId, name: ps.name ?? 'p_0', seat: 0 };
+  m.damageBoard.startCombat(14, 'boss', [owner]);
+  assert.equal(m.damageBoard.replaceField({
+    matchId: m.battlePrefix, round: 14, phase: 'boss', fieldId: 'b1', gt: 1, final: true,
+    owners: [{
+      ...owner, total: 42, healing: 0, seconds: 6, otherDamage: 0, otherHealing: 0,
+      operators: [{ key: '["p_0",1]', uid: 1, defId: 'chess_a', damage: 42, healing: 0 }],
+    }],
+  }), true);
+  m.damageBoard.freeze();
+  const res = buildResult(m, { victory: true, reason: 'victory' });
+  assert.equal(res.bossDamage.boss.round, 14);
+  assert.equal(res.bossDamage.boss.phase, 'boss');
+  assert.equal(res.bossDamage.hidden, null);
+  assert.equal(res.bossDamage.boss.owners[0].operators[0].damage, 42);
+  assert.equal(res.bossDamage.boss.owners[0].operators[0].defId, 'chess_a');
+  m.dispose();
+});

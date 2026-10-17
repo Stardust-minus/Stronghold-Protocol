@@ -21,6 +21,9 @@ export class DamageBoard {
     this.fields = new Map();
     this.previousRound = null;
     this._frozen = null;
+    // 项目 4 对局记录: the frozen Final Assault / hidden packets are kept for the settlement (previousRound only ever
+    // holds the last one, and the hidden round would overwrite the boss round's).
+    this.archive = new Map();
   }
 
   /** Call on actual battle start, NOT startRound/PREP. Same-round unite preserves normal finals. */
@@ -104,8 +107,25 @@ export class DamageBoard {
       this.status = 'frozen';
       this._frozen = this._packet();
       this.previousRound = clone(this._frozen);
+      // the boss scopes are the ones the record keeps; a settle mid-round freezes here too, before the fields are cleared
+      if (this.phase === 'boss' || this.phase === 'hidden') this.archive.set(this.phase, clone(this._frozen));
     }
     return clone(this._frozen);
+  }
+
+  /**
+   * 项目 4: the boss rounds' full per-player / per-operator damage, for `m.result` — the match is over, so the
+   * round-internal privacy fence on the live packets does not apply. Null when neither scope was fought.
+   * @returns {{ boss: any, hidden: any }|null}
+   */
+  bossRounds() {
+    const pick = (phase) => {
+      const frozen = this.archive.get(phase);
+      return frozen ? { round: frozen.round, phase: frozen.phase, owners: frozen.owners } : null;
+    };
+    const boss = pick('boss');
+    const hidden = pick('hidden');
+    return boss || hidden ? { boss, hidden } : null;
   }
 
   /** Complete server-side state for view switching/reconnect, including PREP without previous observations. */
