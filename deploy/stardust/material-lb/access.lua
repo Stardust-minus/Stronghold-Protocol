@@ -128,7 +128,7 @@ if not number then return ngx.exit(500) end
 -- Uniform 32-bit request IDs: the rounded ModelScope-share boundary differs by less than 1 / 2^32 (100%: every GET).
 if model_target ~= false and number < __MATERIAL_LB_MODELSCOPE_BOUNDARY__ then
     ngx.ctx.material_lb_selected = "modelscope"
-    -- Optional signed profile (mssign.lua): one redirect straight to the CDN; otherwise the public resolve URL.
+    -- Optional signed profile (mssign.lua): one redirect straight to the CDN.
     local signer_file = __MATERIAL_LB_SIGNER__
     local signer = signer_file and package.loaded[signer_file]
     if signer_file and signer == nil then
@@ -143,10 +143,11 @@ if model_target ~= false and number < __MATERIAL_LB_MODELSCOPE_BOUNDARY__ then
             ngx.ctx.material_lb_ms_max_age = signer.max_age(ts)
             return ngx.redirect(location, 302)
         end
-        -- Not signed yet (cold, cooling down): browsers ask again soon instead of keeping this a day.
-        ngx.ctx.material_lb_ms_direct = true
     end
-    return ngx.redirect(model_target, 302)
+    -- Unsigned profile: the public resolve URL. A signed profile that could not sign (cold, cooling down, signer
+    -- missing) sends the request to OpenI instead: the dataset is private since 2026-10-18, so its resolve URL
+    -- needs a login that only the signer carries (mssign-server.conf).
+    if not signer_file then return ngx.redirect(model_target, 302) end
 end
 ngx.ctx.material_lb_selected = "openi"
 -- Continue through the unchanged OpenI proxy and its existing failure fallback.
