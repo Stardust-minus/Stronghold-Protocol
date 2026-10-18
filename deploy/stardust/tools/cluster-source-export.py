@@ -18,7 +18,12 @@ APP_ICON_FILES = ('app-192.png', 'app-512.png', 'app-maskable-192.png', 'app-mas
                   'app.svg', 'apple-touch-icon.png', 'favicon-16.png', 'favicon-32.png', 'favicon-48.png', 'favicon.ico')
 # 0.3.0: the server imports the Spine/atlas parsers of tools/assets (server/plugins/pack.js, server/studio/), and the
 # page registers the material Service Worker /sw.js (public/js/assetCache.js).
-RUNTIME_TOOL_FILES = ('tools/assets/anim-roles.mjs', 'tools/assets/atlas.mjs', 'tools/assets/skel.mjs')
+# 0.3.1: server/studio/templates imports the studio's gameplay/presentation models, and server/plugins/forgeImport.js
+# the official-table loader of tools/assets (with its cache/source/network helpers).
+RUNTIME_TOOL_FILES = ('tools/assets/anim-roles.mjs', 'tools/assets/atlas.mjs', 'tools/assets/skel.mjs',
+                      'tools/assets/official-tables.mjs', 'tools/assets/cache.mjs', 'tools/assets/sources.mjs',
+                      'tools/assets/network.mjs', 'tools/assets/env-proxy.mjs',
+                      'public/studio/js/gameplayModel.js', 'public/studio/js/presentation.js')
 AUTH_FILES = ('name-policy.mjs', 'name-dictionary.mjs', 'name-sensitive-dictionary.mjs',
               'name-filter-vendor.mjs', 'name-filter-node.mjs', 'NAME-DICTIONARY-LICENSE.txt',
               'NAME-FILTER-LICENSE.txt', 'NAME-CATEGORIES-LICENSE.txt', 'NAME-POLITICAL-LICENSE.txt')

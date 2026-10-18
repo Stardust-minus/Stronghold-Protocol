@@ -134,6 +134,15 @@ class ClusterSourceExportTests(unittest.TestCase):
                      'public/packs/random.json', 'public/assets/data.json']:
             self.assertFalse(exporter.code_path(path), path)
 
+    def test_server_runtime_imports_outside_server_are_exported(self):
+        # 0.3.1: the game role fails to start without these (ERR_MODULE_NOT_FOUND at boot)
+        for path in ['public/studio/js/gameplayModel.js', 'public/studio/js/presentation.js',
+                     'tools/assets/official-tables.mjs', 'tools/assets/cache.mjs', 'tools/assets/sources.mjs',
+                     'tools/assets/network.mjs', 'tools/assets/env-proxy.mjs']:
+            self.assertTrue(exporter.code_path(path), path)
+        for path in ['public/studio/index.html', 'public/studio/js/app.js', 'tools/assets/extract.mjs']:
+            self.assertFalse(exporter.code_path(path), path)
+
     def test_verified_webp_renderer_atlas_is_bound_as_generated_resource(self):
         index = json.loads((self.root / 'data/local-assets.json').read_text())
         record = index['groups']['map/autochess']['TX_autochessi_D']
