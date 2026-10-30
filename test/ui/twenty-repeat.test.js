@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeDraft, normalizeSp, draftMyTurn } from '../../public/js/ui/gameLogic/draft.js';
 import { teammateBands, draftSelection, autoPickBand, draftTip } from '../../public/js/screens/bandDraft.js';
-import { cardPickable, pickBusy, ChoiceView, spTap, turnPopupDue, spMarks } from '../../public/js/ui/choiceOverlay.js';
+import { cardPickable, pickBusy, ChoiceView, spTap, spMarks } from '../../public/js/ui/choiceOverlay.js';
 
 const players = Array.from({ length: 20 }, (_, seat) => ({ seat, playerId: `p${seat}`, name: `Doctor${seat}` }));
 const cards = () => Array.from({ length: 6 }, (_, idx) => ({ id: `choice${idx}`, name: `Choice${idx}`, desc: `Effect${idx}` }));
@@ -108,7 +108,7 @@ test('concurrent drafts: every seat still deciding may pick, without a turn, ski
   assert.equal(cardPickable(sp, sp.cards[0], { myId: 'p7', solo: false }), true);
   assert.equal(cardPickable(sp, sp.cards[1], { myId: 'p7', solo: false }), false, "m.private spBlocked: sold out for this seat's stock");
   assert.equal(cardPickable(sp, sp.cards[0], { myId: 'p0', solo: false }), false);
-  assert.equal(turnPopupDue(sp, { myId: 'p7', solo: false }), true); assert.equal(turnPopupDue(sp, { myId: 'p0', solo: false }), false);
+  assert.equal(draftMyTurn(sp, 'p7'), true); assert.equal(draftMyTurn(sp, 'p0'), false);
   const marks = spMarks(sp, { solo: false });
   assert.equal(marks.get('p0'), 'done'); assert.ok(order.slice(1).every(pid => marks.get(pid) === 'turn'));
 });
