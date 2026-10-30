@@ -87,7 +87,7 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       await host.page.keyboard.press('Escape');
       await host.page.waitForSelector('.sw-tabs', { hidden: true });
       // 干员调配: 95 operators
-      await openWith(host, '.lobby-loadout', null, '.lo-count');
+      await openWith(host, '[data-testid="loadout-open"]', null, '.lo-count');
       await host.page.waitForFunction(() => /\/95\b/.test(document.querySelector('.lo-count')?.textContent || ''), { timeout: 20000 });
       await host.page.keyboard.press('Escape');
       await host.page.waitForFunction(() => !document.querySelector('.lo-count'), { timeout: 10000 });
@@ -155,9 +155,8 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       await host.page.waitForSelector('.lobby-screen', { timeout: 15000 });
 
       // 统计数据: an imported record of 第一期下半 carries its tag
-      await openWith(host, '.hub-ach', null, '.achv__more');
+      await host.click('.stats-entry');
       await sleep(400);
-      await host.click('.achv__more');
       await host.page.waitForSelector('.st', { visible: true });
       const input = await host.page.$('.st input[type=file]');
       await input.uploadFile(FIXTURE);
@@ -298,9 +297,8 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
     try {
       await c.open();
       await c.enter('凯尔希');
-      await openWith(c, '.hub-ach', null, '.achv__more');
+      await c.click('.stats-entry');
       await sleep(400);
-      await c.click('.achv__more');
       await c.page.waitForSelector('.st', { visible: true });
       const input = await c.page.$('.st input[type=file]');
       await input.uploadFile(FIXTURE);

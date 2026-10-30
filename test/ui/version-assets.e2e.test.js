@@ -55,7 +55,7 @@ for (const version of VERSIONS.filter((v) => v.dir)) test(`${version.label}: lob
     }
     await shot(c, `${name}-sweep`);
     await close(c, '.sw-tabs');
-    await c.click('.lobby-loadout');
+    await c.click('[data-testid="loadout-open"]');
     await images(c, '.lo-card img');
     await shot(c, `${name}-loadout-list`);
     await c.click('[data-testid="loadout-view-deck"]');

@@ -165,7 +165,7 @@ for (const { route, versions } of [
         versions: { enabled: 'all' }, matchHost: { matchOptions: { botRehearsal: 0 } } });
       c = new Client((await import('puppeteer-core')).default, srv.url, 'icons', { prefix: 'version-icon-cache', w: 1600, h: 900 });
       await c.open();
-      await c.enter('Icon regression');
+      await c.enter('IconRegression');
       for (const [i, version] of versions.entries()) {
         const inRoom = route === 'vote' && i > 0;
         if (inRoom) {
