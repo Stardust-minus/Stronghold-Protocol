@@ -378,7 +378,7 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .ibanned__one { padding: 0; background: none; border: 0; }
 /* 0.2.0: the player's own 自选 pieces out of the shop this match (ui/matchInfo.js DiyBannedLine) */
 /* who each bond lost (#68) */
-.ibanlist { margin: .08rem 0 0; padding: 0; list-style: none; font-size: max(calc(.13 * var(--t)), 10px); line-height: 1.5; color: var(--text-lo); }
+.ibanlist { margin: .08rem 0 0; padding: 0; list-style: none; font-size: max(calc(.13 * var(--t)), calc(10px * var(--ui))); line-height: 1.5; color: var(--text-lo); }
 .ibanlist b { font-weight: 700; color: var(--text-hi); }
 .idiybanned { margin: .08rem 0 0; font-size: calc(.13 * var(--t)); line-height: 1.5; }
 .idiybanned .diybanned__tag { display: inline-block; margin-right: .05rem; padding: 0 .05rem; font-size: calc(.11 * var(--t)); font-weight: 700;

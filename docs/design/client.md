@@ -1126,7 +1126,7 @@ Prep and Final Assault prep reserve the arrows' 44 px floor and any taller measu
 relative to the field host and safe-area insets. The minimum band remains while collapsed; desktop keeps the official
 camera and original 2.16rem band when the strip already fits (§35.110).
 
-Outside presses dismiss match detail cards, bond popups and the selected-piece underframe (PR #792, §35.93).
+Outside presses dismiss match detail cards, bond popups, the 本局信息 dialog (feedback #60) and the selected-piece underframe (PR #792, §35.93). The damage and combat metrics panels stay up: they are live readouts, not popups.
 The detail card and bond popup retain selection while used, so pointerdown cannot move a card before its click.
 Other HUD controls, including Settings, still dismiss them; after closing Settings the player selects a unit again.
 Field presses retain the existing origin rule: field-unit cards close, while shop/reward/bond-member cards stay (§35.110).
