@@ -40,6 +40,8 @@ const UP_FORMS = new Set(['form2', 'fly']);
 const DIRS = ['UP', 'RIGHT', 'DOWN', 'LEFT'];
 /** Buff events at which a template creates a per-layer buff (talentfx _layerOrder). */
 const LAYER_EVENTS = new Set(['ON_BUFF_START', 'ON_BUFF_TRIGGER']);
+/** Talent loops of one prefab that stand for the sim's hit-negating 护盾 layers: they end with the last one (feedback #59). */
+const LAYER_LOOPS = new Set(['archet_buff_01_start', 'nian_buff_01_start']);
 
 const idOf = (v) => v?.info?.id ?? v?.id;
 const uniq = (list) => { const seen = new Set(); return list.filter((e) => { const k = `${e.key}|${e.at}|${e.hold}`; if (seen.has(k)) return false; seen.add(k); return true; }); };
@@ -137,14 +139,17 @@ export class TalentFx {
    * The layer order of a binding's per-layer loops (DESIGN §33.16), bottom to top, or null: loops its buffs create with
    * CreateBuff(s) at a buff event whose prefabs pause one another (PauseAnotherEffect — 泥岩's talent: mudrok_t_1[init] /
    * [recharge] create a buff per 护盾 layer, mudrok_buff_01_start pauses _02 and _03, _02 pauses _03: the bottom one
-   * pauses none). undefined while a prefab still loads (asked again next frame).
+   * pauses none). undefined while a prefab still loads (asked again next frame). The prefabs are the ones the owner's
+   * skin plays, which name the plain keys too; a skin's prefab is all that loads for it.
    */
-  _layerOrder(b, loops) {
+  _layerOrder(b, loops, v) {
     if (b.layerOrder !== undefined) return b.layerOrder;
     const keys = [...new Set(loops.filter((e) => /^CreateBuffs?$/.test(e.action || '') && LAYER_EVENTS.has(e.event)).map((e) => e.key))];
     if (keys.length < 2) return (b.layerOrder = null);
-    const defs = keys.map((k) => this.w.ofx.lib.def(k));
-    if (defs.some((d) => d === undefined)) return undefined;
+    const lib = this.w.ofx.lib;
+    const worn = keys.map((k) => this.w.swap(k, v));
+    const defs = worn.map((k) => lib.def(k));
+    if (defs.some((d) => !d)) { for (const k of worn) lib.load?.(k); return undefined; }
     const pauses = defs.map((d) => new Set((d?.pauses || []).map((q) => q.key).filter((k) => keys.includes(k))));
     if (!pauses.some((p) => p.size)) return (b.layerOrder = null);
     return (b.layerOrder = keys.map((k, i) => ({ k, n: pauses[i].size })).sort((x, y) => x.n - y.n).map((x) => x.k));
@@ -158,9 +163,10 @@ export class TalentFx {
    * variant until 'shieldBreak' — our barrier is one part, the client's three [ASSUMED]).
    */
   _layerLoops(U, b, v, loops) {
-    const order = this._layerOrder(b, loops);
-    if (!order || v.isEnemy || v.info?.side === 'enemy') return loops;
+    const order = this._layerOrder(b, loops, v);
     const n = Math.max(0, Number(v.layers) | 0);
+    if (!order && !n) return loops.filter((e) => !LAYER_LOOPS.has(e.key));
+    if (!order || v.isEnemy || v.info?.side === 'enemy') return loops;
     const mem = U.layerN || (U.layerN = new Map());
     const was = mem.get(b.id);
     mem.set(b.id, n);
