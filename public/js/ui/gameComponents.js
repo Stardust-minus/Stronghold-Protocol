@@ -7,7 +7,7 @@ import { data, useData, localAsset } from '../data.js';
 import { parseRichText, rtClassName } from './richText.js';
 import { t as tr } from '../../../shared/i18n.js';
 import { appearanceRecord } from './skinAssets.js';
-import { MaterialImage } from './materialImage.js';
+import { MaterialImage, useImageFailure } from './materialImage.js';
 import { useCardAvatar } from './playerCard.js';
 import { useStore } from '../store.js';
 import { skinsStore, ownerSkin } from './skins.js';
@@ -70,10 +70,10 @@ export function makeLookups(ready = true) {
  * @param {{ src?: string|null, class?: string, alt?: string, fallback?: any, style?: string }} props
  */
 export function Img({ src, class: cls, alt = '', fallback = null, fallbackSrc = null, style }) {
-  const [bad, setBad] = useState(null);
-  if (!src || bad === src) return fallbackSrc && fallbackSrc !== src
+  const [bad, fail] = useImageFailure(src);
+  if (!src || bad) return fallbackSrc && fallbackSrc !== src
     ? html`<${Img} src=${fallbackSrc} class=${cls} alt=${alt} fallback=${fallback} style=${style} />` : fallback;
-  return html`<${MaterialImage} class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onError=${() => setBad(src)} />`;
+  return html`<${MaterialImage} class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onError=${fail} />`;
 }
 
 /** Owner-aware operator pictures, with live selection / settings updates even on an already open card.
