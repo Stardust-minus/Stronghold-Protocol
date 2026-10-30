@@ -1,3 +1,4 @@
+// Off by default (SP_E2E_UPSTREAM_UI=1 runs it): upstream's own lobby picture / video / music; this fork keeps lobbyMusic.js.
 // Real-server browser E2E — 自定义大厅背景与音乐 (PR #643 split 8). The lobby's 大厅背景与音乐 dialog (the project's Modal)
 // offers four generated scenes (夜巡 / 霜原 / 烬野 / 静默: one shows at once and is kept, 默认背景 takes it away) and
 // takes the player's own picture through its file input: it covers the official backdrop at once, 暗度 darkens it, and
@@ -21,7 +22,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Client, ROOT, hasChrome, startRealServer, problemsOf } from '../e2e/client.mjs';
 
-const ENABLED = process.env.SP_E2E === '1' && hasChrome() && existsSync(path.join(ROOT, 'public/assets'));
+const ENABLED = process.env.SP_E2E_UPSTREAM_UI === '1' && hasChrome() && existsSync(path.join(ROOT, 'public/assets'));
 
 /** A mono 16-bit WAV of a sine (`seconds` long). */
 function wav(seconds = 1, rate = 22050) {

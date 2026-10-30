@@ -127,7 +127,7 @@ test('browser start button launches twenty real human sessions with more than 64
     }
     await page.waitForFunction(() => globalThis.__SP__.store.get().room.seats.filter(Boolean).length === 20);
     await page.evaluate(() => {
-      const button = [...document.querySelectorAll('.room-screen button')].find(node => node.textContent.trim() === '开始模拟');
+      const button = document.querySelector('.rs-go');
       if (!button || button.disabled) throw new Error('browser start button not ready');
       button.click();
     });

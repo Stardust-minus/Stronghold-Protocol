@@ -481,7 +481,7 @@ export function SweepReport({ onClose }) {
           onClick=${() => setTab(x.id)}><span class="sw-tab__icon">${x.icon()}</span><span>${t(x.name)}</span></button>`)}
       </nav>
     </header>
-    <main class="sw-body">
+    <main class="sw-body" data-tab=${tab}>
       <aside class="sw-left">${left}</aside>
       <div class="sw-right">${right}</div>
     </main>

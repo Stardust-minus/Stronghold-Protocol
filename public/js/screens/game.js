@@ -101,6 +101,7 @@ import { FinalAssaultPlate, HiddenCorePlate, EndPlate, preloadBossPlateArt, boss
 import { DownedPlate, downedDue, preloadDownedArt, downedArtReady } from '../ui/downedPlate.js';
 import { OfferOverlay, offerBlocksPrep } from '../ui/offerOverlay.js';
 import { ChoiceOverlay, spMarks } from '../ui/choiceOverlay.js';
+import { TurnPopup, preloadTurnPopupArt, turnPopupArtReady, TURN_CUE_WAIT_MS, TURN_CUE_PLATE_WAIT_MS } from '../ui/turnPopup.js';
 import { EnemyDrawer } from '../ui/enemyDrawer.js';
 import { Ticker } from '../ui/ticker.js';
 import { EmoteWheel } from '../ui/emotes.js';
@@ -1053,9 +1054,30 @@ function MatchScreen() {
     if ((busyPrep || myPick) && cd.remain > 0) audio.sfx('timer', { volume: 0.6 });
   });
 
-  // your turn cue in the 机变 draft
-  const spMine = !!sp && !solo && draftMyTurn(sp, myId) && !sp.pickOf.has(myId);
-  useEffect(() => { if (spMine) audio.sfx('yourTurn'); }, [spMine]);
+  // your turn cue in the 机变 draft, and the official 轮到你选 disc over the cards (ui/turnPopup.js) once its art is in —
+  // a shared draft's turn (a concurrent one too), and a solo draft as it opens (the maintainer's decision of 2026-10-22,
+  // decision 7 extended: as the strategy draft's 请选择策略 band, screens/bandDraft.js). The cue comes due with the turn
+  // and plays once no phase banner or plate is on screen (the 机变阶段 banner that opens the draft hid the disc's words:
+  // §35.18's leftover); a pick (or the turn moving on) before then drops it. The wait runs per overlay (overlayKey): the
+  // round plate still up from ROUND_START holds the banner back, so the plate gets at most TURN_CUE_PLATE_WAIT_MS, then
+  // the banner as it mounts its own TURN_CUE_WAIT_MS — never timed from the turn alone. [ASSUMED] the order and the bounds
+  const spMine = !!sp && draftMyTurn(sp, myId, solo) && !sp.pickOf.has(myId);
+  const [turnPop, setTurnPop] = useState(0);
+  const [turnDue, setTurnDue] = useState(0);             // > 0: the cue is waiting to play (re-counted per turn)
+  useEffect(() => { preloadTurnPopupArt(); }, []);
+  useEffect(() => { if (spMine) setTurnDue((n) => n + 1); else setTurnDue(0); }, [spMine]);
+  const overlayKey = hasOffers ? '' : roundPop ? `r:${roundPop.key}` : banner ? `b:${banner.key}` : '';
+  useEffect(() => {
+    if (!turnDue) return undefined;
+    const play = () => {
+      setTurnDue(0);
+      audio.sfx('yourTurn');
+      if (turnPopupArtReady() && !reducedMotion()) setTurnPop((n) => n + 1);
+    };
+    if (!overlayKey) { play(); return undefined; }
+    const id = setTimeout(play, overlayKey.startsWith('r:') ? TURN_CUE_PLATE_WAIT_MS : TURN_CUE_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [turnDue, overlayKey]);
 
   // promotion (merge reward offered) and bond activation cues; a special refresh's offer (凯瑟琳 定向投放 …) plays the
   // shop's refresh sound instead of the promotion cue
@@ -2013,6 +2035,7 @@ function MatchScreen() {
         setPersonalBusy((b) => b?.choiceId === choiceId ? null : b);
       }} />` : null}
 
+    ${!hasOffers && turnPop ? html`<${TurnPopup} key=${turnPop} onDone=${() => setTurnPop(0)} />` : null}
     ${boot && !hasOffers ? html`<${ProtocolBoot} key=${boot.key} players=${players} myId=${myId} leaving=${bootLeaving} />` : null}
     ${roundPop && !hasOffers && (!boot || bootLeaving) && hudIn !== 'wait' ? html`<${RoundPopup} key=${roundPop.key} round=${roundPop.round} gain=${roundGain} left=${roundPop.left} sub=${roundPop.sub}
       watching=${roundPop.watching} onDone=${() => setRoundPop(null)} />` : null}

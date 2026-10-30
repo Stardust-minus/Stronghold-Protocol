@@ -1,3 +1,4 @@
+// Off by default (SP_E2E_UPSTREAM_UI=1 runs it): upstream's hub layout; this fork keeps the 2026-10-14 hub.
 // Browser E2E of the hub lobby (PR #643 split 6) against the real server, headless Chrome (puppeteer-core + system
 // Chrome). Opt-in: SP_E2E=1 node --test test/ui/lobby-hub.e2e.test.js
 //
@@ -39,7 +40,7 @@ import { textProblems } from '../e2e/text-fit.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
+const ENABLED = process.env.SP_E2E_UPSTREAM_UI === '1' && existsSync(CHROME);
 
 describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;
@@ -130,7 +131,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
     try {
       const hub = await page.evaluate(() => ({
         title: document.querySelector('.hub-center__title')?.textContent,
-        entries: [...document.querySelectorAll('.hub-entries .mode-card')].map((el) => el.dataset.mode),
+        entries: [...document.querySelectorAll('.hub-entries .hub-entry')].map((el) => el.dataset.mode),
         plates: ['.lobby-sweep', '.lobby-loadout'].map((s) => !!document.querySelector(`.hub-right ${s}`)),
         dialogs: document.querySelectorAll('.modal').length,
       }));
@@ -143,7 +144,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       await page.screenshot({ path: path.join(OUT, 'lobby-hub-desktop.png') });
 
       // 独立模拟 → 选择模拟协议
-      await press(page, '.mode-card[data-mode="solo"]');
+      await press(page, '.hub-entry[data-mode="solo"]');
       await page.waitForSelector('.modal__box.proto', { visible: true });
       await sleep(200);
       let st = await page.evaluate(() => ({
@@ -171,7 +172,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       // 同盟模拟 → 选择同盟方式: the key field focused (like the title's name field: not where a coarse pointer is reported —
       // some Windows hosts report one even to headless Chrome; there the focus is in the dialog and the field is clicked),
       // a pasted key normalised
-      await press(page, '.mode-card[data-mode="coop"]');
+      await press(page, '.hub-entry[data-mode="coop"]');
       await page.waitForSelector('.modal__box.ally', { visible: true });
       const coarse = await page.evaluate(() => matchMedia('(any-pointer: coarse)').matches || matchMedia('(pointer: coarse)').matches);
       if (coarse) {
@@ -315,7 +316,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
         await press(page, '.modal__box.achv .achv__close', true);
         await page.waitForSelector('.modal', { hidden: true });
 
-        await press(page, '.mode-card[data-mode="solo"]', true);
+        await press(page, '.hub-entry[data-mode="solo"]', true);
         await page.waitForSelector('.modal__box.proto', { visible: true });
         await sleep(500);
         assert.deepEqual(await fit(page), { out: [], scrolls: false }, '选择模拟协议 fits');
@@ -326,7 +327,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
         await press(page, '.proto__back', true);
         await page.waitForSelector('.modal', { hidden: true });
 
-        await press(page, '.mode-card[data-mode="coop"]', true);
+        await press(page, '.hub-entry[data-mode="coop"]', true);
         await page.waitForSelector('.modal__box.ally', { visible: true });
         await sleep(500);
         assert.deepEqual(await fit(page), { out: [], scrolls: false }, '选择同盟方式 fits');
@@ -358,7 +359,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
         const { ctx, page, problems } = await open({ w, h, touch: true, lang, textSize });
         try {
           assert.deepEqual(await page.evaluate(() => [document.documentElement.lang, document.documentElement.dataset.text]), [lang, textSize]);
-          await press(page, '.mode-card[data-mode="coop"]', true);
+          await press(page, '.hub-entry[data-mode="coop"]', true);
           await page.waitForSelector('.modal__box.ally', { visible: true });
           assert.deepEqual(await fit(page), { out: [], scrolls: false }, `${w}×${h}: 选择同盟方式 fits`);
           const diff = await createBar(page);
@@ -409,7 +410,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       for (const textSize of ['sm', 'md', 'lg', 'xl']) {
         const { ctx, page, problems } = await open({ w: 640, h: 360, touch: true, lang: lang === 'zh' ? null : lang, textSize });
         try {
-          await press(page, '.mode-card[data-mode="coop"]', true);
+          await press(page, '.hub-entry[data-mode="coop"]', true);
           await page.waitForSelector('.modal__box.ally', { visible: true });
           await page.evaluate(() => document.fonts.ready);
           for (const [w, h] of [[640, 360], [667, 375], [740, 360], [844, 390]]) {
@@ -448,7 +449,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       for (const textSize of ['sm', 'xl']) {
         const { ctx, page, problems } = await open({ w: 1920, h: 1080, lang: lang === 'zh' ? null : lang, textSize });
         try {
-          await press(page, '.mode-card[data-mode="coop"]');
+          await press(page, '.hub-entry[data-mode="coop"]');
           await page.waitForSelector('.modal__box.ally', { visible: true });
           for (const [w, h] of [[1920, 1080], [1440, 900], [1280, 720], [1024, 600]]) {
             await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
@@ -511,7 +512,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       for (const textSize of ['sm', 'md', 'lg', 'xl']) {
         const { ctx, page, problems } = await open({ w: 640, h: 360, touch: true, lang: lang === 'zh' ? null : lang, textSize });
         try {
-          await press(page, '.mode-card[data-mode="solo"]', true);
+          await press(page, '.hub-entry[data-mode="solo"]', true);
           await page.waitForSelector('.modal__box.proto', { visible: true });
           await page.evaluate(() => document.fonts.ready);
           for (const [w, h] of [[640, 360], [667, 375], [740, 360], [844, 390]]) {
@@ -586,7 +587,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       for (const textSize of ['sm', 'xl']) {
         const { ctx, page, problems } = await open({ w: 1920, h: 1080, lang: lang === 'zh' ? null : lang, textSize });
         try {
-          await press(page, '.mode-card[data-mode="solo"]');
+          await press(page, '.hub-entry[data-mode="solo"]');
           await page.waitForSelector('.modal__box.proto', { visible: true });
           await page.evaluate(() => document.fonts.ready);
           // (a web font that arrives late — a new size or a new difficulty's text asks for more of them — re-fits the cards:
@@ -622,7 +623,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       for (const textSize of ['sm', 'md', 'lg', 'xl']) {
         const { ctx, page, problems } = await open({ w: 960, h: 540, lang: lang === 'zh' ? null : lang, textSize });
         try {
-          await press(page, '.mode-card[data-mode="solo"]');
+          await press(page, '.hub-entry[data-mode="solo"]');
           await page.waitForSelector('.modal__box.proto', { visible: true });
           await page.evaluate(() => document.fonts.ready);
           const fontsIn = async () => { await sleep(150); await page.evaluate(() => document.fonts.ready); await sleep(150); };
@@ -690,7 +691,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       const host = await open({ w: 640, h: 360, touch: true, lang: lang === 'zh' ? null : lang });
       let guest = null;
       try {
-        await press(host.page, '.mode-card[data-mode="coop"]', true);
+        await press(host.page, '.hub-entry[data-mode="coop"]', true);
         await host.page.waitForSelector('.modal__box.ally', { visible: true });
         await settle(host.page);
         await press(host.page, '[data-testid="alliance-create"]', true);
@@ -733,7 +734,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
     for (const lang of ['en', 'ja', 'ko']) {
       const { ctx, page, problems } = await open({ w: 1920, h: 1080, lang });
       try {
-        await press(page, '.mode-card[data-mode="coop"]');
+        await press(page, '.hub-entry[data-mode="coop"]');
         await page.waitForSelector('.modal__box.ally', { visible: true });
         await settle(page);
         await press(page, '[data-testid="alliance-create"]');

@@ -1,3 +1,4 @@
+// Off by default (SP_E2E_UPSTREAM_UI=1 runs it): upstream's older phone lobby; this fork keeps its own.
 // Opt-in localhost app with real server combat, one Worker and touch-emulated Chrome.
 // Checks readable/reachable rosters, queue feedback and lobby controls; not physical devices or a full match.
 import test from 'node:test';
@@ -11,7 +12,7 @@ import { Match } from '../../server/match/Match.js';
 import { PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../../shared/playerCapacity.js';
 
-const enabled = process.env.SP_E2E === '1';
+const enabled = process.env.SP_E2E_UPSTREAM_UI === '1';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 test('mobile lobby, same-pool count and every expanded roster seat remain operable', { skip: !enabled, timeout: 120000 }, async () => {
@@ -74,9 +75,9 @@ test('mobile lobby, same-pool count and every expanded roster seat remain operab
     await viewport(360, 640);
     await page.$eval('.lobby-body', el => { el.scrollTop = el.scrollHeight; });
     await shot('portrait-lobby-last-action');
-    assert.ok(await page.$eval('.create-box button', el => { const r = el.getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0; }));
+    assert.ok(await page.$eval('.proto-start', el => { const r = el.getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0; }));
     await viewport(844, 390);
-    await tap('.mode-card--match'); await tap('.matchmaking__actions button', '开始多人匹配');
+    await tap('.hub-entry[data-mode="match"]'); await tap('.matchmaking__actions button', '开始多人匹配');
     await page.waitForFunction(() => globalThis.__SP__.store.get().queue.waitingCount === 1);
     guest = new WebSocket(srv.url.replace(/^http/, 'ws') + '/ws');
     let rid = 0;

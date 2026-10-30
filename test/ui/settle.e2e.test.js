@@ -42,8 +42,11 @@ describe('settlement layout (#745, headless Chrome)', { skip: !enabled }, () => 
   }
 
   async function checkButtons(page, noart) {
+    // past the delayed page-entry focus, and past the focus ring's fade (a button's transition)
+    await new Promise((r) => setTimeout(r, 1900));
+    await page.evaluate(() => document.activeElement?.blur());
+    await new Promise((r) => setTimeout(r, 400));
     const buttons = await page.$$eval('.settle__next, .sbtn', (els) => els.map((el) => {
-      el.blur(); // sample idle styling atomically, after any delayed page-entry focus
       const bg = el.querySelector('.settle__btnbg'), style = getComputedStyle(el);
       return { tag: bg?.tagName, loaded: bg instanceof HTMLImageElement && bg.complete && bg.naturalWidth > 0,
         fallback: bg?.className.includes('--'), background: style.backgroundColor, image: style.backgroundImage,
@@ -116,6 +119,7 @@ describe('settlement layout (#745, headless Chrome)', { skip: !enabled }, () => 
             slotFits: s.left >= row.left && s.right <= row.right && s.top >= row.top && s.bottom <= row.bottom };
         }));
         assert.equal(slots.length, 3, 'the fixture actually equips operators');
+        if (!noart) assert.equal(await page.$$eval('.sop__art img.is-portrait', (els) => els.filter((i) => i.naturalWidth > 0).length), 3, 'the lineup shows portraits');
         for (const s of slots) {
           assert.ok(s.contained && s.slotFits);
           if (noart) assert.ok(s.fallback);

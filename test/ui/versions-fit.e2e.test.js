@@ -120,7 +120,7 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
       await setStatus('failed');
       await setLook(c, 'zh', 'md');
       await viewport(c, 667, 375);
-      await c.click('.mode-card[data-mode="solo"]');
+      await c.click('.hub-entry[data-mode="solo"]');
       await c.page.waitForSelector('[data-testid="proto-failed"]', { visible: true });
       await sleep(500); // the dialog's 转场
       const protoBad = [];
@@ -131,8 +131,8 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
             await viewport(c, w, h);
             await sleep(120);
             const bad = await misfits(c, [
-              { sel: '[data-testid="proto-failed"]', within: '.modal__box.proto', wrap: true, x: true },
-              { sel: '[data-testid="proto-retry"]', within: '.modal__box.proto', x: true },
+              { sel: '[data-testid="proto-failed"]', within: '.proto', wrap: true, x: true },
+              { sel: '[data-testid="proto-retry"]', within: '.proto', x: true },
             ]);
             if (bad.length) protoBad.push(`选择模拟协议 ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
           }
@@ -185,8 +185,8 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
               // (a short screen gives the banner's line to the seats: then it is not shown at all)
               { sel: '[data-testid="version-banner"]', wrap: true, optional: h <= 520 },
               // §35.18's phone layout hides the redundant ready tag (02eebe5b); loading / failed tags remain visible.
-              { sel: '.seat__content.is-ready', within: '.rseat', optional: h <= 520 },
-              { sel: '.seat__content:not(.is-ready)', within: '.rseat', optional: true },
+              { sel: '.rseat__content.is-ready', within: '.rseat', optional: h <= 520 },
+              { sel: '.rseat__content:not(.is-ready)', within: '.rseat', optional: true },
               // the whole name (the part tells two halves apart): two lines on a short screen, never an ellipsis
               { sel: '.rs-clock [data-testid="version-tag"]', wrap: true },
               { sel: '.rs-clock [data-testid="version-tag"] .vertag__label', wrap: true },

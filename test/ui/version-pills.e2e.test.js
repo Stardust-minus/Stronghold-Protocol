@@ -1,3 +1,4 @@
+// Off by default (SP_E2E_UPSTREAM_UI=1 runs it): the 75–100 % 界面大小 row; this fork uses its own --ui size.
 // Room period/difficulty pill geometry and text fit, including the Tooltip wrapper (fix53, §35.111).
 // SP_E2E=1 node --test test/ui/version-pills.e2e.test.js
 import { test } from 'node:test';
@@ -7,7 +8,7 @@ import path from 'node:path';
 import { Client, hasChrome, startRealServer, problemsOf, sleep } from '../e2e/client.mjs';
 import { textProblems } from '../e2e/text-fit.mjs';
 
-const enabled = process.env.SP_E2E === '1' && hasChrome();
+const enabled = process.env.SP_E2E_UPSTREAM_UI === '1' && hasChrome();
 const screens = [[640, 360], [667, 375], [740, 360], [844, 390], [1280, 720], [1920, 1080]];
 const shots = process.env.SP_FIX53_SHOTS;
 const shot = async (c, name) => {

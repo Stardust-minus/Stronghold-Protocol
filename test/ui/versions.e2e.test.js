@@ -76,7 +76,7 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       assert.equal((await stateOf(host)).config, 'act1autochess');
       assert.match(await host.page.$eval('[data-testid="hub-version"]', (e) => e.textContent), /第一期下半/);
       // S.W.E.E.P.: 18 盟约, 30 策略
-      await openWith(host, '.lobby-sweep', null, '.sw-tabs');
+      await openWith(host, '.hub-plate--sweep', null, '.sw-tabs');
       const sumCounts = () => host.page.$$eval('.sw-body .sw-sec__name small', (els) => els.reduce((n, e) => n + Number(e.textContent), 0));
       await host.click('.sw-tab', '盟约');
       await host.page.waitForFunction(() => document.querySelector('.sw-body')?.dataset.tab === 'bonds');
@@ -87,15 +87,15 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       await host.page.keyboard.press('Escape');
       await host.page.waitForSelector('.sw-tabs', { hidden: true });
       // 干员调配: 95 operators
-      await openWith(host, '.lobby-loadout', null, '.lo-count');
+      await openWith(host, '[data-testid="loadout-open"]', null, '.lo-count');
       await host.page.waitForFunction(() => /\/95\b/.test(document.querySelector('.lo-count')?.textContent || ''), { timeout: 20000 });
       await host.page.keyboard.press('Escape');
       await host.page.waitForFunction(() => !document.querySelector('.lo-count'), { timeout: 10000 });
       // 独立模拟 → three difficulty cards
-      await openWith(host, '.mode-card', '独立模拟', '.modal__box.proto .diff-card');
-      assert.equal(await host.page.$$eval('.modal__box.proto .diff-card', (b) => b.length), 3, 'no 终极');
+      await openWith(host, '.hub-entry', '独立模拟', '.proto .pcard');
+      assert.equal(await host.page.$$eval('.proto .pcard', (b) => b.length), 3, 'no 终极');
       await host.page.keyboard.press('Escape');
-      await host.page.waitForSelector('.modal__box.proto', { hidden: true });
+      await host.page.waitForSelector('.proto', { hidden: true });
       // the choice survives a reload
       await host.page.reload({ waitUntil: 'domcontentloaded' });
       await host.page.waitForSelector('[data-testid="version-switch"]', { visible: true, timeout: 30000 });
@@ -108,9 +108,9 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       await guest.open(`?room=${room.code}`);
       await guest.enter('阿米娅');
       await guest.waitFor((s) => s.room?.code === room.code, 'guest joined');
-      await guest.page.waitForSelector('.room-screen .seat.is-me [data-testid="seat-content"]');
+      await guest.page.waitForSelector('.room-screen .rseat.is-me [data-testid="seat-content"]');
       await waitState(guest, (s) => s.version === 'act1autochess' && s.status === 'ready', 'the guest loads 第一期下半');
-      await guest.page.waitForFunction(() => document.querySelector('.room-screen .seat.is-me [data-testid="seat-content"]')?.textContent.includes('版本数据就绪'), { timeout: 15000 });
+      await guest.page.waitForFunction(() => document.querySelector('.room-screen .rseat.is-me [data-testid="seat-content"]')?.textContent.includes('版本数据就绪'), { timeout: 15000 });
       assert.match(await guest.page.$eval('[data-testid="version-banner"]', (e) => e.textContent), /第一期下半.*第二期下半/, 'leaving restores the guest\'s lobby version');
       await guest.page.waitForFunction(() => !document.querySelector('.rs-go')?.disabled, { timeout: 10000 });
       await guest.shot('guest-room');
@@ -144,9 +144,9 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       // a solo room switches at once
       await host.click('.rs-exit');
       await host.page.waitForSelector('.lobby-screen', { timeout: 15000 });
-      await openWith(host, '.mode-card', '独立模拟', '.modal__box.proto .proto-start');
+      await openWith(host, '.hub-entry', '独立模拟', '.proto .proto-start');
       await sleep(400);
-      await host.click('.modal__box.proto .proto-start');
+      await host.click('.proto .proto-start');
       await waitState(host, (s) => s.room === 'act1autochess', 'a solo room of 第一期下半');
       await openWith(host, '[data-testid="room-version"]', null, '[data-testid="version-picker"]');
       await pickVersion(host, 'act2autochess');
@@ -155,9 +155,8 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       await host.page.waitForSelector('.lobby-screen', { timeout: 15000 });
 
       // 统计数据: an imported record of 第一期下半 carries its tag
-      await openWith(host, '.hub-ach', null, '.achv__more');
+      await host.click('.stats-entry');
       await sleep(400);
-      await host.click('.achv__more');
       await host.page.waitForSelector('.st', { visible: true });
       const input = await host.page.$('.st input[type=file]');
       await input.uploadFile(FIXTURE);
@@ -298,9 +297,8 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
     try {
       await c.open();
       await c.enter('凯尔希');
-      await openWith(c, '.hub-ach', null, '.achv__more');
+      await c.click('.stats-entry');
       await sleep(400);
-      await c.click('.achv__more');
       await c.page.waitForSelector('.st', { visible: true });
       const input = await c.page.$('.st input[type=file]');
       await input.uploadFile(FIXTURE);

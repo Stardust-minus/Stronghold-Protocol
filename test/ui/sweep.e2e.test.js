@@ -91,7 +91,7 @@ test('S.W.E.E.P.: pending version never presents the previous report; 64 opens w
         await c.click('[data-testid="version-switch"]');
         await c.click(`.verpick__pick[data-version="${version.id}"]`);
       }
-      await c.click('.lobby-sweep');
+      await c.click('.hub-plate--sweep');
       if (index) {
         for (let n = 0; !held && n < 100; n++) await sleep(50);
         assert.ok(held, 'the version data request is still pending');
@@ -123,11 +123,11 @@ test('S.W.E.E.P.: pending version never presents the previous report; 64 opens w
         return id === 'act2autochess' ? s.status === 'idle' : s.status === 'ready' && s.version === id;
       }, { timeout: 30000 }, other.id);
       await c.click('.rs-exit');
-      await c.page.waitForSelector('.lobby-sweep', { visible: true });
+      await c.page.waitForSelector('.hub-plate--sweep', { visible: true });
       await req(host, 'room.leave');
       await host.page.evaluate(() => globalThis.__SP__.store.set({ room: null }));
       for (let i = 1; i < 16; i++) {
-        await c.click('.lobby-sweep');
+        await c.click('.hub-plate--sweep');
         await report(c, version); await close(c);
       }
       t.diagnostic(`${version.id}: 16 opens, 48 tab checks, cross-version room returned; no missing tiles`);
@@ -192,7 +192,7 @@ test('S.W.E.E.P.: paused entry animations keep the report, selections and codex 
           if (mode === 'cdp') await cdp.send('Animation.setPlaybackRate', { playbackRate: 0 });
           if (mode === 'disabled') style = await c.page.addStyleTag({ content: '* { animation: none !important; transition: none !important; }' });
           if (mode === 'reduced-motion') await c.page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
-          await c.click('.lobby-sweep');
+          await c.click('.hub-plate--sweep');
           for (const [tab, label] of [['bands', '策略'], ['bonds', '盟约'], ['enemies', '敌方']]) {
             await c.click('.sw-tab', label);
             await c.page.waitForFunction((tab) => document.querySelector('.sw-body')?.dataset.tab === tab

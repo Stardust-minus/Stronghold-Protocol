@@ -62,7 +62,8 @@ describe('战术决策: the same card twice (mock harness, headless Chrome)', { 
       let c = await cards(page);
       assert.equal(c.length, 6);
       assert.deepEqual(c.map((x) => x.name), ['补给', '补给', '谢拉格驰援', '列装', '莫斯提马的盟誓', '升华']);
-      assert.deepEqual([c[0].team, c[0].desc, Math.round(c[0].w)], [c[1].team, c[1].desc, Math.round(c[1].w)], 'the same face');
+      assert.deepEqual([c[0].team, c[0].desc], [c[1].team, c[1].desc], 'the same face');
+      assert.ok(Math.abs(c[0].w - c[1].w) <= 1, `the same width (${c[0].w}, ${c[1].w})`); // a fractional grid track rounds either way
       assert.ok(c[0].team && /2.*次刷新/.test(c[0].desc), `补给: ${c[0].desc}`);
       assert.ok(c[0].taken && c[0].badge && c[0].disabled, 'the first twin: taken, with the taker\'s avatar');
       assert.ok(!c[1].taken && !c[1].badge && !c[1].disabled, 'the second twin: free');

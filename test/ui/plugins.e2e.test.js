@@ -70,8 +70,8 @@ describe('cosmetic plugins in the browser (P1a)', { skip: !ENABLED && 'set SP_E2
       const { code } = await host.createCoop();
       await guest.open();
       await guest.enter('阿米娅');
-      await guest.click('.mode-card', '同盟模拟');
-      await guest.click('.join-row input');
+      await guest.click('.hub-tile', '密钥加入');
+      await guest.click('.hub-dialog .join-row input');
       await guest.page.keyboard.type(code);
       await guest.click('.join-row button', '加入同盟');
       await guest.page.waitForSelector('.room-screen', { timeout: 15000 });
@@ -198,11 +198,11 @@ describe('cosmetic plugins in the browser (P1a)', { skip: !ENABLED && 'set SP_E2
     try {
       await c.open();
       await c.enter('凯尔希');
-      await c.click('.mode-card', '独立模拟');
-      await c.click('.diff-card', '标准模拟');
-      await c.click('.create-box button', '开始独立模拟');
+      await c.click('.hub-entry', '独立模拟');
+      await c.click('.pcard', '标准模拟');
+      await c.click('.proto-start', '开始模拟');
       await c.waitFor((s) => !!s.room, 'solo room');
-      if (!(await c.st()).phase) await c.click('.room-bar__right button', '开始模拟', { timeout: 20000 });
+      if (!(await c.st()).phase) await c.click('.rs-go', '开始模拟', { timeout: 20000 });
       await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
       await c.settled('.brief-go'); // (a click during its entrance falls through)
       await c.click('.brief__foot .btn--primary', '准备就绪');

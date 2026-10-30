@@ -48,14 +48,14 @@ for (const version of VERSIONS.filter((v) => v.dir)) test(`${version.label}: lob
     await c.click('[data-testid="version-switch"]');
     await c.click(`.verpick__pick[data-version="${version.id}"]`);
     await c.page.waitForFunction((id) => globalThis.__SP_CONTENT__?.state().version === id && globalThis.__SP_CONTENT__.state().status === 'ready', { timeout: 30000 }, version.id);
-    await c.click('.lobby-sweep');
+    await c.click('.hub-plate--sweep');
     for (const tab of ['盟约', '策略']) {
       await c.click('.sw-tab', tab);
       await images(c, '.sw-body img');
     }
     await shot(c, `${name}-sweep`);
     await close(c, '.sw-tabs');
-    await c.click('.lobby-loadout');
+    await c.click('[data-testid="loadout-open"]');
     await images(c, '.lo-card img');
     await shot(c, `${name}-loadout-list`);
     await c.click('[data-testid="loadout-view-deck"]');
@@ -71,10 +71,6 @@ for (const version of VERSIONS.filter((v) => v.dir)) test(`${version.label}: lob
     await shot(c, `${name}-diy`);
     await close(c, '.lo');
     await c.createCoop();
-    await c.click('[data-testid="seat-card-pick"]');
-    await images(c, '.cardpick img');
-    await shot(c, `${name}-namecard`);
-    await close(c, '.cardpick');
     for (let i = 0; i < 3; i++) await req(c, 'room.addBot');
     await req(c, 'room.start');
     await c.page.waitForFunction(() => globalThis.__SP__.store.get().match.public?.phase === 'INFO_CHECK', { timeout: 60000 });

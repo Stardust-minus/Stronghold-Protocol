@@ -20,8 +20,6 @@
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, TierChip, Countdown, Button } from './components.js';
-import { TurnPopup, preloadTurnPopupArt, turnPopupArtReady } from './turnPopup.js';
-import { reducedMotion } from './device.js';
 import { Img, RichText, PlayerAvatar, GIcon } from './gameComponents.js';
 import { itemIconUrl, enemyIconUrl, uiUrl } from './assetUrls.js';
 import { richTextPlain } from './richText.js';
@@ -150,17 +148,6 @@ export function ChoiceOverlay(props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [armed]);
-  // 轮到你选 (the event's video 10:08): the official disc (ui/turnPopup.js) drops in each time the pick order comes round
-  // to the player — also in a concurrent draft (draftMyTurn) — once its art is in; nothing without it
-  const [turnPop, setTurnPop] = useState(0);
-  const turnNow = turnPopupDue(sp, { myId, solo, personal });
-  const turnSeen = useRef(false);
-  useEffect(() => { preloadTurnPopupArt(); }, []);
-  useEffect(() => {
-    const due = turnNow && !turnSeen.current;
-    turnSeen.current = turnNow;
-    if (due && turnPopupArtReady() && !reducedMotion()) setTurnPop((k) => k + 1);
-  }, [turnNow]);
   if (!sp) return null;
   const tap = (idx) => {
     const card = sp.cards.find((c) => c && c.idx === idx);
@@ -169,17 +156,7 @@ export function ChoiceOverlay(props) {
     if (r.pick != null) onPick(r.pick);
   };
   return html`<${ChoiceView} ...${props} orderRef=${orderRef} armed=${armed} onTap=${tap}
-    onConfirm=${() => { if (armed != null) tap(armed); }} onDisarm=${() => setSel(null)} />
-    ${turnPop ? html`<${TurnPopup} key=${turnPop} onDone=${() => setTurnPop(0)} />` : null}`;
-}
-
-/**
- * Whether the 轮到你选 popup is due: a shared draft (not solo, not a personal 教鞭 pick) whose turn is the player's and
- * the player has not picked yet.
- * @param {any} sp normalizeSp(...) @param {{ myId: string, solo: boolean, personal?: boolean }} o
- */
-export function turnPopupDue(sp, { myId, solo, personal = false }) {
-  return !!sp && !solo && !personal && draftMyTurn(sp, myId) && sp.pickOf.get(myId) == null;
+    onConfirm=${() => { if (armed != null) tap(armed); }} onDisarm=${() => setSel(null)} />`;
 }
 
 /**

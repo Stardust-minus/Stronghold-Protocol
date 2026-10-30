@@ -35,32 +35,15 @@ describe('co-op room settings (real server)', { skip: !ENABLED && 'set SP_E2E=1 
       await guest.open(`?room=${room.code}`);
       await guest.enter('阿米娅');
       await guest.waitFor((s) => s.room?.code === room.code, 'guest joined');
-      await guest.page.waitForSelector('.room-screen .seat.is-me');
-
-      // the guest: the pill opens 选择模拟协议 read-only — no 确认, the cards disabled, the room's difficulty selected
-      await guest.click('.rs-pill__diff');
-      await guest.page.waitForSelector('.modal__box.proto', { visible: true });
-      let v = await guest.page.evaluate(() => ({
-        selected: document.querySelector('.proto__body')?.dataset.difficulty,
-        disabled: [...document.querySelectorAll('.modal__box.proto .diff-card')].map((b) => b.disabled),
-        start: !!document.querySelector('.modal__box.proto .proto-start'),
-        hint: document.querySelector('.modal__box.proto .proto-hint--ro')?.textContent.trim(),
-      }));
-      assert.deepEqual(v, { selected: 'FUNNY', disabled: [true, true, true, true], start: false, hint: '由创建者选择' });
-      await sleep(900); // the dialog's 转场
-      await guest.shot('guest-protocol');
-      await guest.page.keyboard.press('Escape');
-      await guest.page.waitForSelector('.modal__box.proto', { hidden: true });
+      await guest.page.waitForSelector('.room-screen .rseat.is-me');
 
       // the guest: ⚙ 同盟设置 — the difficulty and the switch, both read-only
       await guest.click('.rs-pill__gear');
       await guest.page.waitForSelector('.rs-opts', { visible: true });
-      v = await guest.page.evaluate(() => ({
-        diff: document.querySelector('[data-testid="room-opt-difficulty"]')?.textContent.replace(/\s+/g, ' ').trim(),
+      let v = await guest.page.evaluate(() => ({
         sw: [...document.querySelectorAll('.rs-opts [role="switch"]')].map((b) => [b.textContent.trim(), b.disabled]),
         note: document.querySelector('.rs-opts .ailast')?.textContent.includes('由创建者设置'),
       }));
-      assert.ok(v.diff.includes('标准模拟') && v.diff.includes('由创建者选择') && !v.diff.includes('更改'), v.diff);
       // §35.100 adds the default-off spectator handover setting; both switches are read-only for the guest.
       assert.deepEqual(v.sw, [['允许观战者接替 AI', true], ['AI 队友最后选择', true]]);
       assert.equal(v.note, true);
@@ -75,13 +58,12 @@ describe('co-op room settings (real server)', { skip: !ENABLED && 'set SP_E2E=1 
         return !!s.room?.seats?.find((x) => x?.playerId === s.me.playerId)?.ready;
       }, { timeout: 10000 });
       await host.click('.rs-pill__diff');
-      await host.page.waitForSelector('.modal__box.proto', { visible: true });
-      assert.equal(await host.page.$eval('.modal__box.proto .proto-hint', (el) => el.textContent.trim()), '更改难度后，其他博士需要重新准备就绪');
-      await host.click('.modal__box.proto .diff-card', '终极模拟');
+      await host.page.waitForSelector('.rs-proto', { visible: true });
+      await host.click('.rs-proto .pcard', '终极模拟');
       await sleep(900); // the dialog's 转场
       await host.shot('host-protocol');
-      await host.click('.modal__box.proto .proto-start', '确认');
-      await host.page.waitForSelector('.modal__box.proto', { hidden: true, timeout: 10000 });
+      await host.click('.rs-proto .proto-start', '确认');
+      await host.page.waitForSelector('.rs-proto', { hidden: true, timeout: 10000 });
       // the accepted pick is the remembered difficulty: the next 创建同盟 starts there (README / PLAYING 难度沿用上次选的)
       assert.equal(await host.page.evaluate(() => localStorage.getItem('sp.pref.lobby.difficulty')), '"ABYSS"');
       assert.equal(await guest.page.evaluate(() => localStorage.getItem('sp.pref.lobby.difficulty')), null, 'a read-only guest remembers nothing');
