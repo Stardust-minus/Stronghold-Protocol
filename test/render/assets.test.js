@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   avatarUrl, portraitUrl, enemyIconUrl, tokenAvatarUrl, bondIconUrl, bandIconUrl, itemIconUrl, skillIconUrl, uiUrl,
   profIconUrl, subProfIconUrl, spineEntry, hasBackSpine, unitPictureUrl, bgmEntry, sfxUrl, unitSfxUrl, baseCharId,
-  validSpine, RefLru, createAssets, unloadSpineData, spinePages, spineDataWeight, SPINE_WEIGHT_MIN, SPINE_IDLE_BYTES,
+  validSpine, RefLru, createAssets, loadSpineData, unloadSpineData, spinePages, spineDataWeight, SPINE_WEIGHT_MIN, SPINE_IDLE_BYTES,
   SPINE_IDLE_GRACE_MS, SPINE_EVICT_DELAY_MS, SPINE_QUIET_DELAY_MS,
 } from '../../public/js/assets.js';
 
@@ -551,6 +551,31 @@ describe('spine unload frees the atlas page images too', () => {
     assert.deepEqual(spinePages({ skel: '/s/a.skel', textures: ['/s/a.png', '/s/a2.png'] }), ['/s/a.png', '/s/a2.png']);
     assert.deepEqual(spinePages({ skel: '/s/b.skel' }), ['/s/b.png']);
     for (const junk of [null, 1, {}, { textures: [null, 3] }]) assert.deepEqual(spinePages(junk), []);
+  });
+
+  test('loadSpineData hands premultiplied pages their alpha mode (feedback #48, #55), straight ones keep the plain load', async () => {
+    const seen = [];
+    const prev = globalThis.PIXI;
+    globalThis.PIXI = { ALPHA_MODES: { PMA: 2 }, spine: {}, Assets: { load: async (src) => { seen.push(src); return { spineData: { animations: [] } }; }, loader: { parsers: [] } } };
+    try {
+      await loadSpineData({ skel: '/s/a.skel', atlas: '/s/a.atlas', pma: false });
+      await loadSpineData({ skel: '/s/b.skel', atlas: '/s/b.atlas', pma: true });
+      await loadSpineData({ skel: '/s/c.display.skel', atlas: '/s/c.atlas', pma: true });
+    } finally { globalThis.PIXI = prev; }
+    assert.equal(seen[0], '/s/a.skel');
+    assert.deepEqual(seen[1], { src: '/s/b.skel', data: { imageMetadata: { alphaMode: 2 } } });
+    assert.deepEqual(seen[2], { src: '/s/c.display.skel', data: { spineAtlasFile: '/s/c.atlas', imageMetadata: { alphaMode: 2 } } });
+  });
+
+  test('every operator skin model says how its texture is stored: premultiplied but for the two measured straight ones', () => {
+    const skins = JSON.parse(readFileSync(new URL('../../data/assets.json', import.meta.url), 'utf8')).skins;
+    const straight = new Set();
+    for (const [id, s] of Object.entries(skins)) for (const side of ['front', 'back']) {
+      if (!s.spine?.[side]) continue;
+      assert.equal(typeof s.spine[side].pma, 'boolean', id);
+      if (!s.spine[side].pma) straight.add(id);
+    }
+    assert.deepEqual([...straight].sort(), ['char_344_beewax_summer_11', 'char_4072_ironmn_summer_11']);
   });
 
   test('unloadSpineData unloads skeleton, atlas and every page (pages straight from the loader), minus kept ones', () => {

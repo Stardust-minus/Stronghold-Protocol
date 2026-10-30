@@ -16,6 +16,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const pngSize = validateSkinPng;
 const identifier = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+// The client's skin textures are premultiplied (598 model pages measured 2026-10-30: no semi-transparent pixel brighter
+// than its alpha) except these two skins', which carry straight alpha.
+const STRAIGHT_ALPHA_SKINS = new Set(['char_344_beewax_summer_11', 'char_4072_ironmn_summer_11']);
 export function skinResourceFiles(skins) {
   const files = new Set();
   const walk = value => {
@@ -121,7 +124,8 @@ export async function prepareSkins({ sourceDir, fetchSources = false, catalogue 
       textureBytes += bytes.length; if (textureBytes > 64 * 1024 * 1024) throw new Error('Artwork texture budget exceeded');
       sizes.set(page, pngSize(bytes)); textureFiles.push({ path: join(assetRoot, rel, pageNames.get(page)), bytes });
     }
-    const norm = normalizeAtlas(atlas, { pageSize: p => sizes.get(p), pma: false, renamePage: p => pageNames.get(p) });
+    const pma = !STRAIGHT_ALPHA_SKINS.has(skin.id);
+    const norm = normalizeAtlas(atlas, { pageSize: p => sizes.get(p), pma, renamePage: p => pageNames.get(p) });
     const bytes = await obtain(`${skin.id}/${side}/${stem}.skel`, remote + stem + '.skel', 8 * 1024 * 1024);
     const display = normalizeSkelPaths(bytes);
     const displayStem = display.removed.length ? stem + '.display' : stem;
@@ -134,7 +138,7 @@ export async function prepareSkins({ sourceDir, fetchSources = false, catalogue 
     models.push({ id: skin.id, side, version: skel.version, sourceSha256: sha(bytes), displaySha256: sha(display.bytes),
       editorRootsRemoved: display.removed, skeletonBodyPreserved: true, animationNames: skel.animations, missingRegions: skel.missingRegions, atlasPages: ai.pages });
     // Skin hit timings are never emitted into simulator inputs; all these entries are display-only.
-    return { skel: `/assets/${rel}${displayStem}.skel`, atlas: `/assets/${rel}${stem}.atlas`, textures: ai.pages.map(p => `/assets/${rel}${pageNames.get(p)}`), pma: false,
+    return { skel: `/assets/${rel}${displayStem}.skel`, atlas: `/assets/${rel}${stem}.atlas`, textures: ai.pages.map(p => `/assets/${rel}${pageNames.get(p)}`), pma,
       anims: dynamic ? { idle: skel.animations.find(name => /^idle$/i.test(name)) || skel.animations[0] } : resolveRoles(skel.animations, { skillIndices: [0, 1, 2], durations: skel.durations }),
       animations: skel.durations, bounds: skel.bounds };
   };
