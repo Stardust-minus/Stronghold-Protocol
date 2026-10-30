@@ -2637,9 +2637,9 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
   background: rgba(0, 0, 0, .4); border: 1px solid rgba(255, 255, 255, .18); outline: none; }
 .nc-layer--skin { background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .45) 50%, rgba(8, 11, 11, .1))),
   var(--nc) center var(--nc-y, 24%) / cover no-repeat, #101514; }
-/* 调整显示范围 (feedback #61): the plate follows the pointer; the same shape as a picker tile */
+/* 调整显示范围 (feedback #61): the plate follows the pointer; the shape of a room seat's name plate */
 .nc-adjust { display: flex; flex-direction: column; gap: 10px; padding: 12px; overflow: auto; }
-.nc-adjust__plate { width: min(100%, 600px); aspect-ratio: 600 / 186; margin: 0 auto; border-radius: 2px; overflow: hidden; background: #101514; cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.nc-adjust__plate { width: min(100%, 600px); aspect-ratio: 9 / 2; margin: 0 auto; border-radius: 2px; overflow: hidden; background: #101514; cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
 .nc-adjust__hint { position: absolute; left: 10px; bottom: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 13px; color: #e6ecea; background: rgba(0, 0, 0, .5); border-radius: 2px; pointer-events: none; }
 .nc-adjust__range { width: min(100%, 600px); margin: 0 auto; accent-color: #4fe8c0; }
 .nc-adjust__foot { display: flex; justify-content: center; gap: 10px; }

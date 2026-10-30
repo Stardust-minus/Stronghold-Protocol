@@ -158,7 +158,8 @@ function NameCardAdjust({ card, y, onAdjust, onDone }) {
   const onMove = (e) => {
     if (!drag.current || !plate.current) return;
     const { width, height } = plate.current.getBoundingClientRect();
-    setPos(dragNamecardY(drag.current.from, e.clientY - drag.current.at, { width, height, aspect: aspect.current }));
+    // a picture still loading counts as square, as most illustrations are: the plate never ignores the drag
+    setPos(dragNamecardY(drag.current.from, e.clientY - drag.current.at, { width, height, aspect: aspect.current || 1 }));
   };
   const onUp = () => { if (drag.current) { drag.current = null; onAdjust(pos); } };
   return html`<div class="nc-adjust">
