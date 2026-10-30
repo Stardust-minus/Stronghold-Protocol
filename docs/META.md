@@ -1198,7 +1198,7 @@ may send `room.rerollSetup {setupRevision}` (the host of a private room, any sea
 `setupRevision` and `rerollVote` (null or `{id, proposerId, voters, agreed, rejected, need, deadline}`). Voters = the
 humans connected at the proposal; need = `ceil(0.75 × voters)`, the proposer counted; it passes at need and fails once
 `voters − rejected < need`; a voter that disconnects or leaves is dropped and need recomputed from the voters left; 20 s
-timeout; one proposal per player per revision, at most 3 rerolls per match. Old vote/revision requests cannot affect a
+timeout; one proposal per player per revision, no cap per match. Old vote/revision requests cannot affect a
 new opening. See DESIGN §28.21 / §32.14.45 for cancellation, notices and timer behavior.
 
 `match/kickVote.js` owns 投票移出 (§32.14.45): `g.kickVote {targetId}` / `g.kickBallot {voteId, agree}` in SP_DRAFT /

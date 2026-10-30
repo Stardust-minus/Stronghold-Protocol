@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeMatch } from './harness.js';
 import { ERR, PHASE } from '../../shared/constants.js';
-import { REROLL_VOTE_MS, MAX_SETUP_REROLLS, rerollNeed } from '../../server/match/match/setupVote.js';
+import { REROLL_VOTE_MS, rerollNeed } from '../../server/match/match/setupVote.js';
 import { restoreMatch, snapshotMatch } from '../../server/match/snapshot.js';
 import { createRngFromState } from '../../server/sim/rng.js';
 import { validateC2S } from '../../shared/protocol.js';
@@ -271,7 +271,7 @@ test('thresholds, early failure on rejections, the 20 s timeout and offline huma
   assert.equal(m.phase, PHASE.INFO_CHECK);
 });
 
-test('proposer withdrawal, the per-match limit of three and a checkpoint dropping the vote', (t) => {
+test('proposer withdrawal, no reroll cap per match and a checkpoint dropping the vote', (t) => {
   const h = makeMatch({ humans: 2 }).start();
   t.after(() => h.m.dispose());
   const m = h.m;
@@ -279,14 +279,20 @@ test('proposer withdrawal, the per-match limit of three and a checkpoint droppin
   assert.deepEqual(m.handle('p_0', { t: 'g.rerollVote', voteId: m.setupVote.id, agree: false }), { ok: true });
   assert.equal(m.setupVote, null);
   assert.deepEqual(h.lastBc('m.notice'), { t: 'm.notice', kind: 'rerollCancelled', voteId: 1, by: 'p_0' });
-  for (let rev = 0; rev < MAX_SETUP_REROLLS; rev++) {
+  // feedback #93: past the 3 of 0.3.0, as often as the vote passes
+  for (let rev = 0; rev < 6; rev++) {
     h.sched.advance(300);
     assert.deepEqual(m.requestSetupReroll(rev % 2 ? 'p_0' : 'p_1', rev), { ok: true });
     assert.deepEqual(approve(m, rev % 2 ? 'p_1' : 'p_0'), { ok: true });
     assert.equal(m.setupRevision, rev + 1);
   }
+  // a failed proposal still cannot be repeated on the same setup
   h.sched.advance(300);
-  assert.equal(m.requestSetupReroll('p_0', MAX_SETUP_REROLLS).error, ERR.ALREADY);
+  assert.deepEqual(m.requestSetupReroll('p_0', 6), { ok: true });
+  assert.deepEqual(m.handle('p_1', { t: 'g.rerollVote', voteId: m.setupVote.id, agree: false }), { ok: true });
+  assert.equal(m.setupRevision, 6);
+  h.sched.advance(300);
+  assert.deepEqual(m.requestSetupReroll('p_0', 6), { error: ERR.ALREADY, detail: 'reroll-proposed' });
   // a vote open at a checkpoint is gone after the restore, the paused confirmation time kept
   const h2 = makeMatch({ humans: 2, seed: 7 }).start();
   t.after(() => h2.m.dispose());

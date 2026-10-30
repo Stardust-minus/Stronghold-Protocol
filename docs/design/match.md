@@ -364,7 +364,7 @@ reached and fails as soon as `voters − rejected` falls below it. A voter that 
 vote and the threshold recomputed from the voters left — the vote goes on and may pass or fail on that recount; a human
 connecting later does not join it. A vote lasts 20 s (× timerScale). It pauses the confirmation timer and blocks Ready;
 rejection, timeout, the proposer withdrawing (its own no) or the host's `room.cancelReroll` restores the remaining time /
-prior Ready state. One proposal per player per setup revision, at most 3 rerolls per match. Success preserves the room,
+prior Ready state. One proposal per player per setup revision, no cap per match (feedback #93). Success preserves the room,
 seats, settings and connections, redraws the complete opening, resets Ready, and starts the full original timer
 (single-human matches remain untimed). Fixed stage/bans remain fixed and random results can repeat. A separate
 seed-derived stream leaves shop/draft RNG untouched; requests have a 300 ms anti-burst guard, revision and vote

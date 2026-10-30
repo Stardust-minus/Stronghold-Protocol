@@ -10,7 +10,8 @@
 // voters − rejected < need. A voter that disconnects or leaves is dropped from voters / agreed / rejected and need is
 // recomputed from the voters left — the vote goes on (and may pass or fail on that recount); a human connecting later
 // does not join it. It times out after REROLL_VOTE_MS. Failure, timeout or cancellation restores the paused confirmation
-// time. Limits: one proposal per player per setup revision, MAX_SETUP_REROLLS per match (setupRevision counts them).
+// time. Limit: one proposal per player per setup revision (a vote that fails cannot be retried by its proposer on the
+// same setup); no cap per match (feedback #93: the owner dropped the 3 of 0.3.0, setupRevision still counts them).
 // The vote and the proposal marks are transient: a checkpoint restore drops them (server/match/snapshot.js).
 import { PHASE, ERR } from '../../../shared/constants.js';
 import { createRng, deriveSeed } from '../../sim/rng.js';
@@ -20,8 +21,6 @@ import { OK, fail } from './common.js';
 
 /** How long a reroll vote stays open (ms, × timerScale). */
 export const REROLL_VOTE_MS = 20_000;
-/** Successful rerolls per match. */
-export const MAX_SETUP_REROLLS = 3;
 /** Yes votes a reroll needs of `n` voters. */
 export const rerollNeed = (n) => Math.ceil(0.75 * n);
 
@@ -32,7 +31,6 @@ export class MatchSetupVote {
     if (!ps || ps.isBot || ps.left || !ps.connected) return fail(ERR.NOT_IN_ROOM);
     if (revision !== this.setupRevision) return fail(ERR.BAD_TARGET, 'setup revision changed');
     if (this.setupVote) return fail(ERR.WRONG_PHASE, 'setup reroll vote in progress');
-    if (this.setupRevision >= MAX_SETUP_REROLLS) return fail(ERR.ALREADY, 'reroll-limit');
     if (this._setupProposals.get(playerId) === this.setupRevision) return fail(ERR.ALREADY, 'reroll-proposed');
     const now = this.sched.now();
     if (now - this._lastSetupVoteAt < 300) return fail(ERR.RATE);
