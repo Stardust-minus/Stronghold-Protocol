@@ -304,15 +304,6 @@
 .slv__max::after { content: ''; position: absolute; left: .1rem; bottom: -.1rem; border: .05rem solid transparent; border-top-color: #33dcae; border-left-color: #33dcae; }
 @keyframes slv-up { from { opacity: 0; transform: translateY(.1rem) scale(.6); } }
 
-.settle__next { position: absolute; left: 14.77rem; top: 9.42rem; width: 4.43rem; height: 1rem; display: flex; align-items: center; justify-content: center; gap: .24rem;
-  padding: 0; border: 0; cursor: pointer; color: #062a20; background: linear-gradient(90deg, #44e6b8, #33d8ab); font-size: .4rem; font-weight: 700; letter-spacing: .06em;
-  clip-path: polygon(.12rem 0, 100% 0, 100% 100%, 0 100%, 0 .12rem); box-shadow: inset 0 -.05rem 0 rgba(0, 0, 0, .12); animation: snext-in 460ms var(--ease-out) 1400ms both; }
-.settle__next::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: .8rem; background: repeating-linear-gradient(135deg, rgba(0, 0, 0, .14) 0 .05rem, transparent .05rem .14rem); }
-.settle__next:hover, .settle__next:focus-visible { filter: brightness(1.12); outline: none; }
-.settle__next:focus-visible { box-shadow: 0 0 0 3px #fff inset; }
-.settle__nexticon { width: .52rem; height: .52rem; display: grid; place-items: center; border-radius: .1rem; background: #0b2d25; color: #44e6b8; }
-.settle__nexticon .icon { width: .32rem; height: .32rem; }
-@keyframes snext-in { from { opacity: 0; transform: translateX(.6rem); } }
 
 /* ---- 同盟 ---- */
 .steam { position: absolute; inset: 0; animation: mpop-fade 300ms both; }
@@ -395,15 +386,6 @@
 .steam__row { height: .48rem; display: flex; align-items: center; gap: .14rem; padding: 0 .16rem; border-radius: .24rem; background: linear-gradient(90deg, rgba(220, 230, 226, .1), rgba(220, 230, 226, .02));
   font-size: .25rem; color: #dfe6e3; white-space: nowrap; }
 .steam__row .sico { width: .28rem; height: .28rem; color: #dfe6e3; }
-.sbtn { position: absolute; top: 9.55rem; height: 1.03rem; display: flex; align-items: center; justify-content: center; gap: .16rem; padding: 0 .2rem; border: 0; cursor: pointer; white-space: nowrap; }
-.sbtn--ghost { left: 12.18rem; width: 2.57rem; background: #2a2f2e; color: #e2e8e6; box-shadow: inset 0 0 0 2px rgba(220, 230, 226, .2); font-size: .3rem; }
-.sbtn--ghost .icon { width: .3rem; height: .3rem; padding: .03rem; border-radius: .05rem; background: #e2e8e6; color: #2a2f2e; }
-.sbtn--primary { left: 15.12rem; width: 4.08rem; background: linear-gradient(90deg, #44e6b8, #33d8ab); color: #062a20; font-size: .38rem; font-weight: 700; letter-spacing: .04em;
-  clip-path: polygon(.12rem 0, 100% 0, 100% 100%, 0 100%, 0 .12rem); }
-.sbtn--primary::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: .7rem; background: repeating-linear-gradient(135deg, rgba(0, 0, 0, .14) 0 .05rem, transparent .05rem .14rem); }
-.sbtn__mark svg { width: .5rem; height: .38rem; }
-.sbtn:hover, .sbtn:focus-visible { filter: brightness(1.14); outline: none; }
-.sbtn:focus-visible { box-shadow: inset 0 0 0 3px #fff; }
 .steam__outcome, .steam__rounds, .steam__when, .sbtn { animation: steam-bar 420ms var(--ease-out) 520ms both; }
 @keyframes steam-bar { from { opacity: 0; transform: translateY(.2rem); } }
 

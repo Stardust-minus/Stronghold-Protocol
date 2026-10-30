@@ -20,7 +20,7 @@ import { html, Icon, DifficultyTag } from '../ui/components.js';
 import { useGameData, Img, Sprite, PromotionIcon, PlayerAvatar, BondGlyph, BandIcon } from '../ui/gameComponents.js';
 import { normalizeResult, diyRecordFor, cardStandIn, standInForText } from '../ui/gameLogic.js';
 import { data } from '../data.js';
-import { itemIconUrl, enemyIconUrl, titleIconUrl } from '../ui/assetUrls.js';
+import { chessPortraitUrl, chessAvatarUrl, itemIconUrl, enemyIconUrl, titleIconUrl } from '../ui/assetUrls.js';
 import { store, useStore, emptyMatch } from '../store.js';
 import { audio } from '../audio.js';
 import { sentText } from '../ui/lang.js';
@@ -74,6 +74,34 @@ export function levelProgress(records, { id = null, exp = 0, trophies = 0, at = 
   }
   const gain = int(exp);
   return { gain, before: total, after: total + gain, trophies: cups + int(trophies) };
+}
+
+/** The factor that fits a title into its box: never above 1. */
+export function titleScale(width, height, textWidth, textHeight) {
+  return Math.min(1, width / (textWidth || 1), height / (textHeight || 1));
+}
+
+function SettleTitle({ as: Tag = 'h1', class: cls, children }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const box = ref.current;
+    const text = box?.firstElementChild;
+    if (!text) return undefined;
+    const fit = () => box.style.setProperty('--title-scale', String(titleScale(box.clientWidth, box.clientHeight, text.offsetWidth, text.offsetHeight)));
+    fit();
+    // Observe the untransformed text too: late fonts and the text-size preference change its natural size.
+    const ro = new ResizeObserver(fit);
+    ro.observe(box);
+    ro.observe(text);
+    return () => ro.disconnect();
+  }, [children]);
+  return html`<${Tag} ref=${ref} class=${cx('settle__title', cls)}><span>${children}</span></${Tag}>`;
+}
+
+/** Official settle sprites (research 07-assets.json); CSS is used only for an absent/failed image. */
+export function SettleButtonArt({ ghost = false }) {
+  return html`<${Sprite} k=${ghost ? 'settle/btn_bg_02' : 'settle/btn_next_bg'} class="settle__btnbg"
+    fallback=${html`<span aria-hidden="true" class=${cx('settle__btnbg', ghost ? 'settle__btnbg--ghost' : 'settle__btnbg--primary')}></span>`} />`;
 }
 
 // ---- small facts --------------------------------------------------------------------------------------------------------
@@ -278,6 +306,7 @@ function SettleIntro({ players, myId, lose, onDone }) {
 
 /** One unit of a lineup as the cards draw it (自选 pick / 补位 stand-in resolved as on the report's thumbnails). */
 function unitView(u, gd) {
+  const m = gd.m;
   const chess = u.kind === 'token' ? null : gd.chess(u.id);
   const dr = u.diy && chess ? diyRecordFor(chess, u.diy, { chess: data.get('chess'), backups: data.get('backups') }) : null;
   const si = !dr && chess ? cardStandIn(chess, { unit: u, backups: gd.backups }) : null;
@@ -289,6 +318,8 @@ function unitView(u, gd) {
     tier,
     golden: !!(u.golden ?? rec?.isGolden),
     name: rec?.name || '',
+    art: rec ? chessPortraitUrl(m, rec) : null,
+    avatar: rec ? chessAvatarUrl(m, rec) : null,
     title: si ? t('{name}（{note}）', { name: si.name, note: standInForText(chess.name) }) : (rec?.name || ''),
     items: (Array.isArray(u.items) ? u.items : []).map((id) => data.lookup('items', id)).filter(Boolean),
   };
@@ -391,7 +422,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null }) {
       <${Logo} />
       <div class="sself__band">${self.bandId ? html`<${BandIcon} bandId=${self.bandId} size="lg" />` : html`<${PlayerAvatar} player=${self} self=${true} />`}<i aria-hidden="true"></i></div>
       <div class="sself__mode"><${ModePill} r=${r} /><${VersionTag} version=${version} class="sself__vertag" /></div>
-      <h1 class="sself__title">${cleared ? t('模拟完成') : t('模拟中断')}</h1>
+      <${SettleTitle} class="sself__title">${cleared ? t('模拟完成') : t('模拟中断')}</${SettleTitle}>
       <div class="sself__rounds"><span>${t('通过回合')}</span><b class="num">${rounds}</b></div>
       ${medals.length ? html`<div class="sself__medals">${medals.map((m, i) => html`<span key=${m.kind} class=${cx('smedal', `smedal--${m.kind}`, m.done ? 'is-done' : 'is-miss')} style=${`--i:${i}`}
           title=${m.kind === 'boss' ? t('敌方领袖') : t('隐秘核心')}>
@@ -414,7 +445,8 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null }) {
       <div class="settle__barbg" aria-hidden="true"></div>
       <${LevelStrip} prog=${prog} />
       <button type="button" ref=${nextRef} class="settle__next" onClick=${next}>
-        <span class="settle__nexticon"><${Icon} name="exit" /></span><span>${t('下一步')}</span>
+        <${SettleButtonArt} />
+        <${Sprite} k="settle/next_icon" class="settle__nexticon" fallback=${html`<span class="settle__nexticon"><${Icon} name="chevronRight" /></span>`} /><span class="settle__nextlabel">${t('下一步')}</span>
       </button>
     </div>
   </section>`;
@@ -509,16 +541,17 @@ function TeamPage({ r, res, gd, myId, at, backLabel, onBack, onDetail, version =
           : html`<p class="steam__none">${t('暂无结算数据')}</p>`}
       </div>
       <div class="settle__barbg steam__barbg" aria-hidden="true"></div>
-      <div class="steam__outcome"><${ModePill} r=${r} /><${VersionTag} version=${version} /><b class="steam__title">${r.victory ? t('模拟完成') : t('模拟中断')}</b></div>
+      <div class="steam__outcome"><${ModePill} r=${r} /><${VersionTag} version=${version} /><${SettleTitle} as="b" class="steam__title">${r.victory ? t('模拟完成') : t('模拟中断')}</${SettleTitle}></div>
       <div class="steam__rounds"><span>${t('同盟通过回合')}</span><b class="num">${rounds}</b></div>
       <div class="steam__when">
         <span class="steam__row"><${SvgPath} d=${CLOCK} />${fmtDuration(r.durationMs)}</span>
         <span class="steam__row"><${SvgPath} d=${CALENDAR} />${fmtDate(at)}</span>
       </div>
-      <button type="button" class="sbtn sbtn--ghost steam__detail" onClick=${onDetail}><${Icon} name="chart" /><span>${t('数据详情')}</span></button>
+      <button type="button" class="sbtn sbtn--ghost steam__detail" onClick=${onDetail}>
+        <${SettleButtonArt} ghost=${true} /><${Icon} name="chart" /><span>${t('数据详情')}</span></button>
       <button type="button" ref=${backRef} class="sbtn sbtn--primary settle__back" onClick=${onBack}>
-        <span class="sbtn__mark" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M8 4h10v8H8zM22 4h10v8H22zM8 18h10v8H8zM22 18h10v8H22z" fill="none" stroke="currentColor" stroke-width="2.6" /><path d="M2 2v26M38 2v26" stroke="currentColor" stroke-width="2.4" /></svg></span>
-        <span>${backLabel}</span></button>
+        <${SettleButtonArt} />
+        <${Sprite} k="settle/btn_back_icon_01" class="sbtn__mark" fallback=${html`<${Icon} name="chevronLeft" />`} /><span>${backLabel}</span></button>
     </div>
   </section>`;
 }
