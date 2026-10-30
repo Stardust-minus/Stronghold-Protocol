@@ -567,5 +567,7 @@ export function ResultScreen() {
   // the official version the match played (DESIGN §35.23): the room's, or the last room's once it is gone
   const version = useStore(shownVersion);
   const back = () => store.set({ match: emptyMatch() });
-  return html`<${SettleFlow} res=${res} pub=${pub} myId=${myId} version=${version} backLabel=${hasRoom ? t('返回同盟') : t('返回大厅')} onBack=${back} />`;
+  // keyed on the result: the RESULT phase can reach the store a moment before m.result, and the flow picks its first page
+  // once (without a row of the player's own it starts on the alliance page)
+  return html`<${SettleFlow} key=${res ? 'result' : 'waiting'} res=${res} pub=${pub} myId=${myId} version=${version} backLabel=${hasRoom ? t('返回同盟') : t('返回大厅')} onBack=${back} />`;
 }
