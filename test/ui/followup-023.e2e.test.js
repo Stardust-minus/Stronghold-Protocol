@@ -18,7 +18,7 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
     const page = await ctx.newPage();
     await page.setViewport({ width: phone ? 844 : 1440, height: phone ? 390 : 900 });
     if (random != null) await page.evaluateOnNewDocument((value) => { Math.random = () => value; }, random);
-    await page.evaluateOnNewDocument(() => { localStorage.setItem('sp.name', 'Recovery Test'); sessionStorage.setItem('sp.entered', '1'); });
+    await page.evaluateOnNewDocument(() => { localStorage.setItem('sp.name', 'Recovery Test'); localStorage.setItem('sp.pref.loadout.view', '"list"'); sessionStorage.setItem('sp.entered', '1'); });
     await page.goto(base, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && document.querySelector('.lobby-screen'));
     return page;
@@ -142,13 +142,10 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
       assert.ok(state.players.filter((p) => !p.isBot).every((p) => !p.ready));
       await host.bringToFront();
       await host.waitForFunction(() => !!document.querySelector('.brief-reroll button:not(:disabled)'));
-      // The seat that started the first vote is still on its 30 s cooldown, so another seat starts the next vote.
+      await host.click('.brief-reroll button'); // a private room: the host starts it (this fork's rule), no cooldown
+      await guest.waitForSelector('.brief-reroll .btn--danger');
       await guest.bringToFront();
-      await guest.waitForFunction(() => !!document.querySelector('.brief-reroll button:not(:disabled)'));
-      await guest.click('.brief-reroll button');
-      await host.waitForSelector('.brief-reroll .btn--danger');
-      await host.bringToFront();
-      await host.click('.brief-reroll .btn--danger');
+      await guest.click('.brief-reroll .btn--danger');
       await guest.waitForFunction(() => !globalThis.__SP__.store.get().match.public.rerollVote, { polling: 50 });
       assert.equal(await host.evaluate(() => globalThis.__SP__.store.get().match.public.setupRevision), 1);
     } finally { await ctx.close(); }

@@ -93,9 +93,8 @@ describe('community UI: lobby header and shared DIY details', { skip: !enabled }
             `${a.label} overlaps ${b.label}`);
         }
         await page.screenshot({ path: new URL(`../e2e/out/lobby-header-${width}-${lang}.png`, import.meta.url).pathname });
-        // 统计数据 from the lobby: the 成就统计 card → its window → 查看完整统计 (the top bar has no 统计数据 chip)
-        await page.click(width < 1000 ? '.hub-plate--ach' : '.hub-ach'); await page.waitForSelector('.modal__box.achv .achv__more', { visible: true });
-        await page.click('.modal__box.achv .achv__more'); await page.waitForSelector('.st .st-tab');
+        // 统计数据 from the lobby: the top bar's name chip
+        await page.click('.stats-entry'); await page.waitForSelector('.st .st-tab');
         await page.click('.st-back');
         await page.waitForSelector('.st', { hidden: true });
         await page.click('.lobby-screen [data-testid="settings-btn"]'); await page.waitForSelector('.modal');
@@ -105,7 +104,7 @@ describe('community UI: lobby header and shared DIY details', { skip: !enabled }
   for (const width of [1600, 844]) test(`DIY ${width}px XL: shared stats and normal/elite skill details stay usable`, async () => {
     const { context, page } = await open(width);
     try {
-      await page.click('[data-testid="loadout-open"]'); await page.click('[data-tab="diy"]');
+      await page.click('[data-testid="loadout-open"]'); await page.waitForSelector('[data-tab="diy"]', { visible: true }); await page.click('[data-tab="diy"]');
       await page.click('.diy-slot[data-slot="chess_char_6_diy1_a"] .diy-slot__fill');
       const picker = '[data-testid="diy-picker"]';
       await page.waitForSelector(`${picker} [data-char="char_112_siege"]`);
