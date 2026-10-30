@@ -157,7 +157,8 @@ test('guarded setup reroll RPC and direct human votes mutate one real actor, nev
   assert.deepEqual(await f.rpc.call('requestSetupReroll', { ...member, setupRevision: 2 }), { ok: true });
   assert.equal(real[0].setupRevision, 3, 'the only connected human rerolls at once');
   f.advance(300);
-  assert.deepEqual(await f.rpc.call('requestSetupReroll', { ...member, setupRevision: 3 }), { error: ERR.ALREADY, detail: 'reroll-limit' });
+  assert.deepEqual(await f.rpc.call('requestSetupReroll', { ...member, setupRevision: 3 }), { ok: true });
+  assert.equal(real[0].setupRevision, 4, 'no cap per match (feedback #93)');
   assert.equal(s1.log.some(m => m.t === 'm.private' || m.t === 'm.unitStats'), false);
   assert.equal(real.length, 1);
 });

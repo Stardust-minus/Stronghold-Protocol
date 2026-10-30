@@ -156,6 +156,7 @@ test('co-op spectator over websockets: watches the real match like an eliminated
   const a = await player('A');
   await ok(a, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
   const st = await a.waitFor('room.state');
+  await ok(a, { t: 'room.setAiPicksLast', on: false }); // the draft below needs the AI seat to be able to pick first
   await ok(a, { t: 'room.addBot' });
   const s = await watcher('Spec');
   await ok(s, { t: 'room.spectate', code: st.code });

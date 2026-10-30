@@ -265,7 +265,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       }));
       assert.ok(st.diff.includes('绝境模拟') && st.diff.includes('更改') && !st.diff.includes('由创建者选择'), st.diff);
       // §35.100 adds the host's default-off spectator handover switch alongside AI 队友最后选择.
-      assert.deepEqual(st.ailast, [['允许观战者接替 AI', false], ['AI 队友最后选择', false]]);
+      assert.deepEqual(st.ailast, [['允许观战者接替 AI', false], ['AI 队友最后选择', true]]);
       await page.screenshot({ path: path.join(OUT, 'lobby-hub-room-settings.png') });
       await press(page, '.rs-opts__diff');
       await page.waitForSelector('.modal__box.proto', { visible: true });

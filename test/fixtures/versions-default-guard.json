@@ -11,7 +11,7 @@
     "hostId": "<player>",
     "mode": "coop",
     "difficulty": "NORMAL",
-    "aiPicksLast": false,
+    "aiPicksLast": true,
     "inMatch": false,
     "source": "private",
     "experimental": {

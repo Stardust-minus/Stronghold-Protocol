@@ -71,7 +71,8 @@ async function driveLoop(c, { skipOnce = false, until, stats }) {
       done.add('info');
       assert.equal((await c.request({ t: 'g.infoReady' })).t, 'ok');
     } else if (pub.phase === 'BAND_DRAFT' && pub.draft && pub.draft.turn === c.id) {
-      const key = `band:${pub.draft.order.join()}`;
+      // (the skips left: with the humans first, two skips bring the order back to the first one)
+      const key = `band:${pub.draft.order.join()}:${pub.draft.skipsLeft?.[c.id]}`;
       if (done.has(key)) continue;
       done.add(key);
       const last = pub.draft.order.indexOf(c.id) === pub.draft.order.length - 1;

@@ -1,5 +1,5 @@
 // test/lobby-ai-last.test.js — the co-op room option 「AI 队友最后选择」 (room.setAiPicksLast {on}; GitHub #338): host-only,
-// before the match only, co-op rooms only, off by default; room.state.aiPicksLast shows it to everybody; the match gets
+// before the match only, co-op rooms only, on by default (feedback #46); room.state.aiPicksLast shows it to everybody; the match gets
 // it as opts.aiPicksLast when it starts (server/match/Match.js orders the drafts with it — test/match/ai-picks-last.test.js).
 import { describe, test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,13 +74,15 @@ describe('room.setAiPicksLast (lobby)', () => {
     assert.deepEqual(cap.errors, [], 'no server errors logged');
   });
 
-  test('off by default; host-only; every seat sees it in room.state; a change un-readies the guests like the difficulty', async () => {
+  test('on by default; host-only; every seat sees it in room.state; a change un-readies the guests like the difficulty', async () => {
     const host = await pool.player('Host');
     const st = await createRoom(host);
-    assert.equal(st.aiPicksLast, false);
+    assert.equal(st.aiPicksLast, true);
     const guest = await pool.player('Guest');
     const js = await joinRoom(guest, st.code);
-    assert.equal(js.aiPicksLast, false);
+    assert.equal(js.aiPicksLast, true);
+    await ok(host, { t: 'room.setAiPicksLast', on: false });
+    await guest.waitFor('room.state', (s) => s.aiPicksLast === false);
     await err(guest, { t: 'room.setAiPicksLast', on: true }, ERR.NOT_HOST);
     await ok(guest, { t: 'room.ready', ready: true });
     await host.waitFor('room.state', (s) => seatOf(s, guest.id)?.ready);
@@ -133,13 +135,22 @@ describe('room.setAiPicksLast (lobby)', () => {
     await guest.waitFor('room.state', (s) => s.aiPicksLast === false);
   });
 
-  test('without the option the match gets aiPicksLast false', async () => {
+  test('a fresh co-op room gives the match aiPicksLast true, one the host switched off false', async () => {
     const host = await pool.player('Host');
     await createRoom(host);
     await ok(host, { t: 'room.addBot' });
-    const n = started.length;
+    const n0 = started.length;
     await ok(host, { t: 'room.start' });
     await host.waitFor('room.state', (s) => s.inMatch);
+    assert.equal(started[n0].aiPicksLast, true);
+
+    const other = await pool.player('Other');
+    await createRoom(other);
+    await ok(other, { t: 'room.addBot' });
+    await ok(other, { t: 'room.setAiPicksLast', on: false });
+    const n = started.length;
+    await ok(other, { t: 'room.start' });
+    await other.waitFor('room.state', (s) => s.inMatch);
     assert.equal(started[n].aiPicksLast, false);
   });
 });

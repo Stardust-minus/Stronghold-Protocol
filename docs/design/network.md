@@ -532,7 +532,7 @@ C→S adds `room.rerollSetup {setupRevision}` (the host of a private room, any s
 rejected, need, deadline}` (need = ceil(0.75 × voters); `deadline` in server-clock ms). Ready must reference the
 current revision; omission means revision 0 for old clients. The server blocks Ready while voting, refuses stale ids,
 drops a voter that disconnects or leaves and recounts, and refuses a second proposal of a player for the same revision
-or a fourth reroll (`ALREADY`, detail `reroll-proposed` / `reroll-limit`). `m.notice` kinds `rerollPassed`,
+(`ALREADY`, detail `reroll-proposed`); a match has no reroll cap. `m.notice` kinds `rerollPassed`,
 `rerollFailed {reason}`, `rerollCancelled {by}`; DESIGN §28.21 / §32.14.45 / META.md describe the complete contract.
 
 ### 投票移出 messages (§32.14.45)

@@ -92,7 +92,6 @@ export function dismissToast(id) {
 /** Server failure details with their own text (the match's votes: server/match/match/setupVote.js, kickVote.js). */
 const DETAIL_TEXT = {
   'reroll-proposed': N_('本次开局信息你已发起过一次重刷投票'),
-  'reroll-limit': N_('本局的重刷次数已用完'),
   'kick-failed-this-round': N_('本回合对该玩家的移出投票未通过，请下回合再试'),
 };
 
