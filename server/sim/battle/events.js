@@ -2,11 +2,12 @@
 // meta, fx and the sim log.
 // Installed on Battle.prototype by server/sim/Battle.js (a method container: never instantiated; `this` is the battle).
 
+import { bondTimerView } from '../content/bonds/timers.js';
 import { EVENT_BUFFER_CAP } from '../constants.js';
 import { damageRows } from '../damageBoard.js';
-import { elementView } from '../damage.js';
+import { elementView } from '../attack.js';
 import { unitStatsEntry } from '../../../shared/protocol.js';
-import { unitInfo, snapshotUnits, ammoView, wolfView, negView, coinView, mysticView, layerView, chargeView } from '../snapshot.js';
+import { unitInfo, snapshotUnits, ammoView, wolfView, negView, moteView, coinView, mysticView, layerView, chargeView } from '../snapshot.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -28,6 +29,31 @@ export class BattleEvents {
   }
 
   /** Client-facing events since the last drain (DESIGN §8.2 tuples). */
+  /**
+   * Emit ['rate', id, seconds] for every unit whose own attack interval changed since the last tick (a skill turning on or
+   * off, an attack-speed buff or debuff landing, a form change): the renderer paces the attack clip over the sim value
+   * instead of guessing it from the operator record. Display only — nothing in the sim reads these tuples, and a unit's
+   * first value already travels in its UnitInfo (`atkInterval`, snapshot.js unitInfo).
+   *
+   * The flag is raised where the interval is computed (units.js `_recalc`), so a tick with no stat change costs one
+   * property read per unit — the heavy-field budget (test/sim/performance.test.js) does not move.
+   */
+  _emitRateChanges() {
+    if (!this.recordEvents) return;
+    for (const u of this.units) {
+      if (!u._rateDirty) continue;
+      u._rateDirty = false;
+      if (!u.alive || !u.deployed) continue;
+      const iv = Number(u.s && u.s.interval);
+      if (!(iv > 0)) continue;
+      const r = Math.round(iv * 1000) / 1000;
+      // unitInfo seeds the birth value; the first changed value must reach the client too.
+      if (u._rateSent === r) continue;
+      u._rateSent = r;
+      this._ev(['rate', u.id, r]);
+    }
+  }
+
   drainEvents() {
     const ev = this._evq;
     this._evq = [];
@@ -51,7 +77,7 @@ export class BattleEvents {
    *   down: [[id, respawnAt, respawnTime, state, row, col]] — operators that left the field waiting to redeploy (isDown): the
    *         game time their respawn timer ends, its length (s), constants.js DOWN_STATE and the tile they lie on (and
    *         come back on: _layBody — where they fell, or their home);
-   *   elem: [[id, element, fill, cooldownEnd, cooldown]] — the element gauge each unit shows (damage.js elementView);
+   *   elem: [[id, element, fill, cooldownEnd, cooldown]] — the element gauge each unit shows (attack/element.js elementView);
    *   ammo: [[id, rounds left, rounds in the magazine]] — a running ammo skill, whole rounds (snapshot.js ammoView): the segmented bar;
    *   coins: [[id, balance, cap]] — a live Swire skill purse, zero included (snapshot.js coinView);
    *   wolves: [[id, 狼影 left, the talent's maximum]] — 伺夜's 狼群 (snapshot.js wolfView): the pips under the HP bar;
@@ -62,12 +88,18 @@ export class BattleEvents {
    *         effect it shows;
    *   charges: [[id, stored, maximum]] — the charges an ally's charge skill stores (snapshot.js chargeView: 卡涅利安's): the
    *         official sand armour of her charges;
+   *   bondTimers: [[id, [{ id: effectId, count, remaining }]]] — selected-unit timed bond readouts (#746);
+   *         count + next expiry in simulation seconds; omitted when no declared effect is active.
+   *   motes: [[id, count, wide]] — the orbiting 「微尘」 of a unit (snapshot.js moteView; 魔王's T1 过往尘埃): how many
+   *         still circle her and whether S2's wider radius is up (display only: render/motes.js draws them);
    *   stand: [[id, until]] — when each enemy's attack recovery ends (atkStandUntil; alive, deployed, visible, not
    *         feared or stunned) — display metadata (render/interp.js holds the position until then);
    *   standCut: [[id, at]] — the latest time each listed enemy's recovery was cut or ignored (_cutAttackStand), the
    *         dying ones in their death window included.
-   * ammo / coins / wolves / neg / energy / layers / charges / stand / standCut are display only: no sim state reads them,
-   * and the nine-field unit tuples are unchanged.
+   *   face: [[id, ±1]] — a scripted horizontal sign (心虚设计师, mem.publishFacing): the model turns with the front
+   *         cut while it stands. Display only; the nine-field tuples and the golden canon omit it.
+   * ammo / coins / wolves / neg / motes / energy / layers / charges / stand / standCut / face are display only: no sim
+   * state reads them, and the nine-field unit tuples are unchanged. bondTimers is also display only (golden canon excludes it).
    */
   snapshot({ includeUnitStats = false } = {}) {
     const unitStats = includeUnitStats ? [] : null;
@@ -95,7 +127,7 @@ export class BattleEvents {
       (down || (down = [])).push([u.id, r2(u.respawnAt), r2(Math.max(0, u.respawnAt - u.deathAt)), this._downState(u), ...this.restTile(u)]);
     }
     if (down) snap.down = down;
-    let elem = null, ammo = null, wolves = null, neg = null, energy = null, stand = null, standCut = null;
+    let elem = null, ammo = null, wolves = null, neg = null, motes = null, energy = null, stand = null, standCut = null, face = null;
     let listed = null;   // the ids in snap.units, built for the first enemy with a cut to report
     for (const u of this.units) {
       if (u.side === 'enemy' && u.atkStandCutAt >= 0) {
@@ -103,10 +135,13 @@ export class BattleEvents {
         if (cutAt <= snap.t && (listed || (listed = new Set(snap.units.map((x) => x[0])))).has(u.id)) (standCut || (standCut = [])).push([u.id, cutAt]);
       }
       if (!u.alive || !u.deployed || u.hidden) continue;
+      if (u.mem.publishFacing) (face || (face = [])).push([u.id, u.facing]);
       const until = Math.round(u.atkStandUntil * 1000) / 1000;
       if (u.side === 'enemy' && !u.s.flags.fear && !u.s.flags.stun && Number.isFinite(until) && until > snap.t) {
         (stand || (stand = [])).push([u.id, until]);
       }
+      const timers = bondTimerView(u, this.time);
+      if (timers.length) (snap.bondTimers || (snap.bondTimers = [])).push([u.id, timers]);
       const v = elementView(u, this.time);
       if (v) (elem || (elem = [])).push([u.id, v[0], v[1], v[2], v[3]]);
       const am = ammoView(u);
@@ -115,6 +150,8 @@ export class BattleEvents {
       if (wv) (wolves || (wolves = [])).push([u.id, wv[0], wv[1]]);
       const ng = negView(u);
       if (ng) (neg || (neg = [])).push([u.id, ng]);
+      const mo = moteView(u);
+      if (mo) (motes || (motes = [])).push([u.id, mo[0], mo[1]]);
       const purse = coinView(u);
       if (purse) (snap.coins || (snap.coins = [])).push([u.id, ...purse]);
       const en = mysticView(u);
@@ -122,6 +159,7 @@ export class BattleEvents {
       const ly = layerView(u);
       if (ly) (snap.layers || (snap.layers = [])).push([u.id, ly]);
       const ch = chargeView(u);
+    if (motes) snap.motes = motes;
       if (ch) (snap.charges || (snap.charges = [])).push([u.id, ch[0], ch[1]]);
     }
     if (elem) snap.elem = elem;
@@ -131,6 +169,7 @@ export class BattleEvents {
     if (energy) snap.energy = energy;
     if (stand) snap.stand = stand;
     if (standCut) snap.standCut = standCut;
+    if (face) snap.face = face;
     return snap;
   }
 

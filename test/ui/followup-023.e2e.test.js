@@ -142,13 +142,14 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
       assert.ok(state.players.filter((p) => !p.isBot).every((p) => !p.ready));
       await host.bringToFront();
       await host.waitForFunction(() => !!document.querySelector('.brief-reroll button:not(:disabled)'));
-      // Wait out the documented server anti-burst interval before a second request.
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      await host.click('.brief-reroll button');
-      await guest.waitForSelector('.brief-reroll .btn--danger');
+      // The seat that started the first vote is still on its 30 s cooldown, so another seat starts the next vote.
       await guest.bringToFront();
-      await guest.click('.brief-reroll .btn--danger');
-      await host.waitForFunction(() => !globalThis.__SP__.store.get().match.public.rerollVote, { polling: 50 });
+      await guest.waitForFunction(() => !!document.querySelector('.brief-reroll button:not(:disabled)'));
+      await guest.click('.brief-reroll button');
+      await host.waitForSelector('.brief-reroll .btn--danger');
+      await host.bringToFront();
+      await host.click('.brief-reroll .btn--danger');
+      await guest.waitForFunction(() => !globalThis.__SP__.store.get().match.public.rerollVote, { polling: 50 });
       assert.equal(await host.evaluate(() => globalThis.__SP__.store.get().match.public.setupRevision), 1);
     } finally { await ctx.close(); }
   });

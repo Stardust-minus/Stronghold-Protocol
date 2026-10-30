@@ -1,6 +1,7 @@
 // 「轮到你选」 (ui/turnPopup.js, css/screens/game-panels.css .sptp): the official effectChoose sprites it draws, the
-// wiring in screens/game.js (the shared draft's own turn, with the 轮到你 sound, once the art is in, never with reduced
-// motion) and the stylesheet's rules. In a browser: test/ui/turn-popup.e2e.test.js.
+// wiring in screens/game.js (the shared draft's own turn and a solo draft as it opens — the maintainer's decision of
+// 2026-10-22 —, with the 轮到你 sound, once the art is in, never with reduced motion; after the round plate and the 机变阶段
+// banner, at most TURN_CUE_PLATE_WAIT_MS / TURN_CUE_WAIT_MS after each mounts — §35.18's leftover) and the stylesheet's rules. In a browser: test/ui/turn-popup.e2e.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -34,6 +35,27 @@ test('ui/choiceOverlay.js: the disc on each turn of mine in a shared draft (a co
   const g = read('public/js/screens/game.js');
   assert.match(g, /if \(spMine\) audio\.sfx\('yourTurn'\);/);
   assert.doesNotMatch(g, /<\$\{TurnPopup\}/, 'one disc, not two');
+});
+
+test('the wait is bounded: it covers the 机变阶段 banner (1.5 s + its 0.26 s close), the whole cue ≤ 3 s; the round plate before it (1.7 s + 0.28 s)', () => {
+  const g = read('public/js/screens/game.js');
+  const c = read('public/js/ui/components.js');
+  const banner = Number(g.match(/<\$\{PhaseBanner\}[^>]*duration=\$\{banner\.duration \|\| (\d+)\}/)[1]);
+  const close = Number(c.match(/setTimeout\(\(\) => \{ setGone\(true\); onDone\?\.\(\); \}, duration \+ (\d+)\)/)[1]);
+  assert.deepEqual([banner, close], [1500, 260]);
+  // the SP_DRAFT banner keeps the default length (phases.js gives it no duration of its own)
+  assert.match(read('public/js/ui/gameLogic/phases.js'), /case PHASE\.SP_DRAFT: return \{ title: t\('机变阶段'\), micro: 'CONTINGENCY', tone: 'gold', sub: t\('依次选择机变'\) \};/);
+  assert.ok(P.TURN_CUE_WAIT_MS >= banner + close, `${P.TURN_CUE_WAIT_MS} ms covers the banner`);
+  assert.ok(P.TURN_CUE_WAIT_MS + P.TURN_POPUP_MS <= 3000, 'banner, then disc, all within 3 s');
+  // the round plate still up from ROUND_START (the server's ROUND_START is 2 s, the plate 1.7 s + its 0.28 s leave):
+  // its own bound covers it, so a turn that comes under a late plate waits for it, then for the banner
+  const mp = read('public/js/ui/matchPopups.js');
+  const plate = Number(mp.match(/export const ROUND_POPUP_MS = (\d+);/)[1]);
+  const leave = Number(mp.match(/const LEAVE_MS = (\d+);/)[1]);
+  assert.match(mp, /export function RoundPopup\([^)]*\) \{\n\s+const leaving = useTimedLeave\(ROUND_POPUP_MS, onDone\);/);
+  assert.ok(P.TURN_CUE_PLATE_WAIT_MS >= plate + leave, `${P.TURN_CUE_PLATE_WAIT_MS} ms covers the round plate (${plate} + ${leave})`);
+  assert.ok(P.TURN_CUE_PLATE_WAIT_MS + P.TURN_CUE_WAIT_MS + P.TURN_POPUP_MS <= 5000, 'plate, banner, then disc, all within 5 s');
+  assert.match(read('public/js/ui/turnPopup.js'), /\[ASSUMED\][^\n]*\n[^\n]*order plate → banner → disc and the wait's bounds/);
 });
 
 test('the stylesheet: every keyframe it uses is defined, no clicks caught, reduced motion hides it, the project\'s rules', () => {

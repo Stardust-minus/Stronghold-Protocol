@@ -50,6 +50,8 @@ export function uiScaleStep(uiScale, phone) {
  *  (`ammoCount`, PR #552) and 「秘术师能量」 (`mysticEnergy`, PR #636); off by default: the official HUD has neither
  *  number. A profile that still has either old key `true` migrates to on; those keys are not written back.
  *  [ASSUMED] a stored boolean `ammoEnergyCount` wins over the old keys, so turning the merged switch off stays off.
+ *  bondTimers: selected-unit timed bond readouts (#746), off by default. [ASSUMED] Convenience HUD absent from
+ *  the official game; maintainer approved 2026-10-18. Stored with the other preferences in sp.pref.settings.
  *  combatMetrics: 设置「作战统计」 (PR #618), off by default: the official HUD has no such panel.
  *  officialFx: 设置「官方特效」 (0.3.0, render/vfx): 'full' (完整, this fork's default on every device — the owner's
  *  decision of 2026-10-16), 'auto' (完整 on a desktop, 精简 on a touch device — render/vfx/tier.js), 'off', 'lite'
@@ -60,7 +62,7 @@ export function uiScaleStep(uiScale, phone) {
  *  ON by default — draw the appearance another player chose instead of the operator's own model. A pure client
  *  preference (never sent): off, only this player's own pieces wear a skin.
  */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, textSize: 'sm', uiScale: 'auto', keys: DEFAULT_HOTKEYS, bgmPrep: 'official', bgmCombat: 'official' });
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, textSize: 'sm', bondTimers: false, fullscreenWakeLock: false, uiScale: 'auto', keys: DEFAULT_HOTKEYS, bgmPrep: 'official', bgmCombat: 'official' });
 const QUALITIES = ['high', 'medium', 'low'];
 /** The values of 设置「官方特效」 (render/vfx/tier.js OFFICIAL_FX). Display order in the dialog is low / medium / high. */
 export const OFFICIAL_FX_MODES = Object.freeze(['auto', 'off', 'lite', 'full']);
@@ -80,6 +82,7 @@ function ammoEnergyCountOf(r) {
  * Sanitize persisted settings. Retired keys `ammoCount` and `mysticEnergy` are read here and never returned.
  * @param {any} raw
  * @returns {{ bgm: number, sfx: number, voice: number, voiceLang: 'cn'|'jp'|'en'|'kr', voiceNative: boolean, voiceOverrides: Record<string, string>, muted: boolean, damageNumbers: boolean, officialDamageNumbers: boolean, ammoEnergyCount: boolean, combatMetrics: boolean, quality: 'high'|'medium'|'low', officialFx: 'auto'|'off'|'lite'|'full', otherSkins: boolean,
+ *   fullscreenWakeLock: boolean, bondTimers: boolean,
  *   textSize: 'sm'|'md'|'lg'|'xl', uiScale: string, keys: Record<'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string>, bgmPrep: string, bgmCombat: string }}
  */
 export function sanitizeSettings(raw) {
@@ -96,7 +99,9 @@ export function sanitizeSettings(raw) {
     damageNumbers: typeof r.damageNumbers === 'boolean' ? r.damageNumbers : DEFAULT_SETTINGS.damageNumbers,
     officialDamageNumbers: typeof r.officialDamageNumbers === 'boolean' ? r.officialDamageNumbers : false,
     ammoEnergyCount: ammoEnergyCountOf(r),
+    bondTimers: r.bondTimers === true,
     combatMetrics: typeof r.combatMetrics === 'boolean' ? r.combatMetrics : DEFAULT_SETTINGS.combatMetrics,
+    fullscreenWakeLock: typeof r.fullscreenWakeLock === 'boolean' ? r.fullscreenWakeLock : DEFAULT_SETTINGS.fullscreenWakeLock,
     quality: QUALITIES.includes(r.quality) ? r.quality : DEFAULT_SETTINGS.quality,
     officialFx: OFFICIAL_FX_MODES.includes(r.officialFx) ? r.officialFx : DEFAULT_SETTINGS.officialFx,
     otherSkins: r.otherSkins !== false,

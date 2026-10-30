@@ -34,7 +34,8 @@ function deploy(m, ps, count = 1) {
   return Array.from({ length: count }, (_, i) => give(m, ps, 'chess_char_4_22_b', 'board', [9 + i, 8]));
 }
 const owner = (packet, pid = 'p0') => packet.owners.find((o) => o.playerId === pid);
-const hit = (b, u, e, n) => b.dealDamage(u, e, { type: 'true', amount: n });
+// `resolved`: the amount as given, without the source's calculation riders (a LOR kit's arts addition)
+const hit = (b, u, e, n) => b.dealDamage(u, e, { type: 'true', amount: n, calculation: 'resolved' });
 const tokenDef = { tokenId: 'score_fixture_token', stats: { maxHp: 100, atk: 0, blockCnt: 0, cost: 0 }, rangeGrid: [] };
 
 for (const poolSize of [0, 6]) test(`actual Match ${poolSize ? '6 workers' : 'inline'}: normal+unite freeze, unseen-owner reconnect and new battle reset`, { timeout: 15000 }, async (t) => {

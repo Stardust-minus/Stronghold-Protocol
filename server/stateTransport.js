@@ -41,7 +41,7 @@ export const stateDeltaEnabled = (ws) => !!ws && typeof ws === 'object' && socke
 /**
  * The bytes to queue for `msg` (already encoded as `encoded`) on `ws`, and commit() to call once they were queued.
  * Plain `encoded` for a socket without the transport and for any other message.
- * @returns {{ data: string, commit: () => void }}
+ * @returns {{ data: string, commit: () => void, usable?: false }}
  */
 export function prepareStateFrame(ws, msg, encoded) {
   const states = ws && typeof ws === 'object' ? sockets.get(ws) : undefined;
@@ -51,8 +51,10 @@ export function prepareStateFrame(ws, msg, encoded) {
   let snapshot = snapshots.get(msg);
   // The encoding, not the (mutable) game object, is the immutable baseline.
   if (!snapshot || snapshot.encoded !== encoded) {
-    let view;
-    try { view = JSON.parse(encoded); } catch { return { data: encoded, commit: noop }; }
+    let view = null;
+    // Bytes a caller pre-encoded can be anything: they are no baseline, and the caller encodes the frame itself (usable).
+    try { view = JSON.parse(encoded); } catch { /* below */ }
+    if (view === null || typeof view !== 'object' || Array.isArray(view)) return { data: encoded, commit: noop, usable: false };
     snapshot = { encoded, bytes: Buffer.byteLength(encoded), seq: ++sequence, kind, view, full: null, transitions: new WeakMap() };
     snapshots.set(msg, snapshot);
   }
@@ -80,3 +82,9 @@ export function prepareStateFrame(ws, msg, encoded) {
     },
   };
 }
+
+/** The negotiated version, for an internal identity handover on the same socket (server/aiTakeover.js). */
+export const stateDeltaVersion = (ws) => (stateDeltaEnabled(ws) ? STATE_DELTA_VERSION : undefined);
+
+/** Forget the baselines of a socket (a client that asked for a full resync): the next frame of every kind is a full one. */
+export function resetStateDelta(ws) { if (ws && typeof ws === 'object') sockets.get(ws)?.clear(); }

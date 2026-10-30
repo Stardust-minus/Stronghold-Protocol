@@ -151,13 +151,14 @@ export function freePort() {
 /**
  * Start the real server (`node server/index.js`, or test/e2e/fastServer.mjs with `fast` speed-ups) on a free port (or
  * `port`: e.g. the port of a server just stopped — a server restart the open clients reconnect to).
- * @param {{ port?: number, pluginsDir?: string, fast?: { timerScale?: number, combatSpeed?: number, startRound?: 'boss'|'hidden'|number, kit?: number, chess?: string[],
+ * @param {{ port?: number, pluginsDir?: string, env?: Record<string, string|null>, fast?: { timerScale?: number, combatSpeed?: number, startRound?: 'boss'|'hidden'|number, kit?: number, chess?: string[],
  *   items?: string[], idleBots?: boolean, kits?: string[][], botChess?: string[], autoPlace?: boolean, eliminate?: number[], stage?: string,
  *   finishAfter?: number, slowSpawns?: string } }} [opts]
  *   kits: per-human starter kits (seat order); botChess: the AI seats' kit; autoPlace: the kits go onto the board at the
  *   first prep; eliminate: humans (seat order) eliminated at the jump; stage: the stage of every match; finishAfter: the
  *   match ends (RESULT) once that round has settled; slowSpawns: '<humanIdx>:<factor>' — that human's normal battles
- *   spawn at factor × the scheduled times — fastServer.mjs hooks; pluginsDir (with `fast`): the server's plugin folders
+ *   spawn at factor × the scheduled times — fastServer.mjs hooks; pluginsDir (with `fast`): the server's plugin folders;
+ *   env: more of the server's environment (SP_VERSIONS …; null unsets a variable)
  * @returns {Promise<{ base: string, port: number, logs: string[], stop: (o?: { hard?: boolean }) => Promise<void> }>}
  */
 export async function startRealServer(opts = {}) {
@@ -188,6 +189,9 @@ export async function startRealServer(opts = {}) {
     if (opts.fast.slowSpawns) env.SP_SLOW_SPAWNS = String(opts.fast.slowSpawns);
     if (opts.pluginsDir) env.SP_PLUGINS_DIR = opts.pluginsDir;
   }
+  // extra environment for the server. Unset enables every official version; { SP_VERSIONS: 'act2autochess' } hides the
+  // switch (DESIGN §35.23). A null value unsets a variable.
+  if (opts.env && typeof opts.env === 'object') for (const [k, v] of Object.entries(opts.env)) { if (v == null) delete env[k]; else env[k] = String(v); }
   const child = spawn(process.execPath, [entry], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   const logs = [];
   const onData = (buf) => { for (const line of String(buf).split('\n')) if (line.trim()) logs.push(line); if (logs.length > 400) logs.splice(0, logs.length - 400); };
@@ -351,6 +355,8 @@ export class Client {
       for (const el of document.querySelectorAll(sel)) {
         if (text && !(el.textContent || '').includes(text)) continue;
         if (!any && (el.disabled || el.getAttribute('aria-disabled') === 'true')) continue;
+        // The loadout overlay hides the underlying screen until its closing effect restores it.
+        if (getComputedStyle(el).visibility === 'hidden') continue;
         const r = el.getBoundingClientRect();
         if (r.width < 2 || r.height < 2) continue;
         const x = r.left + r.width / 2; const y = r.top + r.height / 2;
@@ -431,15 +437,16 @@ export class Client {
     await this.click('.proto .proto-start', '开始模拟');
   }
 
-  /** Hub 同盟模拟 → 选择同盟方式 → 创建同盟, then the room's difficulty when given. Resolves with the alliance key. */
+  /** Hub 同盟模拟 → 选择同盟方式 → 创建同盟, then the room's difficulty when given. Resolves with the room state. */
   async createCoop(difficulty = null) {
     await this.click('.hub-entry', '同盟模拟');
     await this.page.waitForSelector('.ally', { visible: true, timeout: 15000 });
     await this.click('.ally-card--create');
     const { room } = await this.waitFor((s) => !!s.room?.code, 'room created', 20000);
     await this.page.waitForSelector('.rs', { visible: true, timeout: 15000 });
-    if (difficulty) await this.setRoomDifficulty(difficulty);
-    return room.code;
+    if (!difficulty) return room;
+    await this.setRoomDifficulty(difficulty);
+    return this.page.evaluate(() => globalThis.__SP__.store.get().room);
   }
 
   /** Host: the room's difficulty pill → 选择模拟协议 → the card named `difficulty` → 确认. */

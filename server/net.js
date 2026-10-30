@@ -50,7 +50,7 @@ import { normalizeClusterLoad } from '../shared/cluster-load.js';
 import { ERR, ERR_TEXT, PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../shared/playerCapacity.js';
 import { isCompressibleType } from './wsCompression.js';
-import { negotiateStateDelta, prepareStateFrame } from './stateTransport.js';
+import { negotiateStateDelta, prepareStateFrame, resetStateDelta } from './stateTransport.js';
 import { moderateName } from '../shared/names.js';
 import { NO_PHASES } from './phaseMetrics.js';
 import { serverFullDetail } from './onlineLimit.js';
@@ -82,6 +82,7 @@ export const NET_DEFAULTS = Object.freeze({
   maxConnections: 0,            // concurrent sockets (0 = unlimited; enforced at upgrade time)
   maxConnectionsPerAddr: 0,     // concurrent sockets per client network key (0 = unlimited); see clientAddress
   maxSessions: 0,               // registry cap (0 = unlimited); finite caps evict oldest idle sessions first
+  maxOnline: 0,                 // authenticated players admitted at once (0 = unlimited); a resume is never refused
   heavyPerSec: 2,               // refill of the bucket for resend-heavy intents (HEAVY_TYPES)
   heavyBurst: 6,
   trustProxy: 'auto',           // forwarding headers: 'auto' = from loopback/private peers only, true = always, false = never
@@ -94,9 +95,15 @@ export const NET_DEFAULTS = Object.freeze({
  * edits), room.ownership (a ≤ 160-id list), room.diy (≤ 8 自选 picks), room.skins (whitelisted display choices), room.spectate
  * (taking a spectator seat in a running match resends its state like a watcher's g.watch — server/lobby.js spectate) and
  * room.setPlugins (a new visual set: every member downloads its art manifest — server/plugins/visualSet.js).
- * room.skins (docs/SKINS.md) is a small `{ [charId]: skinId }` map, sent on every edit of the appearance.
+ * room.skins (docs/SKINS.md) is a small `{ [charId]: skinId }` map, sent on every edit of the appearance; a changed map
+ * re-broadcasts room.state to a waiting room (its seat cards wear it: room.state seats[].skins). room.card (名片干员, PR
+ * #643 split 6): every accepted change re-broadcasts room.state to the room. room.rerollSetup (重刷本局): with one human a
+ * start completes at once and clears that seat's 30 s cooldown, and each reroll rebuilds the opening and resends m.public
+ * to every connection (server/match/match/setupVote.js, DESIGN §35.47). Any seated player may start it (#860).
+ * room.proposeVersion (DESIGN §35.23) stays host-proposed: an accepted proposal by a lone human switches the room's
+ * version — every page then downloads that version's data.
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.skins', 'queue.join', 'room.spectate', 'room.setPlugins']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.skins', 'room.card', 'queue.join', 'room.spectate', 'room.setPlugins', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -421,10 +428,11 @@ export const isDroppable = (msg) => !!msg && msg.t === 'b.snap';
  * Encode and send one message to a socket. Never throws.
  * @param {import('ws').WebSocket | null | undefined} ws
  * @param {object} msg
+ * @param {string | null} [encoded] bytes a caller already produced; must be this message when it is a state kind
  * @returns {boolean}
  */
-export function send(ws, msg) {
-  const data = encode(msg);
+export function send(ws, msg, encoded = null) {
+  const data = encoded == null ? encode(msg) : encoded;
   if (data == null) return false;
   return sendMessage(ws, msg, data);
 }
@@ -437,7 +445,9 @@ export function send(ws, msg) {
  */
 export function sendMessage(ws, msg, data) {
   const frame = prepareStateFrame(ws, msg, data);
-  const queued = sendRaw(ws, frame.data, { droppable: isDroppable(msg), compress: isCompressibleType(msg?.t) });
+  const bytes = frame.usable === false ? encode(msg) : frame.data;
+  if (bytes == null) return false;
+  const queued = sendRaw(ws, bytes, { droppable: isDroppable(msg), compress: isCompressibleType(msg?.t) });
   if (queued) frame.commit();
   return queued;
 }
@@ -448,9 +458,9 @@ export function sendMessage(ws, msg, data) {
  * @param {object} msg
  * @returns {boolean}
  */
-export function sendSession(session, msg) {
+export function sendSession(session, msg, encoded = null) {
   if (!session || !session.connected) return false;
-  return send(session.ws, msg);
+  return send(session.ws, msg, encoded);
 }
 
 /**
@@ -691,6 +701,15 @@ export class Network {
   /** Number of open sockets. */
   get connectionCount() { return this.conns.size; }
 
+  /** Number of authenticated sessions bound to a live socket (what the online cap counts). */
+  get onlineCount() {
+    let n = 0;
+    for (const conn of this.conns.values()) {
+      if (conn.session?.connected && conn.session.ws === conn.ws) n++;
+    }
+    return n;
+  }
+
   /**
    * Upgrade-time admission check (server/http/websocket.js): null to accept, otherwise the reason to refuse.
    * @param {import('node:http').IncomingMessage} req
@@ -812,6 +831,15 @@ export class Network {
       } else if (validRid(rid)) this.reply(conn, { t: 'ok', rid });
     };
     const t0 = this.metrics.start();
+    // A client that asks for a full frame (shared/stateDelta.js): dropping the baseline makes the next frame of every
+    // state channel a full one; the state itself is resent by the same resync a repeated hello runs (the lobby throttles
+    // it with resyncMinGapMs).
+    if (msg.t === 'state.resync') {
+      resetStateDelta(conn.ws);
+      respond(this.handler.onMessage(conn.session, { t: 'state.resync' }) ?? { ok: true });
+      this.metrics.end(messagePhase(msg.t), t0);
+      return;
+    }
     let res;
     try {
       // client-side combat reports (b.progress / b.result, DESIGN §14) belong to the running match like 'g.*' intents:
@@ -893,6 +921,17 @@ export class Network {
         // the online cap admits no NEW session while the lobby is at it; a resumed one above always comes back
         const full = this.serverFull();
         if (full) { this.reply(conn, errorMsg(ERR.SERVER_FULL, rid, full)); return; }
+        // The online cap (SP_MAX_ONLINE) decides *new players only*: a token that still resolves resumed above and never
+        // reaches this check, so a full server does not lock out the people already playing. "A resume is never refused"
+        // holds at this layer alone — the socket cap (maxConnections, checked at the upgrade in
+        // server/http/websocket.js, answering 503 before a socket exists) still applies, and the `noReplace` / claimAt
+        // decision above still answers SESSION_IN_USE for a token whose session is live on another socket. This check is
+        // what the player sees as 服务器已满 (ERR.SERVER_FULL).
+        if (this.opts.maxOnline > 0 && this.onlineCount >= this.opts.maxOnline) {
+          this.reply(conn, errorMsg(ERR.SERVER_FULL, rid, 'server full (online cap)'));
+          try { conn.ws.close(CLOSE.POLICY, 'server full'); } catch { /* ignore */ }
+          return;
+        }
         session = this.registry.create(name);
         if (!session) { this.reply(conn, errorMsg(ERR.INTERNAL, rid, 'server full')); return; }
         // a token the registry does not know: expired past the reconnect window, or issued by another server process
@@ -911,8 +950,9 @@ export class Network {
     session.limitKey = conn.key;
     session.matchmakingVersion = msg.matchmakingVersion ?? null;
     session.playerCapacityVersion = msg.playerCapacityVersion ?? null;
-    // m.public / m.private as m.state deltas on this socket (a repeated hello keeps its baselines)
-    negotiateStateDelta(conn.ws, msg.stateDelta);
+    // m.public / m.private as m.state deltas on this socket (a repeated hello keeps its baselines); `delta` is upstream's
+    // name for the same field
+    negotiateStateDelta(conn.ws, msg.stateDelta ?? msg.delta);
 
     let extra = null;
     try { extra = this.handler.welcomeInfo?.() ?? null; } catch (e) { this.log.error('[net] welcomeInfo crashed', e); }
@@ -922,6 +962,7 @@ export class Network {
     if (extra && typeof extra === 'object') for (const [key, value] of Object.entries(extra)) {
       if (!Object.hasOwn(welcome, key) && key !== '__proto__') welcome[key] = value;
     }
+    if (session.aiTakeoverFrom) { welcome.takeoverFrom = session.aiTakeoverFrom; session.aiTakeoverFrom = null; }
     if (validRid(rid)) welcome.rid = rid;
     this.reply(conn, welcome);
     try {

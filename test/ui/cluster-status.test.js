@@ -128,7 +128,7 @@ test('experimental switches default off and send immutable full options only whe
 test('experimental options are room-only and lobby creation uses server defaults', () => {
   const lobby = source('../../public/js/screens/lobby.js');
   assert.doesNotMatch(lobby, /ExperimentalOptions|experimentalSummary|setExperimental|setOverlay\('experimental'\)/);
-  assert.match(lobby, /net\.request\('room\.create', \{ mode: roomMode, difficulty \}\)/);
+  assert.match(lobby, /net\.request\('room\.create', \{\n\s+mode: roomMode, difficulty: roomMode === 'solo' \? shownSolo : shownCoop, \.\.\.\(versions \? \{ version \} : \{\}\),\n/);
   const room = source('../../public/js/screens/room.js');
   assert.match(room, /editable=\$\{facts\.isHost && online\}/);
   assert.match(room, /mode=\$\{room\.mode\}/);

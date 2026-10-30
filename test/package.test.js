@@ -237,7 +237,7 @@ const SHIPPED_TRACKED = ['CHANGELOG.md', 'LICENSE', 'NOTICE.md', 'README.md', 'T
   'docs/DEPLOY.md', 'docs/PLAYING.md', ...RUNTIME_RESEARCH, 'package-lock.json', 'package.json', 'public/index.html', 'public/js/main.js',
   'public/js/util.js', 'scripts/launch.mjs', 'scripts/start.sh', 'server/index.js', 'server/sim/rng.js', 'shared/constants.js',
   'tools/assets/network.mjs', 'tools/crop-board-atlas.mjs', 'tools/doctor.mjs', 'tools/fetch-assets.mjs', 'tools/local-extract/extract.py',
-  'tools/setup.mjs', 'tools/vendor.mjs'].sort();
+  'tools/setup.mjs', 'tools/vendor.mjs', 'server/release-without-llm'].sort();
 const ART = ['data/local-assets.json', 'public/assets/char/a.png', 'public/assets/local/g/x.png', 'public/assets/local/g/x.webp',
   'public/assets/local/spine/token/token_x/token_x.skel', 'public/assets/ui/b c.png', 'public/fonts/fonts.css', 'public/fonts/x.woff2'];
 
@@ -254,7 +254,7 @@ test('dry-run on a temporary checkout: the full and the lite file lists, the sum
     assert.match(full.stdout, /^checks: ok$/m);
     const lite = runTool(['--root', dir, '--dry-run', '--list', '--lite', '--allow-dirty']);
     assert.equal(lite.status, 0, lite.stdout + lite.stderr);
-    assert.deepEqual(listed(lite.stdout), SHIPPED_TRACKED, 'lite: the same runtime files, no art, fonts or local manifest');
+    assert.deepEqual(listed(lite.stdout).sort(), SHIPPED_TRACKED, 'lite: the same runtime files, no art, fonts or local manifest');
     assert.match(lite.stdout, /^package: lite \(no game art\)/m);
     assert.deepEqual(fs.readdirSync(dir).sort(), before, 'a dry-run writes nothing');
   } finally {
@@ -269,7 +269,8 @@ test('Stardust plans: both editions retain official paths plus moderation; missi
     for (const lite of [false, true]) {
       const p = check(lite);
       assert.deepEqual(p.problems, []);
-      assert.deepEqual(p.tracked, [...SHIPPED_TRACKED, 'shared/names.js', ...STARDUST_MODERATION].sort());
+      // (server/release-without-llm is generated into the stage, not a tracked file)
+      assert.deepEqual(p.tracked, [...SHIPPED_TRACKED.filter((f) => f !== 'server/release-without-llm'), 'shared/names.js', ...STARDUST_MODERATION].sort());
       assert.deepEqual(p.files.filter((f) => f.startsWith('deploy/')).sort(), [...STARDUST_MODERATION].sort());
     }
     for (const f of STARDUST_MODERATION) {
@@ -332,7 +333,7 @@ test('Stardust lite export: actual offline moderation runs with byte-identical r
   try {
     const dry = runTool(['--root', dir, '--dry-run', '--list', '--lite', '--allow-dirty']);
     assert.equal(dry.status, 0, dry.stdout + dry.stderr);
-    assert.deepEqual(listed(dry.stdout), [...SHIPPED_TRACKED, 'shared/names.js', ...STARDUST_MODERATION].sort());
+    assert.deepEqual(listed(dry.stdout).sort(), [...SHIPPED_TRACKED, 'shared/names.js', ...STARDUST_MODERATION].sort());
     const r = runTool(['--root', dir, '--out', out, '--no-install', '--allow-dirty', '--lite', '--keep-stage']);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const stage = path.join(out, `${FOLDER}-v9.9.9-lite`, FOLDER);
@@ -418,7 +419,7 @@ test('content packs ship: every committed pack of both layouts, never one only o
     const dry = runTool(['--root', dir, '--dry-run', '--list', '--lite', '--allow-dirty']);
     assert.equal(dry.status, 0, dry.stdout + dry.stderr);
     assert.deepEqual(listed(dry.stdout).sort(), [...SHIPPED_TRACKED, ...PACK_FILES, 'packs/index.json'].sort());
-    assert.match(dry.stdout, /^generated: packs\/index\.json \(the pack index of the shipped packs, for a static host\)$/m);
+    assert.match(dry.stdout, /^generated: packs\/index\.json, server\/release-without-llm \(the pack index of the shipped packs, for a static host; the release marker that keeps external AI off the package\)$/m);
     const r = runTool(['--root', dir, '--out', out, '--no-install', '--allow-dirty', '--lite', '--keep-stage']);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const stage = path.join(out, `${FOLDER}-v9.9.9-lite`, FOLDER);

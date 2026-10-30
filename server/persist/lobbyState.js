@@ -23,6 +23,7 @@
 import { Session } from '../net.js';
 import { Room } from '../lobby.js';
 import { experimentalOptions, isExperimental } from '../../shared/experimental.js';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 import { DIFFICULTIES, ROOM_CODE_LEN } from '../../shared/constants.js';
 
 /** Document layout version; another version is not restored (logged). Raise it when the shape below changes. */
@@ -69,6 +70,7 @@ export function roomDoc(room, matchRef, sessionOf) {
   };
   return {
     code: room.code, mode: room.mode, difficulty: room.difficulty, aiPicksLast: !!room.aiPicksLast, hostId: room.hostId,
+    ...(room.version !== DEFAULT_VERSION ? { version: room.version } : {}),
     experimental: room.experimental, source: room.source, ownerKey: room.ownerKey, ownerKeys: room.ownerKeys ? [...room.ownerKeys] : null,
     matchKey: room.matchKey, matchKeys: room.matchKeys ? [...room.matchKeys] : null, matchCount: room.matchCount | 0, createdAt: room.createdAt,
     seats: room.seats.map(seat),
@@ -164,10 +166,13 @@ export function restoreLobby({ doc, registry, lobby, now = Date.now(), log = nul
 function roomFrom(r, sessions, lobby, now) {
   if (!plain(r) || !ROOM_RE.test(String(r.code)) || lobby.rooms.has(r.code) || !['solo', 'coop'].includes(r.mode)
     || !DIFFICULTIES.includes(r.difficulty) || !isExperimental(r.experimental) || !Array.isArray(r.seats)) return null;
-  const room = new Room(r.code, r.mode, r.difficulty, Number.isFinite(r.createdAt) ? r.createdAt : now, experimentalOptions(r.experimental));
+  // another official version's room comes back as that version's room, without its match (hosted matches keep no checkpoint)
+  const version = r.version ?? DEFAULT_VERSION;
+  if (version !== DEFAULT_VERSION && !(lobby.versionEnabled?.(version) && lobby.versionAvailable?.(version))) return null;
+  const room = new Room(r.code, r.mode, r.difficulty, Number.isFinite(r.createdAt) ? r.createdAt : now, experimentalOptions(r.experimental), version);
   if (r.seats.length !== room.seats.length) return null;
   const inMatch = !!r.match;
-  room.content = lobby.vanilla;
+  room.content = lobby.baseContent?.(version) ?? lobby.vanilla;
   room.aiPicksLast = r.mode === 'coop' && r.aiPicksLast === true;
   room.source = typeof r.source === 'string' ? r.source : 'private';
   room.ownerKey = typeof r.ownerKey === 'string' ? r.ownerKey : null;

@@ -63,7 +63,7 @@ describe('界面大小: the CSS', () => {
   });
 
   test('the match root multiplies the unchanged clamp; the base root is untouched', () => {
-    assert.match(theme, /html \{\n {2}font-size: clamp\(40px, min\(calc\(100vw \/ 19\.2\), calc\(100vh \/ 10\.8\)\), 240px\);/);
+    assert.match(theme, /html \{\n {2}font-size: calc\(clamp\(40px, min\(calc\(100vw \/ 19\.2\), calc\(100vh \/ 10\.8\)\), 240px\) \* var\(--sp-ui, 1\)\);/);
     assert.match(theme, /html\.sp-in-match \{\n {2}font-size: calc\(clamp\(40px, min\(calc\(100vw \/ 19\.2\), calc\(100vh \/ 10\.8\)\), 240px\) \* var\(--ui\)\);\n\}/);
     assert.match(theme, /@supports \(height: 100svh\) \{\n {2}html\.sp-in-match \{ font-size: calc\(clamp\(40px, min\(calc\(100vw \/ 19\.2\), calc\(100svh \/ 10\.8\)\), 240px\) \* var\(--ui\)\); \}\n\}/);
   });

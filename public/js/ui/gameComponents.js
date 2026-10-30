@@ -9,6 +9,9 @@ import { t as tr } from '../../../shared/i18n.js';
 import { appearanceRecord } from './skinAssets.js';
 import { MaterialImage } from './materialImage.js';
 import { useCardAvatar } from './playerCard.js';
+import { useStore } from '../store.js';
+import { skinsStore, ownerSkin } from './skins.js';
+import { settingsStore } from './settingsStore.js';
 import {
   uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
 } from './assetUrls.js';
@@ -27,8 +30,9 @@ export const GAME_FILES = ['config', 'assets', 'chess', 'bonds', 'items', 'bands
  */
 export function useGameData() {
   const ready = useData(...GAME_FILES);
-  // (config / factions / choices are read once per memo: a language switch reads them again in the new locale)
-  return useMemo(() => makeLookups(ready), [ready, data.locale()]);
+  // (config / factions / choices are read once per memo: a language switch reads them again in the new locale, a
+  // content switch — a version or a plugin set — from the new files)
+  return useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
 }
 
 /** A 自选 operator's summon record (data/backups.json `tokens`, 0.2.0), or null. */
@@ -72,9 +76,33 @@ export function Img({ src, class: cls, alt = '', fallback = null, fallbackSrc = 
   return html`<${MaterialImage} class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onError=${() => setBad(src)} />`;
 }
 
+/** Owner-aware operator pictures, with live selection / settings updates even on an already open card.
+ * `ownerId` omitted = local picker; null = unowned catalogue art. Callers resolve stand-ins / DIY first.
+ * B6, maintainer option A (2026-10-18); docs/SKINS.md and §35.4. Model outfits retain their models.
+ */
+export function OperatorImage({ m, chess, ownerId, skin = null, portrait = false, avatarFallback = false,
+  portraitClass, avatarClass, ...props }) {
+  useData('assets');
+  m = data.get('assets') || m;
+  const localSkins = useStore((s) => s.skins, Object.is, skinsStore);
+  const otherSkins = useStore((s) => s.otherSkins, Object.is, settingsStore);
+  const selected = useStore((s) => ownerSkin(chess?.charId, { ownerId, skin, myId: s.me.playerId,
+    players: s.match.public?.players || [], localSkins, otherSkins }));
+  const art = portrait ? chessPortraitUrl(m, chess, { skin: selected }) : null;
+  const src = art || (!portrait || avatarFallback ? chessAvatarUrl(m, chess, { skin: selected }) : null);
+  return html`<${Img} ...${props} src=${src} class=${art ? portraitClass ?? props.class : avatarClass ?? props.class} />`;
+}
+
 /** Official UI sprite by 'group/key' with a fallback. */
 export function Sprite({ k, class: cls, fallback = null }) {
   return html`<${Img} src=${uiUrl(data.get('assets'), k)} class=${cx('sprite', cls)} fallback=${fallback} />`;
+}
+
+/** Official promotion phase from the resolved record's status (not its shop tier or normal / golden form). */
+export function PromotionIcon({ m, phase, class: cls }) {
+  if (!Number.isInteger(phase) || phase < 0 || phase > 2) return null;
+  return html`<${Img} src=${uiUrl(m, `elite/elite_${phase}`)} class=${cls}
+    fallback=${html`<small class=${cls}>E${phase}</small>`} />`;
 }
 
 /**
@@ -106,7 +134,7 @@ export const isGoldenPiece = (piece, chess) => !!(piece?.golden || chess?.isGold
 /**
  * Square unit thumbnail for a piece / chess / item / token / enemy: art + tier chip + elite frame.
  * @param {{ kind?: 'chess'|'item'|'token'|'enemy', id: string, golden?: boolean, size?: 'xs'|'sm'|'md'|'lg', tier?: number,
- *   showTier?: boolean, class?: string, dim?: boolean, badge?: any, title?: string, rec?: any }} props
+ *   showTier?: boolean, class?: string, dim?: boolean, badge?: any, title?: string, rec?: any, ownerId?: string|null, skin?: string|null }} props
  *   `rec`: the chess record to draw instead of the data's (a 自选 piece's composed record — 0.2.0, gameLogic/diy.js; a
  *   补位 stand-in's — gameLogic/standIn.js: drawn with a small 「替补」 mark in the corner)
  */

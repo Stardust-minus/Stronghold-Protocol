@@ -28,17 +28,19 @@
 // shrinks and the prep camera frames a taller board, so the shop stays open while deploying instead of being folded.
 
 import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { html, Modal, Button, Icon, MicroLabel, confirmDialog } from './components.js';
+import { html, Modal, Button, Icon, MicroLabel, Tooltip, confirmDialog } from './components.js';
 import { GIcon } from './gameComponents.js';
-import { createStore, useStore, loadPref, savePref, store } from '../store.js';
+import { useStore, savePref, store } from '../store.js';
+import { settingsStore } from './settingsStore.js';
+export { settingsStore } from './settingsStore.js';
 import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, TEXT_SIZES, UI_SCALES, uiScaleStep } from './gameLogic.js';
 import { audio } from '../audio.js';
 import { openGuide } from './guide.js';
-import { detectFeatures, useMedia } from './device.js';
+import { detectFeatures, useMedia, isIOS } from './device.js';
 import { PHONE_QUERY } from './teamLayout.js';
 import { LanguageSettings } from './languageSettings.js';
 import { voiceLanguageStore, setVoiceLanguage } from './voiceLanguage.js';
-import { t, tc, N_ } from '../../../shared/i18n.js';
+import { t, tc, tParts, N_ } from '../../../shared/i18n.js';
 import { errorCount, currentBattle, diagnosticsText } from '../diag.js';
 import { copyText } from './clipboard.js';
 // 异形屏适配 (ui/screenFit.js): imported here, ahead of main.js's first render, so the stored offsets are on at boot
@@ -59,8 +61,8 @@ import { cosmetics } from '../cosmetics.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
-/** Settings store: { bgm, sfx, voice, voiceLang, voiceNative, voiceOverrides, muted, damageNumbers, officialDamageNumbers, ammoEnergyCount, combatMetrics, quality, officialFx, otherSkins, textSize, uiScale, keys, bgmPrep, bgmCombat }. */
-export const settingsStore = createStore(sanitizeSettings({ ...loadPref('settings', null), voiceLang: voiceLanguageStore.get().language }));
+// the voice language is this device's own (ui/voiceLanguage.js), over whatever the saved settings hold
+settingsStore.set({ voiceLang: voiceLanguageStore.get().language });
 
 /**
  * 设置 →「文字大小」: put the step on <html data-text> — css/theme.css turns it into the text root `--t`
@@ -165,8 +167,8 @@ const TEXT_SCALES = [['sm', N_('小')], ['md', N_('中')], ['lg', N_('大')], ['
 /** 界面大小's buttons: every UI_SCALES step but 'auto' (shown as the step it resolves to: uiScaleStep). */
 const UI_STEPS = UI_SCALES.filter((id) => id !== 'auto');
 /** The rebindable shortcuts' names (msgids), by action. */
-const HOTKEY_NAMES = { buy: N_('购买鼠标指向的商品'), refresh: N_('刷新商店'), freeze: N_('冻结 / 解冻商店'), levelUp: N_('升级调度中心'), retreat: N_('撤退鼠标指向的干员'),
-  sell: N_('出售鼠标指向的干员'), ready: N_('准备就绪 / 暂停（独立模拟）') };
+const HOTKEY_NAMES = { buy: N_('购买鼠标指向的商品'), refresh: N_('刷新商店'), freeze: N_('冻结 / 解冻商店'), levelUp: N_('升级调度中心'), retreat: N_('撤退干员（选中优先）'),
+  sell: N_('出售干员（选中优先）'), ready: N_('准备就绪 / 暂停（独立模拟）') };
 
 /**
  * 快捷键: each shortcut with its key. Click its key (or Enter / Space on it) and press the new one: Esc cancels (the
@@ -509,6 +511,17 @@ export function SettingsModal({ open, onClose }) {
       <p class="set-hint">${t('只显示达到官方暴击条件的红色数字。关闭时仍显示每一次命中。')}</p>
       <${Toggle} label=${t('显示弹药与能量数量')} micro="AMMO & ENERGY" value=${s.ammoEnergyCount} onChange=${(v) => updateSettings({ ammoEnergyCount: v })} />
       <p class="set-hint">${t('弹药类技能开启时，在弹药条下方显示剩余弹药 / 总弹药数（如 13/14）；秘术师的血条下方显示储存的攻击能量 / 上限（如 2/3）。官方界面没有这些数字。')}</p>
+      <${Toggle} label=${t('盟约效果剩余时间')} micro="BOND TIMERS" value=${s.bondTimers} onChange=${(v) => updateSettings({ bondTimers: v })} />
+      <p class="set-hint">${t('在选中单位的详情中显示叙拉古、萨尔贡效果的剩余时间；萨尔贡显示层数与下一层到期时间。官方界面没有这些数字。')}</p>
+      <${Toggle} label=${t('全屏时保持屏幕常亮')} micro="SCREEN WAKE LOCK" value=${s.fullscreenWakeLock} onChange=${(v) => updateSettings({ fullscreenWakeLock: v })} />
+      <p class="set-hint" data-testid="wake-lock-hint">${tParts(isIOS()
+        ? N_('全屏期间始终保持屏幕常亮（{support}）；iOS低电量模式下可能不生效。')
+        : N_('全屏期间始终保持屏幕常亮（{support}）。'), {
+        support: html`<${Tooltip} tap=${true} id="wake-lock-requirements" placement="bottom"
+          text=${t('需要 HTTPS 或可信的本地地址（如 localhost），浏览器支持 Screen Wake Lock API，且页面保持在前台。系统设置仍可能限制生效。')}>
+          <button type="button" class="set-hint__help" aria-describedby="wake-lock-requirements">${t('需要环境支持')}<${Icon} name="info" /></button>
+        <//>`,
+      })}</p>
       <div class="set-row">
         <span class="set-row__label">${t('画面质量')}<${MicroLabel}>QUALITY<//></span>
         <div class="set-seg" role="radiogroup">

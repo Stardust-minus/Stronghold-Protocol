@@ -31,6 +31,9 @@ export function renderInfo(u) {
     avatar: u.avatar ?? u.defId ?? null, x: Number(u.x) || 0, y: Number(u.y) || 0, facing: u.facing === -1 ? -1 : 1,
     ...(u.kind === 'op' && u.side === 'ally' && skinFor(u.spine, u.skinId) ? { skinId: u.skinId } : null),
     maxHp: Number(u.maxHp) || 1, boss: !!u.boss, motion: u.motion,
+    // the unit's OWN attack interval (UnitInfo.atkInterval, the sim's `s.interval` with its buffs): the view paces the
+    // attack clip over it (render/attackRate.js) — dropping it here sent every view back to the operator-record guess
+    atkInterval: Number.isFinite(u.atkInterval) && u.atkInterval > 0 ? u.atkInterval : undefined,
     // deploy direction of allies (UnitInfo.dir, DESIGN §3): the model (Back for UP, mirrored for LEFT) and the
     // ground wedge follow it; absent = unknown (legacy frames) → derived from `facing`, no wedge
     dir: typeof u.dir === 'string' ? u.dir : undefined,

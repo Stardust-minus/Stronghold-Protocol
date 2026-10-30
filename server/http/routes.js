@@ -11,8 +11,9 @@
 //     rooms, matches, the room / AI caps in force with the largest per-network use and the refusals (`limits`,
 //     lobby.js limitStats), the hello outcomes and match-seat departures since start (`reconnect`), the cached
 //     `performance` sample — a cluster coordinator adds `performance.phases`,
-//     server/phaseMetrics.js), never cached; `?traffic=1` adds the traffic counters (traffic.js: bytes by category
-//     since the start, WebSocket wire and payload bytes) for a loopback or private-network client only — the
+//     server/phaseMetrics.js; `versions: { enabled, default, hosts }` only when the server enables another official
+//     version than 第二期下半 — DESIGN §35.23), never cached; `?traffic=1` adds the traffic counters (traffic.js: bytes by
+//     category since the start, WebSocket wire and payload bytes) for a loopback or private-network client only — the
 //     maintainer's decision of 2026-10-12: the figures are the host's, so any other client, also one a tunnel or proxy
 //     on this machine forwards, gets the plain report (net.js clientAddress, honouring TRUST_PROXY like the WebSocket
 //     limits);
@@ -48,12 +49,15 @@ function contentSets(lobby) {
  *           lobby: import('../lobby.js').Lobby, content?: { cs: string } | null,
  *           traffic?: ReturnType<typeof import('./traffic.js').createTrafficCounter>,
  *           assetIndex?: ReturnType<typeof import('./assetIndex.js').createAssetIndex> | null,
- *           views?: ReturnType<typeof import('./assetViews.js').createManifestViews> | null }} health
- *   content: the server's vanilla content (server/plugins/identity.js)
+ *           views?: ReturnType<typeof import('./assetViews.js').createManifestViews> | null, trusted?: any,
+ *           versions?: ReturnType<typeof import('../versions.js').createVersionSets> | null,
+ *           versionHosts?: { stats: () => object } | null }} health
+ *   content: the server's vanilla content (server/plugins/identity.js); versions / versionHosts: the official versions
+ *   and their match hosts (DESIGN §35.23)
  * @param {boolean} [withTraffic]
  */
 export function healthReport({ startedAt, network, registry, lobby, content = null, browserBuild, combatPool, trialPool, trialStartupFailed, getHealthMetrics,
-  traffic, assetIndex, views, trusted, persistence = null }, withTraffic = false) {
+  traffic, assetIndex, views, trusted, persistence = null, versions = null, versionHosts = null }, withTraffic = false) {
   const combat = combatPool ? { backend: 'workers', scope: 'server-streaming', ...combatPool.stats() } : { backend: 'inline', workers: 0 };
   const ok = !combatPool || (combat.status === 'ready' && combat.ready > 0);
   const trial = trialPool ? { backend: 'workers', scope: 'bot-rehearsal', ...trialPool.stats() }
@@ -76,6 +80,11 @@ export function healthReport({ startedAt, network, registry, lobby, content = nu
   if (trusted && Object.keys(trusted).length) report.plugins = trusted;
   // checkpoints (SP_REDIS_URL, server/persist/): writes, failures, restores since start — absent when off
   if (persistence) { try { report.persistence = persistence(); } catch { report.persistence = null; } }
+  // the official versions (DESIGN §35.23): only when another one than 第二期下半 is enabled
+  if (versions && versions.nonDefault.length) {
+    report.versions = { enabled: [...versions.ids], default: versions.defaultId,
+      hosts: versionHosts ? versionHosts.stats() : { workers: 0, matches: 0, transport: 'process' } };
+  }
   if (withTraffic && traffic) report.traffic = traffic.snapshot();
   // content-hashed asset URLs (assetIndex.js / assetViews.js): off, building, or ready with how many files and URLs
   if (withTraffic) report.assetHashes = assetIndex ? { ...assetIndex.stats(), views: views ? views.stats() : null } : null;

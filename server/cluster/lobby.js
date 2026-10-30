@@ -7,6 +7,7 @@ import { encode, isErrCode, sendSession } from '../net.js';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, MATCHMAKING_VERSION, modeIdFor } from '../../shared/constants.js';
 import { experimentalOptions, isExperimental, sameExperimental } from '../../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, roomCapacity } from '../../shared/playerCapacity.js';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 const OK = Object.freeze({ ok: true });
 const fail = error => ({ error });
@@ -344,7 +345,14 @@ export class ClusterLobby extends Lobby {
     return result;
   }
 
+  // spectator-to-AI handover reads the match's seats, which live on the game node
+  setAiTakeover(session, msg) { return msg.on === true ? fail(ERR.BAD_TARGET) : super.setAiTakeover(session, msg); }
+
   start(session) {
+    // Another official version's match stays in this process's version hosts (server/match/host/, kind 'version'): a game
+    // node's modules hold 第二期下半's data alone. Its frames ride the control channel, its room keeps no checkpoint.
+    const own = this.roomOf(session);
+    if (own && own.version !== DEFAULT_VERSION) return super.start(session);
     const check = this.inspectManual(session);
     if (check.error) return check;
     const room = check.room, previous = this.manualPending.get(room.code);

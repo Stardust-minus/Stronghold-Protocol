@@ -17,6 +17,10 @@
 
 **房主帮 AI 试算布阵（可选）：**环境变量 `SP_BOT_REHEARSAL` 不设或设为 `server` 时，AI 布阵试算仍在服务器上（默认）。设为 `host` 后，当前房主的浏览器在整备阶段用同源的模块 Worker（`/js/battle/rehearsalWorker.js`，不绘图、不用 `eval`）比较 AI 队友的几种布阵，只把选中的序号发回；服务器直接采用，不再重算。房主掉线、换人、报错、答案不合法或超时（默认 3 秒）时，服务器用同一批候选自己算。整备先结束则取消试算、保留默认布阵，不延长回合。正式战斗和真人「AI 托管」不受影响。开了玩法插件的房间不走这条路：对局在内容组合自己的进程里，仍由服务器试算，避免浏览器用错数据包或绕过脚本额度。没有可用房主时也不会减少服务器负担。浏览器会多算一些，耗时取决于房主设备和局面。这个接口（任务、答案序号、超时、回退到服务器）以后可以换成本机或外部计算，当前版本不会对外发起网络请求。
 
+**外部 AI（目前仅开发分支，不随发布包提供）：**维护者 2026-10-23 决定，在语言模型席位的终极胜率接近 100% 之前，外部 AI 与顾问模式不进入发布包、更新包和 Docker 镜像（§35.66）。发布包里的服务器遇到 `SP_BOT_STRATEGY=external`、`SP_EXTERNAL_AI_*` 或 `SP_LLM_*` 时不崩溃、不连外网，忽略这些设置，用内置 AI，并打一行日志。内置 AI 和 #673 策略框架照常随包提供。从源码运行的开发分支仍可按
+[服主接入指南](EXTERNAL_AI_ZH.md)与 [External AI API](EXTERNAL_AI.md) 配置；本机程序具有服务器权限，第三方服务能看到该席位视图，请自行选择可信服务。
+
+
 ## 1. Windows 小主机：一步步
 
 ### 1.1 安装与首次启动
@@ -338,9 +342,10 @@ volumes:
 | 想知道开服电脑上传了多少流量 | 浏览器打开 `http://localhost:3000/healthz?traffic=1`（换成你的端口）：`traffic.http` 是服务器启动以来各类内容（`assets` 图片和模型、`audio` 音频、`code` 页面和脚本、`data` 游戏数据和素材清单）发出的字节数和请求数（压缩后的实际字节，`notModified` 是只回了「没变」的 304），`traffic.ws` 是 WebSocket 的线上字节（`wireOut` / `wireIn`，压缩后）和压缩前的消息字节（`payloadOut` / `payloadIn`）。数字只在内存里，重启后从 0 开始；只有本机和局域网（含虚拟局域网地址）的访问能看到，公网访问者（包括经隧道 / 反代转发来的）只拿到普通的 `/healthz`。玩家那边：设置 →「问题反馈」复制的诊断里有一行 `traffic:`，是这个页面从打开起下载的字节数（`cached` 是浏览器缓存直接给的，不占流量；`external` 是其他网站，例如 Google 字体） |
 | 断线 | 同盟模拟在对局结束前（所有博士都掉线时为 10 分钟内）、独立模拟 24 小时内（`config.constants.singleReconnectTime`）用同一浏览器重新打开页面，自动回到原座位。同盟掉线的前 2 回合按原阵容自动作战、到时自动准备（不会代为购买），仍未回来则由 AI 托管，重连后自动解除；想主动让 AI 代打请用「离开模拟 → 暂离（AI 托管）」；独立模拟不计时，等你回来 |
 
+
 ## 6. 本地客户端素材（可选）
 
-`public/assets/local/` 和 `data/local-assets.json` 是从本机安装的《明日方舟》客户端里提取的官方素材（`tools/local-extract`，DESIGN §13）：`node tools/setup.mjs` 检测到客户端时会询问是否提取，之后可以用 `node tools/setup.mjs --local` 重新提取，或用 `--game "<…/StreamingAssets/AB/Windows>"` 指定客户端目录。setup 从公开镜像下载的素材不包含这部分，所以在没有客户端的电脑上（例如 Linux 服务器）用源码或精简包部署时不会有它；Releases 的完整包里已经带上了。
+`public/assets/local/` 和 `data/local-assets.json` 是从本机安装的《明日方舟》客户端里提取的官方素材（`tools/local-extract`，DESIGN §13）：`node tools/setup.mjs` 检测到客户端时会询问是否提取，之后可以用 `node tools/setup.mjs --local` 重新提取，或用 `--game "<安装目录或 …/StreamingAssets/AB/Windows>"` 指定客户端目录（安装目录和「Arknights Game」都可以，成功后记住解析出的资源目录）。setup 从公开镜像下载的素材不包含这部分，所以在没有客户端的电脑上（例如 Linux 服务器）用源码或精简包部署时不会有它；Releases 的完整包里已经带上了。
 
 没有本地素材时游戏照常运行，只是下面几样换成替代样式：
 
@@ -465,8 +470,9 @@ Node 22 权限模型不是恶意代码安全边界，且不限制网络。SES/V8
 [Node 22 permissions](https://nodejs.org/docs/latest-v22.x/api/permissions.html)。
 
 整站默认发送 CSP，覆盖主页、开发页面和 `/studio/`；importmap 用精确内容的 SHA-256 放行，页面没有 unsafe-eval。
-字体保留 Google Fonts 域名，样式允许 unsafe-inline，图片允许 data/blob，WebSocket 与同源连接以及 blob Worker
-保留。Pixi 使用无动态求值的 uniform 适配器。服主可设 `SP_CSP=off` 关闭整站策略 [ASSUMED]；界面插件 `/p/` 和
+字体保留 Google Fonts 域名，样式允许 unsafe-inline，图片允许 data/blob，媒体允许 'self' 和 blob:（玩家在本机选的大厅视频背景和
+大厅音乐的时长检查，不加远程来源；反向代理不要拦截 blob: 媒体），WebSocket 与同源连接以及 blob Worker 保留。
+Pixi 使用无动态求值的 uniform 适配器。服主可设 `SP_CSP=off` 关闭整站策略 [ASSUMED]；界面插件 `/p/` 和
 模拟 Worker 自己的 CSP 不随此开关关闭。整站 connect-src 仅保留 'self'，现有同源 WebSocket 仍可连接。反向代理应保留 CSP 响应头，不要额外叠加会阻断 importmap 或 Worker 的策略。
 Worker 响应单独允许 unsafe-eval 供 SES evaluate 使用，并设 `connect-src 'none'`。
 受信任页面脚本从同源 `/cs/<cs16>/scripts/<id>/<entry>` 下发，先校验描述符与响应字节，再原生 import；
@@ -512,7 +518,67 @@ Node 22 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可�
 网络命名空间限制出站与内网访问，并设置 OS 内存/CPU 限额。父进程已对日志、启动错误、发送帧、RPC 回复等 IPC
 做形态和长度复核（DESIGN §32.11），但 Node 在复核前已解码 IPC，不能据此声称免疫内存炸弹或消息洪泛。
 
-## 11. 断点续玩：重启后接着打（可选，Valkey）
+## 11. 官方版本（0.3.2 起）
+
+除了现在的「第二期下半」（`act2autochess`），服务器还提供更早的三个官方版本：第二期上半（`act2autochess@V2_1`）、
+第一期下半（`act1autochess`）、第一期上半（`act1autochess@V1_1`）。数据随发布包和 Docker 镜像一起提供（`data/versions/`）。
+**不设置时四个版本都启用**（注册表顺序，默认版本仍是第二期下半），大厅右上角有「版本」。`npm start`、`scripts/start.sh` 和
+`scripts/start-windows.bat` 不用加参数。`SP_VERSIONS=act2autochess`（或只含第二期下半的列表）收窄到这一个版本，大厅不显示版本按钮。
+房间和消息里省略的版本字段仍表示代码常量 `act2autochess`（DESIGN §35.23.11）。
+
+| 环境变量 | 作用 |
+|---|---|
+| `SP_VERSIONS` | 启用哪些版本。不设置等于 `all`（四个都开）。也可写 `all`，或逗号分隔的版本 id，例如 `SP_VERSIONS=act2autochess,act1autochess`。写错的 id 在启动日志里提示并忽略。`SP_VERSIONS=act2autochess` 只开第二期下半 |
+| `SP_VERSION_DEFAULT` | 没有指定版本时新房间用哪个版本（默认第二期下半）；不在已启用列表里时提示，并改用第一个启用的版本 |
+| `SP_MAX_VERSION_HOSTS` | 版本对局子进程的上限（默认等于启用的非默认版本数；只要还有非默认版本，至少为 1） |
+
+- 启动日志会打印一行实际启用的版本，例如 `[versions] enabled: act2autochess (第二期下半, default), act1autochess (第一期下半)`。
+- 玩家在大厅里自己选版本（浏览器记住）；房间的版本由房主发起切换，房间里所有真人同意才生效（只有一个真人时立即生效）。
+- 非默认版本的对局在单独的子进程里运行（每个版本一个，同一版本的房间共用），和插件子进程分开计数。进程在该版本的第一局开局时才启动，
+  空闲的服务器不会额外拉起进程。载入数据和对局代码后每个约占 100+ MB 内存 [ASSUMED：按插件子进程实测的约 117 MB 估计]，空闲 10 分钟后自动结束；
+  冷启动约 0.2 秒到几秒。小主机内存紧张时用 `SP_VERSIONS` 只启用需要的版本，或用 `SP_MAX_VERSION_HOSTS` 限制同时存在的进程数。
+- 这些房间的 AI 布阵试算总在服务器上算（不会交给房主浏览器），CPU 比默认版本的房间略高。
+- 玩家第一次进入某个版本时，浏览器要下载该版本的数据（约 5 MB，之后缓存）。
+- `http://localhost:3000/healthz` 在启用了非默认版本时多一项 `versions`（不设置时就会有）：启用的版本、默认版本和版本子进程的数量。空闲时 `workers` 为 0。
+- 也可以在 `startServer({ versions: { enabled, default, maxHosts } })` 里设置（优先于环境变量）。
+
+## 12. 容量与调优（服务端配额）
+
+以下配额默认写死在代码里，都能用环境变量覆盖；显式传给 `startServer()` 的选项仍然优先，所以测试完全可控。
+启动时会打一行日志，写明实际生效的值：
+
+```
+[http] limits: rooms 1000 (16/network), matches 8/network, sockets 2000 (64/network)
+```
+
+`0` 在两类配额上含义不同：**全局配额**（`SP_MAX_ROOMS`、`SP_MAX_CONNECTIONS`）取 `0` 是全部拒绝；**按网络配额**
+（带 `_PER_ADDR` 的三个）取 `0` 才是不限制。
+
+| 变量 | 默认 | 含义 |
+| --- | --- | --- |
+| `SP_MAX_ROOMS` | 1000 | 全局房间数上限（`0` = 全部拒绝）。满员后新建房间返回「服务器内部错误」 |
+| `SP_MAX_ROOMS_PER_ADDR` | 16 | 单个客户端网络同时存在的房间数（`0` = 不限） |
+| `SP_MAX_MATCHES_PER_ADDR` | 8 | 单个客户端网络同时进行的对局数（`0` = 不限） |
+| `SP_MAX_CONNECTIONS` | 2000 | 并发 WebSocket 连接数（`0` = 全部拒绝）。全局满员时新连接在升级阶段返回 **503** |
+| `SP_MAX_CONNECTIONS_PER_ADDR` | 64 | 单个客户端网络的并发连接数（`0` = 不限）。单个网络超限时在升级阶段返回 **429** |
+| `SP_MAX_ONLINE` | 0 | 同时在线的**已认证玩家**上限（`0` = 不限）。满了只拒绝新会话（玩家看到「服务器已满」），重新连回来的 token 照常放行（只限在线人数这一层，见下面「重连不会被拒」的两条前提） |
+
+几点运维提醒：
+
+- **503 / 429 只描述连接数配额。** 全局连接数满了是 **503**，只有单个网络连接数超限才是 **429**；两者都在升级阶段就结束，
+  socket 根本建不起来，也不会进入游戏协议。另外两个配额不在这一层，别混着排查：**在线人数**（`SP_MAX_ONLINE`）满了是
+  `hello` 之后才回的一帧「服务器已满」（已经带着 token 在玩的人不受影响），**房间数**上限满了是游戏内的错误回包。
+- 「按网络」的口径来自 `clientAddress()`：只有在 `TRUST_PROXY` 允许时才会信任 `CF-Connecting-IP` / `X-Real-IP` /
+  `X-Forwarded-For`，否则整条 NAT / CGNAT 后面的玩家会共用一个配额 —— 家里直连、没有反代时不要打开 `TRUST_PROXY=1`。
+- 写了非法值（非整数、负数）会**告警并保持默认**，不会因为一个拼写错误把保护悄悄去掉。
+- 「重连不会被拒」只在**在线人数**这一层成立，另外两个前提照样生效：**连接数**上限（`SP_MAX_CONNECTIONS`）满了，
+  带 token 的连接同样在升级阶段被 **503** 挡住；会话还在另一条 socket 上活着时，`noReplace`（或更旧的 `claimAt`）
+  会让这个 `hello` 回「会话已在别处使用」而不是接管，拿不回原来的身份。
+- 房间要等它被真正从大厅移除（`disposeRoom`）才归还配额，玩家掉线不算：大厅断线宽限（`lobbyGraceMs`）和对局中的会话重连窗口是两只独立的时钟。
+  前者管理未开局房间中的断线成员，后者管理对局重连；不能用其中一个期限推断另一个期限或整个房间的销毁时间。
+  排查「明明没人了还开不出房」时，先看房间是否仍存在、是否正在等待断线成员。
+
+## 13. 断点续玩：重启后接着打（可选，Valkey）
 
 默认所有房间、会话和对局只在内存里，重启服务器会让进行中的对局全部结束。设置 `SP_REDIS_URL`
 指向一个 [Valkey](https://valkey.io/)（与 Redis 协议兼容，Redis 也可以）后，服务器会把对局「存档」，

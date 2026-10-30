@@ -530,6 +530,10 @@ describe('real server + real browsers', { skip: !ENABLED && 'set SP_REAL_E2E=1 (
       await host.enter('凯尔希');
       await host.createCoop('险境模拟');
       const room = (await host.waitFor((s) => !!s.room?.code, 'room created')).room;
+      await host.click('.rs-pill__diff');
+      await host.click('.modal__box.proto .diff-card', '险境模拟');
+      await host.click('.modal__box.proto .proto-start', '确认');
+      await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.difficulty === 'NORMAL' && !document.querySelector('.modal__box.proto'), { timeout: 10000 });
       await host.click('button', '添加 AI 队友');
       await guest.open(`?room=${room.code}`);
       await guest.enter('阿米娅');
@@ -560,10 +564,11 @@ describe('real server + real browsers', { skip: !ENABLED && 'set SP_REAL_E2E=1 (
           if (c === guest && !guestSkipped) {
             guestSkipped = true;
             // one skip — only while someone is left to pass to: the last player still to pick sees 跳过 disabled (PR #546)
-            const canSkip = await c.page.evaluate(() => [...document.querySelectorAll('.draft-detail__btns .btn')]
+            // (PR #828: 跳过选择 sits in the step header's turn line, .dturn .draft-skip, on the player's own turn)
+            const canSkip = await c.page.evaluate(() => [...document.querySelectorAll('.dturn .draft-skip')]
               .some((b) => b.textContent.includes('跳过') && !b.disabled));
             if (canSkip) {
-              await c.click('.draft-detail__btns .btn', '跳过');
+              await c.click('.dturn .draft-skip', '跳过');
               c.note('skipped once');
               continue;
             }

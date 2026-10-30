@@ -147,6 +147,7 @@ export class MatchSettle {
     this.ended = true;
     for (const ps of this.order) this._cancelBotPrep(ps);
     this._finalizePendingDeaths();
+    this.externalAI?.close();
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } this.runner = null; }
     this._stopClientCombat();
     this.cancel(this._phaseTimer);

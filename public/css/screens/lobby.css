@@ -1425,30 +1425,36 @@ button.sw-eth:hover { border-color: #fff; }
 
 /* the picture */
 .ps { position: absolute; inset: -.4rem 0 .9rem; width: 100%; height: calc(100% - .5rem); color: var(--d-color); transition: color 400ms; }
-.ps-grid line { stroke: currentColor; stroke-opacity: .13; stroke-width: 1; }
+.ps-grid line { stroke: currentColor; stroke-opacity: .12; stroke-width: 1; }
 .ps-pad polygon { fill: currentColor; fill-opacity: .1; stroke: currentColor; stroke-opacity: .55; stroke-width: 1.2; }
 .ps-pad__edge { fill: none; stroke: currentColor; stroke-opacity: .7; stroke-width: 2; stroke-dasharray: 26 8; }
-.ps-hull { filter: drop-shadow(0 0 6px var(--d-color)); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--d-color) 70%, transparent)); }
+.ps-hull { filter: drop-shadow(0 0 6px var(--d-color)); }
+.ps-ship image { filter: drop-shadow(0 0 10px var(--d-color)); filter: drop-shadow(0 0 10px color-mix(in srgb, var(--d-color) 55%, transparent)); }
 .ps-face { stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; fill: currentColor; }
-.ps-face--top { fill-opacity: .42; } .ps-face--front { fill-opacity: .26; } .ps-face--side { fill-opacity: .16; }
+.ps-face--top { fill-opacity: .42; }
+.ps-face--front { fill-opacity: .26; }
+.ps-face--side { fill-opacity: .16; }
 .ps-seam { stroke: #fff; stroke-opacity: .35; stroke-width: 1; }
 .ps-beacon { fill: #fff; animation: ps-blink 1.6s steps(2) infinite; }
 @keyframes ps-blink { 50% { opacity: .2; } }
-.ps-cable { fill: none; stroke: currentColor; stroke-width: 4; stroke-opacity: .75; }
-.ps-fig { animation: ps-fig 360ms var(--ease-out) backwards; animation-delay: calc(var(--i) * 18ms); }
+.ps-cable { fill: none; stroke: currentColor; stroke-width: 5; stroke-opacity: .7; stroke-linecap: round; }
+.ps-cable__pulse { fill: none; stroke: #fff6d8; stroke-width: 6; stroke-linecap: round; stroke-dasharray: 90 1200; stroke-dashoffset: 90;
+  filter: drop-shadow(0 0 6px var(--d-color)); animation: ps-pulse 2.6s cubic-bezier(.5, 0, .7, 1) 400ms infinite; }
+@keyframes ps-pulse { from { stroke-dashoffset: 90; opacity: 1; } 85% { opacity: 1; } to { stroke-dashoffset: -1000; opacity: 0; } }
+.ps-fig { animation: ps-fig 360ms var(--ease-out) backwards; animation-delay: calc(240ms + var(--i) * 18ms); }
 @keyframes ps-fig { from { opacity: 0; transform: translateY(-6px); } }
 .ps-fig__body, .ps-fig__head { fill: currentColor; fill-opacity: .88; stroke: rgba(0, 0, 0, .45); stroke-width: .8; }
 .ps-fig__head { fill-opacity: 1; }
 .ps-fig__shadow { fill: #000; opacity: .35; }
-.ps-spike polygon { fill: currentColor; fill-opacity: .75; filter: drop-shadow(0 0 4px var(--d-color)); }
+.ps-spike polygon { fill: currentColor; fill-opacity: .75; }
 .ps-spike__x { stroke: currentColor; stroke-width: 2; stroke-opacity: .8; }
 .ps-spike { animation: ps-fig 420ms var(--ease-out) backwards; animation-delay: calc(var(--i) * 60ms + 120ms); }
 .ps-call rect { fill: rgba(0, 0, 0, .55); stroke: currentColor; stroke-width: 1.5; }
 .ps-call line { stroke: currentColor; stroke-width: 1.5; stroke-opacity: .8; }
-.ps-call__icon { fill: currentColor !important; fill-opacity: .25; }
+.ps-call rect.ps-call__icon { fill: currentColor; fill-opacity: .25; }
 .ps-call__man { fill: currentColor; }
-.ps-call text { fill: currentColor; font: 700 11px var(--font-num, monospace); letter-spacing: 2px; }
-.ps-scan { stroke: currentColor; stroke-opacity: .22; stroke-width: 2; animation: ps-scan 7s linear infinite; }
+.ps-call { animation: ps-fig 420ms var(--ease-out) 420ms backwards; }
+.ps-scan { stroke: currentColor; stroke-opacity: .2; stroke-width: 2; animation: ps-scan 7s linear infinite; }
 @keyframes ps-scan { from { transform: translateY(40px); } to { transform: translateY(620px); } }
 
 .proto-brief { position: absolute; left: .1rem; bottom: .1rem; max-width: min(6rem, 92%); padding: .12rem .2rem .14rem; background: linear-gradient(90deg, rgba(0, 0, 0, .7), rgba(0, 0, 0, .2));
@@ -1541,8 +1547,9 @@ button.sw-eth:hover { border-color: #fff; }
   .proto-fp { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .proto, .ps-fig, .ps-spike, .pcard.is-on .pcard__stamp { animation: none; }
+  .proto, .ps, .ps-fig, .ps-spike, .ps-call, .pcard.is-on .pcard__stamp { animation: none; }
   .ps-scan, .ps-beacon { animation: none; }
+  .ps-cable__pulse { display: none; }
 }
 
 /* ==========================================================================================
@@ -2755,4 +2762,56 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
   .hub-topbar { height: auto; row-gap: 6px; padding-block: 6px; }
   .hub-topbar .topbar__left { flex: 1 1 100%; flex-wrap: wrap; row-gap: 6px; }
   .hub-topbar .topbar__left > .topbar__sep { display: none; }
+}
+
+/* ---- official versions (DESIGN §35.23): the version under the hub's title, the cards' wait while a version's data loads;
+   in the room the version pill beside the difficulty, ⚙'s 版本 row and the banner. The name ends in an ellipsis in the
+   pill (a phone, a long language) ---- */
+.hub-center__ver { position: relative; margin-top: .04rem; font-size: calc(.22 * var(--t)); font-weight: 700; letter-spacing: .08em; color: #9fd3ff; text-shadow: 0 1px .08rem rgba(0, 0, 0, .85); overflow-wrap: anywhere; }
+.proto-list__wait { display: flex; align-items: center; gap: .08rem; margin: 0; color: var(--text-lo); font-size: calc(.15 * var(--t)); }
+.proto-list__wait.is-failed { flex-wrap: wrap; color: var(--amber); }
+.proto-list__wait.is-failed .icon { flex: none; width: 1.1em; height: 1.1em; }
+.rs-clock__ver { margin-left: .1rem; }
+/* The tooltip must carry the pill's height: an auto-height wrapper makes its child's 78% resolve to auto. */
+.rs-pill__version { display: inline-flex; height: 100%; min-width: 0; align-items: center; }
+.rs-pill__ver {
+  display: inline-flex; align-items: center; gap: .08rem; height: 78%; padding: 0 .2rem; min-width: 0; max-width: 2.6rem;
+  font: inherit; font-size: calc(.2 * var(--t)); font-weight: 800; white-space: nowrap; border: 0; border-radius: 999px;
+  color: #cfe9ff; background: rgba(120, 196, 255, .12);
+}
+.rs-pill__ver .icon { flex: none; width: 1.2em; height: 1.2em; color: #9fd3ff; }
+.rs-pill__vername { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rs-pill__ver:disabled { cursor: default; opacity: .7; }
+.rs-pill__ver.is-ro { cursor: help; }
+.rs-pill__ver:hover:not(:disabled), .rs-pill__ver:focus-visible { filter: brightness(1.2); }
+.rs-opts__row { display: flex; align-items: center; gap: .12rem; font-size: calc(.14 * var(--t)); }
+.rs-opts__k { color: var(--text-lo); }
+.rs-opts__diff {
+  display: inline-flex; align-items: center; gap: .06rem; min-height: .36rem; padding: .02rem .14rem;
+  font: inherit; font-size: calc(.15 * var(--t)); font-weight: 700; white-space: nowrap;
+  color: var(--d-color); background: rgba(0, 0, 0, .3); border: 1px solid var(--line-2);
+}
+.rs-opts__diff .icon { width: 1.1em; height: 1.1em; }
+.rs-opts__diff em { margin-left: .06rem; font-style: normal; color: var(--text-hi); text-decoration: underline; text-underline-offset: 2px; }
+.rs-opts__diff:hover:not(:disabled), .rs-opts__diff:focus-visible { border-color: var(--d-color); }
+.rs-opts__diff:disabled { cursor: default; opacity: .6; }
+.rs-opts__ver { color: #cfe9ff; }
+.rs-verbanner {
+  position: relative; flex: none; display: flex; align-items: center; justify-content: center; gap: .08rem;
+  margin: 0 .6rem .1rem; padding: .06rem .16rem; color: var(--text-md); font-size: calc(.14 * var(--t)); text-align: center; overflow-wrap: anywhere;
+  background: rgba(120, 196, 255, .08); border: 1px solid rgba(120, 196, 255, .35);
+}
+.rs-verbanner .icon { flex: none; width: 1.1em; height: 1.1em; color: #9fd3ff; }
+/* a short screen (a phone in landscape): the seats and the footer keep the height — the strip floats over the seats while
+   the vote runs (it wraps and scrolls inside), the banner gives its line up (the pill's tooltip says it) */
+@media (max-height: 520px) {
+  .rs-verbanner { display: none; }
+  .rs .vervote {
+    position: fixed; left: 50%; top: 50%; z-index: 30; width: min(calc(100vw - 24px), 9rem); max-height: 70vh; max-height: 70svh; margin: 0; overflow-y: auto;
+    transform: translate(-50%, -50%); box-shadow: 0 .1rem .5rem rgba(0, 0, 0, .8);
+    /* too tall for the screen: the text scrolls, the buttons stay in view below it (like the floating strip's) */
+    flex-direction: column; flex-wrap: nowrap; align-items: stretch;
+  }
+  .rs .vervote .vervote__text { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  .rs .vervote .vervote__actions { flex: none; }
 }

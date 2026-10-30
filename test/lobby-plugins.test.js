@@ -665,6 +665,20 @@ describe('the server owner\'s policy and the content-set limit (P1c)', () => {
     assert.equal(st.content.vanilla, false);
   });
 
+  test('limits.maxSets and room.create: the set of the room its creator leaves (its only holder) is freed for the default set', async () => {
+    const s = await serverWith({ limits: { maxSets: 1 }, default: ['one'] });
+    const a = await player(s, 'A');
+    assert.equal((await a.request({ t: 'room.create', mode: 'solo', difficulty: 'NORMAL' }, BUILD_MS)).t, 'ok');
+    await a.waitFor('room.state', (x) => x.content?.plugins?.[0]?.id === 'one', BUILD_MS);
+    // the room switches to another set (freed by the change): the server is at its limit with a set the default is not
+    assert.equal((await a.request({ t: 'room.setPlugins', plugins: [{ id: 'two' }] }, BUILD_MS)).t, 'ok');
+    const old = await a.waitFor('room.state', (x) => x.content?.plugins?.[0]?.id === 'two', BUILD_MS);
+    // a new room: the old one goes with the create, so the default set fits (not PLUGIN_BUSY → the original game)
+    assert.equal((await a.request({ t: 'room.create', mode: 'solo', difficulty: 'NORMAL' }, BUILD_MS)).t, 'ok');
+    const st = await a.waitFor('room.state', (x) => x.code !== old.code, BUILD_MS);
+    assert.deepEqual([st.content.vanilla, st.content.plugins.map((p) => p.id)], [false, ['one']]);
+  });
+
   test('rooms: fixed — every room starts with the default set and its host cannot change it; allow — only the listed plugins', async () => {
     const s = await serverWith({ rooms: 'fixed', default: ['one'] });
     const a = await player(s, 'A');

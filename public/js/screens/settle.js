@@ -17,19 +17,21 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, DifficultyTag } from '../ui/components.js';
-import { useGameData, Img, Sprite, PlayerAvatar, BondGlyph, BandIcon } from '../ui/gameComponents.js';
+import { useGameData, Img, Sprite, PromotionIcon, PlayerAvatar, BondGlyph, BandIcon } from '../ui/gameComponents.js';
 import { normalizeResult, diyRecordFor, cardStandIn, standInForText } from '../ui/gameLogic.js';
 import { data } from '../data.js';
-import { chessPortraitUrl, chessAvatarUrl, itemIconUrl, enemyIconUrl, titleIconUrl } from '../ui/assetUrls.js';
+import { itemIconUrl, enemyIconUrl, titleIconUrl } from '../ui/assetUrls.js';
 import { store, useStore, emptyMatch } from '../store.js';
 import { audio } from '../audio.js';
 import { sentText } from '../ui/lang.js';
 import { TrophyBadge } from '../ui/trophies.js';
 import { reducedMotion } from '../ui/device.js';
-import { recordId, selfRowOf, peekStatsRecords } from '../ui/stats.js';
+import { recordId, selfRowOf, peekStatsRecords, recordsOfSeason } from '../ui/stats.js';
 import { NameCardLayer } from '../ui/namecards.js';
 import { useMyCard } from '../ui/playerCard.js';
 import { appearanceRecord } from '../ui/skinAssets.js';
+import { VersionTag } from '../ui/pluginTag.js';
+import { shownVersion, seasonOf } from '../versions.js';
 import { ResultView, resultBonds } from './result.js';
 import { t } from '../../../shared/i18n.js';
 
@@ -56,10 +58,12 @@ export function levelOf(total) {
  * it left out). A match's experience is the settlement's per-player `reward` (server/match/results.js rewardFor: the
  * rounds passed × the difficulty and mode factors). Returns the totals before and after this match and my trophies so far.
  * @param {any[]} records
- * @param {{ id?: string|null, exp?: number, trophies?: number, at?: number }} cur
+ * `season` (DESIGN §35.23): only the records of that activity count (null: every record).
+ * @param {{ id?: string|null, exp?: number, trophies?: number, at?: number, season?: string|null }} cur
  */
-export function levelProgress(records, { id = null, exp = 0, trophies = 0, at = Date.now() } = {}) {
+export function levelProgress(records, { id = null, exp = 0, trophies = 0, at = Date.now(), season = null } = {}) {
   const int = (v) => Math.max(0, Math.round(Number(v) || 0));
+  records = recordsOfSeason(records, season);
   let total = 0;
   let cups = 0;
   for (const rec of Array.isArray(records) ? records : []) {
@@ -72,13 +76,11 @@ export function levelProgress(records, { id = null, exp = 0, trophies = 0, at = 
   return { gain, before: total, after: total + gain, trophies: cups + int(trophies) };
 }
 
-// The operator's elite phase and level on the board, by tier, plain / elite (research 01-core-data charPriceByTier):
-// tiers I and II field E1 operators (55 / 60) and elite E2 ones (50 / 55); III–VI E2 at 1, elite at 60.
-const OP_LEVEL = { 1: [[1, 55], [2, 50]], 2: [[1, 60], [2, 55]] };
-/** @returns {{ phase: number, level: number }} */
-export function opLevel(tier, golden) {
-  const [phase, level] = (OP_LEVEL[tier] || [[2, 1], [2, 60]])[golden ? 1 : 0];
-  return { phase, level };
+// ---- small facts --------------------------------------------------------------------------------------------------------
+
+/** Read the resolved chess / backup form, including the active version or plugin's status (#811). */
+export function opLevel(rec) {
+  return { phase: rec?.status?.phase, level: rec?.status?.level ?? '—' };
 }
 
 /** The ace of a lineup — the team card's art: the highest tier, elite first, the earliest on the board. */
@@ -161,14 +163,6 @@ function Logo() {
     <span class="slogo__txt"><svg viewBox="0 0 40 30" class="slogo__knot"><path d="M8 4h10v8H8zM22 4h10v8H22zM8 18h10v8H8zM22 18h10v8H22z" fill="none" stroke="currentColor" stroke-width="2.4" /><path d="M2 2v26M38 2v26" stroke="currentColor" stroke-width="2" /></svg>
       <b>STRONGHOLD<br />PROTOCOL</b></span>
   </div>`;
-}
-
-/** Elite phase emblem: one chevron for E1, two for E2. */
-function EliteMark({ phase }) {
-  if (!(phase > 0)) return null;
-  return html`<svg class="selite" viewBox="0 0 20 20" aria-hidden="true"><path d=${phase >= 2
-    ? 'M10 2 17 8 14.5 10.5 10 6.5 5.5 10.5 3 8zM10 9.5 17 15.5 14.5 18 10 14 5.5 18 3 15.5z'
-    : 'M10 5 17 12 14.5 14.5 10 10 5.5 14.5 3 12z'} /></svg>`;
 }
 
 const CLOCK = 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2.2a7.8 7.8 0 1 0 0 15.6 7.8 7.8 0 0 0 0-15.6zM11 6.5h2v5l3.6 2.1-1 1.7L11 12.6z';
@@ -284,19 +278,17 @@ function SettleIntro({ players, myId, lose, onDone }) {
 
 /** One unit of a lineup as the cards draw it (自选 pick / 补位 stand-in resolved as on the report's thumbnails). */
 function unitView(u, gd) {
-  const m = gd.m;
   const chess = u.kind === 'token' ? null : gd.chess(u.id);
   const dr = u.diy && chess ? diyRecordFor(chess, u.diy, { chess: data.get('chess'), backups: data.get('backups') }) : null;
   const si = !dr && chess ? cardStandIn(chess, { unit: u, backups: gd.backups }) : null;
   const rec = appearanceRecord(dr || si || chess, u.skinId);
   const tier = Math.max(0, Math.min(6, Number(u.tier) || Number(rec?.tier) || 0));
   return {
+    rec,
     si,
     tier,
     golden: !!(u.golden ?? rec?.isGolden),
     name: rec?.name || '',
-    art: rec ? chessPortraitUrl(m, rec) : null,
-    avatar: rec ? chessAvatarUrl(m, rec) : null,
     title: si ? t('{name}（{note}）', { name: si.name, note: standInForText(chess.name) }) : (rec?.name || ''),
     items: (Array.isArray(u.items) ? u.items : []).map((id) => data.lookup('items', id)).filter(Boolean),
   };
@@ -315,12 +307,12 @@ export function OpCard({ u, gd, i }) {
     </div>`;
   }
   const v = unitView(u, gd);
-  const lv = opLevel(v.tier, v.golden);
   const src = v.art || v.avatar;
+  const lv = opLevel(v.rec);
   return html`<div class=${cx('sop', v.tier && `sop--t${v.tier}`, v.golden && 'is-golden')} style=${`--i:${i}`} title=${v.title}>
     <span class="sop__art"><${Img} src=${src} class=${v.art ? 'is-portrait' : 'is-avatar'} fallback=${html`<span class="sop__glyph">${[...(v.name || '?')][0]}</span>`} /></span>
     ${v.tier ? html`<b class="sop__tier">${ROMAN[v.tier]}</b>` : null}
-    <span class="sop__lv"><${EliteMark} phase=${lv.phase} /><b class="num">${lv.level}</b></span>
+    <span class="sop__lv"><${PromotionIcon} m=${gd.m} phase=${lv.phase} class="selite" /><b class="num">${lv.level}</b></span>
     ${v.si ? html`<span class="sop__si" data-standin=${v.si.charId}>${t('替补')}</span>` : null}
     <span class="sop__slots">${[0, 1].map((k) => {
       const it = v.items[k];
@@ -370,7 +362,7 @@ function LevelStrip({ prog }) {
   </div>`;
 }
 
-function SelfPage({ r, raw, self, gd, prog, seed, onNext }) {
+function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null }) {
   const cleared = rowCleared(raw, self, r.victory);
   const [leaving, setLeaving] = useState(false);
   const nextRef = useRef(null);
@@ -398,7 +390,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext }) {
       <div class="smap__fx" aria-hidden="true"></div>
       <${Logo} />
       <div class="sself__band">${self.bandId ? html`<${BandIcon} bandId=${self.bandId} size="lg" />` : html`<${PlayerAvatar} player=${self} self=${true} />`}<i aria-hidden="true"></i></div>
-      <div class="sself__mode"><${ModePill} r=${r} /></div>
+      <div class="sself__mode"><${ModePill} r=${r} /><${VersionTag} version=${version} class="sself__vertag" /></div>
       <h1 class="sself__title">${cleared ? t('模拟完成') : t('模拟中断')}</h1>
       <div class="sself__rounds"><span>${t('通过回合')}</span><b class="num">${rounds}</b></div>
       ${medals.length ? html`<div class="sself__medals">${medals.map((m, i) => html`<span key=${m.kind} class=${cx('smedal', `smedal--${m.kind}`, m.done ? 'is-done' : 'is-miss')} style=${`--i:${i}`}
@@ -415,8 +407,8 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext }) {
         </div>
       </div>
       <div class="sops">
-        <div class="sops__row sops__row--1">${slots.slice(0, 5).map((u, i) => html`<${OpCard} key=${i} u=${u} gd=${gd} i=${i} />`)}</div>
-        <div class="sops__row sops__row--2">${slots.slice(5).map((u, i) => html`<${OpCard} key=${i} u=${u} gd=${gd} i=${i + 5} />`)}</div>
+        <div class="sops__row sops__row--1">${slots.slice(0, 5).map((u, i) => html`<${OpCard} key=${i} u=${u} gd=${gd} ownerId=${self.playerId} i=${i} />`)}</div>
+        <div class="sops__row sops__row--2">${slots.slice(5).map((u, i) => html`<${OpCard} key=${i} u=${u} gd=${gd} ownerId=${self.playerId} i=${i + 5} />`)}</div>
       </div>
       <${BondBar} bonds=${self.bonds} gd=${gd} />
       <div class="settle__barbg" aria-hidden="true"></div>
@@ -482,7 +474,7 @@ function TeamCard({ p, i, gd, self, victory, raw }) {
   </article>`;
 }
 
-function TeamPage({ r, res, gd, myId, at, backLabel, onBack, onDetail }) {
+function TeamPage({ r, res, gd, myId, at, backLabel, onBack, onDetail, version = null }) {
   const rounds = useCountUp(r.roundsPassed, { ms: 900, delay: 450 });
   const backRef = useRef(null);
   const rowRef = useRef(null);
@@ -517,7 +509,7 @@ function TeamPage({ r, res, gd, myId, at, backLabel, onBack, onDetail }) {
           : html`<p class="steam__none">${t('暂无结算数据')}</p>`}
       </div>
       <div class="settle__barbg steam__barbg" aria-hidden="true"></div>
-      <div class="steam__outcome"><${ModePill} r=${r} /><b class="steam__title">${r.victory ? t('模拟完成') : t('模拟中断')}</b></div>
+      <div class="steam__outcome"><${ModePill} r=${r} /><${VersionTag} version=${version} /><b class="steam__title">${r.victory ? t('模拟完成') : t('模拟中断')}</b></div>
       <div class="steam__rounds"><span>${t('同盟通过回合')}</span><b class="num">${rounds}</b></div>
       <div class="steam__when">
         <span class="steam__row"><${SvgPath} d=${CLOCK} />${fmtDuration(r.durationMs)}</span>
@@ -537,7 +529,7 @@ function TeamPage({ r, res, gd, myId, at, backLabel, onBack, onDetail }) {
  * The settlement of one m.result: intro → 个人战报 → 同盟; 数据详情 opens the full report over it.
  * @param {{ res: any, pub?: any, myId?: string|null, backLabel: string, onBack: () => void }} props
  */
-export function SettleFlow({ res, pub = null, myId = null, backLabel, onBack }) {
+export function SettleFlow({ res, pub = null, myId = null, backLabel, onBack, version = null }) {
   const gd = useGameData();
   const r = normalizeResult(res, pub);
   const self = r.players.find((p) => p.playerId === myId) || null;
@@ -552,17 +544,17 @@ export function SettleFlow({ res, pub = null, myId = null, backLabel, onBack }) 
     const id = recordId(res, myId);
     const own = records.find((x) => x && x.id === id);
     const at = own?.t || Date.now();
-    return { at, prog: self ? levelProgress(records, { id, exp: self.reward, trophies: self.trophies, at }) : null };
+    return { at, prog: self ? levelProgress(records, { id, exp: self.reward, trophies: self.trophies, at, season: seasonOf(version) }) : null };
   }, []);
   const rootRef = useRef(null);
   useStageFit(rootRef);
   const lose = self ? !rowCleared(rawSelf, self, r.victory) : !r.victory;
   return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', `settle--${page}`)} data-testid="settle">
     ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${lose} onDone=${() => setPage('self')} />` : null}
-    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${ctx.prog} seed=${res?.seed} onNext=${() => setPage('team')} />` : null}
-    ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} />` : null}
+    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${ctx.prog} seed=${res?.seed} version=${version} onNext=${() => setPage('team')} />` : null}
+    ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} />` : null}
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
-      <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
+      <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} version=${version} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
   </div>`;
 }
 
@@ -572,6 +564,8 @@ export function ResultScreen() {
   const pub = useStore((s) => s.match.public);
   const myId = useStore((s) => s.me.playerId);
   const hasRoom = useStore((s) => !!s.room);
+  // the official version the match played (DESIGN §35.23): the room's, or the last room's once it is gone
+  const version = useStore(shownVersion);
   const back = () => store.set({ match: emptyMatch() });
-  return html`<${SettleFlow} res=${res} pub=${pub} myId=${myId} backLabel=${hasRoom ? t('返回同盟') : t('返回大厅')} onBack=${back} />`;
+  return html`<${SettleFlow} res=${res} pub=${pub} myId=${myId} version=${version} backLabel=${hasRoom ? t('返回同盟') : t('返回大厅')} onBack=${back} />`;
 }

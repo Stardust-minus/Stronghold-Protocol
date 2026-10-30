@@ -1098,10 +1098,11 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
             guestSkipped = true;
             // one skip — only while someone is left to pass to: the last player still to pick sees 跳过 disabled
             // (PR #546), which a random draft order gives the guest about one time in three
-            const canSkip = await c.page.evaluate(() => [...document.querySelectorAll('.draft-detail__btns .btn')]
+            // (PR #828: 跳过选择 sits in the step header's turn line, .dturn .draft-skip, on the player's own turn)
+            const canSkip = await c.page.evaluate(() => [...document.querySelectorAll('.dturn .draft-skip')]
               .some((b) => b.textContent.includes('跳过') && !b.disabled));
             if (canSkip) {
-              await c.click('.draft-detail__btns .btn', '跳过');
+              await c.click('.dturn .draft-skip', '跳过');
               c.note('band draft: skipped once');
               continue;
             }

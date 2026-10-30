@@ -12,6 +12,12 @@
 // friends, the cross-server room directory and public room list, 私密房间, 无限火力. Maintenance: the server's
 // presence.state `maintenance` pauses new matches (the entries say so); an announcement's `banner` line is shown above
 // the entries ahead of time.
+// Official versions (DESIGN §35.23, M1; versions.js): with welcome.versions the top bar shows the version chip (ui/
+// versionPicker.js VersionSwitch — this browser's choice, its data loaded and checked by content.js), the title names a
+// version other than 第二期下半, 选择模拟协议 offers the difficulties of the version shown (its config's modes: 第一期 and
+// 第二期上半 have no 终极; the remembered difficulty, when it is not offered, shows as the server's fallback — the highest
+// offered below it — and stays remembered until the player picks one; the cards wait while the version loads), and
+// 创建同盟 / 独立模拟 create the room in that version (room.create `version`). 多人匹配 stays on 第二期下半.
 //
 // Difficulty descriptions come from data/config.json `modes[modeId]` when present, else from the
 // official act2autochess `modeDataDict` texts embedded below (desc + effectDescList), so the
@@ -33,6 +39,9 @@ import { AnnouncementBoard, announcementRevision, announcementDismissed, dismiss
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { LobbyFeedback } from '../ui/lobbyFeedback.js';
 import { SiteBoards } from '../ui/siteBoards.js';
+import { VersionSwitch } from '../ui/versionPicker.js';
+import { contentSet, retryContentSet } from '../content.js';
+import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, soloTimedOf, versionLabel } from '../versions.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { openStats } from './stats.js';
@@ -468,7 +477,8 @@ function MatchRules() {
  * Comes up from black over the hub (`chained`: straight after 选择同盟方式, already black) and fades back out
  * (ui/transitions.js); the picture is redrawn for each difficulty.
  */
-function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, onClose, online, maint, busy, queue, onCreate, onQueue, chained = false }) {
+function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, onClose, online, maint, busy, queue, onCreate, onQueue, chained = false,
+  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null }) {
   const [leaving, leave] = useLeave(onClose);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
@@ -522,13 +532,21 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
         </div>
       </section>
       <section class="proto-side">
-        <div class="proto-list" role="radiogroup" aria-label=${t('模拟难度')}>
-          ${DIFFICULTIES.map((x) => html`<${ProtoCard} key=${x} roomMode=${roomMode} difficulty=${x} selected=${d === x} onSelect=${onDifficulty} disabled=${working} />`)}
+        <div class="proto-list" role="radiogroup" aria-label=${t('模拟难度')} aria-busy=${loading ? 'true' : 'false'}>
+          ${failed ? html`<p class="proto-list__wait is-failed" data-testid="proto-failed"><${Icon} name="warn" />${t('版本数据校验失败')}
+              <${Button} size="sm" variant="secondary" data-testid="proto-retry" onClick=${retryContentSet}>${t('重试')}<//></p>`
+            : loading ? html`<p class="proto-list__wait" data-testid="proto-loading"><${Spinner} size="sm" />${t('正在载入版本数据…')}</p>` : null}
+          ${difficulties.map((x) => html`<${ProtoCard} key=${x} roomMode=${roomMode} difficulty=${x} selected=${d === x} onSelect=${onDifficulty} disabled=${working || loading} />`)}
         </div>
         <div class="proto-foot">
           ${match ? html`<div class="proto-opts"><span class="proto-mode-chip"><${Icon} name="search" />${t('多人匹配')}</span><${MatchRules} /></div>` : null}
+          ${soloTime ? html`<label class="create-box__test" data-testid="solo-unlimited">
+            <input type="checkbox" role="switch" checked=${soloTime.on} onChange=${(e) => soloTime.onToggle(e.target.checked)} />
+            <span>${t('不限时')}</span>
+            <em class="t-dim">${t('关闭本局休整与机变的计时。官方为休整期每轮 300 秒、机变 150 秒。')}</em>
+          </label>` : null}
           <p class="proto-hint">${hint}</p>
-          <button type="button" class="proto-start" disabled=${!online || maint || working} onClick=${match ? onQueue : onCreate}>
+          <button type="button" class="proto-start" disabled=${!online || maint || working || loading} onClick=${match ? onQueue : onCreate}>
             <span class="proto-start__mark" aria-hidden="true"><span class="proto-start__rook"><i>[</i><${Icon} name="rook" /><i>]</i></span><small>STRONGHOLD<br />PROTOCOL</small></span>
             <span class="proto-start__label">${working ? html`<${Spinner} size="sm" />` : null}${label}</span>
             <span class="proto-start__deco" aria-hidden="true"></span>
@@ -659,6 +677,7 @@ export function LobbyScreen() {
   const [announcements, setAnnouncements] = useState({ value: null, revision: null });
   const noticeStatus = data.status('announcements'), noticeValue = data.get('announcements');
   const [recent] = useState(recentRooms);
+  const [soloFree, setSoloFree] = useState(() => loadPref('lobby.soloUnlimited', false) === true);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -673,6 +692,20 @@ export function LobbyScreen() {
   const [bgOpen, setBgOpen] = useState(false);
   const [sweepOpen, setSweepOpen] = useState(false);
   const [achOpen, setAchOpen] = useState(false);
+  // official versions (DESIGN §35.23): the lobby's version, the difficulties it offers and the one shown — the remembered
+  // one, or the server's fallback when the version lacks it (the pref is only overwritten when the player picks)
+  const versions = useStore((s) => s.versions);
+  const version = useStore(lobbyVersion);
+  const versionLoading = useStore((c) => version !== DEFAULT_VERSION && (c.kind !== 'version' || c.version !== version || c.status !== 'ready'), Object.is, contentSet);
+  // its set failed to load or its check (the chip's 重试 sits under the dialog): 选择模拟协议 says so and offers 重试 too
+  const versionFailed = useStore((c) => version !== DEFAULT_VERSION && c.kind === 'version' && c.version === version && c.status === 'failed', Object.is, contentSet);
+  const cfg = getConfig();
+  // null while that version's data is not on screen: the dialog hides the switch
+  const soloTimed = soloTimedOf(versionLoading ? null : cfg, version);
+  const solo = offeredDifficulties(versionLoading ? null : cfg, 'solo');
+  const coop = offeredDifficulties(versionLoading ? null : cfg, 'coop');
+  const shownSolo = fallbackDifficulty(solo, difficulty);
+  const shownCoop = fallbackDifficulty(coop, difficulty);
 
   useEffect(() => {
     // Optional low-frequency checks exist only while the lobby is mounted, never during a match.
@@ -702,6 +735,7 @@ export function LobbyScreen() {
   const unread = !!announcements.revision && !announcementDismissed(announcements.revision);
 
   const pickDifficulty = (d) => { setDifficulty(d); savePref('lobby.difficulty', d); };
+  const setSoloFreePref = (on) => { const next = on === true; setSoloFree(next); savePref('lobby.soloUnlimited', next); };
 
   const run = async (kind, fn) => {
     if (inFlight.current) return;
@@ -718,7 +752,11 @@ export function LobbyScreen() {
   const [sheetChained, setSheetChained] = useState(false); // opened from 选择同盟方式: no darkening of the hub between
   const [allyOpen, setAllyOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
-  const create = (roomMode) => run('create', () => net.request('room.create', { mode: roomMode, difficulty }));
+  // `version`: the lobby's, only when welcome.versions is present (protocol §4; omitted when the server offers 第二期下半 alone)
+  const create = (roomMode) => run('create', () => net.request('room.create', {
+    mode: roomMode, difficulty: roomMode === 'solo' ? shownSolo : shownCoop, ...(versions ? { version } : {}),
+    ...(roomMode === 'solo' && soloFree && soloTimed === true ? { soloUnlimited: true } : {}),
+  }));
   const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty }));
   // an offer while the hub shows: 选择模拟协议 comes up with 确认入场 (the 30-second window must not go unseen)
   useEffect(() => { if (queue?.state === 'offered' && sheet !== 'match') { setAllyOpen(false); setSheetChained(false); setSheet('match'); } }, [queue?.state]);
@@ -779,6 +817,7 @@ export function LobbyScreen() {
         <span class="hub-online" title=${t('按已连接的玩家会话计数，不含机器人、离线保留局和未进入的连接；不等于去重自然人数。')}>
           <span class="online-pill__dot"></span>${Number.isInteger(presence?.online) && conn.status === 'online'
             ? html`<span class="num">${presence.online}</span><span class="online-word">${t('名博士在线')}</span>` : html`<span>${t('在线人数 —')}</span>`}</span>
+        <${VersionSwitch} />
         <${ResumeMatchButton} />
         <${Button} variant="secondary" size="sm" square=${true} icon="edit" class="me-rename" onClick=${rename} title=${t('修改博士代号')} aria-label=${t('修改博士代号')} />
         <${MeChip} me=${me} />
@@ -790,6 +829,7 @@ export function LobbyScreen() {
         <div class="hub-center__mark"><${HubRadar} bg=${bg} /><${Emblem} /></div>
         <div class="hub-center__en">STRONGHOLD PROTOCOL <b>ALLIANCE</b></div>
         <h1 class="hub-center__title">${t('卫戍协议：盟约')}</h1>
+        ${version !== DEFAULT_VERSION ? html`<div class="hub-center__ver" data-testid="hub-version">· ${versionLabel(version)}</div>` : null}
       </div>
 
       <aside class="hub-side">
@@ -827,12 +867,14 @@ export function LobbyScreen() {
       </section>
     </main>
 
-    ${sheet ? html`<${ProtocolSelect} card=${sheetCard} purpose=${sheet === 'match' ? 'match' : 'create'} difficulty=${difficulty}
+    ${sheet ? html`<${ProtocolSelect} card=${sheetCard} purpose=${sheet === 'match' ? 'match' : 'create'} difficulty=${sheet === 'match' ? difficulty : shownSolo}
       onDifficulty=${pickDifficulty} onClose=${() => setSheet(null)} online=${online} maint=${maint} busy=${busy} queue=${queue}
+      difficulties=${sheet === 'match' ? DIFFICULTIES : solo} loading=${sheet !== 'match' && versionLoading} failed=${sheet !== 'match' && versionFailed}
+      soloTime=${sheet !== 'match' && soloTimed === true ? { on: soloFree, onToggle: setSoloFreePref } : null}
       onCreate=${() => create('solo')} onQueue=${queueMatch} chained=${sheetChained} />` : null}
 
     ${allyOpen ? html`<${AllianceSelect} onClose=${() => setAllyOpen(false)} code=${code} onCode=${(v) => setCode(normalizeCode(v))} codeOk=${codeOk}
-      recent=${recent} online=${online} maint=${maint} busy=${busy} queued=${queued} difficulty=${difficulty}
+      recent=${recent} online=${online} maint=${maint} busy=${busy} queued=${queued} difficulty=${shownCoop}
       onCreate=${() => create('coop')} onJoin=${() => join()} onSpectate=${() => spectate()} onMatch=${openMatch} />` : null}
 
     <${HubDialog} open=${joinOpen} micro="JOIN WITH ALLIANCE KEY" title=${t('密钥加入')} onClose=${() => setJoinOpen(false)}>

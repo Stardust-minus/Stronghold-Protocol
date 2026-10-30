@@ -2,9 +2,13 @@
 // (room.card; room.state seats[].card.charId), else one of the 5★/6★ operators chosen by the player id, the same on
 // every client. Its art (`look`, feedback #9 / #24): '' the 精二 art, 'e1' the 精一 art, or a skin of that operator
 // (lookUrl, lookOptions); the 头像 the same (`avatarLook`).
+// The pick's store and the seat helpers below it (PR #643 split 6) stay for ui/loadoutSync.js installCardSync and for
+// screens that read a plain charId; this fork's seat cards use seatPortrait and the richer seats[].card.
 import { chessPortraitUrl } from './assetUrls.js';
 import { data } from '../data.js';
 import { N_ } from '../../../shared/i18n.js';
+import { createStore, loadPref, savePref } from '../store.js';
+import { ownerSkin } from './skins.js';
 
 /** FNV-1a of a string (the portrait pick: the same operator for a player on every client). */
 function hash32(s) {
@@ -15,6 +19,28 @@ function hash32(s) {
 
 /** 名片干员: the player's own pick (localStorage; sent as room.card where the server knows it). */
 export const CARD_PREF = 'room.card';
+
+/** The store field of the pick (ui/loadoutSync.js installCardSync `key`) and its sync state field. */
+export const CARD_KEY = 'card';
+export const CARD_SYNC_KEY = 'cardSync';
+
+/** A stored pick as the store holds it: a charId string, '' for none (默认). */
+export function parseStoredCard(v) {
+  return typeof v === 'string' ? v : '';
+}
+
+/** This browser's pick and its sync state (survives room / match resets like ui/skins.js' store). */
+export const cardStore = createStore({ [CARD_KEY]: parseStoredCard(loadPref(CARD_PREF, '')), [CARD_SYNC_KEY]: 'idle' });
+
+/**
+ * Pick the 名片干员 ('' = 默认): persisted at once, the sync engine sends it.
+ * @param {string} charId
+ */
+export function setCard(charId) {
+  const next = parseStoredCard(charId);
+  try { savePref(CARD_PREF, next); } catch { /* private mode: the session keeps it */ }
+  cardStore.set({ [CARD_KEY]: next });
+}
 
 /**
  * The operators a seat card can show: one record per charId (the elite form for its E2 art), 6★ first.
@@ -92,4 +118,65 @@ export function seatPortrait(seat, { pool, byChar, m, myId, myCard, myLook = '' 
   if (rec) return (look && lookUrl(m, rec.charId, look, 'portrait')) || chessPortraitUrl(m, rec);
   if (!Array.isArray(pool) || !pool.length) return null;
   return chessPortraitUrl(m, pool[hash32(seat.playerId) % pool.length]);
+}
+
+/**
+ * What the seat cards draw from: the pickable operators by charId and the default pool (5★/6★, by charId so every
+ * client orders it the same).
+ * @param {any[]} list cardOperators()
+ */
+export function cardContext(list) {
+  return {
+    byChar: new Map(list.map((c) => [c.charId, c])),
+    pool: list.filter((c) => (c.rarity ?? 0) >= 5).sort((a, b) => (a.charId < b.charId ? -1 : a.charId > b.charId ? 1 : 0)),
+  };
+}
+
+/**
+ * The operator on a seat card: the player's pick (one's own seat shows the local pick at once, the others the server's
+ * seats[].card), else one of the pool chosen by the player id [ASSUMED, see the header]. null for an empty seat, a bot,
+ * or before the data loads.
+ * @param {any} seat room.state seat
+ * @param {{ byChar: Map<string, any>, pool: any[] }} ctx cardContext()
+ * @param {{ myId?: any, myCard?: string }} [own]
+ * @returns {{ chess: any, picked: boolean } | null}
+ */
+export function seatOperator(seat, { byChar, pool }, { myId, myCard } = {}) {
+  if (!seat || seat.playerId == null || seat.isBot) return null;
+  const pick = (seat.playerId === myId ? myCard : typeof seat.card === 'string' ? seat.card : seat.card?.charId) || '';
+  const rec = pick && byChar ? byChar.get(pick) : null;
+  if (rec) return { chess: rec, picked: true };
+  if (!Array.isArray(pool) || !pool.length) return null;
+  return { chess: pool[hash32(seat.playerId) % pool.length], picked: false };
+}
+
+/**
+ * The outfit a seat card's operator wears (docs/SKINS.md; the maintainer's decision 4 of 2026-10-21), by the rule of
+ * every owner-aware card (ui/skins.js ownerSkin): one's own card wears this browser's choice at once (`localSkins`),
+ * another doctor's the choice that seat published — `players` holds `{ playerId, skins }`: the room's seats
+ * (room.state seats[].skins) or a match's public players — unless 「显示其他玩家的皮肤」 is off. null = the default art;
+ * a skinId the local manifest does not hold (an appearance plugin this page lacks) also draws the default
+ * (ui/assetUrls.js chessPortraitUrl falls back).
+ * @param {any} seat a seat or player record (`playerId`, `isBot`)
+ * @param {string | null | undefined} charId the operator the card shows (seatOperator)
+ * @param {{ myId?: any, localSkins?: Record<string, string>, players?: any[], otherSkins?: boolean }} ctx
+ * @returns {string | null}
+ */
+export function seatCardSkin(seat, charId, { myId = null, localSkins = {}, players = [], otherSkins = true } = {}) {
+  if (!seat || seat.isBot || seat.playerId == null || !charId) return null;
+  if (seat.playerId === myId) return ownerSkin(charId, { localSkins });
+  return ownerSkin(charId, { ownerId: seat.playerId, myId, players: Array.isArray(players) ? players.filter(Boolean) : [], otherSkins });
+}
+
+/**
+ * The picture a seat card draws: the first of `srcs` — the outfit's portrait, then the operator's default portrait — that
+ * has not failed to load in this card (`failed`); null when none is left, and the card shows its avatar frame (§35.18's
+ * leftover: an outfit file that failed went straight to the frame).
+ * @param {(string | null | undefined)[]} srcs in order of preference
+ * @param {readonly string[]} [failed]
+ * @returns {string | null}
+ */
+export function seatArtSrc(srcs, failed = []) {
+  for (const src of Array.isArray(srcs) ? srcs : []) if (src && !failed.includes(src)) return src;
+  return null;
 }

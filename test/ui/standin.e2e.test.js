@@ -44,7 +44,7 @@ describe('0.2.0 补位 — a not-owned operator fights as its stand-in (real ser
       const card = await c.page.evaluate((id) => document.querySelector(`.own-card[data-chess="${id}"]`)?.textContent || '', SILVER);
       assert.ok(card.includes('银灰') && card.includes('Sharp') && card.includes('未持有'), card);
       const stored = await c.page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.ownership') || 'null'));
-      assert.deepEqual(stored, { v: 1, notOwned: [SILVER] });
+      assert.deepEqual(stored, { v: 2, notOwnedChars: ['char_172_svrash'], notOwned: [SILVER] }, 'stored by operator with the older-build copy (DESIGN §35.23)');
       await c.shot('ownership');
       await c.page.keyboard.press('Escape');
       await c.page.waitForFunction(() => !document.querySelector('.lo'), { timeout: 3000 });

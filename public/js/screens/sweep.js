@@ -13,12 +13,14 @@
 // Styles: css/screens/lobby.css (sw-*).
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
-import { html, Icon, roman } from '../ui/components.js';
+import { html, Button, Icon, roman } from '../ui/components.js';
 import { Img, RichText, GIcon } from '../ui/gameComponents.js';
 import { bondIconUrl, bandIconUrl, enemyIconUrl, factionIconUrl, chessAvatarUrl } from '../ui/assetUrls.js';
 import { attackInterval, fmtNum } from '../ui/gameLogic.js';
 import { abilityRows } from '../ui/abilityLines.js';
 import { data, useData } from '../data.js';
+import { contentSet, pageVersion, retryContentSet } from '../content.js';
+import { DEFAULT_VERSION, shownVersion } from '../versions.js';
 import { useStore, loadPref, savePref } from '../store.js';
 import { loadoutStore, openLoadout } from '../ui/loadoutSync.js';
 import { openGuide, guidePages, guideStore } from '../ui/guide.js';
@@ -401,8 +403,15 @@ function handbookPage() {
  * The report overlay. @param {{ onClose: () => void }} props
  */
 export function SweepReport({ onClose }) {
-  const ready = useData('bonds', 'bands', 'bosses', 'factions', 'enemies', 'chess', 'assets');
+  const filesReady = useData('bonds', 'bands', 'bosses', 'factions', 'enemies', 'chess', 'assets');
   useData('local');
+  const version = useStore(shownVersion);
+  const content = useStore((s) => s, Object.is, contentSet);
+  // useData can already be ready for the PREVIOUS version: content.js keeps that set until the new one checks.
+  // Subscribe to the requested version's progress too, and never present the previous set as its report.
+  const failed = content.kind === 'version' && content.version === version && content.status === 'failed';
+  const ready = filesReady && pageVersion() === version
+    && (version === DEFAULT_VERSION || (content.version === version && content.status === 'ready'));
   const m = data.get('assets');
   const notOwned = useStore((s) => s.notOwned, Object.is, loadoutStore);
   const [tab, setTabState] = useState(() => { const v = loadPref(TAB_PREF, 'bonds'); return TABS.some((x) => x.id === v) ? v : 'bonds'; });
@@ -442,7 +451,10 @@ export function SweepReport({ onClose }) {
 
   let left = null;
   let right;
-  if (!ready) {
+  if (failed) {
+    right = html`<div class="sw-loading" role="alert"><p>${t('版本数据校验失败')}</p>
+      <${Button} onClick=${retryContentSet}>${t('重试')}<//></div>`;
+  } else if (!ready) {
     right = html`<p class="sw-loading">${t('正在读取报告…')}</p>`;
   } else if (tab === 'bonds') {
     left = bond ? html`<${BondPanel} key=${bond.bondId} bond=${bond} m=${m} notOwned=${notOwned} />` : null;

@@ -305,8 +305,13 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
   reward = null, onReward, onRewardLater, onArm = null, offBonds = null }) {
   const shop = priv?.shop || {};
   const slots = Array.isArray(shop.slots) ? shop.slots : [];
-  const chessSlots = slots.map((s, i) => ({ s, i })).filter(({ s }) => !s || s.kind !== 'item');
-  const itemSlots = slots.map((s, i) => ({ s, i })).filter(({ s }) => s && s.kind === 'item');
+  // Empty slots have no kind. In 第一期 the first equipment slot opens empty at level 5; use the server's layout
+  // to keep it in the equipment column. [ASSUMED] Older saved frames / mocks infer kinds from their cards;
+  // their null slots carry no information from which to recover the old equipment position.
+  const layout = Number.isInteger(shop.layout?.chess) && Number.isInteger(shop.layout?.item) ? shop.layout : null;
+  const indexed = slots.map((s, i) => ({ s, i }));
+  const chessSlots = indexed.filter(({ s, i }) => layout ? i < layout.chess : !s || s.kind !== 'item');
+  const itemSlots = indexed.filter(({ s, i }) => layout ? i >= layout.chess && i < layout.chess + layout.item : s && s.kind === 'item');
   const frozen = !!shop.frozen;
   const funds = Number(priv?.funds) || 0;
   const remaining = Math.max(0, (priv?.deployCap ?? 8) - (priv?.deployCount ?? 0));
@@ -387,12 +392,13 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
       ${showReward ? null : html`<div class="shopbar__item">
         ${itemSlots.length
           ? itemSlots.map(({ s, i }) => {
+            if (!s) return html`<${EmptyCard} key=${`ie${i}`} item=${true} />`;
             if (s.sold) return html`<${SoldCard} key=${`is${i}`} item=${true} />`;
             const reason = shopBlockReason('buy', { priv, editable, slot: s, ...LOOKUPS });
             return html`<${ItemCard} key=${`i${i}:${s.id}`} slot=${s} idx=${i} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} reason=${reason}
               armed=${armed === armKey('i', i, s)} onTap=${editable ? (idx) => tapCard('i', idx, s, 'item', reason, onBuy) : null} />`;
           })
-          : html`<${SoldCard} item=${true} />`}
+          : layout?.item === 0 ? null : html`<${EmptyCard} item=${true} />`}
       </div>`}
       <div class="funds">
         <div class="funds__hex">

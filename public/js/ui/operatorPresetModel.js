@@ -1,6 +1,6 @@
 // One portable operator preset; gameplay choices and display-only skins retain their own validators.
-import { parseImport, parseStored, parseStoredOps, sanitizeEntries, sanitizeOps, LOADOUT_EXPORT_KIND } from './loadoutModel.js';
-import { parseOwnershipImport, cleanIds, sanitizeNotOwned, OWNERSHIP_EXPORT_KIND } from './ownershipModel.js';
+import { parseImport, parseStored, parseStoredOps, sanitizeEntries, sanitizeOps, charKeyMap, entriesView, LOADOUT_EXPORT_KIND } from './loadoutModel.js';
+import { parseOwnershipImport, cleanIds, sanitizeNotOwned, notOwnedView, OWNERSHIP_EXPORT_KIND } from './ownershipModel.js';
 import { parseDiyImport, cleanPicks, sanitizeDiyPicks, DIY_EXPORT_KIND } from './diyModel.js';
 import { parseSkinImport, SKINS_EXPORT_KIND } from './skinsModel.js';
 import { cleanSkinChoices } from '../../../shared/skins.js';
@@ -53,23 +53,34 @@ export function parseOperatorPreset(input) {
   }
   if (kind === OWNERSHIP_EXPORT_KIND || Array.isArray(raw) || (!kind && isObj(raw) && own(raw, 'notOwned'))) {
     const r = parseOwnershipImport(raw);
-    return r.ok ? { ok: true, scope: 'notOwned', patch: { notOwned: r.notOwned } } : r;
+    return r.ok ? { ok: true, scope: 'notOwned', patch: r.notOwnedChars ? { notOwnedChars: r.notOwnedChars } : { notOwned: r.notOwned } } : r;
   }
   if (!kind || kind === LOADOUT_EXPORT_KIND) {
     if (isObj(raw) && own(raw, 'ops') && !isObj(raw.ops)) return fail(N_('无法识别的格式'));
     const r = parseImport(raw);
-    return r.ok ? { ok: true, scope: 'entries', patch: { entries: r.entries, ...(r.ops ? { ops: r.ops } : {}) } } : r;
+    return r.ok ? { ok: true, scope: 'entries', patch: { ...(r.byChar ? { byChar: r.byChar } : { entries: r.entries }), ...(r.ops ? { ops: r.ops } : {}) } } : r;
   }
   return fail(N_('这不是干员预设的数据'));
+}
+
+/** A file by operator (v2, DESIGN §35.23) as chess ids of the data on screen; null when that data is not there. */
+function onScreen(sections, data) {
+  const { byChar, notOwnedChars, ...rest } = sections;
+  if (!byChar && !notOwnedChars) return sections;
+  if (!data?.chess) return null;
+  const map = charKeyMap(Object.entries(data.chess).map(([chessId, rec]) => ({ chessId, ...rec })));
+  return { ...rest, ...(byChar ? { entries: entriesView(byChar, map) } : {}), ...(notOwnedChars ? { notOwned: notOwnedView(notOwnedChars, map) } : {}) };
 }
 
 /** Validate every included section before the store is touched. Empty explicit complete sections restore defaults. */
 export function prepareOperatorPreset(parsed, { lookup, data, kitted } = {}) {
   if (!parsed?.ok || !isObj(parsed.patch)) return fail(N_('无法识别的格式'));
+  const wanted = onScreen(parsed.patch, data);
+  if (!wanted) return fail(N_('游戏数据没有载入'));
   const patch = {}, counts = {}; let dropped = parsed.dropped || 0;
   for (const key of [...sections, 'ops']) {
-    if (!own(parsed.patch, key)) continue;
-    const raw = parsed.patch[key];
+    if (!own(wanted, key)) continue;
+    const raw = wanted[key];
     let clean, asked, kept;
     if (key === 'entries') {
       if (typeof lookup !== 'function') return fail(N_('游戏数据没有载入'));

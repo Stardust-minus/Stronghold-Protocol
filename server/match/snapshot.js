@@ -68,7 +68,7 @@ export const MATCH_FIELDS = Object.freeze({
     'stageId', 'factions', 'bossId', 'hiddenBossId', 'disabledBonds', 'staticInactiveBonds', 'bannedChess',
     'setupRevision', '_setupVoteSeq', 'loneHuman', 'uidSeq', 'pausedMs', 'verifyStats', 'rehearsalStats', '_rehearsalSeq',
     'errors', 'errorCount', 'simErrors', 'simErrorLog', 'localStats', 'watchPref', 'lastResults', '_revival',
-    'draft', 'sp', 'wave', 'bossWaves', 'bossPairs', 'hiddenLayerSum', 'finalAliveCount', 'hiddenReached', 'outcome',
+    'draft', 'sp', 'wave', 'bossWaves', 'bossPairs', 'bossPairsRound', 'hiddenLayerSum', 'finalAliveCount', 'hiddenReached', 'outcome',
     '_botEmotesSettledRound',
     // plugin interaction windows (0.3.1, match/offers.js): the id counter only — no checkpoint is taken while one is open
     'offerSeq',
@@ -87,6 +87,8 @@ export const MATCH_FIELDS = Object.freeze({
     'playerPools', 'itemPool', 'ended', 'disposed',
     // 0.3.1: the content set's declared windows and the room's 测试 flag (both from the match options)
     'offers', 'test',
+    // 0.3.2: the official version (a hosted match: never checkpointed), the bot strategy, the room's simulation pool, the external AI
+    'version', 'bot', 'simPool', 'externalAI',
   ]),
   transient: Object.freeze([
     '_rehearsalTasks', 'paused', '_pausedAt', '_bossPubTimer', '_bossPubAt', '_bossClockOn', '_damageDirty', '_damageTimer',
@@ -100,6 +102,8 @@ export const MATCH_FIELDS = Object.freeze({
     '_setupProposals', 'kickVote', '_kickVoteSeq', '_kickFailed', '_kickVoteAt',
     // an open plugin window and its continuation (match/offers.js): checkpoints wait for it to close (canSnapshot)
     'offerWin', '_offerTimers', '_offerResume', '_offerResumeTimer',
+    // how the bot rehearsals offered to simPool ended
+    'rehearsalPoolStats',
   ]),
 });
 

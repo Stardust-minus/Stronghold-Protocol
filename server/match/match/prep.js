@@ -6,7 +6,6 @@
 
 import { PHASE } from '../../../shared/constants.js';
 import { canUseWorkerRehearsal, rehearsalFingerprint } from '../combat/rehearsal.js';
-import { botPrepBeginSteps, botPrepEndSteps } from '../bot.js';
 import { testSlice } from '../testTrace.js';
 import { DELAYS } from './common.js';
 
@@ -112,6 +111,7 @@ export class MatchPrep {
       try {
         do {
           r = gen.next();
+          if (!r || typeof r.done !== 'boolean') throw new TypeError('Bot prep hooks must return a synchronous iterator');
           if (sliceCtl) sliceCtl.note(1);
         } while (!r.done && !(sliceCtl ? sliceCtl.wall(now() - t0, this.botSliceMs) : (bounded && now() - t0 >= this.botSliceMs))); // loop-cap: generator and the bot time slice
       } catch (e) { failure = e; }
@@ -134,12 +134,16 @@ export class MatchPrep {
     };
     const end = (job) => {
       let gen = null;
-      try { gen = botPrepEndSteps(this, ps, job); } catch (e) { this.reportError(`bot ${ps.playerId}`, e); }
+      try { gen = this.bot.prepEnd(this, ps, job); } catch (e) { this.reportError(`bot ${ps.playerId}`, e); }
       if (!gen) { ready(); return; }
       drive(gen, '', ready);
     };
-    defer(this.scaled(DELAYS.BOT_ACTION + i * DELAYS.BOT_STAGGER), () => {
-      drive(botPrepBeginSteps(this, ps, { delegate: this.botRehearsalDelegate }), '', (job) => {
+    const begin = () => {
+      if (!valid()) { work.cancel(); return; }
+      let gen;
+      try { gen = this.bot.prepBegin(this, ps, { delegate: this.botRehearsalDelegate, pooled: !!this.simPool }); }
+      catch (e) { this.reportError(`bot ${ps.playerId}`, e); end(null); return; }
+      drive(gen, '', (job) => {
         if (!job) { end(null); return; }
         work.job = job;
         const complete = () => { if (bounded || job.remote) defer(0, () => end(job)); else end(job); };
@@ -207,6 +211,11 @@ export class MatchPrep {
         }
         if (bounded || job.remote) defer(0, slice); else slice();
       });
+    };
+    defer(this.scaled(DELAYS.BOT_ACTION + i * DELAYS.BOT_STAGGER), () => {
+      if (this.bot.decide?.(this, ps, { kind: 'prep', valid, complete: () => ps.ready,
+        fallback: () => defer(0, begin) })) return;
+      begin();
     });
   }
 

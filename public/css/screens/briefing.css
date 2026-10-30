@@ -57,9 +57,6 @@
 .brief-h::before { content: ''; width: .06rem; height: .2rem; background: var(--mint-500); align-self: center; }
 
 /* ---- the shared match-info blocks (briefing + the draft's 本局信息 dialog) ---- */
-/* a match with gameplay plugins (DESIGN §32.6): the unofficial mark under the step header */
-.brief__modmark { position: relative; z-index: 2; align-self: flex-start; margin: .06rem .5rem 0; }
-
 .brief-bonds { padding: .16rem .2rem .2rem; background: rgba(12, 15, 14, .8); border: 1px solid var(--line); }
 .brief-bonds__row { display: flex; flex-wrap: wrap; gap: .16rem .1rem; }
 .brief-bond { position: relative; min-width: 1rem; width: max-content; max-width: 100%; display: flex; justify-content: center; }
@@ -92,6 +89,8 @@
   letter-spacing: .08em; background: var(--mint-500); color: var(--text-on-mint); vertical-align: .01rem; }
 
 /* ---- briefing: one column of sections ---- */
+/* a match with gameplay plugins (DESIGN §32.6): the unofficial mark under the step header */
+.brief__modmark { position: relative; z-index: 2; align-self: flex-start; margin: .06rem .5rem 0; }
 .brief__main {
   position: relative; z-index: 1; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: .2rem; padding: .06rem .5rem 1.5rem .56rem;
@@ -99,9 +98,10 @@
 }
 .brief-sec { flex: none; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(30, 33, 34, .55), rgba(14, 16, 16, .35)); }
 .brief-sec > .brief-bonds, .brief-sec > .brief-banned { padding: 0; background: none; border: 0; }
-/* the grey header bar: icon, title, a faint plate on the right */
+/* the grey header bar: icon, title, a faint plate on the right; it grows with its title (§35.51 and its review: cut 2 px
+   at 大 on phones and at 特大 in a 1024×600 window — at 小 / 中 the bar keeps its .66rem) */
 .brief .brief-h {
-  position: relative; display: flex; align-items: center; gap: .14rem; margin: 0; height: .66rem; padding: 0 .3rem 0 .22rem;
+  position: relative; display: flex; align-items: center; gap: .14rem; margin: 0; height: auto; min-height: .66rem; padding: 0 .3rem 0 .22rem;
   font-size: calc(.32 * var(--t)); font-weight: 700; letter-spacing: .06em; color: #f2f4f4;
   background: linear-gradient(90deg, rgba(122, 126, 128, .5), rgba(92, 96, 98, .42) 60%, rgba(80, 84, 86, .36));
 }
@@ -118,37 +118,51 @@
 .brief-sec--addon { --sec-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M1 6l22-3-7 18-4-7-5 4 1-6zm6 3.6 6.3 2.8L19.5 5.6z'/%3E%3C/svg%3E"); }
 .brief-sec--banned { --sec-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 2a3.2 3.2 0 1 1 0 6.4A3.2 3.2 0 0 1 9 2zM3 22v-6a6 6 0 0 1 10.4-4.1L12 13.3A4 4 0 0 0 5 16v6zm11.1-6.3 1.4-1.4 2.5 2.5 2.5-2.5 1.4 1.4-2.5 2.5 2.5 2.5-1.4 1.4-2.5-2.5-2.5 2.5-1.4-1.4 2.5-2.5z'/%3E%3C/svg%3E"); }
 
-/* 本局遭遇敌方: portrait + 敌方领袖 | name, round, abilities, battlefield | the 特训敌人 */
-.brief-enemy { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .3rem .4rem; padding: .3rem .4rem .34rem .6rem; }
-.brief-boss { position: relative; display: flex; flex-direction: column; align-items: center; }
-.brief-boss__art {
+/* 本局遭遇敌方 (ui/matchEnemies.js MatchEnemies): portrait + 敌方领袖 | name, round, abilities, battlefield | the 特训敌人.
+   Scoped under .brief: the draft's 本局信息 dialog shows the same markup stacked into its narrower column
+   (css/screens/draft.css .minfo-dlg). */
+.brief .brief-enemy { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .3rem .4rem; padding: .3rem .4rem .34rem .6rem; }
+.brief .brief-boss { position: relative; display: flex; flex-direction: column; align-items: center; }
+.brief .brief-boss__art {
   position: relative; width: 2.3rem; height: 2.3rem; display: grid; place-items: center; overflow: hidden;
   background: radial-gradient(circle at 50% 40%, #6b3420, #2a120b 75%); box-shadow: 0 0 0 .04rem #4a4e50, 0 0 0 .06rem #1a1c1d, 0 .06rem .2rem rgba(0, 0, 0, .6);
 }
-.brief-boss__art::before, .brief-boss__art::after { content: ''; position: absolute; width: .5rem; height: .5rem; border: 1px solid rgba(255, 255, 255, .25); pointer-events: none; }
-.brief-boss__art::before { left: -.26rem; top: -.26rem; border-width: 0 1px 1px 0; }
-.brief-boss__art::after { right: -.26rem; bottom: -.26rem; border-width: 1px 0 0 1px; }
-.brief-boss__img { width: 100%; height: 100%; object-fit: cover; }
-.brief-boss__q { font-size: 1rem; font-weight: 900; color: rgba(255, 140, 70, .6); }
-.brief-boss__tag { margin-top: -.02rem; width: 2.05rem; padding: .03rem 0; text-align: center; font-size: calc(.2 * var(--t)); font-weight: 700; letter-spacing: .14em;
+.brief .brief-boss__art::before, .brief .brief-boss__art::after { content: ''; position: absolute; width: .5rem; height: .5rem; border: 1px solid rgba(255, 255, 255, .25); pointer-events: none; }
+.brief .brief-boss__art::before { left: -.26rem; top: -.26rem; border-width: 0 1px 1px 0; }
+.brief .brief-boss__art::after { right: -.26rem; bottom: -.26rem; border-width: 1px 0 0 1px; }
+.brief .brief-boss__img { width: 100%; height: 100%; object-fit: cover; }
+.brief .brief-boss__q { font-size: calc(1 * var(--t)); font-weight: 900; color: rgba(255, 140, 70, .6); }
+/* over the portrait frame's shadow (a phone's larger type would otherwise lose the glyphs' tops under it) */
+.brief .brief-boss__tag { position: relative; z-index: 1; margin-top: -.02rem; width: 2.05rem; padding: .03rem 0; text-align: center; font-size: calc(.2 * var(--t)); font-weight: 700; letter-spacing: .14em;
   color: #ffcf4a; background: linear-gradient(180deg, #5a4210, #3a2a08); box-shadow: inset 0 0 0 1px rgba(255, 207, 74, .25); }
-.brief-boss__text { display: flex; flex-direction: column; gap: .08rem; min-width: 0; }
-.brief-boss__name { margin: 0; font-size: calc(.36 * var(--t)); font-weight: 900; letter-spacing: .04em; line-height: 1.25; }
-.brief-boss__when { font-size: calc(.17 * var(--t)); color: var(--orange-hi); }
-.brief-boss__abil { margin: .02rem 0 0; padding-left: .2rem; display: flex; flex-direction: column; gap: .04rem; font-size: calc(.18 * var(--t)); line-height: 1.55; color: #a9aeb0; }
-.brief-stage { display: inline-flex; align-items: center; gap: .08rem; margin-top: .04rem; font-size: calc(.16 * var(--t)); color: var(--text-lo); }
-.brief-stage .icon { width: .2rem; height: .2rem; color: var(--mint-500); }
-.brief-stage b { color: var(--text-hi); }
-.brief-stage__pool { color: var(--text-dim); }
-.brief-factions { display: flex; align-items: flex-start; gap: .3rem; padding-right: .3rem; }
-.brief-faction { display: flex; flex-direction: column; align-items: center; gap: .14rem; width: 1.9rem; outline: none; }
-.brief-faction__icon {
-  width: 1.12rem; height: 1.12rem; display: grid; place-items: center; border-radius: 50%;
+.brief .brief-boss__text { display: flex; flex-direction: column; gap: .08rem; min-width: 0; }
+.brief .brief-boss__name { margin: 0; font-size: calc(.36 * var(--t)); font-weight: 900; letter-spacing: .04em; line-height: 1.25; }
+.brief .brief-boss__when { font-size: calc(.17 * var(--t)); color: var(--orange-hi); }
+.brief .brief-boss__abil { margin: .02rem 0 0; padding-left: .2rem; display: flex; flex-direction: column; gap: .04rem; font-size: calc(.18 * var(--t)); line-height: 1.55; color: #a9aeb0; }
+.brief .brief-stage { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .08rem; margin-top: .04rem; font-size: calc(.16 * var(--t)); color: var(--text-lo); }
+.brief .brief-stage .icon { width: .2rem; height: .2rem; color: var(--mint-500); }
+.brief .brief-stage__name { color: var(--text-hi); }
+.brief .brief-stage b { color: var(--text-hi); }
+.brief .brief-stage__pool { color: var(--text-dim); }
+.brief .brief-factions { display: flex; align-items: flex-start; gap: .3rem; padding-right: .3rem; }
+.brief .brief-faction { display: flex; flex-direction: column; align-items: center; gap: .14rem; width: 1.9rem; cursor: help; }
+.brief .brief-faction__icon {
+  width: 1.12rem; height: 1.12rem; display: grid; place-items: center; border-radius: 50%; outline: none; transition: box-shadow var(--t-fast);
   background: radial-gradient(circle at 50% 45%, #2a3a38, #121817 70%); box-shadow: 0 0 .22rem rgba(140, 255, 225, .14), inset 0 0 .16rem rgba(0, 0, 0, .7);
 }
-.brief-faction__icon img { width: 78%; height: 78%; object-fit: contain; filter: grayscale(1) brightness(1.6) drop-shadow(0 0 .06rem rgba(160, 255, 230, .6)); }
-.brief-faction__name { font-size: calc(.22 * var(--t)); font-weight: 700; color: #e6eaea; text-align: center; white-space: nowrap; }
-.brief-faction:focus-visible .brief-faction__icon { box-shadow: 0 0 0 2px var(--mint-400); }
+.brief .brief-faction__icon img { width: 78%; height: 78%; object-fit: contain; filter: grayscale(1) brightness(1.6) drop-shadow(0 0 .06rem rgba(160, 255, 230, .6)); }
+.brief .brief-faction:hover .brief-faction__icon { box-shadow: 0 0 .26rem rgba(140, 255, 225, .32), inset 0 0 .16rem rgba(0, 0, 0, .7); }
+.brief .brief-faction__icon:focus-visible { box-shadow: 0 0 0 .03rem var(--mint-400), 0 0 .26rem rgba(140, 255, 225, .32), inset 0 0 .16rem rgba(0, 0, 0, .7); }
+/* the name under the icon; the description (GitHub #484: every special enemy type with its description) in the tooltip —
+   hover, keyboard focus on the icon, a long press on touch — the maintainer's decision of 2026-10-22 (ui/matchEnemies.js) */
+.brief .brief-faction__text { display: flex; flex-direction: column; align-items: center; gap: .04rem; min-width: 0; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
+.brief .brief-faction__text b { font-size: calc(.22 * var(--t)); font-weight: 700; color: #e6eaea; }
+.brief .brief-faction__name { font-size: calc(.22 * var(--t)); font-weight: 700; color: #e6eaea; text-align: center; white-space: nowrap; }
+/* Korean breaks a faction's name between words (§35.51 review: 「특훈 적 - 비|행」 on phones at 中) */
+.brief .brief-faction__text:lang(ko) { word-break: keep-all; }
+/* that tooltip (ui/components.js TooltipLayer, outside .brief: also the draft dialog's): the only place the description is
+   shown, so it keeps the dialog's former 10 px floor on a phone, where 1rem is 40 px — [ASSUMED] the floor and width */
+.tooltip.brief-faction__tip { max-width: max(3.8rem, min(calc(240px * var(--sp-ui, 1)), calc(100vw - 16px))); font-size: max(calc(.15 * var(--t)), 10px); }
 /* 无限火力 1.0: its rules above the sections */
 
 /* the bond rows and banned operators at the event's size */
@@ -179,7 +193,7 @@
 .brief-ready__pips::after { right: 0; border-left: 0; }
 .brief-ready__pips i { width: .34rem; height: .4rem; display: grid; place-items: center; color: #4c5152; transition: color var(--t-med), filter var(--t-med); }
 .brief-ready__pips i .icon { width: 100%; height: 100%; }
-.brief-ready__pips i.on { color: var(--mint-400); filter: drop-shadow(0 0 .06rem rgba(23, 249, 183, .6)); animation: brief-pip .5s var(--tr-ease, ease-out); }
+.brief-ready__pips i.on { color: var(--mint-400); filter: drop-shadow(0 0 .06rem rgba(23, 249, 183, .6)); animation: brief-pip .5s var(--pg-ease); }
 @keyframes brief-pip { from { transform: translateY(-.08rem) scale(1.3); filter: brightness(2.2); } }
 .brief-go.btn--xl { height: .98rem; min-width: 3.9rem; padding: 0 .5rem 0 .3rem; justify-content: flex-start; font-size: calc(.38 * var(--t)); letter-spacing: .08em;
   --btn-bg: #33d6a5; --btn-bg-hover: #4ee6b8; box-shadow: 0 0 0 .03rem rgba(255, 255, 255, .85), 0 .06rem .2rem rgba(0, 0, 0, .55); }
@@ -187,11 +201,15 @@
 .brief-go.is-active, .brief-go:disabled { --btn-bg: #3f4344; --btn-fg: #f2f4f4; --btn-bd: #6b7071; box-shadow: 0 0 0 .03rem rgba(255, 255, 255, .55); opacity: 1; }
 .brief-go.is-loading { --btn-bg: var(--mint-700); }
 
-/* Full setup reroll: consent stays visible alongside the information being confirmed. */
+/* Full setup reroll: consent stays visible alongside the information being confirmed — above the absolute
+   .brief__foot (its height kept free below), never over 准备就绪. */
 .brief-reroll {
   position: relative; z-index: 2; flex: none;
   display: flex; align-items: center; justify-content: space-between; gap: .2rem;
-  margin: .1rem .5rem 1.4rem; padding: .14rem .2rem;
+  /* the foot's height grows with 文字大小 (about .73rem + .56 × --t above its content): the bottom margin keeps 已就绪 x/N
+     clear at 中 – 特大 on phones and short windows too (§35.56: the note ran over 2/2 at 大 / 特大 in English, Japanese
+     and Korean) */
+  margin: .1rem .5rem max(1.6rem, calc(.76rem + .58 * var(--t))); padding: .14rem .2rem;
   background: rgba(12, 15, 14, .9); border: 1px solid var(--mint-700);
 }
 .brief-reroll__text { display: flex; flex-direction: column; gap: .05rem; min-width: 0; font-size: calc(.16 * var(--t)); }
@@ -207,16 +225,54 @@
   .brief-reroll__actions .btn { min-height: .44rem; padding-inline: .12rem; }
 }
 
+/* short landscape phones (≤ 520 CSS px tall) at a big 文字大小 (§35.51; §35.18's leftovers): the header's decorative
+   BRIEFING // INFO CHECK gives way (cut at its end and over COUNTDOWN at 大 / 特大), 玩法说明 keeps its book (its label was
+   cut 4–7 px at 特大; the name stays its title and accessible name) */
+@media (max-height: 520px) {
+  .stephead__micro { display: none; }
+  .stephead__guide .btn__label { display: none; }
+  /* 确认本局信息's step name takes two lines before it runs under 玩法说明 and COUNTDOWN (§35.56: English 「Confirm Match
+     Info」 and Korean 「이번 시뮬레이션 정보 확인」 at 大 / 特大 on 640–740 px phones); the header grows with it */
+  .brief .stephead { height: auto; min-height: 1.3rem; }
+  .brief .stephead__left, .brief .stephead__title { min-width: 0; }
+  .brief .stephead__name { min-width: 0; white-space: normal; text-wrap: balance; line-height: 1.1; }
+  .brief .stephead__name:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
+  .brief .stephead__name:lang(ja) { line-break: strict; }
+}
+/* … and in a short desktop window (≤ 640 px tall: 1024×600) at 大 / 特大 (§35.51 review: the micro cut and over 玩法说明 there) */
+@media (max-height: 640px) {
+  :root[data-text="lg"] .stephead__micro, :root[data-text="xl"] .stephead__micro { display: none; }
+  /* 玩法说明 keeps its book there too (English 「How to Play」 ran past its button on the draft) */
+  :root[data-text="lg"] .stephead__guide .btn__label, :root[data-text="xl"] .stephead__guide .btn__label { display: none; }
+}
+
+/* the pre-game screens' motion (also css/screens/draft.css); none with reduced motion */
+.brief, .draft { --pg-ease: cubic-bezier(.16, .84, .3, 1); }
+@keyframes pg-fade { from { opacity: 0; } }
+@keyframes pg-out { to { opacity: 0; } }
+@keyframes pg-right { from { opacity: 0; transform: translateX(.36rem); } }
+@keyframes pg-left { from { opacity: 0; transform: translateX(-.36rem); } }
+@keyframes pg-rise { from { opacity: 0; transform: translateY(.22rem); } }
+@keyframes pg-pop { from { opacity: 0; transform: scale(.4); } }
+@keyframes pg-card { from { opacity: 0; transform: translateY(.16rem) scale(1.03); } }
+@keyframes pg-glow { 20% { box-shadow: 0 0 .5rem rgba(120, 255, 215, .9), 0 0 .12rem #b9ffe9; border-color: #b9ffe9; } }
+@keyframes pg-dots { to { width: 1.1em; } }
+
 /* ---- 开局转场 (the event's): the header drops in, the sections come in from the right one after another, the corner
    controls rise ---- */
-.brief .stephead, .draft .stephead { animation: tr-fade 360ms var(--tr-ease) backwards; }
-.stephead__title { animation: tr-right 420ms var(--tr-ease) 120ms backwards; }
-.brief-sec { animation: tr-right 460ms var(--tr-ease) backwards; animation-delay: calc(160ms + var(--i, 0) * 80ms); }
-.brief-sec .brief-bonds__row > *, .brief-sec .brief-banned__grid > * { animation: tr-pop 340ms var(--tr-ease) backwards; animation-delay: calc(360ms + var(--i, 0) * 80ms); }
-.brief__foot .brief-ready, .brief__foot .brief-loadout { animation: tr-rise 420ms var(--tr-ease) 420ms backwards; }
-.brief-go { animation: brief-go-in 520ms var(--tr-ease) 480ms backwards; }
-@keyframes brief-go-in { 0% { opacity: 0; clip-path: inset(0 100% 0 0); filter: brightness(2.2); } 60% { opacity: 1; clip-path: inset(0); filter: brightness(1.5); } }
+.brief .stephead, .draft .stephead { animation: pg-fade 360ms var(--pg-ease) backwards; }
+.stephead__title { animation: pg-right 420ms var(--pg-ease) 120ms backwards; }
+.brief-sec { animation: pg-right 460ms var(--pg-ease) backwards; animation-delay: calc(160ms + var(--i, 0) * 80ms); }
+.brief-sec .brief-bonds__row > *, .brief-sec .brief-banned__grid > * { animation: pg-pop 340ms var(--pg-ease) backwards; animation-delay: calc(360ms + var(--i, 0) * 80ms); }
+.brief__foot .brief-ready, .brief__foot .brief-loadout { animation: pg-rise 420ms var(--pg-ease) 420ms backwards; }
+/* opens from its left edge by a transform (a scaleX from its left, held by the backwards fill until it starts): the
+   button takes taps only where it is drawn at that moment, and the corner's other controls stay put */
+.brief-go { transform-origin: left center; animation: brief-go-in 520ms var(--pg-ease) 480ms backwards; }
+@keyframes brief-go-in { 0% { opacity: 0; transform: scaleX(.08); filter: brightness(2.2); } 60% { opacity: 1; transform: none; filter: brightness(1.5); } }
 @media (prefers-reduced-motion: reduce) {
   .brief .stephead, .draft .stephead, .stephead__title, .brief-sec, .brief-sec .brief-bonds__row > *, .brief-sec .brief-banned__grid > *,
   .brief__foot .brief-ready, .brief__foot .brief-loadout, .brief-go, .brief-ready__pips i.on { animation: none; }
 }
+
+/* official versions (DESIGN §35.23): the version's tag beside the 非官方 mark */
+.brief__vertag { position: relative; z-index: 2; align-self: flex-start; margin: .06rem .5rem 0; }

@@ -120,19 +120,30 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 /* Narrow viewports (< 768 CSS px: the root scale is clamped at 40 px, so the layout is narrower than the 19.2 rem
    design): the shop bar would cover the corner's ⚙ / 📖 / ⛶ buttons — they wrap into a row above the 交流 button. */
 /* The left-docked detail card then ends above that two-row corner (.24rem + 交流 + .1rem gap + ⚙ row + .1rem): at its
-   desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.) */
+   desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.)
+   The bottom copies the 交流 / ⚙ size floors exactly, their 32 px minimum included, or at 界面大小 ≤ 90 % it ends below
+   the ⚙ row (DESIGN §35.43; test/ui/ui-size.test.js checks such mirrors). */
 @media (max-width: 767px) {
   .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: max(calc(72px * var(--ui)), calc(3 * .56rem + .2rem)); }
   .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, calc(72px * var(--ui))) * 55 / 151 + .56rem); }
 }
 @media (max-width: 767px) and (pointer: coarse), (max-width: 767px) and (any-pointer: coarse) {
   .gm__corner { width: max(calc(96px * var(--ui)), calc(3 * max(.56rem, calc(34px * var(--ui))) + .2rem)); }
+  /* the 机变 overlay starts right of that corner (§35.51: at 2.8rem, 112 px on a 667 px phone, it covered 8 px of ⛶) */
+  .gm.has-sp > .spov { left: calc(max(2.8rem, .24rem + max(calc(96px * var(--ui)), calc(3 * max(.56rem, calc(34px * var(--ui))) + .2rem)) + calc(2px * var(--ui))) + var(--sa-l)); }
   .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, calc(96px * var(--ui))) * 55 / 151 + max(.56rem, calc(34px * var(--ui)))); }
 }
 /* With the shop folded (收起) no bar covers the corner: one row again, so the folded shop's prep camera, which keeps the
    bench above the corner's hit areas (ui/fieldHost.js hudBands), grows the board on narrow phones too (public issue #5). */
 @media (max-width: 767px) {
   .gm.is-collapsed .gm__corner { flex-wrap: nowrap; width: auto; }
+}
+/* … but not under the 机变 overlay, which starts at the corner's wrapped width (§35.51) */
+@media (max-width: 767px) {
+  .gm.is-collapsed.has-sp .gm__corner { flex-wrap: wrap-reverse; width: max(calc(32px * var(--ui)), calc(72px * var(--ui)), calc(3 * .56rem + .2rem)); }
+}
+@media (max-width: 767px) and (pointer: coarse), (max-width: 767px) and (any-pointer: coarse) {
+  .gm.is-collapsed.has-sp .gm__corner { width: max(calc(32px * var(--ui)), calc(96px * var(--ui)), calc(3 * max(.56rem, calc(32px * var(--ui)), calc(34px * var(--ui))) + .2rem)); }
 }
 
 /* Short landscape phones (≤ 460 CSS px tall, 1rem = 40 px; the lobby's own layout: css/screens/lobby.css). The detail
@@ -211,6 +222,7 @@ html[data-fit] :is(.app-root, .st, .sw, .proto, .lo, .guide, .ach) {
   transform: rotate(45deg); opacity: .6; transition: transform var(--t-fast); }
 .set-fit.is-open .set-fit__chev { transform: rotate(-135deg); }
 .set-fit__row { grid-template-columns: minmax(0, 1.5rem) auto minmax(.8rem, 1fr) auto minmax(.36rem, auto); gap: .1rem; }
+.set-fit__row.is-disabled { opacity: .5; } /* 界面大小 at 文字大小 中 and above (ui/screenFit.js) */
 .set-fit__step { flex: none; width: .4rem; min-width: 28px; height: .34rem; min-height: 26px; padding: 0; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .3);
   color: var(--text-hi); font-size: calc(.2 * var(--t)); line-height: 1; cursor: pointer; }
 .set-fit__step:disabled { opacity: .35; cursor: default; }

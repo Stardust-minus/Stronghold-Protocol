@@ -112,6 +112,16 @@ const LEAK_SFX_GAP_MS = 1500;
 const BUFFER_CACHE = 180;
 /** Decoded-PCM budget of the buffer cache beside its entry count: a voice line decodes to 0.4–1.3 MB (see _buffer). */
 const BUFFER_BYTES = 64 * 1024 * 1024;
+/**
+ * An idle buffer above this much PCM is a music track (≈ 44 s of 48 kHz stereo; a voice line is 0.4–1.3 MB): when the
+ * budget is over, such tracks leave first, before the LRU walk would flush the small sounds older than them (_trimBuffers).
+ * [ASSUMED] The line (a quarter of the budget) is a remake choice, no official counterpart.
+ */
+const BIG_BUFFER = BUFFER_BYTES / 4;
+/** Decoded PCM bytes of an AudioBuffer (float32 per channel). */
+const pcmBytes = (buf) => (buf?.length || 0) * (buf?.numberOfChannels || 1) * 4;
+/** The URL scheme of the player's own lobby track (setLobbyTrack): never fetched, the bytes come from this browser. */
+export const LOCAL_BGM = 'local-bgm:';
 const XFADE_S = 1;
 const FADE_S = 0.8;
 /** Voice: shortest gap between two lines, and the crossfade of a higher-priority line taking the channel (official 0.1 s). */
@@ -617,6 +627,9 @@ export class AudioManager {
     this.bgmChoiceFailed = new Set(); // picks whose track did not load on this page: the official one plays instead
     this.bgmLocal = { prep: null, combat: null }; // object URLs of the player's 自选曲 files (ui/lobbyMusic.js matchMusic)
     this.localBgm = null;     // { url, p }: the one decoded 自选曲 (a long file must not evict the whole LRU cache)
+    this.bgmStarting = null;  // { url, token } of the loop _startBgm is loading (kept by _trimBuffers while the token holds)
+    this.lobbyTrack = null;   // 自定义大厅音乐: { id, read } of the player's own file (setLobbyTrack), else null
+    this.onLobbyTrackFailed = null; // called when that file would not decode (the official track plays instead)
     this.units = new Map();   // battle unit id → defId
     this.pendingSkill = new Map(); // unit id → the 'skill' tuple that arrived before the unit was known (see _track)
     this.lastAttacker = new Map(); // target id → { def, at, skillIndex, skillActive } of the hostile attack aimed at it (its impact sound,
@@ -795,6 +808,7 @@ export class AudioManager {
 
   /** The track of a BGM key: the player's pick for 休整期 / 作战 when it has one, else the manifest's (resolveBgm). */
   _bgmTrack(key) {
+    if (key === 'lobby' && this.lobbyTrack) return { intro: null, loop: LOCAL_BGM + this.lobbyTrack.id }; // setLobbyTrack
     const manifest = this.getManifest();
     return pickedBgm(manifest, key, this.bgmChoice, this.bgmChoiceFailed, this.bgmLocal) || resolveBgm(manifest, key);
   }
@@ -891,18 +905,18 @@ export class AudioManager {
     }
     const p = (async () => {
       try {
+        // 自定义大厅音乐: the bytes of the player's own file (setLobbyTrack), never a request
+        if (url.startsWith(LOCAL_BGM)) {
+          const own = this.lobbyTrack;
+          if (!own || url !== LOCAL_BGM + own.id) return null;
+          return await this.decodeBytes(await own.read());
+        }
         const decode = async res => {
           if (!isAudioResponse(res)) {
             try { void res.body?.cancel?.().catch(() => {}); } catch { /* unusable audio */ }
             throw Object.assign(new Error('audio response unavailable'), { badAudioType: true });
           }
-          const ab = await res.arrayBuffer();
-          const buf = await new Promise(resolve => {
-            try {
-              const r = this.ctx.decodeAudioData(ab, resolve, () => resolve(null));
-              if (r && typeof r.then === 'function') r.then(resolve, () => resolve(null));
-            } catch { resolve(null); }
-          });
+          const buf = await this.decodeBytes(await res.arrayBuffer());
           if (!buf) throw new Error('audio decode failed');
           return buf;
         };
@@ -916,15 +930,18 @@ export class AudioManager {
         }
       } catch (err) {
         this._warn(url, err);
-        this._failed(url);
+        if (!url.startsWith(LOCAL_BGM)) this._failed(url);
         return null;
       }
     })();
     this.buffers.set(url, p);
     p.then((buf) => {
-      if (!buf) return;
+      // a decode that finishes after its entry left the cache (evicted while loading, or the player's own track
+      // replaced or switched off meanwhile — setLobbyTrack) records nothing: bufBytes only ever counts entries of
+      // `buffers`, so the budget of _trimBuffers can never keep a size it has no entry to evict (#814 review)
+      if (!buf || this.buffers.get(url) !== p) return;
       try {
-        this.bufBytes.set(url, (buf.length || 0) * (buf.numberOfChannels || 1) * 4);
+        this.bufBytes.set(url, pcmBytes(buf));
         this._trimBuffers();
       } catch { /* ignore */ }
     }, () => {});
@@ -933,20 +950,63 @@ export class AudioManager {
   }
 
   /**
+   * Decode audio bytes in this manager's context (null before the first gesture, or when the bytes do not decode).
+   * ui/lobbyMedia.js checks the player's own music with it, and hands the result to setLobbyTrack (no second decode).
+   * @param {ArrayBuffer} ab @returns {Promise<AudioBuffer|null>}
+   */
+  decodeBytes(ab) {
+    const ctx = this.ctx;
+    if (!ctx) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      try {
+        const r = ctx.decodeAudioData(ab, resolve, () => resolve(null));
+        if (r && typeof r.then === 'function') r.then(resolve, () => resolve(null));
+      } catch { resolve(null); }
+    });
+  }
+
+  /** The loops the music needs now: the playing one, and the one being started (the latest playBgm's). */
+  _bgmInUse() {
+    const urls = new Set();
+    if (this.bgm?.loopUrl) urls.add(this.bgm.loopUrl);
+    if (this.bgmStarting && this.bgmStarting.token === this.bgmToken) urls.add(this.bgmStarting.url);
+    return urls;
+  }
+
+  /**
    * Evict least-recently-used buffers until both the entry count and the decoded-PCM budget hold. The count alone is
    * not enough once voice lines are in the cache: 180 of them are ~100 MB of PCM (a voice decodes to 0.4–1.3 MB).
+   * The loop that plays or is being started is never evicted. It counts, but the other sounds always keep at least half
+   * the budget: one track alone can be past it (the official 190.9 s m_bat_kazimierz2_2_loop is ~73 MB of PCM at
+   * 48 kHz stereo, the player's own lobby music up to ~140 MB), and before, such a track flushed every sound and then
+   * itself on each start, as `bgm` is still null while it loads (#814 review) [ASSUMED: the half]. Over the budget,
+   * idle tracks (BIG_BUFFER) leave first, then the LRU walk.
    */
   _trimBuffers() {
+    const keep = this._bgmInUse();
     let bytes = 0;
-    for (const n of this.bufBytes.values()) bytes += n;
-    if (this.buffers.size <= BUFFER_CACHE && bytes <= BUFFER_BYTES) return;
-    for (const url of [...this.buffers.keys()]) {
-      if (this.buffers.size <= BUFFER_CACHE && bytes <= BUFFER_BYTES) break;
-      // never evict the playing BGM (a voice keeps its own reference to its buffer)
-      if (this.bgm && url === this.bgm.loopUrl) continue;
+    let kept = 0;
+    for (const [url, n] of [...this.bufBytes]) {
+      if (!this.buffers.has(url)) { this.bufBytes.delete(url); continue; } // never a size without its entry (see _buffer)
+      if (keep.has(url)) kept += n; else bytes += n;
+    }
+    const limit = Math.max(BUFFER_BYTES - kept, BUFFER_BYTES / 2);
+    if (this.buffers.size <= BUFFER_CACHE && bytes <= limit) return;
+    const drop = (url) => {
       bytes -= this.bufBytes.get(url) || 0;
       this.buffers.delete(url);
       this.bufBytes.delete(url);
+    };
+    if (bytes > limit) {
+      for (const url of [...this.buffers.keys()]) {
+        if (bytes <= limit) break;
+        if (!keep.has(url) && (this.bufBytes.get(url) || 0) > BIG_BUFFER) drop(url);
+      }
+    }
+    for (const url of [...this.buffers.keys()]) {
+      if (this.buffers.size <= BUFFER_CACHE && bytes <= limit) break;
+      // never evict the music in use (a voice keeps its own reference to its buffer)
+      if (!keep.has(url)) drop(url);
     }
   }
 
@@ -996,7 +1056,31 @@ export class AudioManager {
     if (this.lastBgmKey != null) this.playBgm(this.lastBgmKey);
   }
 
+  /**
+   * 自定义大厅音乐 (ui/lobbyMedia.js): the player's own file in place of the lobby's track, wherever bgmKeyFor answers
+   * 'lobby' (title, lobby, room, briefing, draft, 协议启动, result) — through the same BGM gain, fades and volume. `own` = { id, read }
+   * (`read` resolves the file's bytes, decoded here: nothing is fetched), or null for the manifest's track again. The
+   * screen's track changes at once. `decoded`: the AudioBuffer the file's check already made in this context
+   * (decodeBytes), cached as the track instead of a second decode; like any idle track it leaves the cache first when
+   * no lobby screen plays it (_trimBuffers).
+   * @param {{ id: string, read: () => Promise<ArrayBuffer>, decoded?: AudioBuffer | null } | null} own
+   */
+  setLobbyTrack(own) {
+    const prev = this.lobbyTrack;
+    this.lobbyTrack = own && typeof own.read === 'function' && own.id ? { id: String(own.id), read: own.read } : null;
+    if (prev && prev.id !== this.lobbyTrack?.id) { this.buffers.delete(LOCAL_BGM + prev.id); this.bufBytes.delete(LOCAL_BGM + prev.id); }
+    const url = this.lobbyTrack ? LOCAL_BGM + this.lobbyTrack.id : null;
+    if (url && own.decoded && this.ctx && !this.buffers.has(url) && pcmBytes(own.decoded) > 0) {
+      this.buffers.set(url, Promise.resolve(own.decoded));
+      this.bufBytes.set(url, pcmBytes(own.decoded));
+    }
+    this.refreshBgm();
+    this._trimBuffers();
+  }
+
   async _startBgm(key, track, token) {
+    // kept by _trimBuffers while it loads (before the first await: a cache miss below trims at once)
+    this.bgmStarting = { url: track.loop, token };
     const loopOf = track.local ? this._localBuffer(track.loop) : this._buffer(track.loop);
     const [intro, loop] = await Promise.all([track.intro ? this._buffer(track.intro) : null, loopOf]);
     // a pick that does not load (a failed download, a file the browser cannot decode): the official track of the key
@@ -1007,6 +1091,16 @@ export class AudioManager {
       return;
     }
     if (token !== this.bgmToken || !this.ctx) return;
+    // the player's own lobby track that would not load (its file gone or no longer decodable): the official track, and
+    // ui/lobbyMedia.js is told (onLobbyTrackFailed) so the switch shows it off
+    if (!loop && this.lobbyTrack && track.loop === LOCAL_BGM + this.lobbyTrack.id) {
+      this.buffers.delete(track.loop);
+      this.lobbyTrack = null;
+      try { this.onLobbyTrackFailed?.(); } catch { /* ignore */ }
+      const official = this._bgmTrack(key);
+      if (official) this._startBgm(key, official, token);
+      return;
+    }
     // a cosmetic plugin's track that would not load: the track the manifest names now (its entry fell back)
     if ((!loop && this.fellBack.has(track.loop)) || (track.intro && !intro && this.fellBack.has(track.intro))) {
       const again = this._bgmTrack(key);

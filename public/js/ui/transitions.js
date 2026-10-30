@@ -50,12 +50,16 @@ export function usePresence(show, ms = 220) {
 }
 
 /**
- * True for `ms` after `value` turns truthy — not on the first render (a seat that is already ready when the room
- * opens does not flash).
- * @param {any} value @param {number} [ms]
+ * True for `ms` after `value` turns truthy — not on the first render, so a seat already ready when the room opens (or a
+ * pick already made when the draft opens) does not flash; never with reduced motion. screens/room.js (a seat turns
+ * ready, an AI teammate is added), screens/bandDraft.js (a pick lands on an order row).
+ * @param {any} value
+ * @param {number} [ms]
+ * @param {boolean} [fresh] the component mounts after its screen was already showing (a seat card that just appeared): a
+ *   truthy `value` at the first render flashes too
  */
-export function useRise(value, ms = 700) {
-  const prev = useRef(!!value);
+export function useRise(value, ms = 700, fresh = false) {
+  const prev = useRef(fresh ? false : !!value);
   const [on, setOn] = useState(false);
   useEffect(() => {
     const was = prev.current;

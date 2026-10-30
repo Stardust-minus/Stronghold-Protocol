@@ -16,34 +16,47 @@ import { netOptionsFrom, lobbyOptionsFrom } from './config.js';
 /** Inbound WebSocket frame limit (DESIGN §8). */
 export const WS_MAX_PAYLOAD = 64 * 1024;
 
+/** A cap, as printed on boot ('unlimited' for 0). */
+function uncapped(n) { return n > 0 ? n : 'unlimited'; }
+
 /**
  * The session stack of one server.
  * @param {{ MatchClass?: Function, seedFn?: () => number, [option: string]: any }} opts startServer() options
  * @param {{ data: object, log: object, content?: { cs: string } | null,
  *   plugins?: ReturnType<typeof import('../plugins/roomSets.js').createRoomSets> | null,
- *   hosts?: ReturnType<typeof import('../match/host/index.js').createMatchHosts> | null }} deps the game data the lobby's
+ *   hosts?: ReturnType<typeof import('../match/host/index.js').createMatchHosts> | null,
+ *   simPool?: ReturnType<typeof import('../workers/roomPool.js').createRoomWorkerPool> | null,
+ *   versions?: ReturnType<typeof import('../versions.js').createVersionSets> | null,
+ *   versionHosts?: ReturnType<typeof import('../match/host/index.js').createMatchHosts> | null }} deps the game data the lobby's
  *   matches use, the logger, the vanilla content (server/plugins/identity.js: welcome / room.state content, BattleSpec
  *   cs), the room sets a room's host chooses from (room.setPlugins: visual and content sets), the match hosts a room with
- *   gameplay plugins plays in (DESIGN §32.6)
+ *   gameplay plugins plays in (DESIGN §32.6), the official versions and their match hosts (DESIGN §35.23)
  * @returns {{ registry: SessionRegistry, lobby: Lobby, network: Network }}
  */
 export function createSessionStack(opts, { data, log, combatPool = null, trialPool = null, getLoadState, getLoadDetails, onlineLimit = null, ownerFile = null,
-  content = null, plugins = null, hosts = null }) {
+  content = null, plugins = null, hosts = null, versions = null, versionHosts = null, simPool = null }) {
   if (opts.lobbyFactory != null && typeof opts.lobbyFactory !== 'function') throw new TypeError('invalid lobby factory');
   if (opts.getClusterLoad != null && typeof opts.getClusterLoad !== 'function') throw new TypeError('invalid cluster load provider');
-  const netOptions = netOptionsFrom(opts);
-  // a room whose match runs in a match host (DESIGN §32.6) answers once the host has: promise answers (≤ 64 per socket)
-  if (hosts && netOptions.allowAsyncHandlers === undefined) netOptions.allowAsyncHandlers = true;
+  const netOptions = netOptionsFrom(opts, log);
+  // a room whose match runs in a match host (DESIGN §32.6, §35.23) answers once the host has: promise answers (≤ 64 per socket)
+  if ((hosts || versionHosts) && netOptions.allowAsyncHandlers === undefined) netOptions.allowAsyncHandlers = true;
   const registry = new SessionRegistry({ reconnectWindowMs: netOptions.reconnectWindowMs ?? NET_DEFAULTS.reconnectWindowMs });
-  const lobbyOptions = lobbyOptionsFrom(opts);
+  const lobbyOptions = lobbyOptionsFrom(opts, log);
   const createLobby = opts.lobbyFactory || (params => new Lobby(params));
   // Optional coordinator phase recorder (server/phaseMetrics.js); absent everywhere else.
   const metrics = opts.phaseMetrics ? { metrics: opts.phaseMetrics } : {};
   // The limits file (server/onlineLimit.js) also carries the lobby's hot-reloadable room / AI caps (Lobby.cap).
   const lobby = createLobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, trialPool, options: lobbyOptions,
-    limits: onlineLimit, content, plugins, hosts, ...metrics });
+    limits: onlineLimit, content, plugins, hosts, versions, versionHosts, simPool, ...metrics });
   // The owner file (server/ownerFile.js): the 服主 key every hello may carry and the owner's reserved names.
   const network = new Network({ registry, handler: lobby, log, options: netOptions, getLoadState, getLoadDetails, getClusterLoad: opts.getClusterLoad, onlineLimit, ownerFile, ...metrics });
+  // The caps in effect, printed once when the stack is built, so the deploy log states the configuration the server is
+  // actually running with (0 is no cap here). `log` is the quiet-aware logger, so a test server stays silent.
+  log.info(`[http] limits: rooms ${uncapped(lobby.opts.maxRooms)} (${uncapped(lobby.opts.maxRoomsPerAddr)}/network), `
+    + `matches ${uncapped(lobby.opts.maxMatchesPerAddr)}/network, `
+    + `sockets ${uncapped(network.opts.maxConnections)} (${uncapped(network.opts.maxConnectionsPerAddr)}/network)`);
+
+  lobby.network = network;
   return { registry, lobby, network };
 }
 

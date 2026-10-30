@@ -15,9 +15,10 @@ const { hudBands } = await import('../../public/js/ui/fieldHost.js');
 
 describe('the stored offsets and the sliders', () => {
   test('sanitizeFit: whole pixels within ±100, anything else 0', () => {
-    assert.deepEqual(F.sanitizeFit(null), { l: 0, r: 0, t: 0, b: 0 });
-    assert.deepEqual(F.sanitizeFit({ l: 12.4, r: -300, t: 160, b: 'x' }), { l: 12, r: -100, t: 100, b: 0 });
-    assert.deepEqual(F.sanitizeFit({ l: Infinity, extra: 5 }), { l: 0, r: 0, t: 0, b: 0 });
+    // (ui: 界面大小 in percent, 100 by default — test/ui/ui-size.test.js)
+    assert.deepEqual(F.sanitizeFit(null), { l: 0, r: 0, t: 0, b: 0, ui: 100 });
+    assert.deepEqual(F.sanitizeFit({ l: 12.4, r: -300, t: 160, b: 'x' }), { l: 12, r: -100, t: 100, b: 0, ui: 100 });
+    assert.deepEqual(F.sanitizeFit({ l: Infinity, extra: 5 }), { l: 0, r: 0, t: 0, b: 0, ui: 100 });
   });
   test('sliderOf / pxOf: 50 = unchanged, 2 px a step, 0 and 100 at the ends', () => {
     assert.equal(F.sliderOf(0), 50);
@@ -62,8 +63,8 @@ describe('applyFit on <html>', () => {
 test('the stylesheet: the inset box and its layout root only under [data-fit]', () => {
   // this fork: the layout root is theme.css's (with the match's 界面大小 scale), the inset box devices.css §6
   const theme = readFileSync(path.join(ROOT, 'public/css/theme.css'), 'utf8');
-  assert.match(theme, /html\[data-fit\] \{ font-size: clamp\(40px, min\(calc\(\(100vw - var\(--fit-l, 0px\) - var\(--fit-r, 0px\)\) \/ 19\.2\), calc\(\(100vh - var\(--fit-t, 0px\) - var\(--fit-b, 0px\)\) \/ 10\.8\)\), 240px\); \}/);
-  assert.match(theme, /html\[data-fit\] \{ font-size: clamp\(40px, min\(calc\(\(100vw - var\(--fit-l, 0px\) - var\(--fit-r, 0px\)\) \/ 19\.2\), calc\(\(100svh - var\(--fit-t, 0px\) - var\(--fit-b, 0px\)\) \/ 10\.8\)\), 240px\); \}/,
+  assert.match(theme, /html\[data-fit\] \{ font-size: calc\(clamp\(40px, min\(calc\(\(100vw - var\(--fit-l, 0px\) - var\(--fit-r, 0px\)\) \/ 19\.2\), calc\(\(100vh - var\(--fit-t, 0px\) - var\(--fit-b, 0px\)\) \/ 10\.8\)\), 240px\) \* var\(--sp-ui, 1\)\); \}/);
+  assert.match(theme, /html\[data-fit\] \{ font-size: calc\(clamp\(40px, min\(calc\(\(100vw - var\(--fit-l, 0px\) - var\(--fit-r, 0px\)\) \/ 19\.2\), calc\(\(100svh - var\(--fit-t, 0px\) - var\(--fit-b, 0px\)\) \/ 10\.8\)\), 240px\) \* var\(--sp-ui, 1\)\); \}/,
     'with the insets taken off (svh after the vh fallback)');
   const css = readFileSync(path.join(ROOT, 'public/css/devices.css'), 'utf8');
   const sec = css.slice(css.indexOf('/* ---- 6. 异形屏适配'));

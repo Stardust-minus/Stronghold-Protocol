@@ -8,6 +8,15 @@ import { appearanceEntry } from './skinAssets.js';
 const str = (v) => (typeof v === 'string' && v ? v : null);
 const obj = (v) => (v && typeof v === 'object' ? v : null);
 
+/** Skin pictures belong to the effective operator, never the original chess of a stand-in / DIY slot. */
+function skinPicture(m, chess, skinId, field) {
+  if (!skinId) return null;
+  const id = chess?.charId || str(chess?.assets?.[field])?.replace(/_[12]$/, '');
+  const skin = m?.chars?.[id]?.skins?.[skinId];
+  const elite = chess?.isGolden || /_2$/.test(chess?.assets?.[field] || '');
+  return str(elite && skin?.[`${field}E2`]) || str(skin?.[field]) || (field === 'portrait' ? str(skin?.illust) : null);
+}
+
 /** @param {any} m manifest @param {string} key 'group/key' */
 export function uiUrl(m, key) {
   return str(obj(obj(m)?.ui)?.[key]);
@@ -18,9 +27,11 @@ export function uiUrl(m, key) {
  * @param {any} m manifest
  * @param {any} chess chess.json record (or { assets: { avatar } })
  */
-export function chessAvatarUrl(m, chess) {
+export function chessAvatarUrl(m, chess, { skin = null } = {}) {
   const appearance = appearanceEntry(m, chess?.charId || chess?.assets?.spine, chess?.skinId);
   if (str(appearance?.avatar)) return appearance.avatar;
+  const picture = skinPicture(m, chess, skin, 'avatar');
+  if (picture) return picture;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.avatar) || str(chess?.charId);
   if (!chars || !id) return null;
@@ -41,9 +52,11 @@ export function chessAvatarUrl(m, chess) {
  * @param {any} m
  * @param {any} chess
  */
-export function chessPortraitUrl(m, chess) {
+export function chessPortraitUrl(m, chess, { skin = null } = {}) {
   const appearance = appearanceEntry(m, chess?.charId || chess?.assets?.spine, chess?.skinId);
   if (str(appearance?.portrait)) return appearance.portrait;
+  const picture = skinPicture(m, chess, skin, 'portrait');
+  if (picture) return picture;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.portrait);
   if (!chars) return null;
@@ -100,6 +113,12 @@ const PROF_KEY = {
 export function profIconUrl(m, profession) {
   const k = PROF_KEY[String(profession || '').toUpperCase()];
   return k ? str(obj(obj(obj(m)?.prof)?.icon)?.[k]) : null;
+}
+
+/** Square profession glyph (manifest `prof.large`: a black glyph on white, drawn as a white one by loadout.css). */
+export function profGlyphUrl(m, profession) {
+  const v = obj(obj(obj(m)?.prof)?.large)?.[String(profession || '').toLowerCase()];
+  return str(v);
 }
 
 /** Sub-profession icon from a chess record (`assets.subProfIcon` = 'sub_<id>_icon'). */

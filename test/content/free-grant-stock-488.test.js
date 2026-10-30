@@ -36,7 +36,7 @@ function setup({ seed = 70, band = null } = {}) {
     ps.shop.slots[i] = { kind: 'item', id, basePrice: 1, sold: false, frozen: true };
     return m.handle('p_0', { t: 'g.buy', slot: i });
   };
-  const roundStart = (r) => { m.round = r; m.dispatch(ps, 'onRoundStart', { round: r }); };
+  const roundStart = (r) => { m.round = r; m.dispatch(ps, 'onRoundStart', { round: r }); m.dispatch(ps, 'onPrepStart', { round: r }); };
   const owned = (id) => [...ps.hand, ...ps.temp].filter((p) => p && p.kind === 'item' && m.gd.baseIdOf(p.id) === id);
   return { h, m, ps, warns, buyItem, roundStart, owned };
 }

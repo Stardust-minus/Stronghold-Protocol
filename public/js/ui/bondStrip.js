@@ -27,11 +27,14 @@
 // operator carries — the operator's name and portrait with the 「自选」 tag, dimmed until owned (not bought, or not in the
 // shop yet), ✕ when all its bonds are off this match (m.private.diyBanned) — and opens the operator's card; a watched
 // teammate's 自选 pieces on the field are rows too (their picks are not sent), opening THEIR operator's card (the unit's
-// pick goes with onMember: never the empty 甄选干员 slot's card).
+// pick goes with onMember: never the empty 甄选干员 slot's card). A 自选 piece that is a member through 变形同构体 shows its
+// operator too, with the 「同构」 tag (#846: it showed the empty slot's 「甄」).
 // 预计叠层 (GitHub feedback #25; server/match/layerForecast.js, the own m.private.layerForecast in PREP): a disc whose bond
 // the player's own <休整期结束时> effects will add layers to carries a +n badge, and its popup a 预计叠层 block naming the
 // sources; random sources are not counted (「含随机来源，未计入」) and neither are plugins (「插件效果未计入」).
 
+import { cloneElement } from '../../vendor/preact.module.js';
+import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, BondDisc, Icon, MicroLabel, Tooltip } from './components.js';
 import { RichText, UnitThumb, BondGlyph, GIcon } from './gameComponents.js';
 import { sortBonds, bondMembers, nextThreshold, bondTier, harmonyMembers, HARMONY_BOND, memberHeadCount, briefingBondTip, diyGetter, diyRecordFor, memberStandIn, standInForText } from './gameLogic.js';
@@ -66,20 +69,55 @@ export function forecastSourceName(src) {
 /** The forecast layers of a bond (0 when none). */
 const forecastOf = (fc, bondId) => (fc && fc.bonds && Number(fc.bonds[bondId]?.n)) || 0;
 
+function BondScroller({ count, children }) {
+  const viewport = useRef(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = viewport.current;
+    if (!el) return;
+    const update = () => {
+      const left = el.scrollLeft > 1, right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setEdges((old) => old.left === left && old.right === right ? old : { left, right });
+    };
+    // A render can resize the observed slots too. Update after observer delivery, so those changes are measured in the
+    // next frame rather than producing "ResizeObserver loop completed with undelivered notifications" during prep.
+    let frame = null;
+    const observer = new ResizeObserver(() => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => { frame = null; update(); });
+    });
+    observer.observe(el);
+    for (const child of el.children) observer.observe(child);
+    el.addEventListener('scroll', update, { passive: true });
+    update();
+    return () => {
+      observer.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+      el.removeEventListener('scroll', update);
+    };
+  }, [viewport, count]);
+  const scroll = direction => viewport.current?.scrollBy({ left: direction * Math.max(80, viewport.current.clientWidth * .75), behavior: 'smooth' });
+  return html`<div class="bstrip-scroll">
+    <button type="button" class="bstrip-scroll__arrow" disabled=${!edges.left} aria-label=${t('向左滚动盟约')} onClick=${() => scroll(-1)}>‹</button>
+    ${cloneElement(children, { ref: viewport })}
+    <button type="button" class="bstrip-scroll__arrow" disabled=${!edges.right} aria-label=${t('向右滚动盟约')} onClick=${() => scroll(1)}>›</button>
+  </div>`;
+}
+
 /**
- * @param {{ bonds: any[], layersDisabled?: boolean, onOpen:(bondId:string)=>void, openId?: string|null, max?: number,
+ * @param {{ bonds: any[], layersDisabled?: boolean, onOpen:(bondId:string)=>void, openId?: string|null,
  *   owner?: string|null, forecast?: any }} props — owner: the watched teammate's name (null = your own bonds); forecast:
  *   the own m.private.layerForecast in PREP, else null
  */
-export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null, max = 14, owner = null, forecast = null }) {
+export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null, owner = null, forecast = null }) {
   const sorted = sortBonds(bonds, (id) => data.lookup('bonds', id));
   if (!sorted.length) {
     return html`<div class=${cx('bstrip', 'bstrip--empty', owner && 'is-other')} data-owner=${owner || null}>
       ${owner ? html`<${OwnerTag} owner=${owner} />` : html`<${MicroLabel}>BONDS</${MicroLabel}>`}<span>${owner ? t('{owner} 尚未激活盟约', { owner }) : t('部署干员以激活盟约')}</span></div>`;
   }
   const m = data.get('assets');
-  const shown = sorted.slice(0, max);
-  const strip = html`<div class=${cx('bstrip', layersDisabled && 'is-frozen', owner && 'is-other')} role="list"
+  const shown = sorted;
+  const strip = html`<div tabindex="0" class=${cx('bstrip', layersDisabled && 'is-frozen', owner && 'is-other')} role="list"
       aria-label=${owner ? t('{owner} 的盟约', { owner }) : t('我的盟约')} data-owner=${owner || null}>
     ${owner ? html`<${OwnerTag} owner=${owner} />` : null}
     ${shown.map((b) => {
@@ -108,9 +146,9 @@ export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null
         <span class=${cx('bslot__count', 'num', next == null && 'is-max')}>${b.count ?? 0}<small>/${next ?? th[th.length - 1] ?? '-'}</small></span>
       </div>`;
     })}
-    ${sorted.length > shown.length ? html`<span class="bstrip__more num">+${sorted.length - shown.length}</span>` : null}
   </div>`;
-  return layersDisabled ? html`<${Tooltip} text=${t('层数叠加已禁用')} placement="bottom">${strip}<//>` : strip;
+  const content = html`<${BondScroller} count=${sorted.length}>${strip}<//>`;
+  return layersDisabled ? html`<${Tooltip} text=${t('层数叠加已禁用')} placement="bottom">${content}<//>` : content;
 }
 
 /**
@@ -141,9 +179,9 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
   const getChess = diyGetter((id) => data.lookup('chess', id), priv, dd);
   const pieceRecord = (p) => (p && p.diy && typeof p.diy === 'object' ? diyRecordFor(data.lookup('chess', p.id), p.diy, dd) : null) || getChess(p.id);
   const members = bondMembers(b, priv, banned, getChess, (id) => data.lookup('items', id), pieceRecord, morphMode);
-  // 补位: the stand-in a row shows (a 自选 row is its operator already)
+  // 补位: the stand-in a row shows (a 自选 row — a member, or one through 变形同构体 with its record `rec` — is its operator already)
   const rawChess = (id) => data.lookup('chess', id);
-  const siOf = (mb) => (mb.diy ? null : memberStandIn(priv, rawChess(mb.id), data.get('backups'), rawChess));
+  const siOf = (mb) => (mb.diy || mb.rec ? null : memberStandIn(priv, rawChess(mb.id), data.get('backups'), rawChess));
   const countsHand = entry?.countsHand ?? b.countsHand;
   const next = nextThreshold(count, th);
   const hasNow = !off && !!(b.effectDescRaw || b.effectDesc);
@@ -204,7 +242,7 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
           const si = siOf(mb);
           const name = si ? si.name : mb.name;
           const items = mb.granted && Array.isArray(mb.items) ? mb.items : null;
-          const record = si || (mb.diy ? mb.rec : getChess(mb.id));
+          const record = si || mb.rec || getChess(mb.id);
           const visible = [...(priv?.board || []), ...(priv?.hand || []), ...(priv?.temp || [])].find(p => p && (p.id === mb.id || rawChess(p.id)?.baseId === mb.id));
           const art = visible?.skinId ? appearanceRecord(record, visible.skinId) : ownAppearance(record, priv);
           const openMember = () => art?.skinId ? onMember?.(mb.id, items, si?.standInFor || null, mb.pick || null, art.skinId)

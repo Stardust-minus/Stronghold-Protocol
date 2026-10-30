@@ -87,8 +87,13 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
   }
   const texts = (c, sel) => c.page.$$eval(sel, (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
   const stored = (c) => c.page.evaluate(() => { const r = localStorage.getItem('sp.pref.stats'); return r ? JSON.parse(r) : null; });
-  const openStats = async (c, from = '.lobby-screen .stats-entry') => {
-    await c.click(from, from.includes('stats-entry') ? null : '统计');
+  /** 统计数据: in the lobby through the 成就统计 card → its window → 查看完整统计; else the given entry (统计). */
+  const openStats = async (c, from = null) => {
+    if (from) await c.click(from, '统计');
+    else {
+      await c.click('.lobby-screen .hub-ach, .lobby-screen .hub-plate--ach'); // the plate on a short phone screen
+      await c.click('.modal__box.achv .achv__more', '查看完整统计');
+    }
     await c.page.waitForSelector('.st .st-tab', { visible: true, timeout: 15000 });
   };
   const toast = (c) => c.page.waitForFunction(() => document.querySelector('.toast')?.textContent || false, { timeout: 8000 }).then((h) => h.jsonValue());
@@ -150,7 +155,9 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
     const c = await open({ stored: JSON.stringify(env) });
     await c.page.waitForSelector('.lobby-screen');
     await openStats(c);
-    // 总览: 24 settled + the quit after 6 rounds count, the first-round one does not
+    // 总览: 24 settled + the quit after 6 rounds count, the first-round one does not (the tabs show before the page's data
+    // is loaded: wait for the cards)
+    await c.page.waitForSelector('.st-sec > .st-cards .st-card__num', { timeout: 15000 });
     const cards = await texts(c, '.st-sec > .st-cards .st-card__num');
     assert.equal(cards[0], '25', 'games');
     assert.match(await c.page.$$eval('.st-rule', (els) => els.map((e) => e.textContent).join(' ')), /另有 1 局未计入统计/);
@@ -362,7 +369,9 @@ describe('统计数据: the real flows (a fast real server, headless Chrome)', {
       assert.equal(env.records[0].players[0].roundsPassed, 1, 'one round cleared — the server\'s own count for a quit in round 2');
       assert.ok(env.records[0].players[0].bandId, 'its strategy');
       // the page: one game counted, one left out, both in the history
-      await c.click('.lobby-screen .stats-entry');
+      // 统计数据 from the lobby: the 成就统计 card → its window → 查看完整统计
+      await c.click('.lobby-screen .hub-ach');
+      await c.click('.modal__box.achv .achv__more', '查看完整统计');
       await c.page.waitForSelector('.st .st-card', { visible: true });
       assert.equal((await c.page.$$eval('.st-sec > .st-cards .st-card__num', (els) => els.map((e) => e.textContent)))[0], '1');
       assert.match(await c.page.$$eval('.st-rule', (els) => els.map((e) => e.textContent).join(' ')), /另有 1 局未计入统计/);

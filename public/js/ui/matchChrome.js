@@ -134,10 +134,10 @@ export function StepHeader({ step, of, title, micro, pub, total, onExit, extra =
       <div class="stephead__exit">
         <${Button} variant="danger" size="lg" square=${true} icon="exit" onClick=${onExit} aria-label=${t('离开')} title=${t('离开')} />
         <${PingPill} ms=${conn.ping} online=${conn.status === 'online'} />
-        ${pub?.test ? html`<${TestMark} />` : null}
       </div>
       <div class=${`stephead__mode${extra ? ' has-extra' : ''}`}>
         ${pub?.difficulty ? html`<${DifficultyTag} difficulty=${pub.difficulty} />` : null}
+        ${pub?.test ? html`<${TestMark} />` : null}
         ${extra}
       </div>
       <i class="stephead__sep" aria-hidden="true"></i>
