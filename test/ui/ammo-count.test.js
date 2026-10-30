@@ -73,3 +73,10 @@ test('the diagnostics name the merged option when it is on', () => {
   assert.equal(line({ quality: 'high', damageNumbers: true, ammoEnergyCount: false }), 'settings: quality high | damage numbers');
   assert.equal(line({ quality: 'high', damageNumbers: true, ammoCount: true }), 'settings: quality high | damage numbers', 'a raw old key is not a reader');
 });
+
+test('#43 部署时按格子吸附 is off by default and only a stored true turns it on', () => {
+  assert.equal(DEFAULT_SETTINGS.deploySnap, false);
+  assert.equal(sanitizeSettings(null).deploySnap, false);
+  assert.equal(sanitizeSettings({ deploySnap: true }).deploySnap, true);
+  assert.equal(sanitizeSettings({ deploySnap: 'yes' }).deploySnap, false);
+});

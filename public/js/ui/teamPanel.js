@@ -1,4 +1,4 @@
-// Left team panel (research 06 §11.1, research 09 §3.1): one row per seat — avatar (band icon once picked), name, LP
+// Left team panel (research 06 §11.1, research 09 §3.1): one row per seat — avatar (the picked 头像, else the band icon), name, LP
 // tower, status glyph (… acting / ✓ ready / ⌛ deciding / ⚔ combat / door left / ✕ dead), AI badge, "you" marker, the
 // field being watched (eye badge), the 预选盟约 glyph (ui/bondPlan.js) and emote bubbles. In a boss round the viewer's pair
 // is framed in green from the round's start (gameLogic teamFrameIds; community report of 2026-10-06, item 51).
@@ -37,7 +37,7 @@ import { PlayerAvatar, LpTower, GIcon, LocalSprite } from './gameComponents.js';
 import { EmoteBubble } from './emotes.js';
 import { STATUS_META, sortedPlayers, teamFrameIds, activeBubbles } from './gameLogic.js';
 import { MissTag, uniteRemaining } from './hud.js';
-import { localAsset } from '../data.js';
+import { data, localAsset } from '../data.js';
 import { ReviveAction, RevivalNotice } from './revival.js';
 import { KickAction, KickVoteNotice } from './kickVote.js';
 import { t } from '../../../shared/i18n.js';
@@ -232,9 +232,10 @@ function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, sel
     : observe ? (self ? (observe.observing ? t('返回战场') : t('你自己')) : t('查看 {name} 的战场', { name: p.name })) : (self ? t('查看自己的阵地') : t('查看 {name} 的阵地', { name: p.name }));
   const lp = rowLp(p, pub, self ? selfLive : null, { uniteLocal, cap });
   const inTeam = team.has(p.playerId);
+  const band = p.bandId ? data.lookup('bands', p.bandId)?.name : null; // the avatar no longer shows it (#100)
   const { click, dblClick } = clicks;
   return html`<div data-seat=${p.seat} class=${cx('team__row', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && !p.pendingDeath && 'is-dead', p.pendingDeath && 'is-pending', open && 'is-open', offline && 'is-offline')}>
-    <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${inTeam && !self ? `${title} · ${t('与你在同一战场')}` : title} aria-label=${title} aria-expanded=${observe && !self && !half ? String(open) : undefined}>
+    <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${[title, inTeam && !self ? t('与你在同一战场') : null, band].filter(Boolean).join(' · ')} aria-label=${title} aria-expanded=${observe && !self && !half ? String(open) : undefined}>
       <${PlayerAvatar} player=${p} self=${self} />
       ${inTeam ? html`<span class=${cx('team__frame', !frameArt && 'team__frame--plain')} style=${frameArt ? `--frame:url("${frameArt}")` : undefined} aria-hidden="true"></span>` : null}
       <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>

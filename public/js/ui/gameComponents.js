@@ -294,11 +294,12 @@ function PickedFace({ playerId, then, fallback }) {
 }
 
 /**
- * Seat-coloured player avatar: band icon when a band is picked, else the player's picked 头像, else glyph/robot;
- * `prefer="avatar"` puts the picked 头像 first (a player's own cards: the draft rows, 协议启动, the settlement).
- * @param {{ player: any, size?: 'sm'|'md', self?: boolean, prefer?: 'band'|'avatar', class?: string }} props
+ * Seat-coloured player avatar: the player's picked 头像, else the band icon once a band is picked, else glyph/robot. A
+ * picked 头像 stays on in the match too (#100); a teammate's strategy is one tap away: the 🔍 on their field
+ * (ui/enemyDrawer.js), or the team row's tooltip.
+ * @param {{ player: any, size?: 'sm'|'md', self?: boolean, class?: string }} props
  */
-export function PlayerAvatar({ player, size = 'md', self = false, prefer = 'band', class: cls }) {
+export function PlayerAvatar({ player, size = 'md', self = false, class: cls }) {
   const src = player?.bandId ? bandIconUrl(data.get('assets'), player.bandId) : null;
   const glyph = [...(player?.name || '').trim()][0] || '?';
   const pending = player?.pendingDeath === true;
@@ -306,7 +307,7 @@ export function PlayerAvatar({ player, size = 'md', self = false, prefer = 'band
   const left = player?.status === 'left';
   const hue = [162, 196, 38, 280][((player?.seat | 0) % 4 + 4) % 4];
   const fallback = player?.isBot ? html`<${Icon} name="robot" class="pavatar__bot" />` : html`<span class="pavatar__glyph">${glyph}</span>`;
-  const face = player?.isBot || player?.playerId == null || (src && prefer !== 'avatar') ? html`<${Img} src=${src} fallback=${fallback} />`
+  const face = player?.isBot || player?.playerId == null ? html`<${Img} src=${src} fallback=${fallback} />`
     : html`<${PickedFace} playerId=${player.playerId} then=${src} fallback=${fallback} />`;
   return html`<span class=${cx('pavatar', `pavatar--${size}`, self && 'is-self', dead && 'is-dead', left && 'is-left', player?.isBot && 'is-bot',
       player?.connected === false && !player?.isBot && 'is-offline', cls)} style=${`--seat-hue:${hue}`}>

@@ -3424,5 +3424,8 @@
   "洇灵雨": "Saturated Within Rain",
   "植药": "Plant Crude Drug",
   "照冰轮": "Reflection That of the Moons",
-  "待予花冠": "Unveiling of Devotion"
+  "待予花冠": "Unveiling of Devotion",
+  "部署时按格子吸附": "Snap to tile while deploying",
+  "拖动干员时，干员站在目标格子上逐格移动，松手就落在这一格。关闭时干员跟随手指或鼠标自由移动。": "While dragging, the operator stands on the target tile and moves tile by tile; releasing drops it there. When off, the operator follows your finger or mouse freely.",
+  "{bond}：{names}": "{bond}: {names}"
 }

@@ -55,6 +55,12 @@ function factionCell({ type, info, m, scope }) {
   <//>`;
 }
 
+/** The mode's battlefield pool (config.json modes[].stages): 标准 is always 战场#01, 险境+ draw one at random. */
+export function stagePoolLine(mode) {
+  const poolN = Array.isArray(mode?.stages) ? mode.stages.length : 0;
+  return poolN > 1 ? t('战场随机（共{poolN}张）', { poolN }) : poolN === 1 ? t('战场固定') : '';
+}
+
 /**
  * The briefing's 本局遭遇敌方 section body, also shown in the strategy draft's 本局信息 dialog.
  * @param {{ pub: any, gd: ReturnType<typeof import('./gameComponents.js').makeLookups>, idScope?: string }} props
@@ -66,9 +72,7 @@ export function MatchEnemies({ pub, gd, idScope = 'brief' }) {
   const boss = pub.bossId ? gd.boss(pub.bossId) : null;
   const bossEnemy = boss ? gd.enemy(boss.enemyKey) : null;
   const stage = pub.stageId ? gd.stage(pub.stageId) : null;
-  // the mode's battlefield pool (config.json modes[].stages): 标准 is always 战场#01, 险境+ draw one at random
-  const poolN = Array.isArray(mode?.stages) ? mode.stages.length : 0;
-  const pool = poolN > 1 ? t('战场随机（共{poolN}张）', { poolN }) : poolN === 1 ? t('战场固定') : '';
+  const pool = stagePoolLine(mode);
   const types = factionTypes(pub.factions);
   const factions = gd.factions?.types || {};
   const m = gd.m;

@@ -367,6 +367,35 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
   };
   const FOLLOW_MS = 400; // DRAG_FOLLOW_RATE 22/s: e^(−22·0.4) leaves 0.02 % of the gap
 
+  test('#43 部署时按格子吸附: the dragged unit stands on the target tile, glides tile to tile and off the grid follows the pointer again', async () => {
+    const { page, problems } = await open('phase=PREP');
+    await page.evaluate(() => globalThis.__SP_VIEW__.raw.setSettings({ deploySnap: true }));
+    const hand = await page.evaluate(() => { const p = globalThis.__MOCK__.S().priv; const i = p.hand.findIndex((x) => x && x.kind === 'chess'); return { uid: p.hand[i].uid, idx: i }; });
+    const p0 = await pickUp(page, await tileSpot(page, 7, hand.idx));
+    const on = async (row, col, u, v, label) => {
+      const pt = await tileSpot(page, row, col, u, v);
+      await page.mouse.move(pt.x, pt.y);
+      await sleep(FOLLOW_MS * 2);
+      const g = await ghostAt(page, hand.uid);
+      assert.ok(Math.abs(g.wx - col) < 0.05 && Math.abs(g.wy - row) < 0.05, `${label}: on (${row},${col}), at ${g.wy.toFixed(3)},${g.wx.toFixed(3)}`);
+      return pt;
+    };
+    const to = await tileSpot(page, 9, 4, 0.3, 0.4);
+    for (let i = 1; i <= 12; i++) { await page.mouse.move(p0.x + ((to.x - p0.x) * i) / 12, p0.y + ((to.y - p0.y) * i) / 12); await sleep(16); }
+    await on(9, 4, 0.3, 0.4, 'off the centre of the tile');
+    await on(9, 4, -0.5, 0.7, 'elsewhere on the same tile');
+    await on(9, 5, 0, 0, 'the next tile');
+    await on(7, hand.idx + 1, 0, 0, 'a bench slot');
+    const bar = await page.evaluate(() => { const r = document.querySelector('.scard').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    await page.mouse.move(bar.x, bar.y);
+    await sleep(FOLLOW_MS * 3); // the long way down from the bench
+    assertHeld(await ghostAt(page, hand.uid), bar, 'over the shop bar');
+    await page.mouse.up();
+    await sleep(100);
+    await page.close();
+    assert.deepEqual(problems, []);
+  });
+
   test('#4.1 drag (mouse): the unit glides after the pointer, never snapped to a tile; target, tileHover and the direction wheel are the pointer\'s tile', async () => {
     const { page, problems } = await open('phase=PREP');
     const hand = await page.evaluate(() => { const p = globalThis.__MOCK__.S().priv; const i = p.hand.findIndex((x) => x && x.kind === 'chess'); return { uid: p.hand[i].uid, idx: i }; });

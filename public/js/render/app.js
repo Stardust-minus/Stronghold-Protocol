@@ -152,7 +152,7 @@ import { OfficialFx } from './vfx/system.js';
 import { FxWiring } from './vfx/wiring.js';
 import { PluginFxPlayer } from './vfx/pluginPlayer.js';
 import { resolveOfficialFx } from './vfx/tier.js';
-import { createDragController, pieceTile } from './drag.js';
+import { createDragController, pieceTile, snapTile } from './drag.js';
 import { backdropTextures, shadowTexture, refreshTierChips, refreshDownLabels, silhouetteTexture } from './textures.js';
 import { TILE_H, TIER_COLORS, COLORS } from './style.js';
 import { loadBoardArt } from './boardArt.js';
@@ -186,7 +186,7 @@ export { releaseGl } from './app/host.js';
 /**
  * Create the battlefield view inside `host` (an element sized by CSS; the canvas fills it).
  * @param {HTMLElement} host
- * @param {{ data?: any, assets?: any, audio?: any, settings?: { damageNumbers?: boolean, officialDamageNumbers?: boolean, ammoEnergyCount?: boolean, otherSkins?: boolean, quality?: string }, signal?: AbortSignal,
+ * @param {{ data?: any, assets?: any, audio?: any, settings?: { damageNumbers?: boolean, officialDamageNumbers?: boolean, ammoEnergyCount?: boolean, otherSkins?: boolean, deploySnap?: boolean, quality?: string }, signal?: AbortSignal,
  *           padding?: object|((kind:string, size:{width:number,height:number}) => object),
  *           hud?: {top:number,bottom:number}|((kind:'prep'|'bossPrep', size:{width:number,height:number}, o:{shop:boolean}) => {top:number,bottom:number}|null) }} [opts]
  *   settings.otherSkins (default on): draw the appearance another player chose (shared/skins.js skinId). The player the view
@@ -1336,6 +1336,14 @@ export async function createFieldView(host, options = {}) {
       if (!v._follow) { v.x = f.x; v.y = f.y; v.z = f.z; }
       v._follow = f;
     }
+    // 设置「部署时按格子吸附」 (#43): a unit stands on the target tile instead, gliding tile to tile; off the grid it still
+    // follows the pointer, so a drag to the shop bar reads the same
+    const snap = settings.deploySnap === true && !item ? snapTile(p.target) : null;
+    if (snap) {
+      const f = boardWorld(snap.row, snap.col, snap.bench);
+      if (!v._follow) { v.x = f.x; v.y = f.y; v.z = f.z; }
+      v._follow = f;
+    }
     // the drop target (p.target, highlighted) is the tile under the pointer
     if (p.target && p.target.area !== 'temp') {
       const r = p.target.area === 'board' ? p.target.row : GEO.HAND_ROW;
@@ -2299,6 +2307,7 @@ export async function createFieldView(host, options = {}) {
       if (typeof s.damageNumbers === 'boolean') settings.damageNumbers = s.damageNumbers;
       if (typeof s.officialDamageNumbers === 'boolean') settings.officialDamageNumbers = s.officialDamageNumbers;
       if (typeof s.ammoEnergyCount === 'boolean') settings.ammoEnergyCount = s.ammoEnergyCount; // the units read it every frame (ctx.settings)
+      if (typeof s.deploySnap === 'boolean') settings.deploySnap = s.deploySnap; // read on each drag move (moveDragVisual)
       // 设置「显示其他玩家的皮肤」: the views already up keep the appearance they were built on, so the
       // ones the new choice changes are dropped and rebuilt from their own info on the next frame
       if (typeof s.otherSkins === 'boolean' && s.otherSkins !== settings.otherSkins) {

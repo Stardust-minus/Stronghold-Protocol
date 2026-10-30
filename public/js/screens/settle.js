@@ -398,7 +398,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null }) {
         <${Img} src=${enemyIconUrl(gd.m, m.rec.enemyKey)} fallback=${html`<${Icon} name="crown" class="smedal__glyph" />`} />
         <i class="smedal__check"><${Icon} name=${m.done ? 'check' : 'close'} /></i></span>`)}</div>` : null}
       <div class="splate">
-        <${PlayerAvatar} player=${self} self=${true} prefer="avatar" class="splate__ava" />
+        <${PlayerAvatar} player=${self} self=${true} class="splate__ava" />
         <div class=${cx('splate__info', card.bg && 'has-nc')}>
           <${NameCardLayer} card=${card.bg} />
           <b class="splate__name">${self.name}</b>
@@ -462,7 +462,7 @@ function TeamCard({ p, i, gd, self, victory, raw }) {
     <div class=${cx('tcard__plate', !p.isBot && card?.bg && 'has-nc')}>
       ${p.isBot ? null : html`<${NameCardLayer} card=${card?.bg} />`}
       ${self ? html`<i class="tcard__me" aria-hidden="true"><${Icon} name="user" /></i>` : null}
-      <${PlayerAvatar} player=${p} self=${self} prefer="avatar" class="tcard__ava" />
+      <${PlayerAvatar} player=${p} self=${self} class="tcard__ava" />
       <span class="tcard__who">
         <b class="tcard__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<span>${p.name}</span>${p.isBot ? html`<span class="tcard__ai">AI</span>` : null}</b>
         ${band ? html`<span class="tcard__band"><${BandIcon} bandId=${band.bandId} size="xs" /><span>${band.name}</span></span>` : null}

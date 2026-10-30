@@ -373,6 +373,7 @@ function setPhase(phase, variant) {
       if (!solo) {
         pub.draft = { order: ['p3', 'p1', 'ai_2', 'p4'], turn: 'p1', picks: { p3: 'band_sarkazb' }, skipsLeft: { p1: 1, p3: 1, ai_2: 1, p4: 1 }, turnDeadline: Date.now() + 9000 };
         pub.players.find((p) => p.playerId === 'p3').bandId = 'band_sarkazb';
+        if (VARIANTS.has('players20')) Object.assign(pub.draft, { order: pub.players.map((p) => p.playerId), turn: null, concurrent: true, skipsLeft: {} });
       } else pub.deadline = 0;
       break;
     case PHASE.BATTLE_CHECK:

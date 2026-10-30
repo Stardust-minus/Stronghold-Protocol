@@ -9,6 +9,8 @@
 // is reported (g.bandFocus) and the server assigns it while it is free, else 「华法琳」, else the first free strategy
 // (timeoutBand). It starts on that default, so the tip under the order list always names what a timeout gives.
 // Solo, and a co-op match with a single human (the server's soloUntimed: draft.untimed): no clock at all.
+// The left column heads with this match's battlefield (ui/stagePreview.js, #65) and, in an experimental room, groups the
+// doctors by chess pool (#66).
 // A strategy built around a bond the mode switches off (bands.json bondIds ∩ the mode's inactive bonds — 标准: 潘格尼尼
 // 拉特兰, 克莱门莎 阿戈尔, 玛恩纳 卡西米尔; the bot never picks one) reads 本局禁用 on its card and in the detail pane
 // (BandOffTag / BandOffNote, DESIGN §21.26, §21.7's look); it stays selectable — information only.
@@ -41,8 +43,10 @@ import { useRise } from '../ui/transitions.js';
 import { NameCardLayer } from '../ui/namecards.js';
 import { TrophyBadge } from '../ui/trophies.js';
 import { cardOperators, seatPortrait } from '../ui/seatArt.js';
+import { rosterPools } from '../ui/teamLayout.js';
 import { useMyCard } from '../ui/playerCard.js';
-import { MatchEnemies } from '../ui/matchEnemies.js';
+import { MatchEnemies, stagePoolLine } from '../ui/matchEnemies.js';
+import { StageMiniMap } from '../ui/stagePreview.js';
 import { actions, act } from '../ui/gameActions.js';
 import { normalizeDraft, sortedPlayers, draftMyTurn } from '../ui/gameLogic.js';
 import { useStore } from '../store.js';
@@ -250,7 +254,7 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek }) {
     <div class=${cx('dorder__card', nc && 'has-nc')}>
       ${nc ? html`<${NameCardLayer} card=${nc} />` : null}
       ${art && !nc ? html`<span class="dorder__art" style=${`background-image:url("${art}")`} aria-hidden="true"></span>` : null}
-      <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} prefer="avatar" />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
+      <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
       <div class="dorder__text">
         <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<span>${p.name || t('博士')}</span>${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
         <span class="dorder__state">${picked ? html`<span class="t-mint">${pband?.name || t('已选择')}</span>`
@@ -264,6 +268,15 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek }) {
       : cur ? html`<span class="dorder__box is-cur">${p.isBot ? null : html`<${Icon} name="hourglass" />`}<span>${t('决策中')}</span></span>`
       : html`<span class="dorder__box is-wait"><${Icon} name="dots" /></span>`}
     <span class="dorder__check" aria-hidden="true">${picked ? html`<${Icon} name="check" />` : null}</span>
+  </div>`;
+}
+
+/** An experimental room's pool header over its doctors (#66): 卡池 N, the seat count, 你的卡池 on the own one. */
+function PoolHead({ pool }) {
+  return html`<div class="draft-pool__head">
+    <b>${pool.id == null ? t('其他') : t('卡池 {n}', { n: pool.id })}</b>
+    <small class="num">${t('{n} 人', { n: pool.players.length })}</small>
+    ${pool.mine ? html`<small class="draft-pool__mine">${t('你的卡池')}</small>` : null}
   </div>`;
 }
 
@@ -422,6 +435,18 @@ export function BandDraftScreen({ held = null } = {}) {
   const shownBand = peek ? gd.band(peek) : band;
   const rows = solo ? players.filter((p) => p.playerId === myId) : draft.order.map((pid) => players.find((p) => p.playerId === pid)).filter(Boolean);
 
+  // this match's battlefield: which strategy suits it depends on its lanes (#65)
+  const stage = pub?.stageId ? gd.stage(pub.stageId) : null;
+  const stagePool = stagePoolLine(mode);
+  // an experimental room's chess pools, already here rather than only once the match starts (#66)
+  const pools = solo ? null : rosterPools(pub, rows, myId);
+  const orderRow = (p) => {
+    const picked = draft.picks.get(p.playerId) || (p.playerId === myId ? myPick : p.bandId) || null;
+    const cur = !picked && !allPicked && (solo || concurrent || draft.turnPid === p.playerId);
+    return html`<${OrderRow} key=${p.playerId} p=${p} i=${rows.indexOf(p)} picked=${picked} cur=${cur} self=${p.playerId === myId} solo=${solo}
+      art=${artOf(p)} card=${cardOf(p)} gd=${gd} onPeek=${peekBand} />`;
+  };
+
   const head = allPicked ? html`<div class="dturn is-done"><span class="dturn__txt"><b>${t('策略选择完成')}</b><span>${t('正在进入模拟…')}</span></span><${Icon} name="hourglass" class="dturn__glass" /></div>`
     : myTurn ? html`<div class="dturn is-turn">
         <span class="dturn__go"><${Sprite} k="bandChoose/youturn_finger" class="dturn__finger" fallback=${html`<${Icon} name="chevronLeft" class="dturn__finger" />`} />
@@ -448,13 +473,19 @@ export function BandDraftScreen({ held = null } = {}) {
     <main class="draft__main">
       <aside class="draft-order">
         <div class="draft-order__deco" aria-hidden="true"><i></i><i></i><span>STRONGHOLD PROTOCOL<br />${solo ? 'SINGLE OPERATOR' : 'COLLABORATIVE SYSTEM'}</span></div>
+        ${stage ? html`<div class="draft-map" data-testid="draft-map" title=${stage.name}>
+          <${StageMiniMap} stage=${stage} />
+          <div class="draft-map__text">
+            <span class="draft-tag">BATTLEFIELD</span>
+            <b>${stage.name}</b>
+            ${stagePool ? html`<small>${stagePool}</small>` : null}
+          </div>
+        </div>` : null}
         <div class="draft-order__rows">
-          ${rows.map((p, i) => {
-            const picked = draft.picks.get(p.playerId) || (p.playerId === myId ? myPick : p.bandId) || null;
-            const cur = !picked && !allPicked && (solo || concurrent || draft.turnPid === p.playerId);
-            return html`<${OrderRow} key=${p.playerId} p=${p} i=${i} picked=${picked} cur=${cur} self=${p.playerId === myId} solo=${solo}
-              art=${artOf(p)} card=${cardOf(p)} gd=${gd} onPeek=${peekBand} />`;
-          })}
+          ${pools ? pools.map((pool) => html`<div key=${pool.id ?? 'rest'} class=${cx('draft-pool', pool.mine && 'is-mine')} data-testid="draft-pool">
+            <${PoolHead} pool=${pool} />
+            ${pool.players.map(orderRow)}
+          </div>`) : rows.map(orderRow)}
         </div>
         ${canPlan ? html`<${Button} variant="secondary" icon="users" block=${true} class="draft-order__plan" data-testid="bond-plan-open"
           aria-haspopup="dialog" onClick=${() => setPlanOpen(true)}>${myPlan ? t('预选盟约：{name}', { name: gd.bond(myPlan)?.name || myPlan }) : t('预选盟约')}<//>` : null}
