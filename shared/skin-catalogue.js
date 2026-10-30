@@ -2484,5 +2484,239 @@ export const SKIN_CATALOGUE = Object.freeze([
     "officialId": "char_4204_mantra@sightseer#4",
     "wikiIndex": 1,
     "charName": "真言" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_109_fmout_epoque_2",
+    "charId": "char_109_fmout",
+    "name": N_("未知的旅行"),
+    "brand": N_("时代"),
+    "officialId": "char_109_fmout@epoque#2",
+    "wikiIndex": 1,
+    "charName": "远山" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_133_mm_summer_20",
+    "charId": "char_133_mm",
+    "name": N_("夏卉 FA054"),
+    "brand": N_("珊瑚海岸"),
+    "officialId": "char_133_mm@summer#20",
+    "wikiIndex": 1,
+    "charName": "梅" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_135_halo_epoque_25",
+    "charId": "char_135_halo",
+    "name": N_("所愿"),
+    "brand": N_("时代"),
+    "officialId": "char_135_halo@epoque#25",
+    "wikiIndex": 1,
+    "charName": "星源" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_198_blackd_as_1",
+    "charId": "char_198_blackd",
+    "name": N_("无言狂响"),
+    "brand": N_("音律联觉"),
+    "officialId": "char_198_blackd@as#1",
+    "wikiIndex": 2,
+    "charName": "讯使" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_198_blackd_winter_1",
+    "charId": "char_198_blackd",
+    "name": N_("新航线"),
+    "brand": N_("寒武纪™系列"),
+    "officialId": "char_198_blackd@winter#1",
+    "wikiIndex": 1,
+    "charName": "讯使" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_215_mantic_epoque_19",
+    "charId": "char_215_mantic",
+    "name": N_("面纱之下"),
+    "brand": N_("时代"),
+    "officialId": "char_215_mantic@epoque#19",
+    "wikiIndex": 2,
+    "charName": "狮蝎" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_215_mantic_epoque_4",
+    "charId": "char_215_mantic",
+    "name": N_("无形悼挽"),
+    "brand": N_("时代"),
+    "officialId": "char_215_mantic@epoque#4",
+    "wikiIndex": 1,
+    "charName": "狮蝎" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_218_cuttle_epoque_12",
+    "charId": "char_218_cuttle",
+    "name": N_("暗矢"),
+    "brand": N_("时代"),
+    "officialId": "char_218_cuttle@epoque#12",
+    "wikiIndex": 1,
+    "charName": "安哲拉" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_230_savage_boc_8",
+    "charId": "char_230_savage",
+    "name": N_("地底三百米"),
+    "brand": N_("斗争血脉"),
+    "officialId": "char_230_savage@boc#8",
+    "wikiIndex": 1,
+    "charName": "暴行" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_230_savage_kitchen_3",
+    "charId": "char_230_savage",
+    "name": N_("家传秘方"),
+    "brand": N_("罗德厨房"),
+    "officialId": "char_230_savage@kitchen#3",
+    "wikiIndex": 2,
+    "charName": "暴行" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_230_savage_sale_17",
+    "charId": "char_230_savage",
+    "name": N_("又一年秋季"),
+    "brand": N_("忒斯特收藏"),
+    "officialId": "char_230_savage@sale#17",
+    "wikiIndex": 3,
+    "charName": "暴行" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_243_waaifu_whirlwind_2",
+    "charId": "char_243_waaifu",
+    "name": N_("街道狂花"),
+    "brand": N_("0011/飙系列"),
+    "officialId": "char_243_waaifu@whirlwind#2",
+    "wikiIndex": 1,
+    "charName": "槐琥" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_271_spikes_unveiling_1",
+    "charId": "char_271_spikes",
+    "name": N_("危险邀约"),
+    "brand": N_("待予花冠"),
+    "officialId": "char_271_spikes@unveiling#1",
+    "wikiIndex": 2,
+    "charName": "芳汀" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_271_spikes_winter_2",
+    "charId": "char_271_spikes",
+    "name": N_("随性"),
+    "brand": N_("寒武纪™系列"),
+    "officialId": "char_271_spikes@winter#2",
+    "wikiIndex": 1,
+    "charName": "芳汀" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_304_zebra_wild_6",
+    "charId": "char_304_zebra",
+    "name": N_("幽苔"),
+    "brand": N_("生命之地"),
+    "officialId": "char_304_zebra@wild#6",
+    "wikiIndex": 1,
+    "charName": "暴雨" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_345_folnic_wild_4",
+    "charId": "char_345_folnic",
+    "name": N_("残葛"),
+    "brand": N_("生命之地"),
+    "officialId": "char_345_folnic@wild#4",
+    "wikiIndex": 1,
+    "charName": "亚叶" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_348_ceylon_summer_13",
+    "charId": "char_348_ceylon",
+    "name": N_("悠然假日 HD49"),
+    "brand": N_("珊瑚海岸"),
+    "officialId": "char_348_ceylon@summer#13",
+    "wikiIndex": 1,
+    "charName": "锡兰" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_355_ethan_epoque_7",
+    "charId": "char_355_ethan",
+    "name": N_("渗透"),
+    "brand": N_("时代"),
+    "officialId": "char_355_ethan@epoque#7",
+    "wikiIndex": 1,
+    "charName": "伊桑" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4004_pudd_snow_5",
+    "charId": "char_4004_pudd",
+    "name": N_("火树灵"),
+    "brand": N_("冰原信使"),
+    "officialId": "char_4004_pudd@snow#5",
+    "wikiIndex": 1,
+    "charName": "布丁" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4045_heidi_epoque_24",
+    "charId": "char_4045_heidi",
+    "name": N_("书信零落"),
+    "brand": N_("时代"),
+    "officialId": "char_4045_heidi@epoque#24",
+    "wikiIndex": 1,
+    "charName": "海蒂" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4119_wanqin_epoque_41",
+    "charId": "char_4119_wanqin",
+    "name": N_("万顷阳光"),
+    "brand": N_("时代"),
+    "officialId": "char_4119_wanqin@epoque#41",
+    "wikiIndex": 1,
+    "charName": "万顷" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_422_aurora_boc_4",
+    "charId": "char_422_aurora",
+    "name": N_("极昼捕手"),
+    "brand": N_("斗争血脉"),
+    "officialId": "char_422_aurora@boc#4",
+    "wikiIndex": 1,
+    "charName": "极光" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_449_glider_epoque_17",
+    "charId": "char_449_glider",
+    "name": N_("荒野之后"),
+    "brand": N_("时代"),
+    "officialId": "char_449_glider@epoque#17",
+    "wikiIndex": 1,
+    "charName": "蜜莓" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_449_glider_nian_10",
+    "charId": "char_449_glider",
+    "name": N_("洇灵雨"),
+    "brand": N_("0011™制造"),
+    "officialId": "char_449_glider@nian#10",
+    "wikiIndex": 2,
+    "charName": "蜜莓" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_473_mberry_epoque_14",
+    "charId": "char_473_mberry",
+    "name": N_("植药"),
+    "brand": N_("时代"),
+    "officialId": "char_473_mberry@epoque#14",
+    "wikiIndex": 1,
+    "charName": "桑葚" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_473_mberry_nian_9",
+    "charId": "char_473_mberry",
+    "name": N_("照冰轮"),
+    "brand": N_("0011™制造"),
+    "officialId": "char_473_mberry@nian#9",
+    "wikiIndex": 2,
+    "charName": "桑葚" // i18n-ignore: exact Wiki image-title lookup, not UI text
   }
 ].map(skin => Object.freeze(skin)));
