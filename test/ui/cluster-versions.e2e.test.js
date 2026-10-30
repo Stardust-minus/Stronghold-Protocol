@@ -1,0 +1,110 @@
+// The production shape in a real browser: one origin serving coordinator HTTP and ingress WS, one game node, nothing
+// mocked. A match of the default version runs on the game node, one of an older version in the coordinator's version
+// host (ClusterLobby.start). No gate, TLS, Nginx or WAN here.
+//
+//   SP_E2E=1 CHROME_PATH=… node --test test/ui/cluster-versions.e2e.test.js
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import { randomBytes } from 'node:crypto';
+import { Client, hasChrome, sleep } from '../e2e/client.mjs';
+import { startCoordinator } from '../../server/cluster/coordinator.js';
+import { startGameRuntime } from '../../server/cluster/game-runtime.js';
+import { startIngress } from '../../server/cluster/ingress.js';
+
+const enabled = process.env.SP_E2E === '1' && hasChrome();
+const sockets = new Set();
+let game, coordinator, ingress, proxy, url;
+
+before(async () => {
+  if (!enabled) return;
+  const key = randomBytes(32); // ephemeral, never recorded
+  game = await startGameRuntime({ nodeId: 'browser-node', generation: 'browser-generation', build: 'browser-build', key,
+    combatWorkers: 1, trialWorkers: 0, onEnd() {}, shutdownMs: 100 });
+  const nodes = [{ nodeId: 'browser-node', url: game.url, key }];
+  coordinator = await startCoordinator({ nodes, build: 'browser-build', host: '127.0.0.1', port: 0, heartbeatMs: 500, quiet: true });
+  proxy = http.createServer((req, res) => {
+    const upstream = http.request(new URL(req.url, coordinator.url), { method: req.method, headers: req.headers }, (response) => {
+      res.writeHead(response.statusCode, response.headers); response.pipe(res);
+    });
+    upstream.on('error', () => { if (!res.headersSent) res.writeHead(502); res.end(); });
+    req.pipe(upstream);
+  });
+  proxy.on('connection', (socket) => { sockets.add(socket); socket.once('close', () => sockets.delete(socket)); });
+  proxy.on('upgrade', (req, socket, head) => {
+    if (req.url !== '/ws' || !ingress) { socket.destroy(); return; }
+    const upstream = http.request(new URL('/ws', ingress.url), { headers: req.headers });
+    upstream.on('upgrade', (response, target, targetHead) => {
+      sockets.add(target); target.once('close', () => sockets.delete(target));
+      const headers = [];
+      for (let i = 0; i < response.rawHeaders.length; i += 2) headers.push(`${response.rawHeaders[i]}: ${response.rawHeaders[i + 1]}`);
+      socket.write(`HTTP/1.1 101 Switching Protocols\r\n${headers.join('\r\n')}\r\n\r\n`);
+      if (targetHead.length) socket.write(targetHead);
+      if (head.length) target.write(head);
+      socket.on('error', () => target.destroy()); target.on('error', () => socket.destroy());
+      socket.once('close', () => target.destroy()); target.once('close', () => socket.destroy());
+      socket.pipe(target); target.pipe(socket);
+    });
+    upstream.on('response', (response) => { response.resume(); socket.destroy(); });
+    upstream.on('error', () => socket.destroy()); upstream.end();
+  });
+  await new Promise((resolve) => proxy.listen(0, '127.0.0.1', resolve));
+  url = `http://127.0.0.1:${proxy.address().port}`;
+  ingress = await startIngress({ coordinatorUrl: coordinator.url, nodes: nodes.map(({ nodeId, url }) => ({ nodeId, url })), host: '127.0.0.1', port: 0,
+    origins: [url], wsCompression: 'on', shutdownMs: 100 });
+});
+
+after(async () => {
+  for (const socket of sockets) socket.destroy();
+  if (proxy) await new Promise((resolve) => proxy.close(resolve));
+  await ingress?.close(); await coordinator?.close(); await game?.close();
+});
+
+/** Lobby → (the version) → 独立模拟 → briefing → strategy → round 1 → a bought operator → the fight → round 2's prep. */
+async function play(version) {
+  const puppeteer = (await import('puppeteer-core')).default;
+  const c = new Client(puppeteer, url, version, { prefix: 'cluster', prefs: {} });
+  try {
+    await c.open();
+    await c.enter('集群');
+    if (version !== 'act2autochess') {
+      await c.click('[data-testid="version-switch"]');
+      await c.click(`.verpick__pick[data-version="${version}"]`);
+      await c.page.waitForFunction((v) => document.querySelector('[data-testid="version-switch"]')?.dataset.version === v, { timeout: 30000 }, version);
+    }
+    await c.createSolo('标准模拟');
+    await c.waitFor((s) => !!s.room, 'solo room');
+    if (!(await c.st()).phase) await c.roomStart({ timeout: 20000 });
+    await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
+    await c.settled('.brief-go');
+    await c.click('.brief__foot .btn--primary', '准备就绪');
+    await c.waitFor((s) => s.phase === 'BAND_DRAFT', 'band draft', 30000);
+    await c.click('.dband', null, { nth: 0 });
+    await c.click('.draft-detail__btns .btn--primary', '确认选择');
+    await c.waitFor((s) => s.phase === 'PREP', 'round 1 prep', 60000);
+    const start = await c.st();
+    assert.equal(await c.page.evaluate(() => globalThis.__SP__.store.get().match.public?.version ?? 'act2autochess'), version);
+    await c.page.evaluate(() => globalThis.__SP__.net.request('g.ready', { ready: true }));
+    const end = Date.now() + 240000;
+    for (;;) {
+      const s = await c.st();
+      if (s.phase === 'PREP' && s.round > start.round) break;
+      if (s.result) throw new Error('the match ended in round 1');
+      if (s.phase === 'SP_DRAFT' || Date.now() > end) break;
+      await sleep(500);
+    }
+    const s = await c.st();
+    assert.ok(s.round > start.round || s.phase === 'SP_DRAFT', `past round 1: ${JSON.stringify({ phase: s.phase, round: s.round })}`);
+    assert.deepEqual(c.problems, [], 'no console errors or failed requests');
+  } finally { await c.close(); }
+}
+
+test('a default-version match on the game node, in a browser', { skip: !enabled, timeout: 5 * 60 * 1000 }, async () => {
+  await play('act2autochess');
+  assert.equal(coordinator.versionHosts?.stats?.().matches ?? 0, 0);
+});
+
+test('an older version\'s match in the coordinator\'s version host, in a browser', { skip: !enabled, timeout: 5 * 60 * 1000 }, async () => {
+  await play('act1autochess');
+  assert.equal(coordinator.versionHosts.stats().matches, 1);
+});
