@@ -35,7 +35,7 @@ import { data, buildIndex } from '../data.js';
 import { contentSet as appContentSet, pageVersion } from '../content.js';
 import { LOADOUT_PREF, parseStored, parseStoredOps, parseStoredByChar, toStored, toStoredV1, sanitizeEntries, sanitizeOps, charKeyMap, entriesToChar,
   entriesView, rebaseByChar } from './loadoutModel.js';
-import { cultivationCharIds, charPotentialChanges, loadoutOptions } from '../../../shared/protocol.js';
+import { cultivationCharIds, charPotentialChanges, isOfficialAvatar, loadoutOptions } from '../../../shared/protocol.js';
 import { PHASE } from '../../../shared/constants.js';
 import { POTENTIAL_DEFAULT, CULTIVATE_DEFAULT } from '../../../shared/potential.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
@@ -694,7 +694,7 @@ export function installPlayerCardSync({ net, timers, target = playerCardStore, l
       if (target.get().trophies == null) refreshTrophies();
       const card = target.get();
       const known = new Set(cardOperators(list()).map((c) => c.charId));
-      return cardMessage({ ...card, charId: known.has(card.charId) ? card.charId : '', avatar: known.has(card.avatar) ? card.avatar : '' });
+      return cardMessage({ ...card, charId: known.has(card.charId) ? card.charId : '', avatar: known.has(card.avatar) || isOfficialAvatar(card.avatar) ? card.avatar : '' });
     },
   });
 }

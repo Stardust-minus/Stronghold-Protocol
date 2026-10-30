@@ -1828,6 +1828,10 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .rseat__art:hover .rseat__pick, .rseat__pick:focus-visible { opacity: 1; border-color: #5df0c6; }
 @media (max-width: 900px) { .rseat__pick span { display: none; } }
 .cardpick .modal__body, .cardpick { --cp-size: max(.86rem, 52px); }
+.cardpick__tabs { display: flex; gap: .06rem; margin-bottom: .1rem; }
+.cardpick__tabs button { min-height: 28px; padding: .03rem .16rem; font: inherit; font-size: max(calc(.15 * var(--t)), 12px); color: var(--text-md); background: none; border: 1px solid var(--line-2); cursor: pointer; }
+.cardpick__tabs button.is-on { color: var(--text-hi); border-color: var(--mint-400); }
+.cardpick__group { grid-column: 1 / -1; margin: .06rem 0 0; font-size: max(calc(.15 * var(--t)), 12px); color: var(--text-md); }
 .cardpick__bar { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem; margin-bottom: .12rem; }
 .cardpick__search { flex: 1 1 2.4rem; display: flex; align-items: center; gap: .06rem; height: max(.5rem, 30px); padding: 0 .1rem; background: rgba(0, 0, 0, .4); border: 1px solid var(--line-2); }
 .cardpick__search .icon { width: 1.1em; height: 1.1em; color: var(--text-lo); }

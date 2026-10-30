@@ -10,6 +10,7 @@ import { N_ } from '../../../shared/i18n.js';
 import { createStore, loadPref, savePref } from '../store.js';
 import { ownerSkin } from './skins.js';
 import { CARD_ROSTER } from '../../../shared/card-roster.js';
+import { isOfficialAvatar } from '../../../shared/protocol.js';
 
 /** FNV-1a of a string (the portrait pick: the same operator for a player on every client). */
 function hash32(s) {
@@ -107,7 +108,24 @@ export function lookOptions(m, charId, kind) {
  * @param {string} charId @param {any} [m] the art manifest @param {string} [look]
  */
 export function cardAvatarUrl(charId, m = data.get('assets'), look = '') {
-  return lookUrl(m, charId, look, 'avatar');
+  return isOfficialAvatar(charId) ? str(m?.ui?.[`playerAvatar/${charId}`]) : lookUrl(m, charId, look, 'avatar');
+}
+
+/** The groups of the official player avatars (id prefixes of display_meta_table), the 头像 picker's order. */
+const OFFICIAL_AVATAR_GROUPS = Object.freeze([
+  { key: 'activity', title: N_('活动头像') }, { key: 'special', title: N_('特殊头像') }, { key: 'def', title: N_('基础头像') }, { key: 'dyn', title: N_('动态头像') },
+]);
+
+/**
+ * The official player avatars of the art manifest (feedback #100), by group: [{ key, title, items: [{ id, src }] }].
+ * @param {any} m the art manifest
+ */
+export function officialAvatars(m) {
+  const ui = m?.ui && typeof m.ui === 'object' ? m.ui : {};
+  const ids = Object.keys(ui).filter((k) => k.startsWith('playerAvatar/')).map((k) => k.slice('playerAvatar/'.length))
+    .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+  return OFFICIAL_AVATAR_GROUPS.map((g) => ({ ...g, items: ids.filter((id) => id.startsWith(`avatar_${g.key}_`)).map((id) => ({ id, src: ui[`playerAvatar/${id}`] })) }))
+    .filter((g) => g.items.length);
 }
 
 /**

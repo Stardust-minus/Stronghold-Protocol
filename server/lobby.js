@@ -239,7 +239,7 @@
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
 import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
-import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges } from '../shared/protocol.js';
+import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, isOfficialAvatar } from '../shared/protocol.js';
 import { isSkinChoices, skinFor } from '../shared/skins.js';
 import { CARD_ROSTER } from '../shared/card-roster.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isExperimental, sameExperimental } from '../shared/experimental.js';
@@ -2349,7 +2349,7 @@ export class Lobby {
   setCard(session, { charId, avatar, bg, bgY, trophies, look, avatarLook }) {
     const known = cardCharIds(this.dataFor(this.roomOf(session)));
     const real = (id) => CARD_ROSTER_IDS.has(id) || known.has(id);
-    if ((charId && !real(charId)) || (avatar && !real(avatar))) return fail(ERR.BAD_MSG, 'unknown operator');
+    if ((charId && !real(charId)) || (avatar && !real(avatar) && !isOfficialAvatar(avatar))) return fail(ERR.BAD_MSG, 'unknown operator');
     const prev = session.card || {};
     const next = {};
     const id = charId === undefined ? prev.charId : charId, back = bg === undefined ? prev.bg : bg;
