@@ -43,11 +43,11 @@ describe('an interface plugin that navigates its own frame', { skip: !ENABLED },
       await c.page.waitForSelector('.screen', { timeout: 20000 });
       // the bridge loads with the match screen
       await c.enter('凯尔希');
-      await c.click('.mode-card', '独立模拟');
-      await c.click('.diff-card', '标准模拟');
-      await c.click('.create-box button', '开始独立模拟');
+      await c.click('.hub-entry', '独立模拟');
+      await c.click('.pcard', '标准模拟');
+      await c.click('.proto-start', '开始模拟');
       await c.waitFor((s) => !!s.room, 'solo room');
-      if (!(await c.st()).phase) await c.click('.room-bar__right button', '开始模拟', { timeout: 20000 });
+      if (!(await c.st()).phase) await c.click('.rs-go', '开始模拟', { timeout: 20000 });
       await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
       // the frame mounts (as soon as the match screen loads), says ready, then navigates itself to away.html: the
       // host must drop it and block it for this page

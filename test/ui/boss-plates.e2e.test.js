@@ -62,6 +62,20 @@ describe('leader plates and endings (headless Chrome)', { skip: !ENABLED && 'set
   const setPhase = (page, ph) => page.evaluate((ph) => globalThis.__MOCK__.setPhase(ph), ph);
   const mutate = (page, fn) => page.evaluate((src) => { const M = globalThis.__MOCK__; M.mutate(new Function('s', src)); M.pushPublic(); }, fn);
   const roundOver = 's.pub.deadline = 0; s.pub.fields.forEach((f) => { f.live = false; });';
+  // this fork opens 最终攻势 / 隐秘核心 on the boss round's ROUND_START (the owner's timing of 2026-10-15), not on the phase
+  // (setPhase rebuilds the mock's state: the round is set in the same tick, before the page renders the phase)
+  const roundStart = (page, phase, round) => page.evaluate((phase, round) => {
+    const M = globalThis.__MOCK__;
+    M.setPhase(phase);
+    M.mutate((s) => { s.pub.bossRound = 14; s.pub.round = round; s.pub.teamLp = 61; });
+    M.pushPublic();
+  }, phase, round);
+  const bossStart = (page) => roundStart(page, 'ROUND_START', 14);
+  const coreStart = async (page) => {
+    await roundStart(page, 'FINAL_ASSAULT', 14);
+    await sleep(100);
+    await roundStart(page, 'ROUND_START', 15);
+  };
 
   // first: a later page of the same browser was seen getting the sprites past the interception (headless Chrome on
   // Windows), so the CI view is checked before any other page
@@ -82,7 +96,7 @@ describe('leader plates and endings (headless Chrome)', { skip: !ENABLED && 'set
 
   test('最终攻势: a row per survivor, the team\'s LP in the node, the official crest; it goes by itself', async () => {
     const { page, problems, context } = await open();
-    await setPhase(page, 'FINAL_ASSAULT');
+    await bossStart(page);
     await page.waitForSelector('[data-testid="final-plate"]', { timeout: 3000 });
     assert.equal(await page.$('.pbanner'), null, 'the plate, not the banner');
     await sleep(1400);
@@ -111,9 +125,10 @@ describe('leader plates and endings (headless Chrome)', { skip: !ENABLED && 'set
 
   test('隐秘核心已解锁, then 未能击破隐秘核心 when the round is over, 击败了全部领袖！ when its leader falls', async () => {
     const { page, problems, context } = await open();
-    await setPhase(page, 'HIDDEN_CORE');
+    await coreStart(page);
     await page.waitForSelector('[data-testid="core-plate"]', { timeout: 3000 });
     assert.equal(await page.$eval('.core__title', (e) => e.textContent), '隐秘核心已解锁');
+    await page.evaluate(() => globalThis.__MOCK__.setPhase('HIDDEN_CORE'));
     await mutate(page, roundOver);
     await page.waitForSelector('[data-testid="end-plate"].end--coreFail', { timeout: 3000 });
     assert.equal(await page.$eval('.end__title', (e) => e.textContent), '未能击破隐秘核心');
@@ -137,7 +152,7 @@ describe('leader plates and endings (headless Chrome)', { skip: !ENABLED && 'set
 
   test('reduced motion: the 最终攻势 plate at its final state, nothing moving', async () => {
     const { page, problems, context } = await open({ reduce: true });
-    await setPhase(page, 'FINAL_ASSAULT');
+    await bossStart(page);
     await page.waitForSelector('[data-testid="final-plate"]', { timeout: 3000 });
     await sleep(100);
     const moving = await page.evaluate(() => document.getAnimations().filter((a) => /^(bpl|fa|core|end)-/.test(String(a.animationName))).map((a) => a.animationName));

@@ -313,9 +313,9 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
       assert.equal(await page.$eval('.announcement-board', el => el.getAttribute('aria-label')), '大厅公告板');
       await tapText('.announcement-board button', '关闭公告');
       await page.waitForSelector('.announcement-board', { hidden: true });
-      await tapText('.mode-card', '同盟模拟');
+      await tapText('.hub-entry', '同盟模拟');
       await tapText('[data-testid="alliance-create"]');
-      await page.waitForSelector('.room-bar__right', { timeout: 15000 });
+      await page.waitForSelector('.rs-go', { timeout: 15000 });
       await sleep(500);
       await page.screenshot({ path: path.join(OUT, `device-${dev}-room.png`) });
       assert.deepEqual(await layoutProblems(page), [], `${dev} room`);

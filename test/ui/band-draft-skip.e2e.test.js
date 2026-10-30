@@ -86,18 +86,20 @@ describe('strategy skip eligibility (real server, normal browser operations)', {
   async function draft(humans, mode = 'coop') {
     const clients = [await player('轮选测试1')];
     const host = clients[0].page;
-    await click(host, '.mode-card', mode === 'solo' ? '独立模拟' : '同盟模拟');
+    // the lobby's 公告板 opens by itself on a fresh browser and covers the hub
+    if (await host.waitForSelector('.announcement-board', { visible: true, timeout: 2500 }).catch(() => null)) await click(host, '.announcement-board .modal__actions button');
+    await click(host, '.hub-entry', mode === 'solo' ? '独立模拟' : '同盟模拟');
     // 独立模拟 → 选择模拟协议 → 开始独立模拟; 创建同盟 creates the co-op room at once
-    await click(host, ...(mode === 'solo' ? ['.create-box button', '开始独立模拟'] : ['[data-testid="alliance-create"]']));
+    await click(host, ...(mode === 'solo' ? ['.proto-start', '开始模拟'] : ['[data-testid="alliance-create"]']));
     await host.waitForFunction(() => !!globalThis.__SP__.store.get().room?.code);
     const code = (await state(host)).code;
     for (let i = 1; i < humans; i++) {
       const c = await player(`轮选测试${i + 1}`, `?room=${code}`);
       clients.push(c);
       await c.page.waitForFunction((code) => globalThis.__SP__.store.get().room?.code === code, {}, code);
-      await click(c.page, '.room-bar__right button', '准备就绪');
+      await click(c.page, '.rs-go', '准备就绪');
     }
-    if ((await state(host)).phase !== 'INFO_CHECK') await click(host, '.room-bar__right button', '开始模拟');
+    if ((await state(host)).phase !== 'INFO_CHECK') await click(host, '.rs-go', '开始模拟');
     for (const c of clients) {
       await c.page.waitForSelector('.brief__foot .btn--primary');
       await settled(c.page, '.brief-go'); // (a click during its entrance falls through)

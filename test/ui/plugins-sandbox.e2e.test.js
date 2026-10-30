@@ -17,7 +17,7 @@ test('two sandbox-script players start without consent and Worker battles verify
  const host=new Client(P,srv.url,'host',{prefix:'plugins-sandbox',w:1600,h:900}), guest=new Client(P,srv.url,'guest',{prefix:'plugins-sandbox',w:1600,h:900});
  t.after(async()=>{await host.close();await guest.close();});
  await host.open();await host.enter('凯尔希');const {code}=await host.createCoop();
- await guest.open();await guest.enter('阿米娅');await guest.click('.mode-card','同盟模拟');await guest.click('.join-row input');await guest.page.keyboard.type(code);await guest.click('.join-row button','加入同盟');await guest.page.waitForSelector('.room-screen');
+ await guest.open();await guest.enter('阿米娅');await guest.click('.hub-tile', '密钥加入');await guest.click('.hub-dialog .join-row input');await guest.page.keyboard.type(code);await guest.click('.join-row button','加入同盟');await guest.page.waitForSelector('.room-screen');
  await host.page.evaluate(()=>globalThis.__SP__.net.request('room.setPlugins',{plugins:[{id:'training'}]}));
  for(const c of [host,guest])await c.page.waitForFunction(()=>globalThis.__SP__.store.get().room?.content?.execution==='sandbox');
  await host.click('[data-testid="plugin-tag"]');
@@ -29,7 +29,7 @@ test('two sandbox-script players start without consent and Worker battles verify
   assert.equal(await c.page.evaluate(()=>globalThis.__SP__.store.get().room.content.trusted),undefined);
  }
  for(const c of [host,guest])await c.page.waitForFunction(()=>globalThis.__SP__.store.get().room.seats.filter(s=>s&&!s.isBot).every(s=>s.content==='ready'));
- await guest.click('.room-bar__right button','准备就绪');await host.click('.room-bar__right button','开始模拟');
+ await guest.click('.rs-go','准备就绪');await host.click('.rs-go','开始模拟');
  await host.waitFor(s=>s.phase==='COMBAT','battle',120000);
  await host.page.waitForFunction(()=>[...globalThis.__SP_RUNNER__._entries.values()].some(e=>
    e.host?.remote && e.host.worker instanceof Worker && !e.battle.step && !e.battle.data));

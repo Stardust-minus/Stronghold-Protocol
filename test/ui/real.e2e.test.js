@@ -531,9 +531,9 @@ describe('real server + real browsers', { skip: !ENABLED && 'set SP_REAL_E2E=1 (
       await host.createCoop('险境模拟');
       const room = (await host.waitFor((s) => !!s.room?.code, 'room created')).room;
       await host.click('.rs-pill__diff');
-      await host.click('.modal__box.proto .diff-card', '险境模拟');
-      await host.click('.modal__box.proto .proto-start', '确认');
-      await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.difficulty === 'NORMAL' && !document.querySelector('.modal__box.proto'), { timeout: 10000 });
+      await host.click('.proto .pcard', '险境模拟');
+      await host.click('.proto .proto-start', '确认');
+      await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.difficulty === 'NORMAL' && !document.querySelector('.proto'), { timeout: 10000 });
       await host.click('button', '添加 AI 队友');
       await guest.open(`?room=${room.code}`);
       await guest.enter('阿米娅');

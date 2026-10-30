@@ -48,7 +48,7 @@ for (const version of VERSIONS.filter((v) => v.dir)) test(`${version.label}: lob
     await c.click('[data-testid="version-switch"]');
     await c.click(`.verpick__pick[data-version="${version.id}"]`);
     await c.page.waitForFunction((id) => globalThis.__SP_CONTENT__?.state().version === id && globalThis.__SP_CONTENT__.state().status === 'ready', { timeout: 30000 }, version.id);
-    await c.click('.lobby-sweep');
+    await c.click('.hub-plate--sweep');
     for (const tab of ['盟约', '策略']) {
       await c.click('.sw-tab', tab);
       await images(c, '.sw-body img');

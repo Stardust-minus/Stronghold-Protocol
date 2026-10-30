@@ -105,7 +105,7 @@ test('phone online count and full-size shops stay visible, touchable and reconne
     }
     peer.terminate(); peer = null;
     await page.waitForFunction(() => globalThis.__SP__.store.get().presence?.online === 1);
-    await viewport(844, 390); await tap('.mode-card', '独立模拟'); await tap('.create-box button', '开始独立模拟');
+    await viewport(844, 390); await tap('.hub-entry', '独立模拟'); await tap('.proto-start', '开始模拟');
     await page.waitForSelector('.room-screen'); await tap('.room-screen button', '开始模拟');
     await page.waitForSelector('.brief'); await tap('.brief__foot button', '准备就绪');
     await page.waitForSelector('.dband'); await tap('.dband'); await tap('.draft-detail__btns button', '确认选择');
@@ -175,7 +175,7 @@ test('phone online count and full-size shops stay visible, touchable and reconne
       const r = el.getBoundingClientRect(); return r.width > 0 && el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
     }));
     await desktop.screenshot({ path: out + '/desktop-lobby.png' }); report.screens.push(out + '/desktop-lobby.png');
-    await desktop.click('.mode-card'); await desktop.click('.create-box button');
+    await desktop.click('.hub-entry'); await desktop.click('.proto-start');
     await desktop.waitForSelector('.room-screen');
     const clickText = async (selector, text) => {
       const handles = await desktop.$$(selector);

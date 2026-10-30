@@ -368,10 +368,10 @@ function SweepPlate({ onClick }) {
 }
 
 /** One of the big entries at the bottom right. */
-function HubEntry({ group, name, en, icon, badge, tone = 'mint', note = null, onClick, disabled = false }) {
+function HubEntry({ mode, group, name, en, icon, badge, tone = 'mint', note = null, onClick, disabled = false }) {
   return html`<div class="hub-entry-wrap">
     ${group ? html`<span class="hub-entry__group"><${Icon} name=${group.icon} />${group.label}</span>` : html`<span class="hub-entry__group hub-entry__group--blank"></span>`}
-    <button type="button" class=${`hub-entry hub-entry--${tone}`} onClick=${onClick} disabled=${disabled}>
+    <button type="button" class=${`hub-entry hub-entry--${tone}`} data-mode=${mode} onClick=${onClick} disabled=${disabled}>
       <span class="hub-entry__icon"><${Icon} name=${icon} /></span>
       <span class="hub-entry__en">${en}</span>
       <span class="hub-entry__name">${name}${badge ? html`<span class="mode-beta">${badge}</span>` : null}</span>
@@ -585,7 +585,7 @@ function AllianceSelect({ onClose, code, onCode, codeOk, recent, online, maint, 
         <button type="button" class="ally-guide" onClick=${() => openGuide(0)}><span class="ally-guide__icon"><${Icon} name="book" /></span>${t('入门协议')}</button>
       </section>
       <section class="ally-side">
-        <button type="button" class="ally-card ally-card--create" disabled=${!online || maint || queued || busy === 'create'} onClick=${onCreate}>
+        <button type="button" class="ally-card ally-card--create" disabled=${!online || maint || queued || busy === 'create'} data-testid="alliance-create" onClick=${onCreate}>
           <span class="ally-card__art"><${CreateArt} /></span>
           <span class="ally-card__bar"><span class="ally-card__icon"><${Icon} name="plus" /></span>${maint ? t('维护中 · 暂停开局') : t('创建同盟')}
             ${busy === 'create' ? html`<${Spinner} size="sm" />` : html`<small>${t('难度：{name}（可在同盟内更改）', { name: t(DIFFICULTY_NAMES[difficulty]) })}</small>`}</span>
@@ -859,9 +859,9 @@ export function LobbyScreen() {
           </div>` : null}
         ${banner ? html`<div class="hub-maint" role="status">${banner}</div>` : null}
         <div class="hub-entries__row">
-          <${HubEntry} group=${{ icon: 'user', label: t('独立模拟') }} name=${t('独立模拟')} en="SOLO" icon="user" onClick=${openSolo} />
-          <${HubEntry} group=${{ icon: 'users', label: t('同盟模拟') }} name=${t('同盟模拟')} en="ALLIANCE" icon="users" onClick=${openAlly} />
-          <${HubEntry} name=${t('多人匹配')} en="MATCHMAKING" icon="search" tone="bright" onClick=${openMatch}
+          <${HubEntry} mode="solo" group=${{ icon: 'user', label: t('独立模拟') }} name=${t('独立模拟')} en="SOLO" icon="user" onClick=${openSolo} />
+          <${HubEntry} mode="coop" group=${{ icon: 'users', label: t('同盟模拟') }} name=${t('同盟模拟')} en="ALLIANCE" icon="users" onClick=${openAlly} />
+          <${HubEntry} mode="match" name=${t('多人匹配')} en="MATCHMAKING" icon="search" tone="bright" onClick=${openMatch}
             note=${queued ? html`<span class="num">${t('匹配中')}</span>` : null} />
         </div>
       </section>
