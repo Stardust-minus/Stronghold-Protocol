@@ -1828,6 +1828,10 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .rseat__art:hover .rseat__pick, .rseat__pick:focus-visible { opacity: 1; border-color: #5df0c6; }
 @media (max-width: 900px) { .rseat__pick span { display: none; } }
 .cardpick .modal__body, .cardpick { --cp-size: max(.86rem, 52px); }
+.cardpick__tabs { display: flex; gap: .06rem; margin-bottom: .1rem; }
+.cardpick__tabs button { min-height: 28px; padding: .03rem .16rem; font: inherit; font-size: max(calc(.15 * var(--t)), 12px); color: var(--text-md); background: none; border: 1px solid var(--line-2); cursor: pointer; }
+.cardpick__tabs button.is-on { color: var(--text-hi); border-color: var(--mint-400); }
+.cardpick__group { grid-column: 1 / -1; margin: .06rem 0 0; font-size: max(calc(.15 * var(--t)), 12px); color: var(--text-md); }
 .cardpick__bar { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem; margin-bottom: .12rem; }
 .cardpick__search { flex: 1 1 2.4rem; display: flex; align-items: center; gap: .06rem; height: max(.5rem, 30px); padding: 0 .1rem; background: rgba(0, 0, 0, .4); border: 1px solid var(--line-2); }
 .cardpick__search .icon { width: 1.1em; height: 1.1em; color: var(--text-lo); }
@@ -2371,7 +2375,7 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
    ========================================================================================== */
 .has-nc { position: relative; isolation: isolate; text-shadow: 0 1px 2px rgba(0, 0, 0, .8); }
 .nc-layer { position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
-  background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .9), rgba(8, 11, 11, .62) 50%, rgba(8, 11, 11, .2))), var(--nc) center / cover no-repeat, #101514; }
+  background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .9), rgba(8, 11, 11, .62) 50%, rgba(8, 11, 11, .2))), var(--nc) center var(--nc-y, 50%) / cover no-repeat, #101514; }
 .ach-card.has-nc { background: #101514; --nc-shade: linear-gradient(90deg, rgba(6, 9, 9, .5), rgba(6, 9, 9, .12) 55%, transparent); }
 .ach-card.has-nc .ach-card__id { background: rgba(8, 12, 11, .62); color: #e6ecea; }
 .ach-card.has-nc .ach-card__brand { display: none; }
@@ -2632,7 +2636,16 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .nc-pick__search { flex: 0 1 200px; min-width: 0; height: 26px; padding: 0 8px; font: inherit; font-size: 13px; font-weight: 400; color: #e6ecea;
   background: rgba(0, 0, 0, .4); border: 1px solid rgba(255, 255, 255, .18); outline: none; }
 .nc-layer--skin { background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .45) 50%, rgba(8, 11, 11, .1))),
-  var(--nc) center 24% / cover no-repeat, #101514; }
+  var(--nc) center var(--nc-y, 24%) / cover no-repeat, #101514; }
+/* 调整显示范围 (feedback #61): the plate follows the pointer; the shape of a room seat's name plate */
+.nc-adjust { display: flex; flex-direction: column; gap: 10px; padding: 12px; overflow: auto; }
+.nc-adjust__plate { width: min(100%, 600px); aspect-ratio: 9 / 2; margin: 0 auto; border-radius: 2px; overflow: hidden; background: #101514; cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.nc-adjust__hint { position: absolute; left: 10px; bottom: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 13px; color: #e6ecea; background: rgba(0, 0, 0, .5); border-radius: 2px; pointer-events: none; }
+.nc-adjust__range { width: min(100%, 600px); margin: 0 auto; accent-color: #4fe8c0; }
+.nc-adjust__foot { display: flex; justify-content: center; gap: 10px; }
+.nc-adjust__btn { min-height: 34px; padding: 4px 14px; font: inherit; font-size: 14px; color: #e6ecea; background: rgba(0, 0, 0, .4); border: 1px solid rgba(255, 255, 255, .25); border-radius: 2px; cursor: pointer; }
+.nc-adjust__btn:hover, .nc-adjust__btn:focus-visible { border-color: #4fe8c0; }
+.nc-adjust__btn--go { color: #08221b; background: #4fe8c0; border-color: #4fe8c0; }
 .nc-pick__art { position: relative; display: flex; align-items: center; gap: .08rem; width: 100%; aspect-ratio: 600 / 186; padding: 0 12px; border-radius: 2px; overflow: hidden;
   color: #eef3f1; font-size: 13px; font-weight: 700; background: #101514; }
 .nc-pick__card--none .nc-pick__art { justify-content: center; color: #9aa6a2; border: 1px dashed rgba(255, 255, 255, .18); }

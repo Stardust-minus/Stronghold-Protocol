@@ -252,7 +252,7 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek }) {
   const nc = !p.isBot && card?.bg ? card.bg : null;
   return html`<div class=${cx('dorder', cur && 'is-cur', picked && 'is-done', self && 'is-self', flash && 'is-flash')} style=${`--i:${i}`}>
     <div class=${cx('dorder__card', nc && 'has-nc')}>
-      ${nc ? html`<${NameCardLayer} card=${nc} />` : null}
+      ${nc ? html`<${NameCardLayer} card=${nc} y=${card?.bgY} />` : null}
       ${art && !nc ? html`<span class="dorder__art" style=${`background-image:url("${art}")`} aria-hidden="true"></span>` : null}
       <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
       <div class="dorder__text">
@@ -413,7 +413,7 @@ export function BandDraftScreen({ held = null } = {}) {
   const myCard = useMyCard();
   const cardList = useMemo(() => cardOperators(gd.list('chess')), [gd.ready]);
   const portraits = useMemo(() => ({
-    pool: cardList.filter((c) => (c.rarity ?? 0) >= 5).sort((a, b) => (a.charId < b.charId ? -1 : 1)),
+    pool: cardList.filter((c) => (c.rarity ?? 0) >= 5 && !c.roster).sort((a, b) => (a.charId < b.charId ? -1 : 1)),
     byChar: new Map(cardList.map((c) => [c.charId, c])), m: data.get('assets'), myId, myCard: myCard.charId, myLook: myCard.look,
   }), [cardList, myId, myCard.charId, myCard.look]);
   const seatOf = (pid) => (Array.isArray(roomSeats) && roomSeats.find((x) => x && x.playerId === pid)) || null;

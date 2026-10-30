@@ -35,7 +35,7 @@ import { data, buildIndex } from '../data.js';
 import { contentSet as appContentSet, pageVersion } from '../content.js';
 import { LOADOUT_PREF, parseStored, parseStoredOps, parseStoredByChar, toStored, toStoredV1, sanitizeEntries, sanitizeOps, charKeyMap, entriesToChar,
   entriesView, rebaseByChar } from './loadoutModel.js';
-import { cultivationCharIds, charPotentialChanges, loadoutOptions } from '../../../shared/protocol.js';
+import { cultivationCharIds, charPotentialChanges, isOfficialAvatar, loadoutOptions } from '../../../shared/protocol.js';
 import { PHASE } from '../../../shared/constants.js';
 import { POTENTIAL_DEFAULT, CULTIVATE_DEFAULT } from '../../../shared/potential.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
@@ -43,6 +43,7 @@ import { OWNERSHIP_PREF, parseStoredOwnership, parseStoredOwnershipChars, toStor
   notOwnedView, rebaseChars } from './ownershipModel.js';
 import { parseStoredDiy, toStoredDiy, cleanPicks, sanitizeDiyPicks, diyPrefKey } from './diyModel.js';
 import { cardStore, CARD_KEY, CARD_SYNC_KEY, cardOperators } from './seatArt.js';
+import { cardStore as playerCardStore, cardMessage, refreshTrophies } from './playerCard.js';
 import { needsContent, serverDefaultVersion } from '../versions.js';
 import { DEFAULT_VERSION } from '../../../shared/versions.js';
 import { toast } from './toasts.js';
@@ -670,6 +671,30 @@ export function installOwnershipSync({ net, timers, target = loadoutStore, notif
         if (!target.get().notOwnedChars && pageVersion() !== DEFAULT_VERSION) return [];
       }
       return cleanIds(target.get().notOwned);
+    },
+  });
+}
+
+/**
+ * Wire the display card sync once (feedback #78, ui/playerCard.js): `room.card` after every welcome and every change, in
+ * or out of a room — the server keeps it on the session and copies it to each seat (server/lobby.js setCard, humanSeat).
+ * The room screen's own effect sent it only while that screen showed a room out of a match, so a doctor who went
+ * through matchmaking kept a stale card, and its first failure (RATE, a timeout) stopped it for good. This engine
+ * retries RATE / TIMEOUT / OFFLINE; a pick that this page does not list goes out as '' (the pref keeps it).
+ * @param {{ net: any, timers?: { setTimeout: Function, clearTimeout: Function }, target?: ReturnType<typeof createStore>,
+ *   listChess?: () => any[], notify?: (text: string) => void, content?: any, app?: any }} deps
+ */
+export function installPlayerCardSync({ net, timers, target = playerCardStore, listChess, notify, content = appContentSet, app = store } = {}) {
+  const list = listChess || (() => data.list('chess'));
+  return installPrefSync({
+    net, timers, target, notify, key: ['charId', 'avatar', 'bg', 'bgY', 'trophies', 'look', 'avatarLook'], stateKey: 'sync', msgType: 'room.card', field: null, tag: 'playerCard',
+    lockedText: null, // room.card has no phase gate: never WRONG_PHASE / ROOM_STARTED
+    content, app, gate: () => true, seatBound: false,
+    async prepare() {
+      if (target.get().trophies == null) refreshTrophies();
+      const card = target.get();
+      const known = new Set(cardOperators(list()).map((c) => c.charId));
+      return cardMessage({ ...card, charId: known.has(card.charId) ? card.charId : '', avatar: known.has(card.avatar) || isOfficialAvatar(card.avatar) ? card.avatar : '' });
     },
   });
 }

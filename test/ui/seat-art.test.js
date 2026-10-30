@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { CARD_PREF, CARD_KEY, cardStore, setCard, parseStoredCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc } from '../../public/js/ui/seatArt.js';
 import { chessPortraitUrl } from '../../public/js/ui/assetUrls.js';
+import { CARD_ROSTER } from '../../shared/card-roster.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const CHESS = Object.values(JSON.parse(readFileSync(path.join(ROOT, 'data/chess.json'), 'utf8')));
@@ -22,15 +23,27 @@ test('the pickable operators: one per visible, non-自选 charId, the elite form
   const ids = list.map((c) => c.charId);
   assert.equal(new Set(ids).size, ids.length, 'one record per charId');
   const visible = new Set(CHESS.filter((c) => !c.isDiy && c.visible !== false && typeof c.charId === 'string').map((c) => c.charId));
-  assert.deepEqual(new Set(ids), visible);
+  assert.deepEqual(new Set(list.filter((c) => !c.roster).map((c) => c.charId)), visible);
   assert.ok(!ids.includes('char_616_pithst'), 'a hidden preset is not offered');
   for (const c of list) {
     if (CHESS.some((x) => x.charId === c.charId && x.isGolden && x.visible !== false && !x.isDiy)) assert.equal(c.isGolden, true, c.charId);
   }
   for (let i = 1; i < list.length; i++) assert.ok((list[i - 1].rarity ?? 0) >= (list[i].rarity ?? 0), 'rarity descending');
   assert.equal(list[0].rarity, 6);
-  assert.deepEqual(cardOperators(null), []);
-  assert.deepEqual(cardOperators([null, { isDiy: true, charId: 'char_1_x' }, { charId: 7 }]), []);
+  assert.deepEqual(cardOperators(null).filter((c) => !c.roster), []);
+  assert.deepEqual(cardOperators([null, { isDiy: true, charId: 'char_1_x' }, { charId: 7 }]).filter((c) => !c.roster), []);
+});
+
+test('feedback #62 / #99: the rest of the roster joins the list (协防干员, the other versions\' operators), never the default pool', () => {
+  const list = cardOperators(CHESS);
+  const ids = new Set(list.map((c) => c.charId));
+  for (const r of CARD_ROSTER) assert.ok(ids.has(r.charId), r.charId);
+  const wisdel = list.find((c) => c.charId === 'char_1035_wisdel');
+  assert.equal(wisdel.name, '维什戴尔');
+  assert.equal(wisdel.isGolden, true, 'the elite art, as the chess records\' cards');
+  assert.ok(list.some((c) => c.charId === 'char_109_fmout'), 'a 第一期 operator (远山)');
+  assert.ok(cardContext(list).pool.every((c) => !c.roster));
+  assert.ok(cardContext(list).byChar.has('char_1035_wisdel'), 'a seat wearing one draws it');
 });
 
 test('the default pool: 5★/6★ only, ordered by charId whatever order the records came in', () => {

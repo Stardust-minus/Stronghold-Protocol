@@ -3,8 +3,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lookUrl, lookOptions } from '../../public/js/ui/seatArt.js';
-import { cardMessage, seatCardMatches } from '../../public/js/ui/playerCard.js';
+import { lookUrl, lookOptions, cardAvatarUrl, officialAvatars } from '../../public/js/ui/seatArt.js';
+import { cardMessage } from '../../public/js/ui/playerCard.js';
+import { validateC2S } from '../../shared/protocol.js';
 
 const M = {
   chars: {
@@ -32,11 +33,24 @@ test('lookOptions: 精二 + 精一 + skins; an operator without E2 art offers �
   assert.deepEqual(lookOptions(M, 'char_zz', 'avatar'), []);
 });
 
-test('cardMessage sends a look only with its operator; seatCardMatches compares the looks', () => {
+test('cardMessage sends a look only with its operator', () => {
   const msg = cardMessage({ charId: 'char_a', look: 'e1', avatar: '', avatarLook: 'e1', bg: 'skin:char_a_x_1', trophies: 3 });
   assert.equal(msg.look, 'e1');
   assert.equal(msg.avatarLook, '', 'no avatar operator: no avatar look');
   assert.equal(msg.bg, '', 'an unknown skin card is not sent');
-  assert.equal(seatCardMatches({ charId: 'char_a', look: 'e1', trophies: 3 }, msg), true);
-  assert.equal(seatCardMatches({ charId: 'char_a', trophies: 3 }, msg), false);
+});
+
+test('feedback #100: an official avatar is its manifest picture, and the picker groups the manifest\'s', () => {
+  const m = { ui: { 'playerAvatar/avatar_activity_OF': '/of.png', 'playerAvatar/avatar_def_02': '/d2.png', 'playerAvatar/avatar_def_10': '/d10.png', 'other/x': '/x.png' } };
+  assert.equal(cardAvatarUrl('avatar_activity_OF', m), '/of.png');
+  assert.equal(cardAvatarUrl('avatar_activity_NO', m), null, 'only what the manifest has');
+  assert.deepEqual(officialAvatars(m).map((g) => [g.key, g.items.map((a) => a.id)]),
+    [['activity', ['avatar_activity_OF']], ['def', ['avatar_def_02', 'avatar_def_10']]]);
+  assert.deepEqual(officialAvatars(null), []);
+});
+
+test('feedback #100: room.card takes an official avatar id by format, an operator id as before', () => {
+  assert.equal(validateC2S({ t: 'room.card', avatar: 'avatar_activity_EP10_2' }), null);
+  assert.equal(validateC2S({ t: 'room.card', avatar: 'char_002_amiya' }), null);
+  for (const bad of ['avatar_', 'avatar_a b', 'avatar_x/y', `avatar_${'x'.repeat(48)}`]) assert.notEqual(validateC2S({ t: 'room.card', avatar: bad }), null, bad);
 });

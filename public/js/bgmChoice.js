@@ -20,6 +20,10 @@ export const BGM_TRACKS = Object.freeze([
   { id: 'prep', name: N_('卫戍协议 · 休整'), of: (b) => b?.prep },
   { id: 'fearless', name: N_('无畏者'), of: (b) => b?.combatAlts?.[1] },
   { id: 'knight', name: N_('骑士之日'), of: (b) => b?.combatAlts?.[0] },
+  // the 上半期's own (feedback #45; official levels of 2025-11: rounds 1–7 bat_act35side_01, 8–13 bat_act35side_02)
+  { id: 'shahai', name: N_('沙海流金'), of: (b) => b?.firstHalf?.combat?.[0] },
+  { id: 'chengshi', name: N_('城市觉醒'), of: (b) => b?.firstHalf?.combat?.[1] },
+  { id: 'prep1', name: N_('卫戍协议 · 休整（上半期）'), of: (b) => b?.firstHalf?.prep },
   { id: 'unite', name: N_('联防'), of: (b) => b?.unite },
   { id: 'lobby', name: N_('卫戍协议 · 大厅'), of: (b) => b?.lobby },
 ]);
