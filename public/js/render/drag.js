@@ -13,6 +13,7 @@
 // piece standing on the tile under it (`hitPiece`, render/pick.js), and while dragging the target, `tileHover` and the
 // legality are that tile — an item dropped on a unit's tile goes to that unit. app.js draws a dragged unit following
 // the pointer smoothly, never snapped to a tile (the free deploy drag, 2026-10-15), and an item plate on the pointer.
+// 设置「部署时按格子吸附」 (#43, off by default) stands a dragged unit on the target tile instead (snapTile).
 // A release over DOM UI covering the canvas (the shop bar) is 'outside' (mouse and touch alike).
 //
 // Events emitted through `emit(name, payload)`:
@@ -88,6 +89,18 @@ export function isLegal(canPlace, piece, slot) {
   const row = slot.area === 'board' ? slot.row : GEO.HAND_ROW;
   const col = slot.area === 'board' ? slot.col : slot.idx;
   try { return canPlace(piece, row, col, slot) !== false; } catch { return false; }
+}
+
+/**
+ * The tile a dragged unit stands on with 设置「部署时按格子吸附」 on (#43): the drop target when it is a board tile or a
+ * bench slot. Null (the unit keeps following the pointer) off the grid, over DOM UI and on a temp slot.
+ * @param {{area:string,row?:number,col?:number,idx?:number}|null|undefined} target pieceDragMove `target`
+ * @returns {{row:number,col:number,bench:boolean}|null}
+ */
+export function snapTile(target, geo = GEO) {
+  if (target?.area === 'board') return { row: target.row, col: target.col, bench: false };
+  if (target?.area === 'hand') return { row: geo.HAND_ROW, col: target.idx, bench: true };
+  return null;
 }
 
 const DEFAULTS = { threshold: 6, touchThreshold: 10, longPressMs: 480 };

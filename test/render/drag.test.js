@@ -4,7 +4,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { GEO } from '../../shared/constants.js';
-import { tileSlot, pieceSlot, pieceTile, resolveDrop, isLegal, sameSlot, createDragController } from '../../public/js/render/drag.js';
+import { tileSlot, pieceSlot, pieceTile, resolveDrop, isLegal, sameSlot, createDragController, snapTile } from '../../public/js/render/drag.js';
 
 describe('slots & targets', () => {
   test('tileSlot classifies hand, temp, board and everything else', () => {
@@ -355,5 +355,16 @@ describe('the drag moves the renderer follows (pieceDragMove)', () => {
       h.ev('pointerUp', 350, 250, { pointerType });
       assert.deepEqual(h.events.find((e) => e[0] === 'pieceDrop')[1].target, { area: 'board', row: 10, col: 3 }, `${pointerType}: dropped on the pointer's tile`);
     }
+  });
+});
+
+// 设置「部署时按格子吸附」 (#43): the unit stands on the drop target; off the grid it keeps following the pointer.
+describe('snapTile', () => {
+  test('a board tile and a bench slot snap; a temp slot, the DOM and nothing do not', () => {
+    assert.deepEqual(snapTile({ area: 'board', row: 3, col: 4 }), { row: 3, col: 4, bench: false });
+    assert.deepEqual(snapTile({ area: 'hand', idx: 2 }), { row: GEO.HAND_ROW, col: 2, bench: true });
+    assert.equal(snapTile({ area: 'temp', idx: 0 }), null);
+    assert.equal(snapTile({ area: 'outside', clientX: 1, clientY: 2 }), null);
+    assert.equal(snapTile(null), null);
   });
 });

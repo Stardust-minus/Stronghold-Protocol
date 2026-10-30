@@ -61,8 +61,10 @@ export function uiScaleStep(uiScale, phone) {
  *  otherSkins: 设置「显示其他玩家的皮肤」 (ported from upstream 0.3.1 onto this fork's catalogue skins, shared/skins.js),
  *  ON by default — draw the appearance another player chose instead of the operator's own model. A pure client
  *  preference (never sent): off, only this player's own pieces wear a skin.
+ *  deploySnap: 设置「部署时按格子吸附」 (#43), off by default: a dragged unit stands on the tile it would drop on instead of
+ *  following the pointer (render/app.js moveDragVisual). A pure client preference; the drop itself is the same.
  */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, textSize: 'sm', bondTimers: false, fullscreenWakeLock: false, uiScale: 'auto', keys: DEFAULT_HOTKEYS, bgmPrep: 'official', bgmCombat: 'official' });
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, deploySnap: false, textSize: 'sm', bondTimers: false, fullscreenWakeLock: false, uiScale: 'auto', keys: DEFAULT_HOTKEYS, bgmPrep: 'official', bgmCombat: 'official' });
 const QUALITIES = ['high', 'medium', 'low'];
 /** The values of 设置「官方特效」 (render/vfx/tier.js OFFICIAL_FX). Display order in the dialog is low / medium / high. */
 export const OFFICIAL_FX_MODES = Object.freeze(['auto', 'off', 'lite', 'full']);
@@ -105,6 +107,7 @@ export function sanitizeSettings(raw) {
     quality: QUALITIES.includes(r.quality) ? r.quality : DEFAULT_SETTINGS.quality,
     officialFx: OFFICIAL_FX_MODES.includes(r.officialFx) ? r.officialFx : DEFAULT_SETTINGS.officialFx,
     otherSkins: r.otherSkins !== false,
+    deploySnap: r.deploySnap === true,
     textSize: TEXT_SIZES.includes(r.textSize) ? r.textSize : DEFAULT_SETTINGS.textSize,
     uiScale: UI_SCALES.includes(String(r.uiScale)) ? String(r.uiScale) : DEFAULT_SETTINGS.uiScale,
     keys: sanitizeHotkeys(r.keys),

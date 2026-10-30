@@ -513,6 +513,8 @@ export function SettingsModal({ open, onClose }) {
       <p class="set-hint">${t('弹药类技能开启时，在弹药条下方显示剩余弹药 / 总弹药数（如 13/14）；秘术师的血条下方显示储存的攻击能量 / 上限（如 2/3）。官方界面没有这些数字。')}</p>
       <${Toggle} label=${t('盟约效果剩余时间')} micro="BOND TIMERS" value=${s.bondTimers} onChange=${(v) => updateSettings({ bondTimers: v })} />
       <p class="set-hint">${t('在选中单位的详情中显示叙拉古、萨尔贡效果的剩余时间；萨尔贡显示层数与下一层到期时间。官方界面没有这些数字。')}</p>
+      <${Toggle} label=${t('部署时按格子吸附')} micro="SNAP TO TILE" value=${s.deploySnap} onChange=${(v) => updateSettings({ deploySnap: v })} />
+      <p class="set-hint">${t('拖动干员时，干员站在目标格子上逐格移动，松手就落在这一格。关闭时干员跟随手指或鼠标自由移动。')}</p>
       <${Toggle} label=${t('全屏时保持屏幕常亮')} micro="SCREEN WAKE LOCK" value=${s.fullscreenWakeLock} onChange=${(v) => updateSettings({ fullscreenWakeLock: v })} />
       <p class="set-hint" data-testid="wake-lock-hint">${tParts(isIOS()
         ? N_('全屏期间始终保持屏幕常亮（{support}）；iOS低电量模式下可能不生效。')
