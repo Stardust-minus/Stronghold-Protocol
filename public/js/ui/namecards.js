@@ -1,7 +1,7 @@
 // 名片底图 (2026-10-14, the owner's decision: the room design by 雨千代chiyo had name-card art from its account service;
 // here the backgrounds come from material this server already has, no new art): the four simulation loading pictures
-// (assets.json ui['loading/loading_ac_*']) and the faction emblems (ui['campLogo/logo_*'], white on the faction's
-// colour). A card id is `loading:<key>` or `camp:<key>`; an unknown id (an older or newer client's) shows nothing.
+// (assets.json ui['loading/loading_ac_*']) and the faction and organisation emblems (ui['campLogo/logo_*'], white on the
+// faction's colour). A card id is `loading:<key>` or `camp:<key>`; an unknown id (an older or newer client's) shows nothing.
 // `skin:<skin id>` (feedback #24, the owner's decision of 2026-10-17): an operator skin's full illustration (assets.json
 // skins[id].illustration, ~4 MB — only the plates that use it load it; the picker shows the skins' half-body art).
 // The pick is kept in the browser (NAMECARD_PREF) and travels with room.card (ui/playerCard.js) so teammates see it.
@@ -65,10 +65,44 @@ const CAMPS = [
   { key: 'rim', name: N_('雷姆必拓'), tint: '#4a3420' },
 ];
 
+/**
+ * The organisations with an emblem (feedback #89; the official names of handbook_team_table). The client's emblem bundle
+ * (spritepack/ui_camp_logo) has none for 整合运动, and those that repeat the 罗德岛 mark are left out.
+ */
+const ORGS = [
+  { key: 'babel', name: N_('巴别塔'), tint: '#3a3026' },
+  { key: 'rhine', name: N_('莱茵生命'), tint: '#1e3a4a' },
+  { key: 'penguin', name: N_('企鹅物流'), tint: '#3f3a1c' },
+  { key: 'blacksteel', name: N_('黑钢国际'), tint: '#2c2f33' },
+  { key: 'karlan', name: N_('喀兰贸易'), tint: '#2a4050' },
+  { key: 'glasgow', name: N_('格拉斯哥帮'), tint: '#3a2a2e' },
+  { key: 'abyssal', name: N_('深海猎人'), tint: '#14343f' },
+  { key: 'siesta', name: N_('汐斯塔'), tint: '#4a3a22' },
+  { key: 'dublinn', name: N_('深池'), tint: '#2c3f2a' },
+  { key: 'followers', name: N_('使徒'), tint: '#2e2a4a' },
+  { key: 'lgd', name: N_('龙门近卫局'), tint: '#512a22' },
+  { key: 'pinus', name: N_('红松骑士团'), tint: '#4a2420' },
+  { key: 'chiave', name: N_('贾维团伙'), tint: '#2a4438' },
+  { key: 'lee', name: N_('鲤氏侦探事务所'), tint: '#3f3320' },
+  { key: 'rainbow', name: N_('彩虹小队'), tint: '#2c3440' },
+  { key: 'student', name: N_('乌萨斯学生自治团'), tint: '#3c3c44' },
+  { key: 'sui', name: N_('炎-岁'), tint: '#5a2a20' },
+  { key: 'sweep', name: N_('S.W.E.E.P.'), tint: '#2a3a36' },
+  { key: 'elite', name: N_('罗德岛-精英干员'), tint: '#22323e' },
+  { key: 'action4', name: N_('行动组A4'), tint: '#2a3640' },
+  { key: 'reserve1', name: N_('行动预备组A1'), tint: '#2a3a44' },
+  { key: 'reserve4', name: N_('行动预备组A4'), tint: '#2a3a44' },
+  { key: 'reserve6', name: N_('行动预备组A6'), tint: '#2a3a44' },
+];
+
+const campCard = (c) => Object.freeze({ id: `camp:${c.key}`, kind: 'camp', name: c.name, tint: c.tint, assetKey: `campLogo/logo_${c.key}` });
+const ORG_IDS = new Set(ORGS.map((c) => `camp:${c.key}`));
+
 /** Every card: { id, kind, name, assetKey, tint? }. */
 export const NAMECARDS = Object.freeze([
   ...LOADING.map((c) => Object.freeze({ id: `loading:${c.key}`, kind: 'loading', name: c.name, assetKey: `loading/loading_ac_${c.key}` })),
-  ...CAMPS.map((c) => Object.freeze({ id: `camp:${c.key}`, kind: 'camp', name: c.name, tint: c.tint, assetKey: `campLogo/logo_${c.key}` })),
+  ...CAMPS.map(campCard),
+  ...ORGS.map(campCard),
 ]);
 const BY_ID = new Map(NAMECARDS.map((c) => [c.id, c]));
 /** The skins' cards: { id: 'skin:<skin id>', kind: 'skin', name, skinId, charId }. */
@@ -183,7 +217,9 @@ export function NameCardPicker({ current, y = null, onPick, onAdjust = null, onC
         <h4 class="nc-pick__theme">${t('模拟场景')}</h4>
         ${NAMECARDS.filter((c) => c.kind === 'loading').map(card)}
         <h4 class="nc-pick__theme">${t('阵营徽记')}</h4>
-        ${NAMECARDS.filter((c) => c.kind === 'camp').map(card)}
+        ${NAMECARDS.filter((c) => c.kind === 'camp' && !ORG_IDS.has(c.id)).map(card)}
+        <h4 class="nc-pick__theme">${t('组织徽记')}</h4>
+        ${NAMECARDS.filter((c) => ORG_IDS.has(c.id)).map(card)}
         <h4 class="nc-pick__theme nc-pick__theme--skins">${t('干员皮肤立绘')}
           <input type="search" class="nc-pick__search" value=${q} placeholder=${t('搜索皮肤或干员')} onInput=${(e) => setQ(e.currentTarget.value)} /></h4>
         ${skins.map(skinCard)}
