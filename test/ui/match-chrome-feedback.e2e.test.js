@@ -1,7 +1,7 @@
 // SP_E2E=1 CHROME_PATH=/usr/bin/google-chrome node --test test/ui/match-chrome-feedback.e2e.test.js
 // The real Game screen on the mock server: feedback #60 (本局信息 closes on an outside press), #100 (a picked 头像 stays on
 // the team panel in the match, the strategy moves to the row's tooltip), #65 (the draft shows this match's battlefield) and
-// #66 (an experimental room's draft groups the doctors by chess pool).
+// #66 (an experimental room's draft groups the doctors by chess pool); #90 (the shop card's portrait carries the card).
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -62,6 +62,22 @@ describe('match chrome feedback', { skip: !ENABLED && 'set SP_E2E=1 with Chrome'
       assert.ok(rows.some((r) => /\/band\//.test(r.src) || /band/.test(r.src)), 'no picked 头像: the strategy icon');
       assert.ok(rows.some((r) => r.src && !/band/.test(r.src)), 'a picked 头像 stays on');
       assert.ok(rows.every((r) => r.title.includes(' · ')), `the strategy in the tooltip: ${rows.map((r) => r.title)}`);
+    } finally { await page.close(); }
+  });
+
+  test('#90 a shop card shows the portrait zoomed and keeps the text to the lower part', async () => {
+    const page = await open();
+    try {
+      await page.waitForSelector('.scard__art');
+      const cards = await page.$$eval('.scard:not(.scard--sold):not(.scard--item)', (els) => els.map((el) => {
+        const box = el.getBoundingClientRect(), art = el.querySelector('.scard__art').getBoundingClientRect(), body = el.querySelector('.scard__body').getBoundingClientRect();
+        return { zoom: art.height / box.height, text: (box.bottom - body.top) / box.height };
+      }));
+      assert.ok(cards.length >= 3);
+      for (const c of cards) {
+        assert.ok(c.zoom > 1.2, `zoom ${c.zoom}`);
+        assert.ok(c.text < 0.6, `text band ${c.text}`);
+      }
     } finally { await page.close(); }
   });
 
