@@ -10,6 +10,8 @@ import { PHASE } from '../../shared/constants.js';
 import { makeMatch } from './harness.js';
 
 const isAi = (pid) => pid.startsWith('ai_');
+/** Virtual ms that always covers the next scheduled step (a bot's action, the draft's closing tick). */
+const DELAY_FLOOR = 3000;
 /** the stable humans-first partition of a drawn order */
 const humansFirst = (order) => [...order.filter((p) => !isAi(p)), ...order.filter(isAi)];
 /** humans first, then AI seats, each in seat order — 1 host + 3 AI by default */
@@ -193,6 +195,29 @@ test('机变 draft, option on, 2 humans + 2 AI interleaved, one under AI 托管:
   assert.deepEqual(h.m.sp.order.slice(0, 2).sort(), ['p_0', 'p_1']);
   assert.ok(h.m.sp.order.slice(2).every(isAi));
   h.m.dispose();
+});
+
+test('机变 draft, option on (feedback #46): humans who never answer cost their countdowns only, the AI seats then pick and the draft ends', () => {
+  const h = toSpDraft({ seats: seatsOf(['p_0', 'ai_0', 'p_1', 'ai_1']), seed: 5, aiPicksLast: true }, 3);
+  const m = h.m, order = m.sp.order.slice();
+  const picked = [], apply = m._applyCard;
+  m._applyCard = function (ps, idx) { picked.push(ps.playerId); return apply.call(this, ps, idx); };
+  for (let i = 0; i < 8 && m.phase === PHASE.SP_DRAFT; i++) h.sched.advance(Math.max(m.deadline - h.sched.now(), DELAY_FLOOR));
+  assert.notEqual(m.phase, PHASE.SP_DRAFT);
+  assert.deepEqual(picked.slice(0, 2).sort(), ['p_0', 'p_1'], `${order} → ${picked}`);
+  assert.ok(picked.slice(2).every(isAi), `${order} → ${picked}`);
+  assert.equal(m.errorCount, 0);
+  m.dispose();
+});
+
+test('band draft, option on (feedback #46): a strategy turn that runs out goes on to the next seat and the AI seats follow', () => {
+  const h = toBandDraft({ seats: seatsOf(['p_0', 'ai_0', 'p_1', 'ai_1']), seed: 3, aiPicksLast: true });
+  const m = h.m, draft = m.draft;
+  for (let i = 0; i < 8 && m.phase === PHASE.BAND_DRAFT; i++) h.sched.advance(Math.max(m.deadline - h.sched.now(), DELAY_FLOOR));
+  assert.notEqual(m.phase, PHASE.BAND_DRAFT);
+  assert.equal(Object.keys(draft.picks).length, 4);
+  assert.equal(m.errorCount, 0);
+  m.dispose();
 });
 
 test('solo: the option changes nothing (seat order, no skip)', () => {

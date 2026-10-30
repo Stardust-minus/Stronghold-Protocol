@@ -437,10 +437,12 @@ export class Room {
     this.versionProposeAt = -Infinity;
     this.versionRetryAt = -Infinity;
     /**
-     * 「AI 队友最后选择」 (room.setAiPicksLast, GitHub #338; co-op only, off by default): the match's strategy and 机变 drafts
-     * put every human seat before every AI seat (Match opts.aiPicksLast). Kept across the room's matches.
+     * 「AI 队友最后选择」 (room.setAiPicksLast, GitHub #338; co-op only): the match's strategy and 机变 drafts put every
+     * human seat before every AI seat (Match opts.aiPicksLast). On by default since feedback #46 (the 盟约 and 道具 cards
+     * go to the humans first without anybody having to find the switch; a room of humans only is not affected); the
+     * host can turn it off. Kept across the room's matches.
      */
-    this.aiPicksLast = false;
+    this.aiPicksLast = mode === 'coop';
     // [ASSUMED] Remake cooperation option, approved 2026-10-24; host opt-in before the match.
     this.aiTakeoverEnabled = false;
     /**

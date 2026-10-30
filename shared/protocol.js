@@ -565,7 +565,7 @@ export const C2S = {
   // Older clients may send a boolean vote, but it has no authority over room-owned rules.
   'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool, experimental: () => false, $optional: ['revivalVote', 'experimental'] },
   'room.setDifficulty': { difficulty: (v) => DIFFICULTIES.includes(v) },
-  // the co-op room option 「AI 队友最后选择」 (GitHub #338; host, before the match): the strategy and 机变 drafts order every
+  // the co-op room option 「AI 队友最后选择」 (GitHub #338, on by default; host, before the match): the strategy and 机变 drafts order every
   // human seat before every AI seat (server/match/match/phases.js humansFirst); room.state.aiPicksLast
   'room.setAiPicksLast': { on: isBool },
   // the strategy an AI seat takes in the strategy draft (host, co-op, before the match; server/lobby.js setBotBand): a

@@ -31,7 +31,7 @@ describe('co-op room settings (real server)', { skip: !ENABLED && 'set SP_E2E=1 
       await host.open();
       await host.enter('凯尔希');
       const room = await host.createCoop();
-      assert.deepEqual(await roomOf(host), { difficulty: 'FUNNY', aiPicksLast: false, ready: false }, 'the fresh browser remembers 标准');
+      assert.deepEqual(await roomOf(host), { difficulty: 'FUNNY', aiPicksLast: true, ready: false }, 'the fresh browser remembers 标准');
       await guest.open(`?room=${room.code}`);
       await guest.enter('阿米娅');
       await guest.waitFor((s) => s.room?.code === room.code, 'guest joined');
@@ -86,20 +86,24 @@ describe('co-op room settings (real server)', { skip: !ENABLED && 'set SP_E2E=1 
       assert.equal(await host.page.evaluate(() => localStorage.getItem('sp.pref.lobby.difficulty')), '"ABYSS"');
       assert.equal(await guest.page.evaluate(() => localStorage.getItem('sp.pref.lobby.difficulty')), null, 'a read-only guest remembers nothing');
       await guest.page.waitForFunction(() => globalThis.__SP__.store.get().room?.difficulty === 'ABYSS', { timeout: 10000 });
-      assert.deepEqual(await roomOf(guest), { difficulty: 'ABYSS', aiPicksLast: false, ready: false }, 'the change un-readies the guest');
+      assert.deepEqual(await roomOf(guest), { difficulty: 'ABYSS', aiPicksLast: true, ready: false }, 'the change un-readies the guest');
       await guest.page.waitForFunction(() => [...document.querySelectorAll('.toast')].some((el) => el.textContent.includes('创建者已将模拟难度改为「终极模拟」')), { timeout: 5000 });
       assert.match(await guest.page.$eval('.rs-pill__diff', (el) => el.textContent), /终极模拟/);
       assert.equal(await host.page.$$eval('.toast', (els) => els.some((el) => el.textContent.includes('创建者已将模拟难度改为'))), false, 'the host is not told their own change');
 
-      // the host switches 「AI 队友最后选择」; the guest sees it on (read-only)
+      // the host switches 「AI 队友最后选择」 (on by default, feedback #46) off; the guest sees it off (read-only)
       await host.click('.rs-pill__gear');
       await host.page.waitForSelector('.rs-opts', { visible: true });
       await host.click('.rs-opts [role="switch"]', 'AI 队友最后选择');
-      await guest.page.waitForFunction(() => globalThis.__SP__.store.get().room?.aiPicksLast === true, { timeout: 10000 });
+      await guest.page.waitForFunction(() => globalThis.__SP__.store.get().room?.aiPicksLast === false, { timeout: 10000 });
       await guest.click('.rs-pill__gear');
-      await guest.page.waitForSelector('.rs-opts [role="switch"][aria-checked="true"]', { visible: true });
-      assert.equal(await guest.page.$eval('.rs-opts [role="switch"][aria-checked="true"]', (b) => b.disabled), true);
-      await guest.shot('guest-options-on');
+      await guest.page.waitForSelector('.rs-opts [role="switch"]', { visible: true });
+      const off = await guest.page.evaluate(() => {
+        const b = [...document.querySelectorAll('.rs-opts [role="switch"]')].find((el) => el.textContent.includes('AI 队友最后选择'));
+        return [b?.getAttribute('aria-checked'), b?.disabled];
+      });
+      assert.deepEqual(off, ['false', true]);
+      await guest.shot('guest-options-off');
 
       assert.deepEqual(problemsOf([host, guest]), []);
     } finally {
