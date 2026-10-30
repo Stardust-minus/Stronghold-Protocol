@@ -400,7 +400,7 @@ export function BandDraftScreen({ held = null } = {}) {
   const myCard = useMyCard();
   const cardList = useMemo(() => cardOperators(gd.list('chess')), [gd.ready]);
   const portraits = useMemo(() => ({
-    pool: cardList.filter((c) => (c.rarity ?? 0) >= 5).sort((a, b) => (a.charId < b.charId ? -1 : 1)),
+    pool: cardList.filter((c) => (c.rarity ?? 0) >= 5 && !c.roster).sort((a, b) => (a.charId < b.charId ? -1 : 1)),
     byChar: new Map(cardList.map((c) => [c.charId, c])), m: data.get('assets'), myId, myCard: myCard.charId, myLook: myCard.look,
   }), [cardList, myId, myCard.charId, myCard.look]);
   const seatOf = (pid) => (Array.isArray(roomSeats) && roomSeats.find((x) => x && x.playerId === pid)) || null;

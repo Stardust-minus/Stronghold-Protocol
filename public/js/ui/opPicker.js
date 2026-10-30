@@ -6,7 +6,7 @@ import { html, Icon, Modal } from './components.js';
 import { chessAvatarUrl } from './assetUrls.js';
 import { cardAvatarUrl, lookOptions } from './seatArt.js';
 import { CARD_SYNC } from './playerCard.js';
-import { t } from '../../../shared/i18n.js';
+import { t, tName } from '../../../shared/i18n.js';
 
 /**
  * @param {{ title: any, micro: string, current: string, list: any[], m: any, faceOf?: (c: any) => (string | null),
@@ -20,7 +20,9 @@ export function OperatorPicker({ title, micro, current, list, m, faceOf = (c) =>
   const [q, setQ] = useState('');
   const [star, setStar] = useState(0);
   const needle = q.trim().toLowerCase();
-  const shown = list.filter((c) => (!star || c.rarity === star) && (!needle || String(c.name || '').toLowerCase().includes(needle)
+  // (a roster record's name is the Chinese one: tName gives it the language's, as the overlay does for the chess records')
+  const nameOf = (c) => (c.roster ? tName(c.name) : c.name);
+  const shown = list.filter((c) => (!star || c.rarity === star) && (!needle || String(nameOf(c) || '').toLowerCase().includes(needle)
     || String(c.appellation || '').toLowerCase().includes(needle)));
   return html`<${Modal} open=${true} title=${title} micro=${micro} onClose=${onClose} width="min(9.6rem, 94vw)" class="cardpick">
     <div class="cardpick__bar">
@@ -34,9 +36,9 @@ export function OperatorPicker({ title, micro, current, list, m, faceOf = (c) =>
     <div class="cardpick__grid">
       <button type="button" class=${`cardpick__op cardpick__op--auto${!current ? ' is-on' : ''}`} onClick=${() => onPick('')} title=${autoTitle}>
         <span class="cardpick__img"><${Icon} name=${autoIcon} /></span><span class="cardpick__name">${autoLabel}</span></button>
-      ${shown.map((c) => html`<button key=${c.charId} type="button" class=${`cardpick__op${current === c.charId ? ' is-on' : ''}`} onClick=${() => onPick(c.charId)} title=${c.name}>
+      ${shown.map((c) => html`<button key=${c.charId} type="button" class=${`cardpick__op${current === c.charId ? ' is-on' : ''}`} onClick=${() => onPick(c.charId)} title=${nameOf(c)}>
         <span class="cardpick__img"><img src=${faceOf(c)} alt="" loading="lazy" draggable=${false} /></span>
-        <span class="cardpick__name">${c.name}</span>${c.rarity ? html`<span class=${`cardpick__star r${c.rarity}`}>${c.rarity}★</span>` : null}</button>`)}
+        <span class="cardpick__name">${nameOf(c)}</span>${c.rarity ? html`<span class=${`cardpick__star r${c.rarity}`}>${c.rarity}★</span>` : null}</button>`)}
     </div>
     ${note ? html`<p class="cardpick__note"><${Icon} name="info" />${note}</p>` : null}
   <//>`;

@@ -9,6 +9,7 @@ import { data } from '../data.js';
 import { N_ } from '../../../shared/i18n.js';
 import { createStore, loadPref, savePref } from '../store.js';
 import { ownerSkin } from './skins.js';
+import { CARD_ROSTER } from '../../../shared/card-roster.js';
 
 /** FNV-1a of a string (the portrait pick: the same operator for a player on every client). */
 function hash32(s) {
@@ -42,8 +43,13 @@ export function setCard(charId) {
   cardStore.set({ [CARD_KEY]: next });
 }
 
+/** The operators of shared/card-roster.js as records of the art lookups (assetUrls.js): `roster`, the elite art. */
+const ROSTER_RECORDS = CARD_ROSTER.map((r) => Object.freeze({ ...r, isGolden: true, roster: true }));
+
 /**
- * The operators a seat card can show: one record per charId (the elite form for its E2 art), 6★ first.
+ * The operators a seat card can show: one record per charId of the data on screen (the elite form for its E2 art), then
+ * the rest of the roster (feedback #62: the 协防干员 pool, the other versions' operators), which the default portrait
+ * never draws from (`roster`); 6★ first.
  * @param {any[]} chessList chess.json records
  * @returns {any[]}
  */
@@ -54,6 +60,7 @@ export function cardOperators(chessList) {
     const prev = by.get(c.charId);
     if (!prev || (c.isGolden && !prev.isGolden)) by.set(c.charId, c);
   }
+  for (const r of ROSTER_RECORDS) if (!by.has(r.charId)) by.set(r.charId, r);
   return [...by.values()].sort((a, b) => ((b.rarity ?? 0) - (a.rarity ?? 0)) || String(a.name).localeCompare(String(b.name), 'zh'));
 }
 
@@ -128,7 +135,7 @@ export function seatPortrait(seat, { pool, byChar, m, myId, myCard, myLook = '' 
 export function cardContext(list) {
   return {
     byChar: new Map(list.map((c) => [c.charId, c])),
-    pool: list.filter((c) => (c.rarity ?? 0) >= 5).sort((a, b) => (a.charId < b.charId ? -1 : a.charId > b.charId ? 1 : 0)),
+    pool: list.filter((c) => (c.rarity ?? 0) >= 5 && !c.roster).sort((a, b) => (a.charId < b.charId ? -1 : a.charId > b.charId ? 1 : 0)),
   };
 }
 

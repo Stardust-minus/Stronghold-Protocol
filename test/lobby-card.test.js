@@ -10,6 +10,7 @@ import { validateC2S, CARD_LIMITS } from '../shared/protocol.js';
 import { ERR, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { DATA } from './match/harness.js';
 import { OPERATOR_SKINS as SKINS } from '../shared/skins.js';
+import { CARD_ROSTER } from '../shared/card-roster.js';
 
 const quiet = { info() {}, warn() {}, error() {}, debug() {} };
 const OPS = [...new Set(Object.values(DATA.chess).map((c) => c.charId).filter(Boolean))].sort();
@@ -123,6 +124,32 @@ test('only a real operator of the game data; nothing is stored on a refusal', (t
   const pool = DATA.backups?.diy?.ownedPool || [];
   if (pool.length) assert.deepEqual(card(a, { charId: pool[0] }), { ok: true }, 'a 自选 operator is a real operator');
   assert.deepEqual(lobby.setCard(a, { bg: 'bg_y' }).ok, true, 'handlers may be called without the wire fields');
+});
+
+test('feedback #62 / #99: the whole roster is real, whatever data the room plays — 协防干员 and the other versions\' operators', (t) => {
+  const { player, card } = fixture(t);
+  const a = player();
+  for (const id of ['char_1035_wisdel', 'char_109_fmout', 'char_4045_heidi']) {
+    assert.ok(CARD_ROSTER.some((r) => r.charId === id), id);
+    assert.deepEqual(card(a, { charId: id }), { ok: true }, id);
+    assert.deepEqual(card(a, { avatar: id }), { ok: true }, `avatar ${id}`);
+  }
+  assert.deepEqual(a.card, { charId: 'char_4045_heidi', avatar: 'char_4045_heidi' });
+});
+
+test('feedback #78: a card sent outside any room reaches the seat of the next room, and a stale seat is corrected', (t) => {
+  const { lobby, player, card, states } = fixture(t);
+  const a = player(), b = player();
+  assert.deepEqual(card(a, { charId: AMIYA }), { ok: true }, 'no room needed');
+  const code = lobby.onMessage(b, { t: 'room.create', mode: 'coop' }).code ?? b.messages.filter((m) => m.t === 'room.state').at(-1).code;
+  assert.ok(lobby.onMessage(a, { t: 'room.join', code }).ok !== false);
+  assert.deepEqual(states(b).at(-1).seats.find((s) => s?.playerId === a.playerId).card, { charId: AMIYA });
+  const room = lobby.roomOf(a);
+  room.seatOf(a.playerId).card = null; // a seat restored without its card
+  const before = states(b).length;
+  assert.deepEqual(card(a, { charId: AMIYA }), { ok: true }, 'the same card again');
+  assert.equal(states(b).length, before + 1, 'the room hears the correction');
+  assert.deepEqual(states(b).at(-1).seats.find((s) => s?.playerId === a.playerId).card, { charId: AMIYA });
 });
 
 test(`at most ${CARD_CHANGES} changes per ${CARD_WINDOW_MS / 1000} s per session (RATE), repeats are free`, (t) => {

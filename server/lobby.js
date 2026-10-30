@@ -241,6 +241,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges } from '../shared/protocol.js';
 import { isSkinChoices, skinFor } from '../shared/skins.js';
+import { CARD_ROSTER } from '../shared/card-roster.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isExperimental, sameExperimental } from '../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
 import { encode, isErrCode, sendEncodedMany, sendMessage, sendRaw, sendSession, TokenBucket } from './net.js';
@@ -367,7 +368,11 @@ function opsCharIds(data) {
   return ids;
 }
 
-/** The operators a display card may show (room.card charId / avatar): every chess record's charId and the 自选 owned pool. */
+/**
+ * The operators a display card may show (room.card charId / avatar): shared/card-roster.js, and every chess record's
+ * charId and the 自选 owned pool of the data the room plays (a plugin's operators).
+ */
+const CARD_ROSTER_IDS = new Set(CARD_ROSTER.map((r) => r.charId));
 const CARD_IDS = new WeakMap();
 function cardCharIds(data) {
   if (!data || typeof data !== 'object') return new Set();
@@ -2342,8 +2347,9 @@ export class Lobby {
    * room state when it changed. An unchanged card costs nothing; a change beyond CARD_CHANGES per CARD_WINDOW_MS is RATE.
    */
   setCard(session, { charId, avatar, bg, trophies, look, avatarLook }) {
-    const known = cardCharIds(this.safeData());
-    if ((charId && !known.has(charId)) || (avatar && !known.has(avatar))) return fail(ERR.BAD_MSG, 'unknown operator');
+    const known = cardCharIds(this.dataFor(this.roomOf(session)));
+    const real = (id) => CARD_ROSTER_IDS.has(id) || known.has(id);
+    if ((charId && !real(charId)) || (avatar && !real(avatar))) return fail(ERR.BAD_MSG, 'unknown operator');
     const prev = session.card || {};
     const next = {};
     const id = charId === undefined ? prev.charId : charId, back = bg === undefined ? prev.bg : bg;
@@ -2360,11 +2366,12 @@ export class Lobby {
     if (back) next.bg = back;
     if (count > 0) next.trophies = count;
     const card = Object.keys(next).length ? Object.freeze(next) : null;
-    if (sameCard(card, session.card)) return OK;
-    let bucket = this.cardBuckets.get(session);
-    if (!bucket) { bucket = new TokenBucket(CARD_CHANGES * 1000 / CARD_WINDOW_MS, CARD_CHANGES, this.now()); this.cardBuckets.set(session, bucket); }
-    if (!bucket.take(this.now())) return fail(ERR.RATE, 'card changed too often');
-    session.card = card;
+    if (!sameCard(card, session.card)) {
+      let bucket = this.cardBuckets.get(session);
+      if (!bucket) { bucket = new TokenBucket(CARD_CHANGES * 1000 / CARD_WINDOW_MS, CARD_CHANGES, this.now()); this.cardBuckets.set(session, bucket); }
+      if (!bucket.take(this.now())) return fail(ERR.RATE, 'card changed too often');
+      session.card = card;
+    }
     const room = this.roomOf(session);
     const seat = room ? room.seatOf(session.playerId) : null;
     if (seat && !sameCard(seat.card, card)) {
