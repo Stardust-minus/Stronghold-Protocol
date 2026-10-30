@@ -52,6 +52,16 @@ describe('match chrome feedback', { skip: !ENABLED && 'set SP_E2E=1 with Chrome'
     } finally { await page.close(); }
   });
 
+  test('#60 the bond popup (预计叠层) closes on an outside press too (#792)', async () => {
+    const page = await open();
+    try {
+      await page.click('.bslot');
+      await page.waitForSelector('.bpop');
+      await page.mouse.click(1000, 300);
+      await page.waitForFunction(() => !document.querySelector('.bpop'));
+    } finally { await page.close(); }
+  });
+
   test('#100 a player with a picked 头像 keeps it on the team panel; one without shows the strategy; the tooltip names the strategy', async () => {
     const page = await open();
     try {
