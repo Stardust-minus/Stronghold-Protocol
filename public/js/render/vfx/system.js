@@ -120,6 +120,7 @@ export class OfficialFx {
     this.renderer = ctx.renderer;
     this.lib = ctx.lib || new FxLibrary({ assets: ctx.assets });
     this.glr = null;
+    this.glrContext = null; // the renderer's CONTEXT_UID the FxGL was built on
     this.unsupported = false;
     this.tier = TIERS.includes(ctx.tier) ? ctx.tier : 'off';
     this.effects = [];
@@ -377,10 +378,15 @@ export class OfficialFx {
   renderPass(pass, renderer) {
     if (!this.active || (!this.effects.length && !this.warmQueue.length)) return;
     const gl = renderer.gl;
+    // PIXI restores a lost context on the same WebGL2RenderingContext object: only its CONTEXT_UID tells, and every
+    // program, VAO and buffer of the old FxGL is dead. Left in place its failing binds leave PIXI's own state in force
+    // while it uploads and draws, which took the bars and the impostor erasers with it (feedback #58)
+    if (this.glr && this.glrContext !== renderer.CONTEXT_UID) this.contextLost();
     if (!this.glr) {
       if (!gl || renderer.context?.webGLVersion !== 2) { this.unsupported = true; return; }
       try {
         this.glr = new FxGL(gl, this.lib);
+        this.glrContext = renderer.CONTEXT_UID;
         if (this._hf) this.glr.setHeightfield(this._hf);
       } catch (err) { console.warn('[fx] renderer unavailable', err); this.unsupported = true; return; }
     }
