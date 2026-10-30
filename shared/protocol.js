@@ -510,7 +510,7 @@ export function unitStatsEntry(u, s = null) {
 export const DIRS = Object.freeze(['UP', 'RIGHT', 'DOWN', 'LEFT']);
 const isDir = (v) => DIRS.includes(v);
 
-// ---- display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, trophies?, look?, avatarLook? } ----------
+// ---- display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, trophies?, look?, avatarLook? } -----
 
 /**
  * `room.card`: the player's display card, shown to the room on its seat (room.state seats[].card) — `charId`: the card's
@@ -519,7 +519,8 @@ const isDir = (v) => DIRS.includes(v);
  * ('' clears; format only, the client maps ids to art), `trophies`: a self-reported cumulative trophy count (0 clears;
  * cosmetic only, never used by a match). `look` / `avatarLook` (GitHub feedback #9 / #24): the art of the portrait / the
  * avatar operator — '' its 精二 art (as before), 'e1' its 精一 art, or a skin id of that operator (the server checks it
- * belongs to it: shared/skins.js skinFor). `bg` may be `skin:<skin id>`, the skin's full illustration.
+ * belongs to it: shared/skins.js skinFor). `bg` may be `skin:<skin id>`, the skin's full illustration. `bgY` (feedback
+ * #61): the vertical position of the background in percent, the part of the picture the plate shows; -1 the default.
  * A field the message leaves out keeps its stored value.
  */
 export const CARD_LIMITS = Object.freeze({ idLength: 48, trophies: 1_000_000 });
@@ -604,8 +605,8 @@ export const C2S = {
   // Independent display-only choices: actual charId → admitted manifest key; accepted in INFO_CHECK only.
   'room.skins': { choices: isSkinChoices },
   // the display card (CARD_LIMITS above; server/lobby.js setCard): stored per session, copied to the player's seat
-  'room.card': { charId: isCardCharId, avatar: isCardCharId, bg: isCardBg, trophies: (v) => isInt(v, 0, CARD_LIMITS.trophies),
-    look: isCardLook, avatarLook: isCardLook, $optional: ['charId', 'avatar', 'bg', 'trophies', 'look', 'avatarLook'] },
+  'room.card': { charId: isCardCharId, avatar: isCardCharId, bg: isCardBg, bgY: (v) => isInt(v, -1, 100), trophies: (v) => isInt(v, 0, CARD_LIMITS.trophies),
+    look: isCardLook, avatarLook: isCardLook, $optional: ['charId', 'avatar', 'bg', 'bgY', 'trophies', 'look', 'avatarLook'] },
   // spectator seats (remake feature, community report #26; MAX_SPECTATORS): take one of a co-op room's spectator seats —
   // in its lobby or while its match runs — never a player seat; the host frees one by playerId (the spectator gets
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.

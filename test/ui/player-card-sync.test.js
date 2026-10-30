@@ -8,7 +8,7 @@ import { installPlayerCardSync, SYNC_DEBOUNCE_MS, RETRY_MS } from '../../public/
 
 const ticks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 const WISADEL = 'char_1035_wisdel', HEIDI = 'char_4045_heidi';
-const EMPTY = { charId: '', avatar: '', bg: '', trophies: 0, look: '', avatarLook: '' };
+const EMPTY = { charId: '', avatar: '', bg: '', bgY: -1, trophies: 0, look: '', avatarLook: '' };
 
 function harness({ card = {}, chess = [] } = {}) {
   const listeners = new Map(), pending = new Map();

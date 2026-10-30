@@ -152,6 +152,24 @@ test('feedback #78: a card sent outside any room reaches the seat of the next ro
   assert.deepEqual(states(b).at(-1).seats.find((s) => s?.playerId === a.playerId).card, { charId: AMIYA });
 });
 
+test('bgY (feedback #61): the background\'s position travels with it, -1 clears it, no background keeps none', (t) => {
+  const { player, card } = fixture(t);
+  const a = player();
+  assert.equal(validateC2S({ t: 'room.card', bgY: 101 }) != null, true);
+  assert.equal(validateC2S({ t: 'room.card', bgY: 0.5 }) != null, true);
+  assert.equal(validateC2S({ t: 'room.card', bgY: -1 }), null);
+  card(a, { bg: 'loading:core', bgY: 30 });
+  assert.deepEqual(a.card, { bg: 'loading:core', bgY: 30 });
+  card(a, { bgY: 0 });
+  assert.deepEqual(a.card, { bg: 'loading:core', bgY: 0 }, 'the top of the picture is a position, not a cleared one');
+  card(a, { trophies: 5 });
+  assert.equal(a.card.bgY, 0, 'a field left out keeps its value');
+  card(a, { bgY: -1 });
+  assert.equal(Object.hasOwn(a.card, 'bgY'), false);
+  card(a, { bg: '', bgY: 40 });
+  assert.equal(a.card.bgY, undefined, 'no background, no position');
+});
+
 test(`at most ${CARD_CHANGES} changes per ${CARD_WINDOW_MS / 1000} s per session (RATE), repeats are free`, (t) => {
   const { clock, lobby, player, states, card } = fixture(t);
   const a = player(), b = player();

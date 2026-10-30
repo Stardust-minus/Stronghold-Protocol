@@ -184,7 +184,7 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
-//   * Display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, trophies?, look?, avatarLook? } — a portrait operator and an
+//   * Display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, trophies?, look?, avatarLook? } — a portrait operator and an
 //     avatar operator (real operators of the game data: cardCharIds, else BAD_MSG), a namecard background id (format
 //     only) and a self-reported trophy
 //     count (cosmetic, never used by a match), the art of the portrait and the avatar (look / avatarLook: 精二 '', 精一
@@ -385,7 +385,7 @@ function cardCharIds(data) {
   }
   return ids;
 }
-const sameCard = (a, b) => (a?.charId ?? '') === (b?.charId ?? '') && (a?.avatar ?? '') === (b?.avatar ?? '') && (a?.bg ?? '') === (b?.bg ?? '')
+const sameCard = (a, b) => (a?.charId ?? '') === (b?.charId ?? '') && (a?.avatar ?? '') === (b?.avatar ?? '') && (a?.bg ?? '') === (b?.bg ?? '') && (a?.bgY ?? -1) === (b?.bgY ?? -1)
   && (a?.trophies ?? 0) === (b?.trophies ?? 0) && (a?.look ?? '') === (b?.look ?? '') && (a?.avatarLook ?? '') === (b?.avatarLook ?? '');
 /** A card look ('' / 'e1' / a skin id) that `charId` can wear. */
 const lookFits = (charId, look) => !look || look === 'e1' || (!!charId && !!skinFor(charId, look));
@@ -2346,7 +2346,7 @@ export class Lobby {
    * clears it; an unknown operator is BAD_MSG — and copy it to the player's seat (never a spectator's), broadcasting the
    * room state when it changed. An unchanged card costs nothing; a change beyond CARD_CHANGES per CARD_WINDOW_MS is RATE.
    */
-  setCard(session, { charId, avatar, bg, trophies, look, avatarLook }) {
+  setCard(session, { charId, avatar, bg, bgY, trophies, look, avatarLook }) {
     const known = cardCharIds(this.dataFor(this.roomOf(session)));
     const real = (id) => CARD_ROSTER_IDS.has(id) || known.has(id);
     if ((charId && !real(charId)) || (avatar && !real(avatar))) return fail(ERR.BAD_MSG, 'unknown operator');
@@ -2364,6 +2364,8 @@ export class Lobby {
     if (id && art) next.look = art;
     if (face && faceArt) next.avatarLook = faceArt;
     if (back) next.bg = back;
+    const y = bgY === undefined ? prev.bgY : bgY;
+    if (back && y >= 0) next.bgY = y;
     if (count > 0) next.trophies = count;
     const card = Object.keys(next).length ? Object.freeze(next) : null;
     if (!sameCard(card, session.card)) {

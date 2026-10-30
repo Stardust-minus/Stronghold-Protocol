@@ -59,7 +59,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
 import { data, useData, getConfig } from '../data.js';
 import { CARD_PREF, cardOperators, seatPortrait, cardAvatarUrl, lookOptions } from '../ui/seatArt.js';
-import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardLook, setAvatarLook } from '../ui/playerCard.js';
+import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundY, setCardLook, setAvatarLook } from '../ui/playerCard.js';
 import { OperatorPicker, AvatarPicker } from '../ui/opPicker.js';
 import { NameCardLayer, NameCardPicker } from '../ui/namecards.js';
 import { TrophyBadge } from '../ui/trophies.js';
@@ -306,7 +306,7 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
         : seat.content === 'ready' ? t('插件内容就绪') : seat.content === 'failed' ? t('插件内容校验失败') : t('插件内容载入中')}
     </span>` : null}
     <div class=${`rseat__plate${card?.bg ? ' has-nc' : ''}`}>
-      ${card?.bg ? html`<${NameCardLayer} card=${card.bg} />` : null}
+      ${card?.bg ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} />` : null}
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
       ${isMe && onPickAvatar
         ? html`<button type="button" class="rseat__ava" onClick=${onPickAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>
@@ -764,7 +764,7 @@ export function RoomScreen() {
     ${picking === 'avatar' ? html`<${AvatarPicker} current=${myCard.avatar} list=${cardList} m=${m}
       looks=${{ kind: 'avatar', current: myCard.avatarLook, onLook: (look) => { setAvatarLook(look); setPicking(null); } }}
       onPick=${(id) => { setCardAvatar(id); if (!id || lookOptions(m, id, 'avatar').length < 2) setPicking(null); }} onClose=${() => setPicking(null)} />` : null}
-    ${picking === 'bg' ? html`<${NameCardPicker} current=${myCard.bg} onPick=${setCardBackground} onClose=${() => setPicking(null)} />` : null}
+    ${picking === 'bg' ? html`<${NameCardPicker} current=${myCard.bg} y=${myCard.bgY} onPick=${setCardBackground} onAdjust=${setCardBackgroundY} onClose=${() => setPicking(null)} />` : null}
     ${protoShown ? html`<${RoomProtocol} room=${room} busy=${busy} onClose=${() => setPicker(false)} onPick=${setDifficulty} leaving=${protoLeaving} difficulties=${protoDifficulties} />` : null}
     ${versionOpen && versionCtl ? html`<${VersionPicker} mode="room" versions=${versions || [{ id: curVersion, roomModes: [room.mode] }]} current=${curVersion}
       serverDefault=${serverDefault} roomMode=${room.mode} editable=${versionEditable && !versionWhy} busy=${busy === 'version'}

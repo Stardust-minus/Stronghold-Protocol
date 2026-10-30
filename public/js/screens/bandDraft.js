@@ -248,7 +248,7 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek }) {
   const nc = !p.isBot && card?.bg ? card.bg : null;
   return html`<div class=${cx('dorder', cur && 'is-cur', picked && 'is-done', self && 'is-self', flash && 'is-flash')} style=${`--i:${i}`}>
     <div class=${cx('dorder__card', nc && 'has-nc')}>
-      ${nc ? html`<${NameCardLayer} card=${nc} />` : null}
+      ${nc ? html`<${NameCardLayer} card=${nc} y=${card?.bgY} />` : null}
       ${art && !nc ? html`<span class="dorder__art" style=${`background-image:url("${art}")`} aria-hidden="true"></span>` : null}
       <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} prefer="avatar" />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
       <div class="dorder__text">
