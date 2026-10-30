@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { lookUrl, lookOptions } from '../../public/js/ui/seatArt.js';
-import { cardMessage, seatCardMatches } from '../../public/js/ui/playerCard.js';
+import { cardMessage } from '../../public/js/ui/playerCard.js';
 
 const M = {
   chars: {
@@ -32,11 +32,9 @@ test('lookOptions: 精二 + 精一 + skins; an operator without E2 art offers �
   assert.deepEqual(lookOptions(M, 'char_zz', 'avatar'), []);
 });
 
-test('cardMessage sends a look only with its operator; seatCardMatches compares the looks', () => {
+test('cardMessage sends a look only with its operator', () => {
   const msg = cardMessage({ charId: 'char_a', look: 'e1', avatar: '', avatarLook: 'e1', bg: 'skin:char_a_x_1', trophies: 3 });
   assert.equal(msg.look, 'e1');
   assert.equal(msg.avatarLook, '', 'no avatar operator: no avatar look');
   assert.equal(msg.bg, '', 'an unknown skin card is not sent');
-  assert.equal(seatCardMatches({ charId: 'char_a', look: 'e1', trophies: 3 }, msg), true);
-  assert.equal(seatCardMatches({ charId: 'char_a', trophies: 3 }, msg), false);
 });

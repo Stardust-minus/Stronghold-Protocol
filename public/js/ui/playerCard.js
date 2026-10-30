@@ -82,14 +82,6 @@ export function cardMessage(card) {
     look: charId ? str(card?.look) : '', avatarLook: avatar ? str(card?.avatarLook) : '' };
 }
 
-/** Whether a seat's card (room.state seats[].card) already says what `msg` would. */
-export function seatCardMatches(seatCard, msg) {
-  const c = seatCard && typeof seatCard === 'object' ? seatCard : {};
-  return str(c.charId) === msg.charId && str(c.avatar) === msg.avatar && str(c.bg) === msg.bg
-    && (Number.isSafeInteger(c.trophies) ? c.trophies : 0) === msg.trophies
-    && str(c.look) === str(msg.look) && str(c.avatarLook) === str(msg.avatarLook);
-}
-
 /**
  * The official avatar a player picked: one's own pick (this browser), else their seat card's (room.state seats[].card,
  * what the server showed the room); null when none, unknown or before the data loads.
