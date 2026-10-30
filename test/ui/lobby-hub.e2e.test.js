@@ -1,3 +1,4 @@
+// Off by default (SP_E2E_UPSTREAM_UI=1 runs it): upstream's hub layout; this fork keeps the 2026-10-14 hub.
 // Browser E2E of the hub lobby (PR #643 split 6) against the real server, headless Chrome (puppeteer-core + system
 // Chrome). Opt-in: SP_E2E=1 node --test test/ui/lobby-hub.e2e.test.js
 //
@@ -39,7 +40,7 @@ import { textProblems } from '../e2e/text-fit.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
+const ENABLED = process.env.SP_E2E_UPSTREAM_UI === '1' && existsSync(CHROME);
 
 describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;

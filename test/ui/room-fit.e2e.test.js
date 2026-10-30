@@ -1,3 +1,4 @@
+// Off by default (SP_E2E_UPSTREAM_UI=1 runs it): upstream's waiting room layout; this fork keeps its .rseat room.
 // Browser E2E of the waiting room's text fit (§35.18 review of the event UI splits) against the real server, headless
 // Chrome. Opt-in: SP_E2E=1 node --test test/ui/room-fit.e2e.test.js
 //
@@ -30,7 +31,7 @@ import { textProblems } from '../e2e/text-fit.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
+const ENABLED = process.env.SP_E2E_UPSTREAM_UI === '1' && existsSync(CHROME);
 // without the art pack (CI) every card shows its avatar frame, and the pictures and music the manifest names answer 404
 const ART = existsSync(path.join(ROOT, 'public/assets'));
 const LANGS = ['zh', 'zh-TW', 'en', 'ja', 'ko'];

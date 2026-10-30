@@ -1,3 +1,4 @@
+// Off by default (SP_E2E_UPSTREAM_UI=1 runs it): upstream's picture skins; this fork keeps the skin catalogue.
 // SP_E2E=1 node --test test/ui/picture-skins.e2e.test.js
 // Original synthetic PNGs; no installed game art, plugins or Chrome needed for ordinary CI.
 import { test } from 'node:test';
@@ -7,7 +8,7 @@ import { png } from '../helpers/pluginFixtures.js';
 import { CHAR, manifest, chess } from '../helpers/pictureSkins.js';
 
 test('picture-only picker updates a card and avatar live, preserves other seats and restores defaults',
-  { skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 60000 }, async () => {
+  { skip: process.env.SP_E2E_UPSTREAM_UI !== '1' || !hasChrome(), timeout: 60000 }, async () => {
     const { startServer } = await import('../../server/index.js');
     const server = await startServer({ port: 0, host: '127.0.0.1', quiet: true, assetIndex: false });
     const puppeteer = (await import('puppeteer-core')).default;
