@@ -116,6 +116,7 @@ describe('leader plates and endings (headless Chrome)', { skip: !ENABLED && 'set
     assert.equal(s.clicks, 'none');
     await page.waitForFunction(() => !document.querySelector('[data-testid="final-plate"]'), { timeout: 4000 });
     // the leader still standing when the round is over: 模拟中断
+    await roundStart(page, 'FINAL_ASSAULT', 14); // the fight, after the plate of its round start
     await mutate(page, roundOver);
     await page.waitForSelector('[data-testid="end-plate"].end--abort', { timeout: 3000 });
     assert.equal(await page.$eval('.end__title', (e) => e.textContent), '模拟中断');
