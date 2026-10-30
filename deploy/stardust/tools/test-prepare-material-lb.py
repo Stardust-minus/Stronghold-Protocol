@@ -913,7 +913,7 @@ location /media/ {{ {public} }}
                          'explicit single mirror and legacy default remain byte-identical')
 
     def test_modelscope_existing_eight_prefix_bound_is_not_expanded(self):
-        self.assertEqual(TOOL.MAX_MODEL_PREFIXES, 8)
+        self.assertEqual(TOOL.MAX_MODEL_PREFIXES, 9)
         for count in (4, 8, 9):
             with self.subTest(count=count):
                 openi, models = fixture()

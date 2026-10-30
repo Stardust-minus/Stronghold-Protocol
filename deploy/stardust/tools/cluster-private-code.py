@@ -32,7 +32,7 @@ RUNTIME_ROOTS = (('shared', 'shared', ('.js',)), ('server/sim', 'sim', ('.js',))
 # file (cluster-generated-assets.py) and stays with the coordinator. Compared lower-case.
 RUNTIME_DENY = frozenset(('server/sim/nodedata.js',))
 RUNTIME_IGNORED = frozenset(('data/local-assets.json', 'data/local-fx.json'))
-MAX_RUNTIME = 32 * 1024 * 1024
+MAX_RUNTIME = 48 * 1024 * 1024
 # Opt-in (--client-build): the Vite bundle's chunks (npm run build -> public/build/assets/<name>-<hash8>.js|css, SP_CLIENT=build)
 # are generated resources, not Git files: they are selected from the export's resource manifest (cluster-source-export.py)
 # and served as exact gated aliases with a year-long immutable cache (their names carry their content hash). /build/index.html
