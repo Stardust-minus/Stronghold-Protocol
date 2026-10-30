@@ -1,6 +1,7 @@
 // SP_E2E=1 CHROME_PATH=/usr/bin/google-chrome node --test test/ui/match-chrome-feedback.e2e.test.js
-// The real Game screen on the mock server: feedback #60 (本局信息 closes on an outside press) and #100 (a picked 头像 stays
-// on the team panel in the match, the strategy moves to the row's tooltip).
+// The real Game screen on the mock server: feedback #60 (本局信息 closes on an outside press), #100 (a picked 头像 stays on
+// the team panel in the match, the strategy moves to the row's tooltip), #65 (the draft shows this match's battlefield) and
+// #66 (an experimental room's draft groups the doctors by chess pool).
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -19,10 +20,14 @@ describe('match chrome feedback', { skip: !ENABLED && 'set SP_E2E=1 with Chrome'
   });
   after(async () => { await browser?.close(); await srv?.close(); });
 
-  const open = async () => {
+  const load = async (query) => {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 720 });
-    await page.goto(`${base}/dev/game-mock.html?phase=PREP&render=fallback&shot=1`, { waitUntil: 'networkidle2' });
+    await page.goto(`${base}/dev/game-mock.html?${query}&render=fallback&shot=1`, { waitUntil: 'networkidle2' });
+    return page;
+  };
+  const open = async () => {
+    const page = await load('phase=PREP');
     await page.waitForSelector('[data-testid="check-player"]');
     return page;
   };
@@ -58,5 +63,38 @@ describe('match chrome feedback', { skip: !ENABLED && 'set SP_E2E=1 with Chrome'
       assert.ok(rows.some((r) => r.src && !/band/.test(r.src)), 'a picked 头像 stays on');
       assert.ok(rows.every((r) => r.title.includes(' · ')), `the strategy in the tooltip: ${rows.map((r) => r.title)}`);
     } finally { await page.close(); }
+  });
+
+  test('#65 the strategy draft shows this match\'s battlefield: its name, the mode\'s pool and the tile map', async () => {
+    const page = await load('phase=BAND_DRAFT');
+    try {
+      await page.waitForSelector('[data-testid="draft-map"]');
+      const info = await page.$eval('[data-testid="draft-map"]', (el) => ({ name: el.querySelector('b').textContent, pool: el.querySelector('small')?.textContent || '',
+        gates: el.querySelectorAll('.stagemap__t--gate').length, goals: el.querySelectorAll('.stagemap__t--goal').length, w: el.querySelector('svg').getBoundingClientRect().width }));
+      assert.match(info.name, /战场#05/);
+      assert.match(info.pool, /战场随机/);
+      assert.ok(info.gates >= 1 && info.goals >= 1, JSON.stringify(info));
+      assert.ok(info.w > 60 && info.w < 400, JSON.stringify(info));
+    } finally { await page.close(); }
+  });
+
+  test('#66 an experimental room\'s draft groups the doctors by pool and marks the own one; a standard room has no pools', async () => {
+    const page = await load('phase=BAND_DRAFT&variant=players20');
+    try {
+      await page.waitForSelector('[data-testid="draft-pool"]');
+      const pools = await page.$$eval('[data-testid="draft-pool"]', (els) => els.map((el) => ({ head: el.querySelector('.draft-pool__head').textContent,
+        rows: el.querySelectorAll('.dorder').length, mine: el.classList.contains('is-mine') })));
+      assert.equal(pools.length, 5, JSON.stringify(pools));
+      assert.equal(pools.reduce((n, p) => n + p.rows, 0), 20);
+      assert.equal(pools.filter((p) => p.mine).length, 1);
+      assert.match(pools.find((p) => p.mine).head, /你的卡池/);
+      const overflow = await page.$eval('.draft-order__rows', (el) => el.scrollWidth - el.clientWidth);
+      assert.ok(overflow <= 1, `no sideways scroll: ${overflow}`);
+    } finally { await page.close(); }
+    const std = await load('phase=BAND_DRAFT');
+    try {
+      await std.waitForSelector('.dorder');
+      assert.equal(await std.$('[data-testid="draft-pool"]'), null);
+    } finally { await std.close(); }
   });
 });
