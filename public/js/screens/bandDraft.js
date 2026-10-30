@@ -250,7 +250,7 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek }) {
     <div class=${cx('dorder__card', nc && 'has-nc')}>
       ${nc ? html`<${NameCardLayer} card=${nc} />` : null}
       ${art && !nc ? html`<span class="dorder__art" style=${`background-image:url("${art}")`} aria-hidden="true"></span>` : null}
-      <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} prefer="avatar" />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
+      <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
       <div class="dorder__text">
         <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<span>${p.name || t('博士')}</span>${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
         <span class="dorder__state">${picked ? html`<span class="t-mint">${pband?.name || t('已选择')}</span>`
