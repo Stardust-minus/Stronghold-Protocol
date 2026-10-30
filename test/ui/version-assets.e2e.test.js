@@ -71,10 +71,6 @@ for (const version of VERSIONS.filter((v) => v.dir)) test(`${version.label}: lob
     await shot(c, `${name}-diy`);
     await close(c, '.lo');
     await c.createCoop();
-    await c.click('[data-testid="seat-card-pick"]');
-    await images(c, '.cardpick img');
-    await shot(c, `${name}-namecard`);
-    await close(c, '.cardpick');
     for (let i = 0; i < 3; i++) await req(c, 'room.addBot');
     await req(c, 'room.start');
     await c.page.waitForFunction(() => globalThis.__SP__.store.get().match.public?.phase === 'INFO_CHECK', { timeout: 60000 });

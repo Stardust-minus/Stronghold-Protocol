@@ -108,9 +108,9 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       await guest.open(`?room=${room.code}`);
       await guest.enter('阿米娅');
       await guest.waitFor((s) => s.room?.code === room.code, 'guest joined');
-      await guest.page.waitForSelector('.room-screen .seat.is-me [data-testid="seat-content"]');
+      await guest.page.waitForSelector('.room-screen .rseat.is-me [data-testid="seat-content"]');
       await waitState(guest, (s) => s.version === 'act1autochess' && s.status === 'ready', 'the guest loads 第一期下半');
-      await guest.page.waitForFunction(() => document.querySelector('.room-screen .seat.is-me [data-testid="seat-content"]')?.textContent.includes('版本数据就绪'), { timeout: 15000 });
+      await guest.page.waitForFunction(() => document.querySelector('.room-screen .rseat.is-me [data-testid="seat-content"]')?.textContent.includes('版本数据就绪'), { timeout: 15000 });
       assert.match(await guest.page.$eval('[data-testid="version-banner"]', (e) => e.textContent), /第一期下半.*第二期下半/, 'leaving restores the guest\'s lobby version');
       await guest.page.waitForFunction(() => !document.querySelector('.rs-go')?.disabled, { timeout: 10000 });
       await guest.shot('guest-room');

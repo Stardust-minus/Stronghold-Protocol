@@ -87,7 +87,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
       if (se.scrollWidth > innerWidth + 1) out.push(`page overflows horizontally (${se.scrollWidth} > ${innerWidth})`);
       if (se.scrollHeight > innerHeight + 1) out.push(`page overflows vertically (${se.scrollHeight} > ${innerHeight})`);
       const root = document.querySelector(sel) || document.body;
-      const lobby = root.querySelector('.lobby-body');
+      const lobby = root.querySelector('.hub-stage');
       const portraitLobby = innerWidth <= 600 && innerHeight > innerWidth;
       if (!portraitLobby && lobby?.scrollHeight > lobby?.clientHeight + 1) out.push(`lobby needs vertical scrolling (${lobby.scrollHeight} > ${lobby.clientHeight})`);
       if (lobby?.scrollWidth > lobby?.clientWidth + 1) out.push(`lobby needs horizontal scrolling (${lobby.scrollWidth} > ${lobby.clientWidth})`);
@@ -308,7 +308,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
       await sleep(400);
       await page.screenshot({ path: path.join(OUT, `device-${dev}-lobby.png`) });
       assert.deepEqual(await layoutProblems(page), [], `${dev} lobby`);
-      await tapText('.lobby-announcements', '公告');
+      await tapText('.hub-notice', '公告');
       await page.waitForSelector('.announcement-board', { visible: true });
       assert.equal(await page.$eval('.announcement-board', el => el.getAttribute('aria-label')), '大厅公告板');
       await tapText('.announcement-board button', '关闭公告');

@@ -185,8 +185,8 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
               // (a short screen gives the banner's line to the seats: then it is not shown at all)
               { sel: '[data-testid="version-banner"]', wrap: true, optional: h <= 520 },
               // §35.18's phone layout hides the redundant ready tag (02eebe5b); loading / failed tags remain visible.
-              { sel: '.seat__content.is-ready', within: '.rseat', optional: h <= 520 },
-              { sel: '.seat__content:not(.is-ready)', within: '.rseat', optional: true },
+              { sel: '.rseat__content.is-ready', within: '.rseat', optional: h <= 520 },
+              { sel: '.rseat__content:not(.is-ready)', within: '.rseat', optional: true },
               // the whole name (the part tells two halves apart): two lines on a short screen, never an ellipsis
               { sel: '.rs-clock [data-testid="version-tag"]', wrap: true },
               { sel: '.rs-clock [data-testid="version-tag"] .vertag__label', wrap: true },

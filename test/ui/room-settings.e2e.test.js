@@ -35,7 +35,7 @@ describe('co-op room settings (real server)', { skip: !ENABLED && 'set SP_E2E=1 
       await guest.open(`?room=${room.code}`);
       await guest.enter('阿米娅');
       await guest.waitFor((s) => s.room?.code === room.code, 'guest joined');
-      await guest.page.waitForSelector('.room-screen .seat.is-me');
+      await guest.page.waitForSelector('.room-screen .rseat.is-me');
 
       // the guest: the pill opens 选择模拟协议 read-only — no 确认, the cards disabled, the room's difficulty selected
       await guest.click('.rs-pill__diff');
