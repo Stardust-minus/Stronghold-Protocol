@@ -598,9 +598,12 @@ export async function loadSpineData(entry, opts) {
   installPixiMaterialFallback(PIXI);
   if (opts && opts.fresh) forgetPendingSpine(entry, opts.keep);
   const atlas = str(entry.atlas);
-  const source = atlas && atlas !== entry.skel.replace(/\.skel$/, '.atlas')
-    ? { src: entry.skel, data: { spineAtlasFile: atlas } } : entry.skel;
-  const res = await PIXI.Assets.load(source);
+  const meta = {};
+  if (atlas && atlas !== entry.skel.replace(/\.skel$/, '.atlas')) meta.spineAtlasFile = atlas;
+  // the manifest speaks for the pages: decoded as straight alpha, premultiplied pixels are premultiplied a second time,
+  // which turns a blush or a soft shadow into a dark smear (feedback #48, #55: every operator skin's model)
+  if (entry.pma === true && PIXI.ALPHA_MODES) meta.imageMetadata = { alphaMode: PIXI.ALPHA_MODES.PMA };
+  const res = await PIXI.Assets.load(Object.keys(meta).length ? { src: entry.skel, data: meta } : entry.skel);
   const data = res && (res.spineData || res);
   if (!data || !Array.isArray(data.animations)) throw new Error(`bad spine data: ${entry.skel}`);
   return data;

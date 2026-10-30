@@ -29,3 +29,8 @@ test('screens/game.js: a scouted board sent again keeps the camera', () => {
   // (0.3.0: a lone 联防 helper starts on its own half — helperHalf — instead of 全景)
   assert.match(game, /if \(!rescout\) \{[^}]*?setLayer\(helperHalf \|\| 'ALL'\);/);
 });
+
+test('a scouted board starts no skill loops (feedback #95: 琳琅诗怀雅 S2 on a teammate\'s bench)', () => {
+  const src = readFileSync(new URL('../../public/js/render/app.js', import.meta.url), 'utf8');
+  assert.match(src, /if \(!battleMeta\?\.prep\) wiring\.sync\(views\.values\(\)\);/);
+});

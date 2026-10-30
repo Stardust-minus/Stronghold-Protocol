@@ -33,14 +33,17 @@ export function installPixiMaterialFallback(PIXI, options) {
     if (!parser.load || parsers.has(parser)) continue;
     const load = parser.load;
     parser.load = function (url, asset, loader) {
-      const isTexture = isPublicMaterialUrl(url, options?.origin) && parser.name === 'loadTextures' && PIXI.BaseTexture && PIXI.Texture;
+      // (premultiplied pages everywhere: createImageBitmap premultiplies by default, whatever the alphaMode says later)
+      const premultiplied = PIXI?.ALPHA_MODES?.PMA != null && asset?.data?.alphaMode === PIXI.ALPHA_MODES.PMA;
+      const isTexture = (premultiplied || isPublicMaterialUrl(url, options?.origin)) && parser.name === 'loadTextures' && PIXI.BaseTexture && PIXI.Texture;
       const bitmap = isTexture && typeof createImageBitmap === 'function' && parser.config.preferCreateImageBitmap;
       return withMaterialFallback(url, async (source, signal, progress) => {
         let value;
         if (isTexture) {
           // The stock worker's decode error can escape its promise, and its Image branch may resolve an already
           // complete but broken image. Keep decoding inside this attempt so both failures reach the one retry.
-          const image = bitmap ? await createImageBitmap(await (await readMaterialBody(await adapter.fetch(source, { credentials: 'omit', signal }), progress)).blob())
+          const decode = premultiplied ? { premultiplyAlpha: 'none' } : undefined;
+          const image = bitmap ? await createImageBitmap(await (await readMaterialBody(await adapter.fetch(source, { credentials: 'omit', signal }), progress)).blob(), decode)
             : await loadMaterialImage(source, { ...options, signal, fallback: false });
           const data = { ...asset?.data };
           data.resolution ??= PIXI.utils.getResolutionOfUrl(url);

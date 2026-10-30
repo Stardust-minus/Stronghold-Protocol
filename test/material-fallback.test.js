@@ -139,6 +139,25 @@ test('public Pixi texture decoding retries in its promise and preserves canonica
   assert.equal(unrelated, 1);
 });
 
+test('a premultiplied page is decoded as it is, also off the public material paths (feedback #48, #55)', async t => {
+  const previous = globalThis.createImageBitmap, decoded = [];
+  globalThis.createImageBitmap = async (blob, o) => { decoded.push(o); return { width: 1, height: 1, close() {} }; };
+  t.after(() => { if (previous === undefined) delete globalThis.createImageBitmap; else globalThis.createImageBitmap = previous; });
+  class BaseTexture { constructor(image, data) { this.image = image; this.data = data; this.resource = {}; } }
+  class Texture { constructor(base) { this.baseTexture = base; } }
+  const parser = { name: 'loadTextures', config: { preferCreateImageBitmap: true }, load: async () => 'stock' };
+  const pixi = { BaseTexture, Texture, ALPHA_MODES: { PMA: 2 }, utils: { getResolutionOfUrl: () => 1 }, settings: { ADAPTER: { fetch: async () => new Response('png') } },
+    Assets: { loader: { parsers: [parser] } } };
+  installPixiMaterialFallback(pixi);
+  await parser.load(path, { data: { alphaMode: 2 } }, {});
+  assert.deepEqual(decoded.pop(), { premultiplyAlpha: 'none' });
+  await parser.load(path, { data: {} }, {});
+  assert.equal(decoded.pop(), undefined, 'a straight page keeps the default decode');
+  await parser.load('/assets/~abc123/skins/x/front/x.png', { data: { alphaMode: 2 } }, {});
+  assert.deepEqual(decoded.pop(), { premultiplyAlpha: 'none' }, 'an indexed asset URL too');
+  assert.equal(await parser.load('/vendor/image.png', { data: {} }, {}), 'stock');
+});
+
 test('destroying a late Pixi decode cannot drop the successful replacement cache entry', async t => {
   const previous = globalThis.createImageBitmap;
   let finish;

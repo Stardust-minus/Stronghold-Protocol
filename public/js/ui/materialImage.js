@@ -6,6 +6,29 @@ import { h } from '../../vendor/preact.module.js';
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { MATERIAL_IMAGE_TIMEOUT_MS, openiFallbackUrl } from '../materialFallback.js';
 
+/** How long a failed picture rests before it is asked for again; a URL gets one try per entry in a page's life. */
+export const IMAGE_RETRY_MS = Object.freeze([10000, 30000, 120000]);
+const retried = new Map();
+
+/**
+ * A picture that failed, for the fallback a caller draws: `[failed, fail]`. A fetch or Spine load takes MATERIAL_RETRY_MS
+ * rounds; an <img> has only its one OpenI swap, and on a busy line (a material download taking the bandwidth) both
+ * sources time out while the art is fine. Without a later try its letter-on-a-disc fallback stayed for good (feedback
+ * #44). The rounds are counted per URL, so a picture that really is missing costs a few requests at most.
+ * @param {string|null|undefined} src @returns {[boolean, () => void]}
+ */
+export function useImageFailure(src) {
+  const [bad, setBad] = useState(null);
+  useEffect(() => {
+    if (bad == null) return undefined;
+    const n = retried.get(bad) || 0;
+    if (n >= IMAGE_RETRY_MS.length) return undefined;
+    const timer = setTimeout(() => { retried.set(bad, n + 1); setBad(null); }, IMAGE_RETRY_MS[n]);
+    return () => clearTimeout(timer);
+  }, [bad]);
+  return [bad != null && bad === src, () => setBad(src)];
+}
+
 export function MaterialImage({ src, onLoad, onError, loading, timeoutMs = MATERIAL_IMAGE_TIMEOUT_MS, ...props }) {
   const [retry, setRetry] = useState(null);
   const source = retry?.original === src ? retry.source : src;
