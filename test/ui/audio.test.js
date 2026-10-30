@@ -719,6 +719,13 @@ describe('AudioManager', () => {
     assert.deepEqual(pickedBgm(manifest, 'prep', { prep: 'major' }), { intro: null, loop: MAJOR_BGM_URL, choice: 'major' }, '上海Major: no manifest entry');
     assert.deepEqual(pickedBgm(manifest, 'combat:0', { combat: 'major' })?.loop, MAJOR_BGM_URL);
     assert.deepEqual(BGM_CHOICES.slice(0, 2), ['official', 'major'], '官方 first, then 上海Major');
+    // the 上半期's tracks (feedback #45): picks of the manifest's firstHalf, never the official round music
+    assert.ok(['shahai', 'chengshi', 'prep1'].every((id) => BGM_CHOICES.includes(id)));
+    const bgm = { firstHalf: { prep: { loop: '/p.mp3' }, combat: [{ intro: '/1i.mp3', loop: '/1.mp3' }, { loop: '/2.mp3' }] } };
+    assert.deepEqual(pickedBgm({ audio: { bgm } }, 'combat:0', { combat: 'shahai' }), { intro: '/1i.mp3', loop: '/1.mp3', choice: 'shahai' });
+    assert.deepEqual(pickedBgm({ audio: { bgm } }, 'prep', { prep: 'chengshi' }), { intro: null, loop: '/2.mp3', choice: 'chengshi' });
+    assert.deepEqual(pickedBgm({ audio: { bgm } }, 'prep', { prep: 'prep1' }), { intro: null, loop: '/p.mp3', choice: 'prep1' });
+    assert.equal(pickedBgm({ audio: { bgm: {} } }, 'prep', { prep: 'shahai' }), null, 'a manifest without them plays the official track');
     assert.equal(BGM_CHOICES.at(-1), 'custom');
     assert.ok(BGM_CHOICES.every((id) => id === 'official' || id === 'custom' || pickedBgm(manifest, 'prep', { prep: id })), 'every manifest pick resolves');
   });
