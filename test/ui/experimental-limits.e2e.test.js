@@ -38,15 +38,15 @@ describe('room rules past the official limits (server-run combat, real server + 
       await host.createCoop('标准模拟');
       for (let i = 0; i < 3; i++) { await host.click('button', '添加 AI 队友'); await sleep(500); }
       await host.click('.rs-exp');
-      await host.page.waitForSelector('.experimental-modal', { visible: true, timeout: 10000 });
+      await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
       await host.shot('options-off');
       await host.click('#experimental-layer-cap');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.disableLayerCap === true, { timeout: 10000 });
       await host.click('#experimental-hit-limit');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.disableHitLimit === true, { timeout: 10000 });
       await host.shot('options-on');
-      await host.click('.experimental-modal .modal__actions button');
-      await host.page.waitForSelector('.experimental-modal', { hidden: true, timeout: 10000 });
+      await host.click('.room-settings-modal .modal__actions button');
+      await host.page.waitForSelector('.room-settings-modal', { hidden: true, timeout: 10000 });
       await host.shot('room');
       const summary = await host.page.$eval('.rs-exp small', (el) => el.textContent);
       assert.match(summary, /禁用层数上限 · 禁用单次伤害上限/);

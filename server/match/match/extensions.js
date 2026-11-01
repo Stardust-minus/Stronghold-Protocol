@@ -6,11 +6,24 @@ import { emptyDamageRows } from '../../sim/damageBoard.js';
 import { buildBattleSpec } from '../../sim/spec.js';
 import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { RemoteBattle } from '../combat/runner.js';
+import { createPoolGroups } from '../pool.js';
 import { REVIVAL_COST, REVIVAL_MIN_DONOR_LP, REVIVAL_UNAVAILABLE_REASONS, FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 
 const DAMAGE_PUBLIC_MS = 1000;
 
 export class MatchExtensions {
+  /** The seat groups of this match's chess pools (pool.js createPoolGroups): the constructor, a setup reroll, a restore. */
+  buildPoolGroups(banned, { legacySix = false } = {}) {
+    return createPoolGroups(this.gd, this.order, { banned, experimental: this.capacityExperiment, independent: this.disableSharedPool,
+      fixedChunks: this.twentyPlayerMode, legacySix, plan: this.poolPlan });
+  }
+
+  /** seat → its group's pool, whenever a seat cannot simply read `pool` (null in an ordinary match). */
+  routePools(poolGroups) {
+    return this.disableSharedPool || this.capacityExperiment || this.poolPlan
+      ? new Map(poolGroups.flatMap(g => g.playerIds.map(id => [id, g.pool]))) : null;
+  }
+
   poolFor(player) {
     const id = typeof player === 'string' ? player : player?.playerId;
     if (this.capacityExperiment && !this.players.has(id)) throw new TypeError('player card pool required');

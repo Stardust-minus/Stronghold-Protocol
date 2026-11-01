@@ -38,15 +38,15 @@ describe('enemy multipliers (server-run combat, real server + Worker)', { skip: 
       await host.createCoop('标准模拟');
       for (let i = 0; i < 3; i++) { await host.click('button', '添加 AI 队友'); await sleep(500); }
       await host.click('.rs-exp');
-      await host.page.waitForSelector('.experimental-modal', { visible: true, timeout: 10000 });
+      await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
       await host.shot('options-off');
       await host.page.select('#experimental-enemy-hp', '2');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.enemyHpMul === 2, { timeout: 10000 });
       await host.page.select('#experimental-enemy-atk', '3');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.enemyAtkMul === 3, { timeout: 10000 });
       await host.shot('options-on');
-      await host.click('.experimental-modal .modal__actions button');
-      await host.page.waitForSelector('.experimental-modal', { hidden: true, timeout: 10000 });
+      await host.click('.room-settings-modal .modal__actions button');
+      await host.page.waitForSelector('.room-settings-modal', { hidden: true, timeout: 10000 });
       await host.shot('room');
       assert.match(await host.page.$eval('.rs-exp small', (el) => el.textContent), /敌人生命 ×2 · 敌人攻击 ×3/);
       await host.roomStart({ timeout: 20000 });

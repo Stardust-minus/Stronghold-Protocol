@@ -263,7 +263,7 @@ import { DataSource } from '../sim/simdata.js';
 import { createRng, deriveSeed } from '../sim/rng.js';
 import { GameData } from './gamedata.js';
 import { RealScheduler } from './scheduler.js';
-import { SharedPool, createItemPools, createPoolGroups, drawDisabledBonds } from './pool.js';
+import { SharedPool, createItemPools, drawDisabledBonds } from './pool.js';
 import { PlayerState } from './PlayerState.js';
 import { EffectDispatcher, getDefaultRegistry } from './effectsMeta.js';
 import { setupMatchWaves } from './waves.js';
@@ -485,6 +485,8 @@ export class Match {
     });
     this.revivalEnabled = !this.isSolo && this.experimental.revivalEnabled;
     this.disableSharedPool = this.experimental.disableSharedPool;
+    /** 手动指定卡池编组: one pool per room seat (shared/poolPlan.js), else null; a solo room has one seat and no groups */
+    this.poolPlan = this.isSolo ? null : this.experimental.poolPlan ?? null;
     this.playerCapacity = roomCapacity(this.isSolo ? 'solo' : this.mode, this.experimental);
     this.capacityExperiment = !this.isSolo && this.playerCapacity > 4;
     this.twentyPlayerMode = this.capacityExperiment && this.playerCapacity === 20;
@@ -570,12 +572,10 @@ export class Match {
     this.disabledBonds = bans.drawn;
     this.staticInactiveBonds = bans.staticOff;
     this.bannedChess = bans.banned;
-    this.poolGroups = createPoolGroups(this.gd, this.order, { banned: bans.banned,
-      experimental: this.capacityExperiment, independent: this.disableSharedPool, fixedChunks: this.twentyPlayerMode });
+    this.poolGroups = this.buildPoolGroups(bans.banned);
     // `pool` remains the ordinary diagnostic/bond-availability view; transactions always route via poolFor/ps.pool.
     this.pool = this.disableSharedPool ? new SharedPool(this.gd, { banned: bans.banned }) : this.poolGroups[0].pool;
-    this.playerPools = this.disableSharedPool || this.capacityExperiment
-      ? new Map(this.poolGroups.flatMap(g => g.playerIds.map(id => [id, g.pool]))) : null;
+    this.playerPools = this.routePools(this.poolGroups);
     // equipment stock follows the same groups (pool.js createItemPools); `itemPool` is the first group's — the only one
     // in an ordinary match — and every transaction routes via itemPoolFor / ps.itemPool
     this.playerItemPools = createItemPools(this.gd, this.poolGroups, (id) => this.players.get(id));

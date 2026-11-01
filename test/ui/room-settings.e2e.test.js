@@ -39,17 +39,17 @@ describe('co-op room settings (real server)', { skip: !ENABLED && 'set SP_E2E=1 
 
       // the guest: ⚙ 同盟设置 — the difficulty and the switch, both read-only
       await guest.click('.rs-pill__gear');
-      await guest.page.waitForSelector('.rs-opts', { visible: true });
+      await guest.page.waitForSelector('.room-settings-modal', { visible: true });
       let v = await guest.page.evaluate(() => ({
-        sw: [...document.querySelectorAll('.rs-opts [role="switch"]')].map((b) => [b.textContent.trim(), b.disabled]),
-        note: document.querySelector('.rs-opts .ailast')?.textContent.includes('由创建者设置'),
+        sw: Object.fromEntries(['room-ai-last', 'room-ai-takeover'].map((id) => [id, document.getElementById(id)?.disabled])),
+        note: document.querySelector('.room-settings-modal .rset__note')?.textContent.includes('由房间创建者设置'),
       }));
       // §35.100 adds the default-off spectator handover setting; both switches are read-only for the guest.
-      assert.deepEqual(v.sw, [['允许观战者接替 AI', true], ['AI 队友最后选择', true]]);
+      assert.deepEqual(v.sw, { 'room-ai-last': true, 'room-ai-takeover': true });
       assert.equal(v.note, true);
       await guest.shot('guest-options');
       await guest.page.keyboard.press('Escape');
-      await guest.page.waitForSelector('.rs-opts', { hidden: true });
+      await guest.page.waitForSelector('.room-settings-modal', { hidden: true });
 
       // the guest readies; the host changes the difficulty in the room — the hint names the server rule
       await guest.click('.rs-go', '准备就绪');
@@ -75,16 +75,13 @@ describe('co-op room settings (real server)', { skip: !ENABLED && 'set SP_E2E=1 
 
       // the host switches 「AI 队友最后选择」 (on by default, feedback #46) off; the guest sees it off (read-only)
       await host.click('.rs-pill__gear');
-      await host.page.waitForSelector('.rs-opts', { visible: true });
-      await host.click('.rs-opts [role="switch"]', 'AI 队友最后选择');
+      await host.page.waitForSelector('.room-settings-modal', { visible: true });
+      await host.page.click('#room-ai-last');
       await guest.page.waitForFunction(() => globalThis.__SP__.store.get().room?.aiPicksLast === false, { timeout: 10000 });
       await guest.click('.rs-pill__gear');
-      await guest.page.waitForSelector('.rs-opts [role="switch"]', { visible: true });
-      const off = await guest.page.evaluate(() => {
-        const b = [...document.querySelectorAll('.rs-opts [role="switch"]')].find((el) => el.textContent.includes('AI 队友最后选择'));
-        return [b?.getAttribute('aria-checked'), b?.disabled];
-      });
-      assert.deepEqual(off, ['false', true]);
+      await guest.page.waitForSelector('#room-ai-last', { visible: true });
+      const off = await guest.page.$eval('#room-ai-last', (b) => [b.checked, b.disabled]);
+      assert.deepEqual(off, [false, true]);
       await guest.shot('guest-options-off');
 
       assert.deepEqual(problemsOf([host, guest]), []);

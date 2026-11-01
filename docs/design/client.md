@@ -841,10 +841,10 @@ version shown.
 status line; `modded` stays the 非官方 mark. A version room's words: 数据载入中 / 就绪 / 校验失败, 「等待所有博士载入
 「{version}」的数据」, the two GoButton tooltips, the invite 「…盟约·{version}【…】」. `ui/pluginTag.js VersionTag` (nothing for
 第二期下半) sits beside the mode in the top bar and beside UnofficialMark in the briefing, the settlement and the result
-[ASSUMED placement]. A timed solo (第一期) shows ⚙ 模拟设置 with the 「不限时」 switch (the host toggles `room.setSoloUnlimited`; everybody else reads
+[ASSUMED placement]. ⚙ and the footer's 实验性选项 open one dialog, 同盟设置 (`ui/roomSettings.js`; ⚙ on 同盟, the footer on 规则): 同盟 (version, seats, AI 队友最后选择, 允许观战者接替 AI, 公开到同盟列表, 禁用鸭爵策略), 规则 (the battle), 卡池 (禁用共享卡池, 手动指定卡池编组); a tab's dot marks a page that differs from a new room, a guest reads the same pages, and a solo room has one page, 模拟设置, without tabs. 手动指定卡池编组 (`ui/poolEditor.js`, feedback #49) starts from what the automatic rule would build: one card per pool, a seat moves by pressing it and then another pool (a mouse, a finger and a keyboard alike; Esc lets go) or by dragging on a desktop; ＋ cuts the largest pool in two, − joins the last to the one before it, 均分 balances the seats in seat order. The plan on `room.state` is the only state, so a pool left without a seat is gone; each seat card then says 卡池 N. A timed solo (第一期) shows ⚙ 模拟设置 with the 「不限时」 switch (the host toggles `room.setSoloUnlimited`; everybody else reads
 it). The solo briefing states the 300 s / 150 s rule, or the untimed line when the switch is on or the version's solo is
 not timed; while that version's data is not on screen the briefing omits the time line and the gear stays hidden. The
-version pill beside the difficulty and ⚙'s 版本 row open the picker in room mode. The compact pill may abbreviate its
+version pill beside the difficulty and 同盟设置's 版本 row open the picker in room mode. The compact pill may abbreviate its
 visible name with an ellipsis (the existing `versions-fit` policy, now covered on default servers too, §35.23.12);
 its accessible name and the picker's version names stay complete, and its control stays inside the footer and reachable.
 The host's pick

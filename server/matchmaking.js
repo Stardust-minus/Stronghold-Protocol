@@ -7,10 +7,16 @@
 // lists the pools a ticket waits in, its first choice first, and the ticket is counted in each of them. The first pool
 // that fills up takes it: entry.difficulty becomes that pool's for the offer — everything downstream of an offer reads one
 // difficulty — and a broken offer that keeps the ticket puts it back. A ticket has one offerId, so it is never in two offers.
+// The scope of a lone player's ticket (the owner, 2026-11-02): party.capacities are the room sizes it waits for, one more
+// axis of its pools — party.required is the first of them until an offer stands, then that pool's, the same way
+// entry.difficulty works; a room's party has its room's one size. party.rules says which rules a lone ticket takes, a
+// room's party has its room's: 'standard' a game whose rules are all unchanged, 'experimental' one whose rules a party
+// changed (experimentalRuleChanged). Only a party brings changed rules: lone tickets alone only make a standard game.
+// A ticket asking nothing (an older page) takes both rules at four seats, as before.
 import { randomBytes } from 'node:crypto';
 import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/constants.js';
-import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, sameExperimental } from '../shared/experimental.js';
-import { PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
+import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, experimentalRuleChanged, sameExperimental } from '../shared/experimental.js';
+import { PLAYER_CAPACITY_VERSION, isPlayerCapacity, roomCapacity } from '../shared/playerCapacity.js';
 import { NO_PHASES } from './phaseMetrics.js';
 
 // Quantity/per-network admission caps use 0 = unlimited; ticket and acceptance deadlines stay bounded.
@@ -19,8 +25,14 @@ const OK = Object.freeze({ ok: true });
 const fail = (error, detail) => ({ error, detail });
 const id = () => randomBytes(16).toString('hex');
 // Preserve ordinary-room preference order; each pool appends any newer room-owned option keys.
-const LEGACY_OPTION_KEYS = Object.freeze([false, true].flatMap(revivalEnabled => [false, true]
-  .map(disableSharedPool => experimentalKey({ revivalEnabled, disableSharedPool }))));
+const LEGACY_OPTIONS = Object.freeze([false, true].flatMap(revivalEnabled => [false, true]
+  .map(disableSharedPool => ({ revivalEnabled, disableSharedPool }))));
+/** Which rules a ticket can ask for, in the order a snapshot lists them; a ticket asking none takes both. */
+export const QUEUE_RULES = Object.freeze(['standard', 'experimental']);
+const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+const ruleOf = ruled => (ruled ? 'experimental' : 'standard');
+/** The bucket of a ticket without a room (the wildcards of pumpPools) that takes these rules. */
+const wildcard = rules => `*${rules.join('+')}`;
 
 // Observe cleanup/invalid async-commit rejections without logging provider data.
 function observeThenable(value) {
@@ -67,10 +79,12 @@ export class Matchmaking {
     return { partyId: party.id, partySize: party.entries.length, partyLeaderId: party.leaderId, partyRoomCode: party.roomCode };
   }
 
-  poolKey(e, difficulty = e.difficulty) { return `${e.version}:${difficulty}:${e.party.required}`; }
+  poolKey(e, difficulty = e.difficulty, required = e.party.required) { return `${e.version}:${difficulty}:${required}`; }
 
-  /** The waiting count of each pool of `e`'s ticket, in the ticket's order. */
-  waitingBy(e, counts) { return e.party.difficulties.map((d) => counts.get(this.poolKey(e, d)) || 0); }
+  /** The waiting count of each difficulty of `e`'s ticket, in the ticket's order: its fullest pool of that difficulty. */
+  waitingBy(e, counts) {
+    return e.party.difficulties.map((d) => Math.max(...e.party.capacities.map((required) => counts.get(this.poolKey(e, d, required)) || 0)));
+  }
 
   /** Read-only population: no sweep, offer creation, deadline or party mutation. */
   waitingPopulation() {
@@ -79,8 +93,8 @@ export class Matchmaking {
     for (const party of this.parties.values()) {
       if (party.entries.some(e => e.offerId || this.entries.get(e.session.playerId) !== e || this.stale(e, now))) continue;
       for (const e of party.entries) {
-        for (const d of party.difficulties) {
-          const key = this.poolKey(e, d);
+        for (const d of party.difficulties) for (const required of party.capacities) {
+          const key = this.poolKey(e, d, required);
           counts.set(key, (counts.get(key) || 0) + 1);
         }
         waiting.push({ entry: e, session: e.session, playerId: e.session.playerId, ticketId: e.ticketId });
@@ -105,6 +119,8 @@ export class Matchmaking {
       deadline: offer ? offer.deadline : e.expiresAt, ...this.partyState(e.party),
       ...(waiting ? { waitingCount: Math.max(...waiting) } : {}),
       ...(several ? { difficulties: [...e.party.difficulties], ...(waiting ? { waitingCounts: waiting } : {}) } : {}),
+      ...(e.party.capacities.length > 1 ? { capacities: [...e.party.capacities] } : {}),
+      ...(e.party.rules.length < QUEUE_RULES.length ? { rules: [...e.party.rules] } : {}),
       ...(e.reason ? { reason: e.reason } : {}),
       ...(offer ? { offerId: offer.id, accepted: e.accepted, experimental: { ...offer.experimental }, acceptedCount: offer.entries.filter((x) => x.accepted).length,
         ...(offer.allocation ? { allocationPending: true } : {}) } : {}),
@@ -161,19 +177,26 @@ export class Matchmaking {
     timer?.unref?.();
   }
 
-  join(session, { difficulty, difficulties, party = false }) {
+  join(session, { difficulty, difficulties, capacities, rules, party = false }) {
     this.refresh(session);
     if (this.closed) return fail(ERR.WRONG_PHASE, 'matchmaking is closed');
     if (this.paused()) return fail(ERR.MAINTENANCE);
     if (!DIFFICULTIES.includes(difficulty) || typeof party !== 'boolean'
-      || (difficulties !== undefined && (!Array.isArray(difficulties) || difficulties.some((d) => !DIFFICULTIES.includes(d))))) return fail(ERR.BAD_MSG, 'invalid matchmaking request');
+      || (difficulties !== undefined && (!Array.isArray(difficulties) || difficulties.some((d) => !DIFFICULTIES.includes(d))))
+      || (capacities !== undefined && (!Array.isArray(capacities) || !capacities.length || !capacities.every(isPlayerCapacity)))
+      || (rules !== undefined && (!Array.isArray(rules) || !rules.length || rules.some((r) => !QUEUE_RULES.includes(r))))) return fail(ERR.BAD_MSG, 'invalid matchmaking request');
     if (session.matchmakingVersion !== MATCHMAKING_VERSION) return fail(ERR.BAD_MSG, 'matchmaking version required; refresh the page');
     /** the pools of this ticket: `difficulty` first, then the others in the order asked */
     const wanted = [...new Set([difficulty, ...(difficulties || [])])];
+    /** its room sizes, smallest first, and the rules it takes; a request naming neither waits as an older page's does */
+    const sizes = capacities ? [...new Set(capacities)].sort((a, b) => a - b) : null;
+    const taken = rules ? QUEUE_RULES.filter((r) => rules.includes(r)) : QUEUE_RULES;
     const previous = this.entries.get(session.playerId);
     if (previous) {
-      const had = previous.party.difficulties;
-      if (had.length !== wanted.length || had.some((d, i) => d !== wanted[i])) return fail(ERR.QUEUED, 'cancel before changing difficulty');
+      if (!sameList(previous.party.difficulties, wanted)) return fail(ERR.QUEUED, 'cancel before changing difficulty');
+      if (!sameList(previous.party.capacities, sizes || [previous.party.required]) || !sameList(previous.party.rules, rules ? taken : previous.party.rules)) {
+        return fail(ERR.QUEUED, 'cancel before changing the scope');
+      }
       this.push(previous);
       if (!previous.offerId) { this.pump(); this.arm(); }
       return OK;
@@ -181,11 +204,13 @@ export class Matchmaking {
     const group = this.members(session, difficulty, party);
     if (!group || group.error) return group || fail(ERR.INTERNAL, 'could not inspect party');
     if (wanted.length > 1 && (party || group.roomCode)) return fail(ERR.BAD_MSG, 'a party queues at its room\'s difficulty');
+    if ((capacities !== undefined || rules !== undefined) && (party || group.roomCode)) return fail(ERR.BAD_MSG, 'a party queues with its room\'s size and rules');
     let experimental = null;
     try { if (group.roomCode) experimental = experimentalOptions(group.experimental ?? EXPERIMENTAL_DEFAULTS); }
     catch { return fail(ERR.BAD_MSG, 'invalid party experimental options'); }
-    // Room inspection owns the mode; lobby solos remain in the ordinary four-player pool.
-    const required = roomCapacity('coop', experimental);
+    // Room inspection owns the mode; a lobby solo waits in the sizes it asked for, else the ordinary four-player pool.
+    const fixed = roomCapacity('coop', experimental);
+    const pools = sizes || [fixed], required = pools[0], largest = pools[pools.length - 1];
     const sessions = group.sessions;
     if (!Array.isArray(sessions) || sessions.length < 1 || sessions.length > required
       || sessions.some(member => !member || typeof member.playerId !== 'string')
@@ -193,7 +218,7 @@ export class Matchmaking {
     for (const member of sessions) {
       if (this.has(member)) return fail(ERR.QUEUED, 'party member already queued');
       if (member.matchmakingVersion !== MATCHMAKING_VERSION
-        || (required > MAX_SEATS && member.playerCapacityVersion !== PLAYER_CAPACITY_VERSION)) {
+        || (largest > MAX_SEATS && member.playerCapacityVersion !== PLAYER_CAPACITY_VERSION)) {
         return fail(ERR.BAD_MSG, 'all party members must refresh the page');
       }
     }
@@ -207,7 +232,7 @@ export class Matchmaking {
     }
     const now = this.now();
     const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId,
-      experimental, required, difficulties: wanted, sequence: ++this.sequence, entries: [] };
+      experimental, required, capacities: pools, rules: taken, difficulties: wanted, sequence: ++this.sequence, entries: [] };
     unit.entries = sessions.map((member) => ({
       session: member, key: member.limitKey, ticketId: id(), difficulty, version: member.matchmakingVersion, party: unit,
       joinedAt: now, expiresAt: now + this.opts.waitMs, sequence: unit.sequence, offerId: null, accepted: false, revivalVote: null,
@@ -433,6 +458,7 @@ export class Matchmaking {
         this.idle(e, removedParties.has(e.party) ? reason : 'unconfirmed');
       } else {
         e.difficulty = e.party.difficulties[0]; // back in every pool of its ticket (the header)
+        e.party.required = e.party.capacities[0];
         e.reason = reason === 'cancelled' ? 'peer_cancelled' : reason === 'disconnected' ? 'peer_disconnected' : reason;
         retained.push(e);
       }
@@ -451,34 +477,43 @@ export class Matchmaking {
     for (const party of this.parties.values()) {
       const e = party.entries[0];
       if (e.offerId) continue;
-      for (const difficulty of party.difficulties) {
-        const key = this.poolKey(e, difficulty);
-        if (!pools.has(key)) pools.set(key, { difficulty, parties: [] });
+      for (const difficulty of party.difficulties) for (const required of party.capacities) {
+        const key = this.poolKey(e, difficulty, required);
+        if (!pools.has(key)) pools.set(key, { difficulty, required, parties: [] });
         pools.get(key).parties.push(party);
       }
     }
-    for (const { difficulty, parties: listed } of pools.values()) {
-      // A ticket of several difficulties that an earlier pool of this pass took is gone from the others.
+    // The largest rooms first: a ticket that also takes a small room fills a large one that is waiting for it.
+    for (const { difficulty, required, parties: listed } of [...pools.values()].sort((a, b) => b.required - a.required)) {
+      // A ticket of several pools that an earlier pool of this pass took is gone from the others.
       const pool = listed.filter((party) => !party.entries[0].offerId);
       pool.sort((a, b) => a.sequence - b.sequence);
       const unused = new Set(pool);
       const buckets = new Map();
-      const optionKeys = new Set(LEGACY_OPTION_KEYS);
+      /** every option set of this pool → whether it changes a rule */
+      const optionKeys = new Map(LEGACY_OPTIONS.map((options) => [experimentalKey(options), experimentalRuleChanged(options)]));
       for (const party of pool) {
-        if (party.experimental) optionKeys.add(experimentalKey(party.experimental));
-        const key = `${party.entries.length}:${party.experimental ? experimentalKey(party.experimental) : '*'}`;
+        if (party.experimental) optionKeys.set(experimentalKey(party.experimental), experimentalRuleChanged(party.experimental));
+        const key = `${party.entries.length}:${party.experimental ? experimentalKey(party.experimental) : wildcard(party.rules)}`;
         if (!buckets.has(key)) buckets.set(key, { parties: [], cursor: 0 });
         buckets.get(key).parties.push(party);
       }
       for (const leader of pool) {
         if (!unused.has(leader)) continue;
-        const remaining = leader.required - leader.entries.length;
+        const remaining = required - leader.entries.length;
+        if (remaining < 0) continue;
         let rest = null;
-        // Solos are wildcards; fixed-option parties only merge with compatible parties.
+        // Solos are wildcards of the rules they take; fixed-option parties only merge with compatible parties.
         // Capacity/flag buckets bound the fit to at most twenty slots, independently of queue length.
-        for (const optionKey of leader.experimental ? [experimentalKey(leader.experimental)] : optionKeys) {
+        const leaderKeys = leader.experimental ? [experimentalKey(leader.experimental)] : optionKeys.keys();
+        for (const optionKey of leaderKeys) {
+          const ruled = optionKeys.get(optionKey), rule = ruleOf(ruled);
+          if (!leader.experimental && !leader.rules.includes(rule)) continue;
+          // Changed rules come from a party: lone tickets alone have none to play by.
+          const needsParty = ruled && !leader.experimental;
+          const keys = [wildcard(QUEUE_RULES), wildcard([rule]), optionKey];
           const candidates = [];
-          for (let size = 1; size <= remaining; size++) for (const key of ['*', optionKey]) {
+          for (let size = 1; size <= remaining; size++) for (const key of keys) {
             const bucket = buckets.get(`${size}:${key}`);
             if (!bucket) continue;
             const list = bucket.parties;
@@ -491,21 +526,24 @@ export class Matchmaking {
           candidates.sort((a, b) => a.sequence - b.sequence);
           // Suffix reachability preserves the earliest feasible FIFO combination without
           // exponential backtracking when larger rooms have many incompatible party sizes.
+          // `withParty`: the same, using at least one party that has rules of its own (needsParty).
           const reachable = Array.from({ length: candidates.length + 1 }, () => new Uint8Array(remaining + 1));
+          const withParty = Array.from({ length: candidates.length + 1 }, () => new Uint8Array(remaining + 1));
           reachable[candidates.length][0] = 1;
           for (let i = candidates.length - 1; i >= 0; i--) {
-            const size = candidates[i].entries.length;
+            const size = candidates[i].entries.length, own = !!candidates[i].experimental;
             for (let slots = 0; slots <= remaining; slots++) {
               reachable[i][slots] = reachable[i + 1][slots] || (slots >= size && reachable[i + 1][slots - size]);
+              withParty[i][slots] = withParty[i + 1][slots] || (slots >= size && (own ? reachable : withParty)[i + 1][slots - size]);
             }
           }
           let found = null;
-          if (reachable[0][remaining]) {
+          if ((needsParty ? withParty : reachable)[0][remaining]) {
             found = [];
-            let slots = remaining;
+            let slots = remaining, have = !needsParty;
             for (let i = 0; i < candidates.length && slots; i++) {
-              const size = candidates[i].entries.length;
-              if (size <= slots && reachable[i + 1][slots - size]) { found.push(candidates[i]); slots -= size; }
+              const size = candidates[i].entries.length, now = have || !!candidates[i].experimental;
+              if (size <= slots && (now ? reachable : withParty)[i + 1][slots - size]) { found.push(candidates[i]); slots -= size; have = now; }
             }
           }
           if (found && (!rest || found.some((party, i) => party.sequence !== rest[i]?.sequence
@@ -514,11 +552,13 @@ export class Matchmaking {
         if (!rest) continue; // never split a party; an unfillable older unit does not block later fits
         const parties = [leader, ...rest];
         const entries = parties.flatMap((party) => party.entries);
-        const experimental = parties.find(party => party.experimental)?.experimental ?? EXPERIMENTAL_DEFAULTS;
-        const offer = { id: id(), experimental, required: leader.required,
+        // Lone tickets make an ordinary game of the pool's size.
+        const experimental = parties.find(party => party.experimental)?.experimental
+          ?? (required === MAX_SEATS ? EXPERIMENTAL_DEFAULTS : experimentalOptions({ ...EXPERIMENTAL_DEFAULTS, playerCapacity: required }));
+        const offer = { id: id(), experimental, required,
           deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries };
         this.offers.set(offer.id, offer);
-        for (const party of parties) unused.delete(party);
+        for (const party of parties) { unused.delete(party); party.required = required; }
         for (const e of entries) { e.offerId = offer.id; e.difficulty = difficulty; e.accepted = false; e.revivalVote = null; e.reason = null; }
         this.pushAll(entries);
       }
@@ -527,7 +567,7 @@ export class Matchmaking {
 
   stale(e, now) {
     return e.expiresAt <= now || !this.available(e.session, e) || e.session.matchmakingVersion !== e.version
-      || (e.party.required > MAX_SEATS && e.session.playerCapacityVersion !== PLAYER_CAPACITY_VERSION)
+      || (e.party.capacities[e.party.capacities.length - 1] > MAX_SEATS && e.session.playerCapacityVersion !== PLAYER_CAPACITY_VERSION)
       || (e.session.limitKey || null) !== (e.key || null);
   }
 

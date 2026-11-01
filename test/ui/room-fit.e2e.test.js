@@ -161,9 +161,10 @@ describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: 
             }
           }
           await host.page.$eval('.rs-pill__gear', (b) => b.click());
-          await host.page.waitForSelector('.rs-opts', { visible: true, timeout: 3000 });
-          for (const p of await check(host.page, '.rs-opts')) bad.push(`${lang} ${ts} ${size.join('×')} ⚙ 同盟设置: ${p}`);
-          await host.page.$eval('.rs-pill__gear', (b) => b.click());
+          await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 3000 });
+          for (const p of await check(host.page, '.room-settings-modal')) bad.push(`${lang} ${ts} ${size.join('×')} ⚙ 同盟设置: ${p}`);
+          await host.page.keyboard.press('Escape');
+          await host.page.waitForSelector('.room-settings-modal', { hidden: true, timeout: 3000 });
           await guest.page.$eval('[data-testid="seat-card-pick"]', (b) => b.click());
           await guest.page.waitForSelector('.modal__box.cardpick', { visible: true, timeout: 5000 });
           await sleep(300);

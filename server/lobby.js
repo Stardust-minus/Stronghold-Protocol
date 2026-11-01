@@ -1083,7 +1083,7 @@ export class Lobby {
       case 'room.setSoloUnlimited': return this.setSoloUnlimited(session, msg);
       case 'room.setAiTakeover': return this.setAiTakeover(session, msg);
       case 'room.aiRequest':
-      case 'room.aiVote': return aiTakeover(this, session, msg);
+      case 'room.aiVote': return this.aiHandover(session, msg);
       case 'room.addBot': return this.addBot(session);
       case 'room.removeBot': return this.removeBot(session, msg);
       case 'room.kick': return this.kick(session, msg);
@@ -1535,6 +1535,9 @@ export class Lobby {
     }
     return OK;
   }
+
+  /** room.aiRequest / room.aiVote; the cluster's matches answer from their game nodes (ClusterLobby). */
+  aiHandover(session, msg) { return aiTakeover(this, session, msg); }
 
   setAiPicksLast(session, { on }) {
     const room = this.roomOf(session);

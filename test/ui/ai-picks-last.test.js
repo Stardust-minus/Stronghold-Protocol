@@ -30,8 +30,9 @@ test('aiLastOption: hidden in solo, editable by the host only, the state from ro
 
 test('room.js sends room.setAiPicksLast { on } and shows the switch through t(); en.json has the English', () => {
   assert.match(SRC, /net\.request\('room\.setAiPicksLast', \{ on \}\)/);
-  for (const zh of ['AI 队友最后选择', '策略与机变轮选时，所有博士先于 AI 队友选择', '由创建者设置']) {
-    assert.ok(SRC.includes(`t('${zh}')`), zh);
+  const dialog = readFileSync(path.join(ROOT, 'public/js/ui/roomSettings.js'), 'utf8');
+  for (const zh of ['AI 队友最后选择', '策略与机变轮选时，所有博士先于 AI 队友选择']) {
+    assert.ok(dialog.includes(`t('${zh}')`), zh);
     assert.equal(typeof EN[zh], 'string', `en.json: ${zh}`);
     assert.ok(EN[zh].length > 0 && !/[一-鿿]/.test(EN[zh]), `English for ${zh}`);
   }

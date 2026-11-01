@@ -79,12 +79,12 @@ describe('公开同盟 and several difficulties (real server, headless Chrome)',
     await host.waitForSelector('.rs-pill__gear', { visible: true, timeout: 30000 });
     await settle(host);
     await host.click('.rs-pill__gear');
-    await host.waitForSelector('[data-testid="room-opt-listed"] button', { visible: true });
+    await host.waitForSelector('[data-testid="room-opt-listed"]', { visible: true });
     await shot(host, 'option');
-    assert.equal(await host.$eval('[data-testid="room-opt-listed"] button', (b) => b.getAttribute('aria-checked')), 'false', 'off by default');
-    await host.click('[data-testid="room-opt-listed"] button');
+    assert.equal(await host.$eval('[data-testid="room-opt-listed"]', (b) => b.checked), false, 'off by default');
+    await host.click('[data-testid="room-opt-listed"]');
     await host.waitForFunction(() => globalThis.__SP__.store.get().room?.listed === true, { timeout: 10000 });
-    await host.waitForSelector('[data-testid="room-opt-listed"] button.is-active', { visible: true, timeout: 5000 });
+    await host.waitForSelector('[data-testid="room-opt-listed"]:checked', { visible: true, timeout: 5000 });
     await new Promise((r) => setTimeout(r, 400));
     await shot(host, 'option-on');
     const code = await host.evaluate(() => globalThis.__SP__.store.get().room.code);
@@ -153,7 +153,7 @@ describe('公开同盟 and several difficulties (real server, headless Chrome)',
     assert.equal(q.difficulties.length, 2);
     await me.waitForSelector('.mf-search', { visible: true, timeout: 15000 });
     await settle(me);
-    assert.equal(await me.$$eval('.mf-tag', (els) => els.length), 4, 'mode, both difficulties, capacity');
+    assert.equal(await me.$$eval('.mf-tag', (els) => els.length), 5, 'mode, both difficulties, capacity, rules');
     await shot(me, 'queued');
     const target = q.difficulties[1];
 

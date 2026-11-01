@@ -444,6 +444,14 @@ export class RemoteGamePlatform {
     return this.memberOperation(assignmentId, method, sessionId, loadout, ops).finally(() => ctx.pendingMembers.delete(sessionId));
   }
 
+  /** The node made an AI seat a human's (ClusterLobby.transferRemoteSeat): from now on `sessionId` is routed as its player. */
+  attachPlayer(assignmentId, sessionId) {
+    const ctx = this.contexts.get(assignmentId);
+    if (!ctx || ctx.state !== 'published') throw new AllocationError('STALE_ASSIGNMENT');
+    this.directory.attachPlayer(assignmentId, sessionId);
+    ctx.members.set(sessionId, 'player');
+  }
+
   memberPayload(ctx, sessionId) {
     return { assignmentId: ctx.spec.assignmentId, sessionId, nodeGeneration: ctx.generation, actorGeneration: ctx.actorGeneration };
   }
@@ -497,7 +505,7 @@ export class RemoteGamePlatform {
   async memberOperation(assignmentId, method, sessionId, loadout, ops = undefined) {
     const ctx = this.contexts.get(assignmentId);
     if (!ctx || ctx.state !== 'published' || !safeId(sessionId)
-      || !['leave', 'removeSpectator', 'addSpectator', 'setLoadout', 'setSkins', 'requestSetupReroll', 'cancelSetupReroll'].includes(method)) throw new AllocationError('STALE_ASSIGNMENT');
+      || !['leave', 'removeSpectator', 'addSpectator', 'setLoadout', 'setSkins', 'requestSetupReroll', 'cancelSetupReroll', 'aiSeat', 'transferAiSeat'].includes(method)) throw new AllocationError('STALE_ASSIGNMENT');
     const removing = ['leave', 'removeSpectator'].includes(method);
     const role = ctx.members.get(sessionId) ?? (removing ? ctx.revokedMembers.get(sessionId) : undefined);
     if (removing) {
@@ -532,6 +540,18 @@ export class RemoteGamePlatform {
       ctx.members.set(sessionId, 'spectator');
       this.control(ctx, 'cluster.prepare', sessionId);
       return result;
+    }
+    if (method === 'aiSeat' || method === 'transferAiSeat') {
+      if (role !== 'spectator') throw new AllocationError('NOT_MEMBER');
+      const payload = { ...this.memberPayload(ctx, sessionId), ...loadout };
+      // A lost reply may have gone through: the node answers a repeat of the same transfer OK (GameHost.transferAiSeat).
+      for (let attempt = 0; ; attempt++) {
+        try { return await ctx.node.client.call(method, payload, { signal: ctx.controller.signal }); }
+        catch (error) {
+          if (attempt === 2 || !['TRANSPORT', 'TIMEOUT', 'BAD_REPLY'].includes(error?.code)) throw error;
+          await pause(attempt ? 75 : 25, ctx.controller.signal);
+        }
+      }
     }
     if (role !== 'player') throw new AllocationError('NOT_MEMBER');
     const setupField = method === 'requestSetupReroll' ? 'setupRevision' : method === 'cancelSetupReroll' ? 'voteId' : null;

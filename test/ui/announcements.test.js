@@ -89,11 +89,11 @@ test('the notices: the 0.3.1 sync (2026-10-18) over this update (skin effects, c
   const entries = parseAnnouncements(JSON.parse(source('../../data/announcements.json')));
   assert.equal(entries.length, 6);
   // 2026-11-02: this release's notice goes on top (rel23); the 0.3.0 recap was shortened to keep the bound below
-  assert.equal(entries[0].title, '版本更新：战斗 2 倍速、历史版本实时数值、公开同盟');
+  assert.equal(entries[0].title, '版本更新：战斗 2 倍速、手动卡池编组、公开同盟');
   assert.equal(entries[0].date, '2026-11-02');
   const rel23 = entries[0].paragraphs.join('\n');
   for (const phrase of ['「2 倍速」', '3/4 在线博士', '下一场战斗开始', '本地演算', '「禁用层数上限」', '「禁用单次伤害上限」', '「敌人生命倍率」', '「敌人攻击倍率」',
-    '3 人一组', '总时间预算', '「公开同盟」', '「公开到同盟列表」', '多个难度', '「反馈板」']) assert.ok(rel23.includes(phrase), phrase);
+    '3 人一组', '总时间预算', '「公开同盟」', '「公开到同盟列表」', '多个难度', '「反馈板」', '「手动指定卡池编组」', '「多人同盟」', '「实验性规则」', '「卡池」']) assert.ok(rel23.includes(phrase), phrase);
   assert.doesNotMatch(rel23, /ModelScope|OpenI|签名|nginx|Worker|\/feedback/i);
   // 2026-10-30: the 0.3.3 notice goes on top (rel22)
   assert.equal(entries[1].title, '版本更新：同步原作 0.3.3，历史版本可玩，处理反馈板计划内容');
@@ -149,8 +149,8 @@ test('topmost modal traps and restores focus and compact matching explains room-
   assert.match(modal, /window\.addEventListener\('focusin', onFocus\)/);
   assert.match(matching, /compact = false/); assert.match(matching, /compact \? null : html`<small>\$\{t\(MATCHING_RULES\)\}/);
   assert.match(matching, /\$\{t\(MATCHING_RULES\)\}<\/p><p class="modal__text">\$\{t\(EXPERIMENTAL_RULES\)\}/);
-  assert.match(matching, /未完成确认者不自动回队/); assert.match(matching, /单人匹配跟随所加入房间/);
+  assert.match(matching, /未完成确认者不自动回队/); assert.match(matching, /单人默认只进标准规则的对局/);
   assert.doesNotMatch(matching, /revivalVote|开启复活并确认|赞成开启/);
-  assert.match(experimental, /title=\$\{t\('实验性选项'\)\}/); assert.match(experimental, /revivalEnabled/); assert.match(experimental, /disableSharedPool/);
+  assert.match(source('../../public/js/screens/room.js'), /<b>\$\{t\('实验性选项'\)\}<\/b>/); assert.match(experimental, /revivalEnabled/); assert.match(experimental, /disableSharedPool/);
   assert.match(revival, /me\.lp >= 11/); assert.match(revival, /至少 11 生命，可支付 10 点救援/);
 });

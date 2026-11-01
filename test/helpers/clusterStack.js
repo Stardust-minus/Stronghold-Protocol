@@ -22,7 +22,7 @@ export class QuickMatch extends Match {
   constructor(opts) { super({ ...opts, botRehearsal: 0, combatSpeed: 200 }); }
 }
 
-export async function client(url, name, token) {
+export async function client(url, name, token, hello = {}) {
   const socket = new WebSocket(url.replace(/^http/, 'ws') + '/ws', { origin: ORIGIN });
   const frames = [], pending = new Map(); let rid = 0;
   socket.on('error', () => {});
@@ -33,7 +33,7 @@ export async function client(url, name, token) {
   });
   const closed = new Promise((resolve) => socket.once('close', resolve));
   await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
-  socket.send(JSON.stringify({ t: 'hello', name, ...(token ? { token } : {}), version: 1, matchmakingVersion: MATCHMAKING_VERSION }));
+  socket.send(JSON.stringify({ t: 'hello', name, ...(token ? { token } : {}), version: 1, matchmakingVersion: MATCHMAKING_VERSION, ...hello }));
   await until(() => frames.some((f) => f.t === 'welcome' || f.t === 'error'), 5000, 'welcome');
   const welcome = frames.find((f) => f.t === 'welcome');
   const request = (t, fields = {}) => new Promise((resolve, reject) => {
@@ -71,11 +71,12 @@ export const actorOf = (s, code) => {
 };
 
 /** One human and three AI seats in a co-op room (a single human: no phase is timed), played to `round`'s prep, held there. */
-export async function playToPrep(s, round) {
-  const c = await client(s.ingress.url, 'Doctor');
+export async function playToPrep(s, round, { hello = {}, configure = null, bots = 3 } = {}) {
+  const c = await client(s.ingress.url, 'Doctor', undefined, hello);
   const step = (x) => { if (process.env.SP_TEST_DEBUG) console.error('[step]', x); };
   await c.request('room.create', { mode: 'coop', difficulty: 'NORMAL' });
-  for (let i = 0; i < 3; i++) await c.request('room.addBot');
+  await configure?.(c);
+  for (let i = 0; i < bots; i++) await c.request('room.addBot');
   step('created');
   await c.request('room.start');
   step('started');

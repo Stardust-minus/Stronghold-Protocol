@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ConnectionStatus, PingPill } from '../../public/js/ui/components.js';
-import { experimentalOptions, experimentalSummary, ExperimentalOptions } from '../../public/js/ui/experimental.js';
+import { experimentalOptions, experimentalSummary, capacityRows, duckLordRow, poolRows, ruleRows } from '../../public/js/ui/experimental.js';
+const settingsRows = (props) => [capacityRows(props), duckLordRow(props), ruleRows(props), poolRows(props)];
 import { setLang, setMessages } from '../../shared/i18n.js';
 import { loadSummary, scopedClusterLoad, ServerStatusModal } from '../../public/js/ui/serverStatus.js';
 import { gameDisplayName } from '../../public/js/serviceTelemetry.js';
@@ -110,13 +111,13 @@ test('fork status and experimental summaries follow a language switch with uncha
 test('experimental switches default off and send immutable full options only when editable', () => {
   assert.deepEqual(experimentalOptions({ revivalEnabled: 1, disableSharedPool: 'true' }), { revivalEnabled: false, disableSharedPool: false });
   const value = { revivalEnabled: false, disableSharedPool: false }, changes = [];
-  const view = ExperimentalOptions({ open: true, value, editable: true, onChange: next => changes.push(next) });
+  const view = ruleRows({ value, editable: true, onChange: next => changes.push(next) });
   const switches = collect(view, v => v.props?.role === 'switch');
   switches[0].props.onChange({ currentTarget: { checked: true } });
   assert.deepEqual(changes, [{ revivalEnabled: true, disableSharedPool: false }]);
   assert.deepEqual(value, { revivalEnabled: false, disableSharedPool: false });
   for (const props of [{ editable: false }, { editable: true, busy: true }]) {
-    const locked = ExperimentalOptions({ open: true, value, onChange: next => changes.push(next), ...props });
+    const locked = settingsRows({ value, onChange: next => changes.push(next), ...props });
     for (const control of collect(locked, v => v.props?.role === 'switch')) {
       assert.equal(control.props.disabled, true);
       control.props.onChange({ currentTarget: { checked: true } });
@@ -131,18 +132,17 @@ test('experimental options are room-only and lobby creation uses server defaults
   assert.match(lobby, /net\.request\('room\.create', \{\n\s+mode: roomMode, difficulty: roomMode === 'solo' \? shownSolo : shownCoop, \.\.\.\(versions \? \{ version \} : \{\}\),\n/);
   const room = source('../../public/js/screens/room.js');
   assert.match(room, /editable=\$\{facts\.isHost && online\}/);
-  assert.match(room, /mode=\$\{room\.mode\}/);
+  assert.match(source('../../public/js/ui/roomSettings.js'), /mode: room\.mode/);
   assert.match(room, /net\.request\('room\.setExperimental', \{ experimental \}\)/);
 });
 
 test('room options stay with difficulty controls rather than crowding ready actions', () => {
   const room = source('../../public/js/screens/room.js');
-  // 实验性选项 lives under ⚙ of the difficulty pill (RoomOptions), never among 组队匹配 / 开始模拟 / 准备就绪
-  const options = room.slice(room.indexOf('function RoomOptions('), room.indexOf('/** Room screen component. */'));
-  assert.match(options, /\{t\('实验性选项'\)\}/);
+  // ⚙ of the difficulty pill and 实验性选项 at the left open the one dialog (ui/roomSettings.js), never among 组队匹配 / 开始模拟 / 准备就绪
   const pill = room.slice(room.indexOf('<div class="rs-pill">'), room.indexOf('<div class="rs-foot__right">'));
-  assert.match(pill, /onExperimental=\$\{\(\) => \{ setOpts\(false\); setExperimentalOpen\(true\); \}\}/);
+  assert.match(pill, /setSettings\(settingsPage\(room, 'alliance'\)\)/);
+  assert.match(room, /class=\$\{`rs-exp[\s\S]{0,120}setSettings\(settingsPage\(room, 'rules'\)\)/);
   const actions = room.slice(room.indexOf('<div class="rs-foot__right">'), room.indexOf('</footer>'));
-  assert.doesNotMatch(actions, /setExperimentalOpen|实验性选项/);
+  assert.doesNotMatch(actions, /setSettings|实验性选项/);
   assert.match(actions, /myReady \? t\('已就绪'\) : t\('准备就绪'\)/);
 });

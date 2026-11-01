@@ -1,7 +1,8 @@
 // Public queue remains separate from solo and invite rooms; all assignments come from the server.
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
-import { isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
+import { MAX_SEATS } from '../../../shared/constants.js';
+import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
 import { html, Button, Icon, MicroLabel, Modal, DifficultyIcon, useTicker } from './components.js';
 import { SearchPanel, FoundPanel } from './matchFlow.js';
 import { useStore, serverNow } from '../store.js';
@@ -22,6 +23,54 @@ export function queueCapacity(queue, experimental) {
 export function queueDifficulties(q) {
   const list = q?.state === 'queued' && Array.isArray(q.difficulties) ? q.difficulties.filter((d) => DIFFICULTIES.includes(d)) : [];
   return list.length > 1 ? list : null;
+}
+
+/**
+ * 多人匹配's scope (the owner, 2026-11-02; server/matchmaking.js): 人数 — 4 人同盟, 多人同盟 — and 规则 — 标准规则,
+ * 实验性规则. Each keeps at least one, as the difficulties do.
+ */
+const SCOPE_SEATS = Object.freeze({ four: Object.freeze([MAX_SEATS]), multi: Object.freeze(PLAYER_CAPACITIES.filter((n) => n > MAX_SEATS)) });
+const SCOPE_RULES = Object.freeze(['standard', 'experimental']);
+export const MATCH_SCOPE_DEFAULT = Object.freeze({ seats: Object.freeze(['four']), rules: Object.freeze(['standard']) });
+
+/** A saved `lobby.matchScope`, checked: anything unusable falls back to the default of its axis. */
+export function matchScope(saved) {
+  const pick = (list, known, fallback) => {
+    const kept = Array.isArray(list) ? known.filter((x) => list.includes(x)) : [];
+    return kept.length ? kept : [...fallback];
+  };
+  return { seats: pick(saved?.seats, Object.keys(SCOPE_SEATS), MATCH_SCOPE_DEFAULT.seats), rules: pick(saved?.rules, SCOPE_RULES, MATCH_SCOPE_DEFAULT.rules) };
+}
+
+/** The scope after pressing `value` of an axis: the press toggles it, and the last one of the axis stays. */
+export function toggleMatchScope(scope, axis, value) {
+  const list = scope[axis];
+  if (list.includes(value) && list.length === 1) return scope;
+  const known = axis === 'seats' ? Object.keys(SCOPE_SEATS) : SCOPE_RULES;
+  return { ...scope, [axis]: known.filter((x) => (x === value ? !list.includes(x) : list.includes(x))) };
+}
+
+/** What queue.join carries for a scope. */
+export function matchScopeRequest(scope) {
+  return { capacities: scope.seats.flatMap((x) => SCOPE_SEATS[x]), rules: [...scope.rules] };
+}
+
+/** The lowest and highest size of 多人同盟, for its label. */
+export const multiSeats = () => ({ a: SCOPE_SEATS.multi[0], b: SCOPE_SEATS.multi[SCOPE_SEATS.multi.length - 1] });
+
+/**
+ * What a queued lone ticket waits for, as the searching screens name it: `seats` (its sizes; null: one size, the
+ * `{n} 人模式` of `required`) and `rules` (null: a room's party, whose room owns them). Null once an offer stands, which
+ * shows the game's own size and rules.
+ */
+export function queueScope(q) {
+  if (q?.state !== 'queued') return null;
+  const sizes = Array.isArray(q.capacities) ? q.capacities.filter(isPlayerCapacity) : [];
+  const multi = sizes.length > 1 || sizes.some((n) => n > MAX_SEATS);
+  const seats = !multi ? null : sizes.includes(MAX_SEATS) ? t('{n} 人、多人同盟', { n: MAX_SEATS }) : t('多人同盟');
+  const only = Array.isArray(q.rules) && q.rules.length === 1 ? q.rules[0] : null;
+  const rules = only === 'standard' ? t('标准规则') : only === 'experimental' ? t('仅实验性规则') : q.partyRoomCode ? null : t('含实验性规则');
+  return seats || rules ? { seats, rules } : null;
 }
 
 export function queueTime(q, now) {
@@ -57,7 +106,7 @@ export function queuePopulation(q, online, cancelling = false) {
 }
 
 const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。');
-const EXPERIMENTAL_RULES = N_('好友小队沿用房间的实验性选项，单人匹配跟随所加入房间。四名单人组局时，复活和禁用共享卡池默认关闭。');
+export const EXPERIMENTAL_RULES = N_('好友小队沿用房间的实验性选项。单人默认只进标准规则的对局，选择「实验性规则」后才会进入改过规则的小队，确认入场前可以看到具体规则。只有单人时一律按标准规则开局。');
 
 export function MatchmakingPanel({ queue, difficulty, experimental, online, onJoin, joining = false, compact = false }) {
   useTicker(1000);
@@ -159,14 +208,14 @@ export function QueueFlow({ queue, difficulty, experimental, online, party = fal
   const cancelFailed = cancellation?.ticketId === queue.ticketId && cancellation?.status === 'failed';
   const population = queuePopulation(queue, online, cancelling || cancelFailed);
   const d = DIFFICULTIES.includes(queue.difficulty) ? queue.difficulty : difficulty;
-  const several = queueDifficulties(queue);
+  const several = queueDifficulties(queue), scope = queueScope(queue);
   const diffTag = (x, label) => ({ key: several ? `diff-${x}` : 'diff', label, color: DIFFICULTY_COLORS[x], icon: html`<${DifficultyIcon} difficulty=${x} />` });
   const note = cancelling ? t('正在确认取消，等待服务器同步…')
     : !online ? t('连接中断，重连后同步匹配状态')
     : cancelFailed ? t('取消尚未确认，请重连后重试；当前为服务器最后确认的状态。')
     : queue.reason && REASONS[queue.reason] ? t(REASONS[queue.reason])
-    : population == null ? t('{n} 名真人 · 不自动补 AI', { n: capacity })
-    : several ? t('所选难度最多等待 {count} 人（含你）', { count: population })
+    : population == null ? (scope?.seats ? t('{scope} · 不自动补 AI', { scope: scope.seats }) : t('{n} 名真人 · 不自动补 AI', { n: capacity }))
+    : several || scope?.seats ? t('所选范围最多等待 {count} 人（含你）', { count: population })
     : queue.partySize > 1 ? t('本难度等待 {count} 人（含本队 {n} 人）', { count: population, n: queue.partySize })
     : t('本难度等待 {count} 人（含你）', { count: population });
   return html`<${SearchPanel} class=${cls} elapsed=${queueTime(queue, serverNow())} stopping=${cancelling || !online}
@@ -174,5 +223,6 @@ export function QueueFlow({ queue, difficulty, experimental, online, party = fal
     tags=${[{ key: 'mode', label: party ? t('组队匹配') : t('多人匹配'), icon: html`<${Icon} name="search" />` },
       ...(several ? several.map((x, i) => diffTag(x, population == null || !Number.isSafeInteger(queue.waitingCounts?.[i]) ? t(DIFFICULTY_NAMES[x]) : `${t(DIFFICULTY_NAMES[x])} ${queue.waitingCounts[i]}`))
         : [diffTag(d, t(DIFFICULTY_NAMES[d]))]),
-      { key: 'cap', label: t('{n} 人模式', { n: capacity }), icon: html`<${Icon} name="users" />` }]} />`;
+      { key: 'cap', label: scope?.seats || t('{n} 人模式', { n: capacity }), icon: html`<${Icon} name="users" />` },
+      ...(scope?.rules ? [{ key: 'rules', label: scope.rules, icon: html`<${Icon} name="book" />` }] : [])]} />`;
 }

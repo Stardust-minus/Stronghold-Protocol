@@ -892,7 +892,7 @@
 .server-status__metrics { margin: 0; }.server-status__metrics > div { display: flex; justify-content: space-between; gap: 16px; padding-block: 12px; border-bottom: 1px solid var(--line); }
 .server-status__metrics dt { color: var(--text-lo); font-size: max(calc(.16 * var(--t)), calc(13px * var(--ui))); }.server-status__metrics dd { color: var(--text-hi); font-size: max(calc(.18 * var(--t)), calc(15px * var(--ui))); margin: 0; }.server-status__metrics small { font-size: 11px; color: var(--text-lo); margin-left: 6px; }
 .server-status__note, .server-status__empty { font-size: 11px; line-height: 1.5; color: var(--text-lo); padding-top: 12px; }.server-status__empty { display: flex; gap: 8px; }.server-status__empty .icon { width: 16px; height: 16px; flex: none; }
-.experimental-modal { width: min(calc(440px * var(--ui)), calc(100vw - calc(32px * var(--ui)))); }.experimental-summary { color: var(--text-lo); font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); }
+.experimental-summary { color: var(--text-lo); font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); }
 .experimental-capacity { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: max(calc(.16 * var(--t)), calc(13px * var(--ui))); color: var(--text-lo); }
 .experimental-capacity select, .experimental-option select { min-height: 40px; min-width: 100px; padding: 8px 12px; background: var(--bg-3); color: var(--text-hi); border: 1px solid var(--line-3); font: inherit; }
 .experimental-capacity select:focus-visible, .experimental-option select:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }

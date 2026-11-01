@@ -7,6 +7,7 @@ import { SKIN_LIMITS, isSkinChoices } from '../../shared/skins.js';
 import { DIFFICULTIES, ERR, NAME_MAX_LEN, modeIdFor } from '../../shared/constants.js';
 import { roomCapacity } from '../../shared/playerCapacity.js';
 import { restoreMatch, CHECKPOINT_PREP_END } from '../match/snapshot.js';
+import { adoptAiSeat, aiSeatOpen } from '../aiTakeover.js';
 import { createRngFromState } from '../sim/rng.js';
 
 const OK = Object.freeze({ ok: true });
@@ -14,7 +15,7 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 const identifier = (v, max = 128) => typeof v === 'string' && v.length > 0 && v.length <= max && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const integer = (v, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(v) && v >= min && v <= max;
 const plain = v => !!v && typeof v === 'object' && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
-const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'snapshotHz'];
+const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'snapshotHz', 'takenOver'];
 const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'ops', 'notOwned', 'diy', 'skins', 'band'];
 // Match's public observer contract, including the lobby's broadcast ticker/emote,
 // the AFK rule's m.notice and server-combat streams. Unknown types fail closed for observers.
@@ -117,6 +118,11 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
   const experimental = experimentalOptions(spec.experimental ?? { revivalEnabled: spec.revivalEnabled ?? false, disableSharedPool: spec.disableSharedPool ?? false });
   const capacity = roomCapacity(spec.mode, experimental), roster = dataArray(spec.seats, capacity);
   if (!roster.length) invalid();
+  // the humans who took an AI seat in a match of theirs keep its id (server/aiTakeover.js): named here, the only ai_ ids
+  // that are not AI seats
+  const takenOver = dataArray(spec.takenOver ?? []);
+  if (!takenOver.every(id => identifier(id, 64) && id.startsWith('ai_')) || new Set(takenOver).size !== takenOver.length) invalid();
+  const isAiId = id => id.startsWith('ai_') && !takenOver.includes(id);
   const ids = new Set();
   const seats = new Set();
   const bands = new Set();
@@ -127,7 +133,7 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
       || !identifier(s.playerId, 64) || ids.has(s.playerId) || seats.has(s.seat)
       || typeof s.name !== 'string' || !s.name.trim() || s.name.length > NAME_MAX_LEN || /[\x00-\x1f\x7f]/.test(s.name)
       || typeof s.isBot !== 'boolean' || typeof s.connected !== 'boolean'
-      || s.isBot !== s.playerId.startsWith('ai_')) invalid();
+      || s.isBot !== isAiId(s.playerId)) invalid();
     ids.add(s.playerId); seats.add(s.seat);
     if (!s.isBot) humans++;
     const seat = { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected };
@@ -161,7 +167,7 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
   });
   const spectators = dataArray(spec.spectators ?? []);
   for (const id of spectators) {
-    if (!identifier(id, 64) || id.startsWith('ai_') || ids.has(id)) invalid();
+    if (!identifier(id, 64) || isAiId(id) || ids.has(id)) invalid();
     ids.add(id);
   }
   if (!humans || (spec.mode === 'solo' && (players.length !== 1 || humans !== 1 || spectators.length))) invalid();
@@ -171,7 +177,8 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
     revivalEnabled: spec.mode === 'coop' && experimental.revivalEnabled,
     disableSharedPool: experimental.disableSharedPool, experimental,
     ...(spec.aiPicksLast === undefined ? {} : { aiPicksLast: spec.mode === 'coop' && spec.aiPicksLast }),
-    ...(spec.snapshotHz === undefined ? {} : { snapshotHz: spec.snapshotHz }) });
+    ...(spec.snapshotHz === undefined ? {} : { snapshotHz: spec.snapshotHz }),
+    ...(takenOver.length ? { takenOver: [...takenOver] } : {}) });
 }
 
 // Only the small assignment spec is canonicalised. No BattleSpec/snapshot is
@@ -296,7 +303,7 @@ export class GameHost {
 
   _construct(ctx) {
     const matchSpec = copy(ctx.spec);
-    delete matchSpec.assignmentId; delete matchSpec.build; delete matchSpec.protocol;
+    delete matchSpec.assignmentId; delete matchSpec.build; delete matchSpec.protocol; delete matchSpec.takenOver;
     const match = new this.MatchClass({ ...matchSpec, data: this.data, combatPool: this.combatPool, trialPool: this.trialPool,
       // This host owns server-authoritative games even without SP_COMBAT.
       clientCombat: false, log: this.log, now: this.now, afkRemoveRounds: this.afkRemoveRounds,
@@ -641,7 +648,7 @@ export class GameHost {
   addSpectator(assignmentId, playerId) {
     let ctx;
     try { ctx = this._context(assignmentId); } catch { return fail(ERR.NOT_IN_ROOM); }
-    if (!identifier(playerId, 64) || playerId.startsWith('ai_') || ctx.seatIds.has(playerId)) return fail(ERR.BAD_TARGET);
+    if (!identifier(playerId, 64) || ctx.seatIds.has(playerId)) return fail(ERR.BAD_TARGET);
     if (ctx.spec.mode !== 'coop') return fail(ERR.SPECTATOR);
     let member = ctx.members.get(playerId);
     if (!member) {
@@ -653,6 +660,44 @@ export class GameHost {
       member.engineRegistered = true;
       return result;
     }
+    return OK;
+  }
+
+  /** A spectator's room.aiRequest: whether `botId`'s seat can be taken now, the round and who is on autoplay (server/aiTakeover.js). */
+  aiSeat(assignmentId, playerId, botId) {
+    const ctx = this.contexts.get(assignmentId);
+    if (!ctx || !this._live(ctx) || ctx.state !== 'committed' || ctx.members.get(playerId)?.role !== 'spectator'
+      || !aiSeatOpen(ctx.match, botId)) return fail(ERR.WRONG_PHASE);
+    return { ok: true, round: ctx.match.round, autoplay: ctx.match.order.filter(p => p.autoplay).map(p => p.playerId) };
+  }
+
+  /**
+   * A passed vote (server/aiTakeover.js): spectator `playerId` becomes the player of `botId`'s seat, all of it here, in one
+   * step, or nothing changes. The assignment spec follows, as a checkpoint must rebuild the seat as a human's. A repeat of a
+   * transfer that went through answers OK (the coordinator's reply got lost). The new member binds with its own ticket.
+   */
+  transferAiSeat(assignmentId, playerId, botId, name, round) {
+    const ctx = this.contexts.get(assignmentId);
+    if (!ctx || !this._live(ctx)) return fail(ERR.WRONG_PHASE);
+    const taken = ctx.members.get(botId);
+    if (taken?.takenFrom === playerId) return OK;
+    if (typeof name !== 'string' || !name.trim() || name.length > NAME_MAX_LEN || /[\x00-\x1f\x7f]/.test(name)) return fail(ERR.BAD_MSG);
+    if (ctx.state !== 'committed' || taken || ctx.members.get(playerId)?.role !== 'spectator' || !ctx.seatIds.has(botId)
+      || ctx.match.round !== round || !aiSeatOpen(ctx.match, botId)) return fail(ERR.WRONG_PHASE);
+    try { adoptAiSeat(ctx.match, botId, name, false); } catch { this._log('transferAiSeat'); return fail(ERR.INTERNAL); }
+    const seats = ctx.spec.seats.map(s => {
+      if (s.playerId !== botId) return s;
+      const { band, ...seat } = s;
+      return { ...seat, name, isBot: false, connected: false };
+    });
+    ctx.spec = freeze({ ...ctx.spec, seats, spectators: ctx.spec.spectators.filter(id => id !== playerId), takenOver: [...(ctx.spec.takenOver ?? []), botId] });
+    ctx.key = fingerprint(ctx.spec);
+    ctx.view = null;
+    ctx.members.delete(playerId);
+    ctx.results.delete(playerId);
+    ctx.members.set(botId, { role: 'player', left: false, binding: null, engineConnected: false, takenFrom: playerId });
+    this._invoke(ctx, 'removeSpectator', playerId);
+    try { this.onCheckpoint?.(ctx, ctx.match, 'takeover'); } catch { this._log('checkpoint'); }
     return OK;
   }
 

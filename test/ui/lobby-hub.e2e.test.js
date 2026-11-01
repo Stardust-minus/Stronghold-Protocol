@@ -257,22 +257,15 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       await page.waitForSelector('.modal__box.proto', { hidden: true });
       assert.match(await page.$eval('.rs-pill__diff', (el) => el.textContent), /绝境模拟/);
 
-      // ⚙ 同盟设置: the 模拟难度 (更改 opens 选择模拟协议) and the 「AI 队友最后选择」 switch, both the host's
+      // ⚙ 同盟设置: the host's switches, in the room's one dialog
       await press(page, '.rs-pill__gear');
-      await page.waitForSelector('.rs-opts', { visible: true });
-      st = await page.evaluate(() => ({
-        diff: document.querySelector('[data-testid="room-opt-difficulty"]')?.textContent.replace(/\s+/g, ' ').trim(),
-        ailast: [...document.querySelectorAll('.rs-opts [role="switch"]')].map((b) => [b.textContent.trim(), b.disabled]),
-      }));
-      assert.ok(st.diff.includes('绝境模拟') && st.diff.includes('更改') && !st.diff.includes('由创建者选择'), st.diff);
+      await page.waitForSelector('.room-settings-modal', { visible: true });
+      st = await page.evaluate(() => ['room-ai-last', 'room-ai-takeover'].map((id) => [id, document.getElementById(id)?.checked, document.getElementById(id)?.disabled]));
       // §35.100 adds the host's default-off spectator handover switch alongside AI 队友最后选择.
-      assert.deepEqual(st.ailast, [['允许观战者接替 AI', false], ['AI 队友最后选择', true]]);
+      assert.deepEqual(st, [['room-ai-last', true, false], ['room-ai-takeover', false, false]]);
       await page.screenshot({ path: path.join(OUT, 'lobby-hub-room-settings.png') });
-      await press(page, '.rs-opts__diff');
-      await page.waitForSelector('.modal__box.proto', { visible: true });
-      assert.equal(await page.$('.rs-opts'), null, 'the menu closes under the dialog');
       await escape(page);
-      await page.waitForSelector('.modal__box.proto', { hidden: true });
+      await page.waitForSelector('.room-settings-modal', { hidden: true });
       assert.deepEqual(problems, []);
     } finally { await ctx.close(); }
   });

@@ -29,7 +29,7 @@
 // must be added to one of the lists (and SNAPSHOT_VERSION raised when a saved field changes meaning).
 
 import { PHASE } from '../../shared/constants.js';
-import { SharedPool, createItemPools, createPoolGroups } from './pool.js';
+import { SharedPool, createItemPools } from './pool.js';
 
 /**
  * Checkpoint layout version. A document of another version is refused (the match is dropped, server/persist/).
@@ -82,7 +82,7 @@ export const MATCH_FIELDS = Object.freeze({
     'requireCs', 'gd', 'isSolo', 'aiPicksLast', 'afkRemoveRounds', 'ownsScheduler', 'sched', 'registry', 'dispatcher',
     'BattleClass', 'battleContent', 'timerScale', 'baseGameSpeed', 'snapshotHz', 'localReplica', 'botRehearsal', 'botSliceMs',
     'botRehearsalDelegate', 'botRehearsalDelegateMs', 'hostId', 'ds', 'clientCombat', 'verifyMode', 'combatPool', 'trialPool',
-    'headlessSliceMs', 'battlePrefix', 'experimental', 'revivalEnabled', 'disableSharedPool', 'playerCapacity',
+    'headlessSliceMs', 'battlePrefix', 'experimental', 'revivalEnabled', 'disableSharedPool', 'poolPlan', 'playerCapacity',
     'capacityExperiment', 'twentyPlayerMode', 'disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'enemyHpMul', 'enemyAtkMul', 'players', 'order', 'spectators', 'botBands', 'stage', 'pool',
     'playerPools', 'itemPool', 'ended', 'disposed',
     // 0.3.1: the content set's declared windows and the room's 测试 flag (both from the match options)
@@ -117,7 +117,7 @@ export const PLAYER_FIELDS = Object.freeze({
     'shop', 'offers', 'hand', 'temp', 'prepsEnded', '_tempDue', 'board', 'layers', 'battleLayerGains', 'pendingLayerGains',
     'bondCountBonus', 'effects', 'bounties', 'personalChoice', 'counters', 'round', 'deployCapBonus', 'deployCapMin',
     'deviceOverrides', 'tileOverrides', 'stats', 'eliminatedRound', 'creditedKills', 'lpAtFinal', 'lastResult',
-    '_botFocus', '_botFocusId', '_botSeenUids', '_deferItemMerge',
+    '_botFocus', '_botFocusId', '_botSeenUids', '_deferItemMerge', 'aiTakeoverRound',
   ]),
   special: Object.freeze(['ready', 'connected', 'loadout', 'ops', 'skins', 'diyStock']),
   derived: Object.freeze([
@@ -382,8 +382,7 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
   // saved copies left and equipment debt — exactly as MatchSetupVote.completeSetupReroll rebuilds them
   const bans = m.bannedChess || [];
   // a six-seat match saved before the 3 + 3 rule goes on with the one enlarged pool it started with
-  const poolGroups = createPoolGroups(m.gd, m.order, { banned: bans, experimental: m.capacityExperiment,
-    independent: m.disableSharedPool, fixedChunks: m.twentyPlayerMode, legacySix: doc.pools.length === 1 });
+  const poolGroups = m.buildPoolGroups(bans, { legacySix: doc.pools.length === 1 });
   if (poolGroups.length !== doc.pools.length) { log?.warn?.(`[snapshot] ${m.roomCode}: checkpoint refused (pool groups)`); return false; }
   const applyLeft = (pool, saved) => {
     for (const [id, left] of Object.entries(saved || {})) {
@@ -397,7 +396,7 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
   m.poolGroups = poolGroups;
   m.pool = m.disableSharedPool ? new SharedPool(m.gd, { banned: bans }) : poolGroups[0].pool;
   if (m.disableSharedPool) applyLeft(m.pool, doc.soloPool);
-  m.playerPools = m.disableSharedPool || m.capacityExperiment ? new Map(poolGroups.flatMap((g) => g.playerIds.map((id) => [id, g.pool]))) : null;
+  m.playerPools = m.routePools(poolGroups);
   m.playerItemPools = createItemPools(m.gd, poolGroups, (id) => m.players.get(id));
   m.itemPool = m.playerItemPools.get(poolGroups[0].playerIds[0]);
   poolGroups.forEach((g, i) => {

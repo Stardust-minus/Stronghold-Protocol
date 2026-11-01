@@ -16,7 +16,7 @@
 import { PHASE, ERR } from '../../../shared/constants.js';
 import { createRng, deriveSeed } from '../../sim/rng.js';
 import { setupMatchWaves } from '../waves.js';
-import { drawDisabledBonds, SharedPool, createItemPools, createPoolGroups } from '../pool.js';
+import { drawDisabledBonds, SharedPool, createItemPools } from '../pool.js';
 import { OK, fail } from './common.js';
 
 /** How long a reroll vote stays open (ms, × timerScale). */
@@ -142,12 +142,10 @@ export class MatchSetupVote {
       const setup = setupMatchWaves(this.gd, rng);
       const stage = setup.stageId ? this.gd.stage(setup.stageId) : null;
       const bans = drawDisabledBonds(this.gd, rng);
-      const poolGroups = createPoolGroups(this.gd, this.order, { banned: bans.banned,
-        experimental: this.capacityExperiment, independent: this.disableSharedPool, fixedChunks: this.twentyPlayerMode });
+      const poolGroups = this.buildPoolGroups(bans.banned);
       const pool = this.disableSharedPool ? new SharedPool(this.gd, { banned: bans.banned }) : poolGroups[0].pool;
       if (!pool.entries.size || poolGroups.some(g => !g.pool.entries.size)) throw new Error('rerolled chess pool is empty');
-      const playerPools = this.disableSharedPool || this.capacityExperiment
-        ? new Map(poolGroups.flatMap(g => g.playerIds.map(id => [id, g.pool]))) : null;
+      const playerPools = this.routePools(poolGroups);
       const off = new Set([...bans.drawn, ...bans.staticOff]);
       const stocks = this.order.map((ps) => ps.buildDiyStock(off));
       prepared = { setup, stage, bans, pool, poolGroups, playerPools, stocks };

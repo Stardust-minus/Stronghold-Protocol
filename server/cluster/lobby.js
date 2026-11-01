@@ -4,6 +4,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { Lobby, Room } from '../lobby.js';
 import { encode, isErrCode, sendSession } from '../net.js';
+import { rebindSession, remoteAiTakeover, welcomeAgain } from '../aiTakeover.js';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, MATCHMAKING_VERSION, modeIdFor } from '../../shared/constants.js';
 import { experimentalOptions, isExperimental, sameExperimental } from '../../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, roomCapacity } from '../../shared/playerCapacity.js';
@@ -32,7 +33,15 @@ const startError = error => isErrCode(error?.code) ? error.code : RETRYABLE_STAR
 const RESTORE_WAIT_MS = 120_000, RESTORE_RETRY_MS = 1000;
 const RESTORE_RETRY = new Set(['NO_NODE', 'NOT_READY', 'TRANSPORT', 'TIMEOUT', 'BAD_REPLY', 'CLOSED', 'NODE_UNAVAILABLE', 'SESSION_BUSY', 'ROOM_BUSY']);
 
+/** The humans of an assignment that keep an AI seat's id (server/aiTakeover.js): a seat taken in an earlier match of theirs. */
+const takenOverIds = (seats, spectators) => [...seats.filter(s => !s.isBot).map(s => s.playerId), ...spectators].filter(id => id.startsWith('ai_'));
+const takenOverField = (seats, spectators) => {
+  const ids = takenOverIds(seats, spectators);
+  return ids.length ? { takenOver: ids } : {};
+};
+
 function matchDTO(room, seed, snapshotHz) {
+  const spectators = room.spectators.map(s => s.playerId);
   return {
     roomCode: room.code, mode: room.mode, difficulty: room.difficulty, modeId: modeIdFor(room.mode, room.difficulty),
     revivalEnabled: room.revivalState().enabled, disableSharedPool: room.experimental.disableSharedPool,
@@ -42,14 +51,25 @@ function matchDTO(room, seed, snapshotHz) {
       ops: structuredClone(s.isBot ? null : s.ops || null),
       notOwned: structuredClone(s.isBot ? null : s.notOwned || null), diy: structuredClone(s.isBot ? null : s.diy || null),
       skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }), ...(s.isBot && s.band ? { band: s.band } : {}) })),
-    spectators: room.spectators.map(s => s.playerId), ...(snapshotHz === undefined ? {} : { snapshotHz }),
+    spectators, ...(snapshotHz === undefined ? {} : { snapshotHz }), ...takenOverField(room.seats.filter(Boolean), spectators),
   };
+}
+/** The assignment after a handover (GameHost.transferAiSeat keeps the node's the same way). */
+function reseatSpec(spec, botId, name, applicantId) {
+  const seats = spec.seats.map(s => {
+    if (s.playerId !== botId) return s;
+    const { band, ...seat } = s;
+    return { ...seat, name, isBot: false, connected: false };
+  });
+  const spectators = spec.spectators.filter(id => id !== applicantId);
+  const { takenOver, ...rest } = spec;
+  return { ...rest, seats, spectators, ...takenOverField(seats, spectators) };
 }
 function optsDTO(opts) {
   const fields = ['roomCode', 'mode', 'difficulty', 'modeId', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'seed', 'matchNo', 'seats', 'spectators'];
   const dto = Object.fromEntries(fields.map(key => [key, opts[key]]));
   if (opts.snapshotHz !== undefined) dto.snapshotHz = opts.snapshotHz;
-  return dto;
+  return Object.assign(dto, takenOverField(opts.seats, opts.spectators));
 }
 // The display-only member fields (room.card's `card`, the 服主 `owner` mark) never reach the match (matchDTO): a change
 // while a start is being prepared does not invalidate it.
@@ -137,6 +157,14 @@ class PreparedRemoteMatch {
       .then(result => { this.pendingSpectatorRemovals.delete(playerId); return result; });
     return this.lastMutation;
   }
+  /** The game node's own answer to a seat question (server/aiTakeover.js), or an error; never throws. */
+  seatCall(method, playerId, fields) {
+    if (!this.plan.published || this.ended || this.pendingPeers.has(playerId) || typeof this.lobby.platform.peer !== 'function') return Promise.resolve(fail(ERR.WRONG_PHASE));
+    try { return Promise.resolve(this.lobby.platform.peer(this.plan.spec.assignmentId, method, playerId, fields)).catch(() => fail(ERR.INTERNAL)); }
+    catch { return Promise.resolve(fail(ERR.INTERNAL)); }
+  }
+  aiSeat(playerId, botId) { return this.seatCall('aiSeat', playerId, { botId }); }
+  transferAiSeat(playerId, fields) { return this.seatCall('transferAiSeat', playerId, fields); }
   requestSetupReroll(playerId, revision) { return this.peer('requestSetupReroll', playerId, revision); }
   cancelSetupReroll(playerId, voteId) { return this.peer('cancelSetupReroll', playerId, voteId); }
   setLoadout(playerId, loadout, ops = undefined) {
@@ -348,8 +376,44 @@ export class ClusterLobby extends Lobby {
     return result;
   }
 
-  // spectator-to-AI handover reads the match's seats, which live on the game node
-  setAiTakeover(session, msg) { return msg.on === true ? fail(ERR.BAD_TARGET) : super.setAiTakeover(session, msg); }
+  // a match on a game node answers for its seats itself (server/aiTakeover.js)
+  aiHandover(session, msg) {
+    return this.roomOf(session)?.match instanceof PreparedRemoteMatch ? remoteAiTakeover(this, session, msg) : super.aiHandover(session, msg);
+  }
+
+  /**
+   * A passed vote on a game node's match, on the room's queue. The node decides (its seat, its phase, the vote's round) and
+   * the coordinator follows only a yes, which cannot fail after that: the session is the seat's now, also if it just went
+   * offline (it gets the seat on its next hello). A no, or no answer, changes nothing: the applicant keeps watching.
+   */
+  async transferRemoteSeat(room, vote) {
+    const { applicantId, botId } = vote, m = room.match, session = this.registry.byId(applicantId), seat = room.seatOf(botId);
+    const unavailable = { error: ERR.BAD_TARGET, detail: 'AI handover unavailable' };
+    if (!(m instanceof PreparedRemoteMatch) || m !== vote.match || m.ended || room.disposed || !session?.connected || !room.spectatorOf(applicantId)
+      || !seat?.isBot || this.registry.byId(botId) || this.platform.directory?.bySession?.(botId)) return unavailable;
+    m.members.add(botId); // an end receipt overtaking the answer already names this member
+    const result = await m.transferAiSeat(applicantId, { botId, name: session.name, round: vote.round });
+    if (result.error || m.ended || room.match !== m || room.disposed || this.registry.byId(applicantId) !== session) {
+      if (!m.ended) m.members.delete(botId);
+      return unavailable;
+    }
+    const plan = m.plan;
+    rebindSession(this, room, session, botId); // the applicant's route goes first, under its old id (cluster.detach)
+    const human = this.humanSeat(seat.seat, session);
+    delete seat.band;
+    Object.assign(seat, human, { ready: false });
+    plan.seatEpoch = (plan.seatEpoch || 0) + 1;
+    plan.spec = reseatSpec(plan.spec, botId, session.name, applicantId);
+    try { this.platform.attachPlayer(plan.spec.assignmentId, botId); }
+    catch (error) { this.log.error(`[lobby] ${room.code} AI seat routing failed (${error?.code || 'error'})`); }
+    const conn = this.network?.conns.get(session.ws);
+    if (conn && !conn.closing) {
+      sendSession(session, { t: 'cluster.identity', assignmentId: plan.spec.assignmentId, sessionId: applicantId, next: botId });
+      welcomeAgain(this, conn);
+    }
+    this.broadcastState(room);
+    return OK;
+  }
 
   start(session) {
     // Another official version's match stays in this process's version hosts (server/match/host/, kind 'version'): a game
@@ -638,7 +702,7 @@ export class ClusterLobby extends Lobby {
   /** What identifies a room's remote match reference (the persister rewrites the room's record when it changes). */
   remoteMatchKey(room) {
     const plan = room.match instanceof PreparedRemoteMatch ? room.match.plan : null;
-    return plan ? `${plan.spec.assignmentId}|${plan.handle?.generation ?? ''}|${plan.published}|${plan.aborted}|${plan.proxy.ended}` : null;
+    return plan ? `${plan.spec.assignmentId}|${plan.handle?.generation ?? ''}|${plan.published}|${plan.aborted}|${plan.proxy.ended}${plan.seatEpoch ? `|${plan.seatEpoch}` : ''}` : null;
   }
 
   /**
@@ -652,7 +716,9 @@ export class ClusterLobby extends Lobby {
    */
   restoreRemoteMatch(room, ref, departed = []) {
     if (ref?.kind !== 'remote' || !safeId(ref.assignmentId) || !plain(ref.spec) || !Number.isSafeInteger(ref.spec.matchNo)) return false;
-    const dto = { ...structuredClone(ref.spec), spectators: room.spectators.map(s => s.playerId) };
+    const { takenOver, ...base } = structuredClone(ref.spec);
+    const spectators = room.spectators.map(s => s.playerId);
+    const dto = { ...base, spectators, ...takenOverField(base.seats, spectators) };
     const ctx = { live: true, ended: false, disposed: false, match: null, lastPublic: null, sharedResult: null, results: new Map() };
     const plan = { room, oldRooms: new Set(), sessions: [], key: room.matchKey, keys: room.matchKeys, dto, controller: new AbortController(),
       startedAt: this.now(), aborted: false, published: false, remoteCommitted: false, transferred: true, rollbackDone: true,
@@ -687,8 +753,9 @@ export class ClusterLobby extends Lobby {
       // taken over: the same assignment; rebuilt: a new one from the old one's checkpoint (platform.restore). A departed
       // seat keeps its place in the roster but not its session (it may be in another match by now), and only the room's
       // current observers come with it: the directory's one assignment per session.
-      const spec = { ...structuredClone(plan.spec), spectators: room.spectators.map(s => s.playerId),
-        assignmentId: adopt ? ref.assignmentId : randomBytes(16).toString('hex') };
+      const spectators = room.spectators.map(s => s.playerId);
+      const { takenOver, ...base } = structuredClone(plan.spec);
+      const spec = { ...base, spectators, assignmentId: adopt ? ref.assignmentId : randomBytes(16).toString('hex'), ...takenOverField(base.seats, spectators) };
       try {
         handle = await this.platform.restore(spec, { adopt, checkpointId: ref.assignmentId, departed: this.restoredDeparted(room, spec, departed) });
         plan.spec = spec;

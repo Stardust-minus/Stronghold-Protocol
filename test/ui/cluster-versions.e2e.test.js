@@ -130,6 +130,51 @@ test('公开同盟: room.setListed and room.list pass the ingress to the rooms o
   } finally { await c.close(); }
 });
 
+test('同盟设置 of a twelve-seat room: the 公开 switch works, the pool plan reaches the game node', { skip: !enabled, timeout: 3 * 60 * 1000 }, async () => {
+  const puppeteer = (await import('puppeteer-core')).default;
+  const c = new Client(puppeteer, url, 'act2autochess', { prefix: 'cluster', prefs: {} });
+  try {
+    await c.open();
+    await c.enter('十二人');
+    await c.page.evaluate(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 3500)); // the page's opening requests fill the heavy bucket
+      await globalThis.__SP__.net.request('room.create', { mode: 'coop', difficulty: 'NORMAL', experimental: { revivalEnabled: false, disableSharedPool: false, playerCapacity: 12 } });
+    });
+    await c.page.waitForSelector('.rs-pill__gear', { visible: true, timeout: 30000 });
+    await c.page.$eval('.rs-pill__gear', (b) => b.click());
+    await c.page.waitForSelector('[data-testid="room-opt-listed"]', { visible: true, timeout: 5000 });
+    // the owner's report: 公开 answered 无效的目标 in a twelve-seat room. The click, not the message.
+    await c.page.click('[data-testid="room-opt-listed"]');
+    await c.page.waitForFunction(() => globalThis.__SP__.store.get().room?.listed === true, { timeout: 10000 });
+    assert.equal(await c.page.$eval('[data-testid="room-opt-listed"]', (el) => el.checked), true);
+    assert.deepEqual(await c.page.$$eval('.toast', (els) => els.map((el) => el.textContent)), []);
+    const rooms = await c.page.evaluate(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return (await globalThis.__SP__.net.request('room.list')).rooms;
+    });
+    assert.deepEqual(rooms.map((r) => r.capacity), [12]);
+
+    await c.page.$eval('[data-testid="room-settings-pools"]', (b) => b.click());
+    await c.page.waitForSelector('#experimental-pools-manual', { visible: true, timeout: 5000 });
+    await c.page.click('#experimental-pools-manual');
+    await c.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.poolPlan?.length === 12, { timeout: 10000 });
+    await c.page.waitForSelector('.pooled', { visible: true, timeout: 5000 });
+    await c.page.keyboard.press('Escape');
+    await c.page.waitForSelector('.room-settings-modal', { hidden: true, timeout: 5000 });
+    await c.page.evaluate(async () => {
+      const { net, store } = globalThis.__SP__;
+      for (let i = 0; i < 3; i++) await net.request('room.addBot');
+      const { revivalEnabled, disableSharedPool, playerCapacity } = store.get().room.experimental;
+      await net.request('room.setExperimental', { experimental: { revivalEnabled, disableSharedPool, playerCapacity, poolPlan: [0, 1, 1, 0, 2, 2, 2, 2, 2, 2, 2, 2] } });
+      await net.request('room.start');
+    });
+    await c.page.waitForFunction(() => !!globalThis.__SP__.store.get().match?.public?.poolGroups, { timeout: 30000 });
+    const groups = await c.page.evaluate(() => globalThis.__SP__.store.get().match.public.poolGroups.map((g) => [g.id, g.playerIds.length, g.scale]));
+    assert.deepEqual(groups, [[1, 2, 1], [2, 2, 1]], 'seats 0 and 3 in one pool, 1 and 2 in the other, the empty third gone');
+    assert.deepEqual(c.problems, [], 'no console errors or failed requests');
+  } finally { await c.close(); }
+});
+
 test('a default-version match on the game node, in a browser', { skip: !enabled, timeout: 5 * 60 * 1000 }, async () => {
   await play('act2autochess');
   assert.equal(coordinator.versionHosts?.stats?.().matches ?? 0, 0);

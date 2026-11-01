@@ -178,6 +178,13 @@ export async function startIngress({ host = '127.0.0.1', port = 0, coordinatorUr
       game.timer.unref?.();
       return;
     }
+    // The coordinator moved this socket's session to the AI seat it took over (server/aiTakeover.js): the welcome that
+    // follows names the new id, and its game channel is prepared under it. Nothing else ever changes a peer's identity.
+    if (message.t === 'cluster.identity') {
+      if (message.sessionId !== peer.playerId || !safeId(message.next)) { closePeer(peer, 1011, 'INVALID_ROUTE'); return; }
+      peer.playerId = message.next;
+      return;
+    }
     const game = peer.game;
     if (!game || game.assignmentId !== message.assignmentId) return; // late abort/commit cannot touch a new match
     if (message.t === 'cluster.terminal') {

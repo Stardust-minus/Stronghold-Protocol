@@ -955,6 +955,11 @@ export class Network {
     // name for the same field
     negotiateStateDelta(conn.ws, msg.stateDelta ?? msg.delta);
 
+    this.sendWelcome(conn, session, now, { resumed, repeat, rid });
+  }
+
+  /** `welcome`, then the handler's onHello: what every hello ends with. */
+  sendWelcome(conn, session, now, { resumed, repeat, rid }) {
     let extra = null;
     try { extra = this.handler.welcomeInfo?.() ?? null; } catch (e) { this.log.error('[net] welcomeInfo crashed', e); }
     // Keep the type first for bounded ingress inspection; optional metadata cannot replace identity fields.
@@ -971,6 +976,15 @@ export class Network {
     } catch (e) {
       this.log.error('[net] onHello crashed', e);
     }
+  }
+
+  /**
+   * The session on this socket answers to another playerId (server/aiTakeover.js): a repeated hello without a hello. Its
+   * name, the owner key's decision and the capability versions stay what the browser's own hello made them.
+   */
+  rewelcome(conn, stateDelta, now) {
+    negotiateStateDelta(conn.ws, stateDelta);
+    this.sendWelcome(conn, conn.session, now, { resumed: false, repeat: true });
   }
 
   /** The session moved to a new socket: unbind and close the old one without firing a disconnect. */

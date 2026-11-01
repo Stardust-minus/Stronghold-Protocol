@@ -58,7 +58,7 @@ import { useLeave } from '../ui/transitions.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, getConfig, getMode, getStage, useData } from '../data.js';
-import { QueueFlow, queueActive, queueDifficulties } from '../ui/matchmaking.js';
+import { EXPERIMENTAL_RULES, MATCH_SCOPE_DEFAULT, QueueFlow, matchScope, matchScopeRequest, multiSeats, queueActive, queueDifficulties, queueScope, toggleMatchScope } from '../ui/matchmaking.js';
 import { RoomListDialog } from '../ui/roomList.js';
 import { queueCancellation } from '../queueCancellation.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
@@ -126,7 +126,7 @@ const MODE_CARDS = [
   },
   {
     id: 'match', name: N_('多人匹配'), en: 'PUBLIC MATCHMAKING', icon: 'search',
-    desc: N_('寻找相同难度的博士，确认后组成四人同盟；也可从好友房组队匹配。'),
+    desc: N_('寻找相同难度的博士，确认后组成同盟；也可从好友房组队匹配。'),
     points: [N_('4 名真人 · 不自动补 AI'), N_('跟随房间选项 · 全员确认自动开局')],
   },
 ];
@@ -455,6 +455,37 @@ export function toggleMatchPick(picks, x) {
   return picks.length > 1 ? picks.filter((d) => d !== x) : picks;
 }
 
+/** 多人匹配's line above its start button: how many humans this scope waits for. */
+function matchHint(scope) {
+  const { a, b } = multiSeats(), multi = !!scope?.seats.includes('multi');
+  return multi ? t('{a}–{b} 名真人 · 不自动补 AI · 集齐后 30 秒内确认入场', { a: scope.seats.includes('four') ? MAX_SEATS : a, b })
+    : t('{n} 名真人 · 不自动补 AI · 集齐后 30 秒内确认入场', { n: MAX_SEATS });
+}
+
+/** 多人匹配's scope, under the difficulties: the room sizes and the rules this ticket takes (ui/matchmaking.js). */
+function MatchScope({ scope, onToggle, disabled }) {
+  const row = (axis, label, options) => html`<div class="proto-scope__row" role="group" aria-label=${label}>
+    <span class="proto-scope__k">${label}</span>
+    ${options.map(({ id, name, note, why }) => {
+      const on = scope[axis].includes(id);
+      return html`<button key=${id} type="button" class=${`proto-scope__opt${on ? ' is-on' : ''}`} aria-pressed=${on ? 'true' : 'false'} disabled=${disabled}
+          title=${why} data-testid=${`match-scope-${id}`} onClick=${() => onToggle(axis, id)}>
+        <${Icon} name="check" /><span>${name}${note ? html`<small class="num">${note}</small>` : null}</span>
+      </button>`;
+    })}
+  </div>`;
+  return html`<div class="proto-scope" data-testid="match-scope">
+    ${row('seats', t('人数'), [
+      { id: 'four', name: t('{n} 人同盟', { n: MAX_SEATS }), why: t('标准的 {n} 人同盟', { n: MAX_SEATS }) },
+      { id: 'multi', name: t('多人同盟'), note: t('{a}–{b} 人', multiSeats()), why: t('{a}–{b} 人的同盟，最先集齐的人数开局', multiSeats()) },
+    ])}
+    ${row('rules', t('规则'), [
+      { id: 'standard', name: t('标准规则'), why: t('所有规则保持原样的同盟') },
+      { id: 'experimental', name: t('实验性规则'), why: t('小队房主改过规则的同盟，如复活、敌人倍率；确认入场前可以看到具体规则') },
+    ])}
+  </div>`;
+}
+
 /** 多人匹配's rules (the former lobby's 匹配说明, ui/matchmaking.js wording). */
 function MatchRules() {
   const [open, setOpen] = useState(false);
@@ -467,10 +498,10 @@ function MatchRules() {
             <button type="button" class="mm-modal__close" onClick=${() => setOpen(false)} aria-label=${t('关闭')}><${Icon} name="close" /></button></div>
         </header>
         <div class="hub-dialog__body">
-          <p class="modal__text">${t('{n} 名真人按相同人数模式和难度匹配，不自动补 AI；好友小队保持整队。', { n: MAX_SEATS })}</p>
+          <p class="modal__text">${t('按相同人数模式和难度匹配真人，不自动补 AI；好友小队保持整队。')}</p>
           <p class="modal__text">${t('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。')}</p>
-          <p class="modal__text">${t('好友小队沿用房间的实验性选项，单人匹配跟随所加入房间。四名单人组局时，复活和禁用共享卡池默认关闭。')}</p>
-          <p class="modal__text">${t('单人匹配可同时选择多个难度：最先集齐的难度开局，其余难度随之退出等待。好友小队按同盟当前难度匹配。')}</p>
+          <p class="modal__text">${t(EXPERIMENTAL_RULES)}</p>
+          <p class="modal__text">${t('单人匹配可同时选择多个难度和人数：最先集齐的组合开局，其余随之退出等待。好友小队按同盟当前的难度和人数匹配。')}</p>
         </div>
       </div>
     </div>` : null}`;
@@ -485,7 +516,7 @@ function MatchRules() {
  * (ui/transitions.js); the picture is redrawn for each difficulty.
  */
 function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, onClose, online, maint, busy, queue, onCreate, onQueue, chained = false,
-  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, picks = null, onPick = null }) {
+  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, picks = null, onPick = null, scope = null, onScope = null }) {
   const [leaving, leave] = useLeave(onClose);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
@@ -518,7 +549,7 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
   }
   const label = maint ? t('维护中 · 暂停开局') : match ? t('开始多人匹配') : roomMode === 'solo' ? t('开始模拟') : t('创建同盟');
   const hint = !online ? t('正在连接服务器…') : maint ? t('服务器即将维护，暂停开启新的模拟')
-    : match ? t('{n} 名真人 · 不自动补 AI · 集齐后 30 秒内确认入场', { n: MAX_SEATS })
+    : match ? matchHint(scope)
     : roomMode === 'solo' ? t('独自调配阵容，按自己的节奏开始模拟') : t('创建后可邀请好友或添加 AI 队友');
   const working = busy === 'create' || busy === 'queue';
   return html`<div class=${`proto${fx}`} style=${`--d-color:${DIFFICULTY_COLORS[d]}`} data-difficulty=${d} role="dialog" aria-label=${t('选择模拟协议')}>
@@ -545,14 +576,16 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
             : loading ? html`<p class="proto-list__wait" data-testid="proto-loading"><${Spinner} size="sm" />${t('正在载入版本数据…')}</p>` : null}
           ${difficulties.map((x) => html`<${ProtoCard} key=${x} roomMode=${roomMode} difficulty=${x} selected=${match && picks ? picks.includes(x) : d === x} onSelect=${match && onPick ? onPick : onDifficulty} disabled=${working || loading} />`)}
         </div>
-        <div class="proto-foot">
+        <div class=${`proto-foot${match ? ' proto-foot--match' : ''}`}>
+          ${match && scope ? html`<${MatchScope} scope=${scope} onToggle=${onScope} disabled=${working} />` : null}
           ${match ? html`<div class="proto-opts"><span class="proto-mode-chip"><${Icon} name="search" />${t('多人匹配')}</span><${MatchRules} /></div>` : null}
           ${soloTime ? html`<label class="create-box__test" data-testid="solo-unlimited">
             <input type="checkbox" role="switch" checked=${soloTime.on} onChange=${(e) => soloTime.onToggle(e.target.checked)} />
             <span>${t('不限时')}</span>
             <em class="t-dim">${t('关闭本局休整与机变的计时。官方为休整期每轮 300 秒、机变 150 秒。')}</em>
           </label>` : null}
-          ${match && picks ? html`<p class="proto-hint" data-testid="match-picks">${picks.length > 1 ? t('已选 {k} 个难度，任一难度集齐即开局', { k: picks.length }) : t('可多选难度，任一难度集齐即开局')}</p>` : null}
+          ${match && picks ? html`<p class="proto-hint" data-testid="match-picks">${scope && !scope.rules.includes('standard') ? t('只加入改过规则的小队：没有这样的小队时会一直等待')
+            : picks.length > 1 ? t('已选 {k} 个难度，任一难度集齐即开局', { k: picks.length }) : t('可多选难度，任一难度集齐即开局')}</p>` : null}
           <p class="proto-hint">${hint}</p>
           <button type="button" class="proto-start" disabled=${!online || maint || working || loading} onClick=${match ? onQueue : onCreate}>
             <span class="proto-start__mark" aria-hidden="true"><span class="proto-start__rook"><i>[</i><${Icon} name="rook" /><i>]</i></span><small>STRONGHOLD<br />PROTOCOL</small></span>
@@ -691,6 +724,7 @@ export function LobbyScreen() {
     const saved = loadPref('lobby.matchDifficulties', []);
     return Array.isArray(saved) ? saved.filter((d) => DIFFICULTIES.includes(d)) : [];
   });
+  const [matchRange, setMatchRange] = useState(() => matchScope(loadPref('lobby.matchScope', MATCH_SCOPE_DEFAULT)));
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -781,7 +815,12 @@ export function LobbyScreen() {
     if (next.includes(x)) pickDifficulty(x);
     else if (x === matchFocus) pickDifficulty(next[next.length - 1]);
   };
-  const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty: matchFocus, ...(picks.length > 1 ? { difficulties: picks } : {}) }));
+  const pressScope = (axis, value) => {
+    const next = toggleMatchScope(matchRange, axis, value);
+    setMatchRange(next);
+    savePref('lobby.matchScope', next);
+  };
+  const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty: matchFocus, ...(picks.length > 1 ? { difficulties: picks } : {}), ...matchScopeRequest(matchRange) }));
   // an offer while the hub shows: 选择模拟协议 comes up with 确认入场 (the 30-second window must not go unseen)
   useEffect(() => { if (queue?.state === 'offered' && sheet !== 'match') { setAllyOpen(false); setSheetChained(false); setSheet('match'); } }, [queue?.state]);
   const join = (c = code) => {
@@ -875,7 +914,7 @@ export function LobbyScreen() {
         ${queued && sheet !== 'match' ? html`<div class="matchmaking-hud brackets hub-searching" role="status">
             <div class="matchmaking-hud__info">
               <${Spinner} size="sm" />
-              <span class="matchmaking-hud__text">${queue.state === 'offered' ? t('队友已集结，请确认入场') : t('正在匹配同盟')} · ${(queueDifficulties(queue) || [queue.difficulty]).map((x) => t(DIFFICULTY_NAMES[x] || '')).join(' / ')}</span>
+              <span class="matchmaking-hud__text">${queue.state === 'offered' ? t('队友已集结，请确认入场') : t('正在匹配同盟')} · ${[(queueDifficulties(queue) || [queue.difficulty]).map((x) => t(DIFFICULTY_NAMES[x] || '')).join(' / '), queueScope(queue)?.seats, queueScope(queue)?.rules].filter(Boolean).join(' · ')}</span>
             </div>
             <${Button} variant="secondary" size="md" onClick=${openMatch}>${t('查看')}<//>
             <${Button} variant="danger" size="md" loading=${cancelling?.ticketId === queue.ticketId && cancelling?.status !== 'idle' && cancelling?.status !== 'failed'}
@@ -892,7 +931,7 @@ export function LobbyScreen() {
     </main>
 
     ${sheet ? html`<${ProtocolSelect} card=${sheetCard} purpose=${sheet === 'match' ? 'match' : 'create'} difficulty=${sheet === 'match' ? matchFocus : shownSolo}
-      picks=${sheet === 'match' ? picks : null} onPick=${pressPick}
+      picks=${sheet === 'match' ? picks : null} onPick=${pressPick} scope=${sheet === 'match' ? matchRange : null} onScope=${pressScope}
       onDifficulty=${pickDifficulty} onClose=${() => setSheet(null)} online=${online} maint=${maint} busy=${busy} queue=${queue}
       difficulties=${sheet === 'match' ? DIFFICULTIES : solo} loading=${sheet !== 'match' && versionLoading} failed=${sheet !== 'match' && versionFailed}
       soloTime=${sheet !== 'match' && soloTimed === true ? { on: soloFree, onToggle: setSoloFreePref } : null}

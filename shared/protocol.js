@@ -2,7 +2,7 @@
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
 import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO } from './constants.js';
-import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS } from './playerCapacity.js';
+import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS, PLAYER_CAPACITIES, isPlayerCapacity } from './playerCapacity.js';
 import { isExperimental } from './experimental.js';
 import { isSkinChoices } from './skins.js';
 
@@ -574,9 +574,14 @@ export const C2S = {
   'room.voteRevival': { enable: isBool },
   // difficulties (feedback #87, a lone player only): every difficulty this ticket waits in, `difficulty` first; absent = that
   // one difficulty. Any of them filling up makes the offer, at that difficulty.
+  // capacities, rules (a lone player only too, BAD_MSG for a party, whose room owns both): the room sizes it waits for and
+  // the rules it takes — 'standard' a game with every rule unchanged, 'experimental' one a party changed; absent = four
+  // seats, both rules, as an older page's ticket.
   'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, experimental: () => false,
     difficulties: (v) => Array.isArray(v) && v.length >= 1 && v.length <= DIFFICULTIES.length && new Set(v).size === v.length && v.every((d) => DIFFICULTIES.includes(d)),
-    $optional: ['party', 'experimental', 'difficulties'] },
+    capacities: (v) => Array.isArray(v) && v.length >= 1 && v.length <= PLAYER_CAPACITIES.length && new Set(v).size === v.length && v.every(isPlayerCapacity),
+    rules: (v) => Array.isArray(v) && v.length >= 1 && v.length <= 2 && new Set(v).size === v.length && v.every((r) => r === 'standard' || r === 'experimental'),
+    $optional: ['party', 'experimental', 'difficulties', 'capacities', 'rules'] },
   'queue.cancel': { ticketId: isId },
   // Older clients may send a boolean vote, but it has no authority over room-owned rules.
   'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool, experimental: () => false, $optional: ['revivalVote', 'experimental'] },
@@ -755,7 +760,9 @@ export const S2C = [
   // queue.state is a complete snapshot. Optional waitingCount exists only while queued: valid waiting human
   // identities, including the requester/party, in the ticket's frozen version:difficulty:required pool; a ticket of
   // several difficulties (feedback #87: `difficulties`, in its order, and `waitingCounts`, one per difficulty) gets its
-  // fullest pool as waitingCount. `difficulty` is its first one until an offer stands, then the offered one.
+  // fullest pool as waitingCount. `difficulty` is its first one until an offer stands, then the offered one. A ticket of
+  // several room sizes adds `capacities` (a difficulty's count is then its fullest size; `required` is its smallest one
+  // until an offer stands, then the offered one), one that took one kind of rules adds `rules`.
   // Excludes offered/allocation/matched identities; not compatible-party progress, online count or an ETA.
   // Lifecycle/hello snapshots are immediate; count-only changes coalesce at ~1s. Absent count means unknown.
   // presence.state { online, seq, serverNow, maintenance? } — `maintenance: true` while the limits file's switch is on

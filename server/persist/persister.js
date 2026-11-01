@@ -159,7 +159,7 @@ export class LobbyPersister {
 
   /** What a room's stored record is made of (scalars and references; the match's by identity): a change rewrites it. */
   roomKey(room) {
-    const key = [room.hostId, room.mode, room.difficulty, room.aiPicksLast, room.listed, room.experimental, room.source, room.ownerKey, room.ownerKeys,
+    const key = [room.hostId, room.mode, room.difficulty, room.aiPicksLast, room.listed, room.aiTakeoverEnabled, room.experimental, room.source, room.ownerKey, room.ownerKeys,
       room.matchKey, room.matchKeys, room.matchCount, room.createdAt, room.disposed, room.match, room.spectators.length];
     for (const s of room.spectators) key.push(s.playerId, s.name, s.owner);
     for (const s of room.seats) {

@@ -72,6 +72,7 @@ export function roomDoc(room, matchRef, sessionOf) {
     code: room.code, mode: room.mode, difficulty: room.difficulty, aiPicksLast: !!room.aiPicksLast, hostId: room.hostId,
     ...(room.version !== DEFAULT_VERSION ? { version: room.version } : {}),
     ...(room.listed ? { listed: true } : {}),
+    ...(room.aiTakeoverEnabled ? { aiTakeoverEnabled: true } : {}),
     experimental: room.experimental, source: room.source, ownerKey: room.ownerKey, ownerKeys: room.ownerKeys ? [...room.ownerKeys] : null,
     matchKey: room.matchKey, matchKeys: room.matchKeys ? [...room.matchKeys] : null, matchCount: room.matchCount | 0, createdAt: room.createdAt,
     seats: room.seats.map(seat),
@@ -177,6 +178,7 @@ function roomFrom(r, sessions, lobby, now) {
   room.aiPicksLast = r.mode === 'coop' && r.aiPicksLast === true;
   room.source = typeof r.source === 'string' ? r.source : 'private';
   room.listed = r.listed === true;
+  room.aiTakeoverEnabled = r.aiTakeoverEnabled === true;
   room.ownerKey = typeof r.ownerKey === 'string' ? r.ownerKey : null;
   room.ownerKeys = Array.isArray(r.ownerKeys) ? new Set(r.ownerKeys.filter((k) => typeof k === 'string')) : null;
   room.matchCount = Number.isSafeInteger(r.matchCount) && r.matchCount >= 0 ? r.matchCount : 0;

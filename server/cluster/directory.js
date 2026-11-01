@@ -172,6 +172,18 @@ export class ClusterDirectory {
     return this.view(assignment);
   }
 
+  /** An AI seat became a session's (ClusterLobby.transferRemoteSeat): one of the assignment's players from now on. */
+  attachPlayer(assignmentId, sessionId) {
+    if (!identifier(sessionId)) throw new TypeError('invalid player');
+    const assignment = this.assignments.get(assignmentId);
+    if (!assignment || assignment.state !== 'committed') throw new AllocationError('STALE_ASSIGNMENT');
+    const current = this.sessions.get(sessionId);
+    if (current && current !== assignmentId) throw new AllocationError('SESSION_BUSY');
+    if (!assignment.sessionIds.includes(sessionId)) assignment.sessionIds.push(sessionId);
+    this.sessions.set(sessionId, assignmentId);
+    return this.view(assignment);
+  }
+
   detachSpectator(assignmentId, sessionId) {
     const assignment = this.assignments.get(assignmentId);
     if (!assignment?.spectators.delete(sessionId)) return false;

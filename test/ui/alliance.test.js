@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
 import { revivalReason } from '../../public/js/ui/revival.js';
-import { experimentalSummary, ExperimentalOptions } from '../../public/js/ui/experimental.js';
+import { experimentalSummary, capacityRows, duckLordRow, poolRows, ruleRows } from '../../public/js/ui/experimental.js';
+const settingsRows = (props) => [capacityRows(props), duckLordRow(props), ruleRows(props), poolRows(props)];
 import { partyQueueReason } from '../../public/js/screens/room.js';
 import { queueActive, queueTime } from '../../public/js/ui/matchmaking.js';
 import { watchTarget } from '../../public/js/ui/gameLogic.js';
@@ -96,14 +97,14 @@ test('party matching hints require a waiting coop, host, online humans and no AI
 test('experimental rules display room options without a revival ballot', () => {
   assert.equal(experimentalSummary(null), '复活 关闭 · 共享卡池 开启');
   assert.equal(experimentalSummary({ revivalEnabled: true, disableSharedPool: true }), '复活 开启 · 共享卡池 关闭');
-  const view = ExperimentalOptions({ open: true, value: { revivalEnabled: true, disableSharedPool: true }, editable: false });
+  const view = settingsRows({ value: { revivalEnabled: true, disableSharedPool: true }, editable: false });
   const switches = [];
   const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node?.props) { if (node.props.role === 'switch') switches.push(node); visit(node.props.children); } };
   visit(view);
-  assert.equal(switches.length, 5);
+  assert.equal(switches.length, 6);
   assert.ok(switches.every(node => node.props.disabled));
-  assert.ok(switches.slice(0, 2).every(node => node.props.checked));
-  assert.ok(switches.slice(2).every(node => !node.props.checked), 'the limits and expanded rooms stay default off independently of both original rules');
+  assert.deepEqual(switches.filter(node => node.props.checked).map(node => node.props.id), ['experimental-revival', 'experimental-pool'],
+    'the limits, expanded rooms and manual pools stay default off independently of both original rules');
 });
 
 test('queue UI distinguishes pending vs allocated and clamps clocks', () => {

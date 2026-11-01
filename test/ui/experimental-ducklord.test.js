@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { experimentalOptions, experimentalSummary, ExperimentalOptions } from '../../public/js/ui/experimental.js';
+import { experimentalOptions, experimentalSummary, capacityRows, duckLordRow, poolRows, ruleRows } from '../../public/js/ui/experimental.js';
+const settingsRows = (props) => [capacityRows(props), duckLordRow(props), ruleRows(props), poolRows(props)];
 import { allowedBands } from '../../public/js/screens/bandDraft.js';
 
 const walk = node => Array.isArray(node) ? node.flatMap(walk) : node?.props ? [node, ...walk(node.props.children)] : [];
 const rules = (capacity, disableDuckLord = false) => ({ revivalEnabled: true, disableSharedPool: false,
   ...(capacity > 4 ? { playerCapacity: capacity } : {}), ...(disableDuckLord ? { disableDuckLord: true } : {}) });
-const control = (value, props = {}) => walk(ExperimentalOptions({ open: true, value, editable: true, ...props })).find(n => n.props.id === 'experimental-ducklord');
+const control = (value, props = {}) => walk(settingsRows({ value, editable: true, ...props })).find(n => n.props.id === 'experimental-ducklord');
 
 test('duck-lord checkbox appears only after expanded co-op is enabled and is optional by default', () => {
   assert.equal(control(rules(4)), undefined);
@@ -31,7 +32,7 @@ test('only an editable, non-busy host can change the duck-lord rule and other op
 
 test('expanded capacity changes retain the duck-lord rule; returning to four clears it', () => {
   const changes = [], value = rules(20, true);
-  const v = walk(ExperimentalOptions({ open: true, value, editable: true, onChange: x => changes.push(x) }));
+  const v = walk(settingsRows({ value, editable: true, onChange: x => changes.push(x) }));
   v.find(n => n.props.id === 'experimental-capacity').props.onChange({ currentTarget: { value: '8' } });
   assert.deepEqual(changes.at(-1), rules(8, true));
   v.find(n => n.props.id === 'experimental-multiplayer').props.onChange({ currentTarget: { checked: false } });

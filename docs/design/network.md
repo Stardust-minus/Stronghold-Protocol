@@ -89,6 +89,29 @@ broken offer that keeps a confirmed ticket puts it back in all its pools with it
 ticket adds `difficulties` and, while queued, `waitingCounts` (one per difficulty); `waitingCount` is the fullest pool.
 Changing the list needs a cancel (`QUEUED`). `MATCHMAKING_VERSION` did not change: the new fields are optional both ways.
 
+**Ticket scope (the owner, 2026-11-02):** `queue.join { capacities?, rules? }` — a lone player also picks the room sizes it
+waits for (`capacities`, from `PLAYER_CAPACITIES`) and the rules it takes (`rules`: `standard` a game with every rule
+unchanged, `experimental` one a party changed; `experimentalRuleChanged`: any option but the seat count). A party's room
+owns both (`BAD_MSG` otherwise). The ticket counts in every difficulty × size pool, `party.required` is its smallest size
+until an offer stands, then that pool's, and a broken offer puts it back. Pools run largest room first, so a ticket that
+also takes a small room fills a large one that is waiting. Lone tickets are wildcards of the rules they take: a standard
+ticket stays out of a party with changed rules, an experimental one out of a game with none. Changed rules only come from
+a party, so a game of lone tickets is always standard (at the pool's size: `{ …EXPERIMENTAL_DEFAULTS, playerCapacity }`),
+and tickets that take only experimental rules wait for such a party; the fit keeps its bound, one more table of the same
+size tracks fits that hold a party. `queue.state` adds `capacities` when several and `rules` unless both; `waitingCounts`
+stay per difficulty, each its fullest size. Changing the scope needs a cancel (`QUEUED`). A request naming neither is an
+older page's: four seats, both rules, as before. The page always names them and defaults to four seats and standard
+rules: **a lone player no longer lands in a party that turned on 复活 or another rule without asking for it.**
+`MATCHMAKING_VERSION` did not change. 选择模拟协议 of 多人匹配 offers them under the difficulties (人数: 4 人同盟, 多人同盟
+8–20 人; 规则: 标准规则, 实验性规则), each row keeps one, `lobby.matchScope` remembers them.
+**手动指定卡池编组 (feedback #49, 2026-11-02):** `experimental.poolPlan` is optional: one integer per room seat, the length
+of the room's capacity, each below it (`shared/poolPlan.js isPoolPlan`). Canonical form numbers the pools by first
+appearance, so one layout has one `experimentalKey` suffix (`:pools0,0,1,1`) and `sameExperimental` reads any numbering; with
+a plan `disableSharedPool` is false. Absent, a room keeps its old key and shape. The host's `room.setExperimental` carries it
+like any rule, so a change resets the other doctors' ready; a change of `playerCapacity` must send a plan of the new
+length. A party queues under its plan's key: it merges only with parties of the same layout, solos fill it. `m.public.poolGroups`
+now also comes in a four-seat room with a plan.
+
 **公开同盟 (feedback #30, 2026-11-01):** `room.setListed { listed }` — the host of a private co-op room of
 `ROOM_LIST_MIN_CAPACITY` (8) seats or more, not a test or plugin room; off by default, `room.state.listed` only while on,
 kept across the room's matches and restarts, cleared when the capacity falls below 8. `room.list {}` is answered on its
@@ -663,5 +686,7 @@ The [0.3.2 AI handover revision](../history/0.3.2/ai-handover.md) binds requests
 unchanged electorate; disconnect/leave, autoplay eligibility, target elimination, phase changes and expiry cancel
 and clear timers. No shrinking-electorate auto-approval. `aiTakeoverRound` is optional in public/private and result
 player rows; local history retains it. [ASSUMED] inherited seat totals do not grant personal awards or aggregates.
+
+On the cluster the room, seats and votes are the coordinator's and the match is its game node's (`server/aiTakeover.js` `remoteAiTakeover`, the room's queue around each step): `room.aiRequest` asks the node for the seat (RPC `aiSeat`: PREP, the round, who is on autoplay), a passed vote has the node make the seat a human's in one step (RPC `transferAiSeat`, fenced by that round, `GameHost.transferAiSeat`; a repeat after a lost reply answers OK) and the assignment spec follows, so a checkpoint rebuilds the seat as a human's. Only a yes moves the coordinator (`ClusterLobby.transferRemoteSeat`): the spectator's route is revoked under its old id, `cluster.identity` moves the ingress peer to the seat's id, `welcome.takeoverFrom` follows and the seat's game channel binds with its own ticket; a no, or no answer, leaves the applicant watching. A session keeps the seat's `ai_` id afterwards: the assignment DTO names such humans in `takenOver`, the only `ai_` ids that are not AI seats (`copyAssignmentSpec`), in later matches and as a spectator too. `room.aiTakeoverEnabled` is saved with the room and `aiTakeoverRound` with the player (a checkpoint keeps the mark).
 
 The internal welcome preserves the socket’s negotiated delta version and clears its public baseline for a full resync. The inherited seat’s pending pool/delegated rehearsal is cancelled; other seats continue.

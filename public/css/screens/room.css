@@ -328,11 +328,6 @@
 .dpick--ro { border: 0; background: none; gap: .18rem; align-items: center; font-size: max(calc(.14 * var(--t)), 12px); }
 /* 「AI 队友最后选择」 (GitHub #338, co-op): one switch styled like a difficulty option, under the difficulty picker */
 .room-bar__opts { display: flex; flex-direction: column; align-items: flex-start; gap: .08rem; min-width: 0; }
-.ailast { display: flex; align-items: center; gap: .12rem; font-size: max(calc(.14 * var(--t)), 12px); }
-.ailast__opt { --d-color: var(--mint-400); height: .36rem; padding: 0 .14rem; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .3); font-size: max(calc(.15 * var(--t)), 12px); letter-spacing: .04em; }
-.ailast__opt:last-child { border-right: 1px solid var(--line-2); }
-.ailast__opt .icon { opacity: .25; }
-.ailast__opt .icon.is-on { opacity: 1; }
 
 .ready-count[hidden] { display: none; }
 .ready-count { display: flex; align-items: baseline; gap: .06rem; font-size: max(calc(.16 * var(--t)), 12px); }
@@ -384,7 +379,7 @@
   .solo-note { font-size: 12px; }
   .solo-note .micro, .room-screen .seat .micro, .room-bar .micro { display: none; }
   /* small buttons of the seat cards and the bottom bar: readable and 36–44 px tall at the 40 px root */
-  .room-screen .seat__foot .btn, .room-bar .btn--sm, .room-bar .dpick button, .room-screen .ailast__opt { font-size: 12px; min-height: 36px; letter-spacing: .02em; }
+  .room-screen .seat__foot .btn, .room-bar .btn--sm, .room-bar .dpick button { font-size: 12px; min-height: 36px; letter-spacing: .02em; }
 }
 @media (max-height: 460px) {
   .room-screen .topbar__center { display: none; }

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { experimentalOptions, experimentalChanged, experimentalSummary, ExperimentalOptions } from '../../public/js/ui/experimental.js';
+import { experimentalOptions, experimentalChanged, experimentalSummary, capacityRows, duckLordRow, poolRows, ruleRows } from '../../public/js/ui/experimental.js';
+const settingsRows = (props) => [capacityRows(props), duckLordRow(props), ruleRows(props), poolRows(props)];
 import { discCount } from '../../public/js/ui/components.js';
 import { withLiveLayers } from '../../public/js/ui/watchBonds.js';
 import { enemyPreviewStat } from '../../public/js/ui/detailPanel.js';
@@ -23,7 +24,7 @@ test('options, marker and summary name each rule, and only when it is on', () =>
 test('both switches show in every room and change only their own key; capacity changes keep them', () => {
   for (const mode of ['coop', 'solo']) for (const source of ['private', 'matchmaking']) {
     const sent = [];
-    const modal = ExperimentalOptions({ open: true, value: rules({ playerCapacity: 8, disableLayerCap: true }), mode, source, editable: true, onChange: (v) => sent.push(v) });
+    const modal = settingsRows({ value: rules({ playerCapacity: 8, disableLayerCap: true }), mode, source, editable: true, onChange: (v) => sent.push(v) });
     const inputs = body(modal).filter((n) => n.type === 'input');
     const layer = inputs.find((n) => n.props.id === 'experimental-layer-cap'), hit = inputs.find((n) => n.props.id === 'experimental-hit-limit');
     assert.ok(layer && hit, `${mode} ${source}`);
@@ -32,7 +33,7 @@ test('both switches show in every room and change only their own key; capacity c
     assert.equal(sent[0].disableHitLimit, true); assert.equal(sent[0].disableLayerCap, true);
   }
   const sent = [];
-  const modal = ExperimentalOptions({ open: true, value: rules({ playerCapacity: 8, disableLayerCap: true }), mode: 'coop', editable: true, onChange: (v) => sent.push(v) });
+  const modal = settingsRows({ value: rules({ playerCapacity: 8, disableLayerCap: true }), mode: 'coop', editable: true, onChange: (v) => sent.push(v) });
   body(modal).find((n) => n.type === 'select' && n.props.id === 'experimental-capacity').props.onChange({ currentTarget: { value: '4' } });
   assert.deepEqual(sent, [rules({ disableLayerCap: true })]);
 });
@@ -47,7 +48,7 @@ test('the enemy multipliers: a list in every room, ×1 absent, the marker and su
   assert.doesNotMatch(experimentalSummary(rules()), /敌人/);
   for (const mode of ['coop', 'solo']) for (const source of ['private', 'matchmaking']) {
     const sent = [];
-    const nodes = body(ExperimentalOptions({ open: true, value: rules({ disableLayerCap: true, enemyAtkMul: 3 }), mode, source, editable: true, onChange: (v) => sent.push(v) }));
+    const nodes = body(settingsRows({ value: rules({ disableLayerCap: true, enemyAtkMul: 3 }), mode, source, editable: true, onChange: (v) => sent.push(v) }));
     const hp = nodes.find((n) => n.props.id === 'experimental-enemy-hp'), atk = nodes.find((n) => n.props.id === 'experimental-enemy-atk');
     assert.ok(hp && atk, `${mode} ${source}`);
     assert.equal(hp.props.value, 1); assert.equal(atk.props.value, 3);
@@ -60,7 +61,7 @@ test('the enemy multipliers: a list in every room, ×1 absent, the marker and su
     assert.equal(sent.length, 2, 'not on the list');
   }
   const locked = [];
-  const nodes = body(ExperimentalOptions({ open: true, value: rules(), editable: false, onChange: (v) => locked.push(v) }));
+  const nodes = body(settingsRows({ value: rules(), editable: false, onChange: (v) => locked.push(v) }));
   const hp = nodes.find((n) => n.props.id === 'experimental-enemy-hp');
   assert.equal(hp.props.disabled, true);
   hp.props.onChange({ currentTarget: { value: '2' } });

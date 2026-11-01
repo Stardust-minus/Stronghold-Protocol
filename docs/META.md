@@ -721,7 +721,9 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   Selling, temp resolution and elimination return exactly what a piece holds. Fork `poolForPlayer` / grouped pools
   remain: capacity-20 rooms use fixed seat-order chunks of four; other expanded rooms keep their existing small-room
   scaling / balanced groups, frozen at match start. `disableSharedPool` selects independent chess stock; gifts draw
-  from the recipient's pool. These rules do not change shared equipment stock (§29.8 below).
+  from the recipient's pool. 手动指定卡池编组 (`experimental.poolPlan`, feedback #49, any co-op room): the plan's seat
+  groups replace the rule; a pool with nobody seated at the start does not exist, a pool of up to four seats keeps a
+  complete stock and a larger one scales with its seats (`shared/poolPlan.js poolScale`, up to ×5). These rules do not change shared equipment stock (§29.8 below).
 * **自选编队 (0.2.0, `player/diy.js`; research 0.2.0 §2, the owner's decisions of 2026-10-05)**: a human's `seat.diy`
   picks (room.diy, checked again against the match's data and kits) are fixed for the match; bots field none [ASSUMED].
   The player's `ps.gd` is then a view of the match's GameData whose `chess(id)` of a slotted slot (normal and elite) is
@@ -1242,7 +1244,7 @@ Operator capacities use measured single-player exceptions and twice those counts
 Fork grouped / player chess pools and the host's `disableSharedPool` option remain. Equipment stock follows the same
 groups (owner's decision 2026-10-12, `pool.js createItemPools`, `Match.itemPoolFor` / `ps.itemPool`): an ordinary match
 has one stock for every seat; an experimental room one per group of seats (enlarged ×5/4 with a 5-seat pool; six seats are
-3 + 3 since feedback #49, a checkpoint from before keeps its one ×6/4 pool),
+3 + 3 since feedback #49, a checkpoint from before keeps its one ×6/4 pool; a manual plan's groups scale the same way),
 and one per player without a shared pool — before, 16 or 20 seats shared four 盟约之币. A draft card's stock is the
 picking seat's; a seat with none of the cards left is passed over. Expanded `sp.allowRepeat` permits repeated card
 indices but never bypasses item availability: `soldOut`, manual picks, timers and bots all re-check the same stock.
@@ -1329,4 +1331,4 @@ and replay records keep full frames.
 
 ### Optional spectator AI handover (§35.100, PR #691)
 
-The host’s pre-match `room.setAiTakeover {on}` opts a co-op room in; default off. Only default-version vanilla PREP supports requests. Online, non-autoplay humans throughout the room vote by strict majority; if none qualify, the online host decides. The 30-second request is bound to match/round/electorate and is cancelled on membership/eligibility/phase changes. A successful handover preserves the AI seat’s resources and rebinds the spectator token, cancels that seat’s old rehearsal, and resynchronizes its unchanged delta capability. Inherited records retain `aiTakeoverRound` and previous AI metrics but grant no personal aggregates, titles, trophies or reward. These are maintainer-approved remake-only rules [ASSUMED]; see [network](design/network.md) and [handover revision](history/0.3.2/ai-handover.md).
+The host’s pre-match `room.setAiTakeover {on}` opts a co-op room in; default off (the cluster's matches too: their node answers for the seat, [network](design/network.md)). Only default-version vanilla PREP supports requests. Online, non-autoplay humans throughout the room vote by strict majority; if none qualify, the online host decides. The 30-second request is bound to match/round/electorate and is cancelled on membership/eligibility/phase changes. A successful handover preserves the AI seat’s resources and rebinds the spectator token, cancels that seat’s old rehearsal, and resynchronizes its unchanged delta capability. Inherited records retain `aiTakeoverRound` and previous AI metrics but grant no personal aggregates, titles, trophies or reward. These are maintainer-approved remake-only rules [ASSUMED]; see [network](design/network.md) and [handover revision](history/0.3.2/ai-handover.md).

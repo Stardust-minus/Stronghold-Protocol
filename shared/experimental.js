@@ -1,6 +1,7 @@
 // Room-owned experimental rules are snapshotted at launch, never player votes.
 import { MAX_SEATS } from './constants.js';
 import { isPlayerCapacity, roomCapacity } from './playerCapacity.js';
+import { canonicalPoolPlan, isPoolPlan } from './poolPlan.js';
 
 export const EXPERIMENTAL_DEFAULTS = Object.freeze({ revivalEnabled: false, disableSharedPool: false });
 /**
@@ -21,7 +22,7 @@ const enemyMultiplier = value => (isEnemyMultiplier(value) ? value : 1);
 export function isExperimental(value) {
   if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return false;
   const keys = Reflect.ownKeys(value);
-  if (keys.length < 2 || keys.length > 8) return false;
+  if (keys.length < 2 || keys.length > 9) return false;
   for (const key of Object.keys(EXPERIMENTAL_DEFAULTS)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor?.enumerable !== true || typeof descriptor.value !== 'boolean') return false;
@@ -31,6 +32,7 @@ export function isExperimental(value) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor?.enumerable !== true) return false;
     if (key === 'playerCapacity') return isPlayerCapacity(descriptor.value);
+    if (key === 'poolPlan') return isPoolPlan(descriptor.value, roomCapacity('coop', value));
     if (OPTIONAL_MULTIPLIERS.has(key)) return isEnemyMultiplier(descriptor.value);
     return OPTIONAL_FLAGS.has(key) && typeof descriptor.value === 'boolean';
   });
@@ -38,12 +40,14 @@ export function isExperimental(value) {
 
 /**
  * @param {{ revivalEnabled: boolean, disableSharedPool: boolean, playerCapacity?: number, disableDuckLord?: boolean,
- *   disableLayerCap?: boolean, disableHitLimit?: boolean, enemyHpMul?: number, enemyAtkMul?: number }} [value]
+ *   disableLayerCap?: boolean, disableHitLimit?: boolean, enemyHpMul?: number, enemyAtkMul?: number,
+ *   poolPlan?: readonly number[] }} [value] `poolPlan`: 手动指定卡池编组, one pool number per seat (shared/poolPlan.js); it
+ *   states every seat's pool, so it replaces 禁用共享卡池.
  */
 export function experimentalOptions(value = EXPERIMENTAL_DEFAULTS) {
   if (!isExperimental(value)) throw new TypeError('invalid experimental options');
   const capacity = roomCapacity('coop', value);
-  return Object.freeze({ revivalEnabled: value.revivalEnabled, disableSharedPool: value.disableSharedPool,
+  return Object.freeze({ revivalEnabled: value.revivalEnabled, disableSharedPool: value.disableSharedPool && !value.poolPlan,
     ...(capacity === MAX_SEATS ? {} : { playerCapacity: capacity }),
     // Optional and false by default: ordinary rooms and legacy DTOs keep their two-flag shape.
     ...(capacity > MAX_SEATS && value.disableDuckLord === true ? { disableDuckLord: true } : {}),
@@ -51,16 +55,19 @@ export function experimentalOptions(value = EXPERIMENTAL_DEFAULTS) {
     ...(value.disableLayerCap === true ? { disableLayerCap: true } : {}),
     ...(value.disableHitLimit === true ? { disableHitLimit: true } : {}),
     ...(enemyMultiplier(value.enemyHpMul) !== 1 ? { enemyHpMul: value.enemyHpMul } : {}),
-    ...(enemyMultiplier(value.enemyAtkMul) !== 1 ? { enemyAtkMul: value.enemyAtkMul } : {}) });
+    ...(enemyMultiplier(value.enemyAtkMul) !== 1 ? { enemyAtkMul: value.enemyAtkMul } : {}),
+    ...(value.poolPlan ? { poolPlan: Object.freeze(canonicalPoolPlan(value.poolPlan)) } : {}) });
 }
 
 const duckLordDisabled = value => roomCapacity('coop', value) > MAX_SEATS && value.disableDuckLord === true;
+/** One string per pool layout, in any numbering; empty without a plan. */
+const planKey = value => (value.poolPlan ? canonicalPoolPlan(value.poolPlan).join() : '');
 export const experimentalKey = value => {
   const key = `${value.revivalEnabled ? 1 : 0}${value.disableSharedPool ? 1 : 0}`;
   const capacity = roomCapacity('coop', value);
   const legacy = capacity === MAX_SEATS ? key : `${key}:${capacity}`;
   const hp = enemyMultiplier(value.enemyHpMul), atk = enemyMultiplier(value.enemyAtkMul);
-  return `${duckLordDisabled(value) ? `${legacy}:duck` : legacy}${value.disableLayerCap === true ? ':layers' : ''}${value.disableHitLimit === true ? ':hits' : ''}${hp !== 1 ? `:hp${hp}` : ''}${atk !== 1 ? `:atk${atk}` : ''}`;
+  return `${duckLordDisabled(value) ? `${legacy}:duck` : legacy}${value.disableLayerCap === true ? ':layers' : ''}${value.disableHitLimit === true ? ':hits' : ''}${hp !== 1 ? `:hp${hp}` : ''}${atk !== 1 ? `:atk${atk}` : ''}${value.poolPlan ? `:pools${planKey(value)}` : ''}`;
 };
 export const sameExperimental = (a, b) => !!a && !!b
   && a.revivalEnabled === b.revivalEnabled && a.disableSharedPool === b.disableSharedPool
@@ -69,4 +76,12 @@ export const sameExperimental = (a, b) => !!a && !!b
   && (a.disableLayerCap === true) === (b.disableLayerCap === true)
   && (a.disableHitLimit === true) === (b.disableHitLimit === true)
   && enemyMultiplier(a.enemyHpMul) === enemyMultiplier(b.enemyHpMul)
-  && enemyMultiplier(a.enemyAtkMul) === enemyMultiplier(b.enemyAtkMul);
+  && enemyMultiplier(a.enemyAtkMul) === enemyMultiplier(b.enemyAtkMul)
+  && planKey(a) === planKey(b);
+
+/**
+ * Whether a room's options change a rule of the game, whatever the seat count: any key but playerCapacity that is set
+ * (an option that is off is false or absent, shared/experimental.js experimentalOptions). 多人匹配's rules scope reads it
+ * (server/matchmaking.js): the seat count is the other axis of a ticket.
+ */
+export const experimentalRuleChanged = value => !!value && Object.entries(value).some(([key, set]) => key !== 'playerCapacity' && !!set);

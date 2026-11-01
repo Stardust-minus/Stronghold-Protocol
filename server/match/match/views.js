@@ -75,8 +75,9 @@ export class MatchViews {
     const revivalOpen = this.revivalWindowOpen();
     const v = {
       t: 'm.public',
-      ...(this.capacityExperiment ? { playerCapacity: this.playerCapacity,
-        poolGroups: this.poolGroups.map(({ id, playerIds, scale }) => ({ id, playerIds: playerIds.slice(), scale })) } : {}),
+      ...(this.capacityExperiment ? { playerCapacity: this.playerCapacity } : {}),
+      ...(this.capacityExperiment || this.poolPlan
+        ? { poolGroups: this.poolGroups.map(({ id, playerIds, scale }) => ({ id, playerIds: playerIds.slice(), scale })) } : {}),
       matchId: this.battlePrefix,
       phase: this.phase,
       round: this.round,

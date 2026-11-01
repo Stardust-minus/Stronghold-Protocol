@@ -206,8 +206,10 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
       if (stopped) throw new RpcError('CLOSED');
       let view;
       try {
+        // a session that took an AI seat in an earlier match may be watching this one (GameHost.transferAiSeat)
+        const takenOver = [...new Set([...(saved.spec.takenOver ?? []), ...payload.spectators.filter(s => s.startsWith('ai_'))])];
         view = gameHost.restore({ ...saved.spec, assignmentId: payload.assignmentId, build, protocol, spectators: payload.spectators,
-          seats: saved.spec.seats.map(s => ({ ...s, connected: s.isBot })) }, saved);
+          seats: saved.spec.seats.map(s => ({ ...s, connected: s.isBot })), ...(takenOver.length ? { takenOver } : {}) }, saved);
       } catch (e) { throw new RpcError(e instanceof GameHostError ? e.code : 'RESTORE_REFUSED'); }
       if (!publications.has(payload.assignmentId)) {
         const lease = { actorGeneration: view.generation, published: false, deadline: view.committedAt + publicationMs };
@@ -256,6 +258,18 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
     },
     member(payload) { checkMember(payload); return memberView(payload.assignmentId, payload.sessionId); },
     addSpectator(payload) { guardedMember(payload); return gameHost.addSpectator(payload.assignmentId, payload.sessionId); },
+    aiSeat(payload) {
+      guardedMember(payload, ['botId'], [], true);
+      if (!id(payload.botId)) throw new RpcError('BAD_REQUEST');
+      return gameHost.aiSeat(payload.assignmentId, payload.sessionId, payload.botId);
+    },
+    transferAiSeat(payload) {
+      guardedMember(payload, ['botId', 'name', 'round'], [], true);
+      if (!id(payload.botId) || !int(payload.round, 0, 2 ** 31)) throw new RpcError('BAD_REQUEST');
+      const result = gameHost.transferAiSeat(payload.assignmentId, payload.sessionId, payload.botId, payload.name, payload.round);
+      if (result.ok) closeMember(payload.assignmentId, payload.sessionId); // its seat channel is the next one, with its own ticket
+      return result;
+    },
     removeSpectator(payload) {
       guardedMember(payload);
       const guarded = payload.actorGeneration !== undefined;

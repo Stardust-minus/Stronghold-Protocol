@@ -50,11 +50,11 @@ test('the host can enable the default-off takeover setting through the room UI',
   await page.waitForSelector('.rs-pill__gear');
   await page.click('.rs-pill__gear');
   await page.waitForSelector('[data-testid="room-ai-takeover"]');
-  assert.equal(await page.$eval('[data-testid="room-ai-takeover"]', el => el.getAttribute('aria-checked')), 'false');
+  assert.equal(await page.$eval('[data-testid="room-ai-takeover"]', el => el.checked), false);
   await page.click('[data-testid="room-ai-takeover"]');
-  await page.waitForFunction(() => document.querySelector('[data-testid="room-ai-takeover"]')?.getAttribute('aria-checked') === 'true');
+  await page.waitForFunction(() => document.querySelector('[data-testid="room-ai-takeover"]')?.checked === true);
   assert.equal(room.aiTakeoverEnabled, true);
   await page.click('[data-testid="room-ai-takeover"]');
-  await page.waitForFunction(() => document.querySelector('[data-testid="room-ai-takeover"]')?.getAttribute('aria-checked') === 'false');
+  await page.waitForFunction(() => document.querySelector('[data-testid="room-ai-takeover"]')?.checked === false);
   assert.equal(room.aiTakeoverEnabled, false);
 });

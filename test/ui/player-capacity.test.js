@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { normalizeSeats, roomFacts, partyQueueReason } from '../../public/js/screens/room.js';
-import { experimentalOptions, experimentalSummary, ExperimentalOptions } from '../../public/js/ui/experimental.js';
+import { experimentalOptions, experimentalSummary, capacityRows, duckLordRow, poolRows, ruleRows } from '../../public/js/ui/experimental.js';
+const settingsRows = (props) => [capacityRows(props), duckLordRow(props), ruleRows(props), poolRows(props)];
 import { queueCapacity } from '../../public/js/ui/matchmaking.js';
 import { normalizeSp } from '../../public/js/ui/gameLogic/draft.js';
 import { cardPickable, ChoiceView, spTap } from '../../public/js/ui/choiceOverlay.js';
@@ -37,11 +38,11 @@ test('party queue allows every capacity mode but still requires every other huma
 
 test('capacity UI sends immutable full options, can restore defaults, and never changes pool or rescue toggles', () => {
   const value = rules(4), changes = [];
-  const view = ExperimentalOptions({ open: true, value, editable: true, onChange: next => changes.push(next) });
+  const view = settingsRows({ value, editable: true, onChange: next => changes.push(next) });
   const toggle = walk(view).find(node => node.props.id === 'experimental-multiplayer');
   assert.equal(toggle.props.checked, false); toggle.props.onChange({ currentTarget: { checked: true } });
   assert.deepEqual(changes, [rules(8)]); assert.deepEqual(value, rules(4));
-  const expanded = ExperimentalOptions({ open: true, value: rules(20), editable: true, onChange: next => changes.push(next) });
+  const expanded = settingsRows({ value: rules(20), editable: true, onChange: next => changes.push(next) });
   const picker = walk(expanded).find(node => node.props.id === 'experimental-capacity');
   assert.equal(picker.props.value, 20);
   assert.deepEqual(walk(picker).filter(node => node.type === 'option').map(node => node.props.value), [4, 8, 12, 16, 20]);
@@ -56,14 +57,14 @@ test('capacity UI sends immutable full options, can restore defaults, and never 
 test('capacity controls remain room-host-only, busy-locked, and absent in solo', () => {
   const changes = [];
   for (const props of [{ editable: false }, { editable: true, busy: true }]) {
-    const view = ExperimentalOptions({ open: true, value: rules(20), onChange: next => changes.push(next), ...props });
+    const view = settingsRows({ value: rules(20), onChange: next => changes.push(next), ...props });
     for (const node of walk(view).filter(node => node.props.id === 'experimental-multiplayer' || node.props.id === 'experimental-capacity')) {
       assert.equal(node.props.disabled, true); node.props.onChange({ currentTarget: { checked: true, value: '8' } });
     }
   }
-  const solo = ExperimentalOptions({ open: true, value: rules(4), mode: 'solo', editable: true });
+  const solo = settingsRows({ value: rules(4), mode: 'solo', editable: true });
   assert.ok(!walk(solo).some(node => node.props.id === 'experimental-multiplayer'));
-  const publicRoom = ExperimentalOptions({ open: true, value: rules(4), source: 'matchmaking', editable: true });
+  const publicRoom = settingsRows({ value: rules(4), source: 'matchmaking', editable: true });
   assert.ok(!walk(publicRoom).some(node => node.props.id === 'experimental-multiplayer'));
   assert.equal(changes.length, 0);
 });
