@@ -233,14 +233,6 @@
 .gtop__right { display: flex; flex-direction: column; align-items: flex-end; gap: .1rem; justify-self: end; }
 .gtop__right .countdown { --cd-h: .7rem; filter: drop-shadow(0 0 .12rem rgba(0, 0, 0, .8)); }
 .gtop__clock { display: flex; align-items: flex-start; gap: .14rem; }
-.gtop__budget {
-  grid-column: 1 / -1; justify-self: center;
-  display: flex; flex-wrap: wrap; justify-content: center; gap: .04rem .2rem; max-width: 100%;
-  font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); line-height: 1.4; color: var(--text-md);
-  text-align: center; text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
-}
-.gtop__budget span { overflow-wrap: anywhere; }
-.gm--unite-budget .gm__bonds { top: 1.8rem; }
 
 /* solo pause / resume (ui/hud.js PauseButton, official battle pause: two bars on a dark square) */
 .pausebtn {
@@ -253,6 +245,23 @@
 .pausebtn:hover:not(:disabled) { background: rgba(255, 255, 255, .14); border-color: #fff; }
 .pausebtn.is-on { background: var(--mint-500); border-color: var(--mint-400); color: var(--text-on-mint); box-shadow: 0 0 .22rem rgba(23, 249, 183, .45); }
 .pausebtn.is-busy { opacity: .6; }
+
+/* 战斗 2 倍速 (ui/hud.js SpeedVote): the pause button's dark plate, mint once a battle runs at it */
+.speedvote {
+  display: inline-flex; align-items: center; gap: .08rem; height: .38rem; padding: 0 .12rem; flex: none;
+  background: rgba(10, 14, 12, .88); border: 2px solid rgba(242, 242, 242, .45); color: var(--text-md);
+  font-size: max(calc(.17 * var(--t)), calc(11px * var(--ui))); line-height: 1; white-space: nowrap;
+  box-shadow: 0 .04rem .16rem rgba(0, 0, 0, .55);
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
+}
+.speedvote__glyph { font-style: normal; font-size: .8em; letter-spacing: -.12em; margin-right: .04rem; }
+.speedvote__count { font-family: var(--font-num); font-weight: 700; }
+.speedvote:hover:not(:disabled) { background: rgba(255, 255, 255, .14); border-color: #fff; color: #fff; }
+.speedvote.is-called { border-color: var(--mint-600); color: #fff; }
+.speedvote.is-mine { border-color: var(--mint-400); color: var(--mint-400); }
+.speedvote.is-on { background: var(--mint-500); border-color: var(--mint-400); color: var(--text-on-mint); box-shadow: 0 0 .22rem rgba(23, 249, 183, .45); }
+.speedvote.is-busy { opacity: .6; }
+.speedvote:disabled { cursor: default; }
 
 /* boss-round overtime warning (ui/hud.js OvertimeWarning; red DOT look: official icon_warn / blood_icon + bg_lose_hp) */
 .otwarn {
@@ -1077,10 +1086,6 @@
   .gm--expanded .gtop__right { grid-area: clock; }
   .gm--expanded .ticker { top: 2.7rem; max-width: calc(100% - 32px); }
   .gm--expanded .gm__bonds { top: 3.2rem; right: .3rem; }
-  .gm--expanded.gm--unite-budget .gtop { grid-template-areas: "connection clock" "phase phase" "budget budget"; }
-  .gm--expanded .gtop__budget { grid-area: budget; }
-  .gm--expanded.gm--unite-budget .ticker { top: 3.7rem; }
-  .gm--expanded.gm--unite-budget .gm__bonds { top: 4.2rem; }
 }
 
 /* fallback view: enemy preview pen (setCamera('pen')) */

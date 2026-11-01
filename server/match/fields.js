@@ -40,6 +40,8 @@ import { requiresTraitLayerAuthority } from './operatorTraits.js';
 export const MAX_TICKS_PER_INTERVAL = 8;
 export const INTERVAL_MS = 1000 / 30;
 export const GAME_SPEED = 2;
+/** Ceiling of a match's game speed (opts.combatSpeed, a passed 2 倍速 vote). */
+export const MAX_GAME_SPEED = 200;
 export const HARD_CAP_SECONDS = 3700;
 const SNAP_EVERY = Number.isInteger(SNAPSHOT_EVERY) && SNAPSHOT_EVERY > 0 ? SNAPSHOT_EVERY : 3;
 
@@ -931,8 +933,9 @@ export function validateClientResult(spec, raw, { gd = null } = {}) {
       const layerGains = {};
       for (const [bondId, n] of Object.entries(p.layerGains || {})) {
         // ≤ 60 + 4·round + what the player's layer 特质 can add to the bond (layerAllowanceOf; uncapped ones: no flat
-        // bound), and never past BOND_LAYER_CAP from the layers the bond started with (Battle.addLayers clamps)
-        const bound = Math.min(B.layerCap + (own.layerAllow.get(bondId) || 0), layerGainRoom(own.startLayers.get(bondId) || 0, Infinity));
+        // bound), and never past BOND_LAYER_CAP from the layers the bond started with (Battle.addLayers clamps; a room's
+        // spec flag layerCapOff lifts that cap on both sides)
+        const bound = Math.min(B.layerCap + (own.layerAllow.get(bondId) || 0), layerGainRoom(own.startLayers.get(bondId) || 0, Infinity, spec.flags?.layerCapOff === true));
         if (!finiteIn(n, 0, bound)) return bad('layer bound');
         if (n > 0 && spec.flags && spec.flags.layerGainsEnabled === false) return bad('layers disabled');
         if (gd && typeof gd.bond === 'function' && !gd.bond(bondId)) return bad('bond');

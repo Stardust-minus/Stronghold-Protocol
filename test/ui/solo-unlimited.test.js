@@ -30,7 +30,7 @@ const MSGIDS = [
   '每轮 300 秒',
   '独立模拟中每轮休整限时 300 秒，机变 150 秒',
   '关闭本局休整与机变的计时。官方为休整期每轮 300 秒、机变 150 秒。',
-  '核心规则已按该版本。悬赏抽取、部分数值和六名敌人的攻击前摇仍是推算',
+  '规则已按该版本还原；悬赏抽取、部分数值和六名敌人的攻击前摇为推算',
 ];
 
 test('soloUnlimitedOption: a timed solo only, off when the key is absent, host edits', async () => {
@@ -68,7 +68,7 @@ test('the room, the lobby and the picker say the new lines through t(); en.json 
   assert.match(ROOM, /net\.request\('room\.setSoloUnlimited', \{ on \}\)/);
   assert.match(LOBBY, /soloUnlimited: true/);
   assert.match(LOBBY, /data-testid="solo-unlimited"/);
-  assert.ok(PICKER.includes("t('核心规则已按该版本。悬赏抽取、部分数值和六名敌人的攻击前摇仍是推算')"));
+  assert.ok(PICKER.includes("t('规则已按该版本还原；悬赏抽取、部分数值和六名敌人的攻击前摇为推算')"));
   assert.ok(!PICKER.includes('部分规则仍按第二期下半，正在逐步复刻'));
   for (const zh of MSGIDS) {
     assert.equal(typeof EN[zh], 'string', `en.json: ${zh}`);

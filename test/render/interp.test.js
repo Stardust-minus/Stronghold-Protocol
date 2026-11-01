@@ -349,3 +349,23 @@ describe('SnapshotBuffer adaptive delay (streamed fields)', () => {
     assert.equal(b.delay, 0.3);
   });
 });
+
+test('feedback #105: a finished stream reaches its newest snapshot whatever the jitter delay', () => {
+  const run = (drain) => {
+    const b = new SnapshotBuffer({ delay: 0.4, rate: 2 });
+    const snap = (t) => ({ t, units: [[1, 0, 0, 100, 100, 0, 0, 0, 0]] });
+    for (let i = 0; i <= 40; i++) b.push(snap(i * 0.1), i * 0.05);
+    let now = 2;
+    b.update(now);
+    if (drain) b.drain();
+    for (let i = 0; i < 300; i++) { now += 1 / 60; b.update(now); }
+    return b;
+  };
+  const stalled = run(false);
+  assert.ok(stalled.renderT < stalled.newestT, `with a delay over 1/3 s the clock stands short: ${stalled.renderT}`);
+  const drained = run(true);
+  assert.ok(drained.renderT >= drained.newestT, `drained: ${drained.renderT} of ${drained.newestT}`);
+  assert.ok(drained.renderT <= drained.newestT + drained.maxExtrapolate * drained.rate + 1e-9, 'within the extrapolation guard');
+  drained.reset();
+  assert.equal(drained.draining, false, 'a new battle waits for its stream again');
+});

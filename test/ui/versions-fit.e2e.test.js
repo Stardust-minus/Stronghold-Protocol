@@ -6,7 +6,7 @@
 //     laid over content.js contentSet) inside the dialog;
 //   * a version room seen by a doctor whose lobby is 第二期下半: the pill (the name may end in an ellipsis) inside the
 //     footer, the vote strip inside the screen with its texts wrapping (never cut sideways) and its buttons inside it (in
-//     view, a tap on each reaches it), the banner inside the screen, the seat tags (版本数据就绪 …) inside their cards, the
+//     view, a tap on each reaches it), the banner inside the screen, the seat tags (数据就绪 …) inside their cards, the
 //     tag beside the mode in the top bar with its whole name;
 //   * the vote strip floating above 干员调配 (a voter's) inside the screen with its title and buttons in view;
 //   * the settlement's team page and its detail of a version match: the version tag inside the screen, and the vote strip

@@ -246,8 +246,9 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
     assert.equal(status, '轮到你决策', 'solo: untimed — no seconds');
     const box = await page.$eval('.minfo-dlg', (el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; });
     assert.ok(box.top >= 0 && box.bottom <= 1080 && box.left >= 0 && box.right <= 1920, `inside the screen ${JSON.stringify(box)}`);
-    const fits = await page.$eval('.minfo-dlg .modal__body', (el) => el.scrollHeight <= el.clientHeight + 1);
-    assert.ok(fits, 'desktop: everything visible without scrolling');
+    // (#68's names per bond can outgrow the box when many bonds are off: the body scrolls, 关闭 and the status stay in view)
+    const body = await page.$eval('.minfo-dlg .modal__body', (el) => ({ over: el.scrollHeight - el.clientHeight, y: getComputedStyle(el).overflowY }));
+    assert.ok(body.over <= 1 || body.y === 'auto' || body.y === 'scroll', `desktop: all of it reachable ${JSON.stringify(body)}`);
     await shot(page, 'solo-dialog');
 
     // Esc
@@ -290,8 +291,8 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
     await press(p, '.gtop__iconbtn');
     await page.waitForSelector('.edrawer .ibanned', { visible: true, timeout: 5000 });
     const tab = await page.evaluate(() => ({
-      off: [...document.querySelectorAll('.edrawer .ibond.is-off')].map((el) => el.querySelector(':scope > span:not([class])')?.textContent || ''),
-      ban: Object.fromEntries([...document.querySelectorAll('.edrawer .ibond')].map((el) => [el.querySelector(':scope > span:not([class])')?.textContent || '', el.querySelector('.ibond__ban')?.textContent.trim() || ''])),
+      off: [...document.querySelectorAll('.edrawer .ibonds .brief-bond.is-off .bond__name')].map((el) => el.textContent),
+      ban: Object.fromEntries([...document.querySelectorAll('.edrawer .ibonds .brief-bond')].map((el) => [el.querySelector('.bond__name')?.textContent || '', el.querySelector('.brief-bond__ban')?.textContent.trim() || ''])),
       banned: [...document.querySelectorAll('.edrawer .ibanned .uthumb')].map((el) => el.getAttribute('title')),
       count: document.querySelector('.edrawer .ihead small')?.textContent.trim() || '',
     }));
@@ -300,6 +301,35 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
     assert.deepEqual(tab.banned, brief.banned, 'the same banned operators, in the same (tier) order');
     assert.equal(tab.count, brief.count);
     await shot(page, 'solo-ingame-tab');
+    // feedback #4: each bond's own disc in every language, on a phone's size too, at the largest 文字大小
+    const look = (lang, textSize) => page.evaluate(async (lang, textSize) => {
+      const { switchLang } = await import('/js/ui/lang.js');
+      const { settingsStore } = await import('/js/ui/settingsStore.js');
+      await switchLang(lang);
+      settingsStore.set({ textSize });
+      await document.fonts.ready;
+    }, lang, textSize);
+    const cells = () => page.$$eval('.edrawer .ibonds .brief-bond', (els) => els.map((c) => {
+      const n = c.querySelector('.bond__name'), box = c.getBoundingClientRect(), r = n.getBoundingClientRect(), ban = c.querySelector('.brief-bond__ban')?.getBoundingClientRect();
+      return { name: n.textContent, out: r.left < box.left - 1 || r.right > box.right + 1 || n.scrollWidth > n.clientWidth + 1 || (!!ban && ban.right > box.right + 1), size: parseFloat(getComputedStyle(n).fontSize) };
+    }));
+    for (const [width, height] of [[1920, 1080], [844, 390], [640, 360]]) {
+      await page.setViewport({ width, height, deviceScaleFactor: 1 });
+      for (const lang of ['zh-TW', 'en', 'ja', 'ko']) {
+        await look(lang, 'xl');
+        await sleep(500); // the game texts follow as their overlays arrive
+        const list = await cells();
+        assert.equal(list.length, tab.off.length, `${lang} ${width}: every bond`);
+        assert.deepEqual(list.filter((c) => c.out), [], `${lang} ${width}: the names and badges stay in their cells`);
+        assert.ok(list.every((c) => c.size >= 9), `${lang} ${width}: readable`);
+        if (lang === 'en') {
+          assert.ok(list.every((c) => !/[一-鿿]/.test(c.name)), `the English bond names: ${list.map((c) => c.name)}`);
+          await shot(page, `solo-ingame-tab-en-${width}`);
+        }
+      }
+    }
+    await look('zh', 'md');
+    await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
     assert.deepEqual(p.problems, []);
   });
 

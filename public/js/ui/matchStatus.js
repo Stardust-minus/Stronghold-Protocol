@@ -8,13 +8,20 @@
 //   * Solo pause (official 独立模拟 battles): C2S g.pause {on}; the server says so in m.public.paused (optionally
 //     m.public.pausedAt, ms epoch). Only solo battles offer it (`pauseAvailable`); while paused every HUD clock is
 //     frozen at the pause moment (`frozenNow`).
+//   * 战斗 2 倍速 (server/match/match/speedVote.js): m.public speedVote is the standing vote; `speedVoteState` says what
+//     the top bar's switch shows, `battleSpeedScale` how much faster than nominal this battle's real-time clocks run.
 
-import { PHASE } from '../../../shared/constants.js';
+import { PHASE, SPEED_VOTE_MULT } from '../../../shared/constants.js';
 
 const isObj = (v) => !!v && typeof v === 'object';
 const BOSS_PHASES = new Set([PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE]);
 /** Battle phases a solo player may pause (a solo run has no 联防). */
 const PAUSE_PHASES = new Set([PHASE.COMBAT, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE]);
+
+/** Battle phases: m.public speedVote.on describes the running battle there, the last one elsewhere. */
+const BATTLE_PHASES = new Set([PHASE.COMBAT, PHASE.UNITE, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE]);
+/** Where the 2 倍速 switch shows: the opening has no battle in sight, the result none left. */
+const SPEED_VOTE_PHASES = new Set([...BATTLE_PHASES, PHASE.ROUND_START, PHASE.SP_DRAFT, PHASE.PREP, PHASE.SETTLE]);
 
 /** Level time of a boss round when the config does not say (research 01 §3: maxPlayTime 120 s). */
 export const BOSS_LEVEL_SECONDS = 120;
@@ -63,6 +70,28 @@ export function overtimeState(pub, now, { perSec = 1, warnBefore = OVERTIME_WARN
   const secs = Math.floor((now - at) / 1000);
   const rate = Number.isFinite(perSec) && perSec >= 0 ? perSec : 1;
   return { state: 'drain', secs, lost: secs * rate, perSec: rate };
+}
+
+/** How much faster than nominal the running battle's real-time clocks go (its countdown, the overtime drain per second). */
+export function battleSpeedScale(pub) {
+  return isObj(pub) && BATTLE_PHASES.has(pub.phase) && pub.speedVote?.on ? SPEED_VOTE_MULT : 1;
+}
+
+/**
+ * What the 2 倍速 switch shows; null while it is hidden.
+ * status: 'on' this battle runs at it and the next one will / 'ending' this battle runs at it, the votes for the next
+ * one fell short / 'next' it starts with the next battle / 'idle' not enough votes.
+ * @param {any} pub m.public
+ * @param {any} myId
+ * @returns {{ status: 'on'|'ending'|'next'|'idle', mine: boolean, count: number, need: number } | null}
+ */
+export function speedVoteState(pub, myId) {
+  const v = pub?.speedVote;
+  if (!isObj(v) || !SPEED_VOTE_PHASES.has(pub.phase)) return null;
+  const agreed = Array.isArray(v.agreed) ? v.agreed : [];
+  const running = battleSpeedScale(pub) > 1;
+  const status = running ? (v.next ? 'on' : 'ending') : v.next ? 'next' : 'idle';
+  return { status, mine: agreed.includes(myId), count: agreed.length, need: Number(v.need) || 0 };
 }
 
 /**

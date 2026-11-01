@@ -34,6 +34,10 @@
 // SP_SLOW_SPAWNS=<humanIdx>:<factor>: that human's (seat order) normal battles spawn their enemies at <factor> × the
 // scheduled times (and intervals) — a leaker's battle then runs to the round's time limit, long after a teammate's quick
 // one (test/ui/watch-bonds.e2e.test.js, "after the own battle": a window for watching and a reload).
+// SP_VERSION_MATCH_MODULE=<file>: the match module of the match hosts (startServer matchHost.matchModule) —
+// test/ui/version-local-replica.e2e.test.js: a room of an older version never runs FastMatch.
+// SP_START_LAYERS=<bondId>:<n>: the starter kit also gives every human that bond's layers, through the ordinary gain and so
+// under the room's own cap (test/ui/experimental-limits.e2e.test.js: a room that lifted the 999 cap).
 // Not a test file (node --test runs it as a no-op module when NODE_TEST_CONTEXT is set).
 
 import { startServer } from '../../server/index.js';
@@ -56,6 +60,8 @@ if (!process.env.NODE_TEST_CONTEXT) {
   try { humanKits = JSON.parse(process.env.SP_START_KITS || '[]'); } catch { humanKits = []; }
   const botChess = String(process.env.SP_BOT_CHESS || '').split(',').map((x) => x.trim()).filter(Boolean);
   const autoPlace = process.env.SP_AUTO_PLACE === '1';
+  const [startBond, startLayersText] = String(process.env.SP_START_LAYERS || '').split(':');
+  const startLayers = Number(startLayersText) || 0;
   const eliminate = String(process.env.SP_ELIMINATE || '').split(',').map((x) => x.trim()).filter(Boolean).map(Number);
   const seatPairs = process.env.SP_SEAT_PAIRS === '1';
   const forcedStage = String(process.env.SP_STAGE || '').trim();
@@ -206,13 +212,15 @@ if (!process.env.NODE_TEST_CONTEXT) {
         if (i < ps.shop.slots.length && this.gd.chess(id)) ps.shop.slots[i] = { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false };
       });
       ps.addFunds(20, { reason: 'income' });
+      if (startLayers > 0) ps.addLayers(startBond, startLayers, { reason: 'test' });
       ps.recompute();
     }
   }
 
   // SP_FAST_VERBOSE=1: the server's info lines too (a test reading them, e.g. coop.e2e.mjs's server takeover)
   const srv = await startServer({ port: Number(process.env.PORT) || 0, host: process.env.HOST || '127.0.0.1', quiet: process.env.SP_FAST_VERBOSE !== '1', MatchClass: FastMatch,
-    ...(process.env.SP_PLUGINS_DIR ? { pluginsDir: process.env.SP_PLUGINS_DIR } : {}) });
+    ...(process.env.SP_PLUGINS_DIR ? { pluginsDir: process.env.SP_PLUGINS_DIR } : {}),
+    ...(process.env.SP_VERSION_MATCH_MODULE ? { matchHost: { matchModule: process.env.SP_VERSION_MATCH_MODULE } } : {}) });
   console.log(`fast server on ${srv.url} (timers ×${timerScale}, combat ${combatSpeed}×${startAt ? `, first round ${startAt}` : ''})`);
   const stop = () => { srv.close().finally(() => process.exit(0)); };
   process.on('SIGTERM', stop);

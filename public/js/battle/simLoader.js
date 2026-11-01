@@ -62,10 +62,15 @@ export async function loadBrowserSim({ base = '/sim/', dataBase = '/data/', fetc
   if (missing.length) throw new Error(`simulation data unavailable: ${missing.join(', ')}`);
   const raw = {};
   SIM_DATA_FILES.forEach((n, i) => { raw[n] = deepFreeze(files[i]); });
-  // another official version's set (versions M1, DESIGN §35.23): its version marker, so the content modules find kits
-  // and item behaviour by charId / effectId (support isVersionData reads config.version) like the version host does.
+  // another official version's set (versions M1, DESIGN §35.23): the part of config.json the sim reads — its version
+  // marker, so the content modules find kits and item behaviour by charId / effectId (support isVersionData) like the
+  // version host does, `season` (support isFirstPeriod) and `modes` (第一期's 标准模拟 band clause, bands/battle.js) — or a
+  // replica of a 第一期 field differs from its Worker's from the first hit on.
   // The default data and plugin sets carry no config.version: their raw stays without `config`, as before.
-  if (data?.config?.version && typeof data.config.version === 'object') raw.config = deepFreeze({ version: structuredClone(data.config.version) });
+  if (data?.config?.version && typeof data.config.version === 'object') {
+    const { version, season, modes } = data.config;
+    raw.config = deepFreeze(structuredClone({ version, season, modes }));
+  }
   simdata.setSimData(raw);
   if (typeof support.setGameData === 'function') support.setGameData(null); // re-read through the injected data
   await installSimBounds(base, raw, data ? bounds : undefined);

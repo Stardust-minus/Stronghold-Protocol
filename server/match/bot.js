@@ -256,7 +256,7 @@ export function bountyKillChance(m, ps, card) {
   if (!e || !e.stats) return 0.5;
   const model = fieldModel(m, ps);
   const sc = gd.enemyScale(m.round);
-  const hp = Math.max(1, (e.stats.maxHp || 1000) * sc.hpMul);
+  const hp = Math.max(1, (e.stats.maxHp || 1000) * sc.hpMul * (m.enemyHpMul ?? 1));
   const def = e.stats.def || 0;
   const res = e.stats.res || 0;
   const fly = isFlyKey(gd, card.enemyKey) || HOVER.has(card.enemyKey);
@@ -860,7 +860,7 @@ export function fieldModel(m, ps = null) {
         foes.set(k, (foes.get(k) || 0) + (isLeader ? LEADER_HP * LEADER_WEIGHT : (e.stats.maxHp || 1000) * n));
       }
       // the leader counts like LEADER_WEIGHT tough enemies: its huge pool makes damage on it worth a lot everywhere
-      const hp = isLeader ? LEADER_HP : ((e && e.stats && e.stats.maxHp) || 1000) * ((s.mods && s.mods.hpMul) || 1);
+      const hp = isLeader ? LEADER_HP : ((e && e.stats && e.stats.maxHp) || 1000) * ((s.mods && s.mods.hpMul) || 1) * (m.enemyHpMul ?? 1);
       const spd = ((e && e.stats && e.stats.moveSpeed) || 1) * ((s.mods && s.mods.speedMul) || 1);
       const air = HOVER.has(s.enemyKey);
       const key = `${s.routeIndex}|${isLeader ? 'boss' : ''}|${air ? 'air' : ''}`;
@@ -1362,7 +1362,7 @@ function bossCandidateOpts(m, ps, byUid, plan) {
     if (Array.isArray(ev.spawns)) spawns = ev.spawns;
     if (Array.isArray(ev.routes)) routes = ev.routes;
   }
-  const hp = bossPoolHp(m.gd, bossId, alive.length);
+  const hp = bossPoolHp(m.gd, bossId, alive.length, { hpMul: m.enemyHpMul ?? 1 });
   return {
     seed: faRehearsalSeed(m, ps),
     kind,
@@ -1377,7 +1377,7 @@ function bossCandidateOpts(m, ps, byUid, plan) {
     sharedBoss: new SharedBossPool(hp),
     // the spec the host's browser rebuilds the pool from (buildBattleSpec reads `boss`, not the live pool object)
     boss: { poolHp: hp, poolMax: hp },
-    flags: { layerGainsEnabled: false, ...m.gd.dp, enemyScale: m.gd.enemyScale(m.round) },
+    flags: { layerGainsEnabled: false, ...m.gd.dp, enemyScale: m.gd.enemyScale(m.round), ...m._ruleFlags?.() },
     fieldId: `rb:${ps.playerId}`,
     enemyOverrides: wave.overrides,
     waveId: wave.templateId,

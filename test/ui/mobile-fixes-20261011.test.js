@@ -20,12 +20,12 @@ test('全屏 sits in the hub top bar beside 设置 / 玩法说明, with the expl
   assert.equal((lobby.match(/onClick=\$\{openStats\}/g) || []).length, 1);
 });
 
-test('the hub keeps the join key, 公告, the feedback group and the queue', () => {
+test('the hub keeps the join key, 公告, the boards and the queue', () => {
   const lobby = source('../../public/js/screens/lobby.js');
   assert.match(lobby, /<\$\{HubTile\} icon="key" label=\$\{t\('密钥加入'\)\}/);
   assert.match(lobby, /<\$\{NoticeCard\} value=\$\{noticeValue\}/);
-  assert.match(lobby, /<div class="hub-contact"><div class="hub-contact__row"><\$\{LobbyFeedback\} \/><\$\{SiteBoards\} \/><\/div><\$\{DesignCredit\} \/><\$\{HubFoot\} \/><\/div>/);
-  assert.match(lobby, /net\.request\('queue\.join', \{ difficulty \}\)/);
+  assert.match(lobby, /<div class="hub-contact"><div class="hub-contact__row"><\$\{SiteBoards\} \/><\/div><\$\{DesignCredit\} \/><\$\{HubFoot\} \/><\/div>/);
+  assert.match(lobby, /net\.request\('queue\.join', \{ difficulty: matchFocus/);
   assert.match(lobby, /<\$\{QueueFlow\} queue=\$\{queue\}/);
   const css = source('../../public/css/screens/lobby.css');
   assert.match(css, /\.lobby-screen \.join-row \.field--code \.field__input \{ font-size: max\(calc\(\.34 \* var\(--t\)\), 16px\); \}/, 'no iOS focus zoom');

@@ -367,9 +367,7 @@ First-round UNITE HUD and phase banner remain 「联防」 / 「联防阶段」,
 clear can still finish the segment in one. Only an actual second field shows 「联防2/2」 / 「接力联防第2轮」. Current
 field / battle identity is checked from relay metadata, including an admitted known-single `uniteRound: 1,
 uniteRounds: 1` with a battleId; its relay key remains null. Below-eight plans have no promised relay DTO and legacy
-non-relay behavior is unchanged. The expanded budget HUD uses `unite.timeLimit / unite.gameSpeed` for this field's
-real-second duration; `totalBudget` and `remainingBudget` are game-second total / field-entry ledger values, not a
-live countdown or a promise that saved first-field time expands the second cap.
+non-relay behavior is unchanged. The phase gauge reads the round's combat limit in every room size.
 
 In narrow desktop windows (width ≤ 900 px, height > 520 px), the hub's simulation descriptions wrap in full; both
 reserve at least two lines to keep the cards aligned ([ASSUMED] layout, §35.60). Phones keep the short descriptions
@@ -399,6 +397,11 @@ battlefield and special enemy blocks alongside the existing bonds and banned ope
 the viewport while the close button and turn status stay in view. The selected strategy is preserved, the turn
 countdown keeps running, and a turn change closes the dialog. Background strategy controls become available
 again after closing; the modal interaction is unchanged.
+
+In-game 本局信息 tab (feedback #4): the official 本局禁用干员情况 dropdown draws each bond as its own disc with the name under
+it and the red banned-member badge at its corner, so the tab uses the briefing's disc (`ui/matchInfo.js` `bondCell`, with
+its tooltip and banned-member box) in a grid instead of compact chips. The avatars and the #68 per-bond name list stay
+below it.
 
 Settlement layout (§35.1, #745): preserve #698's official art and positions. Both translated outcome headings fit
 inside bounded boxes; button backgrounds/inset decoration are missing-or-failed-sprite fallbacks only (keyboard
@@ -822,7 +825,7 @@ adds ` version=<id>`.
 
 **Lobby.** `ui/versionPicker.js`: VersionSwitch (the chip before 恢复本机对局; a single non-default entry is a plain tag;
 载入中 n% / 校验失败 + 重试) and VersionPicker (the project's Modal: one row per enabled version — its name, the official
-period line, 当前 / 服务器默认 / 预览 with 「核心规则已按该版本。悬赏抽取、部分数值和六名敌人的攻击前摇仍是推算」 [ASSUMED], and in a language other than
+period line, 当前 / 服务器默认 / 预览 with 「规则已按该版本还原；悬赏抽取、部分数值和六名敌人的攻击前摇为推算」 [ASSUMED], and in a language other than
 Simplified Chinese that its game texts are Chinese for now). The title shows a non-default version under 盟约.
 选择模拟协议 lists `offeredDifficulties(config, roomMode)` of the version shown (its config's modes) and selects
 `fallbackDifficulty` (the server's rule: the highest offered below, else the lowest) when the remembered difficulty is
@@ -835,7 +838,7 @@ on the long line and 「1 名博士」 on a phone. The 成就统计 card counts 
 version shown.
 
 **Room.** `roomFacts.needsContent` (gameplay plugins or another version) gates ready, start, the seat tags and the
-status line; `modded` stays the 非官方 mark. A version room's words: 版本数据载入中 / 就绪 / 校验失败, 「等待所有博士载入
+status line; `modded` stays the 非官方 mark. A version room's words: 数据载入中 / 就绪 / 校验失败, 「等待所有博士载入
 「{version}」的数据」, the two GoButton tooltips, the invite 「…盟约·{version}【…】」. `ui/pluginTag.js VersionTag` (nothing for
 第二期下半) sits beside the mode in the top bar and beside UnofficialMark in the briefing, the settlement and the result
 [ASSUMED placement]. A timed solo (第一期) shows ⚙ 模拟设置 with the 「不限时」 switch (the host toggles `room.setSoloUnlimited`; everybody else reads
@@ -1113,7 +1116,7 @@ Art/audio templates ship original CC0 sample media; the studio fills the target'
 
 ### Finished battle presentation
 
-The field view receives an explicit completion signal (`finishBattle`): the local runner's `done`, or the server's public field `live: false`. Missing snapshots and solo pause never imply completion. After rendering the final buffered snapshot/events, surviving units return to idle with temporary crowd-control and skill pose flags cleared for presentation only, retaining flight, stealth-driven forms and other persistent flags; knocked-out/dead poses remain. Official and plugin persistent effects stop, while one-shot effects advance on the presentation clock and are removed after at most two presentation seconds [ASSUMED]. Studio playback continues to use its external clock, including zero-time paused frames. This does not tick the simulation, delay results, or change golden outcomes.
+The field view receives an explicit completion signal (`finishBattle`): the local runner's `done`, the server's public field `live: false`, or a phase past the battle with the field gone from `m.public`. Missing snapshots and solo pause never imply completion. On that signal the snapshot clock drops its jitter delay (`SnapshotBuffer.drain`): behind a delay over 1/3 s it never reached the newest snapshot, so a stream never left the battle clock and its skill effects stood on their last frame until the next round (feedback #105). After rendering the final buffered snapshot/events, surviving units return to idle with temporary crowd-control and skill pose flags cleared for presentation only, retaining flight, stealth-driven forms and other persistent flags; knocked-out/dead poses remain. Official and plugin persistent effects stop, while one-shot effects advance on the presentation clock and are removed after at most two presentation seconds [ASSUMED]. Studio playback continues to use its external clock, including zero-time paused frames. This does not tick the simulation, delay results, or change golden outcomes.
 
 The four-star Theresa mote ring follows the game clock (including pause and speed), converts its y-up offsets to
 Spine display coordinates, and is recreated on model swaps. Its S2 radius of 2 tiles is [ASSUMED] from outside_radius;

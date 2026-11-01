@@ -23,6 +23,8 @@ export class MatchIntents {
       // 投票移出 an offline seat under AI takeover (kickVote.js)
       case 'g.kickVote': return this.requestKickVote(ps, msg.targetId);
       case 'g.kickBallot': return this.answerKickVote(ps, msg.voteId, msg.agree);
+      // 战斗 2 倍速: the seat's standing vote (speedVote.js)
+      case 'g.speedVote': return this.setSpeedVote(ps, msg.agree === true);
       case 'g.band': return this.pickBand(ps, msg.bandId);
       case 'g.bandSkip': return this.skipBand(ps);
       // the strategy highlighted in the draft screen (what a timed-out turn takes, timeoutBand)
@@ -167,7 +169,7 @@ export class MatchIntents {
     const b = this.newBattle({
       seed: deriveSeed(this.seed, `preview:${this.round}:${ps.seat}`), kind: 'normal', modeId: this.modeId, round: this.round,
       stageId: this.stageId, rect: { ...GEO.NORMAL_RECT }, timeLimit: 60, players, spawns: [], routes: this.wave ? this.wave.routes : [],
-      sharedBoss: null, flags: { layerGainsEnabled: !bossRound, ...this.gd.dp }, fieldId: `n:${ps.playerId}`, recordEvents: false,
+      sharedBoss: null, flags: { layerGainsEnabled: !bossRound, ...this.gd.dp, ...this._ruleFlags() }, fieldId: `n:${ps.playerId}`, recordEvents: false,
     });
     try {
       if (typeof b.start === 'function') b.start();

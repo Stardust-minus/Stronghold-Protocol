@@ -43,7 +43,7 @@ export const AFK_REMOVE_ROUNDS = 2;
 export const OFFLINE_TAKEOVER_ROUNDS = 2;
 /**
  * The intents that count as playing for that rule — accepted ones only. g.ready, g.infoReady, g.emote, g.watch,
- * g.unitStats, g.pause, g.art, g.bandFocus, g.autoplay, g.rerollVote, g.kickVote, g.kickBallot, the battle reports and
+ * g.unitStats, g.pause, g.art, g.bandFocus, g.autoplay, g.rerollVote, g.kickVote, g.kickBallot, g.speedVote, the battle reports and
  * anything else do not.
  */
 export const AFK_ACTIONS = new Set(['g.buy', 'g.sell', 'g.move', 'g.refresh', 'g.levelUp', 'g.freeze', 'g.equip', 'g.destroy',

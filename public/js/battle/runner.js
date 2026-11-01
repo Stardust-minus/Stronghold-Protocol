@@ -685,7 +685,9 @@ export function createBattleRunner(deps) {
     try { if (globalThis.localStorage && globalThis.localStorage.getItem('sp.localSim') === '0') { localOff = true; return; } } catch { /* no storage */ }
     const id = pub.matchId;
     declaredFor = id;
-    ensureSim().then((sim) => {
+    // a room of another official version: its own sim, the one its replicas run on (a default room: the original content)
+    const room = store.get()?.room;
+    ensureSim(typeof room?.version === 'string' ? room.content?.cs ?? null : null).then((sim) => {
       if (declaredFor !== id || localOff) return;
       if (!sim || !sim.sync || typeof sim.sync.stateHash !== 'function') { localOff = true; return; }
       askSim({ local: true }).then((ok) => { if (!ok && declaredFor === id) declaredFor = null; });

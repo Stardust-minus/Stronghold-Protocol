@@ -375,8 +375,8 @@ test('the vote expires after versionVoteMs (toast, the 5 s guard); the 300 ms de
   h.clear();
   await new Promise((r) => setTimeout(r, 120));
   assert.equal(room.versionVote, null);
-  assert.equal(h.toasts(b)[0].msgid, '切换版本投票已超时，房间版本未改变');
-  assert.equal(h.toasts(a)[0].msgid, '切换版本投票已超时，房间版本未改变');
+  assert.equal(h.toasts(b)[0].msgid, '切换版本投票已超时，同盟版本未改变');
+  assert.equal(h.toasts(a)[0].msgid, '切换版本投票已超时，同盟版本未改变');
   refused(h.lobby.proposeVersion(a, { version: 'act1autochess' }), ERR.RATE);
   h.clock.t += 5000;
   ok(h.lobby.proposeVersion(a, { version: 'act1autochess' }));

@@ -4,17 +4,17 @@
 //
 // [ASSUMED] No official source settles a test console. Bounds are absolute and strict (a value
 // outside them is an error, never a clamp): funds 0..99999, LP 0..999, team LP 0..9999, bond
-// layers 0..BOND_LAYER_CAP, shop lists of 1..12 slots, round 1..99 (the match rechecks the mode's
+// layers 0..BOND_LAYER_SAFE_MAX (the match refuses what its own cap does not allow), shop lists of 1..12 slots, round 1..99 (the match rechecks the mode's
 // last / hidden round). A shape the catalogue does not name is BAD_MSG. A present field of the
 // wrong type or out of range is BAD_TARGET. A shape refusal is audited as { rejected: true } so
 // the log does not keep the raw payload.
 
-import { BOND_LAYER_CAP } from './constants.js';
+import { BOND_LAYER_SAFE_MAX } from './constants.js';
 
 export const TEST_FUNDS_MAX = 99999;
 export const TEST_LP_MAX = 999;
 export const TEST_TEAM_LP_MAX = 9999;
-export const TEST_LAYERS_MAX = BOND_LAYER_CAP;
+export const TEST_LAYERS_MAX = BOND_LAYER_SAFE_MAX;
 export const TEST_SHOP_SLOTS_MAX = 12;
 export const TEST_ROUND_MAX = 99;
 export const TEST_RATE_COUNT = 8;

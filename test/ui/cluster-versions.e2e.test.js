@@ -16,8 +16,11 @@ const enabled = process.env.SP_E2E === '1' && hasChrome();
 const sockets = new Set();
 let game, coordinator, ingress, proxy, url;
 
+const combatEnv = process.env.SP_COMBAT;
+
 before(async () => {
   if (!enabled) return;
+  process.env.SP_COMBAT = 'server'; // as the image (Dockerfile.cluster): the version hosts inherit it
   const key = randomBytes(32); // ephemeral, never recorded
   game = await startGameRuntime({ nodeId: 'browser-node', generation: 'browser-generation', build: 'browser-build', key,
     combatWorkers: 1, trialWorkers: 0, onEnd() {}, shutdownMs: 100 });
@@ -55,6 +58,7 @@ before(async () => {
 });
 
 after(async () => {
+  if (combatEnv === undefined) delete process.env.SP_COMBAT; else process.env.SP_COMBAT = combatEnv;
   for (const socket of sockets) socket.destroy();
   if (proxy) await new Promise((resolve) => proxy.close(resolve));
   await ingress?.close(); await coordinator?.close(); await game?.close();
@@ -84,27 +88,56 @@ async function play(version) {
     await c.waitFor((s) => s.phase === 'PREP', 'round 1 prep', 60000);
     const start = await c.st();
     assert.equal(await c.page.evaluate(() => globalThis.__SP__.store.get().match.public?.version ?? 'act2autochess'), version);
+    // 战斗 2 倍速: g.speedVote reaches the match on the game node and through the version host's proxy
+    await c.click('[data-testid="speed-vote"]');
+    await c.page.waitForFunction(() => document.querySelector('[data-testid="speed-vote"]')?.dataset.status === 'next', { timeout: 10000 });
     await c.page.evaluate(() => globalThis.__SP__.net.request('g.ready', { ready: true }));
     const end = Date.now() + 240000;
+    let local = false;
+    let fastest = 0;
     for (;;) {
       const s = await c.st();
+      if (s.phase === 'COMBAT') local ||= await c.page.evaluate(() => globalThis.__SP__.store.get().match.field?.local === true);
+      if (s.phase === 'COMBAT') fastest = Math.max(fastest, await c.page.evaluate(() => globalThis.__SP__.store.get().match.public?.speedVote?.speed ?? 0));
       if (s.phase === 'PREP' && s.round > start.round) break;
       if (s.result) throw new Error('the match ended in round 1');
       if (s.phase === 'SP_DRAFT' || Date.now() > end) break;
-      await sleep(500);
+      await sleep(200);
     }
     const s = await c.st();
     assert.ok(s.round > start.round || s.phase === 'SP_DRAFT', `past round 1: ${JSON.stringify({ phase: s.phase, round: s.round })}`);
+    assert.equal(local, true, 'the battle ran as a local display replica');
+    assert.equal(fastest, 4, 'the battle ran at 2 倍速');
     assert.deepEqual(c.problems, [], 'no console errors or failed requests');
   } finally { await c.close(); }
 }
+
+test('公开同盟: room.setListed and room.list pass the ingress to the rooms on the coordinator', { skip: !enabled, timeout: 2 * 60 * 1000 }, async () => {
+  const puppeteer = (await import('puppeteer-core')).default;
+  const c = new Client(puppeteer, url, 'act2autochess', { prefix: 'cluster', prefs: {} });
+  try {
+    await c.open();
+    await c.enter('列表');
+    const rooms = await c.page.evaluate(async () => {
+      const { net } = globalThis.__SP__;
+      await new Promise((resolve) => setTimeout(resolve, 3500)); // the page's opening requests fill the heavy bucket
+      await net.request('room.create', { mode: 'coop', difficulty: 'NORMAL', experimental: { revivalEnabled: false, disableSharedPool: false, playerCapacity: 8 } });
+      await net.request('room.setListed', { listed: true });
+      return (await net.request('room.list')).rooms;
+    });
+    assert.equal(rooms.length, 1);
+    assert.deepEqual([rooms[0].host, rooms[0].humans, rooms[0].capacity], ['列表', 1, 8]);
+  } finally { await c.close(); }
+});
 
 test('a default-version match on the game node, in a browser', { skip: !enabled, timeout: 5 * 60 * 1000 }, async () => {
   await play('act2autochess');
   assert.equal(coordinator.versionHosts?.stats?.().matches ?? 0, 0);
 });
 
-test('an older version\'s match in the coordinator\'s version host, in a browser', { skip: !enabled, timeout: 5 * 60 * 1000 }, async () => {
+test('an older version\'s match in the coordinator\'s version host, on its Workers, in a browser', { skip: !enabled, timeout: 5 * 60 * 1000 }, async () => {
   await play('act1autochess');
-  assert.equal(coordinator.versionHosts.stats().matches, 1);
+  const stats = coordinator.versionHosts.stats();
+  assert.equal(stats.matches, 1);
+  assert.deepEqual([stats.combat?.ready, stats.combat?.size], [2, 2]);
 });

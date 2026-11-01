@@ -4,13 +4,14 @@
 // version branch took the default path (another operator's kit, another item's effect). The browser reads the content
 // modules' gameData() through the /data.js stand-in (getSimData(), the injected data): here setGameData(sim.raw) does
 // that, since a Node test otherwise reads server/data.js's default singleton. The default data stays without `config`.
+// A version's page data also carries `season` and `modes`: without them a 第一期 replica differed from its Worker.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadBrowserSim, SIM_DATA_FILES } from '../public/js/battle/simLoader.js';
-import { setGameData, isVersionData } from '../server/sim/content/support/index.js';
+import { setGameData, isVersionData, isFirstPeriod } from '../server/sim/content/support/index.js';
 import { officialKitKey } from '../server/sim/content/index.js';
 import { battleEffectOf } from '../server/sim/content/items/battle.js';
 import { setSimData } from '../server/sim/simdata.js';
@@ -24,10 +25,12 @@ after(() => { setGameData(null); setSimData(null); });
 test('a 第一期下半 set simulated on the page runs the version host\'s kits and item behaviour', async () => {
   const full = readDir(path.join(ROOT, 'data/versions/act1autochess'));
   const sim = await loadBrowserSim({ base: BASE, data: full, cs: 'a'.repeat(64), bounds: null });
-  assert.deepEqual(sim.raw.config, { version: full.config.version }, 'the version marker reaches the browser data');
+  // all of config.json the sim reads: the marker, the season (isFirstPeriod) and the modes (第一期's 标准模拟 band clause)
+  assert.deepEqual(sim.raw.config, { version: full.config.version, season: full.config.season, modes: full.config.modes }, 'the version marker reaches the browser data');
   assert.ok(Object.isFrozen(sim.raw.config));
   setGameData(sim.raw); // the /data.js stand-in
   assert.equal(isVersionData(), true);
+  assert.equal(isFirstPeriod(), true, 'a local display replica takes the host\'s 第一期 branches');
   // 50 chess ids of 第一期下半 name other operators than in 第二期下半: each gets the kit the host gives it
   let reused = 0;
   const def = JSON.parse(readFileSync(path.join(ROOT, 'data/chess.json'), 'utf8'));

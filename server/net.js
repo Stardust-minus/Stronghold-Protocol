@@ -35,7 +35,8 @@
 //   welcomeInfo() → object (optional)      extra fields of every `welcome` (never one of its own keys): the lobby's
 //                                          `diyKitted` (0.2.0 自选编队 — which operators a DIY slot may field) and
 //                                          `content` ({ vanilla: <cs> }, the server's content hash — DESIGN §32)
-//   onMessage(session, msg) → { ok: true } | { error: ERR code, detail?: string } | undefined — or a Promise of one
+//   onMessage(session, msg) → { ok: true, reply?: fields } | { error: ERR code, detail?: string } | undefined — or a Promise
+//                                          of one; `reply`: extra fields of the ok (room.list)
 //                                          (a room whose match runs in a match host worker, DESIGN §32.6: the reply
 //                                          goes out when it settles; a rejection is INTERNAL)
 //   routeGame(session, msg) → same (optional): client-side combat reports `b.progress` / `b.result` (DESIGN §14) go
@@ -103,7 +104,7 @@ export const NET_DEFAULTS = Object.freeze({
  * room.proposeVersion (DESIGN §35.23) stays host-proposed: an accepted proposal by a lone human switches the room's
  * version — every page then downloads that version's data.
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.skins', 'room.card', 'queue.join', 'room.spectate', 'room.setPlugins', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.skins', 'room.card', 'queue.join', 'room.list', 'room.spectate', 'room.setPlugins', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -828,7 +829,7 @@ export class Network {
       if (res && res.error) {
         if (msg.t === 'b.progress' && !validRid(rid)) return;
         this.reply(conn, errorMsg(isErrCode(res.error) ? res.error : ERR.INTERNAL, rid, res.detail));
-      } else if (validRid(rid)) this.reply(conn, { t: 'ok', rid });
+      } else if (validRid(rid)) this.reply(conn, { ...res?.reply, t: 'ok', rid });
     };
     const t0 = this.metrics.start();
     // A client that asks for a full frame (shared/stateDelta.js): dropping the baseline makes the next frame of every

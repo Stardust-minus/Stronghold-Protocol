@@ -57,20 +57,22 @@ function sample(arr, n, rng) {
 
 import { MAX_PLAYER_CAPACITY } from '../../shared/playerCapacity.js';
 
-/** Start-of-match seat groups, never rebalanced after a death or leave. Small experimental rooms share one enlarged
- * pool; at seven seats and above each balanced group keeps a complete ordinary pool, including three-seat groups. */
-export function createPoolGroups(gd, players, { banned = [], experimental = false, independent = false, fixedChunks = false } = {}) {
+/** Start-of-match seat groups, never rebalanced after a death or leave. A five-seat experimental room shares one enlarged
+ * pool; at six seats and above each balanced group keeps a complete ordinary pool, including three-seat groups (six seats:
+ * 3 + 3, feedback #49). `legacySix`: a checkpoint from before that rule, whose six seats share one ×6/4 pool. */
+export function createPoolGroups(gd, players, { banned = [], experimental = false, independent = false, fixedChunks = false, legacySix = false } = {}) {
   if (!Array.isArray(players) || players.length < 1 || players.length > MAX_PLAYER_CAPACITY) throw new RangeError('pool groups require 1..20 players');
   const sorted = players.slice().sort((a, b) => a.seat - b.seat);
   const count = sorted.length;
   const chunked = experimental && fixedChunks && !independent;
-  const groups = independent ? count : chunked || experimental && count >= 7 ? Math.ceil(count / 4) : 1;
+  const enlarged = experimental && !independent && !chunked && (count === 5 || count === 6 && legacySix);
+  const groups = independent ? count : chunked || experimental && !enlarged && count >= 6 ? Math.ceil(count / 4) : 1;
   const size = Math.floor(count / groups), remainder = count % groups;
   let offset = 0;
   return Array.from({ length: groups }, (_, i) => {
     const n = chunked ? Math.min(4, count - offset) : size + (i < remainder ? 1 : 0);
     const playerIds = sorted.slice(offset, offset += n).map(p => p.playerId);
-    const scale = !independent && !chunked && experimental && count > 4 && count < 7 ? count / 4 : 1;
+    const scale = enlarged ? count / 4 : 1;
     return { id: i + 1, playerIds, scale, pool: new SharedPool(gd, { banned, scale }) };
   });
 }

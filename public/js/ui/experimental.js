@@ -2,24 +2,33 @@ import { html, Button, Modal } from './components.js';
 import { t, tc } from '../../../shared/i18n.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
 import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
+import { ENEMY_MULTIPLIERS, isEnemyMultiplier } from '../../../shared/experimental.js';
+
+/** A room's enemy multiplier as the page shows it: 1 when it has none. */
+const enemyMul = value => (isEnemyMultiplier(value) ? value : 1);
 
 export function experimentalOptions(input) {
   const capacity = roomCapacity('coop', input);
   return { revivalEnabled: input?.revivalEnabled === true, disableSharedPool: input?.disableSharedPool === true,
     ...(capacity > MAX_SEATS && input?.disableDuckLord === true ? { disableDuckLord: true } : {}),
+    ...(input?.disableLayerCap === true ? { disableLayerCap: true } : {}),
+    ...(input?.disableHitLimit === true ? { disableHitLimit: true } : {}),
+    ...(enemyMul(input?.enemyHpMul) !== 1 ? { enemyHpMul: input.enemyHpMul } : {}),
+    ...(enemyMul(input?.enemyAtkMul) !== 1 ? { enemyAtkMul: input.enemyAtkMul } : {}),
     ...(capacity === MAX_SEATS ? {} : { playerCapacity: capacity }) };
 }
 
 /** Whether any option differs from a standard room's (the room's 实验性选项 button is then marked). */
 export function experimentalChanged(input) {
   const options = experimentalOptions(input);
-  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.playerCapacity;
+  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyAtkMul || !!options.playerCapacity;
 }
 
 export function experimentalSummary(input) {
   const options = experimentalOptions(input);
   const summary = t('复活 {0} · 共享卡池 {1}', { 0: options.revivalEnabled ? t('开启') : tc('toggle', '关闭'), 1: options.disableSharedPool ? tc('toggle', '关闭') : t('开启') });
-  const rules = options.disableDuckLord ? `${summary} · ${t('禁用鸭爵策略')}` : summary;
+  const rules = [summary, options.disableDuckLord && t('禁用鸭爵策略'), options.disableLayerCap && t('禁用层数上限'), options.disableHitLimit && t('禁用单次伤害上限'),
+    options.enemyHpMul && t('敌人生命 ×{n}', { n: options.enemyHpMul }), options.enemyAtkMul && t('敌人攻击 ×{n}', { n: options.enemyAtkMul })].filter(Boolean).join(' · ');
   return options.playerCapacity ? t('{rules} · {n} 人模式', { rules, n: options.playerCapacity }) : rules;
 }
 
@@ -32,6 +41,11 @@ export function ExperimentalOptions({ open, value, mode = 'coop', source = 'priv
   const capacity = roomCapacity(mode, options);
   const change = (field, checked) => {
     if (editable && !busy) onChange?.({ ...options, [field]: checked });
+  };
+  const setEnemyMul = (field, next) => {
+    if (!editable || busy || !isEnemyMultiplier(next)) return;
+    const { [field]: previous, ...rules } = options;
+    onChange?.(next === 1 ? rules : { ...rules, [field]: next });
   };
   const setCapacity = next => {
     if (!editable || busy || mode !== 'coop' || source === 'matchmaking' || !isPlayerCapacity(next)) return;
@@ -54,6 +68,30 @@ export function ExperimentalOptions({ open, value, mode = 'coop', source = 'priv
         <span><strong>${t('禁用共享卡池')}</strong><small>${t('每位博士使用独立卡池，不再争用同一干员库存。')}</small></span>
         <input id="experimental-pool" type="checkbox" role="switch" checked=${options.disableSharedPool}
           disabled=${!editable || busy} onChange=${e => change('disableSharedPool', e.currentTarget.checked)} />
+      </label>
+      <label class="experimental-option" for="experimental-layer-cap">
+        <span><strong>${t('禁用层数上限')}</strong><small>${t('盟约层数不再停在 999 层。')}</small></span>
+        <input id="experimental-layer-cap" type="checkbox" role="switch" checked=${options.disableLayerCap === true}
+          disabled=${!editable || busy} onChange=${e => change('disableLayerCap', e.currentTarget.checked)} />
+      </label>
+      <label class="experimental-option" for="experimental-hit-limit">
+        <span><strong>${t('禁用单次伤害上限')}</strong><small>${t('对敌方领袖的单次伤害达到 30 万及以上时不再被取消。')}</small></span>
+        <input id="experimental-hit-limit" type="checkbox" role="switch" checked=${options.disableHitLimit === true}
+          disabled=${!editable || busy} onChange=${e => change('disableHitLimit', e.currentTarget.checked)} />
+      </label>
+      <label class="experimental-option" for="experimental-enemy-hp">
+        <span><strong>${t('敌人生命倍率')}</strong><small>${t('全部敌人的生命上限，包含敌方领袖的共享生命值。')}</small></span>
+        <select id="experimental-enemy-hp" value=${enemyMul(options.enemyHpMul)} disabled=${!editable || busy}
+          onChange=${e => setEnemyMul('enemyHpMul', Number(e.currentTarget.value))}>
+          ${ENEMY_MULTIPLIERS.map(n => html`<option key=${n} value=${n}>×${n}</option>`)}
+        </select>
+      </label>
+      <label class="experimental-option" for="experimental-enemy-atk">
+        <span><strong>${t('敌人攻击倍率')}</strong><small>${t('全部敌人的攻击力，包含敌方领袖。')}</small></span>
+        <select id="experimental-enemy-atk" value=${enemyMul(options.enemyAtkMul)} disabled=${!editable || busy}
+          onChange=${e => setEnemyMul('enemyAtkMul', Number(e.currentTarget.value))}>
+          ${ENEMY_MULTIPLIERS.map(n => html`<option key=${n} value=${n}>×${n}</option>`)}
+        </select>
       </label>
       ${mode === 'coop' && source !== 'matchmaking' ? html`<label class="experimental-option" for="experimental-multiplayer">
         <span><strong>${t('扩展同盟人数')}</strong><small>${t('可直接开局，或整队匹配相同人数模式的房间。所有成员需更新页面，人数较多时等待与演算时间可能增加。')}</small></span>

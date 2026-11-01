@@ -12,6 +12,8 @@
 //     host changes it in the room — the event's 联合模拟 creates the room first (research 06 §3.2), the starting
 //     difficulty is not recorded [ASSUMED: 标准, the first one unlocked; the event room research 06 §3.2 describes shows
 //     ♜ 标准模拟 in its footer pill]. The game's own lobby always sends the remembered one.
+//   * 同盟列表 (feedback #30): room.setListed { listed } (host) puts a private co-op room of ROOM_LIST_MIN_CAPACITY seats or
+//     more on the list, off by default; room.list answers with the listed rooms waiting for players (Lobby.roomList).
 //   * Host-only: room.setDifficulty, room.setAiPicksLast, room.setSoloUnlimited, room.setBotBand, room.addBot,
 //     room.removeBot, room.kick, room.start. ▸ Changing the difficulty, the AI-picks-last option or an AI seat's strategy
 //     (co-op only) un-readies the other humans.
@@ -238,7 +240,7 @@
 
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
-import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
+import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, ROOM_LIST_MAX, ROOM_LIST_MIN_CAPACITY, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, isOfficialAvatar } from '../shared/protocol.js';
 import { isSkinChoices, skinFor } from '../shared/skins.js';
 import { CARD_ROSTER } from '../shared/card-roster.js';
@@ -293,6 +295,8 @@ export const PRESENCE_SLICE = 200;
  */
 export const PRESENCE_IN_MATCH_MS = 10_000;
 
+/** room.list: how long every asker shares one scan of the rooms (ms). */
+export const ROOM_LIST_CACHE_MS = 3000;
 /** room.card: at most this many card changes per session in CARD_WINDOW_MS (a token bucket; RATE beyond). */
 export const CARD_CHANGES = 6;
 export const CARD_WINDOW_MS = 10_000;
@@ -451,6 +455,12 @@ export class Room {
     // [ASSUMED] Remake cooperation option, approved 2026-10-24; host opt-in before the match.
     this.aiTakeoverEnabled = false;
     /**
+     * 同盟列表 (room.setListed, feedback #30; off by default: a room of friends stays a room of friends): the room's key
+     * is handed to anybody who opens the list while the room waits for players (Lobby.roomOpen). Kept across its matches;
+     * room.state omits the key unless this is true.
+     */
+    this.listed = false;
+    /**
      * 「不限时」 (room.setSoloUnlimited, DESIGN §35.23.10; a timed solo only, off by default): the match is built with
      * opts.soloUnlimited. room.state omits the key unless this is true.
      */
@@ -582,6 +592,8 @@ export class Room {
       ...(this.test ? { test: true } : {}),
       // 「不限时」 (header): omitted unless on, so a default room.state stays identical
       ...(this.soloUnlimited === true ? { soloUnlimited: true } : {}),
+      // 同盟列表 (room.setListed): omitted unless on, like the others
+      ...(this.listed ? { listed: true } : {}),
     };
   }
 }
@@ -635,6 +647,8 @@ export class Lobby {
      * started none — then every rehearsal stays on this thread, exactly as before.
      */
     this.simPool = simPool;
+    /** room.list's shared answer: { at, rooms } (roomList) */
+    this.roomListCache = null;
     this.log = log;
     this.MatchClass = MatchClass;
     this.getData = getData;
@@ -1055,6 +1069,8 @@ export class Lobby {
       case 'room.ready': return this.ready(session, msg);
       case 'room.voteRevival': return this.voteRevival(session, msg);
       case 'room.setExperimental': return this.setExperimental(session, msg);
+      case 'room.setListed': return this.setListed(session, msg);
+      case 'room.list': return this.roomList();
       case 'queue.join':
         // matchmaking plays the default version: a party of another version's room cannot queue as it is
         if (msg.party === true && (this.roomOf(session)?.version ?? DEFAULT_VERSION) !== DEFAULT_VERSION) return fail(ERR.BAD_TARGET, 'matchmaking plays the default version');
@@ -1423,11 +1439,63 @@ export class Lobby {
       while (room.seats.length < slots) room.seats.push(null);
       room.seats.length = slots;
       room.experimental = experimentalOptions(experimental);
+      if (!this.listable(room)) room.listed = false;
       this.dropUnofferedBotBands(room);
       for (const seat of room.activeHumans()) if (seat.playerId !== room.hostId) seat.ready = false;
       this.broadcastState(room);
     }
     return OK;
+  }
+
+  /** Whether a room can go on 同盟列表 at all (feedback #30): a private co-op room of eight seats or more, plugins and tests excluded. */
+  listable(room) {
+    return room.mode === 'coop' && room.source === 'private' && !room.test && room.capacity >= ROOM_LIST_MIN_CAPACITY && !room.modded;
+  }
+
+  /** Whether a listed room is waiting for players right now: full, started, queued or hostless rooms drop out by themselves. */
+  roomOpen(room) {
+    return room.listed && !room.disposed && !room.match && this.listable(room) && room.freeSeat() >= 0 && !this.roomQueued(room)
+      && room.seatOf(room.hostId)?.connected === true;
+  }
+
+  /** room.setListed { listed } (host, before the match): on 同盟列表 or off it. A rule of nobody's game: nobody's ready flag moves. */
+  setListed(session, { listed }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    if (this.roomQueued(room)) return fail(ERR.QUEUED);
+    if (listed && !this.listable(room)) return fail(ERR.BAD_TARGET, 'this room cannot be listed');
+    this.dropReplay(room, session.playerId);
+    if (room.listed !== listed) {
+      room.listed = listed;
+      this.roomListCache = null;
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
+  /**
+   * room.list: the listed rooms waiting for players, the fullest first (then the oldest), at most ROOM_LIST_MAX. Asked only
+   * while a player has the list open; every asker within ROOM_LIST_CACHE_MS shares one scan of the rooms (net.js also
+   * charges it to the heavy bucket). Only what the list shows leaves the server: no player ids, addresses or seats. A stale
+   * row costs its reader a refused room.join, which checks everything again.
+   */
+  roomList() {
+    const now = this.now();
+    if (!this.roomListCache || now - this.roomListCache.at >= ROOM_LIST_CACHE_MS) {
+      const rows = [];
+      for (const room of this.rooms.values()) {
+        if (!this.roomOpen(room)) continue;
+        const taken = room.seats.filter(Boolean);
+        rows.push({ code: room.code, host: room.seatOf(room.hostId).name, humans: room.activeHumans().length, filled: taken.length,
+          capacity: room.capacity, difficulty: room.difficulty, ...(room.version !== DEFAULT_VERSION ? { version: room.version } : {}),
+          experimental: { ...room.experimental }, free: room.capacity - taken.length, at: room.createdAt });
+      }
+      rows.sort((a, b) => a.free - b.free || a.at - b.at);
+      this.roomListCache = { at: now, rooms: rows.slice(0, ROOM_LIST_MAX).map(({ free, at, ...row }) => row) };
+    }
+    return { ok: true, reply: { rooms: this.roomListCache.rooms } };
   }
 
   setDifficulty(session, { difficulty }) {
@@ -1884,7 +1952,7 @@ export class Lobby {
     if (room.disposed) return;
     if (reason !== 'members') this.broadcastState(room);
     const text = reason === 'declined' ? msg('{name}拒绝了切换版本', { name })
-      : reason === 'expired' ? msg('切换版本投票已超时，房间版本未改变')
+      : reason === 'expired' ? msg('切换版本投票已超时，同盟版本未改变')
         : reason === 'cancelled' ? msg('创建者取消了切换版本投票')
           : msg('同盟成员有变动，切换版本投票已取消');
     const toast = { t: 'm.toast', kind: reason === 'cancelled' ? 'info' : 'warn', ...wireMessage(text) };

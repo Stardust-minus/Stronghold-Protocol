@@ -37,8 +37,7 @@ import { reducedMotion } from './device.js';
 import { serverNow } from '../store.js';
 import { ServerStatusModal } from './serverStatus.js';
 import { isCombatPhase, isBossPhase, prepCapsuleLabel, bossFrac, bossPctText, fmtNum, shopBlockReason } from './gameLogic.js';
-import { overtimeState, overtimeDrainPerSec, remainAt } from './matchStatus.js';
-import { uniteBudgetInfo } from './gameLogic/phases.js';
+import { battleSpeedScale, overtimeState, overtimeDrainPerSec, remainAt, speedVoteState } from './matchStatus.js';
 import { hotkeyLabelOf } from './settings.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { uniteRelayRound } from '../battle/observe.js';
@@ -474,15 +473,31 @@ export function PauseButton({ paused, busy = false, onToggle }) {
   <//>`;
 }
 
-/** A frozen stage budget / round-start balance. The changing real-time countdown stays separate. */
-export function UniteBudgetNote({ pub }) {
-  const budget = uniteBudgetInfo(pub);
-  if (!budget) return null;
-  const total = Math.round(budget.total * 100) / 100, remaining = Math.round(budget.remaining * 100) / 100;
-  return html`<div class="gtop__budget" data-testid="unite-budget" data-total=${budget.total} data-remaining=${budget.remaining}>
-    <span>${t('联防总预算：{total} 游戏秒', { total })}</span>
-    <span>${t('本轮起始剩余：{remaining} 游戏秒', { remaining })}</span>
-  </div>`;
+/**
+ * 战斗 2 倍速 (server/match/match/speedVote.js): this seat's standing vote with the count, and what the votes do. A spectator
+ * seat has no vote: it only sees that a battle runs at it.
+ */
+export function SpeedVote({ pub, myId, spectator = false, onVote }) {
+  const [busy, setBusy] = useState(false);
+  const v = speedVoteState(pub, myId);
+  if (!v || (spectator && v.status !== 'on' && v.status !== 'ending')) return null;
+  const on = v.status === 'on' || v.status === 'ending';
+  const label = on ? t('本场 2 倍速') : v.status === 'next' ? t('下一场起 2 倍速') : t('2 倍速');
+  const tip = v.status === 'ending' ? t('票数不足，下一场战斗恢复常速')
+    : t('{need} 人同意后，下一场战斗起以 2 倍速进行', { need: v.need });
+  const press = async () => {
+    setBusy(true);
+    await onVote?.(!v.mine);
+    setBusy(false);
+  };
+  return html`<${Tooltip} text=${tip} placement="bottom">
+    <button type="button" class=${cx('speedvote', 'tapx', on && 'is-on', v.mine && 'is-mine', v.count > 0 && 'is-called', busy && 'is-busy')}
+        aria-pressed=${v.mine ? 'true' : 'false'} aria-label=${`${label} ${v.count}/${v.need}`} disabled=${busy || spectator} data-testid="speed-vote" data-status=${v.status}
+        onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }} onClick=${press}>
+      <i class="speedvote__glyph" aria-hidden="true">▶▶</i><span class="speedvote__label">${label}</span>
+      ${spectator ? null : html`<span class="speedvote__count num">${v.count}/${v.need}</span>`}
+    </button>
+  <//>`;
 }
 
 /**
@@ -509,7 +524,7 @@ export function UniteBudgetNote({ pub }) {
  */
 export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, onReady, readyBusy, readyCount, playerCount, pen = false, penAvail = false, onPen = () => {},
   config = null, frozenAt = null, pause = null, live = null, spectator = false,
-  spectators = null, myId = null, isHost = false, onRemoveSpectator = null, room = null, held = false }) {
+  spectators = null, myId = null, isHost = false, onRemoveSpectator = null, room = null, held = false, onSpeedVote = null }) {
   const [loadOpen, setLoadOpen] = useState(false);
   const phase = pub?.phase;
   const boss = isBossPhase(phase);
@@ -524,7 +539,7 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
   const otLive = boss && Number(pub?.overtimeAt) > 0;
   useTicker(otLive && frozenAt == null ? 250 : 0);
   const now = Number.isFinite(frozenAt) ? frozenAt : serverNow();
-  const ot = otLive ? overtimeState(pub, now, { perSec: overtimeDrainPerSec(config) }) : null;
+  const ot = otLive ? overtimeState(pub, now, { perSec: overtimeDrainPerSec(config) * battleSpeedScale(pub) }) : null;
   const draining = ot?.state === 'drain';
   const lowLp = (Number.isFinite(lp) && lp - pending <= 5) || draining;
   const cap = Number(config?.lpCapPerRound) > 0 ? Number(config.lpCapPerRound) : 10;
@@ -595,11 +610,11 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
           : html`<${Countdown} deadline=${pub?.deadline} total=${total ?? undefined} size="md" />`}
         ${pause && (pause.show || pause.paused) ? html`<${PauseButton} paused=${!!pause.paused} busy=${pause.busy} onToggle=${pause.onToggle} />` : null}
       </div>
+      <${SpeedVote} pub=${pub} myId=${myId} spectator=${spectator} onVote=${onSpeedVote} />
       <${OvertimeWarning} ot=${ot} />
       <${AfkWarning} pub=${pub} priv=${priv} />
       ${showReady ? html`<${ReadyToggle} priv=${priv} onToggle=${onReady} busy=${readyBusy} readyCount=${readyCount} total=${playerCount} />` : null}
     </div>
-    <${UniteBudgetNote} pub=${pub} />
   </header>`;
 }
 

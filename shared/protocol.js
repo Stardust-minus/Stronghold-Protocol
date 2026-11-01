@@ -561,11 +561,22 @@ export const C2S = {
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), experimental: isExperimental,
     test: (v) => v === true, version: isVersionId, soloUnlimited: isBool, $optional: ['experimental', 'test', 'difficulty', 'version', 'soloUnlimited'] },
   'room.setExperimental': { experimental: isExperimental },
+  // 同盟列表 (feedback #30): the host of a private co-op room of ROOM_LIST_MIN_CAPACITY seats or more lists it (off by
+  // default); room.list asks for the listed rooms waiting for players, answered on its ok (server-cached, never pushed):
+  // { rooms: [{ code, host, humans, filled, capacity, difficulty, version?, experimental }] }, at most ROOM_LIST_MAX, the
+  // fullest first — `host` the host's display name, `filled` the taken seats, AI seats included, `version` only when it
+  // is not the default one
+  'room.setListed': { listed: isBool },
+  'room.list': {},
   'room.join': { $optional: ['testAck'], testAck: (v) => v === true, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.leave': {},
   'room.ready': { ready: isBool },
   'room.voteRevival': { enable: isBool },
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, experimental: () => false, $optional: ['party', 'experimental'] },
+  // difficulties (feedback #87, a lone player only): every difficulty this ticket waits in, `difficulty` first; absent = that
+  // one difficulty. Any of them filling up makes the offer, at that difficulty.
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, experimental: () => false,
+    difficulties: (v) => Array.isArray(v) && v.length >= 1 && v.length <= DIFFICULTIES.length && new Set(v).size === v.length && v.every((d) => DIFFICULTIES.includes(d)),
+    $optional: ['party', 'experimental', 'difficulties'] },
   'queue.cancel': { ticketId: isId },
   // Older clients may send a boolean vote, but it has no authority over room-owned rules.
   'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool, experimental: () => false, $optional: ['revivalVote', 'experimental'] },
@@ -640,6 +651,9 @@ export const C2S = {
   // and answer the open vote (m.public kickVote.id); the proposer's agree:false withdraws it
   'g.kickVote': { targetId: isId },
   'g.kickBallot': { voteId: (v) => isInt(v, 1, 2 ** 31), agree: isBool },
+  // 战斗 2 倍速 (server/match/match/speedVote.js): this seat's standing vote; m.public speedVote is the count. Takes effect
+  // when a battle starts, never during one
+  'g.speedVote': { agree: isBool },
   'g.band': { bandId: isId },
   'g.bandSkip': {},
   // the strategy highlighted in the draft screen (user playtest #4 item 4): a turn that runs out takes it while it is
@@ -739,7 +753,9 @@ export const S2C = [
   'room.state', 'room.closed',
   // Aggregate online identities and the requester's own matchmaking ticket (never other queue members).
   // queue.state is a complete snapshot. Optional waitingCount exists only while queued: valid waiting human
-  // identities, including the requester/party, in the ticket's frozen version:difficulty:required pool.
+  // identities, including the requester/party, in the ticket's frozen version:difficulty:required pool; a ticket of
+  // several difficulties (feedback #87: `difficulties`, in its order, and `waitingCounts`, one per difficulty) gets its
+  // fullest pool as waitingCount. `difficulty` is its first one until an offer stands, then the offered one.
   // Excludes offered/allocation/matched identities; not compatible-party progress, online count or an ETA.
   // Lifecycle/hello snapshots are immediate; count-only changes coalesce at ~1s. Absent count means unknown.
   // presence.state { online, seq, serverNow, maintenance? } — `maintenance: true` while the limits file's switch is on

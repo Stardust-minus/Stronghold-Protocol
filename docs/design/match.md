@@ -69,20 +69,33 @@ card; this adds no persistent pick history or private-choice exposure. Ordinary 
 The host may opt into `experimental.disableDuckLord` only for expanded co-op (default unchecked). It is an optional
 strict boolean, canonically omitted when false or at capacity 4. The match's own `MatchGD` filters `band_ducklord`
 from manual picks, focus, timeout/autoplay and bot/default selection, and the strategy grid applies the same room rule.
+
+Any room's host may also lift the two official limits (2026-11-01, both default unchecked, optional strict booleans
+omitted when false). `experimental.disableLayerCap` lifts the 999 bond-layer cap: the match's writers
+(`PlayerState.addLayers`, the in-battle merge, `helperStats`, the forecast, the test command) read `Match.disableLayerCap`,
+every other copy reads the spec flag `layerCapOff` (`Battle.addLayers`, `validateClientResult`). `BOND_LAYER_SAFE_MAX`
+(1e9) is where such a count still stops: not a rule, only an exact integer bound; the per-round client-result bound
+`60 + 4·round` stays. `experimental.enemyHpMul` / `enemyAtkMul` (feedback #47; ×1.25–5, a fixed list, shared/experimental.js ENEMY_MULTIPLIERS)
+ride as spec flags of the same names: `spawnEnemy` multiplies every enemy's base HP and ATK once, summons, split children
+and parts included. They never enter `mods`, which a leak carries into 联防 and a child inherits, so nothing is multiplied
+twice; a 频次 enemy's hit count follows its HP. A leader's HP is the shared pool, so `bossPoolHp` takes `hpMul` and the
+Match sizes the pool with it (audit and rehearsal the same); its ATK comes through `spawnEnemy`. The 敌人 card's preview
+shows the multiplied HP / ATK from m.public experimental, a battle unit its live stats.
+`experimental.disableHitLimit` lifts 限伤: `leaderHitCancelled` does not check a battle with the
+spec flag `hitLimitOff`. `Match._ruleFlags()` puts both flags on every spec — normal, 联防, boss / hidden, rehearsal —, so
+the Worker, a browser's local replica, a client-run field and its check fight one battle. Layer-driven numbers, per-layer
+milestones and boss kills are not rebalanced for such rooms, and the official limits (research 11) stay the default.
 No global band/effect data is changed; unchecked expanded rooms, ordinary four-player and solo remain unaffected.
 Host-only mutation, queue locks, preparation invalidation, rule compatibility and local / cluster match inheritance
 use the existing nested experimental configuration. The fixed four-seat card-pool chunks remain **capacity-20 only**;
 this option and the timing rules below do not extend that pool policy to capacities 8 / 12 / 16.
 
-Every expanded co-op 联防 segment has a fixed **300 game-second** budget, not a wave-base / alive-count scaling.
-The original relay admission still requires at least eight alive at normal-combat start **and** UNITE entry. With a
-viable, genuinely perfect, unused helper reserve at entry, allocations freeze at **150 + 150** game seconds; without
-one the single field receives 300. Below-eight or sparse expanded rosters still get 300, but do not gain relay admission
-or necessarily relay metadata. Each field has at most two helpers and the segment at most two rounds. Round 2 starts
+Every 联防 field gets the round's own limit, in every room size and both rounds of a relay (the fixed 300-game-second
+budget of 2026-10-09 was removed on 2026-11-01). The original relay admission still requires at least eight alive at
+normal-combat start **and** UNITE entry. Each field has at most two helpers and the segment at most two rounds. Round 2 starts
 only after the first natural terminal, with re-enterable residual enemies and still-alive, unused, genuinely perfect
 helpers; killed enemies are never replayed. Both fields use the original stage and each helper's normal-combat end
-state. Early completion consumes actual virtual time but never rolls saved time into the second field's 150-second
-cap. Generation / battle identity guards, natural headless release, idempotency, earnings / damage accounting and the
+state. Generation / battle identity guards, natural headless release, idempotency, earnings / damage accounting and the
 single final source-attributed LP settlement remain authoritative; no first-round LP charge or premature rescue.
 
 First-round UI says 「联防」 / 「联防阶段」, not 1/2; only an actual second field says 「联防2/2」 /
@@ -297,7 +310,11 @@ singleton (the kits, builtinMeta, the meta registry, the official-bounds cache) 
 - **version hosts** (`kind: 'version'`, §35.23, M1): one per enabled official version other than 第二期下半 (its `cs`,
   `server/versions.js`), at most `maxHosts` (default: one per such version; `SP_MAX_VERSION_HOSTS`), counted apart from
   the plugin hosts. Nothing set enables all four, so that cap is three (§35.23.11). A host is forked on the first match
-  of that version, never at boot; an idle server has zero version workers. Log lines `[versions]` with the version's id
+  of that version, never at boot; an idle server has zero version workers. Under server-run combat a version host (a
+  child process) starts its own `CombatWorkerPool` on the installed data and bounds before it reports ready
+  (`SP_VERSION_COMBAT_WORKERS`, default 2, 0 = none; `combat` in the pool's stats): its fields are remote like a game
+  node's, so local display replicas work, and a Worker failure ends a match like on a game node. A pool that cannot
+  start, or has no Worker left, leaves the next matches inline and streamed. Plugin hosts and worker-thread hosts have none. Log lines `[versions]` with the version's id
   as the host label; stop reasons 'version-crash' /
   'version-hang' / 'version-start' (the room is told `本局模拟出错，已结束` / `本局模拟长时间无响应，已结束` /
   `该版本的模拟无法启动`); a full pool refuses the start with `INTERNAL` 'version hosts busy'. The host installs the
@@ -383,6 +400,16 @@ per match; a failed vote blocks another on the same target for the rest of the r
 A passed vote removes the seat exactly like 中途退出 — the AFK rule's removal path with reason `kicked` (copies back to
 the pool, out of the Final Assault pairing, Boss HP rescaled); the player hears `room.closed {reason:'kicked'}` on its
 next resume. All room types; transient across checkpoints. A remake rule, not an official one.
+
+[ASSUMED] 战斗 2 倍速 (owner's rule of 2026-11-01, `match/speedVote.js`): a standing vote, not a proposal. Every connected
+human seat, eliminated ones included, holds a switch (`g.speedVote {agree}`) until the result; spectator and AI seats have
+none. voters = the humans connected and not left, recounted on every read: an offline seat's vote neither counts nor blocks,
+and counts again when it returns. need = ceil(0.75 × voters), 重刷本局's bar; a lone human passes it alone. `_applySpeedVote`
+runs when a normal, 联防 or boss / hidden battle starts, before its fields are built, and sets `m.gameSpeed` to 2 ×
+`m.baseGameSpeed` (`opts.combatSpeed`, default the forced 2×; ceiling 200) when the bar is met, to the base otherwise: a vote
+passed during a battle starts with the next one, and falling short restores the next one. It works in every room kind,
+matchmade, older versions and 20 players included, and is no experimental option. Votes and speed are transient: a checkpoint
+restore goes back to no votes and the base speed.
 
 The shared DIY detail preview (stats, range, trait, talents, potential, cultivation and matching normal/elite skill descriptions) follows roster loadout resolution. Jessica shield placement is limited to her four orthogonal neighbors. The two Ptilopsis prep-gift copy exceptions are defined in §29.3 and META; no generic change to all copied conditions is implied.
 

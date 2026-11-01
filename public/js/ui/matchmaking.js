@@ -18,6 +18,12 @@ export function queueCapacity(queue, experimental) {
     : roomCapacity('coop', queue?.experimental ?? experimental);
 }
 
+/** The difficulties a queued ticket waits in (feedback #87), when they are several; an offer stands at one. */
+export function queueDifficulties(q) {
+  const list = q?.state === 'queued' && Array.isArray(q.difficulties) ? q.difficulties.filter((d) => DIFFICULTIES.includes(d)) : [];
+  return list.length > 1 ? list : null;
+}
+
 export function queueTime(q, now) {
   if (q?.state === 'offered') return Math.max(0, Math.ceil(((q.deadline || 0) - now) / 1000));
   return Math.max(0, Math.floor((now - (q?.joinedAt || now)) / 1000));
@@ -153,16 +159,20 @@ export function QueueFlow({ queue, difficulty, experimental, online, party = fal
   const cancelFailed = cancellation?.ticketId === queue.ticketId && cancellation?.status === 'failed';
   const population = queuePopulation(queue, online, cancelling || cancelFailed);
   const d = DIFFICULTIES.includes(queue.difficulty) ? queue.difficulty : difficulty;
+  const several = queueDifficulties(queue);
+  const diffTag = (x, label) => ({ key: several ? `diff-${x}` : 'diff', label, color: DIFFICULTY_COLORS[x], icon: html`<${DifficultyIcon} difficulty=${x} />` });
   const note = cancelling ? t('正在确认取消，等待服务器同步…')
     : !online ? t('连接中断，重连后同步匹配状态')
     : cancelFailed ? t('取消尚未确认，请重连后重试；当前为服务器最后确认的状态。')
     : queue.reason && REASONS[queue.reason] ? t(REASONS[queue.reason])
     : population == null ? t('{n} 名真人 · 不自动补 AI', { n: capacity })
+    : several ? t('所选难度最多等待 {count} 人（含你）', { count: population })
     : queue.partySize > 1 ? t('本难度等待 {count} 人（含本队 {n} 人）', { count: population, n: queue.partySize })
     : t('本难度等待 {count} 人（含你）', { count: population });
   return html`<${SearchPanel} class=${cls} elapsed=${queueTime(queue, serverNow())} stopping=${cancelling || !online}
     onStop=${() => queueCancellation.cancel(queue.ticketId)} note=${note}
     tags=${[{ key: 'mode', label: party ? t('组队匹配') : t('多人匹配'), icon: html`<${Icon} name="search" />` },
-      { key: 'diff', label: t(DIFFICULTY_NAMES[d]), color: DIFFICULTY_COLORS[d], icon: html`<${DifficultyIcon} difficulty=${d} />` },
+      ...(several ? several.map((x, i) => diffTag(x, population == null || !Number.isSafeInteger(queue.waitingCounts?.[i]) ? t(DIFFICULTY_NAMES[x]) : `${t(DIFFICULTY_NAMES[x])} ${queue.waitingCounts[i]}`))
+        : [diffTag(d, t(DIFFICULTY_NAMES[d]))]),
       { key: 'cap', label: t('{n} 人模式', { n: capacity }), icon: html`<${Icon} name="users" />` }]} />`;
 }

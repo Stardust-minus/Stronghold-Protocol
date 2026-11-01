@@ -112,11 +112,14 @@ export class BattleSpawns {
     const mm = (v, pos = false) => { const n = fin(v, 1); return n < 0 || (pos && n <= 0) ? 1 : n; };
     const m0 = opts.mods || {};
     const m = { hpMul: mm(m0.hpMul, true), atkMul: mm(m0.atkMul), defMul: mm(m0.defMul), resMul: mm(m0.resMul), speedMul: mm(m0.speedMul) };
+    // a room's experimental multipliers (spec flags, on every copy of the battle) reach every enemy here, summons and split
+    // children too. Never in `mods`: a leak carries its mods into 联防 and a child inherits them, so they would apply twice.
+    const roomHp = mm(this.flags.enemyHpMul, true), roomAtk = mm(this.flags.enemyAtkMul);
     const e = new Unit({
       id: ++this._idSeq, side: 'enemy', kind: 'enemy', def, defId: def.key ?? enemyKey, name: def.name,
       x: start[1], y: start[0], motion: def.motion,
       base: {
-        maxHp: def.maxHp * (m.hpMul ?? 1), atk: def.atk * (m.atkMul ?? 1), def: def.def * (m.defMul ?? 1), res: def.res * (m.resMul ?? 1),
+        maxHp: def.maxHp * (m.hpMul ?? 1) * roomHp, atk: def.atk * (m.atkMul ?? 1) * roomAtk, def: def.def * (m.defMul ?? 1), res: def.res * (m.resMul ?? 1),
         aspd: def.aspd, bat: def.bat, blockCnt: 0, moveSpeed: def.moveSpeed * (m.speedMul ?? 1), spRecovery: 0,
         tauntLevel: def.tauntLevel, massLevel: def.massLevel, hpRecoveryPerSec: def.hpRecoveryPerSec, rangeRadius: def.rangeRadius,
       },

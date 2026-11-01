@@ -524,7 +524,7 @@ function HistoryRow({ rec, gd, onOpen }) {
   const view = !quit && !rec.compact && !(other && (inRoom || !offered));
   const open = () => onOpen(rec);
   return html`<tr class=${cx(quit ? 'is-quit' : won ? 'is-win' : 'is-lose', !counted && 'is-excluded', view && 'is-clickable')} data-version=${version}
-      title=${!quit && !rec.compact && other ? (inRoom ? t('同盟中的数据由房间的版本决定，离开同盟后才能回看「{version}」的结算', { version: versionLabel(version) })
+      title=${!quit && !rec.compact && other ? (inRoom ? t('同盟中按同盟版本显示，离开同盟后才能回看「{version}」的结算', { version: versionLabel(version) })
         : !offered ? t('这台服务器没有提供「{version}」，不能回看该局结算', { version: versionLabel(version) }) : t('切换到「{version}」查看', { version: versionLabel(version) }))
         : view ? t('点击查看该局结算') : !counted ? t('没有清完第一个回合就退出，不计入统计') : quit ? t('中途退出的对局没有结算可看') : t('较早的对局只保留汇总，不能回看结算')}
       tabIndex=${view ? 0 : undefined}
@@ -565,7 +565,7 @@ function History({ records, gd, onOpen }) {
  */
 export function ReplayWait({ version, otherInRoom, offered, failed, inRoom, onBack }) {
   const label = versionLabel(version);
-  const why = otherInRoom ? t('同盟中的数据由房间的版本决定，离开同盟后才能回看「{version}」的结算', { version: label })
+  const why = otherInRoom ? t('同盟中按同盟版本显示，离开同盟后才能回看「{version}」的结算', { version: label })
     : !offered ? t('这台服务器没有提供「{version}」，不能回看该局结算', { version: label })
       : failed ? t('版本数据校验失败') : null;
   return html`<div class="st-loading st-replay-wait" data-testid="stats-replay-wait">

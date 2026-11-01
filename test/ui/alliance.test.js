@@ -100,10 +100,10 @@ test('experimental rules display room options without a revival ballot', () => {
   const switches = [];
   const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node?.props) { if (node.props.role === 'switch') switches.push(node); visit(node.props.children); } };
   visit(view);
-  assert.equal(switches.length, 3);
+  assert.equal(switches.length, 5);
   assert.ok(switches.every(node => node.props.disabled));
   assert.ok(switches.slice(0, 2).every(node => node.props.checked));
-  assert.equal(switches[2].props.checked, false, 'expanded rooms stay default off independently of both original rules');
+  assert.ok(switches.slice(2).every(node => !node.props.checked), 'the limits and expanded rooms stay default off independently of both original rules');
 });
 
 test('queue UI distinguishes pending vs allocated and clamps clocks', () => {

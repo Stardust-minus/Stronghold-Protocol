@@ -337,9 +337,13 @@ test('equipment stock follows the chess-pool groups: one per group of seats, enl
   assert.ok(b.acquireItem(coin)); assert.equal(b.itemPool.held(coin), 1); assert.equal(a.itemPool.held(coin), 4);
   assert.equal(a.acquireItem(coin), null, "the first group's stock refuses a fifth");
   assert.deepEqual(collectViolations(m), []);
-  // six seats of the 8 mode share one pool enlarged ×6/4: 盟约之币 4 → 6
+  // six seats of the 8 mode: 3 + 3, a complete stock each (feedback #49)
   const six = make(t, 6, { experimental: rules(8) }).m;
-  assert.equal(six.poolGroups.length, 1); assert.equal(six.itemPool.cap(coin), 6);
+  assert.deepEqual(six.poolGroups.map(g => g.playerIds.length), [3, 3]); assert.equal(six.itemPool.cap(coin), 4);
+  assert.notEqual(six.order[0].itemPool, six.order[3].itemPool);
+  // five seats share one pool enlarged ×5/4: 盟约之币 4 → 5
+  const five = make(t, 5, { experimental: rules(8) }).m;
+  assert.equal(five.poolGroups.length, 1); assert.equal(five.itemPool.cap(coin), 5);
   // no shared pool: every seat its own stock
   const solo = make(t, 3, { experimental: rules(8, { disableSharedPool: true }) }).m;
   assert.equal(new Set(solo.order.map(ps => ps.itemPool)).size, 3);

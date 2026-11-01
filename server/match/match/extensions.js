@@ -4,6 +4,7 @@ import { msg } from '../../../shared/i18n.js';
 import { createDamageBoard } from '../damageBoard.js';
 import { emptyDamageRows } from '../../sim/damageBoard.js';
 import { buildBattleSpec } from '../../sim/spec.js';
+import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { RemoteBattle } from '../combat/runner.js';
 import { REVIVAL_COST, REVIVAL_MIN_DONOR_LP, REVIVAL_UNAVAILABLE_REASONS, FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 
@@ -145,8 +146,11 @@ export class MatchExtensions {
   }
 
   _remoteField(opts, players) {
-    const spec = buildBattleSpec({ ...opts, content: this.battleContent,
-      boss: this.bossPool ? { poolHp: this.bossPool.hp, poolMax: this.bossPool.maxHp } : null });
+    // A room of another official version names its content, as a client-run spec does (clientCombat.js _ccField): a local
+    // display replica runs on that version's data (the runner's ensureSim(spec.cs)). A default room's spec keeps its keys.
+    const spec = buildBattleSpec({ ...opts, ...morphBattleOpt(this.rules), content: this.battleContent,
+      boss: this.bossPool ? { poolHp: this.bossPool.hp, poolMax: this.bossPool.maxHp } : null,
+      ...(this.requireCs ? { cs: this.cs, vs: this.vs, version: this.data.config?.version?.id } : {}) });
     return { remote: true, fieldId: spec.fieldId, kind: spec.kind, players, spec, battle: new RemoteBattle(spec), live: true };
   }
 

@@ -3,6 +3,10 @@
 // before the lobby atomically commits its room-owned rules; the legacy allocate path stays synchronous.
 // `paused()` (the lobby's maintenance switch, server/onlineLimit.js): join and accept answer MAINTENANCE and no offer is
 // formed; the lobby clears the queue when the switch goes on (clear('maintenance')).
+// Several difficulties (feedback #87, a lone player only: a party's room owns its one difficulty): party.difficulties
+// lists the pools a ticket waits in, its first choice first, and the ticket is counted in each of them. The first pool
+// that fills up takes it: entry.difficulty becomes that pool's for the offer — everything downstream of an offer reads one
+// difficulty — and a broken offer that keeps the ticket puts it back. A ticket has one offerId, so it is never in two offers.
 import { randomBytes } from 'node:crypto';
 import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, sameExperimental } from '../shared/experimental.js';
@@ -63,7 +67,10 @@ export class Matchmaking {
     return { partyId: party.id, partySize: party.entries.length, partyLeaderId: party.leaderId, partyRoomCode: party.roomCode };
   }
 
-  poolKey(e) { return `${e.version}:${e.difficulty}:${e.party.required}`; }
+  poolKey(e, difficulty = e.difficulty) { return `${e.version}:${difficulty}:${e.party.required}`; }
+
+  /** The waiting count of each pool of `e`'s ticket, in the ticket's order. */
+  waitingBy(e, counts) { return e.party.difficulties.map((d) => counts.get(this.poolKey(e, d)) || 0); }
 
   /** Read-only population: no sweep, offer creation, deadline or party mutation. */
   waitingPopulation() {
@@ -72,8 +79,10 @@ export class Matchmaking {
     for (const party of this.parties.values()) {
       if (party.entries.some(e => e.offerId || this.entries.get(e.session.playerId) !== e || this.stale(e, now))) continue;
       for (const e of party.entries) {
-        const key = this.poolKey(e);
-        counts.set(key, (counts.get(key) || 0) + 1);
+        for (const d of party.difficulties) {
+          const key = this.poolKey(e, d);
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
         waiting.push({ entry: e, session: e.session, playerId: e.session.playerId, ticketId: e.ticketId });
       }
     }
@@ -88,11 +97,14 @@ export class Matchmaking {
         : { t: 'queue.state', state: 'idle', ticketId: null, required: MAX_SEATS };
     }
     const offer = e.offerId ? this.offers.get(e.offerId) : null;
+    const waiting = e.offerId ? null : this.waitingBy(e, counts || this.waitingPopulation().counts);
+    const several = e.party.difficulties.length > 1;
     return {
       t: 'queue.state', state: offer ? 'offered' : 'queued', ticketId: e.ticketId,
       difficulty: e.difficulty, required: e.party.required, joinedAt: e.joinedAt,
       deadline: offer ? offer.deadline : e.expiresAt, ...this.partyState(e.party),
-      ...(!e.offerId ? { waitingCount: (counts || this.waitingPopulation().counts).get(this.poolKey(e)) || 0 } : {}),
+      ...(waiting ? { waitingCount: Math.max(...waiting) } : {}),
+      ...(several ? { difficulties: [...e.party.difficulties], ...(waiting ? { waitingCounts: waiting } : {}) } : {}),
       ...(e.reason ? { reason: e.reason } : {}),
       ...(offer ? { offerId: offer.id, accepted: e.accepted, experimental: { ...offer.experimental }, acceptedCount: offer.entries.filter((x) => x.accepted).length,
         ...(offer.allocation ? { allocationPending: true } : {}) } : {}),
@@ -108,7 +120,7 @@ export class Matchmaking {
   push(e, counts = null) {
     if (this.entries.get(e.session.playerId) !== e) return;
     const state = this.state(e.session, counts);
-    e.lastWaitingCount = state.waitingCount;
+    e.lastWaitingCount = state.waitingCounts ? state.waitingCounts.join() : state.waitingCount;
     this.send(e.session, state);
   }
   pushAll(entries) {
@@ -126,7 +138,8 @@ export class Matchmaking {
       // Resolve a complete current snapshot, never replay a saved queued frame.
       if (this.entries.get(saved.playerId) !== e || e.session !== saved.session || e.session.playerId !== saved.playerId
         || e.ticketId !== saved.ticketId || e.offerId || this.stale(e, this.now())) continue;
-      if (e.lastWaitingCount !== (counts.get(this.poolKey(e)) || 0)) this.push(e, counts);
+      const by = this.waitingBy(e, counts);
+      if (e.lastWaitingCount !== (by.length > 1 ? by.join() : by[0])) this.push(e, counts);
     }
     this.metrics.end('queue.population', t0, waiting.length);
   }
@@ -148,21 +161,26 @@ export class Matchmaking {
     timer?.unref?.();
   }
 
-  join(session, { difficulty, party = false }) {
+  join(session, { difficulty, difficulties, party = false }) {
     this.refresh(session);
     if (this.closed) return fail(ERR.WRONG_PHASE, 'matchmaking is closed');
     if (this.paused()) return fail(ERR.MAINTENANCE);
-    if (!DIFFICULTIES.includes(difficulty) || typeof party !== 'boolean') return fail(ERR.BAD_MSG, 'invalid matchmaking request');
+    if (!DIFFICULTIES.includes(difficulty) || typeof party !== 'boolean'
+      || (difficulties !== undefined && (!Array.isArray(difficulties) || difficulties.some((d) => !DIFFICULTIES.includes(d))))) return fail(ERR.BAD_MSG, 'invalid matchmaking request');
     if (session.matchmakingVersion !== MATCHMAKING_VERSION) return fail(ERR.BAD_MSG, 'matchmaking version required; refresh the page');
+    /** the pools of this ticket: `difficulty` first, then the others in the order asked */
+    const wanted = [...new Set([difficulty, ...(difficulties || [])])];
     const previous = this.entries.get(session.playerId);
     if (previous) {
-      if (previous.difficulty !== difficulty) return fail(ERR.QUEUED, 'cancel before changing difficulty');
+      const had = previous.party.difficulties;
+      if (had.length !== wanted.length || had.some((d, i) => d !== wanted[i])) return fail(ERR.QUEUED, 'cancel before changing difficulty');
       this.push(previous);
       if (!previous.offerId) { this.pump(); this.arm(); }
       return OK;
     }
     const group = this.members(session, difficulty, party);
     if (!group || group.error) return group || fail(ERR.INTERNAL, 'could not inspect party');
+    if (wanted.length > 1 && (party || group.roomCode)) return fail(ERR.BAD_MSG, 'a party queues at its room\'s difficulty');
     let experimental = null;
     try { if (group.roomCode) experimental = experimentalOptions(group.experimental ?? EXPERIMENTAL_DEFAULTS); }
     catch { return fail(ERR.BAD_MSG, 'invalid party experimental options'); }
@@ -189,7 +207,7 @@ export class Matchmaking {
     }
     const now = this.now();
     const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId,
-      experimental, required, sequence: ++this.sequence, entries: [] };
+      experimental, required, difficulties: wanted, sequence: ++this.sequence, entries: [] };
     unit.entries = sessions.map((member) => ({
       session: member, key: member.limitKey, ticketId: id(), difficulty, version: member.matchmakingVersion, party: unit,
       joinedAt: now, expiresAt: now + this.opts.waitMs, sequence: unit.sequence, offerId: null, accepted: false, revivalVote: null,
@@ -414,6 +432,7 @@ export class Matchmaking {
         this.entries.delete(e.session.playerId);
         this.idle(e, removedParties.has(e.party) ? reason : 'unconfirmed');
       } else {
+        e.difficulty = e.party.difficulties[0]; // back in every pool of its ticket (the header)
         e.reason = reason === 'cancelled' ? 'peer_cancelled' : reason === 'disconnected' ? 'peer_disconnected' : reason;
         retained.push(e);
       }
@@ -432,11 +451,15 @@ export class Matchmaking {
     for (const party of this.parties.values()) {
       const e = party.entries[0];
       if (e.offerId) continue;
-      const key = this.poolKey(e);
-      if (!pools.has(key)) pools.set(key, []);
-      pools.get(key).push(party);
+      for (const difficulty of party.difficulties) {
+        const key = this.poolKey(e, difficulty);
+        if (!pools.has(key)) pools.set(key, { difficulty, parties: [] });
+        pools.get(key).parties.push(party);
+      }
     }
-    for (const pool of pools.values()) {
+    for (const { difficulty, parties: listed } of pools.values()) {
+      // A ticket of several difficulties that an earlier pool of this pass took is gone from the others.
+      const pool = listed.filter((party) => !party.entries[0].offerId);
       pool.sort((a, b) => a.sequence - b.sequence);
       const unused = new Set(pool);
       const buckets = new Map();
@@ -496,7 +519,7 @@ export class Matchmaking {
           deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries };
         this.offers.set(offer.id, offer);
         for (const party of parties) unused.delete(party);
-        for (const e of entries) { e.offerId = offer.id; e.accepted = false; e.revivalVote = null; e.reason = null; }
+        for (const e of entries) { e.offerId = offer.id; e.difficulty = difficulty; e.accepted = false; e.revivalVote = null; e.reason = null; }
         this.pushAll(entries);
       }
     }

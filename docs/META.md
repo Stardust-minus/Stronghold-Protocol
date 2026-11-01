@@ -85,8 +85,7 @@ legal from R14 into R15. The client mirrors it
 | BATTLE_CHECK | `battleCheck` 3 |
 | 机变 first / other pickers | `spFirst` 30 / `spTurn` 16 (co-op; solo / single human untimed) |
 | PREP | `modes[m].rounds[r].prepTime` (co-op; solo / single human untimed) |
-| COMBAT / ordinary 联防 | `modes[m].rounds[r].combatTimeLimit` (= the level's `maxPlayTime`) real seconds = 2× that in game seconds |
-| expanded-co-op 联防 | fixed 300 game s per segment; viable admitted relay 150 + 150, otherwise single 300 (§4); each field's real duration = its game-second cap / `gameSpeed` |
+| COMBAT / 联防 (every room size) | `modes[m].rounds[r].combatTimeLimit` (= the level's `maxPlayTime`) real seconds = 2× that in game seconds |
 | 最终攻势 / 隐秘核心 | no hard stop: countdown `rounds[r].levelMaxPlayTime` 120 real s; overtime drain at 120 real s for all-human teams, configured 150 real s with a non-departed AI teammate; 1 team LP per real s (§3) |
 | ROUND_START / after combat / SETTLE | 2 / 1.5 / 3 (presentation delays, `Match.DELAYS`) |
 | bot action delay | 0.9 s (+0.35 s per seat) |
@@ -110,6 +109,9 @@ The expanded-co-op host can optionally check 「禁用鸭爵策略」 (default u
 timeout / autoplay / bot / default selection, and the frontend grid mirrors that rule. Existing host authority, queue
 locking and rule compatibility preserve it through room / party / local / cluster launch. Unchecked expanded,
 ordinary four-player and solo behavior stays; no global band/effect mutation.
+Any room's host can also check 「禁用层数上限」 / 「禁用单次伤害上限」: strict optional booleans
+`experimental.disableLayerCap` / `disableHitLimit`, absent when false ([design/match.md](design/match.md)), and pick an enemy
+HP / ATK multiplier, `experimental.enemyHpMul` / `enemyAtkMul` (feedback #47), absent at ×1.
 
 Co-op: random order (all seats, bots included), one pick per turn, ONE countdown: `BAND_TURN_SECONDS` 50 s per turn,
 published as `m.public.deadline` (= `draft.turnDeadline`; `draft.turnSeconds` its length) — no step cap; AI seats pick
@@ -921,28 +923,24 @@ smallest stat (坚若磐石 "目标生命值损失最少" = least `lpLost`). doc
 
 ## 4. 联防 (Unite)
 
-**Fork expanded-co-op timing (2026-10-09, local candidate):** `capacityExperiment` covers configured capacities
-8 / 12 / 16 / 20, regardless of actual living roster. The whole UNITE segment gets a fixed **300 game seconds**, not
-a capacity-20-only `min(300, wave base × entry alive / 4)`. Original relay admission remains >=8 alive at both normal
-combat start and UNITE entry. At entry, an admitted plan with viable alive, unused, genuinely perfect helper reserves
-freezes allocations at **150 + 150**; otherwise the sole field receives 300, including below-eight / sparse expanded
-rosters. A relay-capable first field that clears early or loses its reserve stays under its frozen allocation; saved
-time never increases the second 150 cap. Ordinary four-player / solo time limits remain unchanged.
+**Fork expanded-co-op relay (2026-10-09; the fixed time budget was removed on 2026-11-01):** `capacityExperiment`
+covers configured capacities 8 / 12 / 16 / 20, regardless of actual living roster. Every 联防 field of every room size
+gets the round's own limit; a relay's second field gets it again. Original relay admission remains >=8 alive at both
+normal combat start and UNITE entry.
 
 Each field still uses <=2 helpers, at most two rounds, the original stage and each helper's normal-combat end state.
 An actual second field starts only after the first natural terminal / release, with re-enterable residuals and unused
-helpers who still satisfy genuine perfect eligibility; killed enemies are not replayed. The ledger consumes actual
-virtual duration at the natural terminal, taking the maximum across parallel fields, not a sum of parallel work or
-Worker CPU time; a precomputed result is not consumed before natural release. Field / plan / generation guards and
-idempotent completion prevent stale or repeated spending, handover or LP settlement. Earnings, kills and damage span
+helpers who still satisfy genuine perfect eligibility; killed enemies are not replayed. A precomputed result is not
+released before the field's natural terminal. Field / plan / generation guards and idempotent completion prevent a
+stale or repeated handover or LP settlement. Earnings, kills and damage span
 actual participated fields; only the final source-attributed survivor count charges LP once. Optional rescue still
 requires an actual leak-free helper at LP >=11 paying 10, target LP1, once per match; no first-field rescue or charge.
 
 First-field UI is generic 「联防」 / 「联防阶段」; only an actual second uses 「联防2/2」 / 「接力联防第2轮」.
 Original >=8 admission with no viable reserve explicitly publishes `uniteRound: 1, uniteRounds: 1`, still fencing
 current field / battleId, without a second-generation relay key. Below-eight plans retain legacy no-relay metadata,
-not a blanket `uniteRounds: 1` promise. Budget timing and text do not broaden relay eligibility or extend the
-capacity-20-only fixed four-seat card-pool groups. Local inline / actual-Worker regressions and browser-client / Worker
+not a blanket `uniteRounds: 1` promise. The relay does not extend the capacity-20-only fixed four-seat card-pool
+groups. Local inline / actual-Worker regressions and browser-client / Worker
 browser fixtures verify timing and recovery; this is not a deployment, full natural match or production-capacity claim.
 
 HP/SP restoration is completed after deployment and all `battleStart` effects. Living carry ratios remain exact,
@@ -968,8 +966,8 @@ combat carries `{ down: true }` (PRTS 卫戍协议/帮助: "部署完成后…�
 at once, it lies on its tile with the redeploy ring and redeploys like after any knock-out (docs/SIM.md §1.1; user
 playtest #5 item 2 — it used to stay out and vanish); its timer is its full redeploy time (the official setup carries
 only hp / tech per operator; confirmed by the user), with the redeploy-time effects that start with the battle (机变 征召); summons are
-fielded as the board has them (their SP carried); `flags.layerGainsEnabled = false`; ordinary time limit = the round's
-combat limit (expanded-co-op timing is the fixed segment / allocations above).
+fielded as the board has them (their SP carried); `flags.layerGainsEnabled = false`; time limit = the round's combat
+limit.
 Every enemy still alive at the end (leaked again, or never spawned before the limit) costs its **source** player 1 LP.
 **Only what the escaped wave sent in is billable** (player report, 2026-10-16): an enemy that appears while the field runs
 — a split child (磨砻's 木制瑞印, 沉沙's 断刃), a summon — never crossed the leaker's own goal, so the field tags it
@@ -1021,9 +1019,7 @@ eliminated (nobody can watch them; the result screen reads `m.result`'s own bond
 payout?, rounds?, enemyKey?, count?, price?, team?, tacticKind? }], order, turn, picks:{pid: idx}, taken:{idx: pid}, untimed }`
 (SP_DRAFT), `teamLp` / `bossHp {hp,max}` (Final Assault on), `overtimeAt` (最终攻势 / 隐秘核心: ms epoch when the
 overtime drain starts; `deadline` = the level's 120 s countdown), `unite { helpers, leakers }` (UNITE).
-Expanded-co-op UNITE adds `unite.{timeLimit,totalBudget,remainingBudget,gameSpeed}`: this field's game-second cap,
-fixed segment total 300, entry ledger balance and speed. Real HUD duration is `timeLimit / gameSpeed`; the ledger's
-entry balance is neither a live countdown nor extra second-field time. Originally admitted >=8 plans also expose
+Originally admitted >=8 UNITE plans also expose
 `uniteRound`, `uniteRounds` (1 for a known single, 2 for a viable relay / entered second), `fields[].battleId`,
 `unite.battleId` and `unite.rounds`; below-eight plans omit relay metadata. Completed accounts reach
 `uniteResult.rounds` only at final settlement. `draft.allowRepeat` / `sp.allowRepeat` appear only for expanded
@@ -1201,6 +1197,8 @@ humans connected at the proposal; need = `ceil(0.75 × voters)`, the proposer co
 timeout; one proposal per player per revision, no cap per match. Old vote/revision requests cannot affect a
 new opening. See DESIGN §28.21 / §32.14.45 for cancellation, notices and timer behavior.
 
+`match/speedVote.js` owns 战斗 2 倍速: the standing vote `g.speedVote {agree}` of the connected humans (ceil(0.75 × voters)), `m.public.speedVote`, and `_applySpeedVote`, which sets `m.gameSpeed` when a battle starts, never during one; transient.
+
 `match/kickVote.js` owns 投票移出 (§32.14.45): `g.kickVote {targetId}` / `g.kickBallot {voteId, agree}` in SP_DRAFT /
 PREP against a seat under 掉线由 AI 接管, a majority `⌊n/2⌋ + 1` of the other connected humans, 30 s, cancelled at prep
 end or the target's return; `m.public.kickVote`; a passed vote removes the seat like a g.leave (`_removeIdle(ps,
@@ -1243,7 +1241,8 @@ Non-shop effect-only equipment is unlimited. A 机密商店 coin slot draws anot
 Operator capacities use measured single-player exceptions and twice those counts in co-op; DIY remains private.
 Fork grouped / player chess pools and the host's `disableSharedPool` option remain. Equipment stock follows the same
 groups (owner's decision 2026-10-12, `pool.js createItemPools`, `Match.itemPoolFor` / `ps.itemPool`): an ordinary match
-has one stock for every seat; an experimental room one per group of seats (enlarged ×5/4 or ×6/4 with a 5–6-seat pool),
+has one stock for every seat; an experimental room one per group of seats (enlarged ×5/4 with a 5-seat pool; six seats are
+3 + 3 since feedback #49, a checkpoint from before keeps its one ×6/4 pool),
 and one per player without a shared pool — before, 16 or 20 seats shared four 盟约之币. A draft card's stock is the
 picking seat's; a seat with none of the cards left is passed over. Expanded `sp.allowRepeat` permits repeated card
 indices but never bypasses item availability: `soldOut`, manual picks, timers and bots all re-check the same stock.

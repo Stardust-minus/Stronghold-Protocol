@@ -27,7 +27,7 @@
 // CONTENT_NOT_READY), and a plugin mode the host chose shows beside the mode name in the top bar (the orange chip).
 // Official versions (DESIGN §35.23, M1; versions.js): a room plays one version (room.state.version; absent = 第二期下半).
 // Another version's name shows beside the mode in the top bar (ui/pluginTag.js VersionTag) and every page loads and checks
-// its data like a gameplay plugin's content set (content.js) — the seat tags read 版本数据载入中 / 就绪 / 校验失败 and
+// its data like a gameplay plugin's content set (content.js) — the seat tags read 数据载入中 / 就绪 / 校验失败 and
 // 准备就绪 / 开始模拟 wait for it (needsContent: gameplay plugins or another version; 非官方 stays the plugins' alone).
 // The version pill beside the difficulty (and ⚙'s 版本 row in co-op) opens the version picker (ui/versionPicker.js): the
 // host's pick proposes the switch (room.proposeVersion: a lone human's room switches at once; otherwise the seated humans
@@ -38,7 +38,7 @@
 
 import { audio } from '../audio.js';
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
-import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
+import { ROOM_LIST_MIN_CAPACITY, DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
 import { roomCapacity } from '../../../shared/playerCapacity.js';
 import {
   html, Button, Icon, MicroLabel, PingPill, AvatarFrame, DifficultyIcon, Tooltip, confirmDialog, doctorNo, Spinner, Modal,
@@ -152,6 +152,13 @@ export function partyQueueReason(room, myId, online = true) {
 export function aiLastOption(room, myId) {
   if (!room || room.mode === 'solo') return null;
   return { on: room.aiPicksLast === true, editable: room.hostId != null && room.hostId === myId };
+}
+
+/** 公开到同盟列表 (feedback #30): what server/lobby.js listable allows; off by default, the host's. */
+export function listedOption(room, myId) {
+  if (!room || room.mode !== 'coop' || room.source !== 'private' || room.test || room.content?.vanilla === false
+    || roomCapacity(room.mode, room.experimental) < ROOM_LIST_MIN_CAPACITY) return null;
+  return { on: room.listed === true, editable: room.hostId != null && room.hostId === myId && !room.inMatch };
 }
 
 /** Spectator handover is available only in original default-version co-op rooms, with a host opt-in. */
@@ -294,17 +301,17 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
       <span class="rseat__state">${ready
         ? html`<span class="rseat__box"><${Icon} name="check" /></span>${isHostSeat && !seat.ready ? t('待命中') : t('已就绪')}`
         : html`<span class="rseat__box"></span>${t('准备中')}`}</span>
+      ${facts.needsContent && !seat.isBot ? html`<span class=${`rseat__content is-${seat.content || 'loading'}`} data-testid="seat-content">
+        ${facts.versionRoom
+          ? seat.content === 'ready' ? t('数据就绪') : seat.content === 'failed' ? t('数据校验失败') : t('数据载入中')
+          : seat.content === 'ready' ? t('插件内容就绪') : seat.content === 'failed' ? t('插件内容校验失败') : t('插件内容载入中')}
+      </span>` : null}
     </div>
     ${seat.isBot && coop ? html`<${BotBandChip} seat=${seat} gd=${gd} editable=${facts.isHost && !queued} busy=${busy === `band${index}`} onOpen=${() => onBotBand(index)} />` : null}
     ${!seat.isBot && !isMe && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `kick${index}`}
       onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}
     ${seat.isBot && facts.isHost ? html`<button type="button" class="rseat__kick rseat__kick--bot" disabled=${busy === `rm${index}`}
       onClick=${() => onRemoveBot(index)} title=${t('移除该 AI 队友')} aria-label=${t('移除 AI 队友')}><${Icon} name="robot" /><${Icon} name="close" /></button>` : null}
-    ${facts.needsContent && !seat.isBot ? html`<span class=${`rseat__content is-${seat.content || 'loading'}`} data-testid="seat-content">
-      ${facts.versionRoom
-        ? seat.content === 'ready' ? t('版本数据就绪') : seat.content === 'failed' ? t('版本数据校验失败') : t('版本数据载入中')
-        : seat.content === 'ready' ? t('插件内容就绪') : seat.content === 'failed' ? t('插件内容校验失败') : t('插件内容载入中')}
-    </span>` : null}
     <div class=${`rseat__plate${card?.bg ? ' has-nc' : ''}`}>
       ${card?.bg ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} />` : null}
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
@@ -366,6 +373,20 @@ function AiLastToggle({ option, busy, onToggle }) {
   </div>`;
 }
 
+function ListedToggle({ option, busy, onToggle }) {
+  if (!option) return null;
+  return html`<div class="ailast" data-testid="room-opt-listed">
+    <${Tooltip} text=${t('其他博士可在「公开同盟」中看到并直接加入；满员或开局时不显示')}>
+      <button type="button" role="switch" aria-checked=${option.on ? 'true' : 'false'}
+          class=${`dpick__opt ailast__opt${option.on ? ' is-active' : ''}`} disabled=${!option.editable || !!busy}
+          onClick=${() => option.editable && onToggle(!option.on)}>
+        <${Icon} name="check" class=${option.on ? 'is-on' : ''} />${t('公开到同盟列表')}
+      </button>
+    <//>
+    ${option.editable ? null : html`<span class="t-dim">${t('由创建者设置')}</span>`}
+  </div>`;
+}
+
 /** mm:ss of a duration in seconds. */
 const clock = (s) => `${String(Math.floor(Math.max(0, s) / 60)).padStart(2, '0')}:${String(Math.floor(Math.max(0, s)) % 60).padStart(2, '0')}`;
 
@@ -397,7 +418,7 @@ function RoomProtocol({ room, onClose, onPick, busy, leaving = false, difficulti
 function AiTakeoverToggle({ option, busy, onToggle }) {
   if (!option) return null;
   return html`<div class="ailast">
-    <${Tooltip} text=${t('默认关闭。开启后，观战者可在休整期经同房间真人投票接替 AI；继承记录不计个人统计或奖励。')}>
+    <${Tooltip} text=${t('默认关闭。开启后，观战者可在休整期经在座博士投票接替 AI；接替后的数据不计入个人统计或奖励。')}>
       <button type="button" role="switch" aria-checked=${option.on ? 'true' : 'false'} data-testid="room-ai-takeover"
           class=${`dpick__opt ailast__opt${option.on ? ' is-active' : ''}`} disabled=${!option.editable || !!busy}
           onClick=${() => option.editable && onToggle(!option.on)}>
@@ -409,7 +430,7 @@ function AiTakeoverToggle({ option, busy, onToggle }) {
 }
 
 /** ⚙ of the bottom pill: the version, 允许观战者接替 AI, AI 队友最后选择 (a timed solo: 不限时) and 实验性选项 (with the current options summed up). */
-function RoomOptions({ room, facts, myId, busy, onAiLast, onExperimental, onClose, leaving = false, takeoverOption = null, onAiTakeover, soloOption = null, onSoloUnlimited, version = null }) {
+function RoomOptions({ room, facts, myId, busy, onAiLast, onListed, onExperimental, onClose, leaving = false, takeoverOption = null, onAiTakeover, soloOption = null, onSoloUnlimited, version = null }) {
   const title = soloOption ? t('模拟设置') : t('同盟设置');
   useEffect(() => {
     const away = (e) => { if (!e.target.closest?.('.rs-opts, .rs-pill__gear, .modal')) onClose(); };
@@ -433,6 +454,7 @@ function RoomOptions({ room, facts, myId, busy, onAiLast, onExperimental, onClos
     ${soloOption
       ? html`<${SoloUnlimitedToggle} option=${soloOption} busy=${busy} onToggle=${onSoloUnlimited} />`
       : html`<${AiLastToggle} option=${aiLastOption(room, myId)} busy=${busy} onToggle=${onAiLast} />`}
+    <${ListedToggle} option=${listedOption(room, myId)} busy=${busy} onToggle=${onListed} />
     <button type="button" class="rs-opt rs-opt--exp" disabled=${!!busy} onClick=${onExperimental} aria-haspopup="dialog">
       <span>${t('实验性选项')}<small>${experimentalSummary(room.experimental)}</small></span><${Icon} name="chevronRight" /></button>
   </div>`;
@@ -547,6 +569,7 @@ export function RoomScreen() {
   const setDifficulty = (difficulty) => run('diff', async () => { await net.request('room.setDifficulty', { difficulty }); savePref('lobby.difficulty', difficulty); setPicker(false); });
   const setAiTakeover = (on) => run('aihandover', () => net.request('room.setAiTakeover', { on }));
   const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
+  const setListed = (listed) => run('listed', () => net.request('room.setListed', { listed }));
   const setBotBand = (seat, bandId) => run(`band${seat}`, async () => { await net.request('room.setBotBand', { seat, bandId }); setBandSeat(null); });
   // the room is the authority; the lobby card reads the same pref the next time this browser creates a solo room
   const setSoloUnlimited = async (on) => {
@@ -629,7 +652,7 @@ export function RoomScreen() {
   const versionEditable = facts.isHost && !facts.spectating && !room.inMatch;
   // the room's version is not this browser's lobby choice: the banner says leaving restores it (on a short screen, where
   // the banner gives its room to the seats, the pill's tooltip says it)
-  const bannerText = curVersion !== myLobby && Array.isArray(versions) ? t('本房间为「{room}」，离开后恢复你的大厅版本「{mine}」', { room: versionLabel(curVersion), mine: versionLabel(myLobby) }) : null;
+  const bannerText = curVersion !== myLobby && Array.isArray(versions) ? t('本同盟为「{room}」，离开后恢复大厅版本「{mine}」', { room: versionLabel(curVersion), mine: versionLabel(myLobby) }) : null;
   const versionCtl = showVersion ? {
     id: curVersion, editable: versionEditable, why: [versionEditable ? versionWhy : t('由创建者发起'), bannerText].filter(Boolean).join(' · ') || null,
     disabled: versionEditable ? !!versionWhy || !!busy || queued : !Array.isArray(versions),
@@ -718,7 +741,7 @@ export function RoomScreen() {
           <button type="button" class=${`rs-pill__gear${opts ? ' is-on' : ''}`} onClick=${() => setOpts((v) => !v)} title=${soloOpt ? t('模拟设置') : t('同盟设置')} aria-label=${soloOpt ? t('模拟设置') : t('同盟设置')} aria-expanded=${opts ? 'true' : 'false'}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 2h3.4l.5 2.6 1.9.8 2.2-1.5 2.4 2.4-1.5 2.2.8 1.9 2.6.5v3.4l-2.6.5-.8 1.9 1.5 2.2-2.4 2.4-2.2-1.5-1.9.8-.5 2.6h-3.4l-.5-2.6-1.9-.8-2.2 1.5-2.4-2.4 1.5-2.2-.8-1.9L2 13.7v-3.4l2.6-.5.8-1.9-1.5-2.2 2.4-2.4 2.2 1.5 1.9-.8zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill-rule="evenodd" /></svg>
           </button>
-          ${optsShown ? html`<${RoomOptions} room=${room} facts=${facts} myId=${me.playerId} busy=${busy} onAiLast=${setAiLast}
+          ${optsShown ? html`<${RoomOptions} room=${room} facts=${facts} myId=${me.playerId} busy=${busy} onAiLast=${setAiLast} onListed=${setListed}
             takeoverOption=${aiTakeoverOption(room, me.playerId)} onAiTakeover=${setAiTakeover} soloOption=${soloOpt} onSoloUnlimited=${setSoloUnlimited} version=${versionCtl}
             onExperimental=${() => { setOpts(false); setExperimentalOpen(true); }} onClose=${() => setOpts(false)} leaving=${optsLeaving} />` : null}
         </div>

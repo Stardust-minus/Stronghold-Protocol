@@ -79,7 +79,7 @@ export class LayerLedger {
     ctx.addLayers = (bondId, n, opts = {}) => {
       if (!gd.bond(bondId) || !Number.isFinite(n) || n <= 0) return 0;
       if (opts && opts.requireActive && !(ps.bonds[bondId] && ps.bonds[bondId].active)) return 0;
-      const add = layerGainRoom(layersOf(bondId), Math.floor(n));
+      const add = layerGainRoom(layersOf(bondId), Math.floor(n), ps.m?.disableLayerCap);
       if (add <= 0) return 0;
       this.entries.push({ bondId, n: add, src: sourceOf(source) });
       return add;

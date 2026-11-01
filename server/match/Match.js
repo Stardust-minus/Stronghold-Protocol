@@ -155,7 +155,8 @@
 // published as m.public.deadline — AI seats pick at once and a turn that runs out takes the highlighted strategy
 // (g.bandFocus → timeoutBand); g.unitStats answers m.unitStats: the stats the board's units start their next battle with.
 //   opts.afkRemoveRounds  integer ≥ 0 (default AFK_REMOVE_ROUNDS = 2; 0 = off): the AFK rule — see the leave policy below
-//   opts.experimental locked room revivalEnabled / disableSharedPool / optional disableDuckLord, false by default
+//   opts.experimental locked room revivalEnabled / disableSharedPool / optional disableDuckLord / disableLayerCap /
+//                     disableHitLimit, false by default / optional enemyHpMul / enemyAtkMul, 1 by default
 //   opts.snapshotHz   20 | 10 | 5, server snapshots only
 //   opts.localReplica default true (env SP_LOCAL_REPLICA=0 → false): server-run combat shows a Worker-run field to the
 //                     seated humans' browsers that declared g.sim { local: true } (own, watched or followed; boss / hidden
@@ -232,6 +233,7 @@
 //   phases.js        INFO_CHECK, BAND_DRAFT (the strategy draft), BATTLE_CHECK, ROUND_START
 //   setupVote.js     the INFO_CHECK opening reroll vote (重刷本局) and its transactional setup replacement
 //   kickVote.js      投票移出: the vote to remove a teammate under the offline takeover
+//   speedVote.js     战斗 2 倍速: the standing vote, applied when a battle starts
 //   spDraft.js       SP_DRAFT (机变) and the rolls the meta effects ask for (bounties, item ids, pools)
 //   prep.js          PREP: its start, the AI seats' sliced preps, Ready, the deadline, its end
 //   combat.js        battle construction, COMBAT (both modes), the per-field results, then 联防 or SETTLE
@@ -266,7 +268,7 @@ import { PlayerState } from './PlayerState.js';
 import { EffectDispatcher, getDefaultRegistry } from './effectsMeta.js';
 import { setupMatchWaves } from './waves.js';
 import { getBotStrategy } from './botStrategies.js';
-import { GAME_SPEED, HEADLESS_SLICE_MS, parseSnapshotHz } from './fields.js';
+import { GAME_SPEED, HEADLESS_SLICE_MS, MAX_GAME_SPEED, parseSnapshotHz } from './fields.js';
 import { MatchPlatform } from './match/platform.js';
 import { MatchInfra } from './match/infra.js';
 import { MatchMessaging } from './match/messaging.js';
@@ -277,6 +279,7 @@ import { MatchPause } from './match/pause.js';
 import { MatchPhases } from './match/phases.js';
 import { MatchSetupVote } from './match/setupVote.js';
 import { MatchKickVote } from './match/kickVote.js';
+import { MatchSpeedVote } from './match/speedVote.js';
 import { MatchSpDraft } from './match/spDraft.js';
 import { MatchPrep } from './match/prep.js';
 import { MatchCombat } from './match/combat.js';
@@ -382,7 +385,9 @@ export class Match {
     this.BattleClass = typeof opts.BattleClass === 'function' ? opts.BattleClass : Battle;
     this.battleContent = opts.battleContent || 'full';
     this.timerScale = Number.isFinite(opts.timerScale) && opts.timerScale >= 0 ? opts.timerScale : 1;
-    this.gameSpeed = Number.isFinite(opts.combatSpeed) && opts.combatSpeed > 0 ? Math.min(opts.combatSpeed, 200) : GAME_SPEED;
+    /** the battles' normal game speed; `gameSpeed` is the current battle's (speedVote.js sets it when a battle starts) */
+    this.baseGameSpeed = Number.isFinite(opts.combatSpeed) && opts.combatSpeed > 0 ? Math.min(opts.combatSpeed, MAX_GAME_SPEED) : GAME_SPEED;
+    this.gameSpeed = this.baseGameSpeed;
     this.snapshotHz = parseSnapshotHz(opts.snapshotHz ?? env('SP_SNAPSHOT_HZ'));
     /** server-run combat: own fields as local display replicas for browsers that declared g.sim (localReplica.js) */
     this.localReplica = opts.localReplica != null ? !!opts.localReplica : String(env('SP_LOCAL_REPLICA') ?? '').trim() !== '0';
@@ -485,6 +490,12 @@ export class Match {
     this.twentyPlayerMode = this.capacityExperiment && this.playerCapacity === 20;
     this.disableDuckLord = this.capacityExperiment && this.experimental.disableDuckLord === true;
     this.gd.disableDuckLord = this.disableDuckLord;
+    /** the room's battle rules: every battle gets them as spec flags (_ruleFlags), the match's own layer writers read them */
+    this.disableLayerCap = this.experimental.disableLayerCap === true;
+    this.disableHitLimit = this.experimental.disableHitLimit === true;
+    /** the room's enemy multipliers (1 = none): spec flags too, and the leader pool's size (bossRounds.js) */
+    this.enemyHpMul = this.experimental.enemyHpMul ?? 1;
+    this.enemyAtkMul = this.experimental.enemyAtkMul ?? 1;
     if (opts.seats.length > this.playerCapacity) throw new RangeError('Match: seats exceed room capacity');
     /** SETTLE-only rescue state: { round, eligible: Set<playerId>, windowOpen, deadline }. */
     this._revival = null;
@@ -598,6 +609,11 @@ export class Match {
     this._kickVoteSeq = 0;
     this._kickFailed = new Map();
     this._kickVoteAt = new Map();
+    // 战斗 2 倍速 (speedVote.js): the seats that agree, playerId → last change ms
+    this._speedVotes = new Set();
+    /** the current (or last) battle was started at 2 倍速 */
+    this._speedUp = false;
+    this._speedVoteAt = new Map();
     this._turnTimer = null;
     this._pubDirty = false;
     this._pubTimer = null;
@@ -661,7 +677,7 @@ export class Match {
 }
 
 // the method modules, in this order (a name defined twice is an error, never a silent override)
-for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchKickVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchLocalReplica, MatchRehearsal, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchExtensions, MatchTestCommands, MatchOffers]) {
+for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchKickVote, MatchSpeedVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchLocalReplica, MatchRehearsal, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchExtensions, MatchTestCommands, MatchOffers]) {
   for (const key of Reflect.ownKeys(part.prototype)) {
     if (key === 'constructor') continue;
     if (Object.prototype.hasOwnProperty.call(Match.prototype, key)) throw new Error(`Match.${String(key)} is defined twice`);

@@ -104,6 +104,8 @@ export class MatchViews {
       } : null,
       // 投票移出 an offline AI-托管 teammate (kickVote.js): null or { id, proposerId, targetId, voters, agreed, rejected, need, deadline }
       kickVote: this.kickVoteView(),
+      // 战斗 2 倍速 (speedVote.js): { agreed, voters, need, next, on, speed }
+      speedVote: this.speedVoteView(),
       factions: this.factions.slice(),
       disabledBonds: [...new Set([...this.disabledBonds, ...this.staticInactiveBonds])].sort(),
       drawnDisabledBonds: this.disabledBonds.slice(),
@@ -206,13 +208,10 @@ export class MatchViews {
       };
     }
     if (this.phase === PHASE.UNITE && this.unitePlan) {
-      v.unite = { helpers: this.unitePlan.helpers.map((p) => p.playerId), leakers: this.unitePlan.leakers.map((p) => p.playerId),
-        ...(this.capacityExperiment ? { timeLimit: this.unitePlan.timeLimit, totalBudget: this.unitePlan.totalBudget,
-          remainingBudget: this.unitePlan.remainingBudget, gameSpeed: this.unitePlan.gameSpeed } : {}) };
+      v.unite = { helpers: this.unitePlan.helpers.map((p) => p.playerId), leakers: this.unitePlan.leakers.map((p) => p.playerId) };
       if (this._uniteRelay) {
         v.uniteRound = this.unitePlan.uniteRound;
-        v.uniteRounds = this.unitePlan.uniteRound === 2
-          || this._uniteBudget?.allocations.length === 2 && uniteRelayHelpers(this, this.unitePlan).length ? 2 : 1;
+        v.uniteRounds = this.unitePlan.uniteRound === 2 || uniteRelayHelpers(this, this.unitePlan).length ? 2 : 1;
         v.unite.battleId = v.fields[0]?.battleId;
         v.unite.rounds = this._uniteRelay.rounds.map((r) => ({ ...r.view, helpers: r.view.helpers.slice() }));
       }

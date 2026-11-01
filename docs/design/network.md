@@ -39,7 +39,12 @@ Platform additions (implemented): `welcome.{resumed, version}`, `welcome.testMod
 `experimental` object, and `room.setExperimental { experimental }` is the host-only update. Required
 `revivalEnabled` / `disableSharedPool` booleans remain; `playerCapacity` selects 4 / 8 / 12 / 16 / 20.
 `experimental.disableDuckLord` is a new **optional strict boolean**, default false, canonically omitted when false or
-at capacity 4; it is effective only in expanded co-op (`capacityExperiment`). There is no top-level alternative or
+at capacity 4; it is effective only in expanded co-op (`capacityExperiment`). `experimental.disableLayerCap` and
+`experimental.disableHitLimit` (2026-11-01) are optional strict booleans of the same kind, canonically omitted when
+false, effective in every mode and capacity; `experimentalKey` appends `:layers` / `:hits`, so a room without them keeps
+its old key and shape. Battles get them as spec flags `layerCapOff` / `hitLimitOff`. `experimental.enemyHpMul` / `enemyAtkMul` (2026-11-01) are
+optional numbers from the fixed list ENEMY_MULTIPLIERS, omitted at 1; a key gets `:hp<n>` / `:atk<n>` only when set, and
+battles get them as spec flags of the same names. There is no top-level alternative or
 ordinary single-player queue override. The room / party ticket / offer and launched local or cluster match inherit
 this same nested rule; queue locking, host permission, ready invalidation and rule-compatibility comparison include
 it without weakening existing admission or privacy checks. Returning to capacity 4 drops it. The per-match strategy
@@ -76,6 +81,24 @@ count can exceed the target size. Count-only complete snapshots are coalesced/ch
 lifecycle and hello synchronization remain immediate. Delayed work resolves the current ticket/state before
 sending, and close/clear cancels it. Offline/new-socket clients show unknown until a fresh queue snapshot.
 
+**Several difficulties (feedback #87, 2026-11-01):** `queue.join { difficulty, difficulties? }` — a lone player may wait in
+several difficulties, `difficulty` first; a party keeps its room's one difficulty (`BAD_MSG` otherwise) and an old client's
+join is unchanged. The ticket counts in each pool. The first pool to fill makes the offer at that difficulty: the ticket has
+one `offerId`, so it cannot be in two offers, and `queue.state.difficulty` is the offered one until the match starts. A
+broken offer that keeps a confirmed ticket puts it back in all its pools with its first difficulty. `queue.state` of such a
+ticket adds `difficulties` and, while queued, `waitingCounts` (one per difficulty); `waitingCount` is the fullest pool.
+Changing the list needs a cancel (`QUEUED`). `MATCHMAKING_VERSION` did not change: the new fields are optional both ways.
+
+**公开同盟 (feedback #30, 2026-11-01):** `room.setListed { listed }` — the host of a private co-op room of
+`ROOM_LIST_MIN_CAPACITY` (8) seats or more, not a test or plugin room; off by default, `room.state.listed` only while on,
+kept across the room's matches and restarts, cleared when the capacity falls below 8. `room.list {}` is answered on its
+`ok`: `{ rooms: [{ code, host, humans, filled, capacity, difficulty, version?, experimental }] }`, at most `ROOM_LIST_MAX`
+(50), the fullest first, then the oldest. A room is shown only while it waits for players: listed, no match or start in
+preparation, a free seat, not queued, its host connected. It is a request, never a push: the page asks every 10 s while
+the dialog is open and visible, the heavy bucket applies, and every asker within 3 s shares one scan (`ROOM_LIST_CACHE_MS`,
+on the coordinator in a cluster, which holds the rooms). A row carries no player id or address; joining is the ordinary
+`room.join`, which checks everything again.
+
 **Fork lobby additions (2026-10-14, next release; server/lobby.js, server/ownerFile.js, server/onlineLimit.js):**
 - `room.card {charId?, avatar?, bg?, trophies?}` — the player's display card. `charId` (the card's portrait) and
   `avatar` (the operator whose official avatar stands for the player): `''` or an operator charId
@@ -111,15 +134,11 @@ S→C:
   `draft.allowRepeat === true` / `sp.allowRepeat === true`. `sp.picks` is the existing current-draft map
   `{ [playerId]: cardIndex }`; it retains all confirmed players, while `taken` records the first picker only. Teammate
   card labels and all repeat pickers are derived from this public state, with no pick-history DTO or private offer leak.
-  Every expanded UNITE publishes `unite.{timeLimit,totalBudget,remainingBudget,gameSpeed}`: current-field game-second
-  cap, fixed 300-game-second segment total, field-entry ledger balance, and game seconds per real second. Viable admitted
-  relays allocate 150 + 150; plans known single at entry allocate 300. Natural early completion reduces the ledger by actual virtual
-  time, but cannot enlarge the second cap beyond 150. Server deadlines stay authoritative.
   Only plans meeting the original >=8 alive snapshots (normal start and UNITE entry) carry relay metadata:
-  `uniteRound` 1 / 2, `uniteRounds` 2 when a two-field allocation has a viable reserve or has entered round 2, otherwise
+  `uniteRound` 1 / 2, `uniteRounds` 2 when a viable reserve remains or round 2 has been entered, otherwise
   1 for an admitted first plan without a viable reserve. `fields[]` identifies the current `fieldId` / `battleId`,
   `unite.battleId` mirrors that battle, and `unite.rounds` lists completed rounds. Below-eight plans keep the legacy
-  no-relay DTO, even though their expanded budget is still 300. The first
+  no-relay DTO. The first
   field is `u`, an actual second is `u:2`; `uniteResult.rounds` preserves completed-round accounts at final settlement.
   First-round UI is generic, and only the actual second advertises 2/2. Field / battle identity fencing also applies
   to admitted known-single metadata with a battleId; its second-generation relay key remains null. Neither UI text
@@ -365,7 +384,7 @@ server's default.
   by charId, are checked again against the version's data and the legal ones kept (`server/lobby.js seatSettings`);
   outside a room the server's default version's data and `cs` apply;
 - S→C `m.toast { t, kind, text, msgid, params }` to the room: `{name}拒绝了切换版本` `{ name }` (warn, every member),
-  `切换版本投票已超时，房间版本未改变` (warn, every member), `同盟成员有变动，切换版本投票已取消` (warn, every member),
+  `切换版本投票已超时，同盟版本未改变` (warn, every member), `同盟成员有变动，切换版本投票已取消` (warn, every member),
   `创建者取消了切换版本投票` (info, everyone but the host). The page toasts a successful switch itself, on a change of
   `room.version`. When a version's match host stops: `本局模拟长时间无响应，已结束` · `该版本的模拟无法启动` ·
   `本局模拟出错，已结束` (`summary.reason` 'version-hang' / 'version-start' / 'version-crash');
@@ -409,7 +428,9 @@ C→S `g.sim { local: true }` (once per match and again after a reconnect; local
 then on the Worker-run field it is shown — its own, a teammate's it watches (`g.watch`), the one it follows once
 eliminated; normal, 联防, boss and hidden alike — arrives as S→C `b.start { …, authoritative: false, watch, local: true }`
 with the very spec the Worker runs, instead of `m.field` + `b.snap` / `b.ev` (the Worker skips encoding a field nobody
-streams). Spectator seats stay streamed. The Worker digests that field right after every step that ends on a multiple of `SYNC_TICKS` (60 = 2
+streams). Spectator seats stay streamed. A room of another official version plays the same way on its version host's Workers
+(design/match.md, version hosts): its spec names the version's `cs` and `version`, and the page declares and replicates on
+that version's sim. The Worker digests that field right after every step that ends on a multiple of `SYNC_TICKS` (60 = 2
 game s) and after the finishing step (`server/sim/syncHash.js`: rng state, counters, every unit's id / flags / hp / x /
 y / skill sp by their IEEE bits — plain fields only, never a lazy stat getter), sent as S→C `b.sync { battleId, tick,
 h, done? }`. The browser runner takes the same digest after the same steps of its replica (`battle/runner.js`); a
@@ -534,6 +555,15 @@ current revision; omission means revision 0 for old clients. The server blocks R
 drops a voter that disconnects or leaves and recounts, and refuses a second proposal of a player for the same revision
 (`ALREADY`, detail `reroll-proposed`); a match has no reroll cap. `m.notice` kinds `rerollPassed`,
 `rerollFailed {reason}`, `rerollCancelled {by}`; DESIGN §28.21 / §32.14.45 / META.md describe the complete contract.
+
+### 战斗 2 倍速 messages
+
+C→S `g.speedVote {agree}` (a connected, seated human, any time before the match ends; a spectator seat — `SPECTATOR`; 300 ms
+per seat for a real change — `RATE`; repeating the current value is a no-op). `m.public.speedVote` is always
+`{agreed, voters, need, next, on, speed}`: `agreed` the connected voters that agree, `voters` how many are connected, `need`
+ceil(0.75 × voters), `next` the next battle starts sped up as things stand, `on` the running (outside a battle: the last)
+battle was started sped up, `speed` its game speed. A replica has the speed from `b.start`; a stream viewer's interpolation
+takes it from `speedVote` (`view.setStreamSpeed`). Nothing else on the wire changes. See `match/speedVote.js`.
 
 ### 投票移出 messages (§32.14.45)
 

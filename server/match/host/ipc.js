@@ -37,6 +37,7 @@ export function validHostMessage(m) {
   if (m.type === 'log') return ['info','warn','error','debug'].includes(m.level) && str(m.text, HOST_IPC_LIMITS.log)
     && boundedJson(m, HOST_IPC_LIMITS.log + 128);
   if (m.type === 'boot-error') return str(m.error, HOST_IPC_LIMITS.error) && boundedJson(m, HOST_IPC_LIMITS.error + 128);
+  if (m.type === 'combat') return Object.keys(m).length === 4 && [m.ready, m.size, m.sessions].every((n) => Number.isSafeInteger(n) && n >= 0);
   if (!str(m.matchId, 160) || !m.matchId) return false;
   switch (m.type) {
     case 'send':

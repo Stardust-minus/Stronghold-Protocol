@@ -78,7 +78,7 @@ export function installTestTrace(m, opts) {
     if (opts[key] !== undefined) options[key] = clone(opts[key]);
   }
   Object.assign(options, {
-    test: true, seed: m.seed, timerScale: m.timerScale, combatSpeed: m.gameSpeed,
+    test: true, seed: m.seed, timerScale: m.timerScale, combatSpeed: m.baseGameSpeed ?? m.gameSpeed,
     clientCombat: m.clientCombat, verify: m.verifyMode, battleContent: m.battleContent,
     botStrategy: m.bot.id,
     botRehearsal: m.botRehearsal, botRehearsalDelegate: m.botRehearsalDelegate,

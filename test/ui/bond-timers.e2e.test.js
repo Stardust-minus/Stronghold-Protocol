@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
-const LABEL = '盟约效果剩余时间';
+const LABEL = '盟约效果剩余时间', TITLE = '盟约效果';
 const rows = [{ id: 'sargon', count: 2, remaining: 3.2 }, { id: 'siracusaAspd', count: 1, remaining: 20 },
   { id: 'siracusaStealth', count: 1, remaining: 20 }];
 
@@ -98,8 +98,8 @@ describe('#746 bond timer settings and selected-unit card', { skip: !ENABLED && 
         for (const lang of ['zh', 'en', 'ja', 'ko', 'zh-TW']) {
           await page.evaluate(async lang => { const { switchLang } = await import('/js/ui/lang.js'); await switchLang(lang); }, lang);
           const pack = lang === 'zh' ? {} : JSON.parse(readFileSync(new URL(`../../public/i18n/${lang}.json`, import.meta.url)));
-          await page.waitForFunction(label => document.querySelector('.dbond-times')?.textContent.includes(label), {}, pack[LABEL] || LABEL);
-          assert.ok((await cardText(page)).includes(pack['叙拉古·脱隐后触发窗口'] || '叙拉古·脱隐后触发窗口'));
+          await page.waitForFunction(label => document.querySelector('.dbond-times')?.textContent.includes(label), {}, pack[TITLE] || TITLE);
+          assert.ok((await cardText(page)).includes(pack['叙拉古·脱离隐匿'] || '叙拉古·脱离隐匿'));
           const box = await page.$eval('.dbond-times', el => ({ scroll: el.scrollWidth, client: el.clientWidth }));
           assert.ok(box.scroll <= box.client + 1, `${lang} ${width}: no horizontal overflow`);
         }

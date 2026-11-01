@@ -223,7 +223,7 @@ function onWelcome(msg) {
   if (Object.hasOwn(prev.queue || {}, 'waitingCount')) store.set({ queue: { ...prev.queue, waitingCount: undefined } });
 
   if (msg.takeoverFrom === prevId && prevId != null) {
-    toast(t('你已接管AI席位，资金、阵容与席位已保留'), 'info');
+    toast(t('你已接替 AI 席位，资金与阵容已保留'), 'info');
   } else if (prevId != null && prevId !== msg.playerId) {
     // A brand-new server session (the server restarted — crashed / killed, so no room.closed arrived — or this session
     // expired on it): whatever we showed before is gone — back to the lobby cleanly and say why.

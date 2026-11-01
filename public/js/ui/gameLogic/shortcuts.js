@@ -169,11 +169,14 @@ export const pieceSpot = (e) => (!e ? null : e.area === 'board' ? `b:${e.row},${
  * Feedback #11 (「卡顿时连续摁会售出其他干员」): after a hotkey sale the server refills the freed bench slot from 临时区
  * (round.js recompute → the rightmost free hand slot, i.e. the one just sold), so a second X with the mouse still on that
  * slot sells the newcomer. A sale by hotkey is stale while the pointer has not moved (`slop` CSS px) from where the last
- * hotkey sale was made on the same spot; moving the mouse, or another spot, sells as before.
- * @param {{ spot: string, x: number, y: number } | null} last @param {string|null} spot @param {{ x: number, y: number }} at
+ * hotkey sale was made on the same spot; moving the mouse, or another spot, sells as before. Feedback #98: `last.selected`, a
+ * sale of the selected piece with the mouse resting on another one: the selection is gone, so the next X, the mouse still,
+ * would sell that other one. It is stale on any spot. The caller asks this of a sale the mouse picked only: a selected
+ * piece is sold at once.
+ * @param {{ spot: string|null, x: number, y: number, selected?: boolean } | null} last @param {string|null} spot @param {{ x: number, y: number }} at
  */
 export function staleHotkeySale(last, spot, at, slop = 3) {
-  return !!last && !!spot && last.spot === spot && Math.abs(at.x - last.x) <= slop && Math.abs(at.y - last.y) <= slop;
+  return !!last && !!spot && (last.spot === spot || !!last.selected) && Math.abs(at.x - last.x) <= slop && Math.abs(at.y - last.y) <= slop;
 }
 
 /** Selection shortcuts operate on own operators only; item destruction and summon moves stay on their buttons. */

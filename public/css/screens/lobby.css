@@ -1733,7 +1733,7 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .rs-exit:hover { filter: brightness(1.08); }
 .rs-exit .icon { width: 60%; height: 60%; }
 .rs-clock { display: flex; flex-direction: column; gap: .02rem; min-width: 0; }
-.rs-clock > b { display: inline-flex; align-items: center; gap: .1rem; font-size: max(calc(.2 * var(--t)), 13px); font-weight: 700; white-space: nowrap; }
+.rs-clock > b { display: inline-flex; align-items: center; gap: .1rem; min-width: 0; overflow: hidden; font-size: max(calc(.2 * var(--t)), 13px); font-weight: 700; white-space: nowrap; }
 .rs-clock__sep { width: 1px; height: .9em; background: rgba(255, 255, 255, .3); }
 .rs-clock > span { font-size: max(calc(.16 * var(--t)), 11px); color: #9aa19e; }
 .rs-ping { margin: 0 2px; } .rs-ping--low { color: #8fef5a; } .rs-ping--mid { color: #ffc53d; } .rs-ping--high, .rs-ping--off { color: #ff6b6b; }
@@ -1786,6 +1786,11 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .rseat__state { position: absolute; left: 0; right: 0; bottom: .14rem; z-index: 1; display: flex; align-items: center; justify-content: center; gap: .1rem;
   font-size: max(calc(.26 * var(--t)), 14px); font-weight: 900; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
 .rseat:not(.is-ready) .rseat__state { color: #c9cecc; font-size: max(calc(.2 * var(--t)), 12px); }
+/* a version / plugin room: this doctor's data, on the art right above 已就绪 / 准备中 (the card keeps its height and the plates their line) */
+.rseat__content { --band: rgba(0, 0, 0, .62); position: absolute; left: 0; right: 0; bottom: calc(.14rem + max(.34rem, 20px) + .04rem); z-index: 1; padding: .01rem .1rem; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap;
+  font-size: max(calc(.16 * var(--t)), 11px); font-weight: 700; letter-spacing: .04em; color: #c9cecc; background: linear-gradient(90deg, transparent, var(--band) 22%, var(--band) 78%, transparent); }
+.rseat__content.is-ready { color: #8ff3d6; }
+.rseat__content.is-failed { --band: rgba(80, 10, 18, .85); color: #ff9aa6; }
 .rseat__box { display: grid; place-items: center; width: max(.34rem, 20px); height: max(.34rem, 20px); border: 2px solid currentColor; border-radius: 4px; background: rgba(0, 0, 0, .25); }
 .rseat__box .icon { width: 80%; height: 80%; }
 .rseat__kick { position: absolute; right: -.08rem; top: -.12rem; z-index: 3; display: inline-flex; align-items: center; height: max(.4rem, 24px); padding: 0 .1rem; color: #ff8a96;
@@ -2518,9 +2523,6 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 
 /* the feedback group and the design credit at the bottom of the left column */
 .hub-contact { display: flex; flex-direction: column; align-items: flex-start; gap: .06rem; margin-top: auto; }
-.lobby-feedback { min-height: 40px; padding-inline: 10px; font-size: max(calc(.14 * var(--t)), 12px); color: var(--mint-400); border-color: var(--mint-700); letter-spacing: .04em; }
-.lobby-feedback .icon { width: 14px; height: 14px; }
-.lobby-feedback__label { margin-right: 6px; color: var(--text-md); letter-spacing: 0; }
 .hub-contact__row { display: flex; flex-wrap: wrap; align-items: center; gap: .06rem; max-width: 100%; }
 .hub-boards { display: flex; flex-wrap: wrap; align-items: center; gap: .06rem; }
 .hub-board { min-height: 40px; padding-inline: 10px; font-size: max(calc(.14 * var(--t)), 12px); color: var(--text-hi); letter-spacing: .04em; text-decoration: none; }
@@ -2784,7 +2786,8 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .proto-list__wait { display: flex; align-items: center; gap: .08rem; margin: 0; color: var(--text-lo); font-size: calc(.15 * var(--t)); }
 .proto-list__wait.is-failed { flex-wrap: wrap; color: var(--amber); }
 .proto-list__wait.is-failed .icon { flex: none; width: 1.1em; height: 1.1em; }
-.rs-clock__ver { margin-left: .1rem; }
+/* the whole version name, always (its part tells two halves apart): when the line is short the wait clock after it gives way */
+.rs-clock__ver { flex: none; margin-left: .1rem; }
 /* The tooltip must carry the pill's height: an auto-height wrapper makes its child's 78% resolve to auto. */
 .rs-pill__version { display: inline-flex; height: 100%; min-width: 0; align-items: center; }
 .rs-pill__ver {
@@ -2818,6 +2821,8 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 /* a short screen (a phone in landscape): the seats and the footer keep the height — the strip floats over the seats while
    the vote runs (it wraps and scrolls inside), the banner gives its line up (the pill's tooltip says it) */
 @media (max-height: 520px) {
+  /* the expected state gives the small art back to the portrait (载入中 / 校验失败 stay) */
+  .rseat__content.is-ready { display: none; }
   .rs-verbanner { display: none; }
   .rs .vervote {
     position: fixed; left: 50%; top: 50%; z-index: 30; width: min(calc(100vw - 24px), 9rem); max-height: 70vh; max-height: 70svh; margin: 0; overflow-y: auto;
@@ -2827,4 +2832,31 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
   }
   .rs .vervote .vervote__text { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
   .rs .vervote .vervote__actions { flex: none; }
+}
+
+/* 公开同盟 (feedback #30): one line per room, in the hub's dark panels; the left edge carries the difficulty's colour */
+.rlist-dialog .modal__text { margin-bottom: 10px; }
+.rlist { display: flex; flex-direction: column; gap: 6px; max-height: min(52vh, 420px); margin: 0; padding: 0 4px 0 0; overflow-y: auto; list-style: none; }
+.rlist__row { display: grid; grid-template-columns: minmax(84px, auto) minmax(0, 1fr) auto auto auto; align-items: center; gap: 12px; padding: 8px 10px;
+  background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .1); border-left: 3px solid var(--d-color, #8d9391); }
+.rlist__diff { display: inline-flex; align-items: center; gap: 6px; font-size: max(calc(.16 * var(--t)), 13px); color: var(--d-color, #8d9391); white-space: nowrap; }
+.rlist__diff .icon, .rlist__diff svg { width: 16px; height: 16px; }
+.rlist__who { display: flex; flex-direction: column; min-width: 0; }
+.rlist__who b { overflow: hidden; font-size: max(calc(.17 * var(--t)), 14px); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.rlist__who small { overflow: hidden; font-size: max(calc(.13 * var(--t)), 11px); color: #858b89; text-overflow: ellipsis; white-space: nowrap; }
+.rlist__ver { display: inline-flex; align-items: center; gap: 4px; font-size: max(calc(.13 * var(--t)), 11px); color: var(--text-md); white-space: nowrap; }
+.rlist__ver .icon { width: 13px; height: 13px; }
+.rlist__seats { font-size: max(calc(.2 * var(--t)), 15px); color: var(--mint-400); white-space: nowrap; }
+.rlist__seats i { margin: 0 1px; font-style: normal; color: #858b89; }
+.rlist__join { min-height: 34px; padding-inline: 10px; font-size: max(calc(.15 * var(--t)), 13px); white-space: nowrap; }
+.rlist__note { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px 0; font-size: max(calc(.16 * var(--t)), 13px); color: #858b89; }
+.rlist__note .icon { width: 15px; height: 15px; }
+@media (max-width: 900px) {
+  .rlist__row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 10px; }
+  .rlist__diff { grid-column: 1; grid-row: 1; }
+  .rlist__seats { grid-column: 2; grid-row: 1; }
+  .rlist__join { grid-column: 3; grid-row: 1; }
+  .rlist__who { grid-column: 1 / span 2; grid-row: 2; }
+  .rlist__ver { grid-column: 3; grid-row: 2; justify-self: end; }
+  .rlist__row > span:empty { display: none; }
 }

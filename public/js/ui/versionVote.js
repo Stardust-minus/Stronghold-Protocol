@@ -79,7 +79,7 @@ export function VersionVoteView({ facts, seconds, busy = false, online = true, c
     <div class="vervote__text">
       <strong>${t('切换到「{version}」投票：{agreed}/{total}', { version: versionLabel(v.version), agreed: facts.yes, total: facts.total })}</strong>
       <span class="vervote__time" aria-hidden="true"><${Icon} name="hourglass" /><b class="num">${seconds}</b>s</span>
-      <span class="vervote__hint t-lo">${t('全员同意后切换；切换后需要重新准备，本同盟上一局的结算回放会清除。')}</span>
+      <span class="vervote__hint t-lo">${t('全员同意后切换；切换后需重新准备，上一局的结算回放会清除。')}</span>
       <div class="vervote__players">${facts.chips.map((c) => html`<span key=${c.id} class=${c.agreed ? 'is-agreed' : ''}>${c.name} · ${c.agreed ? t('已同意') : t('待同意')}</span>`)}</div>
     </div>
     <div class="vervote__actions">

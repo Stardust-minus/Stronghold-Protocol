@@ -36,7 +36,8 @@
 //   pool refuses with INTERNAL 'version hosts busy'. The same defaults (idle 10 min).
 //
 // Options (startServer `matchHost`): transport, maxWorkers (default: the content-set limit, 4), heartbeatMs, watchdogMs,
-// idleMs, resourceLimits, matchOptions (JSON-safe Match options every hosted match gets — the e2e and host tests scale
+// idleMs, resourceLimits, combatWorkers (official versions only, child processes only: the combat Workers of each host —
+// entry.js; server/index.js SP_VERSION_COMBAT_WORKERS, default 2; 0 keeps combat inline), matchOptions (JSON-safe Match options every hosted match gets — the e2e and host tests scale
 // the timers with it), and for tests only: matchModule (a module whose `Match` replaces server/match/Match.js in the
 // workers), virtualTime (the matches run on a virtual clock).
 
@@ -57,6 +58,7 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 export const HOST_DEFAULTS = Object.freeze({
   transport: 'process',
   maxWorkers: 4,
+  combatWorkers: 0,
   heartbeatMs: 1000,
   watchdogMs: 10_000,
   idleMs: 10 * 60_000,
@@ -111,12 +113,17 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
       this.ready = false;
       this.dead = null;
       this.idleTimer = null;
+      // a worker thread only when asked for by name (anything else: a child process — the header's measurement)
+      this.transport = !scripts.length && o.transport === 'worker' ? 'worker' : 'process';
+      /** what its pool reported (entry.js postCombat), null without one */
+      this.combat = null;
       const init = {
         cs, hashInput: set.hashInput, files, bounds: set.bounds ?? null, scripts, sandbox,
         // PLUGIN API v2: the set's interaction windows (docs/PLUGINS.md §10b) — data only; the host injects them into
         // every match it runs (server/match/host/entry.js), so the engine owns the window and no plugin code runs here
         offers: Array.isArray(set.offers) ? set.offers : [],
-        options: { heartbeatMs: o.heartbeatMs, matchOptions: o.matchOptions || {}, matchModule: o.matchModule || null, virtualTime: !!o.virtualTime },
+        options: { heartbeatMs: o.heartbeatMs, matchOptions: o.matchOptions || {}, matchModule: o.matchModule || null, virtualTime: !!o.virtualTime,
+          ...(versionKind && this.transport === 'process' && !sandbox && !o.virtualTime && o.combatWorkers > 0 ? { combatWorkers: o.combatWorkers } : {}) },
       };
       const failed = (e) => {
         log.error?.(`${P} match host ${this.tag} (${this.plugins}) failed: ${e?.code || ''} ${e?.message || e}`);
@@ -129,8 +136,6 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
         }
         if (hosts.get(this.cs) === this) hosts.delete(this.cs);
       };
-      // a worker thread only when asked for by name (anything else: a child process — the header's measurement)
-      this.transport = !scripts.length && o.transport === 'worker' ? 'worker' : 'process';
       if (this.transport === 'process') {
         // a child process: its memory limit is its own (an out-of-memory abort ends it alone — see the header)
         const mb = Math.max(64, Number(o.resourceLimits?.maxOldGenerationSizeMb) || HOST_DEFAULTS.resourceLimits.maxOldGenerationSizeMb);
@@ -185,6 +190,7 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
     onMessage(m) {
       if (!validHostMessage(m)) return;
       if (m.type === 'hb') { this.lastBeat = Date.now(); return; }
+      if (m.type === 'combat') { this.combat = { ready: m.ready, size: m.size, sessions: m.sessions }; return; }
       if (m.type === 'log') {
         const fn = log[m.level];
         fn?.call(log, `${this.tag} ${m.text}`);
@@ -254,11 +260,15 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
       h.matches.set(matchId, proxy);
       return proxy;
     },
-    /** Workers running and the matches in them (/healthz). */
+    /** Workers running and the matches in them (/healthz); `combat`: the combat Workers of the hosts that have a pool. */
     stats() {
       let matches = 0;
-      for (const h of hosts.values()) matches += h.matches.size;
-      return { workers: hosts.size, matches, transport: o.transport === 'worker' ? 'worker' : 'process' };
+      const combat = { ready: 0, size: 0, sessions: 0 };
+      for (const h of hosts.values()) {
+        matches += h.matches.size;
+        for (const k of Object.keys(combat)) combat[k] += h.combat?.[k] ?? 0;
+      }
+      return { workers: hosts.size, matches, transport: o.transport === 'worker' ? 'worker' : 'process', ...(combat.size ? { combat } : {}) };
     },
     /** Stop every worker (the server stops; the lobby has disposed its rooms first). */
     close() {

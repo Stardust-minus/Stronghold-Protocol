@@ -121,6 +121,10 @@ describe('selected operator shortcuts', { skip: !ENABLED && 'set SP_E2E=1 and CH
       await sleep(180);
       assert.equal((await sent()).filter(([type, f]) => type === 'g.sell' && f.uid === selected.uid).length, 1);
       assert.ok((await state()).board.some((p) => p.uid === other.uid), 'hover cannot redirect a sale away from the selection');
+      // feedback #98: the selection is gone now; X again with the mouse still on the other operator is no choice of it
+      await page.keyboard.press('KeyX');
+      await sleep(180);
+      assert.ok((await state()).board.some((p) => p.uid === other.uid), 'a second X does not sell the operator under the resting mouse');
       await page.mouse.move(5, 5);
       await inert('no remaining selection or hovered operator means no action');
 

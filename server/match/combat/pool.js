@@ -27,7 +27,7 @@ function deferred() {
 }
 
 export class CombatWorkerPool {
-  constructor({ size, data = getData(), log = console, maxSessions = 0, maxPending = 8192,
+  constructor({ size, data = getData(), bounds = null, log = console, maxSessions = 0, maxPending = 8192,
     startupTimeoutMs = 15_000, requestTimeoutMs = 30_000, maxTrials = 64, maxTrialPending = 64,
     role = 'combat', trialAckTimeoutMs = 5_000, trialStallTimeoutMs = 5_000, maxBatch = MAX_BATCH } = {}) {
     if (!['combat', 'trial'].includes(role)) throw new RangeError('role must be combat or trial');
@@ -51,6 +51,8 @@ export class CombatWorkerPool {
     this.requestTimeoutMs = positive(requestTimeoutMs, 'requestTimeoutMs');
     if (!data || typeof data !== 'object') throw new TypeError('full raw combat data required');
     this.data = deepFreeze(data);
+    // A version host's pool (host/entry.js): the official-bounds snapshot its match and the page's sim install too.
+    this.bounds = bounds;
     this.log = log;
     this.status = 'new';
     this.generation = randomUUID();
@@ -93,7 +95,7 @@ export class CombatWorkerPool {
     try {
       // Full data crosses the boundary only here, once per worker lifetime, never once per phase/command.
       const worker = new Worker(WORKER_URL, {
-        workerData: { epoch, data: this.data, maxSessions: this.maxSessions, role: this.role },
+        workerData: { epoch, data: this.data, maxSessions: this.maxSessions, role: this.role, ...(this.bounds ? { bounds: this.bounds } : {}) },
         // Test runners/CLI eval can expose process-only flags (Node24 even includes V8 defaults).
         // These plain ESM workers need no loader/preload/inspection flags from the host entrypoint.
         execArgv: [],

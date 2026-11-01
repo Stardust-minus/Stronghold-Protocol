@@ -39,6 +39,7 @@
 //                                               model to that clip set (render/units.js FORMS)
 //   view.setLocalFeed({ on, speed })            frames come from the local sim every frame (client-side combat):
 //                                               ~2-frame buffer at the battle's game speed
+//   view.setStreamSpeed(speed)                  a streamed battle's game speed (0: the normal 2×), 战斗 2 倍速
 //   view.highlightTiles(tiles, style)           [[r,c]] | [{row,col}]; style 'legal'|'illegal'|'range'|'rangeStand'|
 //                                               'hover'|'target'|{color,fill,line,group}; highlightTiles(null) clears all
 //   view.on(name, fn) → unsubscribe ; view.off(name, fn)
@@ -337,6 +338,15 @@ export async function createFieldView(host, options = {}) {
   // streamed fields (a spectator seat, a replica that went back to the stream): the delay follows the network's jitter
   const interp = new SnapshotBuffer({ delay: 0.1, rate: 2, adaptive: true });
   let streamDelay = interp.delay;
+  /** game seconds per real second of a streamed battle (setStreamSpeed) */
+  let streamRate = 2;
+  /** The nominal clock of the buffer. The arrival-based estimate starts over from it: a new speed is a step, not a drift. */
+  const setNominalRate = (rate) => {
+    if (interp.defaultRate === rate) return;
+    interp.defaultRate = rate;
+    interp.rate = rate;
+    interp.lateness.length = 0;
+  };
   const presentation = new BattlePresentation();
   const sample = new Map();
   const meleePending = new Map(); // target id → { src, t }
@@ -2195,7 +2205,7 @@ export async function createFieldView(host, options = {}) {
     /** Enemy preview pen: a list in m.private.nextEnemies shape, or null to empty it (setPrep does this itself). */
     setPen(list) { if (destroyed) return false; setPenList(Array.isArray(list) ? list : null); return true; },
     enterBattle,
-    finishBattle() { if (!destroyed && mode === 'battle') presentation.finish(); },
+    finishBattle() { if (!destroyed && mode === 'battle') { presentation.finish(); interp.drain(); } },
     pushSnapshot,
     pushEvents,
     /**
@@ -2211,8 +2221,13 @@ export async function createFieldView(host, options = {}) {
       if (on && was) streamDelay = interp.delay;
       interp.adaptive = !on;
       interp.delay = on ? 0.034 : was ? interp.delay : streamDelay;
-      interp.defaultRate = on ? Math.min(20, speed) : 2;
+      setNominalRate(on ? Math.min(20, speed) : streamRate);
       interp.maxRate = on ? Math.max(8, speed * 1.5) : 8;
+      return true;
+    },
+    setStreamSpeed(speed) {
+      streamRate = Number(speed) > 0 ? Math.min(20, Number(speed)) : 2;
+      if (interp.adaptive) setNominalRate(streamRate);
       return true;
     },
     highlightTiles(tilesList, style) {
@@ -2372,7 +2387,7 @@ export async function createFieldView(host, options = {}) {
     get mode() { return mode; },
     /** Dev hooks (demo / tests). */
     debug: {
-      app, get cam() { return cam; }, get board3d() { return board3d; }, tiles, views, penViews, get leader() { return leader; }, interp, fx, ofx, wiring, ctx, drag, get camKind() { return viewKind(camKind, camOpts); },
+      app, get cam() { return cam; }, get board3d() { return board3d; }, tiles, views, penViews, get leader() { return leader; }, interp, presentation, fx, ofx, wiring, ctx, drag, get camKind() { return viewKind(camKind, camOpts); },
       promotions, landings, get replaying() { return !!replayTimer; },
       // picking (render/pick.js) at canvas px: the prep piece / battle view / pen view there, the ground tile under it
       pick: { pieceAt, mapCharAt, battleUnitAt, penUnitAt, groundTile },

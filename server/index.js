@@ -56,6 +56,9 @@ export {
   acceptsGzip, pickEncoding, parseRange, createStaticHandler, lanUrls, parseTrustProxy,
 };
 
+/** Combat Workers of each official version's match host (SP_VERSION_COMBAT_WORKERS). */
+const DEFAULT_VERSION_COMBAT_WORKERS = 2;
+
 /** Zero retains the synchronous backend; malformed pool configuration fails before listening. */
 export function parseCombatWorkers(value) {
   if (value == null || value === '') return 0;
@@ -189,8 +192,11 @@ export async function startServer(opts = {}) {
     const versionCfg = versionsFrom(opts, log);
     versions = createVersionSets({ enabled: versionCfg.enabled, defaultId: versionCfg.default, dataDir, vanilla: content, defaultData: data, log });
     // (the test options of matchHost apply to both pools, but never the version pool's kind or its own SP_MAX_VERSION_HOSTS)
+    // Each version's host runs its server-run fields on its own combat Workers (SP_VERSION_COMBAT_WORKERS, default 2, 0 =
+    // inline and streamed; match/host/entry.js): the coordinator's combatWorkers: 0 is about its own process.
+    const versionCombat = parseCombatWorkers(opts.versionCombatWorkers ?? process.env.SP_VERSION_COMBAT_WORKERS ?? DEFAULT_VERSION_COMBAT_WORKERS);
     versionHosts = versions.nonDefault.length
-      ? createMatchHosts({ contents: versions, log, options: { transport, ...(opts.matchHost || {}), kind: 'version', maxWorkers: Math.max(1, versionCfg.maxHosts) } })
+      ? createMatchHosts({ contents: versions, log, options: { transport, combatWorkers: versionCombat, ...(opts.matchHost || {}), kind: 'version', maxWorkers: Math.max(1, versionCfg.maxHosts) } })
       : null;
     log.info(`[versions] enabled: ${versions.ids.map((id) => `${id} (${t(/** @type {any} */ (versionById(id)).label)}${id === versions.defaultId ? ', default' : ''})`).join(', ')}`);
     simPool = createRoomWorkerPool({ data });

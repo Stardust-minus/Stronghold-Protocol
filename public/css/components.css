@@ -894,8 +894,8 @@
 .server-status__note, .server-status__empty { font-size: 11px; line-height: 1.5; color: var(--text-lo); padding-top: 12px; }.server-status__empty { display: flex; gap: 8px; }.server-status__empty .icon { width: 16px; height: 16px; flex: none; }
 .experimental-modal { width: min(calc(440px * var(--ui)), calc(100vw - calc(32px * var(--ui)))); }.experimental-summary { color: var(--text-lo); font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); }
 .experimental-capacity { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: max(calc(.16 * var(--t)), calc(13px * var(--ui))); color: var(--text-lo); }
-.experimental-capacity select { min-height: 40px; min-width: 100px; padding: 8px 12px; background: var(--bg-3); color: var(--text-hi); border: 1px solid var(--line-3); font: inherit; }
-.experimental-capacity select:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+.experimental-capacity select, .experimental-option select { min-height: 40px; min-width: 100px; padding: 8px 12px; background: var(--bg-3); color: var(--text-hi); border: 1px solid var(--line-3); font: inherit; }
+.experimental-capacity select:focus-visible, .experimental-option select:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
 .experimental-options { display: grid; gap: 8px; }.experimental-option { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .experimental-option > span { display: grid; gap: 7px; }.experimental-option strong { font-size: max(calc(.19 * var(--t)), calc(15px * var(--ui))); color: var(--text-hi); font-weight: 500; }.experimental-option small { color: var(--text-lo); font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); line-height: 1.6; }
 .experimental-option input { flex: none; appearance: none; width: 36px; height: 20px; border-radius: 10px; border: 1px solid var(--line-3); background: var(--bg-3); cursor: pointer; }
@@ -1275,12 +1275,12 @@
   margin: 0 .6rem .12rem; padding: .12rem .2rem;
   background: rgba(12, 15, 14, .92); border: 1px solid rgba(120, 196, 255, .6);
 }
-.vervote__text { display: flex; flex-direction: column; gap: .04rem; min-width: 0; flex: 1 1 4rem; font-size: calc(.15 * var(--t)); }
+.vervote__text { display: flex; flex-wrap: wrap; align-items: baseline; gap: .04rem .14rem; min-width: 0; flex: 1 1 4rem; font-size: calc(.15 * var(--t)); }
 .vervote__text strong { color: #9fd3ff; font-size: calc(.19 * var(--t)); overflow-wrap: anywhere; }
 .vervote__time { display: inline-flex; align-items: center; gap: .04rem; color: var(--text-md); }
 .vervote__time .icon { width: 1em; height: 1em; }
-.vervote__hint { overflow-wrap: anywhere; }
-.vervote__players { display: flex; flex-wrap: wrap; gap: .06rem .18rem; color: var(--text-dim); }
+.vervote__hint { flex: 1 0 100%; overflow-wrap: anywhere; }
+.vervote__players { display: flex; flex: 1 0 100%; flex-wrap: wrap; gap: .06rem .18rem; color: var(--text-dim); }
 .vervote__players .is-agreed { color: var(--mint-400); }
 .vervote__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .1rem; flex-shrink: 0; }
 /* on the settlement screen: over the page's bottom edge (the vote must stay in view); never taller than the screen — a

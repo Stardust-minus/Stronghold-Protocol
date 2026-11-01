@@ -46,7 +46,7 @@ test('settings toggle, explanatory hint and all effect labels are translated in 
   assert.match(src, /value=\$\{s\.bondTimers\} onChange=\$\{\(v\) => updateSettings\(\{ bondTimers: v \}\)\}/);
   assert.ok(src.indexOf('value=${s.bondTimers}') > src.indexOf('value=${s.ammoEnergyCount}'));
   const ids = [...BOND_TIMERS.map(d => d.label), '盟约效果剩余时间', '{n} 层 · 下一层 {s} 秒', '剩余 {s} 秒',
-    '在选中单位的详情中显示叙拉古、萨尔贡效果的剩余时间；萨尔贡显示层数与下一层到期时间。官方界面没有这些数字。'];
+    '选中单位时显示叙拉古、萨尔贡效果的剩余时间，萨尔贡另显示层数。官方界面没有这些数字。'];
   for (const lang of ['en', 'ja', 'ko', 'zh-TW']) {
     const pack = JSON.parse(read(`public/i18n/${lang}.json`));
     for (const id of ids) assert.ok(pack[id]?.length, `${lang}: ${id}`);

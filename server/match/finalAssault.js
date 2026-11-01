@@ -85,8 +85,11 @@ export function pairPlayers(alive, rng, previous = null) {
   return groups;
 }
 
-/** Shared boss HP for a boss id with `aliveCount` alive players (GameData.bossPoolShare / bossPoolShareOf; omitted ⇒ a full team). */
-export function bossPoolHp(gd, bossId, aliveCount, { experimental = false } = {}) {
+/**
+ * Shared boss HP for a boss id with `aliveCount` alive players (GameData.bossPoolShare / bossPoolShareOf; omitted ⇒ a full
+ * team). `hpMul`: the room's experimental enemy multiplier — a leader's HP is this pool, so it is applied here, once.
+ */
+export function bossPoolHp(gd, bossId, aliveCount, { experimental = false, hpMul = 1 } = {}) {
   const boss = gd.boss(bossId);
   const diff = gd.difficulty;
   let base = boss && boss.bloodPoint && Number.isFinite(boss.bloodPoint[diff]) ? boss.bloodPoint[diff] : null;
@@ -99,7 +102,7 @@ export function bossPoolHp(gd, bossId, aliveCount, { experimental = false } = {}
   // Only the opt-in >4-seat fight goes past the configured four: the full team's share grows by alive / 4 (one
   // bloodPoint per player under the per-player rule); normal config and solo scaling are untouched.
   const share = enlarged ? shareOf(4) * aliveCount / 4 : shareOf(aliveCount);
-  return Math.max(1, Math.round(base * share * tune));
+  return Math.max(1, Math.round(base * share * tune * hpMul));
 }
 
 /**

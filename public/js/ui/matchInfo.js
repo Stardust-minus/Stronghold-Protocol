@@ -3,7 +3,8 @@
 //   * the INFO_CHECK briefing's right column (screens/briefing.js);
 //   * the strategy draft's 本局信息 dialog (screens/bandDraft.js; GitHub issue #8 item 1 "选策略时没法返回查看禁用的干员和盟约":
 //     players choose a strategy partly by the bonds and operators the match leaves them);
-//   * the data of the in-game 本局信息 tab (ui/enemyDrawer.js InfoTab, its own compact chips and avatars).
+//   * the in-game 本局信息 tab (ui/enemyDrawer.js InfoTab: the same bond discs, one by one as the official dropdown lists
+//     them, and its own compact avatars).
 // matchInfoModel (pure) derives everything from m.public and the static data: the two kinds of greyed bonds
 // (gameLogic disabledBondSets over config.modes[modeId].inactiveBondIds — the drawn set D "部分盟约所含干员阵容不完整",
 // still activatable through other bonds' operators or items, and the mode's static inactive bonds "本局禁用", e.g.
@@ -95,30 +96,36 @@ function BondBannedAside(bond, model, banned) {
 }
 
 /**
- * One row of bond discs (核心盟约 / 附加盟约): a greyed disc (✕) for a bond in the drawn set D or one the mode never
- * activates, the red badge with its banned members, a red ring on an enabled bond that lost members; the tooltip says
- * which (briefingBondTip). A bond with banned members lists them in a second box beside the tooltip (BondBannedAside).
+ * One bond's disc: greyed (✕) for a bond in the drawn set D or one the mode never activates, the red badge with its banned
+ * members, a red ring on an enabled bond that lost members; the tooltip says which (briefingBondTip) and a bond with
+ * banned members lists them in a second box beside it (BondBannedAside). The official 本局禁用干员情况 draws these one by
+ * one too: the briefing's rows (MatchBondRow) and the in-game 本局信息 tab (ui/enemyDrawer.js). A plain function (called,
+ * not a component), so the markup sits in the caller's tree.
+ * @param {{ bond: any, model: MatchInfoModel }} o
+ */
+export function bondCell({ bond: b, model }) {
+  const state = model.stateOf(b.bondId);
+  const off = !!state;
+  const bannedN = model.perBond.get(b.bondId) || 0;
+  return html`<${Tooltip} key=${b.bondId} text=${briefingBondTip(b.name, state, bannedN)}
+    aside=${bannedN > 0 ? BondBannedAside(b, model, new Set(model.banned)) : null}>
+    <div class=${cx('brief-bond', off && 'is-off', state === 'drawn' && 'is-incomplete', !off && bannedN > 0 && 'is-partial', bannedN > 0 && 'has-ban')} data-bond=${b.bondId}>
+      <${BondDisc} name=${b.name} icon=${bondIconUrl(data.get('assets'), b.bondId)} active=${!off} disabled=${off} tier=${off ? 0 : (b.thresholds?.length || 1)}
+        maxTier=${Math.max(1, b.thresholds?.length || 1)} size="md" />
+      ${bannedN > 0 ? html`<span class="brief-bond__ban num"><${Icon} name="user" />${bannedN}</span>` : null}
+    </div>
+  <//>`;
+}
+
+/**
+ * One row of bond discs (核心盟约 / 附加盟约).
  * @param {{ title: string, micro: string, bonds: any[], model: MatchInfoModel }} props
  */
 export function MatchBondRow({ title, micro, bonds, model }) {
-  const m = data.get('assets');
-  const banned = new Set(model.banned);
   return html`<div class="brief-bonds">
     <h3 class="brief-h"><span>${title}</span><${MicroLabel}>${micro}</${MicroLabel}></h3>
     <div class="brief-bonds__row">
-      ${bonds.map((b) => {
-        const state = model.stateOf(b.bondId);
-        const off = !!state;
-        const bannedN = model.perBond.get(b.bondId) || 0;
-        return html`<${Tooltip} key=${b.bondId} text=${briefingBondTip(b.name, state, bannedN)}
-          aside=${bannedN > 0 ? BondBannedAside(b, model, banned) : null}>
-          <div class=${cx('brief-bond', off && 'is-off', state === 'drawn' && 'is-incomplete', !off && bannedN > 0 && 'is-partial')} data-bond=${b.bondId}>
-            <${BondDisc} name=${b.name} icon=${bondIconUrl(m, b.bondId)} active=${!off} disabled=${off} tier=${off ? 0 : (b.thresholds?.length || 1)}
-              maxTier=${Math.max(1, b.thresholds?.length || 1)} size="md" />
-            ${bannedN > 0 ? html`<span class="brief-bond__ban num"><${Icon} name="user" />${bannedN}</span>` : null}
-          </div>
-        <//>`;
-      })}
+      ${bonds.map((b) => bondCell({ bond: b, model }))}
     </div>
   </div>`;
 }

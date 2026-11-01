@@ -37,7 +37,6 @@ import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_S
 import { html, Button, Icon, MicroLabel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo, confirmDialog } from '../ui/components.js';
 import { AnnouncementBoard, announcementRevision, announcementDismissed, dismissAnnouncement, announcementBanner, parseAnnouncements } from '../ui/announcements.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
-import { LobbyFeedback } from '../ui/lobbyFeedback.js';
 import { SiteBoards } from '../ui/siteBoards.js';
 import { VersionSwitch } from '../ui/versionPicker.js';
 import { contentSet, retryContentSet } from '../content.js';
@@ -59,7 +58,8 @@ import { useLeave } from '../ui/transitions.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, getConfig, getMode, getStage, useData } from '../data.js';
-import { QueueFlow, queueActive } from '../ui/matchmaking.js';
+import { QueueFlow, queueActive, queueDifficulties } from '../ui/matchmaking.js';
+import { RoomListDialog } from '../ui/roomList.js';
 import { queueCancellation } from '../queueCancellation.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 import { NoticesButton } from '../ui/notices.js';
@@ -449,6 +449,12 @@ export function ProtoCard({ roomMode, difficulty, selected, onSelect, disabled =
   </button>`;
 }
 
+/** 多人匹配's difficulties after pressing `x` (feedback #87): the press toggles it, and the last one stays. */
+export function toggleMatchPick(picks, x) {
+  if (!picks.includes(x)) return [...picks, x];
+  return picks.length > 1 ? picks.filter((d) => d !== x) : picks;
+}
+
 /** 多人匹配's rules (the former lobby's 匹配说明, ui/matchmaking.js wording). */
 function MatchRules() {
   const [open, setOpen] = useState(false);
@@ -464,6 +470,7 @@ function MatchRules() {
           <p class="modal__text">${t('{n} 名真人按相同人数模式和难度匹配，不自动补 AI；好友小队保持整队。', { n: MAX_SEATS })}</p>
           <p class="modal__text">${t('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。')}</p>
           <p class="modal__text">${t('好友小队沿用房间的实验性选项，单人匹配跟随所加入房间。四名单人组局时，复活和禁用共享卡池默认关闭。')}</p>
+          <p class="modal__text">${t('单人匹配可同时选择多个难度：最先集齐的难度开局，其余难度随之退出等待。好友小队按同盟当前难度匹配。')}</p>
         </div>
       </div>
     </div>` : null}`;
@@ -478,7 +485,7 @@ function MatchRules() {
  * (ui/transitions.js); the picture is redrawn for each difficulty.
  */
 function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, onClose, online, maint, busy, queue, onCreate, onQueue, chained = false,
-  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null }) {
+  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, picks = null, onPick = null }) {
   const [leaving, leave] = useLeave(onClose);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
@@ -532,11 +539,11 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
         </div>
       </section>
       <section class="proto-side">
-        <div class="proto-list" role="radiogroup" aria-label=${t('模拟难度')} aria-busy=${loading ? 'true' : 'false'}>
+        <div class="proto-list" role=${match ? 'group' : 'radiogroup'} aria-label=${t('模拟难度')} aria-busy=${loading ? 'true' : 'false'}>
           ${failed ? html`<p class="proto-list__wait is-failed" data-testid="proto-failed"><${Icon} name="warn" />${t('版本数据校验失败')}
               <${Button} size="sm" variant="secondary" data-testid="proto-retry" onClick=${retryContentSet}>${t('重试')}<//></p>`
             : loading ? html`<p class="proto-list__wait" data-testid="proto-loading"><${Spinner} size="sm" />${t('正在载入版本数据…')}</p>` : null}
-          ${difficulties.map((x) => html`<${ProtoCard} key=${x} roomMode=${roomMode} difficulty=${x} selected=${d === x} onSelect=${onDifficulty} disabled=${working || loading} />`)}
+          ${difficulties.map((x) => html`<${ProtoCard} key=${x} roomMode=${roomMode} difficulty=${x} selected=${match && picks ? picks.includes(x) : d === x} onSelect=${match && onPick ? onPick : onDifficulty} disabled=${working || loading} />`)}
         </div>
         <div class="proto-foot">
           ${match ? html`<div class="proto-opts"><span class="proto-mode-chip"><${Icon} name="search" />${t('多人匹配')}</span><${MatchRules} /></div>` : null}
@@ -545,6 +552,7 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
             <span>${t('不限时')}</span>
             <em class="t-dim">${t('关闭本局休整与机变的计时。官方为休整期每轮 300 秒、机变 150 秒。')}</em>
           </label>` : null}
+          ${match && picks ? html`<p class="proto-hint" data-testid="match-picks">${picks.length > 1 ? t('已选 {k} 个难度，任一难度集齐即开局', { k: picks.length }) : t('可多选难度，任一难度集齐即开局')}</p>` : null}
           <p class="proto-hint">${hint}</p>
           <button type="button" class="proto-start" disabled=${!online || maint || working || loading} onClick=${match ? onQueue : onCreate}>
             <span class="proto-start__mark" aria-hidden="true"><span class="proto-start__rook"><i>[</i><${Icon} name="rook" /><i>]</i></span><small>STRONGHOLD<br />PROTOCOL</small></span>
@@ -563,7 +571,7 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
  * remembered difficulty — it is changed in the room) and 加入同盟 (the key field, 观战, recent keys) at the right, 多人匹配
  * between them, 入门协议 (玩法说明) at the bottom left. Esc or ‹ returns to the hub.
  */
-function AllianceSelect({ onClose, code, onCode, codeOk, recent, online, maint, busy, queued, onCreate, onJoin, onSpectate, onMatch, difficulty }) {
+function AllianceSelect({ onClose, code, onCode, codeOk, recent, online, maint, busy, queued, onCreate, onJoin, onList, onSpectate, onMatch, difficulty }) {
   const [leaving, leave] = useLeave(onClose);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
@@ -591,6 +599,7 @@ function AllianceSelect({ onClose, code, onCode, codeOk, recent, online, maint, 
             ${busy === 'create' ? html`<${Spinner} size="sm" />` : html`<small>${t('难度：{name}（可在同盟内更改）', { name: t(DIFFICULTY_NAMES[difficulty]) })}</small>`}</span>
         </button>
         <div class="ally-links">
+          <button type="button" class="ally-pill" data-testid="room-list-open" onClick=${onList}><${Icon} name="users" />${t('公开同盟')}</button>
           <button type="button" class="ally-pill" onClick=${onMatch}><${Icon} name="search" />${queued ? t('匹配中') : t('多人匹配')}</button>
         </div>
         <div class="ally-card ally-card--join">
@@ -678,6 +687,10 @@ export function LobbyScreen() {
   const noticeStatus = data.status('announcements'), noticeValue = data.get('announcements');
   const [recent] = useState(recentRooms);
   const [soloFree, setSoloFree] = useState(() => loadPref('lobby.soloUnlimited', false) === true);
+  const [matchPicks, setMatchPicks] = useState(() => {
+    const saved = loadPref('lobby.matchDifficulties', []);
+    return Array.isArray(saved) ? saved.filter((d) => DIFFICULTIES.includes(d)) : [];
+  });
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -751,13 +764,24 @@ export function LobbyScreen() {
   const [sheet, setSheet] = useState(null);                // null | 'solo' | 'match'
   const [sheetChained, setSheetChained] = useState(false); // opened from 选择同盟方式: no darkening of the hub between
   const [allyOpen, setAllyOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);          // 公开同盟, over 选择同盟方式 (ui/roomList.js)
   const [joinOpen, setJoinOpen] = useState(false);
   // `version`: the lobby's, only when welcome.versions is present (protocol §4; omitted when the server offers 第二期下半 alone)
   const create = (roomMode) => run('create', () => net.request('room.create', {
     mode: roomMode, difficulty: roomMode === 'solo' ? shownSolo : shownCoop, ...(versions ? { version } : {}),
     ...(roomMode === 'solo' && soloFree && soloTimed === true ? { soloUnlimited: true } : {}),
   }));
-  const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty }));
+  // 多人匹配 waits in every picked difficulty (feedback #87); the picture shows the one pressed last, and it is the first
+  const picks = matchPicks.length ? matchPicks : [difficulty];
+  const matchFocus = picks.includes(difficulty) ? difficulty : picks[picks.length - 1];
+  const pressPick = (x) => {
+    const next = toggleMatchPick(picks, x);
+    setMatchPicks(next);
+    savePref('lobby.matchDifficulties', next);
+    if (next.includes(x)) pickDifficulty(x);
+    else if (x === matchFocus) pickDifficulty(next[next.length - 1]);
+  };
+  const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty: matchFocus, ...(picks.length > 1 ? { difficulties: picks } : {}) }));
   // an offer while the hub shows: 选择模拟协议 comes up with 确认入场 (the 30-second window must not go unseen)
   useEffect(() => { if (queue?.state === 'offered' && sheet !== 'match') { setAllyOpen(false); setSheetChained(false); setSheet('match'); } }, [queue?.state]);
   const join = (c = code) => {
@@ -829,14 +853,14 @@ export function LobbyScreen() {
         <div class="hub-center__mark"><${HubRadar} bg=${bg} /><${Emblem} /></div>
         <div class="hub-center__en">STRONGHOLD PROTOCOL <b>ALLIANCE</b></div>
         <h1 class="hub-center__title">${t('卫戍协议：盟约')}</h1>
-        ${version !== DEFAULT_VERSION ? html`<div class="hub-center__ver" data-testid="hub-version">· ${versionLabel(version)}</div>` : null}
+        ${version !== DEFAULT_VERSION ? html`<div class="hub-center__ver" data-testid="hub-version">${versionLabel(version)}</div>` : null}
       </div>
 
       <aside class="hub-side">
         <${AchievementEntry} onOpen=${() => setAchOpen(true)} />
         <${HubTile} icon="key" label=${t('密钥加入')} en="JOIN WITH KEY" onClick=${() => setJoinOpen(true)} />
         <${TipsPanel} />
-        <div class="hub-contact"><div class="hub-contact__row"><${LobbyFeedback} /><${SiteBoards} /></div><${DesignCredit} /><${HubFoot} /></div>
+        <div class="hub-contact"><div class="hub-contact__row"><${SiteBoards} /></div><${DesignCredit} /><${HubFoot} /></div>
       </aside>
 
       <aside class="hub-right">
@@ -851,7 +875,7 @@ export function LobbyScreen() {
         ${queued && sheet !== 'match' ? html`<div class="matchmaking-hud brackets hub-searching" role="status">
             <div class="matchmaking-hud__info">
               <${Spinner} size="sm" />
-              <span class="matchmaking-hud__text">${queue.state === 'offered' ? t('队友已集结，请确认入场') : t('正在匹配同盟')} · ${t(DIFFICULTY_NAMES[queue.difficulty] || '')}</span>
+              <span class="matchmaking-hud__text">${queue.state === 'offered' ? t('队友已集结，请确认入场') : t('正在匹配同盟')} · ${(queueDifficulties(queue) || [queue.difficulty]).map((x) => t(DIFFICULTY_NAMES[x] || '')).join(' / ')}</span>
             </div>
             <${Button} variant="secondary" size="md" onClick=${openMatch}>${t('查看')}<//>
             <${Button} variant="danger" size="md" loading=${cancelling?.ticketId === queue.ticketId && cancelling?.status !== 'idle' && cancelling?.status !== 'failed'}
@@ -867,7 +891,8 @@ export function LobbyScreen() {
       </section>
     </main>
 
-    ${sheet ? html`<${ProtocolSelect} card=${sheetCard} purpose=${sheet === 'match' ? 'match' : 'create'} difficulty=${sheet === 'match' ? difficulty : shownSolo}
+    ${sheet ? html`<${ProtocolSelect} card=${sheetCard} purpose=${sheet === 'match' ? 'match' : 'create'} difficulty=${sheet === 'match' ? matchFocus : shownSolo}
+      picks=${sheet === 'match' ? picks : null} onPick=${pressPick}
       onDifficulty=${pickDifficulty} onClose=${() => setSheet(null)} online=${online} maint=${maint} busy=${busy} queue=${queue}
       difficulties=${sheet === 'match' ? DIFFICULTIES : solo} loading=${sheet !== 'match' && versionLoading} failed=${sheet !== 'match' && versionFailed}
       soloTime=${sheet !== 'match' && soloTimed === true ? { on: soloFree, onToggle: setSoloFreePref } : null}
@@ -875,7 +900,8 @@ export function LobbyScreen() {
 
     ${allyOpen ? html`<${AllianceSelect} onClose=${() => setAllyOpen(false)} code=${code} onCode=${(v) => setCode(normalizeCode(v))} codeOk=${codeOk}
       recent=${recent} online=${online} maint=${maint} busy=${busy} queued=${queued} difficulty=${shownCoop}
-      onCreate=${() => create('coop')} onJoin=${() => join()} onSpectate=${() => spectate()} onMatch=${openMatch} />` : null}
+      onCreate=${() => create('coop')} onJoin=${() => join()} onList=${() => setListOpen(true)} onSpectate=${() => spectate()} onMatch=${openMatch} />` : null}
+    ${listOpen && allyOpen ? html`<${RoomListDialog} online=${online} queued=${queued} busy=${busy} onJoin=${(c) => join(c)} onClose=${() => setListOpen(false)} />` : null}
 
     <${HubDialog} open=${joinOpen} micro="JOIN WITH ALLIANCE KEY" title=${t('密钥加入')} onClose=${() => setJoinOpen(false)}>
       <div class="join-row">

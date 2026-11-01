@@ -185,7 +185,6 @@
 /* a portrait phone in a big room: the top bar takes two rows (screens/game.css), the roster starts below them */
 @media (max-width: 600px) and (orientation: portrait) {
   .gm.gm--expanded .team { --team-top: 4.1rem; }
-  .gm.gm--expanded.gm--unite-budget .team { --team-top: 5.1rem; }
 }
 @media (max-height: 560px) and (orientation: landscape) and (hover: hover) and (pointer: fine) {
   .team.team--list { --team-top: 1.9rem; --team-bottom: 1.4rem; }

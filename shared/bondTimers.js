@@ -6,8 +6,8 @@ import { N_ } from './i18n.js';
 
 export const BOND_TIMERS = Object.freeze([
   { id: 'sargon', label: N_('萨尔贡·技能增益'), buffKey: 'bond:sargon', stacked: true },
-  { id: 'siracusaAspd', label: N_('叙拉古·部署攻速'), buffKey: 'bond:siracusa' },
-  { id: 'siracusaStealth', label: N_('叙拉古·部署隐匿'), buffKey: 'bond:siracusa:stealth' },
-  { id: 'siracusaAfter', label: N_('叙拉古·脱隐后触发窗口'),
+  { id: 'siracusaAspd', label: N_('叙拉古·攻击速度'), buffKey: 'bond:siracusa' },
+  { id: 'siracusaStealth', label: N_('叙拉古·隐匿'), buffKey: 'bond:siracusa:stealth' },
+  { id: 'siracusaAfter', label: N_('叙拉古·脱离隐匿'),
     window: { start: 'siraStealthEnd', bondId: 'siracusaShip', effect: 'act2autochess_bond_eff_siracusa', duration: 'end_duration' } },
 ].map(Object.freeze));

@@ -30,6 +30,11 @@
 // Logs go to the main process ('log': its logger prefixes them with the set's `[cs:<8 hex>]`).
 // options.virtualTime (tests / tools only): the matches run on a VirtualScheduler stepped in 20 ms slices — an all-AI
 // match to its end in seconds — with the heartbeats still going.
+// options.combatWorkers (official versions' hosts only: server/match/host/index.js): under server-run combat this host
+// starts a CombatWorkerPool on the installed data before 'ready' and lends it to every match, so a version room's fields
+// run in Workers and its seats get local display replicas (localReplica.js) like a default room's. The pool lives as long
+// as the host (an idle stop or a crash takes its threads with the process). A pool that cannot start, or has no Worker
+// left, only makes the next matches run inline and stream, as before.
 
 import { parentPort, workerData } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
@@ -78,6 +83,8 @@ let dslGrants = [];
 /** @type {Map<string, any>} */
 const matches = new Map();
 const ERR_INTERNAL = 'INTERNAL';
+/** How often a pool's state goes to the main process (ms). */
+const COMBAT_STATS_MS = 5000;
 
 let started = viaWorker;
 const onMessage = (m) => {
@@ -207,6 +214,7 @@ function diag(match) {
     version: versionOfData(installed),
     errorCount: match.errorCount ?? 0, errors: (match.errors || []).slice(0, 3).map((e) => String(e?.label || e?.message || e).slice(0, 200)),
     verifyStats: match.verifyStats ? { ...match.verifyStats } : null, simErrors: match.simErrors ?? 0,
+    localStats: match.localStats ? { ...match.localStats } : null,
     fields: Array.isArray(match.fields) ? match.fields.map((f) => ({ fieldId: f.fieldId, kind: f.kind, players: Array.isArray(f.players) ? [...f.players] : [], mode: f.mode ?? null,
       authority: f.authority ?? null, done: !!f.done, resultSource: f.resultSource ?? null, battleId: f.battleId ?? null })) : [],
   };
@@ -228,6 +236,7 @@ function create(matchId, opts) {
       ...opts,
       // the content set installed at boot (server/data.js getData)
       data: installed,
+      ...poolForMatch(),
       // the match names itself in its lines ([match <code>] …), as in the server process (the host adds [cs:<8 hex>])
       log,
       now: Date.now,
@@ -254,6 +263,40 @@ function create(matchId, opts) {
 
 /** server/data.js getData() is the content set after the boot (setData): every match gets it as its data. */
 let installed = null;
+/** The Worker pool of an official version's host, while it can take a match (options.combatWorkers). */
+let combatPool = null;
+
+/** Whether the matches of this host are server-run: only then a Match takes a pool (Match.js combatPool). */
+function serverRunCombat() {
+  const own = options.matchOptions?.clientCombat;
+  return own != null ? !own : String(process.env.SP_COMBAT || '').toLowerCase() === 'server';
+}
+
+/** Start the pool of an official version's host (the header). Never fails the boot: inline combat is the fallback. */
+async function startCombatPool() {
+  const size = Number(options.combatWorkers) || 0;
+  if (size < 1 || !serverRunCombat()) return;
+  try {
+    const { CombatWorkerPool } = await import('../combat/pool.js');
+    const pool = new CombatWorkerPool({ size, data: installed, bounds: bounds && bounds.v === 1 ? bounds : null, log });
+    await pool.start();
+    combatPool = pool;
+    log.info(`[host] combat pool ready (${size} workers)`);
+    postCombat();
+    setInterval(postCombat, COMBAT_STATS_MS).unref?.();
+  } catch (e) {
+    log.error('[host] the combat pool did not start: its matches run inline and stream', e);
+  }
+}
+
+/** Its Workers for /healthz (server/match/host/index.js stats). */
+function postCombat() {
+  const s = combatPool?.stats();
+  if (s) post({ type: 'combat', ready: s.ready, size: s.size, sessions: s.sessions });
+}
+
+/** The pool for a new match, while a Worker can take it. */
+const poolForMatch = () => (combatPool?.stats().ready > 0 ? { combatPool } : {});
 
 /** Virtual time (tests): run the match's scheduler in slices, the heartbeats in between. */
 function pump(match, sched) {
@@ -295,6 +338,7 @@ function handle(m) {
 function run() {
   boot().then(async () => {
     installed = getData();
+    await startCombatPool();
     booted = true;
     post({ type: 'ready' });
     for (const m of queue.splice(0)) handle(m);

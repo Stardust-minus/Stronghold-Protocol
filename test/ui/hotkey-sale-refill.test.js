@@ -24,6 +24,21 @@ test('a second X on the refilled slot with the mouse still is stale; a move or a
   assert.equal(staleHotkeySale(last, null, { x: 400, y: 600 }), false);
 });
 
+test('feedback #98: after selling the selection, X with the mouse still on another piece is stale; a move is not', () => {
+  const last = { spot: 'b:3,4', x: 400, y: 600, selected: true };
+  assert.equal(staleHotkeySale(last, 'hand:2', { x: 400, y: 600 }), true, 'the piece under the resting mouse is not sold');
+  assert.equal(staleHotkeySale(last, 'hand:2', { x: 402, y: 599 }), true);
+  assert.equal(staleHotkeySale(last, 'hand:2', { x: 420, y: 600 }), false, 'the mouse moved: a new choice');
+  assert.equal(staleHotkeySale(last, null, { x: 400, y: 600 }), false);
+});
+
+test('feedback #98: a selected piece is sold at once, whatever the last sale left', () => {
+  const src = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');
+  assert.match(src, /const uid = L\.sel \? L\.sel\.uid : pointer \? L\.view\?\.pieceAtClientPoint/);
+  assert.match(src, /if \(!L\.sel && pointer && staleHotkeySale\(lastSale, spot, pointer\)\)/);
+  assert.match(src, /lastSale = pointer \? \{ spot, x: pointer\.x, y: pointer\.y, selected: !!L\.sel \} : null/);
+});
+
 test('the game screen checks the guard before a hotkey sale and records the spot', () => {
   const src = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');
   const at = src.indexOf("act === 'sell' && available?.sell != null");

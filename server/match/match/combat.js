@@ -45,6 +45,15 @@ export class MatchCombat {
 
   _normalBattle(ps) { return this.newBattle(this._normalOpts(ps)); }
 
+  /**
+   * The room's experimental battle rules as spec flags. A rule a battle reads rides on its spec, so the Worker, a browser's
+   * local replica, a client-run field and the server's check of it all fight the same battle. Nothing when off.
+   */
+  _ruleFlags() {
+    return { ...(this.disableLayerCap ? { layerCapOff: true } : {}), ...(this.disableHitLimit ? { hitLimitOff: true } : {}),
+      ...(this.enemyHpMul !== 1 ? { enemyHpMul: this.enemyHpMul } : {}), ...(this.enemyAtkMul !== 1 ? { enemyAtkMul: this.enemyAtkMul } : {}) };
+  }
+
   /** Battle options of a player's normal field (after the onBattleStart handlers). */
   _normalOpts(ps, { preview = false, board = ps.board } = {}) {
     const wave = preview ? structuredClone(this.wave) : this.wave;
@@ -71,7 +80,7 @@ export class MatchCombat {
       spawns: this._sanitizeSpawns(Array.isArray(ev.spawns) ? ev.spawns : spawns, ps.playerId),
       routes: wave.routes,
       sharedBoss: null,
-      flags: { layerGainsEnabled: true, ...this.gd.dp },
+      flags: { layerGainsEnabled: true, ...this.gd.dp, ...this._ruleFlags() },
       fieldId: `n:${ps.playerId}`,
       enemyOverrides: wave.overrides,
       waveId: wave.templateId,
@@ -79,13 +88,13 @@ export class MatchCombat {
   }
 
   startCombat() {
+    this._applySpeedVote();
     if (this.clientCombat) { this._startCombatClient(); return; }
     this.phase = PHASE.COMBAT;
     const alive = this.alivePlayers();
     this.lastResults = new Map();
     this._normalAliveCount = alive.length;
     this._uniteRelay = null;
-    if (this.capacityExperiment) this._uniteBudget = null;
     this.fields = alive.map((ps) => this.combatPool ? this._remoteField(this._normalOpts(ps), [ps.playerId])
       : { fieldId: `n:${ps.playerId}`, kind: 'normal', players: [ps.playerId], battle: this._normalBattle(ps), live: true });
     this._beginDamage('normal');
@@ -107,7 +116,6 @@ export class MatchCombat {
     this.lastResults = new Map();
     this._normalAliveCount = alive.length;
     this._uniteRelay = null;
-    if (this.capacityExperiment) this._uniteBudget = null;
     this.watchers.clear();
     const fields = alive.map((ps) => this._ccField({ fieldId: `n:${ps.playerId}`, kind: 'normal', players: [ps.playerId], opts: this._normalOpts(ps) }));
     const limit = this.wave ? this.wave.timeLimit : 60;
@@ -166,7 +174,7 @@ export class MatchCombat {
       // Advance the watermark before dispatch: rewards can cause nested onGain/onLayers hooks.
       ps.battleLayerGains[bondId] = total;
       const before = ps.layers[bondId] || 0;
-      const add = layerGainRoom(before, total - credited);
+      const add = layerGainRoom(before, total - credited, this.disableLayerCap);
       if (!(add > 0)) continue;
       ps.layers[bondId] = before + add;
       this.dispatch(ps, 'onLayers', { bondId, from: before, to: ps.layers[bondId], reason: 'battle' });

@@ -286,7 +286,7 @@ function fakeNet() {
   return n;
 }
 
-function rig({ stepCostMs = 0 } = {}) {
+function rig({ stepCostMs = 0, loads = null, ...deps } = {}) {
   const clock = { t: 1000 };
   const frames = [];
   const net = fakeNet();
@@ -301,8 +301,9 @@ function rig({ stepCostMs = 0 } = {}) {
   const runner = createBattleRunner({
     net, store, doc: null, now: () => clock.t,
     raf: (fn) => { frames.push(fn); return frames.length; }, caf() {}, setInterval: () => 1, clearInterval() {},
-    loadSim: async () => ({ spec, ds: DS, sync: syncMod }),
+    loadSim: async (content) => { loads?.push(content?.cs ?? null); return { spec, ds: DS, sync: syncMod }; },
     logger: QUIET,
+    ...deps,
   });
   return {
     runner, net, store, clock,
@@ -376,6 +377,19 @@ test('runner: b.sync digests that match keep the replica; a different digest or 
     assert.equal(r.net.sent.length, 0);
     r.runner.dispose();
   }
+});
+
+test('runner: a room of another official version declares on that version\'s sim, never the original content\'s', async () => {
+  const cs = 'ab'.repeat(32);
+  const loads = [];
+  const r = rig({ loads, vanillaCs: () => 'cd'.repeat(32), simContent: () => ({ cs }), contentFor: async (x) => ({ cs: x, version: 'act1autochess' }) });
+  r.store.patch('me', { playerId: 'p_0' });
+  r.store.patch('room', { version: 'act1autochess', content: { cs, vanilla: true, version: 'act1autochess' } });
+  r.store.patch('match', { public: { matchId: 'm1', phase: 'PREP', localReplica: true, players: [{ playerId: 'p_0' }] } });
+  await r.settle();
+  assert.equal(r.net.sent.filter((x) => x.t === 'g.sim' && x.local === true).length, 1);
+  assert.ok(loads.length >= 1 && loads.every((x) => x === cs), JSON.stringify(loads));
+  r.runner.dispose();
 });
 
 test('runner: a replica too slow for its battle asks for g.sim { local: false } once and stops declaring', async () => {

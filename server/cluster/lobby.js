@@ -338,6 +338,9 @@ export class ClusterLobby extends Lobby {
     } catch { /* diagnostics only */ }
   }
 
+  // a room whose match is being prepared on a game node is not waiting for players
+  roomOpen(room) { return super.roomOpen(room) && !this.manualPending.has(room.code); }
+
   setExperimental(session, msg) {
     const room = this.roomOf(session), previous = room?.experimental;
     const result = super.setExperimental(session, msg);

@@ -3,7 +3,7 @@
 // strategy partly by them. ui/matchInfo.js is now the one implementation of the briefing's bond rows (greyed: the drawn
 // set D and the mode's static inactive bonds; the banned-member badge; briefingBondTip), the legend and the 本局禁用干员
 // grid (by tier): the briefing renders it (MatchInfo), the draft's 本局信息 dialog renders the same blocks
-// (MatchInfoDialog), and the in-game 本局信息 tab reads the same model (matchInfoModel). The dialog's status line repeats
+// (MatchInfoDialog), and the in-game 本局信息 tab reads the same model (matchInfoModel) and draws the same discs (bondCell). The dialog's status line repeats
 // the turn and its countdown (bandDraft.js draftInfoStatus) and a turn change closes it. Browser: test/ui/match-info.e2e.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,7 +24,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-const { matchInfoModel, MatchBondRow, MatchLegend, BannedOperators, BannedByBond, MatchInfo, MatchInfoDialog } = await import('../../public/js/ui/matchInfo.js');
+const { matchInfoModel, bondCell, MatchBondRow, MatchLegend, BannedOperators, BannedByBond, MatchInfo, MatchInfoDialog } = await import('../../public/js/ui/matchInfo.js');
 const { MatchEnemies, factionDescId, leaderBlockOf } = await import('../../public/js/ui/matchEnemies.js');
 const { briefingBondTip } = await import('../../public/js/ui/gameLogic.js');
 const { BondDisc, Tooltip, Modal, Button, placeTooltip } = await import('../../public/js/ui/components.js');
@@ -160,6 +160,20 @@ test('#68 each bond names the operators it lost: every banned member under each 
   assert.ok([...walk(BannedOperators({ model: m }))].some((v) => v.type === BannedByBond), 'the briefing and the dialog show it');
   assert.equal(BannedByBond({ model: matchInfoModel({}, SRC('mode_single_normal')) }), null, 'nothing banned: no list');
   assert.match(read('public/js/ui/enemyDrawer.js'), /<\$\{BannedByBond\} model=\$\{model\} class="ibanlist" \/>/, 'the in-game tab too');
+});
+
+test('#4 the in-game 本局信息 lists every bond on its own, the briefing\'s disc and badge as the official dropdown does', () => {
+  const m = model();
+  const b = m.bonds.find((x) => (m.perBond.get(x.bondId) || 0) > 0);
+  const cell = bondCell({ bond: b, model: m });
+  assert.equal(cell.type, Tooltip);
+  assert.equal(cell.key, b.bondId);
+  const nodes = [...walk(cell)];
+  assert.equal(nodes.find((v) => v.type === BondDisc).props.name, b.name);
+  assert.equal(textOf(nodes.find((v) => hasClass(v, 'brief-bond__ban'))), String(m.perBond.get(b.bondId)));
+  const drawer = read('public/js/ui/enemyDrawer.js');
+  assert.match(drawer, /<div class="ibonds">\s*\$\{withBans\.length \? withBans\.map\(\(b\) => bondCell\(\{ bond: b, model \}\)\)/);
+  assert.doesNotMatch(drawer, /class=\$\{cx\('ibond'/, 'no compact chips left');
 });
 
 test('MatchInfoDialog retains the briefing bonds, enemy information, 关闭 and the status line', () => {
@@ -394,7 +408,7 @@ test('the briefing, the strategy draft and the in-game 本局信息 tab all read
   // a turn change or my pick closes it; the draft's end unmounts the screen
   assert.match(draft, /const turnKey = `\$\{draft\.turnPid \|\| ''\}\|\$\{myPick \|\| ''\}`;\n\s*useEffect\(\(\) => \{ setInfoOpen\(false\); \}, \[turnKey\]\);/);
   const drawer = read('public/js/ui/enemyDrawer.js');
-  assert.match(drawer, /import \{ matchInfoModel, DiyBannedLine, BannedByBond \} from '\.\/matchInfo\.js';/);
+  assert.match(drawer, /import \{ matchInfoModel, DiyBannedLine, BannedByBond, bondCell \} from '\.\/matchInfo\.js';/);
   assert.match(drawer, /matchInfoModel\(pub, \{\s*bonds: data\.list\('bonds'\), chess: \(id\) => data\.lookup\('chess', id\), mode: data\.get\('config'\)\?\.modes\?\.\[pub\?\.modeId\],/);
   assert.doesNotMatch(drawer, /bannedPerBond|disabledBondSets/, 'the drawer derives nothing on its own');
 });

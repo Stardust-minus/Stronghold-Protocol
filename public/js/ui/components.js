@@ -221,6 +221,9 @@ export function TierChip({ tier, golden = false, size = 'md', class: cls }) {
  *   active?: boolean, disabled?: boolean, layersDisabled?: boolean, size?: 'sm'|'md'|'lg', showName?: boolean,
  *   onClick?: Function, class?: string, title?: string }} props
  */
+/** A disc's layer count: a room without the 999 cap can pass what fits under the disc; the popup keeps the exact number. */
+export const discCount = (n) => (!(n >= 10000) ? n : n >= 1e6 ? `${Math.floor(n / 1e5) / 10}M` : `${Math.floor(n / 1000)}k`);
+
 export function BondDisc({
   name = '', icon, count, layers, tier = 0, maxTier = 3, active = false, disabled = false, layersDisabled = false,
   size = 'md', showName = true, onClick, class: cls, title,
@@ -250,7 +253,7 @@ export function BondDisc({
           ? html`<${MaterialImage} class="bond__icon" src=${icon} alt="" draggable=${false} onError=${fail} />`
           : html`<span class="bond__glyph">${glyph}</span>`}
       </span>
-      ${stack != null ? html`<span class="bond__count">${stack}</span>` : null}
+      ${stack != null ? html`<span class="bond__count">${discCount(stack)}</span>` : null}
       ${disabled ? html`<span class="bond__ban" aria-label=${t('禁用')}><${Icon} name="close" /></span>` : null}
     </span>
     ${showName && name ? html`<span class="bond__name">${name}</span>` : null}

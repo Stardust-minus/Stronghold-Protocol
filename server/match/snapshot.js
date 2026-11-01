@@ -80,10 +80,10 @@ export const MATCH_FIELDS = Object.freeze({
   derived: Object.freeze([
     'opts', 'roomCode', 'mode', 'difficulty', 'modeId', 'seed', 'log', 'sendFn', 'broadcastFn', 'onEndFn', 'data', 'cs', 'vs',
     'requireCs', 'gd', 'isSolo', 'aiPicksLast', 'afkRemoveRounds', 'ownsScheduler', 'sched', 'registry', 'dispatcher',
-    'BattleClass', 'battleContent', 'timerScale', 'gameSpeed', 'snapshotHz', 'localReplica', 'botRehearsal', 'botSliceMs',
+    'BattleClass', 'battleContent', 'timerScale', 'baseGameSpeed', 'snapshotHz', 'localReplica', 'botRehearsal', 'botSliceMs',
     'botRehearsalDelegate', 'botRehearsalDelegateMs', 'hostId', 'ds', 'clientCombat', 'verifyMode', 'combatPool', 'trialPool',
     'headlessSliceMs', 'battlePrefix', 'experimental', 'revivalEnabled', 'disableSharedPool', 'playerCapacity',
-    'capacityExperiment', 'twentyPlayerMode', 'disableDuckLord', 'players', 'order', 'spectators', 'botBands', 'stage', 'pool',
+    'capacityExperiment', 'twentyPlayerMode', 'disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'enemyHpMul', 'enemyAtkMul', 'players', 'order', 'spectators', 'botBands', 'stage', 'pool',
     'playerPools', 'itemPool', 'ended', 'disposed',
     // 0.3.1: the content set's declared windows and the room's 测试 flag (both from the match options)
     'offers', 'test',
@@ -97,9 +97,11 @@ export const MATCH_FIELDS = Object.freeze({
     '_pubDirty', '_pubTimer', '_lastPubAt', '_lastPubJson', '_privDirty', '_prepEndQueued', 'fields', 'runner', 'watchers',
     'localViews', 'unitePlan', '_normalAliveCount', '_uniteRelay', 'uniteResultView', '_uniteLeftKey', '_uniteBounds',
     'teamLp', 'bossPool', '_turnToken', '_botPath', '_botTraits', '_workerBotPrepOwner', '_botEmotesMerges', 'overtimeApplied',
-    'bossOvertimeStartReal', '_finalEnding', '_bossStartAt', 'lastResultMsg', '_uniteBudget', 'onCheckpoint', 'replayRound',
+    'bossOvertimeStartReal', '_finalEnding', '_bossStartAt', 'lastResultMsg', 'onCheckpoint', 'replayRound',
     // the reroll proposal marks and the kick vote (setupVote.js, kickVote.js): a restore drops them
     '_setupProposals', 'kickVote', '_kickVoteSeq', '_kickFailed', '_kickVoteAt',
+    // 战斗 2 倍速 (speedVote.js): the votes and the speed they set go with the run; a restore is back on the base speed
+    '_speedVotes', '_speedVoteAt', '_speedUp', 'gameSpeed',
     // an open plugin window and its continuation (match/offers.js): checkpoints wait for it to close (canSnapshot)
     'offerWin', '_offerTimers', '_offerResume', '_offerResumeTimer',
     // how the bot rehearsals offered to simPool ended
@@ -379,8 +381,9 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
   // the pools of the saved setup (a setup reroll may have changed the bans since the constructor drew them), then the
   // saved copies left and equipment debt — exactly as MatchSetupVote.completeSetupReroll rebuilds them
   const bans = m.bannedChess || [];
+  // a six-seat match saved before the 3 + 3 rule goes on with the one enlarged pool it started with
   const poolGroups = createPoolGroups(m.gd, m.order, { banned: bans, experimental: m.capacityExperiment,
-    independent: m.disableSharedPool, fixedChunks: m.twentyPlayerMode });
+    independent: m.disableSharedPool, fixedChunks: m.twentyPlayerMode, legacySix: doc.pools.length === 1 });
   if (poolGroups.length !== doc.pools.length) { log?.warn?.(`[snapshot] ${m.roomCode}: checkpoint refused (pool groups)`); return false; }
   const applyLeft = (pool, saved) => {
     for (const [id, left] of Object.entries(saved || {})) {
@@ -410,7 +413,10 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
     _turnTimer: null, _pubTimer: null, _pubDirty: false, _lastPubAt: -Infinity, _lastPubJson: '', _prepEndQueued: false,
     _turnToken: 0, _progressTimer: null, _bossPubTimer: null, _bossClock: null, _bossClockOn: false, _poolTimer: null,
     pacer: null, runner: null, fields: [], unitePlan: null, teamLp: null, bossPool: null, _botPath: null, lastResultMsg: null,
+    gameSpeed: m.baseGameSpeed, _speedUp: false,
   });
+  m._speedVotes.clear();
+  m._speedVoteAt.clear();
   m.watchers.clear();
   m.localViews.clear();
   m._privDirty.clear();

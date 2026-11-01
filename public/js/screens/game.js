@@ -88,7 +88,6 @@ import { useGameData, GIcon } from '../ui/gameComponents.js';
 import { GameLoading, missingCoreData, gameScreenStage } from '../ui/gameLoading.js';
 import { useFieldView } from '../ui/fieldHost.js';
 import { TopBar, liveLp, ownLeaks, uniteRemaining, tempInfo, tempReadyReason } from '../ui/hud.js';
-import { uniteBudgetInfo } from '../ui/gameLogic/phases.js';
 import { BondStrip, BondPopup } from '../ui/bondStrip.js';
 import { TeamPanel, useRoster } from '../ui/teamPanel.js';
 import { Danmaku } from '../ui/danmaku.js';
@@ -581,6 +580,9 @@ function MatchScreen() {
     setHud(null);
     setDetail(d => d?.kind === 'unit' ? null : d);
   }, [relayKey]);
+  // a streamed field's clock under 2 倍速 (m.public speedVote; a local replica has its speed from b.start)
+  const streamSpeed = pub?.speedVote?.on ? pub.speedVote.speed : 0;
+  useEffect(() => { view?.raw?.setStreamSpeed?.(streamSpeed); }, [view, streamSpeed]);
   useEffect(() => {
     if (showPrep) audio.stopPoolSounds();
     return () => audio.stopPoolSounds(); // battle exit or game-screen unmount, including while the renderer loads
@@ -706,8 +708,9 @@ function MatchScreen() {
     if (!view || showPrep || !field?.fieldId || field.prep) return;
     const pf = pub?.fields?.find((f) => f.fieldId === field.fieldId);
     const done = field.local ? battleState?.fieldId === field.fieldId && battleState.done : pf?.live === false;
-    if (done || field.live === false) view.finishBattle?.();
-  }, [view, showPrep, field, battleState?.fieldId, battleState?.done, pub?.fields]);
+    // (the phase moved on with no last word of this field: m.public drops the fields with the phase)
+    if (done || field.live === false || (pub && !combat && !pf)) view.finishBattle?.();
+  }, [view, showPrep, field, battleState?.fieldId, battleState?.done, pub?.fields, combat]);
 
   // the round start (PR #416 by @Cromemadnd; the maintainer's confirmation from official play, 2026-10-13): the own board's
   // pieces replay their Start clip and landing sound one after another in deployment order — once per round, in 回合开始, on
@@ -1741,8 +1744,9 @@ function MatchScreen() {
         if (act === 'retreat' && available?.retreat) await retreatPiece(uid);
         else if (act === 'sell' && available?.sell != null) {
           const spot = pieceSpot(hovered);
-          if (pointer && staleHotkeySale(lastSale, spot, pointer)) { toast(t('移动鼠标后再按出售键'), 'warn'); audio.sfx('error', { volume: 0.5 }); return; }
-          lastSale = pointer ? { spot, x: pointer.x, y: pointer.y } : null;
+          // only a sale the mouse picked can be stale (#98): a selected piece was picked just now
+          if (!L.sel && pointer && staleHotkeySale(lastSale, spot, pointer)) { toast(t('移动鼠标后再按出售键'), 'warn'); audio.sfx('error', { volume: 0.5 }); return; }
+          lastSale = pointer ? { spot, x: pointer.x, y: pointer.y, selected: !!L.sel } : null;
           await sellOwnPiece(uid);
         }
         return;
@@ -1904,7 +1908,7 @@ function MatchScreen() {
   // bonds this mode never activates (标准: 10 of 23, 奥术 among them) — shown 本局禁用 on cards, chips and the popup
   const offBonds = modeOffBonds(getMode(pub?.modeId));
 
-  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, pub?.playerCapacity > 4 && 'gm--expanded', uniteBudgetInfo(pub) && 'gm--unite-budget', drag && 'is-dragging', collapsed && 'is-collapsed', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', pen && 'is-pen', readyWhy && 'has-readywhy')}
+  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, pub?.playerCapacity > 4 && 'gm--expanded', drag && 'is-dragging', collapsed && 'is-collapsed', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', pen && 'is-pen', readyWhy && 'has-readywhy')}
       data-camera=${pen ? 'pen' : camKind}>
     <div class="gm__field" ref=${hostRef} onContextMenu=${(e) => e.preventDefault()}></div>
     ${viewKind === 'loading' ? html`<div class="gm__loading"><${Spinner} label="LOADING FIELD" /></div>` : null}
@@ -1923,7 +1927,7 @@ function MatchScreen() {
         pause=${canPause || paused ? { show: canPause, paused, busy: pauseBusy, onToggle: () => togglePause(!paused) } : null}
         live=${liveLpNow} spectator=${spectator}
         spectators=${specFacts.list} myId=${myId} isHost=${specFacts.isHost} onRemoveSpectator=${removeSpectator} room=${modRoom}
-        held=${hudIn === 'wait'} />
+        held=${hudIn === 'wait'} onSpeedVote=${actions.speedVote} />
 
       <div class="gm__bonds">
         <button type="button" class="bonds-toggle" aria-expanded=${!bondsCollapsed} aria-controls="match-bond-strip"
@@ -2011,7 +2015,7 @@ function MatchScreen() {
         place=${bpPlace} over=${!!resolved && bpPlace === dSide}
         onClose=${() => setBondOpen(null)} onMember=${(id, items, standInFor, diy, skinId) => setDetail({ kind: 'chess', id, owner: bondPop.ownerId, items: items || null, standInFor: standInFor || null, diy: diy || null, ...(skinId ? { skinId } : null) })} />` : null}
 
-      ${resolved ? html`<${DetailPanel} detail=${resolved} snapHp=${snapHp} onClose=${() => { setDetail(null); setSel(null); }}
+      ${resolved ? html`<${DetailPanel} detail=${resolved} snapHp=${snapHp} enemyMul=${pub?.experimental} onClose=${() => { setDetail(null); setSel(null); }}
         bonds=${detailBonds} offBonds=${offBonds} loadout=${detailLoadout} ops=${priv?.ops ?? null} side=${dSide} shopOpen=${shopOpen} live=${liveStats} bondTimers=${bondTimers} voice=${true}
         morphMode=${morphMode} unequipAllowed=${unequipAllow}
         onUnequip=${editable && unequipAllow ? (itemUid) => actions.unequip(itemUid) : null}

@@ -105,17 +105,37 @@ export const SKILL_SUMMON_START_DEPLOY = true;
  * --layers, tools/balance.mjs applyBoard); a gain at the cap adds 0 (no onLayers, no 'layer'
  * event), and the client-result check (server/match/fields.js) bounds a reported gain by the room left. Milestones paid
  * per N layers (远见, 奇迹, 维多利亚 …) stop with the count. 0 / Infinity = no cap.
+ * A room's experimental `disableLayerCap` lifts it for one match (spec flag `layerCapOff`, docs/design/match.md).
  */
 export const BOND_LAYER_CAP = 999;
 
 /**
+ * Where a bond stops in a room with the cap lifted. Not a game rule: it only keeps a runaway board's count an exact
+ * integer in every double the layers are multiplied into, and printable on the bond strip.
+ */
+export const BOND_LAYER_SAFE_MAX = 1e9;
+
+/**
+ * 同盟列表 (feedback #30, room.list): a room can be listed from this capacity up — the rooms too large to fill from friends
+ * — and one answer carries at most ROOM_LIST_MAX rooms.
+ */
+export const ROOM_LIST_MIN_CAPACITY = 8;
+export const ROOM_LIST_MAX = 50;
+
+/**
+ * 战斗 2 倍速 (server/match/match/speedVote.js, g.speedVote): how much a passed vote multiplies the match's base game
+ * speed. On top of the forced 2×: 4 game seconds per real second.
+ */
+export const SPEED_VOTE_MULT = 2;
+
+/**
  * The layers a gain of `n` actually adds to a bond holding `before` under BOND_LAYER_CAP: min(n, cap − before), never
  * negative (a count already at or over the cap gains 0 and is never lowered); 0 for a non-positive / non-finite `n`
- * except +Infinity (= "the room left").
+ * except +Infinity (= "the room left"). `uncapped`: the room lifted the cap (BOND_LAYER_SAFE_MAX instead).
  */
-export function layerGainRoom(before, n) {
+export function layerGainRoom(before, n, uncapped = false) {
   if (!(n > 0)) return 0;
-  const cap = BOND_LAYER_CAP > 0 ? BOND_LAYER_CAP : Infinity;
+  const cap = uncapped ? BOND_LAYER_SAFE_MAX : BOND_LAYER_CAP > 0 ? BOND_LAYER_CAP : Infinity;
   const b = Number.isFinite(before) && before > 0 ? before : 0;
   return Math.max(0, Math.min(n, cap - b));
 }
@@ -130,7 +150,7 @@ export function layerGainRoom(before, n) {
  * Checked in server/sim/attack/hit.js (resolveDamage: after the calculation and output stages and the target's damage-taken
  * multipliers, before the ordered injury effects — barriers, shields, dodges) and server/sim/attack.js (dealHPLose — not
  * the 胄 drone link's pool share, `noHitLimit`, DESIGN §25.13.4). Minions, normal rounds and 联防 are unaffected.
- * 0 / Infinity = off.
+ * 0 / Infinity = off. A room's experimental `disableHitLimit` lifts it for one match (spec flag `hitLimitOff`).
  */
 export const BOSS_HIT_LIMIT = 300000;
 

@@ -12,6 +12,8 @@
 //     nominal rate, relative to the earliest of the window) plus `jitterMargin`, within [minDelay, maxDelay]; a later
 //     stream raises it at once, a steadier one lowers it by `delayEase` real s per real s. A gap in the stream longer
 //     than `jitterGap` (a pause, a hidden tab, a new battle) starts the window over,
+//   * drain(): the feed ended (a finished battle), the clock runs up to the newest snapshot, whatever `delay` was, so its
+//     last events are handed out and BattlePresentation can start the tail (feedback #105),
 //   * extrapolation guard: renderT never runs more than `maxExtrapolate` real seconds past the newest snapshot;
 //     positions are extrapolated along the last velocity for at most that long, then freeze — never for a unit the
 //     newest snapshot shows dead, stunned (frozen, asleep) or blocked, nor for an enemy it shows standing (`stand`),
@@ -244,6 +246,7 @@ export class SnapshotBuffer {
     /** @type {Map<number|string, number[]>} Parasite attachment blink times, retained after cosmetic fx is consumed. */
     this.parasiteBlinkTimes = new Map();
     this.meta = null; // latest snapshot's extra fields (dp, killed, total, boss…)
+    this.draining = false;
     return this;
   }
 
@@ -367,7 +370,9 @@ export class SnapshotBuffer {
     const dt = Number.isFinite(this.lastNow) ? clamp(now - this.lastNow, 0, 1) : 0;
     this.lastNow = now;
     const newest = this.newestT;
-    const target = newest - this.delay * this.rate;
+    // the feed is over: nothing is left to wait for, so the clock runs up to the newest snapshot (behind it a jitter delay
+    // over 1/3 s would hold it for good: the pull towards the target outweighs the clock at that distance)
+    const target = this.draining ? newest : newest - this.delay * this.rate;
     if (!Number.isFinite(this.renderT)) this.renderT = target;
     this.renderT += dt * this.rate;
     const err = target - this.renderT;
@@ -378,6 +383,9 @@ export class SnapshotBuffer {
     if (this.renderT < this.snaps[0].t) this.renderT = this.snaps[0].t;
     return this.renderT;
   }
+
+  /** The feed ended (a finished battle): drop the jitter delay until the next reset(). */
+  drain() { this.draining = true; }
 
   /** Jump the render clock to the newest snapshot (scrubbing / first frame after a reset). */
   snapToNewest() {

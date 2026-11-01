@@ -368,12 +368,15 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .istage b { color: var(--text-hi); }
 .ihead { font-size: calc(.16 * var(--t)); color: var(--mint-400); display: flex; gap: .08rem; align-items: baseline; }
 .ihead small { color: var(--text-lo); font-size: calc(.14 * var(--t)); }
-.ibonds { display: flex; flex-wrap: wrap; gap: .06rem; }
-.ibond { display: inline-flex; align-items: center; gap: .05rem; padding: .03rem .08rem .03rem .04rem; font-size: calc(.14 * var(--t)); border: 1px solid var(--line-2); color: var(--text-md); }
-.ibond.is-off { color: var(--text-dim); background: rgba(255, 255, 255, .02); text-decoration: line-through; text-decoration-color: rgba(255, 84, 84, .6); }
-.ibond.is-off .bglyph img { filter: grayscale(1) brightness(.5); }
-.ibond__ban { display: inline-flex; align-items: center; gap: .02rem; font-size: calc(.12 * var(--t)); padding: 0 .05rem; background: var(--red); color: #fff; text-decoration: none; }
-.ibond__ban .icon { width: .12rem; height: .12rem; }
+/* each bond its own disc, as the official 本局禁用干员情况 (ui/matchInfo.js bondCell; the badge and ring: briefing.css) */
+.ibonds { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(.9rem, 46px), 1fr)); gap: .12rem .04rem; }
+.ibonds > .t-dim { grid-column: 1 / -1; }
+.ibonds .brief-bond { min-width: 0; width: 100%; }
+.ibonds .brief-bond .bond { --disc: max(.58rem, 32px); }
+.ibonds .brief-bond .bond__name { font-size: max(calc(.14 * var(--t)), 9px); line-height: 1.2; }
+.ibonds .brief-bond__ban { right: max(.04rem, calc(50% - .44rem)); font-size: max(calc(.12 * var(--t)), 9px); padding: 0 max(.05rem, 2px); }
+.ibonds .brief-bond__ban .icon { width: max(.12rem, 9px); height: max(.12rem, 9px); }
+.ibonds .brief-bond.has-ban .bond__ban { display: none; } /* the official shows the one red badge: the count takes the ✕'s place */
 .ibanned { display: flex; flex-wrap: wrap; gap: .06rem; }
 .ibanned__one { padding: 0; background: none; border: 0; }
 /* 0.2.0: the player's own 自选 pieces out of the shop this match (ui/matchInfo.js DiyBannedLine) */
@@ -862,5 +865,6 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .offerov .spcard__icon { width: .6rem; height: .6rem; }
 
 /* #746: optional selected-unit bond timers; labels wrap at narrow widths and large text sizes. */
-.dbond-times__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .08rem .2rem; margin: .1rem 0; font-size: calc(.24 * var(--t)); }
+.dbond-times__row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 .16rem; font-size: calc(.15 * var(--t)); line-height: 1.6; color: var(--text-md); }
 .dbond-times__row > span { min-width: 0; overflow-wrap: anywhere; }
+.dbond-times__row > .num { color: var(--text-hi); }

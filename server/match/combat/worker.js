@@ -1,8 +1,9 @@
 // Private worker protocol. Formal/legacy sessions retain one ordered request per wire turn.
 import { parentPort, workerData } from 'node:worker_threads';
 import { initializeData } from '../../data.js';
+import { installOfficialBounds } from '../../../shared/plugins/officialBounds.js';
 
-const { epoch, data, maxSessions = 0, role = 'combat', trialProgressMs = 50 } = workerData;
+const { epoch, data, bounds = null, maxSessions = 0, role = 'combat', trialProgressMs = 50 } = workerData;
 const sessions = new Map();
 const log = Object.freeze({ error() {}, warn() {}, info() {} });
 const replyMessage = (request, result) => ({
@@ -20,6 +21,8 @@ const dispose = (session) => {
 
 try {
   initializeData(data);
+  // A version host's pool: the same caps as its match and the browsers' replicas (host/entry.js, simLoader installSimBounds).
+  if (bounds) installOfficialBounds(bounds);
   const { CombatEngine } = await import('./engine.js');
   const { TrialEngine } = await import('./trial.js');
   const { combatData } = await import('./data.js');

@@ -58,7 +58,7 @@ export function VersionPicker({ mode, versions, current, serverDefault, roomMode
               ${preview ? html`<span class="verpick__badge is-preview">${t('预览')}</span>` : null}
             </span>
             <span class="verpick__period t-lo">${periodLine(v.id)}</span>
-            ${preview ? html`<span class="verpick__note t-dim">${t('核心规则已按该版本。悬赏抽取、部分数值和六名敌人的攻击前摇仍是推算')}${chineseTexts ? html`<br />${t('该版本的游戏文本暂时只有中文')}` : null}</span>` : null}
+            ${preview ? html`<span class="verpick__note t-dim">${t('规则已按该版本还原；悬赏抽取、部分数值和六名敌人的攻击前摇为推算')}${chineseTexts ? html`<br />${t('该版本的游戏文本暂时只有中文')}` : null}</span>` : null}
             ${usable ? null : html`<span class="verpick__note is-warn">${t('该版本不支持当前的模拟方式')}</span>`}
           </button>
         </li>`;
