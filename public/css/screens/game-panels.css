@@ -369,13 +369,13 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .ihead { font-size: calc(.16 * var(--t)); color: var(--mint-400); display: flex; gap: .08rem; align-items: baseline; }
 .ihead small { color: var(--text-lo); font-size: calc(.14 * var(--t)); }
 /* each bond its own disc, as the official 本局禁用干员情况 (ui/matchInfo.js bondCell; the badge and ring: briefing.css) */
-.ibonds { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(.9rem, 46px), 1fr)); gap: .12rem .04rem; }
+.ibonds { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(.9rem, calc(46px * var(--ui))), 1fr)); gap: .12rem .04rem; }
 .ibonds > .t-dim { grid-column: 1 / -1; }
 .ibonds .brief-bond { min-width: 0; width: 100%; }
-.ibonds .brief-bond .bond { --disc: max(.58rem, 32px); }
-.ibonds .brief-bond .bond__name { font-size: max(calc(.14 * var(--t)), 9px); line-height: 1.2; }
-.ibonds .brief-bond__ban { right: max(.04rem, calc(50% - .44rem)); font-size: max(calc(.12 * var(--t)), 9px); padding: 0 max(.05rem, 2px); }
-.ibonds .brief-bond__ban .icon { width: max(.12rem, 9px); height: max(.12rem, 9px); }
+.ibonds .brief-bond .bond { --disc: max(.58rem, calc(32px * var(--ui))); }
+.ibonds .brief-bond .bond__name { font-size: max(calc(.14 * var(--t)), calc(9px * var(--ui))); line-height: 1.2; }
+.ibonds .brief-bond__ban { right: max(.04rem, calc(50% - .44rem)); font-size: max(calc(.12 * var(--t)), calc(9px * var(--ui))); padding: 0 max(.05rem, calc(2px * var(--ui))); }
+.ibonds .brief-bond__ban .icon { width: max(.12rem, calc(9px * var(--ui))); height: max(.12rem, calc(9px * var(--ui))); }
 .ibonds .brief-bond.has-ban .bond__ban { display: none; } /* the official shows the one red badge: the count takes the ✕'s place */
 .ibanned { display: flex; flex-wrap: wrap; gap: .06rem; }
 .ibanned__one { padding: 0; background: none; border: 0; }

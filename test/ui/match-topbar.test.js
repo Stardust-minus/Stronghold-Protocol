@@ -97,7 +97,7 @@ test('screens/game.js: the HUD waits only while 协议启动！ shows, comes in 
   assert.match(g, /if \(hudIn !== 'enter'\) return undefined;\n\s+const id = setTimeout\(\(\) => setHudIn\(null\), 1200\);/);
   assert.doesNotMatch(g, /roundPopShown|setHudIn\('enter'\), 4000/, 'no wait for the round plate, no 4 s cap');
   assert.match(g, /<div class=\$\{cx\('gm__hud', hudIn && `is-\$\{hudIn\}`\)\} ref=\$\{hudElRef\}>/);
-  assert.match(g, /held=\$\{hudIn === 'wait'\} \/>/);
+  assert.match(g, /held=\$\{hudIn === 'wait'\} onSpeedVote=\$\{actions\.speedVote\} \/>/);
 });
 
 test('ui/hud.js useCapsuleFx: a phase change while the HUD is held waits and plays when it comes in', () => {
@@ -105,5 +105,5 @@ test('ui/hud.js useCapsuleFx: a phase change while the HUD is held waits and pla
   assert.match(hud, /function useCapsuleFx\(phase, round, held = false\) \{/);
   assert.match(hud, /if \(s\.key !== key && !\(held && s\.key !== null\)\) \{/);
   assert.match(hud, /const fx = useCapsuleFx\(phase, pub\?\.round, held\);/);
-  assert.match(hud, /onRemoveSpectator = null, room = null, held = false \}\) \{/);
+  assert.match(hud, /onRemoveSpectator = null, room = null, held = false, onSpeedVote = null \}\) \{/);
 });
