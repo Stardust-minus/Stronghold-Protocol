@@ -9,6 +9,7 @@ import { OPERATOR_SKINS, skinFor } from '../shared/skins.js';
 import { atlasInfo, normalizeAtlas } from './assets/atlas.mjs';
 import { parseSkel, normalizeSkelPaths } from './assets/skel.mjs';
 import { resolveRoles } from './assets/anim-roles.mjs';
+import { applyRoleFix, PREFAB_SPINE_ROLES } from './assets/spine.mjs';
 import { contentHash, totalBytes } from './assets/manifest.mjs';
 import { skinBattleModels, validateSkinPng } from './assets/skin-battle-source.mjs';
 
@@ -27,13 +28,39 @@ export function skinResourceFiles(skins) {
   };
   walk(skins); return files;
 }
+/**
+ * A skin model's animation roles: resolved by name like its operator's own model (three skill slots), then the operator's
+ * prefab fix (tools/assets/spine.mjs PREFAB_SPINE_ROLES): a skin keeps its operator's skill design. 宴's skins have her
+ * one unnumbered Skill_* set too, so by name 落地斩·破门 knelt in 分神's resting pose (feedback #110) where her own model
+ * attacks with its ordinary clip. A fixed role whose clips the skin lacks stays as resolved (applyRoleFix).
+ * @param {string} charId
+ * @param {string[]} names the skin skeleton's animation names
+ * @param {Record<string, number>} durations
+ */
+export function skinAnimRoles(charId, names, durations) {
+  return applyRoleFix(resolveRoles(names, { skillIndices: [0, 1, 2], durations }), PREFAB_SPINE_ROLES[charId], durations).roles;
+}
+/** An installed skin with its operator's prefab fix applied to each battle model's roles (a skin installed before the fix). */
+export function skinWithRoleFix(rec) {
+  const fix = PREFAB_SPINE_ROLES[rec.charId];
+  if (!fix) return rec;
+  let spine = rec.spine;
+  for (const side of ['front', 'back']) {
+    const m = spine?.[side];
+    // a dynamic-illustration skin's model only idles (no attack role): nothing to fix
+    if (!m?.anims?.attack || !m.animations) continue;
+    const anims = applyRoleFix(m.anims, fix, m.animations).roles;
+    if (JSON.stringify(anims) !== JSON.stringify(m.anims)) spine = { ...spine, [side]: { ...m, anims } };
+  }
+  return spine === rec.spine ? rec : { ...rec, spine };
+}
 export function retainInstalledSkins(current, assetRoot) {
   const skins = {}, files = new Set();
   for (const [id, rec] of Object.entries(current?.skins || {})) {
     if (!skinFor(rec?.charId, id) || !rec.avatar || !rec.portrait || !rec.spine?.front) continue;
     const required = skinResourceFiles({ [id]: rec });
     if (!required.size || [...required].some(rel => !rel.startsWith(`skins/${id}/`) || rel.includes('..') || !existsSync(join(assetRoot, rel)))) continue;
-    skins[id] = rec; for (const rel of required) files.add(rel);
+    skins[id] = skinWithRoleFix(rec); for (const rel of required) files.add(rel);
   }
   return { skins, files };
 }
@@ -139,7 +166,7 @@ export async function prepareSkins({ sourceDir, fetchSources = false, catalogue 
       editorRootsRemoved: display.removed, skeletonBodyPreserved: true, animationNames: skel.animations, missingRegions: skel.missingRegions, atlasPages: ai.pages });
     // Skin hit timings are never emitted into simulator inputs; all these entries are display-only.
     return { skel: `/assets/${rel}${displayStem}.skel`, atlas: `/assets/${rel}${stem}.atlas`, textures: ai.pages.map(p => `/assets/${rel}${pageNames.get(p)}`), pma,
-      anims: dynamic ? { idle: skel.animations.find(name => /^idle$/i.test(name)) || skel.animations[0] } : resolveRoles(skel.animations, { skillIndices: [0, 1, 2], durations: skel.durations }),
+      anims: dynamic ? { idle: skel.animations.find(name => /^idle$/i.test(name)) || skel.animations[0] } : skinAnimRoles(skin.charId, skel.animations, skel.durations),
       animations: skel.durations, bounds: skel.bounds };
   };
   const prepareOne = async skin => {

@@ -826,12 +826,13 @@ every file system and URL).
 
 - **`lateOperators`**: `{ sha, charIds }` on the default version — operators newer than the pinned tables. Only their own
   character, skill and range records are read from `sha` (`tools/build-data.mjs mergeLateOperators`), so no other operator
-  moves. An operator with modules is refused: the module tables are not merged. 塔露拉 (`08ba2aea`).
+  moves; its modules (uniequip and battle_equip records) and a missing sub-profession come along. 冻河, 国度 and 塔露拉
+  (`08ba2aea`).
 - **`pins`**: the Kengxxiao/ArknightsGameData commit each file group is read from (`pins[group] ?? pins.default`;
   `null` = master). The default version is pinned too: ArknightsGameData dropped `AUTOCHESS_SEASON` from activity_table
-  with client 2.7.91 (`08ba2aea`, 2026-11-01). It stays on `17759cc8` (2026-10-08), the commit its data was built from; the
-  season lasts until `fe7d8d05` (2026-10-24), but `bee3f83c` (2026-10-14) changed 克莱门莎 S3's `projectile_life_time` from
-  5 to 3.5, which the data has not taken. Groups: `activity` (`excel/activity_table.json`), `character` (character / skill /
+  with client 2.7.91 (`08ba2aea`, 2026-11-01). It reads `fe7d8d05` (2026-10-24), the last commit with the season; against
+  `17759cc8` (2026-10-08), which the data was built from before, that changes only 克莱门莎 S3's `projectile_life_time` from
+  5 to 3.5 (`bee3f83c`, 2026-10-14), taken on the owner's word of 2026-11-02. Groups: `activity` (`excel/activity_table.json`), `character` (character / skill /
   uniequip / battle_equip tables), `range` (`excel/range_table.json`), `enemy` (`excel/enemy_handbook_table.json`,
   `levels/enemydata/enemy_database.json`), `levels` (`levels/activities/**`). The master table holds no pure 上半: commit
   `12e0a020` (2026-03-10) migrated `act1autochess` to the 下半 schema and replaced the shared `autoChessData`.
@@ -994,7 +995,7 @@ have 3 checkpoints, not today's 19-checkpoint loops (04-14); 13 elite records la
 battle_equip has only its rank-0 candidate; today ×1.25 from 潜能 5, the base talent's value); the
 自选 operators' powers and bonds are the 03-14 character_table's, so 鸿雪 and 真言 are 盟约·辅助干员 (`emptyShip`), not 萨尔贡
 (`sargonShip`), and seven more 自选 operators have one power fewer; the 9 自选 operators released after 03-14 (予愿安洁莉娜,
-怒潮凛冬, 凯尔希·思衡托, 维伊, 可露希尔, 谬因, 机械师, 克莱门莎, 珊比) are absent, so `diy.ownedPool` holds 67 against 73, 塔露拉 being the default's own (its
+怒潮凛冬, 凯尔希·思衡托, 维伊, 可露希尔, 谬因, 机械师, 克莱门莎, 珊比) are absent, so `diy.ownedPool` holds 67 against 75, 冻河, 国度 and 塔露拉 being the default's own (its
 4 V2_1-only picks 银灰, 空弦, 卡涅利安 and 伺夜 are pending, and the kitted gate drops them) and `diy.excluded` 5 against 7
 (焰狐龙梓兰 and 结城理 came later); and a few texts differ (skills, talents, enemy abilities, one bounty card).
 

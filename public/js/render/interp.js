@@ -43,6 +43,7 @@
 //       `wolves` [[id, 狼影 left, the talent's maximum]]      → sample().wolves [left, maximum]  | null
 //       `neg`    [[id, fill]] (0.01–1: the negative-HP pool's share of its cap) → sample().neg  number (0: none)
 //       `motes`  [[id, count, wide]] (魔王的「微尘」: 环绕的枚数与 S2 的宽半径) → sample().motes { n, wide } | null
+//       `fever`  [[id, fill, on]] (丰川祥子's Fever gauge: 0–1, on = Fever running) → sample().fever [fill, on] | null
 //     and two the official effects read (render/vfx/talentfx.js, skillfx.js), the same way:
 //       `layers`  [[id, n]] (the hit-negating 护盾 layers, n ≥ 1)                → sample().layers  number (0: none)
 //       `charges` [[id, stored, maximum]] (a charge skill's stored charges)   → sample().charges [stored, maximum] | null
@@ -147,6 +148,13 @@ export function normalizeSnapshot(snap) {
       (neg || (neg = new Map())).set(e[0], Math.min(1, e[1]));
     }
   }
+  let fever = null;
+  if (Array.isArray(snap.fever)) {
+    for (const e of snap.fever) {
+      if (!Array.isArray(e) || !units.has(e[0]) || !(typeof e[1] === 'number' && Number.isFinite(e[1]))) continue;
+      (fever || (fever = new Map())).set(e[0], [clamp(e[1], 0, 1), e[2] ? 1 : 0]);
+    }
+  }
   let motes = null;
   if (Array.isArray(snap.motes)) {
     for (const e of snap.motes) {
@@ -185,7 +193,7 @@ export function normalizeSnapshot(snap) {
       (face || (face = new Map())).set(e[0], e[1]);
     }
   }
-  return { t, units, down, ammo, wolves, coins, energy, charges, layers, neg, motes, stand, standCut, face, raw: snap };
+  return { t, units, down, ammo, wolves, coins, energy, charges, layers, neg, motes, fever, stand, standCut, face, raw: snap };
 }
 
 /**
@@ -451,7 +459,7 @@ export class SnapshotBuffer {
     const stamp = A.t;
     for (const [id, a] of A.units) {
       let o = out.get(id);
-      if (!o) { o = { id, x: 0, y: 0, hp: 0, maxHp: 0, sp: 0, spMax: 0, flags: 0, anim: 0, vx: 0, vy: 0, seen: 0, el: null, elFill: 0, elUntil: 0, elDur: 0, ammo: null, wolves: null, neg: 0, motes: null, face: null }; out.set(id, o); }
+      if (!o) { o = { id, x: 0, y: 0, hp: 0, maxHp: 0, sp: 0, spMax: 0, flags: 0, anim: 0, vx: 0, vy: 0, seen: 0, el: null, elFill: 0, elUntil: 0, elDur: 0, ammo: null, wolves: null, neg: 0, motes: null, fever: null, face: null }; out.set(id, o); }
       const b = B ? B.units.get(id) : null;
       if (b) {
         const dx = b[1] - a[1], dy = b[2] - a[2];
@@ -506,6 +514,7 @@ export class SnapshotBuffer {
       o.layers = A.layers?.get(id) ?? 0;
       o.neg = A.neg ? A.neg.get(id) || 0 : 0;
       o.motes = A.motes ? A.motes.get(id) || null : null;
+      o.fever = A.fever?.get(id) ?? null;
       o.face = A.face ? A.face.get(id) ?? null : null;
       o.seen = stamp;
     }

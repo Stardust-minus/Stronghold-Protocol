@@ -11,6 +11,15 @@
 
 准备、远端供给核验和正式切换必须分别授权。离线输出不自动安装入口profile、重建resolver或重启游戏。公开素材的唯一例外不授权改名重传、借旧pin绕过provider限制，或增加其他例外。
 
+## 联动素材包（`/assets/collab/`）
+
+联动干员（2026-11-02）的立绘、语音、模型只放在 `public/assets/collab/` 下，清单是 `data/assets-collab.json`（[docs/ASSETS.md](../../docs/ASSETS.md#the-collab-pack)）。发布时：
+
+1. 发布前在仓库里运行 `node tools/collab-assets.mjs --check`：清单没有包外 URL、文件齐全、`data/assets.json` 不含联动干员、普通官方特效索引不含联动干员；联动官方特效在 `assets/collab/local/fx/`，清单 `data/local-fx-collab.json` 与 `data/local-fx.json` 一样是本机文件（不进 Git），随联动包一起发布。
+2. 普通素材 profile 的库存与上传排除 `assets/collab/**`；联动包单独成一个 profile（单独的数据集前缀与 revision），按本文其余规则准备、核验和切换，与普通 profile 分别授权。
+3. 边缘需要把 `/assets/collab/` 前缀路由到联动 profile：这一路由要在 material-lb 的准备工具里另行支持（这次没有改 material-lb）；在那之前该前缀只由本机静态目录供给，不进普通 profile 的库存。`/data/assets-collab.json` 随游戏数据发布。
+4. 联动包只在房主开启联动干员的房间里被请求，流量与普通 profile 分开计。
+
 ## 同字节材料与镜像 pin
 
 游戏、静态回退源、OpenI清单及ModelScope库存必须绑定同一批准release。对象路径可以有相同内容，alias数量不等于对象数量，也不等于唯一内容数。`/assets/audio/` 与 `/media/` 后缀入口继续映射同一源文件，音频远端名无扩展名。

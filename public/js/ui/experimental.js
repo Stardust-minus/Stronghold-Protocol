@@ -4,6 +4,7 @@ import { MAX_SEATS } from '../../../shared/constants.js';
 import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
 import { ENEMY_MULTIPLIERS, isEnemyMultiplier } from '../../../shared/experimental.js';
 import { autoPoolPlan, canonicalPoolPlan, isPoolPlan, poolCount } from '../../../shared/poolPlan.js';
+import { confirmCollab } from './collab.js';
 
 /** A room's enemy multiplier as the page shows it: 1 when it has none. */
 const enemyMul = value => (isEnemyMultiplier(value) ? value : 1);
@@ -18,13 +19,14 @@ export function experimentalOptions(input) {
     ...(enemyMul(input?.enemyHpMul) !== 1 ? { enemyHpMul: input.enemyHpMul } : {}),
     ...(enemyMul(input?.enemyAtkMul) !== 1 ? { enemyAtkMul: input.enemyAtkMul } : {}),
     ...(capacity === MAX_SEATS ? {} : { playerCapacity: capacity }),
-    ...(plan ? { poolPlan: plan } : {}) };
+    ...(plan ? { poolPlan: plan } : {}),
+    ...(input?.collabOps === true ? { collabOps: true } : {}) };
 }
 
 /** Whether any option differs from a standard room's (the room's 实验性选项 button is then marked). */
 export function experimentalChanged(input) {
   const options = experimentalOptions(input);
-  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan;
+  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps;
 }
 
 export function experimentalSummary(input) {
@@ -32,7 +34,7 @@ export function experimentalSummary(input) {
   const summary = t('复活 {0} · 共享卡池 {1}', { 0: options.revivalEnabled ? t('开启') : tc('toggle', '关闭'), 1: options.disableSharedPool ? tc('toggle', '关闭') : t('开启') });
   const rules = [summary, options.disableDuckLord && t('禁用鸭爵策略'), options.disableLayerCap && t('禁用层数上限'), options.disableHitLimit && t('禁用单次伤害上限'),
     options.enemyHpMul && t('敌人生命 ×{n}', { n: options.enemyHpMul }), options.enemyAtkMul && t('敌人攻击 ×{n}', { n: options.enemyAtkMul }),
-    options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) })].filter(Boolean).join(' · ');
+    options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }), options.collabOps && t('联动干员')].filter(Boolean).join(' · ');
   return options.playerCapacity ? t('{rules} · {n} 人模式', { rules, n: options.playerCapacity }) : rules;
 }
 
@@ -44,7 +46,7 @@ export function ExperimentalSummary({ value }) {
 export function switchRow({ id, title, note, checked, disabled, onChange, testid }) {
   return html`<label class="experimental-option" for=${id}>
     <span><strong>${title}</strong>${note ? html`<small>${note}</small>` : null}</span>
-    <input id=${id} type="checkbox" role="switch" data-testid=${testid} checked=${checked} disabled=${disabled} onChange=${e => onChange(e.currentTarget.checked)} />
+    <input id=${id} type="checkbox" role="switch" data-testid=${testid} checked=${checked} disabled=${disabled} onChange=${e => onChange(e.currentTarget.checked, e)} />
   </label>`;
 }
 
@@ -85,8 +87,25 @@ export function duckLordRow({ value, mode = 'coop', ...rest }) {
     disabled: locked, onChange: on => send({ ...options, disableDuckLord: on }) });
 }
 
+/**
+ * 联动干员 (shared/experimental.js isCollabRoom): a private room only. Off → on asks the host to confirm the copyright
+ * warning first (ui/collab.js, a 5 s hold): the switch stays off until then, and on a cancel; on → off at once.
+ */
+export function collabRow({ value, source = 'private', ...rest }) {
+  const { options, locked, send } = optionsEditor({ value, ...rest });
+  if (source !== 'private') return null;
+  const on = options.collabOps === true;
+  return switchRow({ id: 'experimental-collab', testid: 'experimental-collab', title: t('联动干员'), checked: on, disabled: locked,
+    note: t('开启后，本房间所有博士可在自选编队中选用联动干员。开启前需确认版权风险提示。'),
+    onChange: (next, e) => {
+      if (!next) { const { collabOps, ...rules } = options; send(rules); return; }
+      if (e?.currentTarget) e.currentTarget.checked = on; // off until the warning is confirmed
+      confirmCollab().then((ok) => { if (ok) send({ ...options, collabOps: true }); });
+    } });
+}
+
 /** The battle rules: 规则 in a co-op room, the single page of a solo room (no teammate to rescue there). */
-export function ruleRows({ value, mode = 'coop', ...rest }) {
+export function ruleRows({ value, mode = 'coop', source = 'private', ...rest }) {
   const { options, locked, send } = optionsEditor({ value, ...rest });
   const setEnemyMul = (field, next) => {
     if (!isEnemyMultiplier(next)) return;
@@ -108,6 +127,7 @@ export function ruleRows({ value, mode = 'coop', ...rest }) {
       disabled: locked, onChange: on => send({ ...options, disableHitLimit: on }) }),
     multiplier('enemyHpMul', 'experimental-enemy-hp', t('敌人生命倍率'), t('全部敌人的生命上限，包含敌方领袖的共享生命值。')),
     multiplier('enemyAtkMul', 'experimental-enemy-atk', t('敌人攻击倍率'), t('全部敌人的攻击力，包含敌方领袖。')),
+    collabRow({ value, source, ...rest }),
   ];
 }
 

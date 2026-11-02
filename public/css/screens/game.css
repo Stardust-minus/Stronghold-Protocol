@@ -1204,3 +1204,11 @@
 
 .ai-vote { display:flex; flex-wrap:wrap; gap:.12rem; align-items:center; margin:.15rem 0; padding:.1rem; border:1px solid #426055; }
 .ai-participation-entry { flex:none; }
+/* feedback #111: 前往结算 — the 个人战报 of an eliminated player (screens/settle.js OutReport), above the 淘汰 pill */
+.gm__outbtn {
+  position: absolute; left: 50%; bottom: 3.55rem; transform: translateX(-50%); z-index: 21; display: flex; align-items: center; gap: .08rem;
+  padding: .07rem .22rem; background: rgba(40, 8, 6, .92); border: 1px solid rgba(255, 84, 84, .6); color: var(--text-hi);
+  font-size: calc(.17 * var(--t)); font-weight: 700; cursor: pointer;
+}
+.gm__outbtn:hover, .gm__outbtn:focus-visible { border-color: rgba(255, 120, 120, .9); }
+.gm__outbtn .icon { width: .2rem; height: .2rem; }

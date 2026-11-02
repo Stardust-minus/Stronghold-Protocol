@@ -8,6 +8,7 @@ import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { RemoteBattle } from '../combat/runner.js';
 import { createPoolGroups } from '../pool.js';
 import { REVIVAL_COST, REVIVAL_MIN_DONOR_LP, REVIVAL_UNAVAILABLE_REASONS, FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
+import { buildOutResult } from '../results.js';
 
 const DAMAGE_PUBLIC_MS = 1000;
 
@@ -222,6 +223,11 @@ export class MatchExtensions {
       ps.revivalUnavailableReason = REVIVAL_UNAVAILABLE_REASONS.includes(reason) ? reason : 'window-closed';
     }
     ps.lp = 0;
+    // feedback #111: a human knocked out while the match goes on gets its 个人战报 now (m.private `out`), built before its
+    // board returns to the pool; the match's m.result still follows at the end
+    if (!ps.isBot && !ps.left && !this.ended && !this.disposed) {
+      try { ps.outResult = buildOutResult(this, ps, round); } catch { ps.outResult = null; }
+    }
     ps.eliminate(round);
     if (notify) {
       this.toast(ps, 'error', msg('你的目标生命值耗尽，已被淘汰'));

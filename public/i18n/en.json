@@ -3509,5 +3509,20 @@
   "规则": "Rules",
   "卡池": "Pools",
   "未开启时按开局人数自动分组。": "Off: pools follow the seats taken at the start.",
-  "点击席位再选择目标卡池": "Press a seat, then a pool"
+  "点击席位再选择目标卡池": "Press a seat, then a pool",
+  "{label}（{n} 秒）": "{label} ({n} s)",
+  "联动干员涉及版权风险": "Collab operators carry a copyright risk",
+  "联动干员来自其他作品的联动，其形象、语音与模型的版权属于各自的权利方。": "Collab operators come from collaborations with other works; the copyright of their art, voices and models belongs to their respective rights holders.",
+  "开启后，本房间所有博士都可以在自选编队中选用联动干员，房间里的页面会下载联动素材。": "Once on, every Doctor in this room may pick collab operators in Custom Squad, and the pages in the room download the collab art.",
+  "启用即表示你知悉并接受相应的版权风险：版权风险由启用和使用联动干员的玩家自行承担。": "By turning it on you acknowledge and accept the copyright risk: it is borne by the players who turn on and use collab operators.",
+  "开启联动干员": "Turn on collab operators",
+  "我已知悉风险，开启": "I understand the risk, turn on",
+  "不开启": "Keep off",
+  "本房间已开启联动干员": "Collab operators are on in this room",
+  "所有博士可在自选编队中选用联动干员。其素材的版权属于各自的权利方，版权风险由使用的玩家自行承担。": "Every Doctor may pick collab operators in Custom Squad. Their art belongs to its rights holders; the copyright risk is borne by the players who use them.",
+  "联动干员": "Collab operators",
+  "开启后，本房间所有博士可在自选编队中选用联动干员。开启前需确认版权风险提示。": "Every Doctor in this room may pick collab operators in Custom Squad. Turning it on needs the copyright warning confirmed first.",
+  "开启联动干员的同盟不能组队匹配": "An alliance with collab operators on cannot queue as a party",
+  "联动": "Collab",
+  "联动素材没有载入，联动干员显示占位图": "The collab art did not load; collab operators show placeholders"
 }

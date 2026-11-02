@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { retainInstalledSkins, skinResourceFiles, skinManifestMetadata, skinCatalogueSource, prepareSkins } from '../tools/prepare-operator-skins.mjs';
+import { retainInstalledSkins, skinResourceFiles, skinManifestMetadata, skinCatalogueSource, prepareSkins, skinAnimRoles, skinWithRoleFix } from '../tools/prepare-operator-skins.mjs';
+import { resolveRoles } from '../tools/assets/anim-roles.mjs';
 import { scanSource } from '../tools/i18n.mjs';
 import { contentHash } from '../tools/assets/manifest.mjs';
 import { normalizeSkelPaths, parseSkel } from '../tools/assets/skel.mjs';
@@ -84,4 +85,29 @@ test('source refusal halts a bounded import, does not retry or admit unavailable
   const result = await prepareSkins({ sourceDir: join(root, 'source'), fetchSources: true, catalogue, manifestPath, assetRoot: join(root, 'art') });
   assert.equal(result.sourceBlocked, true); assert.equal(result.skins, 0); assert.equal(result.unprocessed, 4);
   assert.equal(calls, 2, 'only the two already-admitted concurrent jobs run; no source hopping or retries');
+});
+
+// feedback #110: 宴's skins have her one unnumbered Skill_* set; by name every skill slot took it, so 落地斩·破门 (S2) knelt in
+// 分神's resting pose (what players saw as S1's clip or a knock-down). A skin keeps its operator's prefab role fix.
+const UTAGE_CLIPS = { Attack: 1.2, Default: 0, Die: 1, Idle: 1, Skill_End: 0.5, Skill_Loop: 1.5, Skill_Start: 0.5, Start: 1.167 };
+test('a skin model takes its operator\'s prefab role fix: 宴\'s S2 attacks with the ordinary clip, S1 keeps the resting set', () => {
+  const roles = skinAnimRoles('char_337_utage', Object.keys(UTAGE_CLIPS), UTAGE_CLIPS);
+  assert.deepEqual([roles.skills[0].loop, roles.skills[0].begin, roles.skills[1].loop, roles.skills[1].via, roles.skill.index], ['Skill_Loop', 'Skill_Start', 'Attack', 'attack', 1]);
+  // an operator without a fix: exactly the name resolution
+  assert.deepEqual(skinAnimRoles('char_002_amiya', Object.keys(UTAGE_CLIPS), UTAGE_CLIPS), resolveRoles(Object.keys(UTAGE_CLIPS), { skillIndices: [0, 1, 2], durations: UTAGE_CLIPS }));
+  // an installed skin (made before the fix) is corrected when the manifest is rebuilt; others and idle-only models are kept as they are
+  const old = { charId: 'char_337_utage', spine: { front: { anims: resolveRoles(Object.keys(UTAGE_CLIPS), { skillIndices: [0, 1, 2], durations: UTAGE_CLIPS }), animations: UTAGE_CLIPS } } };
+  assert.equal(old.spine.front.anims.skills[1].loop, 'Skill_Loop', 'the name resolution alone');
+  assert.equal(skinWithRoleFix(old).spine.front.anims.skills[1].loop, 'Attack');
+  assert.equal(skinWithRoleFix(rec), rec);
+  const idleOnly = { charId: 'char_337_utage', spine: { front: { anims: { idle: 'Idle' }, animations: UTAGE_CLIPS } } };
+  assert.equal(skinWithRoleFix(idleOnly), idleOnly);
+});
+
+test('data/assets.json: every installed skin of an operator with a prefab role fix carries it (宴: 夏卉 FA661, 伪装)', () => {
+  const m = JSON.parse(readFileSync(new URL('../data/assets.json', import.meta.url), 'utf8'));
+  const utage = Object.entries(m.skins || {}).filter(([, s]) => s.charId === 'char_337_utage');
+  assert.ok(utage.length >= 2, '宴\'s skins are installed');
+  for (const [sid, s] of Object.entries(m.skins || {})) assert.equal(skinWithRoleFix(s), s, `${sid}: fix not applied (node tools/fetch-assets.mjs rewrites it)`);
+  for (const [sid, s] of utage) for (const side of ['front', 'back']) if (s.spine[side]) assert.equal(s.spine[side].anims.skills[1].via, 'attack', `${sid} ${side}`);
 });

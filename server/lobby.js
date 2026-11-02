@@ -118,6 +118,13 @@
 //     and a change while it runs is stored for the next match (ROOM_STARTED 'stored for the next match'). Every
 //     `welcome` carries `diyKitted` (welcomeInfo): the operators a DIY slot may field, so the client's picker offers
 //     exactly what the server accepts.
+//   * 联动干员 (the owner's decision of 2026-11-02): `experimental.collabOps` — set by the host of a private (自建) room
+//     with room.setExperimental only (never at room.create: the page asks the host to confirm a copyright warning first;
+//     a matchmade room never: BAD_MSG) — lets every player of the room pick the collab 6★ (data/backups.json
+//     `diy.excluded`). collabOn(room): room.diy keeps a collab pick only in such a room; at the match start the seat's
+//     picks are checked against the room again (seatSettings: a collab pick of a room that is off now is dropped and its
+//     slot stays empty) and the match takes the room's switch with its options (PlayerDiy.setDiy `collab`). A room with it
+//     on never enters matchmaking (matchmakingMembers BAD_MSG).
 //   * Content identity (DESIGN §32, the plugin system's first step): the lobby is given the server's vanilla content
 //     (server/plugins/identity.js; none in unit tests that build a Lobby without it). Every `welcome` carries
 //     `content: { vanilla: <cs> }` — and `plugins: <n>` when this server has n > 0 unofficial plugins (every class but a
@@ -244,7 +251,7 @@ import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, ROOM_LIST_
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, isOfficialAvatar } from '../shared/protocol.js';
 import { isSkinChoices, skinFor } from '../shared/skins.js';
 import { CARD_ROSTER } from '../shared/card-roster.js';
-import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isExperimental, sameExperimental } from '../shared/experimental.js';
+import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isCollabRoom, isExperimental, sameExperimental } from '../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
 import { encode, isErrCode, sendEncodedMany, sendMessage, sendRaw, sendSession, TokenBucket } from './net.js';
 import { isCompressibleType } from './wsCompression.js';
@@ -253,6 +260,7 @@ import { Match as DefaultMatch, AFK_REMOVE_ROUNDS } from './match/Match.js';
 import { GameData } from './match/gamedata.js';
 import { Matchmaking } from './matchmaking.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
+import { isCollabPick } from '../shared/diy.js';
 import { NO_PHASES } from './phaseMetrics.js';
 
 const VANILLA_KITTED = new Set(KITTED_CHARS);
@@ -1229,6 +1237,8 @@ export class Lobby {
     // A test room exists only when the process switch allowed it. The check runs before the room is built.
     if (test === true && this.testEnabled !== true) return fail(ERR.TEST_DISABLED);
     if (!isExperimental(experimental)) return fail(ERR.BAD_MSG);
+    // 联动干员 only from the room's settings, after the host confirmed the warning (header)
+    if (isCollabRoom(experimental)) return fail(ERR.BAD_MSG, 'collabOps: turned on in the room settings only');
     if (roomCapacity(mode, experimental) > MAX_SEATS && !this.supportsCapacity(session)) return fail(ERR.BAD_MSG);
     if (this.maintenance()) return fail(ERR.MAINTENANCE);
     if (this.queue.has(session)) return fail(ERR.QUEUED);
@@ -1429,6 +1439,7 @@ export class Lobby {
     if (this.roomQueued(room)) return fail(ERR.QUEUED);
     const capacity = roomCapacity(room.mode, experimental);
     if (room.source !== 'private' && capacity !== room.capacity) return fail(ERR.BAD_MSG, 'matchmade room capacity cannot change');
+    if (room.source !== 'private' && isCollabRoom(experimental)) return fail(ERR.BAD_MSG, 'collabOps: private rooms only');
     if (capacity > MAX_SEATS && (!this.supportsCapacity(session) || !this.capacityClients(room, capacity))) return fail(ERR.BAD_MSG);
     // Reject before touching options, ready flags, replay or seats, including a
     // disconnected human / AI in a high slot. A shrink never reassigns seats.
@@ -2185,6 +2196,7 @@ export class Lobby {
     if (!room.validCapacity() || !this.capacityClients(room)) return fail(ERR.BAD_MSG, 'all room members must support its capacity');
     if (difficulty !== room.difficulty) return fail(ERR.BAD_MSG, 'party difficulty must match the room');
     if (room.seats.some((seat) => seat?.isBot)) return fail(ERR.BAD_MSG, 'public matchmaking has no AI players');
+    if (isCollabRoom(room.experimental)) return fail(ERR.BAD_MSG, 'a room with collabOps on cannot enter matchmaking');
     if (room.activeHumans().some(seat => !seat.connected || (seat.playerId !== room.hostId && seat.ready !== true))) return fail(ERR.NOT_READY);
     const sessions = room.activeHumans().map((seat) => this.registry.byId(seat.playerId));
     if (!sessions.length || sessions.some((s) => !this.isOnline(s))) return fail(ERR.NOT_READY, 'all party members must be online');
@@ -2289,6 +2301,7 @@ export class Lobby {
     if (!offer || offer.entries.length !== offer.required || sessions.length !== offer.required
       || offer.deadline <= now) return fail(ERR.BAD_TARGET, 'expired matchmaking offer');
     if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== offer.required) return fail(ERR.BAD_MSG);
+    if (isCollabRoom(offer.experimental)) return fail(ERR.BAD_MSG, 'a matchmade room never has collabOps');
     const oldRooms = new Set();
     for (const session of sessions) {
       const entry = this.queue.entries.get(session.playerId);
@@ -2378,7 +2391,7 @@ export class Lobby {
    */
   diy(session, { picks }) {
     const room = this.roomOf(session);
-    const res = checkDiyPicks(picks, { data: this.dataFor(room), kitted: this.kittedFor(room) });
+    const res = checkDiyPicks(picks, { data: this.dataFor(room), kitted: this.kittedFor(room), collab: this.collabOn(room) });
     if (!res || !('ok' in res)) return fail(ERR.BAD_MSG, res && res.detail);
     const kept = freezeDiy(res.picks);
     const cs = this.settingsCs(room, session.playerId);
@@ -2481,6 +2494,11 @@ export class Lobby {
     return this.safeData();
   }
 
+  /** Whether a room lets its players pick the collab 6★ (header "联动干员"): a private room with collabOps on. @param {Room | null} room */
+  collabOn(room) {
+    return !!room && room.source === 'private' && isCollabRoom(room.experimental);
+  }
+
   /** The operators a 自选 slot may field in a room (its content set's list, else the vanilla one). @param {Room | null} room */
   kittedFor(room) {
     if (room?.modded) {
@@ -2576,7 +2594,12 @@ export class Lobby {
       notOwned = r && !r.error ? Object.freeze(r.notOwned.slice()) : null;
     }
     if (diy && other(s.diyCs)) {
-      const r = checkDiyPicks({ ...diy }, { data, kitted: this.kittedFor(room) });
+      const r = checkDiyPicks({ ...diy }, { data, kitted: this.kittedFor(room), collab: this.collabOn(room) });
+      diy = r && 'ok' in r ? freezeDiy(r.picks) : null;
+    }
+    // 联动干员 (header): a collab pick kept while the room had it on goes when the host turned it off since
+    if (diy && !this.collabOn(room) && Object.values(diy).some((p) => isCollabPick(data, p?.charId))) {
+      const r = checkDiyPicks({ ...diy }, { data, kitted: this.kittedFor(room), collab: false });
       diy = r && 'ok' in r ? freezeDiy(r.picks) : null;
     }
     return { loadout, ops, notOwned, diy };

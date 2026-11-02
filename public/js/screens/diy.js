@@ -13,6 +13,7 @@
 // one semantic difference is the DRAFT — a row's quick choice writes it (确认 saves it, 取消 / Esc drop it) while a 潜能 /
 // 练度 write stays immediate like the roster's; a taken option disables its row, a prototype's locked cells are static.
 
+import { CollabNotice } from '../ui/collab.js';
 import { useLayoutEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, Button, TierChip, TextField } from '../ui/components.js';
 import { Img, BondGlyph } from '../ui/gameComponents.js';
@@ -206,7 +207,7 @@ function DiyRow({ m, slot, opt, ch, takenTier, draft, selected, skins = {}, ops,
         title=${note || name} onClick=${() => onSel(opt.charId)}>
       <span class="lo-card__art"><${Img} src=${chessAvatarUrl(m, avatarRecord(u, false, skins))} fallbackSrc=${chessAvatarUrl(m, avatarRecord(u))} fallback=${html`<span class="lo-card__glyph">${[...name][0]}</span>`} /></span>
       <span class="lo-card__id">
-        <span class="lo-card__name">${name}</span>
+        <span class="lo-card__name">${name}${opt.collab ? html`<span class="diy-opt__collab" data-testid="diy-collab-tag">${t('联动')}</span>` : null}</span>
         <span class="lo-card__bonds">${(opt.bonds || []).map((b) => html`<${Img} key=${b} src=${bondIconUrl(m, b)} class="lo-card__bond" alt=${bondName(b)}
           fallback=${html`<i class="lo-bond__dot" title=${bondName(b)}></i>`} />`)}</span>
         <span class="diy-opt__sub"><${KindTag} proto=${opt.proto} /><span class="diy-opt__class"><${Img} src=${profIconUrl(m, u?.profession)} class="diy-opt__prof" />${classLine(u)}</span>
@@ -276,12 +277,12 @@ export function DiyPicker(props) {
  * chips select (null = every one), `query`, `draft` the pick being made (null = none chosen yet) and their setters,
  * `narrowDetail` the phone layout (the detail over the list).
  */
-export function DiyPickerView({ m, slot, picks, kitted, onDone, onClose, filter, prof = null, query, draft, onFilter: setFilter,
+export function DiyPickerView({ m, slot, picks, kitted, collab = false, onDone, onClose, filter, prof = null, query, draft, onFilter: setFilter,
   onProf = () => {}, onQuery: setQuery, onDraft: setDraft, skins = {}, skinSync = 'idle', onSkins,
   ops = {}, onOps = null, previewLevel = 'elite', onPreviewLevel = () => {}, narrowDetail = false, onNarrowDetail = () => {} }) {
   const D = diyData();
   const cur = picks[slot.slotId] || null;
-  const options = pickOptions(slot.slotId, picks, D, kitted);
+  const options = pickOptions(slot.slotId, picks, D, kitted, { collab });
   const tiers = new Map(diySlotList(D).map((s) => [s.slotId, s.tier]));
   const q = query.trim().toLowerCase();
   const list = options.filter((o) => (filter === 'all' || (filter === 'proto') === o.proto)
@@ -346,6 +347,7 @@ export function DiyPickerView({ m, slot, picks, kitted, onDone, onClose, filter,
             <button type="button" class="diy-pick__x" aria-label=${t('关闭')} onClick=${onClose}><${Icon} name="close" /></button>
           </div>
           <div class="lo-frow diy-pick__profrow"><${ProfFilter} m=${m} prof=${prof} onProf=${onProf} /></div>
+          ${collab ? html`<${CollabNotice} compact=${true} />` : null}
         </header>
         <div class="lo-list diy-pick__list">
           <${DiyHead} />
@@ -419,11 +421,12 @@ export function DiyPanel(props) {
 }
 
 /** The tab's view (no hooks: the tests draw it): `picking` = the slot being filled, or null. */
-export function DiyPanelView({ m, picks, legal, kitted, onSet, picking, onPicking: setPicking, skins = {}, skinSync = 'idle', onSkins, ops = {}, onOps = null }) {
+export function DiyPanelView({ m, picks, legal, kitted, collab = false, onSet, picking, onPicking: setPicking, skins = {}, skinSync = 'idle', onSkins, ops = {}, onOps = null }) {
   const slots = diySlotList(diyData());
   const slot = picking ? slots.find((s) => s.slotId === picking) : null;
   const tiers = [...new Set(slots.map((s) => s.tier))];
   return html`<main class="diy" data-testid="diy">
+    ${collab ? html`<${CollabNotice} />` : null}
     <div class="own__bar">
       <p class="own__lead">${t('5阶与6阶各有两个自选名额：选择持有的 6★ 干员（任选技能与模组）或原型干员（技能锁定）。自选干员只出现在你自己的商店里，调度中心达到该阶等级后才会刷新，价格与同阶干员相同；盟约按干员实际所属阵营分配，没有特质。')}</p>
     </div>
@@ -436,7 +439,7 @@ export function DiyPanelView({ m, picks, legal, kitted, onSet, picking, onPickin
         </div>
       </section>`)}
     </div>
-    ${slot ? html`<${DiyPicker} m=${m} slot=${slot} picks=${picks} kitted=${kitted} skins=${skins} skinSync=${skinSync} onSkins=${onSkins} ops=${ops} onOps=${onOps} onClose=${() => setPicking(null)}
+    ${slot ? html`<${DiyPicker} m=${m} slot=${slot} picks=${picks} kitted=${kitted} collab=${collab} skins=${skins} skinSync=${skinSync} onSkins=${onSkins} ops=${ops} onOps=${onOps} onClose=${() => setPicking(null)}
       onDone=${(pick) => { onSet(slot.slotId, pick); setPicking(null); }} />` : null}
   </main>`;
 }

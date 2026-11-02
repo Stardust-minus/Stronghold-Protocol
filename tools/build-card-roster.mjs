@@ -30,7 +30,9 @@ export function renderRoster() {
     const chess = json(`${dir}chess.json`);
     for (const c of Array.isArray(chess) ? chess : Object.values(chess)) if (c && !c.isDiy && c.visible !== false) put(c.charId, c.name, c.rarity);
     const diy = json(`${dir}backups.json`).diy || {};
-    for (const [id, op] of Object.entries(diy.operators || {})) put(id, op?.name, op?.rarity);
+    // never a collab 6★ (diy.excluded): a display card is seen in every room, their art only where 联动干员 is on
+    const collab = new Set(Array.isArray(diy.excluded) ? diy.excluded : []);
+    for (const [id, op] of Object.entries(diy.operators || {})) if (!collab.has(id)) put(id, op?.name, op?.rarity);
   }
   const rows = [...by.values()].sort((a, b) => (a.charId < b.charId ? -1 : 1));
   return `// shared/card-roster.js — every operator a display card can show (room.card charId / avatar): the lobby and the server

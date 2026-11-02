@@ -2,7 +2,8 @@
 //   SP_E2E=1 CHROME_PATH=… node --test test/ui/downed-plate.e2e.test.js
 //
 // Through the dev mock: my LP runs out while teammates play on — the dialog, focus on 继续观战, Esc closes it; 离开模拟
-// opens the exit dialog; nothing when the whole team falls or without the art pack. Static counterpart:
+// opens the exit dialog, or with the server's 个人战报 (m.private out) 前往结算 opens it (feedback #111); nothing when the
+// whole team falls or without the art pack. Static counterpart:
 // test/ui/downed-plate.test.js.
 
 import { test, describe, before, after } from 'node:test';
@@ -98,6 +99,42 @@ describe('协议已失效 (headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 
     await page.click('.downm__btn--leave');
     await page.waitForFunction(() => !document.querySelector('[data-testid="downed-plate"]')
       && [...document.querySelectorAll('.modal__title')].some((h) => h.textContent === '离开模拟'), { timeout: 2000 });
+    assert.deepEqual(problems, []);
+    await context.close();
+  });
+
+  // feedback #111: the server's 个人战报 of the elimination (m.private `out`) turns the second button into the official
+  // 前往结算: the report over the game (模拟中断, 继续观战), then a 前往结算 button to open it again
+  test('with the 个人战报 (m.private out): 前往结算 opens it, 继续观战 closes it, the HUD button reopens it', async () => {
+    const { page, problems, context } = await open();
+    await page.evaluate(() => {
+      const M = globalThis.__MOCK__;
+      M.mutate((s) => {
+        const me = s.pub.players[0];
+        s.priv.alive = false; s.priv.lp = 0; me.alive = false; me.lp = 0;
+        s.priv.out = { provisional: true, victory: false, roundsPassed: 2, hiddenReached: false, hiddenCleared: false, reason: 'eliminated',
+          modeId: s.pub.modeId, difficulty: s.pub.difficulty, seed: 1, durationMs: 600000,
+          players: [{ playerId: me.playerId, seat: 0, name: me.name, isBot: false, left: false, alive: false, victory: false, roundsPassed: 2,
+            eliminatedRound: 3, lp: 0, bandId: me.bandId ?? null, lineup: [], bonds: [], title: null, trophies: 1, reward: 120,
+            stats: { dmgDealt: 0, kills: 0, leaks: 0, gold: 0, refreshes: 0, merges: 0, itemsEquipped: 0, bossDamage: 0, activatedLayers: 0, lpLost: 0, perfectRounds: 0 } }] };
+      });
+      M.pushPublic();
+    });
+    await page.waitForSelector('[data-testid="downed-settle"]', { timeout: 3000 });
+    assert.equal(await page.$('.downm__btn--leave'), null, '前往结算 in place of 离开模拟');
+    await page.click('[data-testid="downed-settle"]');
+    await page.waitForSelector('[data-testid="settle-out"]', { timeout: 3000 });
+    await page.waitForSelector('[data-testid="settle-out"] .settle__next', { timeout: 6000 });
+    const title = await page.evaluate(() => document.querySelector('[data-testid="settle-out"] .sself__title')?.textContent?.trim());
+    assert.equal(title, '模拟中断');
+    assert.equal(await page.evaluate(() => document.querySelector('[data-testid="settle-out"] .settle__nextlabel')?.textContent), '继续观战');
+    await page.click('[data-testid="settle-out"] .settle__next');
+    await page.waitForFunction(() => !document.querySelector('[data-testid="settle-out"]'), { timeout: 3000 });
+    await page.waitForSelector('[data-testid="out-report"]', { timeout: 2000 });
+    await page.click('[data-testid="out-report"]');
+    await page.waitForSelector('[data-testid="settle-out"]', { timeout: 3000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('[data-testid="settle-out"]'), { timeout: 3000 });
     assert.deepEqual(problems, []);
     await context.close();
   });

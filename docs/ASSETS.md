@@ -864,6 +864,50 @@ bandwidth, layer 1) the server hands out a view of each (`server/http/assetIndex
   and are laid over whatever the page draws. Neither committed manifest, nor the views above, ever change with a plugin:
   without one a page loads exactly what it loaded before.
 
+## The collab pack
+
+The art, voices and models of the collab 6★ (data/backups.json `diy.excluded`: 灰烬, 艾拉, 麒麟R夜刀, 焰狐龙梓兰, 玛露西尔,
+丰川祥子, 结城理, and the summons only they field) are a pack of their own (the owner's decision of 2026-11-02;
+`shared/collabAssets.js`): they are offered only in a private room whose host turned 联动干员 on after a copyright
+warning (docs/EXPERIMENTAL-MULTIPLAYER.md), so they never ship with the normal pack.
+
+- **Files**: under `public/assets/collab/` (`COLLAB_ASSET_PREFIX` `/assets/collab/`), the normal pack's layout below it
+  (`/assets/collab/char/avatar/…`, `/assets/collab/spine/op/<id>/front/…`, `/assets/collab/audio/…`). A generic file the
+  normal pack names too (a shared sound such as `b_char_dead.mp3`) is a copy there: the normal pack keeps its own.
+- **Manifest**: `data/assets-collab.json`, the schema of `data/assets.json` with the sections `chars`, `tokens`, `skills`,
+  `skillsById`, `modules`, `skins`, `audio` only, every URL under the prefix (`collabManifestProblems`). `data/assets.json`
+  names no collab operator and no pack file (`node tools/collab-assets.mjs --check`). The server serves its view like the
+  other manifests (content-hashed URLs, `server/http/assetViews.js`).
+- **Loading**: a page fetches `/data/assets-collab.json` only in a room with 联动干员 on (`public/js/content.js`), once per
+  page, and lays it beneath the cosmetic layers (`public/js/cosmetics.js setCollab`, `mergeCollabManifest`): add-only,
+  so it never changes an entry of the normal manifest; leaving the room or the host turning it off takes it away. A page
+  never in such a room fetches nothing of the pack. The predownload, the offline asset pack and the display cards
+  (`shared/card-roster.js`) leave the collab operators out. This is no access control: the files are public URLs;
+  the pack only keeps them out of what every player downloads.
+- **Building it**: `node tools/collab-assets.mjs --body <entries.json>` takes the collab operators' entries with their
+  normal URLs (the sections above, as `tools/fetch-assets.mjs` would write them), writes `data/assets-collab.json` and moves
+  their files from the normal paths into `public/assets/collab/` (`--copy` keeps the originals; a file the normal
+  manifests name is always copied). `tools/fetch-assets.mjs` plans the normal pack without the collab operators
+  (`presentationUnion(…, { collab: false })`); the coverage audit (`tools/assets/coverage.mjs`) reads the normal manifest
+  with the pack laid over it.
+- **Release**: the normal material profile is built from `public/assets/` without `collab/`; the collab pack is
+  `public/assets/collab/` alone, published and checked as its own profile (deploy/stardust/MATERIAL-SOURCES.md
+  "联动素材包"), and `data/assets-collab.json` ships with the data.
+- **Summons**: 艾拉's 雷鸣地雷 (`token_10033_ela_grzmot`, a device on its tile) has the local client's model, which no dump
+  carries: exported like the TOKEN_SPINES (`extract.py export_token_spines`, metadata by `tools/assets/spine.mjs
+  localSpineMeta`) into a scratch folder and given to the pack as a plain `tokens[id].spine` (its own
+  `/assets/collab/spine/token/…`), never into `tools/assets/local-token-spines.json` or `data/local-assets.json`.
+- **Official battle effects**: the collab operators' effects are the pack's too. `extract.py --only fx` leaves them out of
+  the normal set (`--fx-collab exclude`, the default); `--fx-collab only` with `--out <dir>/local --manifest
+  <dir>/local-assets.json` extracts them alone into a scratch folder, and `node tools/collab-assets.mjs --fx <dir>`
+  writes `data/local-fx-collab.json` (the schema of `data/local-fx.json`, every path under `/assets/collab/local/fx/`;
+  host-local like it, git-ignored, served as a hashed view, never loaded by the server nor part of the content hash)
+  and copies `index.json`, `textures.json` and every prefab, texture and mesh the normal set lacks into
+  `public/assets/collab/local/fx/` — a key both sets have stays the normal pack's. The page's effects library
+  (`public/js/render/vfx/library.js`) fetches that list only while the collab layer is on, merges its index (units,
+  projectiles, skills, skins, prefabs), file groups and texture info add-only, and drops them again when the layer goes
+  (`shared/collabAssets.js mergeFxIndex`). `--check` also fails when the normal effects index names a collab unit or skill.
+
 ## Player-initiated predownload
 
 The title screen's **下载完整素材** button (`public/js/ui/assetDownload.js`, queue in

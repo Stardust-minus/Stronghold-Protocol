@@ -2,9 +2,11 @@
 // 10:58): over the official map (settle/settlemen_personal_fail) the robot's face is knocked out (X eyes), 协议已失效 /
 // STRONGHOLD PROTOCOL beside it, and two buttons under it. The face has no sprite in the extracted art, so it is an
 // original pixel drawing (PIX below), as the maintainer's checklist allows where no official art exists.
-// The official second button is 前往结算 (the player's own settlement at once); this project settles a match only when
-// it ends, so the button here is the existing 离开模拟 dialog (ui/matchChrome.js ExitModal) [ASSUMED]. 继续观战 (or Esc)
-// closes it and the player watches on, as in 0.3.0. It is the project's Modal (focus trap, focus returned).
+// The official second button is 前往结算 (the player's own settlement at once): with the server's 个人战报 of the
+// elimination (m.private `out`, feedback #111) it opens that report (screens/settle.js OutReport) and the player watches
+// on after it — this project's match still settles when it ends. Without one (an older server) the button is the
+// existing 离开模拟 dialog (ui/matchChrome.js ExitModal) [ASSUMED], as before. 继续观战 (or Esc) closes it and the player
+// watches on, as in 0.3.0. It is the project's Modal (focus trap, focus returned).
 // screens/game.js opens it once, when the player's `alive` turns false with a teammate still in, and only once the map
 // sprite is in (downedArtReady): without the art pack 0.3.0's toast and pill stay. With prefers-reduced-motion it shows
 // without the motion. Styles: css/screens/game-panels.css (.downm). [ASSUMED] the positions, sizes and timing, measured
@@ -107,7 +109,7 @@ function PixFace({ kind, class: cls }) {
  * The 协议已失效 dialog.
  * @param {{ open: boolean, onWatch: Function, onLeave: Function }} props
  */
-export function DownedPlate({ open, onWatch, onLeave }) {
+export function DownedPlate({ open, onWatch, onLeave, onSettle = null }) {
   const [out, setOut] = useState(false);
   useEffect(() => {
     if (!open) { setOut(false); return undefined; }
@@ -125,7 +127,9 @@ export function DownedPlate({ open, onWatch, onLeave }) {
     </div>
     <div class="downm__btns">
       <${Button} variant="secondary" class="downm__btn downm__btn--watch" data-autofocus=${true} onClick=${onWatch}><${GIcon} name="eye" class="btn__icon" />${t('继续观战')}<//>
-      <${Button} variant="danger" icon="exit" class="downm__btn downm__btn--leave" onClick=${onLeave}>${t('离开模拟')}<//>
+      ${onSettle
+        ? html`<${Button} variant="danger" class="downm__btn downm__btn--settle" data-testid="downed-settle" onClick=${onSettle}>${t('前往结算')}<//>`
+        : html`<${Button} variant="danger" icon="exit" class="downm__btn downm__btn--leave" onClick=${onLeave}>${t('离开模拟')}<//>`}
     </div>
   <//>`;
 }

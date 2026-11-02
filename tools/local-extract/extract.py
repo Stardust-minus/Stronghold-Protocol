@@ -1090,6 +1090,8 @@ def main():
     ap.add_argument('--fx-skin-bundles', default='', metavar='DIR',
                     help='with --fx-set used: an AB root of newer bundles read for those skins only (its '
                          'skinpack/<charId>.ab first; its effect prefabs the client lacks)')
+    ap.add_argument('--fx-collab', choices=('exclude', 'only'), default='exclude',
+                    help="with --only fx: leave out the collab picks (data/backups.json diy.excluded) and their summons, or take only them (their own pack)")
     ap.add_argument('--fx-add-only', action='store_true',
                     help='extract only units/prefabs missing from the current fx index; preserve the existing set')
     ap.add_argument('--fx-texture-format', choices=('webp', 'png'), default='webp',
@@ -1165,7 +1167,7 @@ def main():
                               fx_manifest=Path(args.manifest).with_name(fx.FX_MANIFEST), texture_format=args.fx_texture_format,
                               add_only=args.fx_add_only,
                               catalogue=False if args.fx_skins == 'off' else args.fx_skins or None,
-                              skin_bundles=args.fx_skin_bundles or None)
+                              skin_bundles=args.fx_skin_bundles or None, collab=args.fx_collab)
     if stage_ids:
         total += export_scenes(ab_root, out_root, manifest, print, stage_ids, scene_roots(ab_root, args.scenes))
     old, old_chars = {}, {}

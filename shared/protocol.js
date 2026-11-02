@@ -221,7 +221,8 @@ export const isLoadoutOps = (v) => isMap(v, LOADOUT_LIMITS.ops, isId, isOpsEntry
 /**
  * The operators a player sets a potential / 练度 for (0.2.2): the charIds of the 干员调配 roster — the visible normal chess
  * (checkLoadout's targets; a hidden chess shares its visible twin's charId: 锡人, 耶拉 …) — and the owned 6★ 自选 picks
- * (data/backups.json `diy.ownedPool`). A PRESET (特许) operator the player does not own is set by hand (潜能 1, 未精英化:
+ * (data/backups.json `diy.ownedPool`; not the collab 6★ `diy.excluded`, who fight at the default 潜能 / 练度 and stay out
+ * of the roster every player sees). A PRESET (特许) operator the player does not own is set by hand (潜能 1, 未精英化:
  * the official 「未持有的特许按1潜」 and +0 %); a 补位 stand-in or a prototype pick takes neither.
  * @param {Record<string, any>|null|undefined} chess data/chess.json
  * @param {any} [backups] data/backups.json
@@ -426,12 +427,13 @@ export const isDiyPicks = (v) => isMap(v, DIY_LIMITS.slots, isId, isDiyPickWire)
  * passes shared/diy.js validateDiyPicks — so the result always passes it, and of two picks that clash (one owned operator
  * in two slots, one operator twice in a tier) the first slot keeps it. Kept picks are complete
  * (`{ charId, skillIndex, uniEquipId }`: a prototype's locked selection, uniEquipId null = no module).
+ * `collab`: the room has 联动干员 on (shared/diy.js isCollabPick; off = a collab pick is dropped).
  * @param {any} picks `room.diy.picks`
- * @param {{ data: any, kitted?: Iterable<string>|((id: string) => boolean)|null }} opts
+ * @param {{ data: any, kitted?: Iterable<string>|((id: string) => boolean)|null, collab?: boolean }} opts
  * @returns {{ ok: true, picks: Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>, dropped: number }
  *   | { error: 'BAD_MSG', detail: string }}
  */
-export function checkDiyPicks(picks, { data, kitted = null } = { data: null }) {
+export function checkDiyPicks(picks, { data, kitted = null, collab = false } = { data: null }) {
   if (!isDiyPicks(picks)) return { error: 'BAD_MSG', detail: 'bad 自选 picks' };
   const slots = diySlotIds(data);
   /** @type {Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>} */
@@ -441,7 +443,7 @@ export function checkDiyPicks(picks, { data, kitted = null } = { data: null }) {
   for (const slotId of slots) {
     const pick = Object.hasOwn(picks, slotId) ? picks[slotId] : null;
     if (pick == null) continue;
-    const res = validateDiyPicks({ ...kept, [slotId]: pick }, { data, kitted });
+    const res = validateDiyPicks({ ...kept, [slotId]: pick }, { data, kitted, collab });
     if ('ok' in res) kept[slotId] = res.picks[slotId];
     else dropped++;
   }

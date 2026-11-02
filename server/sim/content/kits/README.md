@@ -166,8 +166,9 @@ or a prototype (DATA.md §18, `shared/diy.js`). The prototypes run their stand-i
 an owned 6★ can be picked only once it has a kit of its own: one file per operator, the same rules as every kit above.
 Contributions are welcome — one operator per pull request is easiest to review.
 
-**Who.** The owned-6★ picks are `data/backups.json diy.ownedPool` (73 operators; the collab operators are not included,
-the owner's decision of 2026-10-05). The ones still without a kit:
+**Who.** The owned-6★ picks are `data/backups.json diy.ownedPool` (75 operators; the collab operators are not included,
+the owner's decision of 2026-10-05) and the 7 collab picks of `diy.excluded`, offered only in a room whose host turns on
+联动干员 (their kits are `op-ash.js` … `op-makoto.js`, written the same way). The ones still without a kit:
 
 ```sh
 node --input-type=module -e "import { readFileSync } from 'node:fs'; import { KITTED_CHARS } from './server/sim/content/kits/index.js';
@@ -205,8 +206,8 @@ talent: read the base from `talentsBase` and the module's own part from the modu
 万兽之王); `def.tier` (5 / 6), `def.golden`, `def.charId`, `def.diyFor` (the slot). There is **no default skill**: the
 pick chooses any of the three, so write every skill under `skills: { [skillId]: SkillSpec }` (`skill` is ignored);
 `talents`, `trait` and `install` apply under every skill. Read every number from `chess` / `bb` — the same file serves
-both tiers, both forms and both module stages. A 自选 piece has no 特质 and its bonds come from its factions (plus `tools/build-data.mjs DIY_EXTRA_BONDS`, 塔露拉's 奥术 and
-不屈): neither is the kit's business. Summons: `battle.tokenDef(tokenId, unit)` / `battle.spawnToken(unit, …)` resolve the variant of the
+both tiers, both forms and both module stages. A 自选 piece has no 特质 and its bonds come from its factions (plus `tools/build-data.mjs DIY_EXTRA_BONDS`, the 定位
+bonds the owner chose for the 2026-11-01 operators and the collab picks): neither is the kit's business. Summons: `battle.tokenDef(tokenId, unit)` / `battle.spawnToken(unit, …)` resolve the variant of the
 pick. A **placeable** summon (data/backups.json `tokens[id].placeable`, made by the pick's skill or a talent — the
 variant's `sources` — and shown by its owner: a skill's own object such as 予愿安洁莉娜's “一会儿见！” is not) is a hand piece like any operator's: when the 自选 piece is deployed in prep its player gets one
 stack of the variant's `deployLimit` — the picked module's own when its variant has one (望's TRP-X: 7 棋子); it holds

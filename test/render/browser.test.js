@@ -25,7 +25,7 @@ describe('render engine in headless Chrome', { skip }, () => {
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     // the content-hash index first: every page then loads the served manifest's /assets/~<hash>/… URLs (ASSETS.md)
     await srv.assetIndex?.whenReady();
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-first-run'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-first-run', '--no-sandbox'] }); // as root too, like the other browser tests
     mkdirSync(OUT, { recursive: true });
   });
   after(async () => {
@@ -156,6 +156,37 @@ describe('render engine in headless Chrome', { skip }, () => {
       assert.equal(sampled.destination, host.tileC, JSON.stringify(sampled));
       await wait(350);
       await page.screenshot({ path: path.join(OUT, 'parasite-after-blink.png') });
+      assert.deepEqual(problems, []);
+    } finally { await page.close(); }
+  });
+
+  test('丰川祥子\'s Fever bar from a real snapshot: under her HP / SP bars, rose while it fills, brighter during Fever', async () => {
+    const { makeBattle } = await import('../helpers/battleHarness.js');
+    const { feverState } = await import('../../server/sim/content/kits/ops/op-oblvns.js');
+    const h = makeBattle({ autoFinish: false, units: [{ uid: 1, diy: { slot: 'chess_char_5_diy1_a', charId: 'char_4182_oblvns', skillIndex: 2, uniEquipId: null }, elite: true, row: 10, col: 4 }] });
+    h.step(); const u = h.unit(1);
+    feverState(h.b).gauge = 300;
+    const { page, problems } = await open('scene=prep&panel=0', 1600, 900);
+    try {
+      await page.evaluate(({ meta, snap }) => {
+        window.__demo.pause(); const v = window.__demo.view;
+        v.enterBattle(meta); v.pushSnapshot(snap);
+      }, { meta: h.b.fieldMeta(), snap: h.b.snapshot() });
+      await page.waitForFunction(id => window.__demo.view.debug.views.get(id)?._feverBar?.root.visible, {}, u.id);
+      const filling = await page.evaluate(id => {
+        const v = window.__demo.view.debug.views.get(id), r = v._feverBar, hp = v.hpBg.getBounds(), bar = r.bg.getBounds();
+        return { share: r.fill.width / (r.bg.width - 2), tint: r.fill.tint, hpBottom: hp.bottom, barTop: bar.top };
+      }, u.id);
+      assert.ok(Math.abs(filling.share - 300 / 450) < 0.01, JSON.stringify(filling));
+      assert.ok(filling.barTop >= filling.hpBottom, `under the HP bar: ${JSON.stringify(filling)}`);
+      await page.screenshot({ path: path.join(OUT, 'oblvns-fever-filling.png') });
+      // Fever running, 12 of its 20 s left: the view re-entered on that snapshot (the demo's clock is paused)
+      feverState(h.b).until = h.b.time + 12;
+      await page.evaluate(({ meta, snap }) => { const v = window.__demo.view; v.enterBattle(meta); v.pushSnapshot(snap); }, { meta: h.b.fieldMeta(), snap: h.b.snapshot() });
+      await page.waitForFunction(id => window.__demo.view.debug.views.get(id)?.fever?.[1] === 1, {}, u.id);
+      const on = await page.evaluate(id => { const r = window.__demo.view.debug.views.get(id)._feverBar; return { share: r.fill.width / (r.bg.width - 2), tint: r.fill.tint }; }, u.id);
+      assert.ok(Math.abs(on.share - 12 / 20) < 0.01, JSON.stringify(on));
+      await page.screenshot({ path: path.join(OUT, 'oblvns-fever-on.png') });
       assert.deepEqual(problems, []);
     } finally { await page.close(); }
   });

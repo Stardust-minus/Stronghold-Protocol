@@ -1319,3 +1319,21 @@
   .verpick__badge { font-size: calc(.2 * var(--t)); }
   .verpick__period, .verpick__note { font-size: calc(.21 * var(--t)); }
 }
+
+/* ---- 联动干员 (ui/collab.js): the host's copyright warning, the notice of a room with it on, the picker's tag ---------- */
+.collab-warn { display: grid; gap: .1rem; }
+.collab-warn__lead { display: flex; align-items: center; gap: .08rem; margin: 0; color: var(--red-premium); font-weight: 700; font-size: max(calc(.2 * var(--t)), calc(16px * var(--ui))); }
+.collab-warn__lead .icon { flex: none; width: 1.2em; height: 1.2em; }
+.collab-warn__key { margin: .04rem 0 0; padding: .08rem .12rem; color: var(--text-hi); font-weight: 600; line-height: 1.65; background: var(--red-a20); border-left: 3px solid var(--red); }
+.collab-dialog [data-testid="dialog-hold-ok"]:disabled { opacity: .55; cursor: not-allowed; }
+.collab-notice { display: flex; align-items: flex-start; gap: .1rem; padding: .08rem .14rem; color: var(--text-hi); background: var(--red-a20); border: 1px solid var(--red); }
+.collab-notice__icon { flex: none; width: 1.3em; height: 1.3em; margin-top: .02rem; color: var(--red-premium); }
+.collab-notice > span { display: grid; gap: .03rem; min-width: 0; }
+.collab-notice strong { font-weight: 700; color: var(--red-premium); }
+.collab-notice small { color: var(--text-md); font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); line-height: 1.55; overflow-wrap: anywhere; }
+.collab-notice.is-compact { padding: .04rem .1rem; margin-top: .06rem; }
+.collab-notice.is-compact small { font-size: max(calc(.12 * var(--t)), calc(11px * var(--ui))); }
+.diy-opt__collab { display: inline-block; margin-left: .05rem; padding: 0 .04rem; font-size: .72em; font-weight: 700; color: var(--red-premium); border: 1px solid var(--red); vertical-align: middle; }
+.diy .collab-notice { margin-bottom: .1rem; }
+.rs-collab { position: relative; flex: none; margin: 0 .6rem .1rem; }
+@media (max-height: 520px) { .rs-collab .collab-notice small { display: none; } }

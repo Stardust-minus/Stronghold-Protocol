@@ -393,7 +393,7 @@ function LevelStrip({ prog }) {
   </div>`;
 }
 
-function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null }) {
+function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null, nextLabel = null }) {
   const cleared = rowCleared(raw, self, r.victory);
   const [leaving, setLeaving] = useState(false);
   const nextRef = useRef(null);
@@ -446,7 +446,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null }) {
       <${LevelStrip} prog=${prog} />
       <button type="button" ref=${nextRef} class="settle__next" onClick=${next}>
         <${SettleButtonArt} />
-        <${Sprite} k="settle/next_icon" class="settle__nexticon" fallback=${html`<span class="settle__nexticon"><${Icon} name="chevronRight" /></span>`} /><span class="settle__nextlabel">${t('下一步')}</span>
+        <${Sprite} k="settle/next_icon" class="settle__nexticon" fallback=${html`<span class="settle__nexticon"><${Icon} name="chevronRight" /></span>`} /><span class="settle__nextlabel">${nextLabel || t('下一步')}</span>
       </button>
     </div>
   </section>`;
@@ -588,6 +588,39 @@ export function SettleFlow({ res, pub = null, myId = null, backLabel, onBack, ve
     ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} />` : null}
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
       <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} version=${version} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
+  </div>`;
+}
+
+/**
+ * The 个人战报 of a player eliminated while the match goes on (feedback #111): m.private `out` (server/match/results.js
+ * buildOutResult, its row at the elimination) — the intro and 个人战报 as at the end, 模拟中断, with 继续观战 in place of
+ * 下一步 (the team page waits for the end: 评语 rank every player then). Nothing is recorded in 本机统计 here: the
+ * match's m.result is, when it comes.
+ * @param {{ res: any, pub?: any, myId: string, version?: string|null, onClose: () => void }} props
+ */
+export function OutReport({ res, pub = null, myId, version = null, onClose }) {
+  const gd = useGameData();
+  const r = normalizeResult(res, pub);
+  const self = r.players.find((p) => p.playerId === myId) || null;
+  const rawSelf = self && Array.isArray(res?.players) ? res.players.find((x) => x && x.playerId === myId) || null : null;
+  const [page, setPage] = useState(() => (reducedMotion() ? 'self' : 'intro'));
+  const prog = useMemo(() => {
+    let records;
+    try { records = peekStatsRecords(); } catch { records = []; }
+    return self ? levelProgress(records, { id: recordId(res, myId), exp: self.reward, trophies: self.trophies, at: Date.now(), season: seasonOf(version) }) : null;
+  }, []);
+  const rootRef = useRef(null);
+  useStageFit(rootRef);
+  // in the commit that shows it (a layout effect): an Esc right away is not lost
+  useLayoutEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    globalThis.addEventListener?.('keydown', onKey);
+    return () => globalThis.removeEventListener?.('keydown', onKey);
+  }, [onClose]);
+  if (!self) return null;
+  return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', 'settle--out', `settle--${page}`)} data-testid="settle-out" role="dialog" aria-modal="true">
+    ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${true} onDone=${() => setPage('self')} />` : null}
+    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${prog} seed=${res?.seed} version=${version} nextLabel=${t('继续观战')} onNext=${onClose} />` : null}
   </div>`;
 }
 

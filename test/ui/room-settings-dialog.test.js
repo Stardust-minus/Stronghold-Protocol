@@ -32,10 +32,12 @@ test('each page holds its rows', () => {
   const on = { on: false, editable: true };
   const alliance = ids(dialog({ page: 'alliance', aiLast: on, takeover: on, listed: on, room: room({ experimental: rules({ playerCapacity: 8 }), seats: new Array(8).fill(null) }) }));
   assert.deepEqual(alliance.filter((id) => !id.startsWith('rset')), ['experimental-multiplayer', 'experimental-capacity', 'room-ai-last', 'room-ai-takeover', 'room-opt-listed', 'experimental-ducklord']);
-  assert.deepEqual(ids(dialog({ page: 'rules' })).filter((id) => !id.startsWith('rset')), ['experimental-revival', 'experimental-layer-cap', 'experimental-hit-limit', 'experimental-enemy-hp', 'experimental-enemy-atk']);
+  assert.deepEqual(ids(dialog({ page: 'rules' })).filter((id) => !id.startsWith('rset')), ['experimental-revival', 'experimental-layer-cap', 'experimental-hit-limit', 'experimental-enemy-hp', 'experimental-enemy-atk', 'experimental-collab']);
+  // 联动干员 is a private room's only (shared/experimental.js isCollabRoom)
+  assert.equal(ids(dialog({ page: 'rules', room: room({ source: 'matchmade' }) })).includes('experimental-collab'), false);
   assert.deepEqual(ids(dialog({ page: 'pools' })).filter((id) => !id.startsWith('rset')), ['experimental-pool', 'experimental-pools-manual']);
   const solo = dialog({ page: 'sim', room: room({ mode: 'solo' }), soloOption: on });
-  assert.deepEqual(ids(solo).filter((id) => !id.startsWith('rset')), ['room-solo-unlimited', 'experimental-layer-cap', 'experimental-hit-limit', 'experimental-enemy-hp', 'experimental-enemy-atk']);
+  assert.deepEqual(ids(solo).filter((id) => !id.startsWith('rset')), ['room-solo-unlimited', 'experimental-layer-cap', 'experimental-hit-limit', 'experimental-enemy-hp', 'experimental-enemy-atk', 'experimental-collab']);
   assert.equal(solo.some((n) => n.props.role === 'tablist'), false, 'one page, no tabs');
 });
 

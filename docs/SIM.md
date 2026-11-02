@@ -1124,7 +1124,7 @@ flag alters movement or 失衡.
   enemy inside the INITIAL range, checked every tick (no attack needed: "不受基础策略影响，在初始攻击范围内存在敌人时释放技能");
   `GDGLOW_SKILL_2` — "全场存在可选目标时释放技能": a targetable enemy anywhere (a heal skill: an ally that needs healing),
   every tick; `NEVER` (alias `MANUAL`) — never auto-casts: the kit calls `unit.skill.activate(reason)` itself;
-  `MLYSS_WTRMAN` and any unknown rule behave like DEFAULT. Units that never attack (bard, phalanx, librator) check
+  `MLYSS_WTRMAN`, `MARCILS2` (玛露西尔 S2: her kit closes and reopens it) and any unknown rule behave like DEFAULT. Units that never attack (bard, phalanx, librator) check
   DEFAULT every tick. In every enemy condition above a registered ally target (`setAllyTarget`: 白铁's 铁钳号·原型机, an
   enemy-camp summon) counts like an enemy for a skill that acts on it (`_allyTargetIn`, `allyTargetsOk` — the owner's rule
   of 2026-10-08: with the device alone in range such a skill opens and spends itself, its bullets included, on it): one
@@ -1635,6 +1635,8 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   `wolfView` (伺夜's 狼群: `mem.shadows` of `mem.wolfCapacity`), `negView` (`unit.negFill()`, set by 斩业星熊's T1 业火: the 我执 pool as a
   share of its cap) and `moteView` (`unit.moteRing()`, set by 魔王's T1 过往尘埃: the 「微尘」 still circling her and whether S2's
   旋转半径扩大 is up — `render/motes.js` draws that many sprites of her model's own `C_Eff_Moire_B` region, §client);
+  `fever: [[id, fill, on]]` (only when non-empty; display only) = `feverView` (`unit.feverView()`, set by 丰川祥子's kit: the
+  Fever gauge's share of 450 while it fills, the share of the 20 s left while Fever runs — the bar under her HP bar);
   UnitInfo `ammoSkill` marks an ally whose skill is an ammo magazine (DESIGN §8.2).
   `layers: [[id, n]]` and `charges: [[id, stored, max]]` (each only when non-empty; display only, 0.3.0 round 46) =
   `snapshot.js` `layerView` (the sum of a unit's buffs' `shieldHits`: 泥岩's 护盾 layers) and `chargeView` (an ally skill

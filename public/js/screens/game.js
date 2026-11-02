@@ -133,7 +133,7 @@ import { toast } from '../ui/toasts.js';
 import { LoadoutButton } from './loadout.js';
 import { BriefingScreen } from './briefing.js';
 import { BandDraftScreen } from './bandDraft.js';
-import { ResultScreen } from './settle.js';
+import { ResultScreen, OutReport } from './settle.js';
 import { ProtocolBoot, preloadBootArt, bootArtReady, BOOT_LEAVE_MS } from '../ui/protocolBoot.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, serverNow, isSpectating } from '../store.js';
@@ -333,6 +333,14 @@ function MatchScreen() {
   const meP = players.find((p) => p.playerId === myId) || null;
   // a spectator seat watches like an eliminated player (it has no m.private and no row in m.public)
   const alive = spectator ? false : priv ? priv.alive !== false : meP?.alive !== false;
+  // feedback #111: knocked out while the match goes on → its 个人战报 (m.private `out`, server/match/results.js
+  // buildOutResult), 模拟中断 with 继续观战 (screens/settle.js OutReport): from 协议已失效's 前往结算 (the official button),
+  // and from the 前往结算 button beside the HUD until the match's own result arrives (RESULT shows the full settlement)
+  const matchResult = useStore((s) => s.match.result);
+  const outVersion = useStore((s) => { const v = shownVersion(s); return v !== DEFAULT_VERSION ? v : null; });
+  const outRes = !spectator && !alive && priv?.out && !matchResult ? priv.out : null;
+  const [outOpen, setOutOpen] = useState(false);
+  useEffect(() => { if (!outRes) setOutOpen(false); }, [!!outRes]);
   // 协议已失效 (ui/downedPlate.js): once, when the player's own `alive` — as read from real data, never a reload's empty
   // first view — turns false while a teammate is still in; 继续观战 closes it, 离开模拟 opens the exit dialog
   // (the fork's 复活: a seat waiting for a teammate's rescue — m.public pendingDeath — is not out yet; the plate waits until
@@ -1979,6 +1987,8 @@ function MatchScreen() {
       ${showDeadPill(alive, phase) ? (spectator
         ? html`<div class="gm__dead gm__dead--spectator" role="status"><${GIcon} name="eye" />${t('观战中 · 点击左侧成员头像切换查看')}</div>`
         : html`<div class="gm__dead" role="status"><${Icon} name="close" />${t('你已被淘汰 · 可继续观战队友')}</div>`) : null}
+      ${outRes && !outOpen && !downed ? html`<button type="button" class="gm__outbtn" data-testid="out-report" onClick=${() => setOutOpen(true)}><${Icon} name="chevronRight" />${t('前往结算')}</button>` : null}
+      ${outRes && outOpen ? html`<${OutReport} res=${outRes} pub=${pub} myId=${myId} version=${outVersion} onClose=${() => setOutOpen(false)} />` : null}
 
       <${Ticker} />
 
@@ -2066,7 +2076,8 @@ function MatchScreen() {
       onConfirm=${(uid) => closeReplace(uid)} onCancel=${() => closeReplace(null)} />` : null}
 
     <${SettingsModal} open=${settingsOpen} onClose=${() => setSettingsOpen(false)} />
-    <${DownedPlate} open=${downed} onWatch=${() => setDowned(false)} onLeave=${() => { setDowned(false); setExitOpen(true); }} />
+    <${DownedPlate} open=${downed} onWatch=${() => setDowned(false)} onLeave=${() => { setDowned(false); setExitOpen(true); }}
+      onSettle=${outRes ? () => { setDowned(false); setOutOpen(true); } : null} />
     <${ExitModal} open=${exitOpen} onClose=${() => setExitOpen(false)} solo=${solo} />
   </div>`;
 }

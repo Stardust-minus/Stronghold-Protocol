@@ -76,6 +76,8 @@ export class PlayerViews {
       alive: this.alive,
       pendingDeath: this.pendingDeath,
       revivalUnavailableReason: this.revivalUnavailableReason,
+      // eliminated while the match goes on: its 个人战报 of that moment (server/match/results.js buildOutResult, feedback #111)
+      ...(this.outResult && !this.alive ? { out: this.outResult } : {}),
       lp: this.lp,
       funds: this.funds,
       bandId: this.bandId,

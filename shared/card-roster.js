@@ -195,6 +195,8 @@ const ROWS = /** @type {[string, string, number][]} */ ([
   ["char_4231_clemnt", "克莱门莎", 6],
   ["char_4235_thumpy", "珊比", 6],
   ["char_423_blemsh", "瑕光", 6],
+  ["char_4244_tocka", "冻河", 6],
+  ["char_4246_dminon", "国度", 6],
   ["char_4247_oxi", "塔露拉", 6],
   ["char_426_billro", "卡涅利安", 6],
   ["char_427_vigil", "伺夜", 6],

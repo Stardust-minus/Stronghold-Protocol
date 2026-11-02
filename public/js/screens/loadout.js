@@ -26,6 +26,7 @@
 // black — the top bar, the tier groups one by one, the bottom bar; a tab's content comes up when opened; closing fades
 // it and lifts the black (LoadoutHost keeps it mounted meanwhile: ui/transitions.js usePresence). css/screens/loadout.css.
 
+import { isCollabRoom } from '../../../shared/experimental.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { usePresence, LEAVE_MS } from '../ui/transitions.js';
 import { html, Icon, MicroLabel, Button, TierChip, TextField, Countdown, Spinner, confirmDialog, hasDeadline, Modal, Fragment } from '../ui/components.js';
@@ -724,7 +725,9 @@ function LoadoutScreen({ st, leaving = false }) {
   const nNotOwned = notOwnedCount(st.notOwned, ownRoster);
   // 自选编队 (0.2.0 DIY): the stored picks, those the server would keep (the kit list of the last welcome)
   const nDiy = diyCount(st.diy);
-  const diyLegal = ready ? sanitizeDiyPicks(st.diy, diyData(), st.diyKitted || []) : {};
+  // 联动干员: in a room with it on, the collab 6★ are picks too (the server keeps them only there)
+  const collabRoom = useStore((s) => isCollabRoom(s.room?.experimental));
+  const diyLegal = ready ? sanitizeDiyPicks(st.diy, diyData(), st.diyKitted || [], { collab: collabRoom }) : {};
   const setDiySlot = (slotId, pick) => setDiyPicks(setPick(loadoutStore.get().diy, slotId, pick));
   const clearDiy = async () => {
     if (!nDiy) return;
@@ -1032,7 +1035,7 @@ function LoadoutScreen({ st, leaving = false }) {
       : html`<p class=${cx('lo-note', locked && 'is-locked')}><${Icon} name="info" />${locked ? lockedText : fromText}</p>`}
     ${!ready ? html`<div class="lo-loading"><${Spinner} size="sm" />${t('正在载入干员数据（打开页面后仅载入一次）…')}</div>`
       : lost.length ? html`<${DataMissing} files=${lost} />` : tab === 'diy'
-      ? html`<${DiyPanel} m=${m} picks=${st.diy || {}} legal=${diyLegal} kitted=${st.diyKitted} onSet=${setDiySlot} skins=${st.skins} skinSync=${st.skinSync} onSkins=${setSkins} ops=${st.ops} onOps=${setOpsOf} />`
+      ? html`<${DiyPanel} m=${m} picks=${st.diy || {}} legal=${diyLegal} kitted=${st.diyKitted} collab=${collabRoom} onSet=${setDiySlot} skins=${st.skins} skinSync=${st.skinSync} onSkins=${setSkins} ops=${st.ops} onOps=${setOpsOf} />`
       : tab === 'ownership'
       ? html`<${OwnershipPanel} m=${m} roster=${ownRoster} notOwned=${st.notOwned} onToggle=${toggleOwned} />`
       : deck ? html`<main class="lo-deckwrap">

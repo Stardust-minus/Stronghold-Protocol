@@ -383,3 +383,7 @@ span.settle__nexticon .icon { width: .34rem; height: .34rem; }
   .settle *, .settle *::before, .settle *::after { animation: none; }
   .sintro { display: none; }
 }
+
+/* feedback #111: the 个人战报 of a player eliminated while the match goes on, over the game screen (screens/settle.js
+   OutReport); the away overlay (.awayov, z 70) stays above it */
+.settle--out { position: fixed; inset: 0; z-index: 65; }

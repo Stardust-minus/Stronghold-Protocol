@@ -68,6 +68,8 @@ import { difficultyInfo, ProtoCard } from './lobby.js';
 import { ProtocolScene } from '../ui/protocolScene.js';
 import { usePresence, useRise, afterLeave } from '../ui/transitions.js';
 import { experimentalChanged, experimentalSummary } from '../ui/experimental.js';
+import { CollabNotice } from '../ui/collab.js';
+import { isCollabRoom } from '../../../shared/experimental.js';
 import { RoomSettings, settingsPage } from '../ui/roomSettings.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { QueueFlow, queueActive } from '../ui/matchmaking.js';
@@ -135,6 +137,7 @@ export function partyQueueReason(room, myId, online = true) {
   if (!online) return t('连接中断，请稍候重试');
   if (room?.mode !== 'coop' || room.inMatch) return t('仅等待中的好友同盟可组队匹配');
   if (room.hostId !== myId) return t('由同盟创建者发起组队匹配');
+  if (isCollabRoom(room.experimental)) return t('开启联动干员的同盟不能组队匹配');
   const seats = room.seats?.filter(Boolean) || [];
   if (seats.some(s => s.isBot)) return t('请先移除 AI 队友，公开匹配仅限真人');
   if (!seats.length || seats.some(s => s.connected === false)) return t('请等待所有队友连接后再匹配');
@@ -639,6 +642,7 @@ export function RoomScreen() {
     </main>
     <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
     <${VersionVote} room=${room} />
+    ${isCollabRoom(room.experimental) ? html`<div class="rs-collab"><${CollabNotice} /></div>` : null}
     ${bannerText ? html`<p class="rs-verbanner" data-testid="version-banner"><${Icon} name="info" />${bannerText}</p>` : null}
 
     <footer class="rs-foot">

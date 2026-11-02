@@ -52,7 +52,7 @@
 //                (shared/assetPaths.js) is stripped. A hash that names the file's current bytes (assetIndex.js
 //                urlHashOk: its own hash, or its Spine model's) answers `immutable` for a year; any other hash —
 //                an old page, a URL derived from another file's — the current file with `no-cache`
-//     /data/assets.json, /data/local-assets.json, /data/local-fx.json → the served manifests (assetViews.js: every
+//     /data/assets.json, /data/local-assets.json, /data/local-fx.json, /data/assets-collab.json → the served manifests (assetViews.js: every
 //                art URL with its content-hash segment; no-cache, the ETag of the view) once the asset index is ready,
 //                the files as they are before that or without an index
 //
@@ -126,7 +126,7 @@ const SIM_PRIVATE = new Set(['nodedata.js']); // lower-case (compared case-insen
 
 /** Optional per-machine art manifests (tools/local-extract: the local art, the official effects' files — DESIGN §33)
  * and the empty stand-in served when one is absent. */
-const LOCAL_ART_MANIFESTS = new Set(['local-assets.json', 'local-fx.json']);
+const LOCAL_ART_MANIFESTS = new Set(['local-assets.json', 'local-fx.json', 'local-fx-collab.json']);
 const EMPTY_LOCAL_ART = Buffer.from(JSON.stringify({ version: 1, source: 'none', count: 0, groups: {} }));
 
 /** The content-set manifest's cache policy: its URL names its content (the `cs`), so it never changes. */
@@ -332,7 +332,8 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       return;
     }
     // The served manifests: every art URL with its content hash (assetViews.js), once the index is ready
-    if (views && (decoded === '/data/assets.json' || decoded === '/data/local-assets.json' || decoded === '/data/local-fx.json')) {
+    if (views && (decoded === '/data/assets.json' || decoded === '/data/local-assets.json' || decoded === '/data/local-fx.json'
+      || decoded === '/data/assets-collab.json' || decoded === '/data/local-fx-collab.json')) {
       const view = await views.get(decoded.slice('/data/'.length));
       if (view) {
         await serveBuffer(req, res, { body: view.body, hash: view.hash, type: MIME['.json'], cacheControl: 'no-cache', key: `view:${decoded}`, cache: gzipCache });

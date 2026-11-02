@@ -30,6 +30,7 @@
 // a room entered after the lobby could not send them sends them then (not at every room entry: the server keeps the
 // session's copy, and the heavy-message budget is an edit's too).
 
+import { isCollabRoom } from '../../../shared/experimental.js';
 import { createStore, loadPref, savePref, store } from '../store.js';
 import { data, buildIndex } from '../data.js';
 import { contentSet as appContentSet, pageVersion } from '../content.js';
@@ -483,7 +484,8 @@ export function canSendSettings({ store: app = store, content = appContentSet, c
  * content change only when the payload changed (a version switch or a room's arrival then spends no heavy-message budget
  * on them).
  */
-function installPrefSync({ net, timers, target, notify, key, stateKey, msgType, field, prepare, lockedText, tag, content = appContentSet, gate = null, app = store, seatBound = true }) {
+function installPrefSync({ net, timers, target, notify, key, stateKey, msgType, field, prepare, lockedText, tag, content = appContentSet, gate = null, app = store, seatBound = true,
+  resendOn = null }) {
   const T = timers || { setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms), clearTimeout: (id) => globalThis.clearTimeout(id) };
   // (`lockedText` is a msgid: the toast is translated when it shows — docs/I18N.md)
   const tell = notify || ((text) => toast(t(text), 'warn'));
@@ -576,6 +578,15 @@ function installPrefSync({ net, timers, target, notify, key, stateKey, msgType, 
     roomCode = code;
     if (code && gated) { revision++; lastSent = null; schedule(50); }
   }) : null;
+  // `resendOn(appState)`: a value of the room that changes what the server keeps of the same payload (the 自选 picks:
+  // 联动干员, which the server checks against the room) — sent again when it changes
+  let resendKey = resendOn && app?.get ? resendOn(app.get()) : null;
+  const offResend = resendOn && app?.subscribe ? app.subscribe((s) => {
+    const k = resendOn(s);
+    if (k === resendKey) return;
+    resendKey = k;
+    if (s?.room) { revision++; lastSent = null; schedule(50); }
+  }) : null;
   // the room's content set arrived or went (DESIGN §32.6): sent again, checked against the data the room plays now (a
   // setting that is not seat-bound only when its payload changed: `seatBound`)
   let contentKey = content ? `${content.get().cs}|${content.get().status}` : '';
@@ -595,6 +606,7 @@ function installPrefSync({ net, timers, target, notify, key, stateKey, msgType, 
       offStore?.();
       offRoom?.();
       offApp?.();
+      offResend?.();
       offContent?.();
     },
   };
@@ -759,6 +771,8 @@ export function installDiySync({ net, timers, target = loadoutStore, notify, con
   const offKitContent = content ? content.subscribe(() => { const l = pickList(); if (l !== target.get().diyKitted) target.set({ diyKitted: l }); }) : null;
   const sync = installPrefSync({
     net, timers, target, notify, content, app, gate, key: 'diy', stateKey: 'diySync', msgType: 'room.diy', field: 'picks', tag: 'diy',
+    // the server keeps a collab pick only in a room with 联动干员 on (server/lobby.js collabOn): the host's switch resends them
+    resendOn: (s) => isCollabRoom(s?.room?.experimental),
     lockedText: N_('自选编队是局外设置，修改将在下一局生效'),
     async prepare() {
       if (target === loadoutStore) refreshViews(); // the picks of the version on screen

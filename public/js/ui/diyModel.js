@@ -17,7 +17,7 @@
 // version (`version`, only a non-default one).
 
 import { DIY_LIMITS, checkDiyPicks } from '../../../shared/protocol.js';
-import { diySlotIds, diySlot, diyPool, isPrototypePick, lockedSelection, isDiyModule, diyRecord } from '../../../shared/diy.js';
+import { diySlotIds, diySlot, diyPool, isPrototypePick, isCollabPick, lockedSelection, isDiyModule, diyRecord } from '../../../shared/diy.js';
 import { unitForm } from '../../../shared/standIn.js';
 import { N_ } from '../../../shared/i18n.js';
 import { DEFAULT_VERSION, versionById, versionSlug } from '../../../shared/versions.js';
@@ -78,11 +78,13 @@ export const diyCount = (picks) => Object.keys(cleanPicks(picks)).length;
 
 /**
  * The legal picks of a stored roster against the loaded data and the kit list (checkDiyPicks: what the server keeps).
+ * `collab`: the page is in a room with 联动干员 on (a collab 6★ pick is legal only there).
  * @param {any} picks @param {any} data `{ chess, backups }` @param {Iterable<string>|null} kitted
+ * @param {{ collab?: boolean }} [opts]
  * @returns {Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>}
  */
-export function sanitizeDiyPicks(picks, data, kitted) {
-  const res = checkDiyPicks(cleanPicks(picks), { data, kitted });
+export function sanitizeDiyPicks(picks, data, kitted, { collab = false } = {}) {
+  const res = checkDiyPicks(cleanPicks(picks), { data, kitted, collab });
   return res && 'ok' in res ? res.picks : {};
 }
 
@@ -133,18 +135,19 @@ export function defaultPick(charId, slotId, data) {
  * The operators a slot lists (shared/diy.js diyPool of its tier with the kit list — prototypes first, then the owned
  * 6★), each with what the picker card shows and whether another slot holds it: `taken` names that slot (an owned
  * operator fills one slot; the two picks of a tier differ).
+ * With `collab` (a room with 联动干员 on) the collab 6★ follow, marked `collab`.
  * @param {string} slotId @param {Record<string, any>} picks the current roster @param {any} data
- * @param {Iterable<string>|null} kitted
- * @returns {Array<{ charId: string, unit: any, bonds: string[], proto: boolean, taken: string|null }>}
+ * @param {Iterable<string>|null} kitted @param {{ collab?: boolean }} [opts]
+ * @returns {Array<{ charId: string, unit: any, bonds: string[], proto: boolean, collab: boolean, taken: string|null }>}
  */
-export function pickOptions(slotId, picks, data, kitted) {
+export function pickOptions(slotId, picks, data, kitted, { collab = false } = {}) {
   const slot = diySlot(slotId, data);
   const backups = backupsOf(data);
   if (!slot || !backups) return [];
   const kit = kitted ? [...kitted] : [];
   const tierOf = (id) => diySlot(id, data)?.tier ?? null;
   const roster = cleanPicks(picks);
-  return diyPool(slot.tier, { data, kitted: kit }).map((charId) => {
+  return diyPool(slot.tier, { data, kitted: kit, collab }).map((charId) => {
     const proto = isPrototypePick(data, slot.tier, charId);
     let taken = null;
     for (const [other, p] of Object.entries(roster)) {
@@ -152,7 +155,7 @@ export function pickOptions(slotId, picks, data, kitted) {
       // the same tier: never twice; another tier: an owned operator only once (a prototype may repeat across tiers)
       if (tierOf(other) === slot.tier || !isPrototypePick(data, tierOf(other), charId)) { taken = other; break; }
     }
-    return { charId, unit: backups.units?.[charId] ?? null, bonds: backups.diy?.operators?.[charId]?.bonds ?? [], proto, taken };
+    return { charId, unit: backups.units?.[charId] ?? null, bonds: backups.diy?.operators?.[charId]?.bonds ?? [], proto, collab: isCollabPick(data, charId), taken };
   });
 }
 

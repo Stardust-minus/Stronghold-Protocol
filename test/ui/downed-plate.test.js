@@ -45,7 +45,14 @@ test('screens/game.js: the dialog once the own alive turns false from real data;
   // this fork's 复活: a seat waiting for a rescue (m.public pendingDeath) is still standing — the plate waits for the window
   assert.match(g, /const standing = alive \|\| !!meP\?\.pendingDeath;/);
   assert.match(g, /if \(downedArtReady\(\) && downedDue\(\{ was, alive: standing, spectator, pub, myId \}\)\) setDowned\(true\);/);
-  assert.match(g, /<\$\{DownedPlate\} open=\$\{downed\} onWatch=\$\{\(\) => setDowned\(false\)\} onLeave=\$\{\(\) => \{ setDowned\(false\); setExitOpen\(true\); \}\} \/>/);
+  assert.match(g, /<\$\{DownedPlate\} open=\$\{downed\} onWatch=\$\{\(\) => setDowned\(false\)\} onLeave=\$\{\(\) => \{ setDowned\(false\); setExitOpen\(true\); \}\}\s+onSettle=\$\{outRes \? \(\) => \{ setDowned\(false\); setOutOpen\(true\); \} : null\} \/>/);
+  // feedback #111: with the server's 个人战报 (m.private `out`) the second button is the official 前往结算 (OutReport); without
+  // one it stays 离开模拟
+  const js = read('public/js/ui/downedPlate.js');
+  assert.match(js, /\$\{onSettle\n\s+\? html`<\$\{Button\} variant="danger" class="downm__btn downm__btn--settle" data-testid="downed-settle" onClick=\$\{onSettle\}>\$\{t\('前往结算'\)\}/);
+  assert.match(js, /: html`<\$\{Button\} variant="danger" icon="exit" class="downm__btn downm__btn--leave" onClick=\$\{onLeave\}>\$\{t\('离开模拟'\)\}/);
+  assert.match(g, /const outRes = !spectator && !alive && priv\?\.out && !matchResult \? priv\.out : null;/);
+  assert.match(g, /<\$\{OutReport\} res=\$\{outRes\}/);
 });
 
 test('the stylesheet: keyframes defined, text follows 文字大小, reduced motion stops it, the project\'s rules', () => {

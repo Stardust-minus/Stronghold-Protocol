@@ -49,6 +49,12 @@
 //     from one version to another never shows 第二期下半 in between; a gameplay plugin room still starts from the original
 //     data, as before); the last two checked version sets are kept, so a lobby ⇄ room round trip checks nothing twice.
 //     A version set that fails is said once per set (a toast) and told to the room ({ ok: false }).
+//   * 联动干员 (shared/collabAssets.js, docs/ASSETS.md "The collab pack"): in a room whose host turned it on
+//     (room.state.experimental.collabOps) the page fetches /data/assets-collab.json — once per page, and only then —,
+//     checks that it names nothing outside /assets/collab/ and lays it beneath the plugin layers (cosmetics.js
+//     setCollab); leaving that room, or the host turning it off, takes it away. A page that is never in such a room never
+//     fetches the pack. A pack that will not load or check is said once (a toast); the collab operators then draw their
+//     placeholders.
 //   * The catalogue is fetched only on a server that has plugins — `content.plugins` > 0 in /healthz (the build guard's
 //     first check, before any hello) or welcome (main.js keeps it as the store's `installedPlugins`: installedCount; a
 //     server without any sends none, and its page never asks for /plugins/index.json) — and only when something needs
@@ -68,6 +74,8 @@ import { getLang, langChain, t, N_ } from '../../shared/i18n.js';
 import { DEV_BUILD } from '../../shared/constants.js';
 import { DEFAULT_VERSION, versionById, versionSlug } from '../../shared/versions.js';
 import { shownVersion, welcomeVersion } from './versions.js';
+import { isCollabRoom } from '../../shared/experimental.js';
+import { COLLAB_MANIFEST_URL, collabManifestProblems } from '../../shared/collabAssets.js';
 
 /** The localStorage preference (`sp.pref.<key>`) of the personal cosmetic plugins: their ids. */
 export const PERSONAL_PREF = 'cosmetics';
@@ -78,6 +86,7 @@ export const VISUAL_TIMEOUT_MS = 30000;
 /** What the page says (once) when a set's document will not load, or when writes were left out / a file failed. */
 const NOT_LOADED = N_('外观插件没有载入，显示原版素材');
 const PARTLY = N_('部分外观插件素材无法使用，相应位置显示原版素材');
+const COLLAB_NOT_LOADED = N_('联动素材没有载入，联动干员显示占位图');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const isIds = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string' && /^[a-z0-9][a-z0-9-]{1,31}$/.test(x));
@@ -276,6 +285,37 @@ export async function fetchVisualDoc(vs, { fetch: doFetch = defaultFetch, retryD
 }
 
 /**
+ * Fetch and check the collab pack's manifest (/data/assets-collab.json; shared/collabAssets.js): `{ doc }`, or `{ error }`
+ * when it will not download (retried like a visual set's document) or names a file outside the pack.
+ * @param {{ fetch?: typeof fetch, retryDelays?: readonly number[], wait?: (ms: number) => Promise<void>, timeoutMs?: number }} [opts]
+ * @returns {Promise<{ doc: any } | { error: string }>}
+ */
+export async function fetchCollabManifest({ fetch: doFetch = defaultFetch, retryDelays = VISUAL_RETRY_MS, wait = sleep, timeoutMs = VISUAL_TIMEOUT_MS } = {}) {
+  const url = COLLAB_MANIFEST_URL;
+  for (let attempt = 0; ; attempt++) {
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    let timer = null;
+    const timedOut = new Promise((resolve) => { timer = setTimeout(() => { ctrl?.abort(); resolve(null); }, timeoutMs); });
+    let res;
+    let text = null;
+    try {
+      res = await Promise.race([doFetch(url, { cache: 'no-cache', signal: ctrl?.signal }), timedOut]);
+      if (res && res.ok) text = await Promise.race([res.text(), timedOut]);
+    } catch { res = null; }
+    clearTimeout(timer);
+    const transient = !res || res.status >= 500 || res.status === 408 || res.status === 429 || (res.ok && text === null);
+    if (res && res.ok && text !== null) {
+      let doc;
+      try { doc = JSON.parse(text); } catch { return { error: `${url}: not JSON` }; }
+      const bad = collabManifestProblems(doc);
+      return bad.length ? { error: `${url}: ${bad.slice(0, 3).join('; ')}` } : { doc };
+    }
+    if (transient && attempt < retryDelays.length) { await wait(retryDelays[attempt]); continue; }
+    return { error: `${url}: ${res ? `HTTP ${res.status}` : 'unreachable'}` };
+  }
+}
+
+/**
  * Keep the page's cosmetic layers in step with the room and the personal plugins (see the header): data.js shows
  * `assets` through them from now on. Idempotent per store; returns the uninstall.
  * @param {{ store?: typeof appStore, data?: typeof dataStore, layers?: typeof cosmetics, fetch?: typeof fetch,
@@ -318,6 +358,31 @@ export function installContent({ store = appStore, data = dataStore, layers = co
       if (req !== roomReq) return; // another room (or none) meanwhile
       if ('error' in r) { layers.setRoom(null); tell(r.error); return; }
       layers.setRoom(r.doc);
+    });
+  };
+
+  // 联动干员: the collab pack, in a room with it on only (header); fetched once per page, the first time it is wanted
+  let collabWanted = false;
+  let collabDoc = null;
+  let collabReq = 0;
+  let collabTold = false;
+  const syncCollab = (s) => {
+    const want = isCollabRoom(s?.room?.experimental);
+    if (want === collabWanted) return;
+    collabWanted = want;
+    const req = ++collabReq;
+    if (!want) { layers.setCollab(null); return; }
+    if (collabDoc) { layers.setCollab(collabDoc); return; }
+    fetchCollabManifest({ fetch: doFetch, retryDelays }).then((r) => {
+      if (req !== collabReq) return; // left the room (or it was turned off) meanwhile
+      if ('error' in r) {
+        console.warn(`[content] ${r.error}`);
+        if (!collabTold && toast) { collabTold = true; toast(t(COLLAB_NOT_LOADED), 'warn'); }
+        // not again until the switch flips (or another room): a store change is no reason to fetch once more
+        return;
+      }
+      collabDoc = r.doc;
+      layers.setCollab(r.doc);
     });
   };
 
@@ -365,20 +430,22 @@ export function installContent({ store = appStore, data = dataStore, layers = co
   let installed = installedCount(store.get());
   const offStore = store.subscribe((s) => {
     syncRoom(s);
+    syncCollab(s);
     const n = installedCount(s);
     if (n !== installed) { installed = n; if (personal.get().ids.length) syncPersonal(); }
   });
   syncRoom(store.get());
+  syncCollab(store.get());
   const offPersonal = personal.subscribe(() => { syncPersonal(); });
   // a catalogue fetched again may name a plugin's new `vs` (its files changed): the switched-on ones follow
   let catalogAt = catalog.get().at;
   const offCatalog = catalog.subscribe((c) => { if (c.at !== catalogAt) { catalogAt = c.at; if (personal.get().ids.length) syncPersonal(); } });
   if (personal.get().ids.length) syncPersonal();
   return () => {
-    ++personalReq; ++roomReq; // Drop in-flight answers before removing this install's properties and layers.
+    ++personalReq; ++roomReq; ++collabReq; // Drop in-flight answers before removing this install's properties and layers.
     offStore(); offPersonal(); offCatalog(); offLayers(); offFailed(); layers.onDrop(null);
     doc?.removeEventListener?.('error', onImgError, true);
-    data.setView('assets', null); layers.setRoom(null); layers.setPersonal([]);
+    data.setView('assets', null); layers.setRoom(null); layers.setPersonal([]); layers.setCollab?.(null);
     themeApplied = applyThemeProperties(globalThis.document?.documentElement, [], themeApplied);
   };
 }

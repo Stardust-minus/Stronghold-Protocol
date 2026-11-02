@@ -68,8 +68,9 @@ EFFECT_GLOBS = ('battle/prefabs/effects/*.ab', 'pkgrps/btl_pfb_fx_*.ab')
 CAB_DIRS = ('refs/fx', 'shaders', 'anon', 'arts/effects', 'battle/prefabs/effects', 'pkgrps')
 CAB_FILES = ('[uc]shaders.ab', 'arts/maps/effect.ab')
 PROJECTILES = 'battle/prefabs/[uc]projectiles.ab'
-# skill id → projectiles its prefab names nowhere the crawl reads (塔露拉 S3 fires its 簇火 from native code)
-SKILL_EXTRA_PROJECTILES = {'skchr_oxi_3': ('projectile_chr_oxi_s_3_heatwave',)}
+# skill id → projectiles its prefab names nowhere the crawl reads (塔露拉 S3 fires its 簇火 from native code; 灰烬's
+# flashbang projectile_chr_ash_t1 is her charpack's talent ability, thrown under every skill)
+SKILL_EXTRA_PROJECTILES = {'skchr_oblvns_1': ('projectile_chr_oblvns_s1_1', 'projectile_chr_oblvns_talent'), 'skchr_oblvns_2': ('projectile_chr_oblvns_talent',), 'skchr_oblvns_3': ('projectile_chr_oblvns_s3_mag', 'projectile_chr_oblvns_talent'), 'skchr_oxi_3': ('projectile_chr_oxi_s_3_heatwave',), 'skchr_tocka_1': ('projectile_chr_tocka_t2',), 'skchr_tocka_2': ('projectile_chr_tocka_s2', 'projectile_chr_tocka_t2'), 'skchr_tocka_3': ('projectile_tocka_s3_effect', 'projectile_chr_tocka_t2'), 'skchr_ash_1': ('projectile_chr_ash_t1',), 'skchr_ash_2': ('projectile_chr_ash_t1',), 'skchr_ash_3': ('projectile_chr_ash_t1', 'projectile_chr_ash_s3')}
 # projectile behaviours whose _mainEffect is a line, not the projectile's flying effect (`main`): a chain lightning's
 # (drawn between the chain's targets as the shot reaches them) or a harpoon's rope (from the shooter to the head) —
 # index.json `link`; the runtime tells them apart by `behaviours` (render/vfx/flight.js projectileParts)
@@ -3185,11 +3186,26 @@ def _export_worker(args, keys_all=None):
     return entries, ex.textures, ex.meshes, lines
 
 
-def game_data(root):
+COLLAB_MODES = ('exclude', 'only')
+
+
+def game_data(root, collab='exclude'):
     """Operator ids (chess.json + backups.json units), the skill prefab ids per operator (its chess records' and its
     backups.json forms'), enemy keys, token ids and the skill ids of each token (token_skill_ids of its tokens.json /
-    backups.json record)."""
+    backups.json record). `collab`: the collab picks of data/backups.json `diy.excluded` and the summons only they own
+    ship in their own pack (docs/ASSETS.md "The collab pack"), so the normal set leaves them out ('exclude') and a collab
+    run takes only them ('only')."""
+    if collab not in COLLAB_MODES:
+        raise ValueError(f'collab must be one of {COLLAB_MODES}')
     data = Path(root) / 'data'
+    try:
+        default_backups = json.loads((data / 'backups.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        default_backups = {}
+    collab_ids = set(((default_backups.get('diy') or {}).get('excluded')) or [])
+    def collab_token(rec):
+        owners = {str(o).split('@')[0] for o in (rec or {}).get('owners') or []}
+        return bool(owners) and owners <= collab_ids
     def load(n):
         combined = {}
         # Default first. Chess ids repeat between seasons, so retain every record under a scoped key.
@@ -3209,6 +3225,14 @@ def game_data(root):
                     combined.setdefault(uid, rec)
         return combined
     chess, backups, enemies, tokens = load('chess.json'), load('backups.json'), load('enemies.json'), load('tokens.json')
+    collab_tokens = {tid for tid, rec in (backups.get('tokens') or {}).items() if collab_token(rec)}
+    if collab == 'only':
+        chess, enemies, tokens = {}, {}, {}
+        backups = {'units': {k: v for k, v in (backups.get('units') or {}).items() if k in collab_ids},
+                   'tokens': {k: v for k, v in (backups.get('tokens') or {}).items() if k in collab_tokens}}
+    else:
+        backups = {'units': {k: v for k, v in (backups.get('units') or {}).items() if k not in collab_ids},
+                   'tokens': {k: v for k, v in (backups.get('tokens') or {}).items() if k not in collab_tokens}}
     chars, skills = [], {}
     for v in chess.values():
         cid = v.get('charId')
@@ -3245,6 +3269,7 @@ def game_data(root):
         refs = json.loads(subprocess.check_output(['node', str(ref_reader), str(root)], timeout=30))
     except (OSError, ValueError, subprocess.SubprocessError):
         refs = []
+    refs = [cid for cid in refs if (cid in collab_ids) == (collab == 'only')]
     char_table = load_excel('character_table.json')
     for cid in refs:
         if cid not in chars:
@@ -3340,7 +3365,7 @@ def _read_json(path):
 
 
 def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, jobs=None, root=None, fx_manifest=None,
-              texture_format='webp', add_only=False, catalogue=None, skin_bundles=None):
+              texture_format='webp', add_only=False, catalogue=None, skin_bundles=None, collab='exclude'):
     """The fx run (extract.py --only fx): writes <out_root>/fx/** and `fx_manifest` (default <root>/data/local-fx.json:
     the groups FX_GROUPS, every file); returns the number of files written. `manifest` (the groups of
     data/local-assets.json) gets nothing: extract.py drops the fx groups an earlier run left there (ran_groups). A
@@ -3370,7 +3395,7 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
     log(f'fx: {len(eff)} effect prefabs in the client ({client_version(ab_root)}), {len(cabs)} bundle CABs scanned')
 
     t0 = time.time()
-    gd = game_data(root)
+    gd = game_data(root, collab=collab)
     cat_path = None if catalogue is False or selection != 'used' or keys else \
         Path(catalogue) if catalogue else root / SKIN_CATALOGUE
     try:

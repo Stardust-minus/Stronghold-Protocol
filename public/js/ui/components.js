@@ -493,8 +493,11 @@ function closeDialog(id, result) {
 }
 
 /**
- * Imperative confirm dialog (requires <UiHosts/> or <DialogHost/> mounted).
- * @param {{ title?: string, text?: any, okText?: string, cancelText?: string, tone?: string, danger?: boolean, micro?: string }} opts
+ * Imperative confirm dialog (requires <UiHosts/> or <DialogHost/> mounted). `hold`: seconds the confirm button stays
+ * disabled, counting down on its label (a warning that must be read: 联动干员, ui/experimental.js); Enter never
+ * confirms such a dialog.
+ * @param {{ title?: string, text?: any, okText?: string, cancelText?: string, tone?: string, danger?: boolean, micro?: string,
+ *   hold?: number, class?: string }} opts
  * @returns {Promise<boolean>}
  */
 export const confirmDialog = (opts) => openDialog(opts, 'confirm');
@@ -517,6 +520,19 @@ export function closeAllDialogs() {
   for (const d of all) { try { d.resolve(d.kind !== 'confirm'); } catch { /* ignore */ } }
 }
 
+/** The confirm button of a dialog with `hold`: disabled while its seconds count down (each dialog starts its own). */
+function HoldOk({ seconds, label, variant, onOk }) {
+  const [left, setLeft] = useState(seconds);
+  useEffect(() => {
+    if (left <= 0) return undefined;
+    const timer = setTimeout(() => setLeft((n) => n - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [left]);
+  const ready = left <= 0;
+  return html`<${Button} variant=${variant} icon="check" disabled=${!ready} data-testid="dialog-hold-ok" data-left=${left}
+    onClick=${() => { if (ready) onOk(); }}>${ready ? label : t('{label}（{n} 秒）', { label, n: left })}<//>`;
+}
+
 /** Renders queued imperative dialogs (one at a time). */
 export function DialogHost() {
   const [, force] = useReducer((c) => c + 1, 0);
@@ -526,18 +542,20 @@ export function DialogHost() {
   }, []);
   const d = dialogs[0];
   if (!d) return null;
-  const { title = t('确认'), text, okText = t('确认'), cancelText = t('取消'), tone, danger, micro = 'CONFIRMATION' } = d.opts;
+  const { title = t('确认'), text, okText = t('确认'), cancelText = t('取消'), tone, danger, micro = 'CONFIRMATION', class: cls } = d.opts;
   const isConfirm = d.kind === 'confirm';
-  // Enter confirms unless a specific button has focus (then the native click decides).
+  const hold = isConfirm && Number.isFinite(d.opts.hold) && d.opts.hold > 0 ? Math.ceil(d.opts.hold) : 0;
+  // Enter confirms unless a specific button has focus (then the native click decides) — never a dialog with `hold`.
   const onKey = (e) => {
-    if (e.key === 'Enter' && e.target?.tagName !== 'BUTTON') { e.preventDefault(); closeDialog(d.id, true); }
+    if (e.key === 'Enter' && !hold && e.target?.tagName !== 'BUTTON') { e.preventDefault(); closeDialog(d.id, true); }
   };
   return html`<div onKeyDown=${onKey}>
-    <${Modal} key=${d.id} open=${true} title=${title} micro=${micro} tone=${tone || (danger ? 'red' : 'mint')}
+    <${Modal} key=${d.id} open=${true} title=${title} micro=${micro} tone=${tone || (danger ? 'red' : 'mint')} class=${cls}
       onClose=${() => closeDialog(d.id, isConfirm ? false : true)}
       actions=${html`
-        ${isConfirm ? html`<${Button} variant="secondary" onClick=${() => closeDialog(d.id, false)}>${cancelText}<//>` : null}
-        <${Button} variant=${danger ? 'danger' : 'primary'} icon="check" data-autofocus onClick=${() => closeDialog(d.id, true)}>${okText}<//>`}>
+        ${isConfirm ? html`<${Button} variant="secondary" data-autofocus=${hold ? true : undefined} onClick=${() => closeDialog(d.id, false)}>${cancelText}<//>` : null}
+        ${hold ? html`<${HoldOk} key=${d.id} seconds=${hold} label=${okText} variant=${danger ? 'danger' : 'primary'} onOk=${() => closeDialog(d.id, true)} />`
+          : html`<${Button} variant=${danger ? 'danger' : 'primary'} icon="check" data-autofocus onClick=${() => closeDialog(d.id, true)}>${okText}<//>`}`}>
       ${typeof text === 'string' ? html`<p class="modal__text">${text}</p>` : text}
     <//>
   </div>`;

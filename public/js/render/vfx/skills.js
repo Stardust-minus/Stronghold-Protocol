@@ -1340,6 +1340,23 @@ export const FX_BINDINGS = Object.freeze({
   // 塔露拉 (op-oxi.js): 足迹 is the client's oxi_fire_field_lease (TimedTileLeaseAbility, its effect oxi_buff_01 on each leased
   // tile), whatever her skill — the kit's 'zone' on the tile; S1's strike and S2's retaliation are 'aoe's standing for each
   // skill's hit row, which no plan row places because the kit casts them without an attack
+  // 丰川祥子 (op-oblvns.js): the notes the kit plays itself ('oblvnsNote' a free one of 持续攻击, 'oblvnsS1' S1's 8, 'oblvnsOrgan' S3's
+  // 风琴 ones; id = her, flame = the note, from (x, y) to (tx, ty) in t s) fly the client's note projectiles (`flight`)
+  skchr_oblvns_1: Object.freeze({
+    oblvnsNote: binding({ owner: 'id', flight: 'projectile_chr_oblvns_talent' }),
+    oblvnsS1: binding({ owner: 'id', flight: 'projectile_chr_oblvns_s1_1' }),
+  }),
+  skchr_oblvns_2: Object.freeze({
+    oblvnsNote: binding({ owner: 'id', flight: 'projectile_chr_oblvns_talent' }),
+  }),
+  skchr_oblvns_3: Object.freeze({
+    oblvnsNote: binding({ owner: 'id', flight: 'projectile_chr_oblvns_talent' }),
+    oblvnsOrgan: binding({ owner: 'id', flight: 'projectile_chr_oblvns_s3_mag' }),
+  }),
+  // 玛露西尔 S3 爆破魔法 ('aoe' at the blast centre, op-marcil.js): the explosion of projectile_chr_marcil_s3
+  skchr_marcil_3: Object.freeze({
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, projectile: 'projectile_chr_marcil_s3' }),
+  }),
   skchr_oxi_1: Object.freeze({
     aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['oxi_skill_01_hit_01'] }),
     zone: binding({ owner: 'id', at: 'point', keys: ['oxi_buff_01'], hold: 'fx', holdS: 4, cover: ['zone'] }),
@@ -1356,6 +1373,97 @@ export const FX_BINDINGS = Object.freeze({
     heatwave: binding({ owner: 'id', flight: 'projectile_chr_oxi_s_3_heatwave' }),
     heatwaveHit: binding({ owner: 'id', at: 'point', oneshot: true, landing: true, keys: ['oxi_skill_03_hit_01'] }),
   }),
+  // 麒麟R夜刀 (op-yato2.js): 乱舞's 16 slashes and the dash's strikes ('slash' on each enemy: id = her, target = it) are the hit
+  // effects the client plays on the target (skchr_yato2_2's hit groups yato2_skill_02_hit_01–03 at random: the first here;
+  // projectile_chr_yato2_s3 `_effectsWhenHit` yato2_skill_03_hit_01); the dash ('dash': id = her, flame = the segment, from
+  // (x, y) to (tx, ty) in t s — a new segment each time a slash carries it further) flies projectile_chr_yato2_s3
+  skchr_yato2_2: Object.freeze({
+    slash: binding({ owner: 'id', at: 'target', keys: ['yato2_skill_02_hit_01'] }),
+  }),
+  skchr_yato2_3: Object.freeze({
+    dash: binding({ owner: 'id', flight: 'projectile_chr_yato2_s3' }),
+    slash: binding({ owner: 'id', at: 'target', keys: ['yato2_skill_03_hit_01'] }),
+  }),
+  // 焰狐龙梓兰 (op-orchd2.js): 飞翔瞪射's shots ('strike' on each enemy: id = her, target = it) play its rounds' hit effect
+  // (orchd2_s_2[hit_effect1] orchd2_skill_02_hit_01); 龙之箭 ('dash' from her along her facing: id = her, flame = the shot,
+  // to (tx, ty) in t s) flies projectile_chr_orchd2_s3 (main effect orchd2_skill_03_trail_01), its strikes ('strike') that
+  // projectile's hit effect orchd2_skill_03_hit_01
+  skchr_orchd2_2: Object.freeze({
+    strike: binding({ owner: 'id', at: 'target', keys: ['orchd2_skill_02_hit_01'] }),
+  }),
+  skchr_orchd2_3: Object.freeze({
+    dash: binding({ owner: 'id', flight: 'projectile_chr_orchd2_s3' }),
+    strike: binding({ owner: 'id', at: 'target', keys: ['orchd2_skill_03_hit_01'] }),
+  }),
+  // 国度 (op-dminon.js): “国度” is the client's CommonAbility Kingdom, whose tile effect dminon_talent_range_01 lies on each
+  // tile of her range (a `_tileEffectKey`: the client is given no tiles) — the kit's 'zone' on each, whatever her skill;
+  // the tiles S3 spreads to (dminon_s_3[spread] CreateTileEffectInRange) and those 此身为界 strikes (projectile_chr_dminon_dead
+  // / _withdraw `_tileEffectKeyOnStop`) flash dminon_talent_range_hit_01 — the kit's 'aoe' on each
+  skchr_dminon_1: Object.freeze({
+    zone: binding({ owner: 'id', at: 'point', keys: ['dminon_talent_range_01'], hold: 'fx', holdS: 3, cover: ['zone'] }),
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['dminon_talent_range_hit_01'] }),
+  }),
+  skchr_dminon_2: Object.freeze({
+    zone: binding({ owner: 'id', at: 'point', keys: ['dminon_talent_range_01'], hold: 'fx', holdS: 3, cover: ['zone'] }),
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['dminon_talent_range_hit_01'] }),
+  }),
+  skchr_dminon_3: Object.freeze({
+    zone: binding({ owner: 'id', at: 'point', keys: ['dminon_talent_range_01'], hold: 'fx', holdS: 3, cover: ['zone'] }),
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['dminon_talent_range_hit_01'] }),
+  }),
+  // 冻河 (op-tocka.js): her 触发型效果 on an operator ('mark', id = her, target = the holder) — the start effect each buff
+  // template plays there (tocka_s1[trigger] tocka_skill_01_buff_02_start_01; S2's projectile hit tocka_skill_02_hit_01 and
+  // tocka_skill_02_buff_02_start_01; tocka_s3[trigger] tocka_skill_03_buff_start_02); S1's 屏障 ('shield', dur) is its
+  // buff's effect tocka_skill_01_buff_01, S2's attack-speed window and S3's ATK bonus ('buff', dur) theirs
+  // (tocka_skill_02_buff_01, tocka_skill_03_buff_04), held on the holder's tile; S2's throw and the S3 effect's move
+  // ('link' from (x, y) to (tx, ty) in t s, flame = the shot) fly projectile_chr_tocka_s2 / projectile_tocka_s3_effect;
+  // 夜的哑然's heal ('heal', target) is tocka_t1[heal_core]'s tocka_heal_01_hit_01 and 雪的印痕's armed attack ('aoe' at the
+  // target) projectile_chr_tocka_t2's hit tocka_attack_02_range_01, whatever her skill
+  skchr_tocka_1: Object.freeze({
+    mark: binding({ owner: 'id', at: 'target', keys: ['tocka_skill_01_buff_02_start_01'] }),
+    shield: binding({ owner: 'id', at: 'point', keys: ['tocka_skill_01_buff_01'], hold: 'fx', holdS: 10, cover: ['shield'] }),
+    heal: binding({ owner: 'id', at: 'target', keys: ['tocka_heal_01_hit_01'] }),
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['tocka_attack_02_range_01'] }),
+  }),
+  skchr_tocka_2: Object.freeze({
+    link: binding({ owner: 'id', flight: 'projectile_chr_tocka_s2' }),
+    mark: binding({ owner: 'id', at: 'target', keys: ['tocka_skill_02_hit_01', 'tocka_skill_02_buff_02_start_01'] }),
+    buff: binding({ owner: 'id', at: 'point', keys: ['tocka_skill_02_buff_01'], hold: 'fx', holdS: 15, cover: ['buff'] }),
+    heal: binding({ owner: 'id', at: 'target', keys: ['tocka_heal_01_hit_01'] }),
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['tocka_attack_02_range_01'] }),
+  }),
+  skchr_tocka_3: Object.freeze({
+    link: binding({ owner: 'id', flight: 'projectile_tocka_s3_effect' }),
+    mark: binding({ owner: 'id', at: 'target', keys: ['tocka_skill_03_buff_start_02'] }),
+    buff: binding({ owner: 'id', at: 'point', keys: ['tocka_skill_03_buff_04'], hold: 'fx', holdS: 15, cover: ['buff'] }),
+    heal: binding({ owner: 'id', at: 'target', keys: ['tocka_heal_01_hit_01'] }),
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['tocka_attack_02_range_01'] }),
+  }),
+  // 灰烬 (op-ash.js): 辅助装备's flashbang — under every skill (her talent; S2 throws it too) — flies the client's
+  // projectile_chr_ash_t1 from her to its target ('ashFlashDash': id = her, flame = the shot, from (x, y) to (tx, ty) in t s)
+  // and lands as that projectile's reached effect ash_buff_01_hit ('ashFlashBlast', `landing`); S3's breach round
+  // ('ashShellDash') flies projectile_chr_ash_s3 along her facing and bursts as its stop effect ash_skill_03_hit
+  // ('ashShellBlast') — the kit fires both itself (the talent ability and the cast-like-attack skill have no plan row there)
+  skchr_ash_1: Object.freeze({
+    ashFlashDash: binding({ owner: 'id', flight: 'projectile_chr_ash_t1' }),
+    ashFlashBlast: binding({ owner: 'id', at: 'point', oneshot: true, landing: true, keys: ['ash_buff_01_hit'] }),
+  }),
+  skchr_ash_2: Object.freeze({
+    ashFlashDash: binding({ owner: 'id', flight: 'projectile_chr_ash_t1' }),
+    ashFlashBlast: binding({ owner: 'id', at: 'point', oneshot: true, landing: true, keys: ['ash_buff_01_hit'] }),
+  }),
+  skchr_ash_3: Object.freeze({
+    ashFlashDash: binding({ owner: 'id', flight: 'projectile_chr_ash_t1' }),
+    ashFlashBlast: binding({ owner: 'id', at: 'point', oneshot: true, landing: true, keys: ['ash_buff_01_hit'] }),
+    ashShellDash: binding({ owner: 'id', flight: 'projectile_chr_ash_s3' }),
+    ashShellBlast: binding({ owner: 'id', at: 'point', oneshot: true, landing: true, keys: ['ash_skill_03_hit'] }),
+  }),
+  // 艾拉 (op-ela.js): a 雷鸣地雷 going off, and her own effect when she leaves the field ('elaMineBlast': id = her, at the
+  // trap / where she stood) — the effect of the token skill of her pick: sktok_ela_N's cast effect
+  // token_ela_grzmot_skill_0N_hit_01, the one ela_t_1[dead] also creates for DeadBoom / WithdrawBoom (CheckSkillIndex)
+  skchr_ela_1: Object.freeze({ elaMineBlast: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['token_ela_grzmot_skill_01_hit_01'] }) }),
+  skchr_ela_2: Object.freeze({ elaMineBlast: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['token_ela_grzmot_skill_02_hit_01'] }) }),
+  skchr_ela_3: Object.freeze({ elaMineBlast: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['token_ela_grzmot_skill_03_hit_01'] }) }),
   // 克莱门莎 S3 (op-clemnt.js bombard): the kit marks an enemy's tile ('lock': id = the enemy, src = her) and strikes it
   // three times ('blast', id = her, 0.5 / 1.5 / 2.5 s later). The client fires projectile_chr_clemnt_s3 at the marked
   // enemy (AttachToTarget, _immediatelyReach), whose reached effect clemnt_skill_03_mark_all_01 is the mark and its three
