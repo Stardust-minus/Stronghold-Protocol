@@ -49,7 +49,6 @@ test('real four-player sockets: host-only proposal in a private room, ¾ sync, r
   await ok(host, { t: 'room.start' });
   const initial = await host.waitFor('m.public', (p) => p.phase === 'INFO_CHECK');
   const m = srv.lobby.rooms.get(room.code).match;
-  await err(guests[0], { t: 'room.rerollSetup', setupRevision: 0 }, ERR.NOT_HOST);
   await err(spectator, { t: 'room.rerollSetup', setupRevision: 0 }, ERR.SPECTATOR);
   await ok(guests[0], { t: 'g.infoReady', setupRevision: 0 });
   await ok(host, { t: 'room.rerollSetup', setupRevision: 0 });
@@ -96,7 +95,7 @@ test('real four-player sockets: host-only proposal in a private room, ¾ sync, r
   await err(host, { t: 'room.rerollSetup', setupRevision: 1 }, ERR.WRONG_PHASE);
 });
 
-test('real sockets: reject/cancel keep the setup and resume the countdown; a matchmade room lets any player propose', { timeout: 15000 }, async (t) => {
+test('real sockets: reject/cancel keep the setup and resume the countdown; a guest of a private room may propose', { timeout: 15000 }, async (t) => {
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
   const clients = [];
   t.after(async () => { await Promise.all(clients.map((c) => c.terminate())); await srv.close(); });
@@ -113,25 +112,18 @@ test('real sockets: reject/cancel keep the setup and resume the countdown; a mat
   await ok(host, { t: 'room.start' });
   const initial = await host.waitFor('m.public', (p) => p.phase === 'INFO_CHECK');
   const m = srv.lobby.rooms.get(room.code).match;
-  // the host proposes once per setup revision; the guest of a private room may not propose (Lobby.rerollSetup)
-  await err(guest, { t: 'room.rerollSetup', setupRevision: 0 }, ERR.NOT_HOST);
+  // each seated human proposes once per setup revision, the host and the guest of a private room alike (Lobby.rerollSetup)
   for (const finish of ['reject', 'cancel', 'repeat']) {
     await new Promise((resolve) => setTimeout(resolve, 310));
     if (finish === 'repeat') { await err(host, { t: 'room.rerollSetup', setupRevision: 0 }, ERR.ALREADY); break; }
-    const lobbyRoom = srv.lobby.rooms.get(room.code);
     if (finish === 'reject') await ok(host, { t: 'room.rerollSetup', setupRevision: 0 });
-    else {
-      // 野排 (room.source 'matchmaking'): any seated human proposes; cancelling stays the host's
-      lobbyRoom.source = 'matchmaking';
-      await ok(guest, { t: 'room.rerollSetup', setupRevision: 0 });
-    }
+    else await ok(guest, { t: 'room.rerollSetup', setupRevision: 0 });
     const voting = await host.waitFor('m.public', (p) => !!p.rerollVote);
     if (finish === 'reject') await ok(guest, { t: 'g.rerollVote', voteId: voting.rerollVote.id, agree: false });
     if (finish === 'cancel') {
       assert.equal(voting.rerollVote.proposerId, m.order[1].playerId);
       await err(guest, { t: 'room.cancelReroll', voteId: voting.rerollVote.id }, ERR.NOT_HOST);
       await ok(host, { t: 'room.cancelReroll', voteId: voting.rerollVote.id });
-      lobbyRoom.source = 'private';
     }
     await host.waitFor('m.public', (p) => !p.rerollVote && p.deadline > 0);
     assert.equal(m.setupRevision, 0);

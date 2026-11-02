@@ -1,9 +1,8 @@
 // INFO_CHECK full setup reroll (重刷本局): a ¾ human vote, keeping the room and player settings.
 // [ASSUMED] Remake convenience: the vote rule below, pause/resume timer, independent reroll stream and a 300 ms request
 // guard. These are not official mode rules; DESIGN §28.21 and the 0.3.0 history (owner's rules of 2026-10-17).
-// Installed on Match.prototype like the other method containers. The lobby authorizes who may propose (the host of a
-// private room, any seated human of a matchmade one) and the host's room.cancelReroll; the proposer withdraws with
-// g.rerollVote agree:false.
+// Installed on Match.prototype like the other method containers. The lobby authorizes who may propose (any seated
+// human) and the host's room.cancelReroll; the proposer withdraws with g.rerollVote agree:false.
 //
 // The vote: voters = the humans connected (not left, not bots, not spectators) when it is proposed; need =
 // ceil(0.75 × voters), the proposer counts as yes. It passes as soon as `agreed` reaches need and fails as soon as

@@ -1190,7 +1190,7 @@ remain documented, not presented as this deployment's default. See
 ## Opening rerolls and bot reactions (0.2.3)
 
 `match/setupVote.js` owns the INFO_CHECK vote and transactional opening replacement; `Lobby.rerollSetup` checks who
-may send `room.rerollSetup {setupRevision}` (the host of a private room, any seated human of a matchmade one) and keeps
+may send `room.rerollSetup {setupRevision}` (any seated human, in private and matchmade rooms alike) and keeps
 `room.cancelReroll {voteId}` the host's. Participants send `g.rerollVote {voteId, agree}` (the proposer's no withdraws);
 `g.infoReady {setupRevision?}` accepts an omitted revision only before the first reroll. `m.public` includes
 `setupRevision` and `rerollVote` (null or `{id, proposerId, voters, agreed, rejected, need, deadline}`). Voters = the

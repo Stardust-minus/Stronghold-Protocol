@@ -140,16 +140,15 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
       const state = await guest.evaluate(() => globalThis.__SP__.store.get().match.public);
       assert.equal(state.rerollVote, null);
       assert.ok(state.players.filter((p) => !p.isBot).every((p) => !p.ready));
-      await host.bringToFront();
-      await host.waitForFunction(() => !!document.querySelector('.brief-reroll button:not(:disabled)'));
-      // the server's anti-burst interval, then a private room's host starts it (this fork's rule, no cooldown)
+      await guest.waitForFunction(() => !!document.querySelector('.brief-reroll button:not(:disabled)'));
+      // the server's anti-burst interval, then the guest of a private room starts it (any seated human, no cooldown)
       await new Promise((resolve) => setTimeout(resolve, 350));
-      await host.click('.brief-reroll button');
-      await guest.bringToFront();
-      await guest.waitForSelector('.brief-reroll .btn--danger');
-      await guest.click('.brief-reroll .btn--danger');
-      await guest.waitForFunction(() => !globalThis.__SP__.store.get().match.public.rerollVote, { polling: 50 });
-      assert.equal(await host.evaluate(() => globalThis.__SP__.store.get().match.public.setupRevision), 1);
+      await guest.click('.brief-reroll button');
+      await host.bringToFront();
+      await host.waitForSelector('.brief-reroll .btn--danger');
+      await host.click('.brief-reroll .btn--danger');
+      await host.waitForFunction(() => !globalThis.__SP__.store.get().match.public.rerollVote, { polling: 50 });
+      assert.equal(await guest.evaluate(() => globalThis.__SP__.store.get().match.public.setupRevision), 1);
     } finally { await ctx.close(); }
   });
   test('operator voice selection persists across reload and follows global after reset', async () => {

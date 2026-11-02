@@ -373,8 +373,8 @@ bot reply. Settlement uses that round's results (kills then damage, stable seat 
 chess merge reacts once and resets at settlement. Gifts are classified by trusted source playerId, never display name.
 These hooks consume no gameplay RNG and schedule no game actions.
 
-[ASSUMED] During INFO_CHECK a player may request an opening reroll (重刷本局): any seated human of a matchmade room
-(野排, `room.source === 'matchmaking'`), only the host of a private one (`Lobby.rerollSetup`). The voters are the humans
+[ASSUMED] During INFO_CHECK any seated human may request an opening reroll (重刷本局), in private and matchmade rooms
+alike (`Lobby.rerollSetup`). The voters are the humans
 connected at the proposal, autoplay humans included; bots, spectators and offline humans neither vote nor block. It
 needs `ceil(0.75 × voters)` yes votes, the proposer's counted (2→2, 3→3, 4→3, 8→6, 20→15), passes as soon as that is
 reached and fails as soon as `voters − rejected` falls below it. A voter that disconnects or leaves is dropped from the

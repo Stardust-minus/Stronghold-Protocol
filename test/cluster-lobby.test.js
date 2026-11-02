@@ -293,16 +293,16 @@ test('commit rechecks room and network capacity after await', async t => {
   assert.equal(h.lobby.rooms.size, 1); assert.ok(players.every(s => s.roomCode === null && h.lobby.queue.state(s).state === 'queued'));
 });
 
-test('cluster setup reroll stays host-only and waits for the owning actor acknowledgement', async t => {
+test('cluster setup reroll: any seated player proposes, the host cancels, both wait for the owning actor acknowledgement', async t => {
   const h = harness(t), players = h.group(), room = h.privateRoom(players.slice(0, 2));
   const started = h.lobby.start(players[0]); h.complete(); await started;
   const added = h.lobby.spectate(players[2], { code: room.code });
   h.peers.at(-1).work.resolve({ ok: true }); await added;
   const before = h.peers.length;
-  assert.equal(h.lobby.rerollSetup(players[1], { setupRevision: 3 }).error, ERR.NOT_HOST);
   assert.equal(h.lobby.rerollSetup(players[2], { setupRevision: 3 }).error, ERR.SPECTATOR);
+  assert.equal(h.lobby.rerollSetup(players[1], { voteId: 7 }, true).error, ERR.NOT_HOST);
   assert.equal(h.peers.length, before);
-  const requested = h.lobby.rerollSetup(players[0], { setupRevision: 3 });
+  const requested = h.lobby.rerollSetup(players[1], { setupRevision: 3 });
   assert.equal(typeof requested.then, 'function');
   assert.equal(h.peers.at(-1).method, 'requestSetupReroll');
   assert.equal(h.peers.at(-1).loadout, 3);

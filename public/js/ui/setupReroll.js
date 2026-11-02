@@ -1,6 +1,6 @@
 // 重刷本局 (INFO_CHECK): a server-owned vote of the connected humans that passes at ¾ (m.public rerollVote need,
-// server/match/match/setupVote.js; GitHub feedback #27). The host of a private room proposes; in a matchmade room (野排)
-// any seated human does. Voters may change their answer until it ends; the proposer withdraws, the host cancels.
+// server/match/match/setupVote.js; GitHub feedback #27). Any seated human proposes, in private and matchmade rooms
+// alike. Voters may change their answer until it ends; the proposer withdraws, the host cancels.
 // One proposal per player per setup, no cap per match (feedback #93). Reconnects render the current vote from m.public; the outcome is a m.notice toast (main.js VOTE_NOTICE).
 import { useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button, Countdown } from './components.js';
@@ -11,7 +11,6 @@ import { t } from '../../../shared/i18n.js';
 export function SetupReroll({ pub }) {
   const myId = useStore((s) => s.me.playerId);
   const hostId = useStore((s) => s.room?.hostId);
-  const matchmade = useStore((s) => s.room?.source === 'matchmaking');
   const online = useStore((s) => s.connection.status === 'online');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -30,7 +29,7 @@ export function SetupReroll({ pub }) {
     setBusy(true);
     try { await fn(); } finally { pending.current = false; setBusy(false); }
   };
-  if (!vote && (!me || !(host || matchmade))) return null;
+  if (!vote && !me) return null;
   const need = vote ? vote.need ?? vote.voters.length : 0;
   const answer = (id) => vote.agreed.includes(id) ? ['is-agreed', t('已同意')] : vote.rejected?.includes(id) ? ['is-rejected', t('已拒绝')] : ['', t('待表态')];
   return html`<section class="brief-reroll" aria-label=${t('重刷本局')} aria-live="polite">

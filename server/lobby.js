@@ -2116,15 +2116,15 @@ export class Lobby {
   }
 
   /**
-   * Who may propose stays in the lobby (setupVote.js has the vote rule): any seated human of a matchmade room (野排,
-   * room.source 'matchmaking'), only the host of a private one; room.cancelReroll is the host's in both (the proposer
-   * withdraws with g.rerollVote agree:false). The match owns the vote and setup.
+   * Who may propose stays in the lobby (setupVote.js has the vote rule): any seated human, in private and matchmade
+   * rooms alike; room.cancelReroll is the host's (the proposer withdraws with g.rerollVote agree:false). The match owns
+   * the vote and setup.
    */
   rerollSetup(session, msg, cancel = false) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
-    if (room.hostId !== session.playerId && (cancel || room.source !== 'matchmaking')) return fail(ERR.NOT_HOST);
+    if (cancel && room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     const method = cancel ? 'cancelSetupReroll' : 'requestSetupReroll';
     if (!room.match || typeof room.match[method] !== 'function') return fail(ERR.WRONG_PHASE);
     return this.callMatch(room, method, session.playerId, cancel ? msg.voteId : msg.setupRevision) || fail(ERR.INTERNAL);
