@@ -274,6 +274,7 @@ npm run dev                 # node --watch：改动服务器代码后自动重�
 npm test                    # 即 node --test：单元 + 集成测试（约 8500 项；缺少素材 / 浏览器的用例会自动跳过）
 node --test 'deploy/stardust/auth/test/*.test.mjs' 'deploy/stardust/nginx/test/*.test.mjs'   # 门禁与 Nginx 模板
 SP_E2E=1 node --test test/ui/mock.e2e.test.js        # 浏览器端到端测试，需要本机 Chrome（CHROME_PATH 可指定路径）
+SP_E2E=1 SP_E2E_GPU=1 node --test test/ui/oxi.e2e.test.js   # 用本机 GPU 画 WebGL（Linux + Mesa），3D 棋盘的测试快很多；对 test/e2e/client.mjs 的 Client 和 real.e2e 生效
 SP_REAL_E2E=1 node --test test/ui/real.e2e.test.js   # 需要 Chrome + 已下载的素材
 RENDER_E2E=1 node --test 'test/render/*.browser.test.js'   # 渲染测试，部分需要本地提取的棋盘贴图
 GOLDEN_FULL=1 node --test test/golden.test.js           # 黄金结果：固定种子的整套战斗与人机对局摘要（默认只跑快速子集）

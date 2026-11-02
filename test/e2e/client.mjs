@@ -14,8 +14,15 @@ export const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.ap
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const hasChrome = () => existsSync(CHROME);
 
+/**
+ * SP_E2E_GPU=1: the browser draws WebGL on the machine's GPU (ANGLE over EGL; Linux with Mesa) instead of the software
+ * SwiftShader. Off by default, the screenshots and timings of these tests were taken with SwiftShader. Measured 2026-11-02
+ * on stardust (the Radeon of a Ryzen 9 9950X): a heavy fragment shader at 60 frames/s (the headless cap) against 21.8;
+ * ANGLE over Vulkan hangs there. Without a usable GPU Chrome falls back to SwiftShader.
+ */
+export const GPU_ARGS = process.env.SP_E2E_GPU === '1' ? ['--enable-gpu', '--ignore-gpu-blocklist', '--use-gl=angle', '--use-angle=gl-egl'] : [];
 const CHROME_ARGS = ['--no-sandbox', '--no-first-run', '--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling',
-  '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--mute-audio', '--force-device-scale-factor=1'];
+  '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--mute-audio', '--force-device-scale-factor=1', ...GPU_ARGS];
 /** The CDP protocol timeout of every Client's browser: one DevTools call that takes longer fails (a hung page fails fast). */
 export const PROTOCOL_TIMEOUT_MS = 90000;
 
