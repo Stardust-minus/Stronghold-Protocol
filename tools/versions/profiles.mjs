@@ -4,6 +4,8 @@
 //     expect: { bonds, bands, visibleNonDiy, triggerDeviations } }
 //   pins      null (master, .cache/gamedata/) or { default: <sha>, <group>: <sha> … } — the commit of each file group
 //             (pinGroupOf), cached in .cache/gamedata@<sha>/
+//   lateOperators  { sha, charIds } or omitted — operators newer than the pinned tables: their character, skill and
+//             range records (nothing else) are read from `sha`, cached in .cache/gamedata@<sha>/
 //   adapters  names in tools/versions/adapters.mjs, applied in this order to the loaded activity_table
 //   research  the version's research directory (falls back to docs/research/, with a warning) or null = docs/research/
 //   tables    'default' (the 下半-measured tables of tools/build-data.mjs) or { stock, shopDraft, tacticDraft,

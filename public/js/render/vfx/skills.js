@@ -1324,6 +1324,8 @@ export function chargeKeys(plan) {
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
  *   during      only while the skill lasts (SkillFx._lasts: on, its activation frame, COVER_AFTER_S after its end, or a
  *               binding of its owner still held — a lasting area's strikes); another fx of that kind is the kit's own
+ *   flight      a projectile the kit flies itself over the map, at no unit: its flying effect from the fx's (x, y) to
+ *               (`tx`, `ty`) in `t` battle s; `flame` names the shot. `landing` on another kind ends the shot of that name
  * or, instead of a projectile (history §32.14.43):
  *   attack      the node of the plan attack the fx stands for: its cast / range rows play on the owner at the fx, its hit
  *               groups and aims on the damage the fx's frame deals after it (SkillFx kit hits)
@@ -1335,6 +1337,25 @@ const binding = (o) => Object.freeze({ ...o, ...(o.cover ? { cover: Object.freez
 export const FX_BINDINGS = Object.freeze({
   // Existing kit event supplies the elimination position (no invented projectile collision or ally trigger).
   skchr_yu_3: Object.freeze({ firewallBlock: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['yu_skill3_annex_01'] }) }),
+  // 塔露拉 (op-oxi.js): 足迹 is the client's oxi_fire_field_lease (TimedTileLeaseAbility, its effect oxi_buff_01 on each leased
+  // tile), whatever her skill — the kit's 'zone' on the tile; S1's strike and S2's retaliation are 'aoe's standing for each
+  // skill's hit row, which no plan row places because the kit casts them without an attack
+  skchr_oxi_1: Object.freeze({
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['oxi_skill_01_hit_01'] }),
+    zone: binding({ owner: 'id', at: 'point', keys: ['oxi_buff_01'], hold: 'fx', holdS: 4, cover: ['zone'] }),
+  }),
+  skchr_oxi_2: Object.freeze({
+    aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['oxi_skill_02_hit_01'] }),
+    zone: binding({ owner: 'id', at: 'point', keys: ['oxi_buff_01'], hold: 'fx', holdS: 4, cover: ['zone'] }),
+  }),
+  // S3's 簇火 ('heatwave', one per row: id = her, flame = the shot, from (x, y) to (tx, ty) in t s) fly the client's
+  // projectile_chr_oxi_s_3_heatwave, over the map and at no unit (`flight`, SkillFx._flyKit); 'heatwaveHit' is its stop at
+  // its first hit (`_stopAfterFirstHit`), which ends that shot (`landing`) and plays its hit effect there
+  skchr_oxi_3: Object.freeze({
+    zone: binding({ owner: 'id', at: 'point', keys: ['oxi_buff_01'], hold: 'fx', holdS: 4, cover: ['zone'] }),
+    heatwave: binding({ owner: 'id', flight: 'projectile_chr_oxi_s_3_heatwave' }),
+    heatwaveHit: binding({ owner: 'id', at: 'point', oneshot: true, landing: true, keys: ['oxi_skill_03_hit_01'] }),
+  }),
   // 克莱门莎 S3 (op-clemnt.js bombard): the kit marks an enemy's tile ('lock': id = the enemy, src = her) and strikes it
   // three times ('blast', id = her, 0.5 / 1.5 / 2.5 s later). The client fires projectile_chr_clemnt_s3 at the marked
   // enemy (AttachToTarget, _immediatelyReach), whose reached effect clemnt_skill_03_mark_all_01 is the mark and its three
@@ -1427,6 +1448,7 @@ export const FX_BINDINGS = Object.freeze({
  */
 export function bindingEffects(idx, bind) {
   if (Array.isArray(bind?.keys)) return bind.keys.map(lc).filter(Boolean);
+  if (bind?.flight) { const k = lc(idx?.projectiles?.[lc(bind.flight)]?.main); return k ? [k] : []; }
   const p = bind?.projectile ? idx?.projectiles?.[lc(bind.projectile)] : null;
   if (!p) return [];
   const list = bind.part ? (Array.isArray(p[bind.part]) ? p[bind.part] : [])

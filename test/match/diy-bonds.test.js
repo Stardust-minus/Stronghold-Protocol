@@ -17,6 +17,7 @@ const T5B = 'chess_char_5_diy2_a';
 const T6A = 'chess_char_6_diy1_a';
 const HUANG = 'char_017_huang'; // 煌: 炎 + 维多利亚 (both from her 隐藏势力)
 const CROSLY = 'char_1502_crosly'; // 弑君者: 叙拉古
+const OXI = 'char_4247_oxi'; // 塔露拉: 协防 by the fallback, plus 奥术 and 不屈 (the owner's decision, DIY_EXTRA_BONDS)
 const SHARP = 'char_609_acguad'; // a prototype: 协防
 const OPS = DATA.backups?.diy?.operators ?? {};
 
@@ -48,10 +49,12 @@ test('the derived bonds of the data: each owned pick its core bonds or 协防, �
   for (const id of owned) {
     const b = OPS[id].bonds;
     assert.ok(b.length >= 1, id);
+    if (id === OXI) continue;
     assert.ok((b.length === 1 && b[0] === 'emptyShip') || b.every((x) => core.has(x)), `${id}: ${b.join(', ')}`);
   }
   assert.deepEqual(OPS[HUANG].bonds, ['yanShip', 'victoriaShip']);
-  assert.deepEqual(owned.filter((id) => OPS[id].bonds.length > 1), [HUANG], '煌 alone has several');
+  assert.deepEqual(owned.filter((id) => OPS[id].bonds.length > 1 && id !== OXI), [HUANG], '煌 alone has several derived ones');
+  assert.deepEqual(OPS[OXI].bonds, ['emptyShip', 'arcaneShip', 'indomShip']);
   assert.deepEqual(OPS.char_300_phenxi.bonds, ['lateranoShip']);
   assert.deepEqual(OPS.char_4098_vvana.bonds, ['kazimierzShip']);
   assert.deepEqual(OPS[CROSLY].bonds, ['siracusaShip']);

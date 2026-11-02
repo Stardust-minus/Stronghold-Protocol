@@ -201,6 +201,34 @@ function sourceOf(rel) {
 }
 
 /**
+ * Add the operators newer than the pinned tables (profile `lateOperators`): only their own character, skill and range
+ * records come from the later commit, so every other operator keeps the pinned numbers. Refuses an operator the pinned
+ * tables already have, and one with modules (the module tables are not merged).
+ * @param {{ sha: string, charIds: readonly string[] }} late
+ * @param {{ charTable: any, skillTable: any, rangeTable: any }} tables mutated in place
+ */
+async function mergeLateOperators({ sha, charIds }, { charTable, skillTable, rangeTable }) {
+  const src = { cacheDir: `${CACHE_DIR}@${sha}`, baseUrl: pinnedUrl(sha) };
+  const read = async (rel) => JSON.parse(await readFile(await ensureGamedata(rel, src), 'utf8'));
+  const [chars, skills, ranges, equips] = await Promise.all(['character', 'skill', 'range', 'uniequip'].map((t) => read(`excel/${t}_table.json`)));
+  for (const id of charIds) {
+    const ch = chars[id];
+    if (!ch) throw new Error(`lateOperators: ${id} is not in the tables of ${sha}`);
+    if (charTable[id]) throw new Error(`lateOperators: ${id} is already in the pinned tables`);
+    if (equips.charEquip?.[id]?.length) throw new Error(`lateOperators: ${id} has modules, which this merge does not carry`);
+    charTable[id] = ch;
+    const rangeIds = (ch.phases || []).map((p) => p.rangeId);
+    for (const { skillId } of ch.skills || []) {
+      if (!skillId) continue;
+      if (!skills[skillId]) throw new Error(`lateOperators: ${id}: no skill ${skillId} in the tables of ${sha}`);
+      skillTable[skillId] = skills[skillId];
+      rangeIds.push(...skills[skillId].levels.map((l) => l.rangeId));
+    }
+    for (const r of rangeIds) if (r && !rangeTable[r] && ranges[r]) rangeTable[r] = ranges[r];
+  }
+}
+
+/**
  * Load an optional research JSON (docs/research/<name>); returns null when absent/unreadable. A non-default version reads
  * its own copy from its profile's research directory when there is one, else docs/research/ [ASSUMED] with a warning.
  */
@@ -254,6 +282,7 @@ async function loadContext() {
     loadGamedata('excel/enemy_handbook_table.json'),
     loadGamedata('levels/enemydata/enemy_database.json'),
   ]);
+  if (PROFILE.lateOperators) await mergeLateOperators(PROFILE.lateOperators, { charTable, skillTable, rangeTable });
   const act = activity?.activity?.AUTOCHESS_SEASON?.[PROFILE.season];
   const ac = activity?.autoChessData;
   if (!act || !ac) throw new Error(`activity_table has no ${PROFILE.season} / autoChessData section`);
@@ -590,6 +619,17 @@ const DIY_EXCLUDED_TEAMS = Object.freeze(['rainbow', 'action4', 'mujica', 'sees'
  * Dungeon Meshi); every other prefix in the pool is a faction (LM, NM, RE, RL, …).
  */
 const DIY_EXCLUDED_NUMBER_PREFIXES = Object.freeze(['MH', 'RS', 'AM', 'PS', 'DD']);
+/**
+ * Bonds added after an operator's derived ones. A deliberate deviation, the owner's decision of 2026-11-02: 塔露拉 is 协防
+ * by the official fallback (乌萨斯 names no core bond) and takes 奥术 and 不屈 as her 定位 bonds. The official mode never
+ * fielded her.
+ */
+const DIY_EXTRA_BONDS = Object.freeze({ char_4247_oxi: Object.freeze(['arcaneShip', 'indomShip']) });
+/**
+ * A line added to the first talent's text of every form: a rule of this game, not of the official tables (the owner's
+ * decision of 2026-11-02; the kit op-oxi.js carries it out).
+ */
+const DIY_TALENT_NOTES = Object.freeze({ char_4247_oxi: '技能持续期间我方干员阵亡时，【奥术】和【不屈】层数+1' });
 
 /**
  * The skill a prototype carries in a 自选 slot when no 补位 row of the slot's tier names it (only 预备干员-医疗 at tier 5:
@@ -692,6 +732,11 @@ function buildBackups(ctx, chess) {
     unit.forms = {};
     for (const st of [...need.get(id).values()].sort(statusCmp)) {
       const form = buildUnitForm(ctx, id, st);
+      if (DIY_TALENT_NOTES[id]) {
+        const t = form.talents[0];
+        t.desc += `\n${DIY_TALENT_NOTES[id]}`;
+        t.descRaw += `\n${DIY_TALENT_NOTES[id]}`;
+      }
       if (form.tokens.length && unit.standsIn.length) warn(`unit ${id}@${statusKey(st)}: summons ${form.tokens.join(', ')} have no tokens.json variant for a stand-in owner`);
       unit.forms[statusKey(st)] = form;
     }
@@ -712,7 +757,7 @@ function buildBackups(ctx, chess) {
     const hit = coreBonds.filter((b) => b.powerIdList.some((x) => powers.includes(x))).map((b) => b.bondId);
     operators[id] = {
       name: ch.name, rarity: rarityOf(ch), profession: ch.profession, subProfessionId: ch.subProfessionId,
-      obtainable: !ch.isNotObtainable, powers, bonds: hit.length ? hit : [fallback],
+      obtainable: !ch.isNotObtainable, powers, bonds: [...(hit.length ? hit : [fallback]), ...(DIY_EXTRA_BONDS[id] ?? [])],
     };
   }
   return { units, tokens, diy: { slots, prototypes, locked, ownedPool, excluded, operators } };

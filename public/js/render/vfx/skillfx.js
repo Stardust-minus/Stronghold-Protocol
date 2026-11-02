@@ -94,7 +94,11 @@ import {
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
+import { unitPoint } from './mounts.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
+
+/** A world-placed effect's root keeps no rotation of its own (the flights of wiring.js `_fly`). */
+const ID_ROT = Object.freeze([0, 0, 0, 1]);
 
 /** Battle seconds a held (non-oneshot) row of a skill's single cast lasts (FxWiring's CAST_LOOP_S for attacks). */
 export const SKILL_CAST_S = 0.6;
@@ -227,6 +231,7 @@ export class SkillFx {
     this.aloops = new Map();   // `${target id}|${key}` → { h, until, v }: an aura's looping buff effect on a unit in it
     this.viewList = [];        // the battle's views as the last sync gave them (an enemy binding's 'near' owner)
     this.modeWins = new Map(); // unit id → { hs, seq }: the loops of a mode an enemy binding's fx started (_modeWin)
+    this.kitFlights = new Map(); // a kit shot's `flame` → its flying effect (FX_BINDINGS `flight`, _flyKit)
   }
 
   active() { return !!this.w.ofx.active && !!this.w.idx; }
@@ -1054,6 +1059,32 @@ export class SkillFx {
     return extra.skill != null && on && (U.loops.some((h) => h.alive) || !!U.ewin?.loops.some((h) => h.alive));
   }
 
+  /**
+   * A kit's straight shot (FX_BINDINGS `flight`: 塔露拉's 簇火): the projectile's flying effect from the fx's point to (`tx`,
+   * `ty`) on the ground, in `t` battle s, turned along its way. It keeps the sim's flight, which owns the hits.
+   */
+  _flyKit(bind, x, y, extra) {
+    const proj = this.w.idx?.projectiles?.[lc(bind.flight)];
+    const key = lc(proj?.main), dur = Number(extra.t), ofx = this.w.ofx;
+    if (!key || !ofx.lib.has(key) || !(dur > 0)) return false;
+    const a = unitPoint(null, null, this._ground(x, y)), b = unitPoint(null, null, this._ground(extra.tx, extra.ty));
+    const dx = b[0] - a[0], dy = b[1] - a[1], flip = !!ofx.lib.def(key)?.flipIfLeft && dx < 0, t0 = ofx.time;
+    const h = ofx.spawn(key, { pos: a.slice(), groundZ: a[2], rootRot: ID_ROT }, {
+      important: true, loop: true,                         // (the prefab's clip is 1 s; the shot flies for several)
+      track: (fx) => {
+        // (from the fx's moment, not the effect's own clock: a prefab loading on its first use joins the shot where it is)
+        const k = Math.min(1, (ofx.time - t0) / dur);
+        fx.anchor[0] = a[0] + dx * k; fx.anchor[1] = a[1] + dy * k; fx.anchor[2] = a[2] + (b[2] - a[2]) * k;
+        fx.mirror = flip;
+        fx.yaw = flip ? Math.atan2(dy, -dx) : Math.atan2(dy, dx);
+        if (k >= 1) { this.kitFlights.delete(extra.flame); fx.stop(); }
+      },
+    });
+    if (!h) return false;
+    this.kitFlights.set(extra.flame, h);
+    return true;
+  }
+
   /** An FX_BINDINGS `attack` entry: that plan attack's rows on the owner now, its hits on the damage that follows. */
   _boundAttack(U, bind) {
     const a = U.plan?.attacks.find((x) => x.node === bind.attack);
@@ -1094,6 +1125,8 @@ export class SkillFx {
    * says; a binding's own `keys` at 'target' once on the unit the fx names.
    */
   _bound(U, bind, x, y, extra) {
+    if (bind.flight) return this._flyKit(bind, x, y, extra);
+    if (bind.landing) { this.kitFlights.get(extra.flame)?.stop(); this.kitFlights.delete(extra.flame); }
     const keys = bindingEffects(this.w.idx, bind).filter((k) => this.w.ofx.lib.has(k));
     if (!keys.length) return false;
     if (bind.at === 'target') {
@@ -1426,6 +1459,8 @@ export class SkillFx {
 
   /** Battle reset: forget every unit (the effects themselves are cleared by OfficialFx.clear). */
   clear() {
+    for (const h of this.kitFlights.values()) h.stop();
+    this.kitFlights.clear();
     this.units.clear();
     this.tloops.clear();
     this.marks = [];

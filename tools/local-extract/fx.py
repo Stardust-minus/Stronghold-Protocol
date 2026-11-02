@@ -68,6 +68,8 @@ EFFECT_GLOBS = ('battle/prefabs/effects/*.ab', 'pkgrps/btl_pfb_fx_*.ab')
 CAB_DIRS = ('refs/fx', 'shaders', 'anon', 'arts/effects', 'battle/prefabs/effects', 'pkgrps')
 CAB_FILES = ('[uc]shaders.ab', 'arts/maps/effect.ab')
 PROJECTILES = 'battle/prefabs/[uc]projectiles.ab'
+# skill id → projectiles its prefab names nowhere the crawl reads (塔露拉 S3 fires its 簇火 from native code)
+SKILL_EXTRA_PROJECTILES = {'skchr_oxi_3': ('projectile_chr_oxi_s_3_heatwave',)}
 # projectile behaviours whose _mainEffect is a line, not the projectile's flying effect (`main`): a chain lightning's
 # (drawn between the chain's targets as the shot reaches them) or a harpoon's rope (from the shooter to the head) —
 # index.json `link`; the runtime tells them apart by `behaviours` (render/vfx/flight.js projectileParts)
@@ -2737,6 +2739,7 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, ski
         entry = node_entry(shared, skill_roots[sid], ekn, pk, effect_refs, templates)
         entry.pop('_switches', None)
         skill_named[sid] = entry.pop('_named', [])
+        entry['projectiles'] = sorted({*entry['projectiles'], *SKILL_EXTRA_PROJECTILES.get(sid, ())})
         for p in entry['projectiles']:
             projectile(p)
         skills[sid] = entry

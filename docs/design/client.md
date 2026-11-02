@@ -224,7 +224,7 @@ history and the open points: DESIGN §32.14.25.
   shows a skill, its procedural activation burst and aura are not drawn, and neither are the kit 'fx' it stands for
   (`simFx`): a cast flash on the owner in the frame of the skill start or, tagged with the skill, while its loops play;
   a skill-tagged fx standing for the plan's `pulse` rows (its buff's ticks on the owner, its other hits away from it),
-  which play there; and `skills.js FX_BINDINGS` (克莱门莎 S3's 'lock': her skill projectile's mark and three strikes on
+  which play there; and `skills.js FX_BINDINGS` (塔露拉 S3's 'heatwave': a projectile the kit flies over the map, `flight` / `landing`; 克莱门莎 S3's 'lock': her skill projectile's mark and three strikes on
   the tile, which also stand for her 'blast's there). A skill with nothing official (no plan, or none of its rows
   extracted) keeps the procedural burst and aura. An effect a plan reaches two ways (a buff's `_buffs` and
   `_extraBuffs`) plays once. A skill attack flies its ability's projectile (index v3 `projectileKey`, else the naming
