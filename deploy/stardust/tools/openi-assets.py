@@ -190,7 +190,9 @@ def prepare(stage, prefix):
         else:
             require(not path.startswith("assets/audio/"), "unexpected-audio-format")
             # JSON is only allowed for the prepared local model/map material metadata.
-            require(ext != ".json" or path.startswith("assets/local/"), "non-art-json")
+            # ... and a dynamic illustration's Spine skeleton exported as JSON (assets/skins/<id>/dynamic/*.json).
+            require(ext != ".json" or path.startswith("assets/local/") or
+                    re.fullmatch(r"assets/skins/[^/]+/dynamic/[^/]+\.json", path) is not None, "non-art-json")
             # .bin is only the 0.2.5 battlefield scene geometry (assets/local/scene/<stage>/scene.bin).
             require(ext != ".bin" or path.startswith("assets/local/scene/"), "non-scene-bin")
             name = prefix + "/" + path
