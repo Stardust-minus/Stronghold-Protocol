@@ -8,6 +8,33 @@ export const STATE_EV = new Set(['spawn', 'die', 'deploy', 'status', 'skill']);
  *  form (shared/protocol.js fxForm — the field meta's UnitInfo `form` predates them). */
 export const keepEarly = (e) => Array.isArray(e) && (STATE_EV.has(e[0]) || fxForm(e) !== undefined);
 
+/** Tuples kept per field while the view does not show it (screens/game.js onEv). */
+export const EARLY_MAX = 1500;
+
+/**
+ * Bound a field's early buffer (`buf`, in place) to `max` tuples without losing who is on the field: until 2026-11-02 the
+ * oldest tuples were cut, and those are the spawns of the battle's opening — a 联防 entered late (a busy field toggles
+ * statuses hundreds of times a second) then had operators with no UnitInfo, drawn as the enemy-styled placeholder (render/
+ * app.js createUnknown, the owner's report 「联防的时候，干员有概率变成红色水滴」, no panel). Superseded toggles go first —
+ * of the 'status' tuples only the last per (unit, status), of the 'skill' tuples the last per unit (what the view ends up
+ * showing; battle/runner.js compactHeld) —, then the oldest tuples but the spawns; the spawns are bounded by the units.
+ * @param {any[]} buf @param {number} [max]
+ */
+export function trimEarly(buf, max = EARLY_MAX) {
+  if (!Array.isArray(buf) || buf.length <= max) return buf;
+  const last = new Map();
+  buf.forEach((x, i) => {
+    if (x[0] === 'status') last.set(`s:${x[1]}:${x[2]}`, i);
+    else if (x[0] === 'skill') last.set(`k:${x[1]}`, i);
+  });
+  let kept = buf.filter((x, i) => (x[0] === 'status' ? last.get(`s:${x[1]}:${x[2]}`) === i : x[0] === 'skill' ? last.get(`k:${x[1]}`) === i : true));
+  let over = kept.length - max;
+  if (over > 0) kept = kept.filter((x) => x[0] === 'spawn' || over-- <= 0);
+  buf.length = 0;
+  buf.push(...kept);
+  return buf;
+}
+
 /**
  * What the SOUND gets of that replay: the 'spawn' tuples alone, which teach the audio who is on the field. The buffered
  * list is every spawn, die, deploy, status and skill since the field's m.field — up to 1500 of them, while the view was not

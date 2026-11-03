@@ -52,6 +52,8 @@ function matchDTO(room, seed, snapshotHz) {
       notOwned: structuredClone(s.isBot ? null : s.notOwned || null), diy: structuredClone(s.isBot ? null : s.diy || null),
       skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }), ...(s.isBot && s.band ? { band: s.band } : {}) })),
     spectators, ...(snapshotHz === undefined ? {} : { snapshotHz }), ...takenOverField(room.seats.filter(Boolean), spectators),
+    // another official version (ClusterLobby header: placed on a game node, run in that node's version host)
+    ...(room.version && room.version !== DEFAULT_VERSION ? { version: room.version } : {}),
   };
 }
 /** The assignment after a handover (GameHost.transferAiSeat keeps the node's the same way). */
@@ -69,7 +71,9 @@ function optsDTO(opts) {
   const fields = ['roomCode', 'mode', 'difficulty', 'modeId', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'seed', 'matchNo', 'seats', 'spectators'];
   const dto = Object.fromEntries(fields.map(key => [key, opts[key]]));
   if (opts.snapshotHz !== undefined) dto.snapshotHz = opts.snapshotHz;
-  return Object.assign(dto, takenOverField(opts.seats, opts.spectators));
+  Object.assign(dto, takenOverField(opts.seats, opts.spectators));
+  if (typeof opts.version === 'string' && opts.version !== DEFAULT_VERSION) dto.version = opts.version;
+  return dto;
 }
 // The display-only member fields (room.card's `card`, the 服主 `owner` mark) never reach the match (matchDTO): a change
 // while a start is being prepared does not invalidate it.
@@ -194,8 +198,18 @@ class PreparedRemoteMatch {
   }
 }
 
+/**
+ * Where another official version's match runs (DESIGN §35.23): 'node' (the default since rel26) — placed on a game node
+ * like a default match and run in that node's version host (server/cluster/game-runtime.js; frames, inputs, spectators,
+ * resume, checkpoints and receipts on the game-node path) — or 'coordinator' (SP_VERSION_PLACEMENT=coordinator, as up to
+ * rel25): this process's version host, frames on the control channel, checkpoints by server/persist/persister.js.
+ */
+export function versionPlacementFrom(value = process.env.SP_VERSION_PLACEMENT) {
+  return String(value ?? '').trim().toLowerCase() === 'coordinator' ? 'coordinator' : 'node';
+}
+
 export class ClusterLobby extends Lobby {
-  constructor({ platform, ...opts }) {
+  constructor({ platform, versionPlacement = versionPlacementFrom(), ...opts }) {
     if (!platform || typeof platform.prepare !== 'function' || typeof platform.resume !== 'function'
       || typeof platform.release !== 'function' || typeof platform.deliverEnd !== 'function'
       || !safeId(platform.build) || !Number.isSafeInteger(platform.protocol) || platform.protocol < 1) {
@@ -213,6 +227,13 @@ export class ClusterLobby extends Lobby {
     this.restoreStats = { pending: 0, adopted: 0, rebuilt: 0, failed: 0 };
     /** checkpoints are kept (server/persist/persister.js sets it): a lost node's matches are rebuilt (recoverRemote) */
     this.checkpointsOn = false;
+    /** another official version's matches: on a game node, or in this process's version host (versionPlacementFrom) */
+    this.versionPlacement = versionPlacementFrom(versionPlacement);
+  }
+
+  /** Whether a room's match is placed on a game node (every default room; another version's by versionPlacement). */
+  placesRemotely(room) {
+    return (room?.version ?? DEFAULT_VERSION) === DEFAULT_VERSION || this.versionPlacement === 'node';
   }
 
   createMatch(opts) {
@@ -415,11 +436,28 @@ export class ClusterLobby extends Lobby {
     return OK;
   }
 
+  /**
+   * Whether `session`'s match runs in this process: another official version's (start() keeps it in the version hosts).
+   * Its pongs then carry this process's own load without the cluster summary (server/net.js), so the match's HUD
+   * (public/js/ui/hud.js, scope 'game') shows the coordinator's measurements instead of 「未知」: a summary of the game
+   * nodes is not the game this player is in. Only a match this process hosts (MatchProxy `hosted`: the coordinator
+   * fallback, SP_VERSION_PLACEMENT=coordinator): a version match placed on a game node is a PreparedRemoteMatch here, and
+   * its pings reach the node once the game channel is published — before that, the coordinator's pong keeps the summary.
+   * @param {any} session
+   */
+  hostsMatchOf(session) {
+    // read-only (roomOf self-heals session.roomCode; a heartbeat must not)
+    const room = session?.roomCode ? this.rooms.get(session.roomCode) : null;
+    if (room?.match?.hosted !== true || (room.version ?? DEFAULT_VERSION) === DEFAULT_VERSION) return false;
+    return !!room.seatOf(session.playerId) || !!room.spectatorOf(session.playerId);
+  }
+
   start(session) {
-    // Another official version's match stays in this process's version hosts (server/match/host/, kind 'version'): a game
-    // node's modules hold 第二期下半's data alone. Its frames ride the control channel, its room keeps no checkpoint.
+    // Another official version's match: on a game node, in its version host there (versionPlacement 'node'), or in this
+    // process's version hosts ('coordinator': a game node's modules hold 第二期下半's data alone; its frames ride the
+    // control channel, server/persist/persister.js keeps its checkpoints)
     const own = this.roomOf(session);
-    if (own && own.version !== DEFAULT_VERSION) return super.start(session);
+    if (own && !this.placesRemotely(own)) return super.start(session);
     const check = this.inspectManual(session);
     if (check.error) return check;
     const room = check.room, previous = this.manualPending.get(room.code);

@@ -25,6 +25,21 @@ export const uniteRelayRound = (pub) => pub?.phase === PHASE.UNITE && pub.uniteR
   && (pub.uniteRound === 1 || pub.uniteRound === 2) ? pub.uniteRound : null;
 export const uniteRelayKey = (pub) => uniteRelayRound(pub) ? `${pub.round}:${pub.uniteRound}` : null;
 
+/**
+ * Whether the battle on screen (`shown`: the m.field the game screen entered) already is the relay round `pub` announces —
+ * then a new relay key must not reset the view (screens/game.js). The server sends the 联防 b.start at once and m.public
+ * throttled (≤ 100 ms later, match/messaging.js PUBLIC_THROTTLE), so the runner can show the field before the public state
+ * names its relay round: the reset that followed re-entered the field from its opening meta — shown at tick 0, before
+ * Battle.start deployed anyone, it lists no unit — and every unit announced since had no UnitInfo: an enemy-styled red
+ * placeholder that kept fighting but opened no panel (the owner's report of 2026-11-02, 「联防的时候，干员有概率变成红色水滴」).
+ * @param {any} shown @param {any} pub
+ */
+export function relayShown(shown, pub) {
+  const round = uniteRelayRound(pub);
+  if (!round || !shown || shown.prep || typeof shown.fieldId !== 'string') return false;
+  return currentRelayField(pub, shown);
+}
+
 /** A new relay public state may arrive before its field; never re-enter the previous helpers' battle. */
 export function currentRelayField(pub, field) {
   const single = pub?.phase === PHASE.UNITE && pub.uniteRounds === 1 && pub.uniteRound === 1

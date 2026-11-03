@@ -9,6 +9,11 @@
 // The envelope: { v, kind: 'cluster', assignmentId, roomCode, nodeId, spec (the assignment DTO the actor was prepared
 // with), left (players that departed), match (server/match/snapshot.js) }. Nothing here touches a running match beyond
 // the synchronous capture; a store that is down only skips checkpoints.
+// Another official version's actor (spec.version; its match runs in a version host of this node, server/cluster/
+// game-host.js) is checkpointed by that host: it posts the match's snapshot at each safe point and when asked (every
+// round and the shutdown: MatchProxy.checkpoint), and the envelope wraps the host's JSON as it is. Its spec names the
+// version, so a release whose nodes do not run other versions refuses such a checkpoint (INVALID_SPEC) instead of
+// rebuilding it on the wrong data.
 
 import { snapshotMatch } from '../match/snapshot.js';
 import { SAVE_MS } from './persister.js';
@@ -54,12 +59,15 @@ export class NodeCheckpoints {
   /** Checkpoint one actor now (never throws). @returns {Promise<boolean> | null} its write, null when skipped */
   capture(ctx, reason = 'tick') {
     if (this.closed || !ctx?.match || ctx.state !== 'committed' || !ctx.live || ctx.disposed) return null;
-    const doc = snapshotMatch(ctx.match);
-    if (!doc) { this.counts.captureSkips++; return null; }
+    // a hosted actor (the header): the latest checkpoint its version host posted, wrapped as it is
+    const hosted = ctx.match.hosted === true ? ctx.match.lastCheckpoint : null;
+    const doc = ctx.match.hosted === true ? null : snapshotMatch(ctx.match);
+    if (!doc && typeof hosted?.json !== 'string') { this.counts.captureSkips++; return null; }
     const id = ctx.spec.assignmentId;
     const left = [...ctx.members].filter(([, m]) => m.role === 'player' && m.left).map(([pid]) => pid);
-    const json = JSON.stringify({ v: NODE_CHECKPOINT_VERSION, kind: 'cluster', assignmentId: id, roomCode: ctx.spec.roomCode,
-      nodeId: this.nodeId, reason, spec: ctx.spec, left, match: doc });
+    const head = { v: NODE_CHECKPOINT_VERSION, kind: 'cluster', assignmentId: id, roomCode: ctx.spec.roomCode,
+      nodeId: this.nodeId, reason, spec: ctx.spec, left };
+    const json = doc ? JSON.stringify({ ...head, match: doc }) : `${JSON.stringify(head).slice(0, -1)},"match":${hosted.json}}`;
     const prev = this.written.get(id);
     if (prev && prev.ctx === ctx && prev.json === json) return null;
     const rec = { json, ctx, ok: false, pending: null };
@@ -74,7 +82,16 @@ export class NodeCheckpoints {
     if (this.busy) { if (reason === 'tick') return; await this.busy; }
     const run = (async () => {
       const writes = [];
+      // hosted actors: their hosts post a checkpoint each (or nothing, past their last safe point); capture follows it
       for (const ctx of this.gameHost.contexts.values()) {
+        if (ctx.match?.hosted !== true || ctx.state !== 'committed' || !ctx.live || ctx.disposed || typeof ctx.match.checkpoint !== 'function') continue;
+        writes.push((async () => {
+          try { await ctx.match.checkpoint(reason); } catch { /* the host is gone: the last checkpoint stays */ }
+          return this.written.get(ctx.spec.assignmentId)?.pending ?? null;
+        })());
+      }
+      for (const ctx of this.gameHost.contexts.values()) {
+        if (ctx.match?.hosted === true) continue;
         // an actor past its last safe point (a battle) is not captured again: the write that safe point started still
         // lands before the round ends (a shutdown closes the store next; see persister.js flush)
         const w = this.capture(ctx, reason) ?? this.written.get(ctx.spec?.assignmentId)?.pending;

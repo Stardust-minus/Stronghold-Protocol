@@ -1,5 +1,10 @@
 // Process-local game actors. A whole Match stays here; this is neither a session
 // registry nor durable recovery. The caller owns authentication, transport and pools.
+// Another official version's match (spec.version, DESIGN §35.23: this process's modules hold 第二期下半's data alone)
+// runs in that version's match host — a child process of this node (server/match/host/, kind 'version'; `versionHosts`
+// and `versions`, given by server/cluster/game-runtime.js): its actor holds the host's MatchProxy, whose answers are
+// Promises (handle, setLoadout, the reroll requests: `_invoke` passes them on, the caller awaits them), whose frames
+// arrive later on the host's channel and whose restore is applied there (`restoring`). The actor contract is the same.
 import { Match, AFK_REMOVE_ROUNDS } from '../match/Match.js';
 import { C2S, LOADOUT_LIMITS, OWNERSHIP_LIMITS, DIY_LIMITS, isNotOwnedList, isDiyPicks } from '../../shared/protocol.js';
 import { experimentalOptions, isExperimental } from '../../shared/experimental.js';
@@ -9,13 +14,14 @@ import { roomCapacity } from '../../shared/playerCapacity.js';
 import { restoreMatch, CHECKPOINT_PREP_END } from '../match/snapshot.js';
 import { adoptAiSeat, aiSeatOpen } from '../aiTakeover.js';
 import { createRngFromState } from '../sim/rng.js';
+import { DEFAULT_VERSION, versionById } from '../../shared/versions.js';
 
 const OK = Object.freeze({ ok: true });
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 const identifier = (v, max = 128) => typeof v === 'string' && v.length > 0 && v.length <= max && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const integer = (v, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(v) && v >= min && v <= max;
 const plain = v => !!v && typeof v === 'object' && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
-const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'snapshotHz', 'takenOver'];
+const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'snapshotHz', 'takenOver', 'version'];
 const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'ops', 'notOwned', 'diy', 'skins', 'band'];
 // Match's public observer contract, including the lobby's broadcast ticker/emote,
 // the AFK rule's m.notice and server-combat streams. Unknown types fail closed for observers.
@@ -114,7 +120,9 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
     || (spec.experimental !== undefined && (!isExperimental(spec.experimental)
       || (spec.revivalEnabled !== undefined && spec.revivalEnabled !== (spec.mode === 'coop' && spec.experimental.revivalEnabled))
       || (spec.disableSharedPool !== undefined && spec.disableSharedPool !== spec.experimental.disableSharedPool)))
-    || (spec.snapshotHz !== undefined && ![5, 10, 20].includes(spec.snapshotHz))) invalid();
+    || (spec.snapshotHz !== undefined && ![5, 10, 20].includes(spec.snapshotHz))
+    // another official version (the header): a registry id, never the default (a default match names none)
+    || (spec.version !== undefined && (typeof spec.version !== 'string' || spec.version === DEFAULT_VERSION || !versionById(spec.version)))) invalid();
   const experimental = experimentalOptions(spec.experimental ?? { revivalEnabled: spec.revivalEnabled ?? false, disableSharedPool: spec.disableSharedPool ?? false });
   const capacity = roomCapacity(spec.mode, experimental), roster = dataArray(spec.seats, capacity);
   if (!roster.length) invalid();
@@ -178,7 +186,8 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
     disableSharedPool: experimental.disableSharedPool, experimental,
     ...(spec.aiPicksLast === undefined ? {} : { aiPicksLast: spec.mode === 'coop' && spec.aiPicksLast }),
     ...(spec.snapshotHz === undefined ? {} : { snapshotHz: spec.snapshotHz }),
-    ...(takenOver.length ? { takenOver: [...takenOver] } : {}) });
+    ...(takenOver.length ? { takenOver: [...takenOver] } : {}),
+    ...(spec.version === undefined ? {} : { version: spec.version }) });
 }
 
 // Only the small assignment spec is canonicalised. No BattleSpec/snapshot is
@@ -192,8 +201,10 @@ function fingerprint(spec) {
 export class GameHost {
   // onRemoved({ assignmentId, generation, playerId, reason, rounds }): a Match removed a player (the AFK rule, _removed);
   // afkRemoveRounds: that rule's Match option for every actor of this host.
+  // versionHosts / versions: the other official versions' match hosts of this node and its version service (the header;
+  // null: this node runs 第二期下半 alone and refuses a spec that names another version)
   constructor({ data, combatPool, trialPool, MatchClass = Match, now = Date.now, prepareMs = 15_000, retiredMs = 120_000, log = noopLog, onEnd = () => {}, terminalControl = false,
-    onRemoved = () => {}, afkRemoveRounds = AFK_REMOVE_ROUNDS } = {}) {
+    onRemoved = () => {}, afkRemoveRounds = AFK_REMOVE_ROUNDS, versionHosts = null, versions = null } = {}) {
     if (typeof MatchClass !== 'function' || typeof now !== 'function' || typeof onEnd !== 'function'
       || typeof terminalControl !== 'boolean' || typeof onRemoved !== 'function') throw new TypeError('invalid game host callbacks');
     if (!integer(prepareMs, 1, 300_000)) throw new RangeError('invalid prepareMs');
@@ -211,6 +222,8 @@ export class GameHost {
     this.terminalControl = terminalControl;
     this.onRemoved = onRemoved;
     this.afkRemoveRounds = afkRemoveRounds;
+    this.versionHosts = versionHosts;
+    this.versions = versions;
     this.contexts = new Map();
     // IDs are globally unique coordinator nonces, never deliberately reused.
     // Keep fences beyond RPC/admission lifetimes without retaining every match
@@ -301,9 +314,19 @@ export class GameHost {
     return this._view(ctx);
   }
 
+  /**
+   * Whether this node can run a spec's official version (the header): always for the default. Its data is not loaded
+   * here (the version host checks and loads it in its own process; this one reads it once a host starts: its bounds).
+   */
+  canHost(version) {
+    if (version === undefined || version === DEFAULT_VERSION) return true;
+    return !!this.versionHosts && !!this.versions?.isEnabled?.(version) && !!this.versions.csOf(version);
+  }
+
   _construct(ctx) {
     const matchSpec = copy(ctx.spec);
     delete matchSpec.assignmentId; delete matchSpec.build; delete matchSpec.protocol; delete matchSpec.takenOver;
+    if (matchSpec.version !== undefined) return this._constructHosted(ctx, matchSpec);
     const match = new this.MatchClass({ ...matchSpec, data: this.data, combatPool: this.combatPool, trialPool: this.trialPool,
       // This host owns server-authoritative games even without SP_COMBAT.
       clientCombat: false, log: this.log, now: this.now, afkRemoveRounds: this.afkRemoveRounds,
@@ -316,6 +339,35 @@ export class GameHost {
       onCheckpoint: (m, reason) => { if (this._live(ctx) && ctx.state === 'committed') this.onCheckpoint?.(ctx, m, reason); } });
     if (typeof match.start !== 'function' || typeof match.dispose !== 'function') throw new TypeError('invalid Match interface');
     return match;
+  }
+
+  /**
+   * Another official version's actor: its MatchProxy in that version's match host (the header). The options are the
+   * JSON-safe ones the host takes (server/match/host/proxy.js wireOptions), the version's cs from this node's version
+   * service; checkpoints on while this node keeps them (`onCheckpoint`).
+   */
+  _constructHosted(ctx, matchSpec) {
+    if (!this.canHost(matchSpec.version)) throw new GameHostError('NO_VERSION');
+    const cs = this.versions.csOf(matchSpec.version);
+    const match = this.versionHosts.create(cs, { ...matchSpec, cs, requireCs: true, afkRemoveRounds: this.afkRemoveRounds,
+      ...(typeof this.onCheckpoint === 'function' ? { checkpoints: true } : {}),
+      send: (id, msg) => this._emit(ctx, 'send', id, msg?.t, msg),
+      broadcast: msg => { this._emit(ctx, 'broadcast', null, msg?.t, msg); },
+      onEnd: summary => this._end(ctx, summary),
+      onRemove: (id, removal) => this._removed(ctx, id, removal),
+      onCheckpoint: (m, reason) => { if (this._live(ctx) && ctx.state === 'committed') this.onCheckpoint?.(ctx, m, reason); } });
+    if (!match?.hosted || typeof match.start !== 'function' || typeof match.dispose !== 'function') throw new TypeError('invalid Match interface');
+    return match;
+  }
+
+  /**
+   * A hosted actor's restore in its match host (restore): settles true once applied, false when refused; null for an
+   * actor that is not being restored there.
+   * @returns {Promise<boolean> | null}
+   */
+  restoring(assignmentId) {
+    const ctx = this.contexts.get(assignmentId);
+    return ctx?.match?.hosted && ctx.match.restored ? ctx.match.restored : null;
   }
 
   /**
@@ -342,7 +394,9 @@ export class GameHost {
     this.contexts.set(safe.assignmentId, ctx);
     try {
       ctx.match = this._construct(ctx);
-      if (!restoreMatch(ctx.match, saved.match, { createRngFromState, log: this.log, replay: saved.reason === CHECKPOINT_PREP_END })) {
+      // a hosted actor: applied in its match host (its outcome: restoring(); a refusal ends it as a failed start)
+      if (ctx.match.hosted) ctx.match.restore(saved.match, { replay: saved.reason === CHECKPOINT_PREP_END });
+      else if (!restoreMatch(ctx.match, saved.match, { createRngFromState, log: this.log, replay: saved.reason === CHECKPOINT_PREP_END })) {
         throw new GameHostError('RESTORE_REFUSED');
       }
     } catch (e) {
@@ -556,7 +610,12 @@ export class GameHost {
     try {
       const fn = ctx.match?.[method];
       if (typeof fn !== 'function') return method === 'setLoadout' || method === 'setSkins' ? fail(ERR.ROOM_STARTED) : OK;
-      return this._rejectAsync(fn.apply(ctx.match, args), method) ?? OK;
+      const value = fn.apply(ctx.match, args);
+      // a hosted actor answers later (the header): the caller awaits it (a lost host answers INTERNAL)
+      if (ctx.match.hosted && value && typeof value.then === 'function') {
+        return Promise.resolve(value).then(r => r ?? OK, () => { this._log(method); return fail(ERR.INTERNAL); });
+      }
+      return this._rejectAsync(value, method) ?? OK;
     } catch { this._log(method); return fail(ERR.INTERNAL); }
   }
 

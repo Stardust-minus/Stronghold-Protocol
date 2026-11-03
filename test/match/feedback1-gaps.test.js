@@ -229,12 +229,13 @@ describe('§21.26 found on the way — the client-result layer bound reads the l
   const check = (s, gains, opts = { gd }) => { const v = validateClientResult(s, res(gains), opts); return v.ok ? 'ok' : v.reason; };
   const SEED_107_R12 = ['chess_char_1_06_b', 'chess_char_4_14_a', 'chess_char_4_13_a', 'chess_char_3_14_a', 'chess_char_3_11_a', 'chess_char_4_22_a', 'chess_char_3_20_a', 'chess_char_5_14_b'];
 
-  // GitHub #175 (from PR #192 by @kukiC): the handed-out 华法琳 trait counts at the data cap, 7 / 14
-  test('华法琳\'s handed-out trait allows its data cap of 7 / 14 (GitHub #175)', () => {
+  // GitHub #175 (from PR #192 by @kukiC): the handed-out 华法琳 trait counts at the data cap, 7 / 14 — twice since its 双判
+  // (feedback #15: two copies on the target, each with the cap)
+  test('华法琳\'s handed-out trait allows twice its data cap of 7 / 14 (GitHub #175, feedback #15)', () => {
     for (const [id, cap] of [['chess_char_4_26_a', 7], ['chess_char_4_26_b', 14]]) {
       const s = spec(3, [id, 'chess_char_1_10_a']); // 华法琳 + 古米
-      // a handed-out trait is counted once per operator of the player (2 here), on top of the flat 60 + 4·round
-      const bound = 60 + 4 * 3 + 2 * cap;
+      // a handed-out trait is counted once per operator of the player (2 here) and copy (2), on top of the flat 60 + 4·round
+      const bound = 60 + 4 * 3 + 2 * 2 * cap;
       assert.equal(check(s, { steadShip: bound }), 'ok');
       assert.equal(check(s, { steadShip: bound + 1 }), 'layer bound');
     }

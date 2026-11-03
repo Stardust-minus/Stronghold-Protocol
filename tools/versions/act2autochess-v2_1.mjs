@@ -33,6 +33,24 @@ export default Object.freeze({
   pins: Object.freeze({
     default: '1457587e48fe65361f523821d24e6d14c3b91713',
   }),
+  // Every 自选 6★ the default offers and the pin predates (the owner's decisions of 2026-11-02: rel25's 塔露拉 冻河 国度 and
+  // the collab 焰狐龙梓兰 结城理, then the same 自选 range as the default — 6★ the version fields as shop chess stay shop
+  // chess): each one's own records, with the summons they name, come from the commit the default reads it from
+  // (tools/versions/act2autochess.mjs: fe7d8d05, or 08ba2aea for the three of 2026-11-01), so they equal the default's.
+  // 麒麟R夜刀 is in the pinned tables but without EXE-Y (uniequip_003_yato2 is newer than every pin): his records are
+  // replaced by the default's (`replace`, the owner's decision of 2026-11-02). The other collab picks keep the pin's.
+  lateOperators: Object.freeze([
+    Object.freeze({
+      sha: 'fe7d8d05edc36cf5678a24bfe9e84e891f6cf7ad',
+      charIds: Object.freeze([
+        'char_1015_aglna2', 'char_1029_yato2', 'char_1048_orchd2', 'char_1051_headb2', 'char_1052_kalts2',
+        'char_4217_makoto', 'char_4226_veen', 'char_4228_closur', 'char_4229_aphris', 'char_4230_mcnist',
+        'char_4231_clemnt', 'char_4235_thumpy',
+      ]),
+      replace: Object.freeze(['char_1029_yato2']),
+    }),
+    Object.freeze({ sha: '08ba2aea0e8dba88eff0ec0d2c87e24b4db626f8', charIds: Object.freeze(['char_4244_tocka', 'char_4246_dminon', 'char_4247_oxi']) }),
+  ]),
   adapters: Object.freeze(['launchModes', 'launchMilestones']),
   research: 'docs/research/versions/act2autochess-v2_1/',
   tables: 'default',

@@ -34,3 +34,12 @@ test('a scouted board starts no skill loops (feedback #95: 琳琅诗怀雅 S2 on
   const src = readFileSync(new URL('../../public/js/render/app.js', import.meta.url), 'utf8');
   assert.match(src, /if \(!battleMeta\?\.prep\) wiring\.sync\(views\.values\(\)\);/);
 });
+
+test('a scouted board runs on the prep clock, not the battle\'s (the owner\'s report of 2026-11-02: 二倍速 while watching in prep)', () => {
+  const src = read('public/js/render/app.js');
+  assert.match(src, /const battleClock = \(\) => mode === 'battle' && !battleMeta\?\.prep;/);
+  assert.match(src, /animRate: \(\) => \(battleClock\(\) \? interp\.rate : 1\),/);
+  assert.match(src, /timeScale: \(\) => \(opts\.playbackTime \? 1 : battleClock\(\) \? interp\.rate : 1\),/);
+  // and nothing else reads the battle clock for animation
+  assert.equal((src.match(/mode === 'battle' \? interp\.rate/g) || []).length, 0);
+});

@@ -118,7 +118,9 @@ export class RemoteGamePlatform {
         const previous = node.generation;
         node.generation = status.generation;
         node.answeredAt = this.now();
-        this.directory.heartbeat(node.nodeId, { generation: status.generation, ready: status.ready, matches: status.counts.matches });
+        // the other official versions it runs, and its version hosts (game-node status; directory.js VERSION_HOST_WEIGHT)
+        this.directory.heartbeat(node.nodeId, { generation: status.generation, ready: status.ready, matches: status.counts.matches,
+          versions: status.versions, versionHosts: status.versionHosts, versionHostLimit: status.versionHostLimit });
         this.cacheLoad(node, status);
         if (previous !== null && previous !== status.generation) {
           // A new process: every actor of the old generation is gone, and so are its pending releases.
@@ -243,7 +245,7 @@ export class RemoteGamePlatform {
     if (this.contexts.has(spec.assignmentId)) throw new AllocationError('ASSIGNMENT_CONFLICT');
     const assignment = this.directory.prepare({ assignmentId: spec.assignmentId, roomCode: spec.roomCode,
       sessionIds: spec.seats.filter(s => !s.isBot).map(s => s.playerId), build: this.build, protocol: this.protocol,
-      mode: spec.mode, experimental: spec.experimental });
+      mode: spec.mode, experimental: spec.experimental, version: spec.version ?? null });
     const node = this.nodes.get(assignment.nodeId);
     const controller = new AbortController();
     const ctx = { spec, node, generation: assignment.generation, controller, isCurrent, state: 'preparing',
@@ -345,7 +347,7 @@ export class RemoteGamePlatform {
     if (!Array.isArray(departed) || !departed.every(id => humans.includes(id))) throw new TypeError('invalid remote match');
     const assignment = this.directory.prepare({ assignmentId: spec.assignmentId, roomCode: spec.roomCode,
       sessionIds: humans, departed, build: this.build, protocol: this.protocol,
-      mode: spec.mode, experimental: spec.experimental, nodeId: adopting ? adopt.nodeId : null });
+      mode: spec.mode, experimental: spec.experimental, nodeId: adopting ? adopt.nodeId : null, version: spec.version ?? null });
     const node = this.nodes.get(assignment.nodeId);
     const ctx = { spec, node, generation: assignment.generation, controller: new AbortController(), isCurrent: () => true, state: 'preparing',
       remoteCreated: false, cleanup: null, revokedMembers: new Map(departed.map(id => [id, 'player'])), removals: new Map(), terminal: false, restored: true,

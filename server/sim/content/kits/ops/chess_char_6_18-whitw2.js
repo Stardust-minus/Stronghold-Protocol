@@ -78,7 +78,11 @@ function whitw2(bb, chess, def) {
   // centre, its 判定中心), and it reaches a huge enemy when it touches the hit rectangle. [ASSUMED] the turn rate (PRTS
   // 转向速度 1/6 per frame = attack@projectile_turn_speed × 1/30 s) is not modelled: a chasing drone heads straight at
   // its target. [ASSUMED] the fear's source is her (the enemy flees from her, not from the drone).
-  const flyDrone = (battle, unit, d, dt, ok) => {
+  // The fx name the drone (`k`, its index in mem.drones) so the client flies the same one (render/vfx/funnelfx.js): a
+  // 'droneLock' { id: target, src: her, k, at: [x, y] where it picked } and every hit's 'drone' { id: her, k, tid: target }
+  // (反馈 #103: the client gave a lock to "the free unit nearest to it" and dropped it when it saw none free — a target
+  // that died while its wolf was still on it, the wolf then circled where it fell while the sim's bit elsewhere).
+  const flyDrone = (battle, unit, d, dt, ok, k) => {
     d.cd = Math.max(0, d.cd - dt);
     if (d.phase === 'spread') {
       const s = accelerate(d, WHITW2_SPREAD, dt);
@@ -100,7 +104,8 @@ function whitw2(bb, chess, def) {
       const t = pickTarget(battle, unit, d, ok);
       if (!t) { circle(d, dt); return; }
       d.t = t; d.phase = 'chase'; d.v = WHITW2_CHASE.v0; d.orbit = null;
-      battle.fx('droneLock', { x: t.x, y: t.y, id: t.id, src: unit.id }); // PRTS: the red wolf-eye mark over the target
+      // PRTS: the red wolf-eye mark over the target
+      battle.fx('droneLock', { x: t.x, y: t.y, id: t.id, src: unit.id, k, at: [Math.round(d.x * 100) / 100, Math.round(d.y * 100) / 100] });
     }
     const t = d.t;
     if (d.phase === 'chase') {
@@ -120,7 +125,7 @@ function whitw2(bb, chess, def) {
     const f = unit.profile?.funnel || { init: 0.2, delta: 0.15, max: 1.1 };
     d.ramp = d.rampId === t.id ? Math.min(f.max, d.ramp + f.delta) : f.init;
     d.rampId = t.id;
-    battle.fx('drone', { x: d.x, y: d.y, id: unit.id });
+    battle.fx('drone', { x: d.x, y: d.y, id: unit.id, k, tid: t.id });
     battle.dealDamage(unit, t, { amount: unit.s.atk * unit.s.atkScaleMul * d.ramp, type: 'arts', tags: ['droneAttack'] });
   };
 
@@ -238,9 +243,9 @@ function whitw2(bb, chess, def) {
         const add = droneCount(unit) - D.length;
         if (add > 0) { releaseDrones(unit, add); battle.fx('drones', { x: unit.x, y: unit.y, id: unit.id, n: add }); }
         const ok = (e) => e && e.alive && !e.hidden && canTargetEnemy(unit, e, ANY);
-        for (const d of D) {
+        for (let k = 0; k < D.length; k++) {
           if (gone()) return;
-          flyDrone(battle, unit, d, dt, ok);
+          flyDrone(battle, unit, D[k], dt, ok, k);
         }
         if (gone()) return;
         const near = new Set();
@@ -254,7 +259,7 @@ function whitw2(bb, chess, def) {
             if (e.alive) battle.dealDamage(unit, e, { amount: unit.s.atk * dmgScale, type: 'arts', isSkill: true, tags: ['skill', 'drone', 'dot'] });
           }
           // (a drone on its target already pulses with each of its attacks)
-          for (const d of D) if (d.phase !== 'lock') battle.fx('drone', { x: d.x, y: d.y, id: unit.id });
+          D.forEach((d, k) => { if (d.phase !== 'lock') battle.fx('drone', { x: d.x, y: d.y, id: unit.id, k }); });
         }
       },
       onEnd({ unit }) { unit.mem.drones = null; },

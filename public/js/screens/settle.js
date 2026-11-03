@@ -4,7 +4,8 @@
 //     passed, the leaders I helped defeat, my final lineup (ten slots: tier, elite level and gear of each operator), my
 //     bonds and their layers, my plate with the trophies, and the level settlement (the LV bar filling with this match's
 //     experience) — then 下一步. The official 卫戍认证 / 每日防卫目标 strip is left out: the owner's servers have no such
-//     currency (2026-10-13).
+//     currency (2026-10-13). Under the medals, the short 领袖战输出 (feedback #81, the owner's word of 2026-11-02: a line per
+//     final scope fought with its top operators, and 数据详情 opening the full report — screens/result.js BossDamageBrief).
 //   同盟 (TeamPage): one card per seat (its ace operator's art, the 评语, the rounds passed, the player plate with its
 //     名片底图 and trophy level — room.state seats[].card, ui/playerCard.js — and the trophies this match brought), the
 //     team's outcome and rounds, the match time and date, 数据详情 (the full report: screens/result.js ResultView) and
@@ -32,7 +33,7 @@ import { useMyCard } from '../ui/playerCard.js';
 import { appearanceRecord } from '../ui/skinAssets.js';
 import { VersionTag } from '../ui/pluginTag.js';
 import { shownVersion, seasonOf } from '../versions.js';
-import { ResultView, resultBonds } from './result.js';
+import { ResultView, resultBonds, BossDamageBrief } from './result.js';
 import { t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -393,7 +394,7 @@ function LevelStrip({ prog }) {
   </div>`;
 }
 
-function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null, nextLabel = null }) {
+function SelfPage({ r, raw, self, gd, prog, seed, onNext, onDetail = null, version = null, nextLabel = null }) {
   const cleared = rowCleared(raw, self, r.victory);
   const [leaving, setLeaving] = useState(false);
   const nextRef = useRef(null);
@@ -428,6 +429,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext, version = null, nextLa
           title=${m.kind === 'boss' ? t('敌方领袖') : t('隐秘核心')}>
         <${Img} src=${enemyIconUrl(gd.m, m.rec.enemyKey)} fallback=${html`<${Icon} name="crown" class="smedal__glyph" />`} />
         <i class="smedal__check"><${Icon} name=${m.done ? 'check' : 'close'} /></i></span>`)}</div>` : null}
+      <${BossDamageBrief} entries=${self.damage} lineup=${self.lineup} gd=${gd} onDetail=${onDetail} />
       <div class="splate">
         <${PlayerAvatar} player=${self} self=${true} class="splate__ava" />
         <div class=${cx('splate__info', card.bg && 'has-nc')}>
@@ -584,7 +586,7 @@ export function SettleFlow({ res, pub = null, myId = null, backLabel, onBack, ve
   const lose = self ? !rowCleared(rawSelf, self, r.victory) : !r.victory;
   return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', `settle--${page}`)} data-testid="settle">
     ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${lose} onDone=${() => setPage('self')} />` : null}
-    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${ctx.prog} seed=${res?.seed} version=${version} onNext=${() => setPage('team')} />` : null}
+    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${ctx.prog} seed=${res?.seed} version=${version} onNext=${() => setPage('team')} onDetail=${() => setDetail(true)} />` : null}
     ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} />` : null}
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
       <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} version=${version} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}

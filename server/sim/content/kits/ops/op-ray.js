@@ -19,8 +19,9 @@
 //   装弹，通常情况下每次装填1颗" and "装弹行为属于普通攻击行为，持续时间使用装填间隔，装填间隔默认为自身基础攻击间隔，不受攻速/
 //   攻击间隔变化影响": a reload is an action of her attack loop lasting her BASE attack time (1.6 s; ASPD never shortens it),
 //   loading one bullet when it ends — taken when the magazine is empty (targets or not) or not full with nobody to shoot.
-//   This kit's own reload (kit trait install / canAttack / afterAttack); the engine's hunter profile (1 bullet per second
-//   after 1 s without attacking) stays for 雪猎. Can hit air units (PRTS "可对空"), blocks 1, ground enemies target her.
+//   This kit's own reload (kit trait install / canAttack / afterAttack); the engine's hunter profile (professions.js
+//   installHunter, the same loop since rel26) is 雪猎's. Each reload sends b.ev ['reload', id, seconds] (her Reload clip);
+//   her bullets show at the model's lower right (snapshot.js magazineView, b.snap `mag`). Can hit air units (PRTS "可对空"), blocks 1, ground enemies target her.
 //   HUN-X adds "子弹数量为空时下次装填额外加装1发子弹" (trait bb extra_add): a reload begun on an empty magazine loads 1 + that.
 //   HUN-Y raises the trait to atk_scale 1.33 (and ASPD +5 / +7 in the stats).
 // - T1 巡哨伙伴 "可以在攻击范围内部署沙地兽于25秒内侦察一片区域延伸攻击范围，自身优先攻击该区域内的目标且对其造成的物理伤害提
@@ -109,11 +110,13 @@ export default {
       const s3on = !!(unit.skill && unit.skill.active && unit.skill.id === S3);
       return Math.max(0.05, num(unit.base?.bat, 1.6) + (s3on ? num(b3.reload_interval) : 0));
     };
-    const startReload = (unit) => {
+    const startReload = (battle, unit) => {
       const m = unit.mem;
       m.rayReloading = true;
       if ((unit.trait.ammo ?? 0) <= 0 && extraAdd > 0) m.rayLoadExtra = (m.rayLoadExtra ?? 0) + extraAdd;   // HUN-X
       unit.atkCd = reloadInterval(unit);
+      // display only: her Reload clip over the reload (render/spine.js reload), as the engine's 猎手 (professions.js)
+      battle._ev(['reload', unit.id, Math.round(unit.atkCd * 1000) / 1000]);
     };
     const finishReload = (unit) => {
       const m = unit.mem;
@@ -139,10 +142,10 @@ export default {
           if (m.rayReloading) finishReload(unit);
           const max = ammoMax(unit), ammo = unit.trait.ammo ?? 0;
           if (m.rayFill) {   // S3: no attack until the magazine is full
-            if (ammo < max) { startReload(unit); return false; }
+            if (ammo < max) { startReload(battle, unit); return false; }
             m.rayFill = false;
           }
-          if (ammo <= 0 || (ammo < max && !acquireTargets(battle, unit, effectiveProfile(unit)).length)) { startReload(unit); return false; }
+          if (ammo <= 0 || (ammo < max && !acquireTargets(battle, unit, effectiveProfile(unit)).length)) { startReload(battle, unit); return false; }
           return true;
         },
         afterAttack(battle, unit) { unit.trait.ammo = Math.max(0, (unit.trait.ammo ?? 0) - 1); },

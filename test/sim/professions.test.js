@@ -241,12 +241,14 @@ test('stalker dodges and hits everything in range; hunter consumes and reloads a
   });
   h2.run(5);
   const hu = h2.unit('t_hunter');
-  assert.equal(hu.stats.attacks, 8, '8 bullets then empty');
+  // PRTS 分支特性信息 猎手 (反馈 #91): 8 bullets at its interval, then — empty — the cooldown and a reload of its BASE
+  // attack time (0.5 s here) per bullet: the 9th shot at 3.5 + 0.5 + 0.5 s
+  assert.equal(hu.stats.attacks, 9, '8 bullets, then one per cooldown + reload');
   assert.equal(Math.round(h2.hooksOf('damaged')[0].amount), 120);
-  h2.b.enemies[0].x = 20; // out of range → reload
+  h2.b.enemies[0].x = 20; // out of range → reload, one bullet per 0.5 s
   h2.b.enemies[0].hidden = true;
   h2.run(4);
-  assert.ok(hu.trait.ammo >= 2);
+  assert.ok(hu.trait.ammo >= 6 && hu.trait.ammo <= 8, `reloaded to ${hu.trait.ammo}`);
 });
 
 // 回环射手 (loopshooter, 跃跃): "持有回旋投射物时才能够攻击（投射物需要时间回收）" — out at 15 tiles/s, back at 3.75

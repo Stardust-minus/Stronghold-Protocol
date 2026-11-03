@@ -33,6 +33,24 @@ function materialUrl(value, origin = globalThis.location?.origin) {
 
 export const isPublicMaterialUrl = (value, origin = globalThis.location?.origin) => !!materialUrl(value, origin);
 
+/**
+ * The credentials of a material request: none (the CDN redirects, OpenI, this edge's public /assets/ and /media/), but the
+ * page's own for the 联动 pack (`/assets/collab/`, data/assets-collab.json): the edge serves it from its own copy behind the
+ * password gate (deploy/stardust/MATERIAL-SOURCES.md), so a request without the gate cookie gets 401. The Pixi page
+ * textures (render/materialLoader.js) and the sounds (fetchMaterial) went without it: on 2026-11-02 Jinan answered 401 to
+ * ~94 % of the requests for 结城理's model page (its atlas and skeleton, fetched by Pixi itself, and the <img> art passed);
+ * only a page whose service worker re-fetched it (sw.js, same-origin credentials) drew the model. 'same-origin' never sends
+ * a cookie to another origin, so a fallback source elsewhere is fetched exactly as before.
+ * @param {string} value @param {string} [origin]
+ * @returns {'same-origin' | 'omit'}
+ */
+export function materialCredentials(value, origin = globalThis.location?.origin) {
+  const url = materialUrl(value, origin);
+  let path = null;
+  try { path = url ? decodeURIComponent(url.pathname) : null; } catch { path = null; }
+  return path && path.startsWith('/assets/collab/') ? 'same-origin' : 'omit';
+}
+
 export function openiFallbackUrl(value, origin = globalThis.location?.origin) {
   const url = materialUrl(value, origin);
   return url && !url.search ? `${url.pathname}?sp_source=openi` : null;
@@ -139,7 +157,7 @@ export async function readMaterialBody(res, progress) {
 /** Consume inside the attempt: stalled/error bodies and invalid JSON can fail over, not just fetch() headers. */
 export function fetchMaterial(url, read = r => r.arrayBuffer(), { fetch: doFetch = (...a) => globalThis.fetch(...a), ...options } = {}) {
   return withMaterialFallback(url, async (source, signal, progress) => {
-    const res = await doFetch(source, { credentials: 'omit', signal });
+    const res = await doFetch(source, { credentials: materialCredentials(source), signal });
     if (!res?.ok || /(?:text\/html|application\/xhtml\+xml)/i.test(res.headers?.get?.('content-type') || '')) {
       try { void res?.body?.cancel?.().catch(() => {}); } catch { /* unusable response */ }
       throw Object.assign(new Error('material response unavailable'), { status: res?.status, badContentType: !!res?.ok });

@@ -5,10 +5,17 @@
 //
 //   start()                                  the worker creates the match and starts it (the worker may still be booting:
 //                                            the host queues the messages; the match exists for the lobby at once)
-//   handle / setLoadout / requestSetupReroll / cancelSetupReroll → Promise of the match's answer ({ ok } | { error, detail })
+//   handle / setLoadout / setSkins / requestSetupReroll / cancelSetupReroll → Promise of the match's answer ({ ok } | { error, detail })
 //                                            — the lobby answers the request when it settles (server/net.js)
 //   onDisconnect / onReconnect / onLeave / addSpectator / removeSpectator → posted, no answer
 //   dispose()                                posted; nothing of this match reaches the lobby afterwards
+//   restore(doc, { replay })                 instead of start(): the worker builds the match and applies the checkpoint
+//                                            (an official version's room after a restart, server/persist/persister.js);
+//                                            `restored` settles true once it did, false when it was refused or the worker
+//                                            stopped first (the match then ends as a failed start)
+//   checkpoint(reason)                       → Promise: the worker posts the match's checkpoint now when it may (opts
+//                                            .checkpoints only); `lastCheckpoint` { reason, json } is the latest it posted,
+//                                            each one also told to opts.onCheckpoint(proxy, reason) as it arrives
 //   diag()                                   → Promise of the match's diagnostics (verifyStats, errors, fields — tests,
 //                                            /healthz never)
 // The worker's messages drive the lobby's callbacks in the order they arrive: `send` (opts.send), `broadcast`
@@ -28,6 +35,8 @@ import { validHostMessage } from './ipc.js';
 
 /** A request the worker has not answered after this long is answered INTERNAL. [ASSUMED] */
 export const REQUEST_TIMEOUT_MS = 15_000;
+/** How long a checkpoint request waits (the periodic round and the shutdown must not hang on a busy host). [ASSUMED] */
+export const CHECKPOINT_TIMEOUT_MS = 3000;
 
 /**
  * What the room is told when its match ends because of its plugins, or of its official version's host (a message id,
@@ -49,7 +58,7 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 export function wireOptions(opts) {
   const out = {};
   for (const k of ['roomCode', 'mode', 'difficulty', 'modeId', 'aiPicksLast', 'soloUnlimited', 'seats', 'spectators', 'seed', 'matchNo', 'cs', 'vs', 'requireCs', 'kitted', 'version',
-    'revivalEnabled', 'disableSharedPool', 'experimental', 'afkRemoveRounds', 'snapshotHz']) {
+    'revivalEnabled', 'disableSharedPool', 'experimental', 'afkRemoveRounds', 'snapshotHz', 'checkpoints']) {
     if (opts[k] !== undefined) out[k] = opts[k];
   }
   // A test room must arrive as a test match. Forwarding these only when the flag is set keeps every other
@@ -85,6 +94,11 @@ export class MatchProxy {
     this.disposed = false;
     /** the host no longer routes this match's messages (dispose with nothing pending, or the worker stopped) */
     this.forgotten = false;
+    /** the latest checkpoint the worker posted ({ reason, json }), null before the first */
+    this.lastCheckpoint = null;
+    /** restore(): settles true once the worker applied the checkpoint, false when it did not; null for a started match */
+    this.restored = null;
+    this._restoredSettle = null;
   }
 
   /** Post one message of this match to the worker (never throws). */
@@ -97,16 +111,16 @@ export class MatchProxy {
    * (diag — the match stays in the worker until the lobby disposes it).
    * @returns {Promise<any>}
    */
-  _request(method, args, afterEnd = false) {
+  _request(method, args, afterEnd = false, timeoutMs = this.requestTimeoutMs) {
     if (this.disposed || (this.ended && !afterEnd) || this.forgotten) return Promise.resolve({ error: ERR.WRONG_PHASE, detail: 'no running match' });
     const id = ++this.seq;
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         if (!this.pending.delete(id)) return;
-        this.log.warn?.(`[match ${this.roomCode}] the match host did not answer ${method} in ${this.requestTimeoutMs} ms`);
+        this.log.warn?.(`[match ${this.roomCode}] the match host did not answer ${method} in ${timeoutMs} ms`);
         resolve({ error: ERR.INTERNAL, detail: 'the match host did not answer' });
         this._forgetIfDone();
-      }, this.requestTimeoutMs);
+      }, timeoutMs);
       timer.unref?.();
       this.pending.set(id, { resolve, timer });
       this._post({ type: 'call', id, method, args });
@@ -124,8 +138,42 @@ export class MatchProxy {
     this._post({ type: 'create', opts: wireOptions(this.opts) });
   }
 
+  /**
+   * Instead of start(): the match comes back from its checkpoint `doc` (server/match/snapshot.js) in the worker —
+   * built from the checkpoint's seats and seed (this proxy's opts), not started. `replay`: the checkpoint was written as
+   * its prep ended (the round's battle is fought again). Its outcome: `restored`.
+   * @param {object} doc @param {{ replay?: boolean }} [o]
+   * @returns {Promise<boolean>}
+   */
+  restore(doc, { replay = false } = {}) {
+    if (this.started) return this.restored ?? Promise.resolve(false);
+    this.started = true;
+    this.restored = new Promise((resolve) => { this._restoredSettle = resolve; });
+    this._post({ type: 'create', opts: wireOptions(this.opts), restore: { doc, replay: replay === true } });
+    return this.restored;
+  }
+
+  /** Settle `restored` (once). */
+  _settleRestored(ok) {
+    const settle = this._restoredSettle;
+    this._restoredSettle = null;
+    settle?.(ok);
+  }
+
+  /**
+   * Ask the worker for the match's checkpoint now (the periodic round, the shutdown): it arrives as a 'checkpoint'
+   * message (onCheckpoint) before this answer. @param {string} [reason] @returns {Promise<{ ok: boolean, taken?: boolean }>}
+   */
+  checkpoint(reason = 'tick') {
+    // nothing to ask before the host booted: its queue would hold the request behind the boot (the last checkpoint stays)
+    if (this.opts.checkpoints !== true || this.host?.ready === false) return Promise.resolve({ ok: false, taken: false });
+    return this._request('checkpoint', [String(reason)], false, Math.min(this.requestTimeoutMs, CHECKPOINT_TIMEOUT_MS));
+  }
+
   handle(playerId, msg) { return this._request('handle', [playerId, msg]); }
   setLoadout(playerId, loadout, ops) { return this._request('setLoadout', [playerId, loadout, ops]); }
+  /** A human's skin choices during the match (as a default match takes them). */
+  setSkins(playerId, choices) { return this._request('setSkins', [playerId, choices]); }
   requestSetupReroll(playerId, revision) { return this._request('requestSetupReroll', [playerId, revision]); }
   cancelSetupReroll(playerId, voteId) { return this._request('cancelSetupReroll', [playerId, voteId]); }
   onDisconnect(playerId) { this._notify('onDisconnect', [playerId]); }
@@ -152,6 +200,7 @@ export class MatchProxy {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this._settleRestored(false);
     this._post({ type: 'dispose' });
     this._forgetIfDone();
   }
@@ -184,6 +233,19 @@ export class MatchProxy {
       return;
     }
     if (this.disposed) return;
+    if (m.type === 'checkpoint') {
+      if (this.ended || this.opts.checkpoints !== true) return;
+      this.lastCheckpoint = { reason: m.reason, json: m.json };
+      try { this.opts.onCheckpoint?.(this, m.reason); } catch (e) { this.log.error?.(`[match ${this.roomCode}] checkpoint failed`, e); }
+      return;
+    }
+    if (m.type === 'restored') { this._settleRestored(true); return; }
+    // the match removed a human for good (the AFK rule): the platform detaches the seat
+    if (m.type === 'removed') {
+      if (this.ended) return;
+      try { this.opts.onRemove?.(m.playerId, m.removal); } catch (e) { this.log.error?.(`[match ${this.roomCode}] onRemove failed`, e); }
+      return;
+    }
     if (m.type === 'send') { try { this.opts.send(m.playerId, m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] send failed`, e); } return; }
     if (m.type === 'broadcast') { try { this.opts.broadcast(m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] broadcast failed`, e); } return; }
     if (m.type === 'end') { this._end(m.summary ?? null); return; }
@@ -197,11 +259,14 @@ export class MatchProxy {
   _end(summary) {
     if (this.ended) return;
     this.ended = true;
+    // a restore that never completed (refused, the worker gone) did not happen
+    this._settleRestored(false);
     try { this.opts.onEnd(summary); } catch (e) { this.log.error?.(`[match ${this.roomCode}] onEnd failed`, e); }
   }
 
   /** The worker was stopped without a fault (the server stops): pending requests answered, the match over, nobody told. */
   halt() {
+    this._settleRestored(false);
     this._settle({ error: ERR.INTERNAL, detail: 'the match host stopped' });
     if (!this.ended && !this.disposed) this._end({ reason: 'host-stopped', cs: this.opts.cs ?? null });
     this.forgotten = true;
@@ -214,6 +279,7 @@ export class MatchProxy {
    */
   crash(reason, detail = '') {
     this.forgotten = true; // the worker is gone: nothing more to route (the host already dropped its matches)
+    this._settleRestored(false);
     if (this.ended || this.disposed) { this._settle({ error: ERR.INTERNAL, detail: 'the match host stopped' }); return; }
     this._settle({ error: ERR.INTERNAL, detail: 'the match host stopped' });
     try { this.opts.broadcast({ t: 'm.toast', kind: 'error', ...wireMessage(crashMessage(reason)) }); } catch { /* the room may be gone */ }

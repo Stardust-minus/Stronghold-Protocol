@@ -12,6 +12,12 @@ import { ERR, PROTOCOL_VERSION } from '../../shared/constants.js';
 import { normalizeGameLoad, normalizeClusterLoad, publicGameLabel } from '../../shared/cluster-load.js';
 
 const GAME_PATH = '/_cluster/game';
+/**
+ * How long a restore RPC waits for another official version's actor to be applied in its match host (its first restore
+ * there also boots the host): a refusal within it answers RESTORE_REFUSED; past it the actor answers committed and a
+ * later refusal ends it as a failed start. Below the coordinator's RPC deadline (rpc.js, 6 s). [ASSUMED]
+ */
+export const HOSTED_RESTORE_MS = 4500;
 const MAX_PAYLOAD = 64 * 1024;
 const id = v => typeof v === 'string' && v.length > 0 && v.length <= 128 && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const plain = v => !!v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype;
@@ -44,7 +50,8 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
   protocol = PROTOCOL_VERSION, data, combatPool, trialPool, MatchClass, onEnd, onRemoved, afkRemoveRounds, now = Date.now, log = noopLog,
   prepareMs = 15_000, bindTimeoutMs = 5000, heartbeatMs = NET_DEFAULTS.heartbeatMs, sweepMs = 1000,
   shutdownMs = 1000, publicationMs = 20_000, ticketsAuthority, ticketIssuer = 'stronghold-cluster', ticketTtlMs = 30_000,
-  futureSkewMs = 0, getLoadState, getLoadDetails, publicSlot = null, streamMarkers = false, restoreSource = null, getCheckpointStats = null } = {}) {
+  futureSkewMs = 0, getLoadState, getLoadDetails, publicSlot = null, streamMarkers = false, restoreSource = null, getCheckpointStats = null,
+  versionHosts = null, versions = null, hostedRestoreMs = HOSTED_RESTORE_MS } = {}) {
   if (![nodeId, generation, build].every(id) || typeof host !== 'string' || !host || !int(port, 0, 65535)
     || !int(protocol, 1, Number.MAX_SAFE_INTEGER) || typeof now !== 'function') throw new TypeError('invalid game node');
   for (const [name, value, max] of [['bindTimeoutMs', bindTimeoutMs, 5000], ['heartbeatMs', heartbeatMs, 300_000],
@@ -64,7 +71,15 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
   const tickets = ticketsAuthority ?? createTicketAuthority({ key, issuer: ticketIssuer, now, ttlMs: ticketTtlMs, futureSkewMs });
   if (typeof tickets.verify !== 'function') throw new TypeError('invalid ticket authority');
   // onRemoved / afkRemoveRounds: the AFK rule (GameHost._removed; the runtime tells the coordinator)
-  const gameHost = new GameHost({ data, combatPool, trialPool, MatchClass, onEnd, onRemoved, afkRemoveRounds, now, log, prepareMs, terminalControl: streamMarkers });
+  // versionHosts / versions: the other official versions this node runs (server/cluster/game-runtime.js; GameHost header)
+  const gameHost = new GameHost({ data, combatPool, trialPool, MatchClass, onEnd, onRemoved, afkRemoveRounds, now, log, prepareMs, terminalControl: streamMarkers,
+    versionHosts, versions });
+  /** The other official versions this node can run, and the ones whose match host runs now (status: the coordinator's placement). */
+  const versionStatus = () => {
+    const ids = versions && versionHosts ? versions.nonDefault.filter(v => gameHost.canHost(v)) : [];
+    const running = versionHosts?.running?.() ?? [];
+    return { versions: ids, versionHosts: running, versionHostLimit: ids.length ? versionHosts.limit ?? 1 : 0 };
+  };
   const conns = new Map(), sockets = new Set(), publications = new Map();
   let stopped = false, heartbeatTimer, sweepTimer, closePromise;
   const report = operation => { try { log.error?.(`[game-node] ${operation} failed`); } catch {} };
@@ -210,7 +225,16 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
         const takenOver = [...new Set([...(saved.spec.takenOver ?? []), ...payload.spectators.filter(s => s.startsWith('ai_'))])];
         view = gameHost.restore({ ...saved.spec, assignmentId: payload.assignmentId, build, protocol, spectators: payload.spectators,
           seats: saved.spec.seats.map(s => ({ ...s, connected: s.isBot })), ...(takenOver.length ? { takenOver } : {}) }, saved);
-      } catch (e) { throw new RpcError(e instanceof GameHostError ? e.code : 'RESTORE_REFUSED'); }
+      } catch (e) { throw new RpcError(e instanceof GameHostError ? (e.code === 'INVALID_SPEC' || e.code === 'NO_VERSION' ? 'RESTORE_REFUSED' : e.code) : 'RESTORE_REFUSED'); }
+      // another official version's actor is applied in its match host (GameHost.restoring): wait for it, bounded
+      const hosted = gameHost.restoring(payload.assignmentId);
+      if (hosted) {
+        let timer;
+        const outcome = await Promise.race([hosted, new Promise(resolve => { timer = setTimeout(() => resolve(null), hostedRestoreMs); timer.unref?.(); })]);
+        clearTimeout(timer);
+        if (outcome === false) { gameHost.release(payload.assignmentId); throw new RpcError('RESTORE_REFUSED'); }
+        if (stopped || !gameHost.get(payload.assignmentId)) throw new RpcError('CLOSED');
+      }
       if (!publications.has(payload.assignmentId)) {
         const lease = { actorGeneration: view.generation, published: false, deadline: view.committedAt + publicationMs };
         publications.set(payload.assignmentId, lease);
@@ -238,7 +262,7 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
     status(payload) {
       check(payload, [], ['assignmentId', 'sessionId', 'receipt']);
       const value = { nodeId, generation, build, protocol, ready: nodeReady(), streamMarkers, terminalControl: streamMarkers, counts: gameHost.stats(),
-        publicSlot, ...cachedLoad(), health: { combat: poolHealth(combatPool), trial: poolHealth(trialPool) } };
+        publicSlot, ...cachedLoad(), health: { combat: poolHealth(combatPool), trial: poolHealth(trialPool) }, ...versionStatus() };
       // the node's checkpoint counters (server/persist/node.js), when it keeps checkpoints
       if (typeof getCheckpointStats === 'function') { try { value.checkpoints = getCheckpointStats(); } catch { value.checkpoints = null; } }
       if (payload.assignmentId !== undefined) {
@@ -456,10 +480,18 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
       return;
     }
     const result = gameHost.handle(conn.assignmentId, conn.sessionId, message, conn.channel);
-    if (result?.error) {
-      if (message.t === 'b.progress' && !validRid(rid)) return;
-      error(conn, isErrCode(result.error) ? result.error : ERR.INTERNAL, rid);
-    } else if (validRid(rid)) control(conn, { t: 'ok', rid });
+    const answer = value => {
+      if (value?.error) {
+        if (message.t === 'b.progress' && !validRid(rid)) return;
+        error(conn, isErrCode(value.error) ? value.error : ERR.INTERNAL, rid);
+      } else if (validRid(rid)) control(conn, { t: 'ok', rid });
+    };
+    // another official version's actor answers from its match host (GameHost header): on this connection, once it did
+    if (result && typeof result.then === 'function') {
+      result.then(value => { if (!conn.closing && !stopped) answer(value); }, () => { if (!conn.closing && !stopped) answer({ error: ERR.INTERNAL }); });
+      return;
+    }
+    answer(result);
   }
   wss.on('connection', ws => {
     if (stopped) { ws.close(1001, 'SHUTDOWN'); return; }

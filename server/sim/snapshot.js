@@ -12,6 +12,8 @@
 //   after the change, a field opened mid-battle, draws it: render/units.js FORMS)
 //   dir = 'UP'|'RIGHT'|'DOWN'|'LEFT' (allies: the deploy direction, sim/dir.js); facing = its horizontal sign (±1).
 //   items = an ally operator's equipped item ids (absent without any).
+//   hidden = true only in m.field (Battle.fieldMeta): a deployed unit out of sight (a DISAPPEAR segment, a flight) — the
+//   snapshots leave it out until it is back, the viewer keeps its info and draws nothing for it meanwhile.
 // flags bits & anim codes come from shared/constants.js (UF / ANIM); an enemy's stealth bit = its 隐匿 is on (not while it
 // is blocked or revealed, nor in the seconds after a block before it hides again — targeting.js enemyStealthed), an
 // ally's = 隐匿 / 迷彩 whatever it blocks.
@@ -153,6 +155,20 @@ export function ammoView(u) {
   if (u.side !== 'ally' || !sk || !sk.active || sk.kind !== 'ammo') return null;
   const left = Math.max(0, Math.ceil(sk.ammoLeft - 1e-9));
   return [left, Math.max(1, Math.ceil((sk.ammoMax || sk.ammo || 0) - 1e-9), left)];
+}
+
+/**
+ * `magazineView(u)` = `[bullets, the magazine]` of a 猎手 — the trait's 子弹 (`trait.ammo`, the magazine `profile.ammoMax`:
+ * professions.js installHunter, 莱伊's own loop in op-ray.js), not a skill's ammo (ammoView): PRTS 分支特性信息 猎手
+ * "入场时持有自身子弹上限数的子弹（竖直显示于自身模型右下）" — the column of bullets at the model's lower right
+ * (render/units.js). Whole numbers; zero is a count (an empty magazine reloading). Display only.
+ */
+export function magazineView(u) {
+  if (u.side !== 'ally' || u.profile?.sub !== 'hunter') return null;
+  const n = u.trait?.ammo, max = u.profile?.ammoMax;
+  if (!Number.isFinite(n) || !(max >= 1)) return null;
+  const m = Math.max(1, Math.floor(max));
+  return [Math.max(0, Math.min(m, Math.floor(n))), m];
 }
 
 /** 琳琅诗怀雅's skill purse: zero is a balance; no purse is null. Display only. */

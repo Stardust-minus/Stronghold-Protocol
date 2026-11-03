@@ -49,6 +49,11 @@ const runBuild = (args, timeout = 180_000) => spawnSync(process.execPath, [BUILD
 // registry and profiles
 // ---------------------------------------------------------------------------------------------------
 
+
+/** The default's 自选 6★ newer than 第二期上半's pin, and 第一期's (the owner, 2026-11-02: every version gets them). */
+const LATER = ['char_1015_aglna2', 'char_1051_headb2', 'char_1052_kalts2', 'char_4226_veen', 'char_4228_closur', 'char_4229_aphris',
+  'char_4230_mcnist', 'char_4231_clemnt', 'char_4235_thumpy'];
+const ACT1_LATER = [...LATER, 'char_1050_chen3', 'char_2027_wang', 'char_4037_demetr'];
 test('registry: unique ids, one default with dir \'\', OS-safe unique dirs, msgid labels, a matching profile each', async () => {
   const ids = VERSIONS.map((v) => v.id);
   assert.equal(new Set(ids).size, ids.length);
@@ -121,6 +126,21 @@ test('profiles: the default stays on the commit its data was built from; pins pi
   assert.equal(v21.tables, 'default', 'the 下半-measured tables apply by id / name');
   assert.deepEqual(v21.config.rules, {}, 'the default\'s rules');
   assert.equal(v21.expect.triggerDeviations, 'present');
+  // the default's whole 自选 range in every version (owner 2026-11-02): rel25's operators and every 自选 6★ newer than the
+  // pin, each from the commit the default reads it from; 麒麟R夜刀 replaced by the default's records (EXE-Y); 6★ the version
+  // fields as shop chess (第一期: 淬羽赫默 …) stay shop chess. 第一期 has no 奥术 / 独行, so its deliberate bonds follow the
+  // 第一期 precedents (水月 迅捷, 史尔特尔 without 奥术)
+  const natural = (ids) => [...ids].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+  const lateOf = (ids) => [{ sha: 'fe7d8d05edc36cf5678a24bfe9e84e891f6cf7ad', charIds: natural(['char_1029_yato2', 'char_1048_orchd2', 'char_4217_makoto', ...ids]),
+    replace: ['char_1029_yato2'] }, { sha: def.lateOperators.sha, charIds: def.lateOperators.charIds }];
+  assert.deepEqual(v21.lateOperators, lateOf(LATER), v21.id);
+  assert.deepEqual(v12.lateOperators, lateOf(ACT1_LATER), v12.id);
+  assert.deepEqual(v11.lateOperators, lateOf([...ACT1_LATER, 'char_4212_nasti']), v11.id);
+  assert.equal(v21.diyBonds, undefined, '第二期上半 has every bond the default names');
+  for (const p of [v12, v11]) {
+    assert.deepEqual(p.diyBonds, { char_4246_dminon: ['swiftShip'], char_4247_oxi: ['indomShip'], char_4141_marcil: [] }, p.id);
+    assert.deepEqual(p.diyTalentNotes, { char_4247_oxi: '技能持续期间我方干员阵亡时，【不屈】层数+1' }, p.id);
+  }
   assert.equal(pinGroupOf('excel/uniequip_table.json'), 'character');
   assert.equal(pinGroupOf('excel/range_table.json'), 'range');
   assert.equal(pinGroupOf('levels/activities/act2autochess/level_act2autochess_m01.json'), 'levels');
@@ -281,7 +301,8 @@ test('data/versions/act2autochess-v2_1: the same-id records that differ from tod
     'chess_char_6_02_a', 'chess_char_6_02_b', 'chess_char_6_08_a', 'chess_char_6_08_b']);
   assert.deepEqual(changed('tokens'), ['token_10017_skadi2_dedant', 'token_10039_ulpia_block']);
   // backups.json: the 自选 operators' powers and bonds from the 03-14 character_table (鸿雪 and 真言 emptyShip, not
-  // sargonShip; seven with one power fewer), and the 自选 forms without a module added after 03-14
+  // sargonShip; seven with one power fewer), and the 自选 forms without a module added after 03-14 (麒麟R夜刀 is not among
+  // them any more: his records are the default's, EXE-Y included — the profile's `replace`)
   const today = read('', 'backups');
   const v21b = read('versions/act2autochess-v2_1', 'backups');
   const changedIn = (sub, pick) => Object.keys(sub(v21b)).filter((id) => Object.hasOwn(sub(today), id)
@@ -292,17 +313,22 @@ test('data/versions/act2autochess-v2_1: the same-id records that differ from tod
     'char_4055_bgsnow', 'char_4132_ascln', 'char_4133_logos', 'char_4195_radian', 'char_4204_mantra']);
   assert.deepEqual(changedIn((b) => b.units, (u) => Object.values(u.forms || {}).map((f) => (f.modules || []).map((m) => m.uniEquipId))),
     ['char_2012_typhon', 'char_2025_shu', 'char_300_phenxi', 'char_4138_narant']);
-  // the 自选 pools: the 9 operators released after 03-14 are absent (怒潮凛冬 among them); 银灰, 空弦, 卡涅利安 and 伺夜 are
-  // V2_1-only 自选 picks (pending: the kitted gate drops them); 焰狐龙梓兰 and 结城理 are not excluded yet
+  // the 自选 pools: the default's — the 9 operators released after 03-14 (怒潮凛冬 among them) and rel25's (冻河, 国度, 塔露拉
+  // and the collab 焰狐龙梓兰, 结城理) come in through the profile's lateOperators, with the default's records, as does
+  // 麒麟R夜刀's (replaced: EXE-Y); 银灰, 空弦, 卡涅利安 and 伺夜 are V2_1-only 自选 picks (pending: the kitted gate drops them)
   const minus = (a, b) => a.filter((c) => !b.includes(c)).sort();
-  const later = ['char_1015_aglna2', 'char_1051_headb2', 'char_1052_kalts2', 'char_4226_veen', 'char_4228_closur', 'char_4229_aphris',
-    'char_4230_mcnist', 'char_4231_clemnt', 'char_4235_thumpy', 'char_4244_tocka', 'char_4246_dminon', 'char_4247_oxi'];
   const own = ['char_172_svrash', 'char_332_archet', 'char_426_billro', 'char_427_vigil'];
-  // today also builds the operator records of the 7 collab picks (diy.excluded, offered with 联动干员 on); V2_1 does not
-  const collab = ['char_456_ash', 'char_1029_yato2', 'char_1048_orchd2', 'char_4123_ela', 'char_4141_marcil', 'char_4182_oblvns', 'char_4217_makoto'];
-  assert.deepEqual([minus(Object.keys(today.diy.operators), Object.keys(v21b.diy.operators)), minus(Object.keys(v21b.diy.operators), Object.keys(today.diy.operators))], [[...later, ...collab].sort(), own]);
-  assert.deepEqual([minus(today.diy.ownedPool, v21b.diy.ownedPool), minus(v21b.diy.ownedPool, today.diy.ownedPool), v21b.diy.ownedPool.length], [later, own, 67]);
-  assert.deepEqual([minus(today.diy.excluded, v21b.diy.excluded), minus(v21b.diy.excluded, today.diy.excluded)], [['char_1048_orchd2', 'char_4217_makoto'], []]);
+  // both build the operator records of the 7 collab picks (diy.excluded, offered with 联动干员 on)
+  assert.deepEqual([minus(Object.keys(today.diy.operators), Object.keys(v21b.diy.operators)), minus(Object.keys(v21b.diy.operators), Object.keys(today.diy.operators))], [[], own]);
+  assert.deepEqual([minus(today.diy.ownedPool, v21b.diy.ownedPool), minus(v21b.diy.ownedPool, today.diy.ownedPool), v21b.diy.ownedPool.length], [[], own, 79]);
+  assert.deepEqual([minus(today.diy.excluded, v21b.diy.excluded), minus(v21b.diy.excluded, today.diy.excluded)], [[], []]);
+  for (const id of ['char_4244_tocka', 'char_4246_dminon', 'char_4247_oxi', 'char_1048_orchd2', 'char_4217_makoto', 'char_1029_yato2', ...LATER]) {
+    assert.deepEqual(v21b.units[id], today.units[id], `${id}: the default's unit record`);
+    assert.deepEqual(v21b.diy.operators[id], today.diy.operators[id], `${id}: the default's 自选 record`);
+    for (const form of Object.values(v21b.units[id].forms)) {
+      for (const tok of form.tokens || []) assert.deepEqual(v21b.tokens[tok], today.tokens[tok], `${id}: its summon ${tok}, the default's`);
+    }
+  }
   const v21 = read('versions/act2autochess-v2_1', 'enemies');
   assert.deepEqual([v21.enemy_2085_skzjxd.rank, v21.enemy_10040_cnvbln.notCountInTotal], ['NORMAL', true]);
 });

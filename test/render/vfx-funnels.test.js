@@ -471,6 +471,56 @@ describe('the floating units in a battle (funnelfx.js)', () => {
     assert.equal(live('w_trail'), 2, '1 + attack@cnt units');
   });
 
+  test("反馈 #103: the kit names the unit ('droneLock' / 'drone' `k`): a lock is never dropped, a wolf whose target died while it sat on it goes after the sim's next one instead of circling", async () => {
+    const { w, view, views, frame, live } = await setup();
+    const v = view(1, 'char_901_wolf', { skill: 2 });
+    const a = view(9, 'enemy_905_dummy', { x: 12, y: 5 });
+    const b = view(10, 'enemy_905_dummy', { x: 14, y: 8 });
+    w.deploy(v); frame();
+    v.flags = SKILL; w.skill(v, true);
+    assert.equal(w.simFx('drones', 5, 5, { id: 1, n: 2 }), true);
+    const U = w.funnels.of(v);
+    const D = U.s3.drones;
+    frame(40);   // the spread (1.3 s)
+    // the sim's unit 1 picks A, unit 0 picks B (the order the kit names, not the nearest free one)
+    assert.equal(w.simFx('droneLock', 12, 5, { id: 9, src: 1, k: 1, at: [D[1].x, D[1].y] }), true);
+    assert.equal(w.simFx('droneLock', 14, 8, { id: 10, src: 1, k: 0, at: [D[0].x, D[0].y] }), true);
+    assert.equal(D[1].t, a);
+    assert.equal(D[0].t, b);
+    frame(120);
+    assert.deepEqual(D.map((d) => d.phase), ['lock', 'lock'], 'both latched');
+    // A dies; before this view sees it, the sim's unit 1 has already picked B (its target the nearest to it): the lock
+    // goes to unit 1 although no unit looks free (the nearest-free rule dropped it, and unit 1 circled for good)
+    assert.equal(w.simFx('droneLock', 14, 8, { id: 10, src: 1, k: 1, at: [12.3, 5.2] }), true);
+    a.alive = false; views.delete(9);
+    frame();
+    assert.equal(D[1].t, b, 'unit 1 chases B');
+    assert.notEqual(D[1].phase, 'seek', 'it does not circle');
+    frame(120);
+    assert.equal(D[1].phase, 'lock');
+    assert.ok(Math.hypot(D[1].x - b.x, D[1].y - b.y) < 1e-9, 'on B');
+    // a hit names unit and target: a unit this view had let go is put on it at once
+    D[0].phase = 'seek'; D[0].t = null;
+    assert.equal(w.simFx('drone', 14, 8, { id: 1, k: 0, tid: 10 }), true);
+    assert.equal(D[0].phase, 'lock');
+    assert.equal(D[0].t, b);
+    // a free unit's once-a-second pulse far from where it is drawn: it is put at the sim's place
+    D[0].phase = 'seek'; D[0].t = null; D[0].x = 0; D[0].y = 0;
+    w.simFx('drone', 7, 6, { id: 1, k: 0 });
+    assert.deepEqual([D[0].x, D[0].y], [7, 6]);
+    // an older server (no `k`): the free unit nearest to the target, as before
+    D[0].phase = 'seek';
+    assert.equal(w.simFx('droneLock', 14, 8, { id: 10, src: 1 }), true);
+    assert.equal(D[0].t, b);
+    // a lock on an enemy this view does not draw: the unit flies to the lock's point instead of circling where it is
+    D[0].phase = 'seek'; D[0].t = null; D[0].x = 5; D[0].y = 5;
+    assert.equal(w.simFx('droneLock', 9, 5, { id: 77, src: 1, k: 0, at: [5, 5] }), true);
+    frame(60);   // 4 tiles at 2 → 4 tiles/s, then it circles there (radius 0.9)
+    assert.ok(Math.hypot(D[0].x - 9, D[0].y - 5) <= 2 * 0.9 + 0.15 && Math.hypot(D[0].x - 5, D[0].y - 5) > 2, `at the lock's point (${D[0].x}, ${D[0].y})`);
+    w.skill(v, false); v.flags = 0; frame();
+    assert.equal(live('w_trail'), 0);
+  });
+
   test('the old look without the effects: nothing official, the kit fx keep their procedural draw', async () => {
     const { w, view, frame, log } = await setup({ active: false });
     const u = view(1, 'char_902_uav', { skill: 1 });

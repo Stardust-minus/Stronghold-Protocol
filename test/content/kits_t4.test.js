@@ -925,6 +925,24 @@ test('魔王 S3: range up, trait 65 % ATK/s (生命回复速度), 鼓舞 +65 % o
   checkInvariants(h.b);
 });
 
+test('魔王 S3 (tier 4 and 5): the HP reassignment reaches operators that cannot be healed (不屈者 泥岩 / 折桠, feedback #28)', () => {
+  for (const [id, fx] of [['chess_char_4_25_a', 'redistribute'], ['chess_char_5_09_a', 'hpShare']]) {
+    const h = makeBattle({ units: [{ chessId: id, row: 10, col: 5 }, { chessId: 'chess_char_4_18_a', row: 10, col: 6 }, { chessId: 'chess_char_2_17_a', row: 9, col: 5 }],
+      timeLimit: 120, hooks: [] });
+    h.run(0.5);
+    const u = h.unit(id), mud = h.unit('chess_char_4_18_a'), br = h.unit('chess_char_2_17_a');
+    assert.ok(mud.profile.noHeal && br.profile.noHeal, 'both are 不屈者 (无法被友方角色治疗)');
+    mud.hp = mud.s.maxHp * 0.2; // (泥岩's own shield would eat a test hit)
+    const before = mud.hpRatio;
+    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(h.runUntil(() => h.events.some((ev) => ev[0] === 'fx' && ev[1] === fx), 4), `${id}: a reassignment`);
+    assert.ok(mud.hpRatio > before + 0.1, `${id}: 泥岩 is raised (${before} → ${mud.hpRatio})`);
+    approx(mud.hpRatio, br.hpRatio, 1e-9, `${id}: 泥岩 and 折桠 share one ratio`);
+    approx(mud.hpRatio, u.hpRatio, 1e-9, `${id}: with 魔王`);
+    checkInvariants(h.b);
+  }
+});
+
 test('魔王 elite module: ATK +8 % with ≥ 2 other operators in her normal range', () => {
   const id = 'chess_char_4_25_b';
   const mb = D(id).talents.find((t) => !t.name && t.bb.atk).bb;

@@ -4,8 +4,14 @@
 //     expect: { bonds, bands, visibleNonDiy, triggerDeviations } }
 //   pins      null (master, .cache/gamedata/) or { default: <sha>, <group>: <sha> … } — the commit of each file group
 //             (pinGroupOf), cached in .cache/gamedata@<sha>/
-//   lateOperators  { sha, charIds } or omitted — operators newer than the pinned tables: their character, skill and
-//             range records (nothing else) are read from `sha`, cached in .cache/gamedata@<sha>/
+//   lateOperators  { sha, charIds, replace? }, a list of them, or omitted — operators newer than the pinned tables: their
+//             character, skill, range and module records (nothing else) are read from `sha`, cached in
+//             .cache/gamedata@<sha>/. A non-default version takes each of the default's 自选 operators it lacks from the
+//             commit the default reads it from, so the records match the default's; the summons those records name
+//             come along when the pin lacks them. `replace: [charId…]` (only ids of the same entry) lets an entry
+//             overwrite an operator the pin already has, modules included (麒麟R夜刀's EXE-Y)
+//   diyBonds / diyTalentNotes  { <charId>: … } or omitted — replace an entry of tools/build-data.mjs DIY_EXTRA_BONDS /
+//             DIY_TALENT_NOTES (the deliberate 自选 bonds and talent lines) where the version lacks a bond they name
 //   adapters  names in tools/versions/adapters.mjs, applied in this order to the loaded activity_table
 //   research  the version's research directory (falls back to docs/research/, with a warning) or null = docs/research/
 //   tables    'default' (the 下半-measured tables of tools/build-data.mjs) or { stock, shopDraft, tacticDraft,

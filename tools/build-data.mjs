@@ -201,32 +201,63 @@ function sourceOf(rel) {
 }
 
 /**
- * Add the operators newer than the pinned tables (profile `lateOperators`): only their own character, skill, range and
- * module records come from the later commit, so every other operator keeps the pinned numbers. Refuses an operator the
- * pinned tables already have.
- * @param {{ sha: string, charIds: readonly string[] }} late
- * @param {{ charTable: any, skillTable: any, rangeTable: any, uniequip: any, battleEquip: any }} tables mutated in place
+ * Add the operators newer than the pinned tables (profile `lateOperators`, one { sha, charIds, replace? } or a list of them,
+ * applied in order): only their own character, skill, range and module records come from the later commit, so every other
+ * operator keeps the pinned numbers. The summons those records name (displayTokenDict, a skill level's overrideTokenKey, a
+ * talent's tokenKey, a module part's token) come along when the pinned tables lack them, with their skills and ranges; a
+ * summon the pinned tables have keeps its pinned record. So do its own autoChessData entries when the pin has none: the
+ * skillTriggerDataList rows keyed by its charId (怒潮凛冬's / 贝洛内's S3 CUSTOM_RANGE_SEARCH_ENEMY), the skillRangeDict
+ * range of its skills (with the range record) and the shopStateTokenDict entry of its summons (贝洛内's HIDDEN 战术锚点);
+ * the class rows (TANK → TAKE_DAMAGE …) stay the version's rules. Refuses an operator the pinned tables (or an earlier entry)
+ * already have — unless the entry lists it in `replace` (its records are then the later commit's, modules included:
+ * the owner's decision of 2026-11-02 for 麒麟R夜刀, whose EXE-Y module is newer than every version pin) — and a
+ * `replace` id the pinned tables do not have.
+ * @param {LateSource | readonly LateSource[]} late
+ * @param {{ charTable: any, skillTable: any, rangeTable: any, uniequip: any, battleEquip: any, ac?: any }} tables mutated in place
+ * @typedef {{ sha: string, charIds: readonly string[], replace?: readonly string[] }} LateSource
  */
-async function mergeLateOperators({ sha, charIds }, { charTable, skillTable, rangeTable, uniequip, battleEquip }) {
+async function mergeLateOperators(late, tables) {
+  for (const entry of Array.isArray(late) ? late : [late]) await mergeLateSource(entry, tables);
+}
+
+/** One lateOperators source (see mergeLateOperators). */
+async function mergeLateSource({ sha, charIds, replace = [] }, { charTable, skillTable, rangeTable, uniequip, battleEquip, ac = null }) {
   const src = { cacheDir: `${CACHE_DIR}@${sha}`, baseUrl: pinnedUrl(sha) };
   const read = async (rel) => JSON.parse(await readFile(await ensureGamedata(rel, src), 'utf8'));
   const [chars, skills, ranges, equips] = await Promise.all(['character', 'skill', 'range', 'uniequip'].map((t) => read(`excel/${t}_table.json`)));
   const battleEquips = charIds.some((id) => equips.charEquip?.[id]?.length) ? await read('excel/battle_equip_table.json') : null;
-  for (const id of charIds) {
-    const ch = chars[id];
-    if (!ch) throw new Error(`lateOperators: ${id} is not in the tables of ${sha}`);
-    if (charTable[id]) throw new Error(`lateOperators: ${id} is already in the pinned tables`);
-    charTable[id] = ch;
+  for (const id of replace) {
+    if (!charIds.includes(id)) throw new Error(`lateOperators: replace ${id} is not one of the entry's charIds`);
+    if (!charTable[id]) throw new Error(`lateOperators: replace ${id} is not in the pinned tables`);
+  }
+  /** A character record's skills and ranges, from the later commit. */
+  const takeSkills = (ownerId, ch) => {
     const rangeIds = (ch.phases || []).map((p) => p.rangeId);
     for (const { skillId } of ch.skills || []) {
       if (!skillId) continue;
-      if (!skills[skillId]) throw new Error(`lateOperators: ${id}: no skill ${skillId} in the tables of ${sha}`);
+      if (!skills[skillId]) throw new Error(`lateOperators: ${ownerId}: no skill ${skillId} in the tables of ${sha}`);
       skillTable[skillId] = skills[skillId];
       rangeIds.push(...skills[skillId].levels.map((l) => l.rangeId));
     }
+    for (const r of rangeIds) if (r && !rangeTable[r] && ranges[r]) rangeTable[r] = ranges[r];
+  };
+  /** charId → the summon ids its records name */
+  const namedBy = new Map();
+  for (const id of charIds) {
+    const ch = chars[id];
+    if (!ch) throw new Error(`lateOperators: ${id} is not in the tables of ${sha}`);
+    const replacing = replace.includes(id);
+    if (charTable[id] && !replacing) throw new Error(`lateOperators: ${id} is already in the pinned tables`);
+    charTable[id] = ch;
+    takeSkills(id, ch);
     const sub = ch.subProfessionId;
     if (sub && !uniequip.subProfDict?.[sub] && equips.subProfDict?.[sub]) uniequip.subProfDict[sub] = equips.subProfDict[sub];
     const mods = equips.charEquip?.[id] || [];
+    if (replacing && uniequip.charEquip?.[id]) {
+      for (const m of uniequip.charEquip[id]) { delete uniequip.equipDict[m]; delete battleEquip[m]; }
+      delete uniequip.charEquip[id];
+    }
+    const modRecords = [];
     if (mods.length) {
       if (uniequip.charEquip?.[id]) throw new Error(`lateOperators: ${id} already has modules in the pinned tables`);
       uniequip.charEquip[id] = [...mods];
@@ -235,11 +266,56 @@ async function mergeLateOperators({ sha, charIds }, { charTable, skillTable, ran
         if (!meta) throw new Error(`lateOperators: ${id}: no module ${m} in the tables of ${sha}`);
         uniequip.equipDict[m] = meta;
         // the INITIAL module (证章, "no module") has no battle record
-        if (battleEquips[m]) battleEquip[m] = battleEquips[m];
+        if (battleEquips[m]) { battleEquip[m] = battleEquips[m]; modRecords.push(battleEquips[m]); }
         else if (meta.type !== 'INITIAL') throw new Error(`lateOperators: ${id}: module ${m} has no battle record in ${sha}`);
       }
     }
-    for (const r of rangeIds) if (r && !rangeTable[r] && ranges[r]) rangeTable[r] = ranges[r];
+    // the summons its records name; one the pinned tables lack comes from the later commit (a name that is no record
+    // anywhere — a container key such as 凛御银灰's — is left to the build, which resolves or skips it)
+    const named = new Set();
+    const scan = (x) => { for (const m of JSON.stringify(x).matchAll(/"(token_[0-9a-z_]+)"/g)) named.add(m[1]); };
+    scan(ch); // displayTokenDict, the skill entries' overrideTokenKey, the talents' tokenKey
+    for (const { skillId } of ch.skills || []) if (skillId) scan(skills[skillId]);
+    for (const rec of modRecords) scan(rec);
+    namedBy.set(id, named);
+    for (const tok of [...named].sort()) {
+      if (charTable[tok]) continue;
+      if (!chars[tok]) continue;
+      charTable[tok] = chars[tok];
+      takeSkills(`${id}: summon ${tok}`, chars[tok]);
+    }
+  }
+  // its own autoChessData entries (trigger rows by charId, skill ranges, summon display), from the later commit's when the
+  // pin has none for it
+  if (!ac) return;
+  const laterAc = (await read('excel/activity_table.json'))?.autoChessData;
+  if (!laterAc) return;
+  const rowsOf = (x) => (Array.isArray(x) ? x : Object.values(x || {}));
+  const laterRows = rowsOf(laterAc.skillTriggerDataList);
+  const list = ac.skillTriggerDataList;
+  for (const id of charIds) {
+    const replacing = replace.includes(id);
+    const rows = laterRows.filter((r) => r.charId === id);
+    if (rows.length && (replacing || !rowsOf(list).some((r) => r.charId === id))) {
+      if (Array.isArray(list)) {
+        for (let i = list.length - 1; i >= 0; i--) if (list[i].charId === id) list.splice(i, 1); // loop-cap: list.length
+        list.push(...rows.map((r) => ({ ...r })));
+      } else {
+        ac.skillTriggerDataList ??= {};
+        for (const k of Object.keys(ac.skillTriggerDataList)) if (ac.skillTriggerDataList[k].charId === id) delete ac.skillTriggerDataList[k];
+        rows.forEach((r, i) => { ac.skillTriggerDataList[`late:${id}:${i}`] = { ...r }; });
+      }
+    }
+    for (const { skillId } of chars[id].skills || []) {
+      const rid = skillId ? laterAc.skillRangeDict?.[skillId] : null;
+      if (!rid || (Object.hasOwn(ac.skillRangeDict || {}, skillId) && !replacing)) continue;
+      (ac.skillRangeDict ??= {})[skillId] = rid;
+      if (!rangeTable[rid] && ranges[rid]) rangeTable[rid] = ranges[rid];
+    }
+    for (const tok of namedBy.get(id) || []) {
+      const st = laterAc.shopStateTokenDict?.[tok];
+      if (st && !Object.hasOwn(ac.shopStateTokenDict || {}, tok)) (ac.shopStateTokenDict ??= {})[tok] = st;
+    }
   }
 }
 
@@ -297,7 +373,7 @@ async function loadContext() {
     loadGamedata('excel/enemy_handbook_table.json'),
     loadGamedata('levels/enemydata/enemy_database.json'),
   ]);
-  if (PROFILE.lateOperators) await mergeLateOperators(PROFILE.lateOperators, { charTable, skillTable, rangeTable, uniequip, battleEquip });
+  if (PROFILE.lateOperators) await mergeLateOperators(PROFILE.lateOperators, { charTable, skillTable, rangeTable, uniequip, battleEquip, ac: activity?.autoChessData });
   const act = activity?.activity?.AUTOCHESS_SEASON?.[PROFILE.season];
   const ac = activity?.autoChessData;
   if (!act || !ac) throw new Error(`activity_table has no ${PROFILE.season} / autoChessData section`);
@@ -660,6 +736,9 @@ const DIY_EXTRA_BONDS = Object.freeze({
  * decision of 2026-11-02; the kit op-oxi.js carries it out).
  */
 const DIY_TALENT_NOTES = Object.freeze({ char_4247_oxi: '技能持续期间我方干员阵亡时，【奥术】和【不屈】层数+1' });
+/** This version's DIY_EXTRA_BONDS / DIY_TALENT_NOTES: the profile's `diyBonds` / `diyTalentNotes` replace an entry. */
+const diyExtraBondsOf = (id) => (PROFILE.diyBonds && Object.hasOwn(PROFILE.diyBonds, id) ? PROFILE.diyBonds[id] : DIY_EXTRA_BONDS[id]) ?? [];
+const diyTalentNoteOf = (id) => (PROFILE.diyTalentNotes && Object.hasOwn(PROFILE.diyTalentNotes, id) ? PROFILE.diyTalentNotes[id] : DIY_TALENT_NOTES[id]) ?? null;
 
 /**
  * The skill a prototype carries in a 自选 slot when no 补位 row of the slot's tier names it (only 预备干员-医疗 at tier 5:
@@ -763,10 +842,11 @@ function buildBackups(ctx, chess) {
     unit.forms = {};
     for (const st of [...need.get(id).values()].sort(statusCmp)) {
       const form = buildUnitForm(ctx, id, st);
-      if (DIY_TALENT_NOTES[id]) {
+      const note = diyTalentNoteOf(id);
+      if (note) {
         const t = form.talents[0];
-        t.desc += `\n${DIY_TALENT_NOTES[id]}`;
-        t.descRaw += `\n${DIY_TALENT_NOTES[id]}`;
+        t.desc += `\n${note}`;
+        t.descRaw += `\n${note}`;
       }
       if (form.tokens.length && unit.standsIn.length) warn(`unit ${id}@${statusKey(st)}: summons ${form.tokens.join(', ')} have no tokens.json variant for a stand-in owner`);
       unit.forms[statusKey(st)] = form;
@@ -788,7 +868,7 @@ function buildBackups(ctx, chess) {
     const hit = coreBonds.filter((b) => b.powerIdList.some((x) => powers.includes(x))).map((b) => b.bondId);
     operators[id] = {
       name: ch.name, rarity: rarityOf(ch), profession: ch.profession, subProfessionId: ch.subProfessionId,
-      obtainable: !ch.isNotObtainable, powers, bonds: [...(hit.length ? hit : [fallback]), ...(DIY_EXTRA_BONDS[id] ?? [])],
+      obtainable: !ch.isNotObtainable, powers, bonds: [...(hit.length ? hit : [fallback]), ...diyExtraBondsOf(id)],
     };
   }
   return { units, tokens, diy: { slots, prototypes, locked, ownedPool, excluded, operators } };

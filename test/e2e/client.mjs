@@ -582,6 +582,19 @@ export class Client {
     }, uid, prefer);
   }
 
+  /**
+   * Waits until no client-side prediction is pending (ui/prediction.js, rel26): a piece bought by prediction carries a
+   * negative placeholder uid until the server's state names it, so a uid read before that goes stale.
+   */
+  async predictionSettled(timeout = 5000) {
+    const left = await this.page.evaluate(async (timeout) => {
+      const { prediction } = await import('/js/ui/prediction.js');
+      for (const end = Date.now() + timeout; prediction.pending().length && Date.now() < end;) await new Promise((r) => setTimeout(r, 40));
+      return prediction.pending().length;
+    }, timeout);
+    if (left) throw new Error(`${this.label}: ${left} predicted intent(s) still unacknowledged after ${timeout} ms`);
+  }
+
   handPieces(kind = null) {
     return this.page.evaluate((kind) => {
       const priv = globalThis.__SP__.store.get().match.private;

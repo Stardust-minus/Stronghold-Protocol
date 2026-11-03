@@ -379,6 +379,31 @@ span.settle__nexticon .icon { width: .34rem; height: .34rem; }
 .steam__outcome, .steam__rounds, .steam__when, .sbtn { animation: steam-bar 420ms var(--ease-out) 520ms both; }
 @keyframes steam-bar { from { opacity: 0; transform: translateY(.2rem); } }
 
+/* the short 领袖战输出 under the medals (feedback #81; screens/result.js BossDamageBrief): a line per final scope */
+.sdmg { position: absolute; left: .62rem; top: 5.66rem; width: 9.7rem; min-height: .5rem; box-sizing: border-box; display: flex; align-items: center; gap: .16rem;
+  padding: .06rem .12rem; background: linear-gradient(90deg, rgba(8, 26, 22, .78), rgba(8, 20, 18, .5) 70%, rgba(8, 20, 18, 0)); border-left: 2px solid rgba(74, 242, 196, .7);
+  animation: sself-slide 420ms var(--ease-out) 460ms both; }
+.sdmg__title { flex: none; display: flex; align-items: center; gap: .06rem; font-size: calc(.17 * var(--t)); font-weight: 700; color: #e9f2ef; white-space: nowrap; }
+.sdmg__title .icon { width: .2rem; height: .2rem; color: #4af2c4; }
+.sdmg__lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .04rem; }
+.sdmg__line { display: flex; align-items: center; gap: .1rem; min-width: 0; white-space: nowrap; font-size: calc(.15 * var(--t)); color: #b7c1be; }
+.sdmg__scope { flex: none; padding: 0 .06rem; border: 1px solid rgba(160, 230, 210, .3); font-size: calc(.13 * var(--t)); color: #cfe0db; }
+.sdmg__sum { font-family: var(--font-display); font-size: calc(.22 * var(--t)); color: #ffc600; line-height: 1; }
+.sdmg__rate { font-size: calc(.12 * var(--t)); color: #8f9a97; }
+.sdmg__rate b { color: #dfe8e5; font-weight: 600; }
+.sdmg__ops { flex: 1; min-width: 0; display: flex; gap: .12rem; overflow: hidden; }
+.sdmg__op { flex: none; display: flex; align-items: center; gap: .05rem; max-width: 2.3rem; }
+.sdmg__op .uthumb { --ut: .32rem; }
+.sdmg__name { overflow: hidden; text-overflow: ellipsis; max-width: 1.1rem; color: #e9f2ef; }
+.sdmg__op b { color: #fff; font-weight: 600; }
+.sdmg__more { position: relative; flex: none; display: flex; align-items: center; gap: .02rem; padding: .04rem .1rem; border: 1px solid rgba(74, 242, 196, .55); background: rgba(10, 40, 33, .6);
+  color: #4af2c4; font: inherit; font-size: calc(.14 * var(--t)); cursor: pointer; white-space: nowrap; }
+/* the stage is scaled down on a phone (useStageFit): a larger invisible hit area, the look unchanged */
+.sdmg__more::after { content: ''; position: absolute; inset: -.22rem -.16rem; }
+.sdmg__more .icon { width: .18rem; height: .18rem; }
+.sdmg__more:hover { background: rgba(20, 70, 58, .7); }
+.sdmg__more:focus-visible { outline: 2px solid #4af2c4; outline-offset: 2px; }
+
 @media (prefers-reduced-motion: reduce) {
   .settle *, .settle *::before, .settle *::after { animation: none; }
   .sintro { display: none; }

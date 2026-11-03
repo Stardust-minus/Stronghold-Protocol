@@ -71,6 +71,9 @@ export class PlayerViews {
     return {
       t: 'm.private',
       playerId: this.playerId,
+      // client-side prediction (rel26): the rid of the latest prep intent of this seat the match handled on this socket
+      // (platform.js; 0 = none yet). Always present: it also tells the browser that this server acknowledges intents.
+      ack: Number.isInteger(this.intentAck) && this.intentAck > 0 ? this.intentAck : 0,
       ...(Number.isInteger(this.aiTakeoverRound) ? { aiTakeoverRound: this.aiTakeoverRound } : {}),
       seat: this.seat,
       alive: this.alive,
@@ -102,6 +105,13 @@ export class PlayerViews {
         freeRefreshes: this.shop.freeRefreshes,
         frozen: this.shop.frozen,
         layout: { ...(this.shop.layout || this.gd.shopSlots(this.shop.level)) },
+        // what the next level-up gives at once (economy.js levelUp / _openLevelSlots): its slot layout (the new slots
+        // open empty) and the base price of the level after it — public game data, so the browser can show a
+        // level-up before the server answers (client-side prediction, rel26); null at the top level
+        next: this.shop.level >= this.gd.maxShopLevel ? null : {
+          layout: this.gd.shopSlots(this.shop.level + 1),
+          upgradePrice: this.shop.level + 1 >= this.gd.maxShopLevel ? 0 : (this.gd.upgradeBase(this.shop.level + 1) ?? 0),
+        },
         slots,
         // `source` 'merge' = the promotion reward (晋升奖励); any other offer (a strategy, an item, a 特质) carries the
         // `label` the bar shows instead; `queued` = offers waiting behind it (player report #6 after 0.1.0)
@@ -135,6 +145,10 @@ export class PlayerViews {
       // switched off)
       diy: this.diy,
       diyBanned: this.diyBanned,
+      // 自选候补 (feedback #114, player/diy.js diyChoiceView): during the briefing, for a preset with more candidates than
+      // slots — per tier its candidates (`off`: every bond banned this match), the ones fielded now and whether the
+      // player chose; absent otherwise
+      ...(this.m.phase === PHASE.INFO_CHECK && this.hasDiyChoice() ? { diyChoice: this.diyChoiceView(this.m.diyOff?.() ?? new Set()) } : {}),
       // 最终攻势 / 隐秘核心 prep (community report of 2026-10-06, item 51): `{ playerId, side, units }` — the pair partner's
       // board pieces as UnitInfo on its half of the boss field (mirrored on the right half, as the battle places them);
       // the own prep view draws them beside the own half, read-only. Absent otherwise.

@@ -46,15 +46,17 @@ export async function client(url, name, token, hello = {}) {
 }
 
 /** One stack lifetime: game nodes (same ids / keys / ports across lifetimes, new generations), coordinator, ingress. */
-export async function stack(storeFor, { configs, ports = [], nodesOnly = false, coordinatorOnly = null, events = new Map() } = {}) {
+export async function stack(storeFor, { configs, ports = [], nodesOnly = false, coordinatorOnly = null, events = new Map(), coordinator: extra = {}, game = {} } = {}) {
   const generations = configs.map(() => randomUUID());
   const games = coordinatorOnly ? coordinatorOnly.games : await Promise.all(configs.map((config, i) => startGameRuntime({
-    ...config, generation: generations[i], port: ports[i] ?? 0, combatWorkers: 0, MatchClass: QuickMatch, persistStore: storeFor(), persistSaveMs: 60_000,
+    // `game`: more options of every game node (its version hosts: test/persist-version-room.test.js)
+    ...config, generation: generations[i], port: ports[i] ?? 0, combatWorkers: 0, MatchClass: QuickMatch, persistStore: storeFor(), persistSaveMs: 60_000, ...game,
     onEnd: (receipt) => sendEndReceipt({ client: events.get(config.nodeId), nodeGeneration: generations[i], receipt }),
     onRemoved: (removal) => sendMemberRemoved({ client: events.get(config.nodeId), nodeGeneration: generations[i], removal }) })));
   if (nodesOnly) return { games };
   const nodes = configs.map((config, i) => ({ nodeId: config.nodeId, key: config.key, url: games[i].url }));
-  const coordinator = await startCoordinator({ nodes, build: BUILD, port: 0, quiet: true, heartbeatMs: 300, persistStore: storeFor(), persistSaveMs: 60_000 });
+  // `coordinator`: more options of the coordinator (its version hosts' match options, test/persist-version-room.test.js)
+  const coordinator = await startCoordinator({ nodes, build: BUILD, port: 0, quiet: true, heartbeatMs: 300, persistStore: storeFor(), persistSaveMs: 60_000, ...extra });
   for (const config of configs) events.set(config.nodeId, createRpcClient({ url: coordinator.privateUrl, authority: createRpcAuthenticator({ key: config.key, scope: config.nodeId }) }));
   const ingress = await startIngress({ coordinatorUrl: coordinator.url, nodes, origins: [ORIGIN], shutdownMs: 100 });
   return { games, coordinator, ingress, events, nodes };

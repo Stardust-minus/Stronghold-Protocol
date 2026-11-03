@@ -13,11 +13,16 @@
 //                                           with a small 「替补」 mark (gameLogic standInOf; the owner's recall, 2026-10-06) */ }],
 //                 bonds?: [{ bondId, layers, active }],
 //                 stats: { dmgDealt, kills, leaks, gold /* funds SPENT */, refreshes, merges, bossDamage?, itemsEquipped?,
-//                          activatedLayers?, lpLost?, perfectRounds? } }] }
+//                          activatedLayers?, lpLost?, perfectRounds? },
+//                 damage?: [{ kind: 'boss' | 'hidden', round, seconds, total, healing?, otherDamage?, otherHealing?,
+//                             ops: [{ id, damage, healing?, diy?, standInFor?, skinId? /* only when the lineup has no
+//                                     entry of the id: the card draws the entry's (ui/bossDamage.js opLook) */ }] }]
+//                   /* the 领袖战 damage report (feedback #70 / #81; ui/bossDamage.js): each card lists its operators' damage /
+//                      healing and DPS / HPS per final scope fought — <BossDamage/>, open on the player's own card */ }] }
 
-import { useEffect } from '../../vendor/hooks.module.js';
+import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, MicroLabel, DifficultyTag } from '../ui/components.js';
-import { useGameData, Img, UnitThumb, BandIcon, PlayerAvatar, BondGlyph, LpTower, Sprite } from '../ui/gameComponents.js';
+import { useGameData, Img, UnitThumb, BandIcon, PlayerAvatar, BondGlyph, LpTower, Sprite, GIcon } from '../ui/gameComponents.js';
 import { normalizeResult, fmtNum, diyRecordFor, cardStandIn, standInForText } from '../ui/gameLogic.js';
 import { data } from '../data.js';
 import { appearanceRecord } from '../ui/skinAssets.js';
@@ -27,6 +32,7 @@ import { sentText } from '../ui/lang.js';
 import { UnofficialMark, VersionTag } from '../ui/pluginTag.js';
 import { TestMark } from '../ui/testConsole.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
+import { bossDamageList, opLook } from '../ui/bossDamage.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -58,11 +64,114 @@ export function resultBonds(bonds, bondRec = () => null) {
  * 「替补」 mark — the title names the chess it fielded for.
  */
 export function LineupThumb({ u, gd }) {
+  const { chess, si, rec } = pieceLook(u, gd);
+  return html`<${UnitThumb} kind=${u.kind === 'token' ? 'token' : 'chess'} id=${u.id} golden=${!!u.golden} tier=${u.tier} size="sm" rec=${rec}
+    title=${si ? t('{name}（{note}）', { name: si.name, note: standInForText(chess.name) }) : undefined} />`;
+}
+
+/**
+ * How a result row draws one of its chess (a lineup entry, a damage report's operator): its 自选 pick (`diy`), else the
+ * stand-in it fielded (`standInFor`), else the chess — in the skin it wore (`skinId`).
+ * @returns {{ chess: any, si: any, rec: any, name: string }}
+ */
+export function pieceLook(u, gd) {
   const chess = u.kind === 'token' ? null : gd.chess(u.id);
   const dr = u.diy && chess ? diyRecordFor(chess, u.diy, { chess: data.get('chess'), backups: data.get('backups') }) : null;
   const si = !dr && chess ? cardStandIn(chess, { unit: u, backups: gd.backups }) : null;
-  return html`<${UnitThumb} kind=${u.kind === 'token' ? 'token' : 'chess'} id=${u.id} golden=${!!u.golden} tier=${u.tier} size="sm" rec=${appearanceRecord(dr || si || chess, u.skinId)}
-    title=${si ? t('{name}（{note}）', { name: si.name, note: standInForText(chess.name) }) : undefined} />`;
+  const base = dr || si || chess;
+  return { chess, si, rec: appearanceRecord(base, u.skinId), name: base?.name || u.id };
+}
+
+/** A per-second rate in the card stats' number format (— without battle time). */
+const rateText = (v) => (v == null ? '—' : fmtNum(v));
+
+/** Operators a scope's line lists on 个人战报 (BossDamageBrief). */
+export const BRIEF_OPS = 3;
+
+/**
+ * The short 领袖战输出 of 个人战报 (screens/settle.js SelfPage; the owner's word of 2026-11-02 on feedback #81): one line per
+ * final scope fought — its name, the damage sum and DPS, the BRIEF_OPS operators that dealt most (art as in the lineup,
+ * value) — and 数据详情 (`onDetail`), the full report. Nothing without a report.
+ * @param {{ entries: any[], lineup?: any[], gd: any, onDetail?: () => void }} props
+ */
+export function BossDamageBrief({ entries, lineup = [], gd, onDetail = null }) {
+  if (!Array.isArray(entries) || !entries.length) return null;
+  return html`<div class="sdmg" data-testid="settle-boss-damage">
+    <span class="sdmg__title"><${Icon} name="sword" />${t('领袖战输出')}</span>
+    <div class="sdmg__lines">
+      ${entries.map((e) => {
+        const list = bossDamageList(e, 'damage');
+        return html`<div key=${e.kind} class="sdmg__line">
+          <span class="sdmg__scope">${e.kind === 'hidden' ? t('隐秘核心') : t('最终攻势')}</span>
+          <b class="sdmg__sum num">${fmtNum(list.total)}</b><small class="sdmg__rate">DPS <b class="num">${rateText(list.rate)}</b></small>
+          <span class="sdmg__ops">${list.rows.filter((row) => row.op).slice(0, BRIEF_OPS).map((row, i) => {
+            const look = pieceLook(opLook(row.op, lineup), gd);
+            return html`<span key=${row.key} class="sdmg__op" title=${`${look.name} · ${fmtNum(row.value)}`}>
+              <${UnitThumb} kind="chess" id=${row.op.id} size="xs" rec=${look.rec} showTier=${false} />
+              <span class="sdmg__name">${look.name}</span><b class="num">${fmtNum(row.value)}</b></span>`;
+          })}</span>
+        </div>`;
+      })}
+    </div>
+    ${onDetail ? html`<button type="button" class="sdmg__more" onClick=${onDetail}>${t('数据详情')}<${Icon} name="chevronRight" /></button>` : null}
+  </div>`;
+}
+
+/**
+ * One player's 领袖战 damage report (m.result players[].damage, normalized; see the header — feedback #70 「对局记录里可以
+ * 看到boss战每个干员dps」, #81 「结算页面加入干员伤害统计」): a disclosure under the card's stats — its summary the damage of
+ * each final scope fought; open, the scope (最终攻势 / 隐秘核心, when both were fought), 伤害 / 治疗, the sum with its DPS /
+ * HPS over the scope's battle time, and one line per operator (summons credited to it; 装置 / 其他 last) — its art as in
+ * the lineup, the value, its rate and its share of the sum. The live 数据详情 and the stats page's re-view draw the same.
+ * @param {{ entries: any[], lineup?: any[], gd: any, open?: boolean }} props `lineup`: the row's (how an operator is drawn, opLook)
+ */
+export function BossDamage({ entries, lineup = [], gd, open = false }) {
+  const [kind, setKind] = useState(entries[0]?.kind);
+  const [metric, setMetric] = useState('damage');
+  const entry = entries.find((e) => e.kind === kind) || entries[0];
+  if (!entry) return null;
+  const healing = metric === 'healing';
+  const list = bossDamageList(entry, metric);
+  const scopeName = (k) => (k === 'hidden' ? t('隐秘核心') : t('最终攻势'));
+  const exact = (n) => (n || 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+  return html`<details class="rdmg" open=${open} data-testid="result-boss-damage">
+    <summary class="rdmg__sum">
+      <${Icon} name="sword" /><span class="rdmg__title">${t('领袖战输出')}</span>
+      ${entries.map((e) => html`<span key=${e.kind} class="rdmg__peek"><small>${scopeName(e.kind)}</small><b class="num">${fmtNum(e.total)}</b></span>`)}
+      <${Icon} name="chevronRight" class="rdmg__chev" />
+    </summary>
+    <div class="rdmg__bar">
+      ${entries.length > 1 ? html`<div class="rdmg__seg" role="radiogroup" aria-label=${t('战斗')}>
+        ${entries.map((e) => html`<button key=${e.kind} type="button" role="radio" aria-checked=${e.kind === entry.kind ? 'true' : 'false'}
+          class=${e.kind === entry.kind ? 'is-on' : ''} onClick=${() => setKind(e.kind)}>${scopeName(e.kind)}</button>`)}
+      </div>` : html`<span class="rdmg__scope">${scopeName(entry.kind)}</span>`}
+      <div class="rdmg__seg" role="radiogroup" aria-label=${t('统计项目')}>
+        ${[['damage', t('伤害')], ['healing', t('治疗')]].map(([id, text]) => html`<button key=${id} type="button" role="radio"
+          aria-checked=${metric === id ? 'true' : 'false'} class=${metric === id ? 'is-on' : ''} onClick=${() => setMetric(id)}>${text}</button>`)}
+      </div>
+      <span class="rdmg__total"><span>${healing ? t('累计治疗') : t('累计伤害')}</span> <b class="num">${fmtNum(list.total)}</b>
+        <span>${healing ? 'HPS' : 'DPS'}</span> <b class="num">${rateText(list.rate)}</b>
+        <span>${t('战斗 {n} 秒', { n: Math.round(entry.seconds) })}</span></span>
+    </div>
+    ${list.rows.length ? html`<div class="rdmg__row rdmg__cols" aria-hidden="true"><span></span><span></span><span>${t('干员')}</span><span></span>
+      <span class="rdmg__val">${healing ? t('有效治疗') : t('实际伤害')}</span><span class="rdmg__rate">${healing ? 'HPS' : 'DPS'}</span><span class="rdmg__share">${t('占比')}</span></div>
+    <ol class="rdmg__rows">
+      ${list.rows.map((row, i) => {
+        const look = row.op ? pieceLook(opLook(row.op, lineup), gd) : null;
+        const name = look ? look.name : t('装置 / 其他');
+        return html`<li key=${row.key} class="rdmg__row" title=${`${name} · ${exact(row.value)}`}>
+          <span class="rdmg__rank num">${i + 1}</span>
+          ${look ? html`<${UnitThumb} kind="chess" id=${row.op.id} size="xs" rec=${look.rec} showTier=${false} />`
+            : html`<span class="rdmg__other" aria-hidden="true"><${GIcon} name="gear" /></span>`}
+          <span class="rdmg__name">${name}</span>
+          <span class="rdmg__meter" aria-hidden="true"><i style=${`transform:scaleX(${row.share / 100})`}></i></span>
+          <b class="rdmg__val num">${fmtNum(row.value)}</b>
+          <span class="rdmg__rate num">${rateText(row.rate)}</span>
+          <span class="rdmg__share num">${row.share.toFixed(1)}%</span>
+        </li>`;
+      })}
+    </ol>` : html`<p class="rdmg__empty">${healing ? t('未进行治疗') : t('未造成伤害')}</p>`}
+  </details>`;
 }
 
 function PlayerCard({ p, myId, titles, best, solo = false, skinOwnerId = null }) {
@@ -103,6 +212,7 @@ function PlayerCard({ p, myId, titles, best, solo = false, skinOwnerId = null })
       ${stats.map(([k, label]) => html`<div key=${k} class=${cx('rstat', best[k] === p.playerId && 'is-best')}><span>${t(label)}</span><b class="num">${fmtNum(p.stats[k])}</b></div>`)}
       ${Number.isFinite(p.lp) ? html`<div class="rstat" title=${p.lpShared && !solo ? t('最终攻势起全队共享目标生命值') : ''}><span>${p.lpShared && !solo ? t('同盟剩余生命') : t('剩余生命')}</span><${LpTower} value=${p.lp} size="sm" /></div>` : null}
     </div>
+    ${p.damage?.length ? html`<${BossDamage} entries=${p.damage} lineup=${p.lineup} gd=${gd} open=${p.playerId === myId} />` : null}
   </article>`;
 }
 

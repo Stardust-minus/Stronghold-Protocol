@@ -36,6 +36,7 @@ import { layerGainRoom } from '../../shared/constants.js';
 import { uniteLeft } from '../sim/spec.js';
 import { diyTokenOwner, diyRecordOf } from '../../shared/diy.js';
 import { requiresTraitLayerAuthority } from './operatorTraits.js';
+import { GRANT_TWICE_CHAR, GRANT_TWICE_DEFAULT } from '../sim/content/garrisons/battle.js';
 
 export const MAX_TICKS_PER_INTERVAL = 8;
 export const INTERVAL_MS = 1000 / 30;
@@ -659,7 +660,8 @@ function layerBondsOf(p, gd) {
 /**
  * What the player's IN_BATTLE layer 特质 can add to each bond in one battle on top of the flat 60 + 4·round (DESIGN
  * §21.26): the traits of its units (garrisons with `bond_add_count` / `bond_add_count_multi`) and the ones their ADD_BOND
- * traits hand out (`give_garrison_id`, counted for every operator of the player — "所有【X】" reaches them all), each on
+ * traits hand out (`give_garrison_id`, counted for every operator of the player — "所有【X】" reaches them all; 华法琳's
+ * twice, feedback #15), each on
  * the bonds it names (`bond_by_id` ids; `bond_self` / `bond_actived_maxstack`: every bond of the player's snapshot and
  * units), up to the per-battle cap the sim applies (content/garrisons/battle.js: `max_add_count_per_battle` — a handed-out
  * trait's too, 华法琳's 7 / 14, GitHub #175). A trait the data gives no cap (初雪 / 银灰's freeze trait, 菲莱 / 百炼嘉维尔's per-skill
@@ -688,8 +690,10 @@ function layerAllowanceOf(p, gd) {
       const g = gd.garrison(gid);
       if (!g || g.eventType !== 'IN_BATTLE') continue;
       if (g.effectKey !== 'ADD_BOND') { credit(g, 1); continue; }
-      const given = gd.garrison(g.bbStr?.give_garrison_id);
-      if (given && given.eventType === 'IN_BATTLE') credit(given, units.length);
+      const given = gd.garrison(g.bbStr?.give_garrison_id ?? g.bbStr?.give_garrion_id);
+      // 华法琳's grant triggers twice (content/garrisons/battle.js grantTwiceGivers, feedback #15): two capped copies
+      const twice = GRANT_TWICE_DEFAULT.has(gid) || gd.chess(u.chessId)?.charId === GRANT_TWICE_CHAR;
+      if (given && given.eventType === 'IN_BATTLE') credit(given, units.length * (twice ? 2 : 1));
     }
   }
   if (extra) for (const b of out.keys()) out.set(b, Infinity);

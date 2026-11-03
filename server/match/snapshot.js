@@ -87,7 +87,8 @@ export const MATCH_FIELDS = Object.freeze({
     'playerPools', 'itemPool', 'ended', 'disposed',
     // 0.3.1: the content set's declared windows and the room's 测试 flag (both from the match options)
     'offers', 'test',
-    // 0.3.2: the official version (a hosted match: never checkpointed), the bot strategy, the room's simulation pool, the external AI
+    // 0.3.2: the official version (a hosted match's: its match host checkpoints it, server/persist/persister.js), the bot
+    // strategy, the room's simulation pool, the external AI
     'version', 'bot', 'simPool', 'externalAI',
   ]),
   transient: Object.freeze([
@@ -118,13 +119,18 @@ export const PLAYER_FIELDS = Object.freeze({
     'bondCountBonus', 'effects', 'bounties', 'personalChoice', 'counters', 'round', 'deployCapBonus', 'deployCapMin',
     'deviceOverrides', 'tileOverrides', 'stats', 'eliminatedRound', 'creditedKills', 'lpAtFinal', 'lastResult',
     '_botFocus', '_botFocusId', '_botSeenUids', '_deferItemMerge', 'aiTakeoverRound',
+    // 自选候补 (feedback #114): the briefing's choice per tier (a server without it ignores the key)
+    'diyChoice',
   ]),
   special: Object.freeze(['ready', 'connected', 'loadout', 'ops', 'skins', 'diyStock']),
   derived: Object.freeze([
     'm', 'gd', 'playerId', 'seat', 'name', 'isBot', 'standIns', '_standInSet', 'diy', '_diyRecords', 'diyBanned', 'bonds',
+    'diyPreset',
   ]),
   transient: Object.freeze([
     '_deployMap', '_deployField', '_legalityStale', '_botPrepToken', '_botPrepWork', '_lastPriv', '_botRangeRecs',
+    // the rid echoed as m.private `ack` (client-side prediction, rel26): per socket, reset on every reconnect
+    'intentAck',
   ]),
 });
 
@@ -269,14 +275,16 @@ const deepFreeze = (v) => {
 
 /**
  * The seats a restored match is built from (Match opts.seats): what the constructor derives state from — seat index,
- * id, name, AI flag, an AI seat's designated strategy, a human's stand-ins and 自选 picks (fixed for the match). The
- * loadout, 潜能 / 练度 and skins are saved player fields.
+ * id, name, AI flag, an AI seat's designated strategy, a human's stand-ins and 自选 picks (fixed for the match; with
+ * 候补 — feedback #114 — the slots as they are now plus the candidates not slotted as bench keys, player/diy.js
+ * diyBenchSeat: a restore fields the same slots, and a server without 候补 drops the bench keys). The loadout, 潜能 /
+ * 练度 and skins are saved player fields.
  * @param {import('./Match.js').Match} m
  */
 export function matchSeats(m) {
   return m.order.map((ps) => ({
     seat: ps.seat, playerId: ps.playerId, name: ps.name, isBot: ps.isBot, connected: false,
-    ...(ps.isBot ? {} : { notOwned: [...ps.standIns], diy: { ...ps.diy } }),
+    ...(ps.isBot ? {} : { notOwned: [...ps.standIns], diy: { ...ps.diy, ...ps.diyBenchSeat() } }),
     ...(ps.isBot && m.botBands.has(ps.playerId) ? { band: m.botBands.get(ps.playerId) } : {}),
   }));
 }
@@ -348,7 +356,8 @@ export function checkSnapshot(m, doc) {
 
 /**
  * Apply a checkpoint to a fresh Match instance — built with the checkpoint's seats (matchSeats), seed, mode, difficulty
- * and experimental options, NOT started — and re-enter its phase (the header). Nothing is dispatched again: income,
+ * and experimental options, NOT started — and re-enter its phase (the header). A human's 自选 slots are taken from the
+ * checkpoint's seat even when the instance was built from other seats (the cluster: its assignment's). Nothing is dispatched again: income,
  * round-start hooks and prep-start effects already ran before the checkpoint was taken.
  * @param {import('./Match.js').Match} m fresh instance
  * @param {object} doc snapshotMatch
@@ -430,6 +439,11 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
       ps.ops = deepFreeze(decodeValue(p.ops) || {});
       ps.skins = deepFreeze(decodeValue(p.skins) || {});
     }
+    // 自选候补 (feedback #114): the slots the checkpoint's seat names (matchSeats). A platform that builds the fresh match
+    // from its own seats — the cluster's assignment, the preset as the match started — would field the preset's first
+    // slots, not the ones the player chose in the briefing; the same picks again change nothing.
+    const seat = !ps.isBot && Array.isArray(doc.seats) ? doc.seats.find((s) => s && s.playerId === p.playerId) : null;
+    if (seat && seat.diy && typeof seat.diy === 'object') ps.setDiy(seat.diy, ps.diyMatchOpts());
     if (!piecesKnown(ps)) { log?.warn?.(`[snapshot] ${m.roomCode}: checkpoint refused (pieces of ${ps.playerId})`); return false; }
     const { stock, banned } = ps.buildDiyStock(off);
     for (const [id, left] of Object.entries(p.diyStock || {})) {

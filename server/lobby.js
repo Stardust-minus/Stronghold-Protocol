@@ -735,7 +735,8 @@ export class Lobby {
     this.autoApplyPlugins = null;
     /**
      * Checkpoints (docs/DEPLOY.md「断点续玩」, server/persist/persister.js): `onCheckpoint(room, ctx, match, reason)` hears a
-     * running local match's safe points; `closingQuietly` — the state was saved, so a shutdown closes the rooms without
+     * running local match's safe points, and each checkpoint an official version's match host posts (its MatchProxy as
+     * `match`: lastCheckpoint); `closingQuietly` — the state was saved, so a shutdown closes the rooms without
      * room.closed / notices (their players are coming back).
      * @type {((room: Room, ctx: object, match: any, reason: string) => void) | null}
      */
@@ -2719,6 +2720,9 @@ export class Lobby {
         ...(modded || versioned ? { requireCs: true } : {}),
         // another official version (header "Official versions"): its registry id; a default room's opts keep their keys
         ...(versioned ? { version: room.version } : {}),
+        // its match host checkpoints it (server/match/host/entry.js; server/persist/persister.js) while this server keeps
+        // checkpoints; a default room's opts keep their keys
+        ...(versioned && this.checkpointsOn === true ? { checkpoints: true } : {}),
         // 「不限时」 (header): only while the room's flag is on, so a default match's opts keep their keys
         ...(room.mode === 'solo' && room.soloUnlimited === true ? { soloUnlimited: true } : {}),
         // The list the lobby just checked the picks with (kittedFor). Vanilla rooms omit it: setDiy stays on
@@ -2758,8 +2762,9 @@ export class Lobby {
       // a room with gameplay plugins plays in its content set's match host when this server has them, a room of another
       // official version in that version's; every other room (and, in the cluster, every default-version room: the game
       // node runs the content set's match) as always (createMatch)
+      // (a cluster coordinator places another version's match on a game node too: ClusterLobby.placesRemotely)
       const match = modded && this.hosts ? this.hosts.create(room.content.cs, opts)
-        : versioned && this.versionHosts ? this.versionHosts.create(room.content.cs, opts)
+        : versioned && this.versionHosts && !this.placesRemotely?.(room) ? this.versionHosts.create(room.content.cs, opts)
           : this.createMatch(opts);
       ctx.match = match;
       room.match = match;

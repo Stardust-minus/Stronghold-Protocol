@@ -11,6 +11,8 @@
 // under it), 本局禁用干员 — with 已就绪 x/N over the person pips (已就绪 2/4 as research 06 §4.1 reads it, no colon) and
 // the big 准备就绪 in the bottom-right corner. The sections come in from the right one after another
 // (css/screens/briefing.css 开局转场).
+// 自选上场 (feedback #114): with more 自选 candidates than slots in a tier (the 候补), the last section lets the player
+// choose who plays this match (ui/diyChoice.js; m.private.diyChoice).
 
 import { useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon } from '../ui/components.js';
@@ -21,6 +23,7 @@ import { MatchEnemies } from '../ui/matchEnemies.js';
 import { LoadoutButton } from './loadout.js';
 import { UnofficialMark, VersionTag } from '../ui/pluginTag.js';
 import { SetupReroll } from '../ui/setupReroll.js';
+import { DiyChoice } from '../ui/diyChoice.js';
 import { actions } from '../ui/gameActions.js';
 import { sortedPlayers, phaseTotalSeconds } from '../ui/gameLogic.js';
 import { useStore } from '../store.js';
@@ -72,6 +75,7 @@ export function BriefingScreen() {
         <${MatchLegend} model=${info} />
       </section>
       <section class="brief-sec brief-sec--banned" style="--i:4"><${BannedOperators} model=${info} /></section>
+      ${priv?.diyChoice ? html`<section class="brief-sec brief-sec--diy" style="--i:5"><${DiyChoice} priv=${priv} onChoose=${actions.diyChoose} disabled=${!me} /></section>` : null}
     </main>
     <${SetupReroll} pub=${pub} />
     <footer class="brief__foot">

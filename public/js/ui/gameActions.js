@@ -1,11 +1,14 @@
 // In-match intents (`g.*`, DESIGN §8.2) with uniform error handling: every request goes through
 // `act()`, which plays a UI sound on success, shows the ERR_TEXT toast on failure and never throws.
-// The UI never mutates state optimistically — it waits for the next m.private / m.public push.
-// `net.request` is looked up at call time so the dev mock harness can stub it.
+// Since rel26 the prep intents the server acknowledges (buy, sell, move, refresh, freeze, level-up) are predicted:
+// ui/prediction.js shows their outcome at once and replays it over every m.private until the server's state contains
+// it (the server stays the authority; a refusal simply restores its state). A predicted intent plays its sound at
+// once; everything else waits for the reply as before. Requests always leave in the order they were made.
+// `net.request` is looked up at call time (ui/prediction.js) so the dev mock harness can stub it.
 
-import { net } from '../net.js';
 import { toastError } from './toasts.js';
 import { audio } from '../audio.js';
+import { prediction } from './prediction.js';
 
 const SUCCESS_SFX = {
   'g.buy': 'buy', 'g.sell': 'sell', 'g.refresh': 'refresh', 'g.freeze': 'freeze', 'g.levelUp': 'levelup',
@@ -46,10 +49,12 @@ export function onRefreshBusy(fn) { refreshBusyListeners.add(fn); try { fn(refre
 export async function act(t, fields = {}, opts = {}) {
   inflight += 1;
   emitBusy();
+  const s = opts.sfx === undefined ? SUCCESS_SFX[t] : opts.sfx;
   try {
-    await net.request(t, fields);
-    const s = opts.sfx === undefined ? SUCCESS_SFX[t] : opts.sfx;
-    if (s) audio.sfx(s);
+    const { promise, predicted } = prediction.submit(t, fields);
+    if (predicted && s) audio.sfx(s);
+    await promise;
+    if (!predicted && s) audio.sfx(s);
     return true;
   } catch (err) {
     if (!opts.quiet) {
@@ -65,6 +70,8 @@ export async function act(t, fields = {}, opts = {}) {
 
 export const actions = {
   infoReady: (setupRevision = 0) => act('g.infoReady', { setupRevision }),
+  // 自选候补 (feedback #114): the candidates of one tier that fill its slots (the briefing's 自选上场)
+  diyChoose: (tier, charIds) => act('g.diyChoose', { tier, charIds }, { sfx: 'confirm' }),
   rerollSetup: (setupRevision) => act('room.rerollSetup', { setupRevision }, { sfx: 'confirm' }),
   rerollVote: (voteId, agree) => act('g.rerollVote', { voteId, agree }, { sfx: agree ? 'confirm' : 'back' }),
   cancelReroll: (voteId) => act('room.cancelReroll', { voteId }, { sfx: 'back' }),

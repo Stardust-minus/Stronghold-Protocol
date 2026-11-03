@@ -20,6 +20,8 @@ export class MatchIntents {
         if (!ps.infoReady) { ps.infoReady = true; this.markPublic(); this.maybeEndInfo(); }
         return OK;
       case 'g.rerollVote': return this.voteSetupReroll(ps, msg.voteId, msg.agree);
+      // 自选候补 (feedback #114): the briefing's choice of one tier (phases.js chooseDiy)
+      case 'g.diyChoose': return this.chooseDiy(ps, msg.tier, msg.charIds);
       // 投票移出 an offline seat under AI takeover (kickVote.js)
       case 'g.kickVote': return this.requestKickVote(ps, msg.targetId);
       case 'g.kickBallot': return this.answerKickVote(ps, msg.voteId, msg.agree);

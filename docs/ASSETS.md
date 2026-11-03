@@ -907,6 +907,14 @@ warning (docs/EXPERIMENTAL-MULTIPLAYER.md), so they never ship with the normal p
   (`public/js/render/vfx/library.js`) fetches that list only while the collab layer is on, merges its index (units,
   projectiles, skills, skins, prefabs), file groups and texture info add-only, and drops them again when the layer goes
   (`shared/collabAssets.js mergeFxIndex`). `--check` also fails when the normal effects index names a collab unit or skill.
+- **Skins**: the five official skins of the collab operators (灰烬「游侠」, 艾拉「密室」, 玛露西尔「泰拉冒险」, 丰川祥子「旋律的主人」,
+  结城理「见证荣光」; 2026-11-02 — 麒麟R夜刀 and 焰狐龙梓兰 have none) are in `shared/skin-catalogue.js` like every skin, but
+  their records are the pack's `skins` section (`/assets/collab/skins/<id>/…`), never `data/assets.json`: imported like the
+  others (`tools/prepare-operator-skins.mjs --model-source metadata`, against a stub manifest and a scratch asset root),
+  then laid in with `buildCollabManifest`. Only a page with the pack laid resolves them (`public/js/ui/skinAssets.js
+  appearanceEntry`), so the 外观 picker offers them where the operator itself is a pick (a room with 联动干员 on); a name
+  card never shows one (`public/js/ui/namecards.js`: a plate shows in every room). Their battle-effect points
+  (`index.json skins[<skin id>]`) come with the pack's effects extraction (`--fx-collab only` reads the catalogue).
 
 ## Player-initiated predownload
 

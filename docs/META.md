@@ -747,6 +747,19 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   rules, no 调度中心 gate, bonds through the player's view; 「自选干员放入后模拟中的补给池随机范围也将被相应扩大」, 0.2.0), and
   信标 never sends one to a teammate [ASSUMED]. `battleInput` carries `diy` (the pick); `m.private.diy` / `diyBanned`; `prepFieldMeta` and
   `m.result` lineups carry the pick (`diy`) so other players' cards compose the operator.
+* **自选候补 (feedback #114; the owner's decision of 2026-11-02: four equal candidates per tier, any two play; shared/diy.js
+  `DIY_BENCH_SIZE` / `resolveDiySlots`, `player/diy.js`)**: a tier's preset holds four candidates in the player's order
+  — positions 1–2 under the tier's slot ids (a server without this fields them as its slots), 3–4 under
+  `diyBench_<tier>_<n>` keys of the same map (`ps.diyPreset` = every checked pick). The constructor fields the seat's
+  slots as they are; every INFO_CHECK entry (the start, a 重刷本局) fields the player's choice — `g.diyChoose { tier,
+  charIds }`, exactly min(slots, candidates) distinct candidates, saved as `diyChoice` — else the default: the first
+  candidates in the player's order whose bonds are not all switched off, then the others in order [ASSUMED]; a chosen
+  candidate already in a slot keeps that slot, the others fill the free slots in order. Each change rebuilds the stock
+  (`initDiyStock`). From BAND_DRAFT on the slots are fixed (WRONG_PHASE). m.private `diyChoice` (INFO_CHECK only): per
+  tier with a choice its candidates (`banned` = their bonds off this match, `off` = all of them), the fielded ones and
+  `picked`. A checkpoint's seat is the slots as they are plus the unslotted candidates as bench keys (`diyBenchSeat`);
+  `restoreMatch` re-seats each human's 自选 from it (the cluster builds the fresh match from its assignment's seats);
+  a server without 候补 drops the bench keys.
 * **Hand**: 10 slots filled right→left, plus an expandable temp queue for passive overflow (merge results, grants, returned equipment); only its first 5 slots are displayed, with later pieces queued in arrival order;
   a full hand refuses every buy and reward pick — also one whose copy would complete a merge at once (PRTS
   卫戍协议/帮助 §手牌区 "例如招募/购入等通常情况下会增加手牌的操作"; GitHub #82) — and withdrawals unless the withdrawn

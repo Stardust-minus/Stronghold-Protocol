@@ -822,12 +822,24 @@ index; M1 reads `shared/versions.js`), and a version's directory is named by its
 every file system and URL).
 
 **Profiles** (`tools/versions/<slug>.mjs`, loaded by `tools/versions/profiles.mjs loadProfile`, which checks `id` and
-`season` against the registry): `{ id, season, pins, lateOperators?, adapters, research, tables, config: { hiddenCore, rules? }, expect }`.
+`season` against the registry): `{ id, season, pins, lateOperators?, diyBonds?, diyTalentNotes?, adapters, research, tables, config: { hiddenCore, rules? }, expect }`.
 
-- **`lateOperators`**: `{ sha, charIds }` on the default version — operators newer than the pinned tables. Only their own
-  character, skill and range records are read from `sha` (`tools/build-data.mjs mergeLateOperators`), so no other operator
-  moves; its modules (uniequip and battle_equip records) and a missing sub-profession come along. 冻河, 国度 and 塔露拉
-  (`08ba2aea`).
+- **`lateOperators`**: `{ sha, charIds, replace? }` or a list of them — operators newer than the pinned tables. Only
+  their own character, skill and range records are read from `sha` (`tools/build-data.mjs mergeLateOperators`), so no
+  other operator moves; its modules (uniequip and battle_equip records), a missing sub-profession and the summons its
+  records name (displayTokenDict, a skill level's `overrideTokenKey`, a talent's `tokenKey`, a module part's token) come
+  along when the pinned tables lack them — a summon the pin has keeps its pinned record. `replace` (ids of the same entry
+  only) lets the entry overwrite an operator the pin already has, modules included. The default: 冻河, 国度 and 塔露拉
+  (`08ba2aea`). Every other version gets the default's whole 自选 range (the owner, 2026-11-02): the same three from
+  `08ba2aea`, and from `fe7d8d05` the collab 焰狐龙梓兰 and 结城理 plus every 自选 6★ newer than its pin — 第二期上半: 予愿安洁莉娜,
+  怒潮凛冬, 凯尔希·思衡托, 维伊, 可露希尔, 谬因, 机械师, 克莱门莎, 珊比; both 第一期 also 赤刃明霄陈, 望, 贝洛内; 第一期上半 also 娜斯提 —
+  each from the commit the default reads it from, so their records equal the default's. 麒麟R夜刀 is `replace`d by the
+  default's records (his EXE-Y module is newer than every version pin). The other collab 6★ keep the version's own
+  records. A 6★ the version fields as shop chess (第一期: 煌, 伊芙利特, 淬羽赫默, …) stays shop chess, not a 自选 pick.
+- **`diyBonds` / `diyTalentNotes`**: `{ <charId>: … }` — replace an entry of `DIY_EXTRA_BONDS` / `DIY_TALENT_NOTES` where the
+  version lacks a bond they name. 第一期 has no 奥术 or 独行 (the owner, 2026-11-02, after the 第一期 precedents: 水月 is 迅捷
+  there, 史尔特尔 has no 奥术): 国度 协防 + 迅捷, 塔露拉 协防 + 不屈 (her death rule adds 不屈 layers alone; op-oxi.js adds
+  layers only to the bonds she carries), 玛露西尔 协防.
 - **`pins`**: the Kengxxiao/ArknightsGameData commit each file group is read from (`pins[group] ?? pins.default`;
   `null` = master). The default version is pinned too: ArknightsGameData dropped `AUTOCHESS_SEASON` from activity_table
   with client 2.7.91 (`08ba2aea`, 2026-11-01). It reads `fe7d8d05` (2026-10-24), the last commit with the season; against

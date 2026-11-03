@@ -1,6 +1,7 @@
 // The production shape in a real browser: one origin serving coordinator HTTP and ingress WS, one game node, nothing
-// mocked. A match of the default version runs on the game node, one of an older version in the coordinator's version
-// host (ClusterLobby.start). No gate, TLS, Nginx or WAN here.
+// mocked. A match of the default version runs on the game node; since rel26 so does one of an older version, in the
+// game node's version host (versionPlacement 'node', the default; the coordinator's version host is the
+// SP_VERSION_PLACEMENT=coordinator fallback, test/cluster-version-room.test.js). No gate, TLS, Nginx or WAN here.
 //
 //   SP_E2E=1 CHROME_PATH=… node --test test/ui/cluster-versions.e2e.test.js
 import { test, before, after } from 'node:test';
@@ -180,9 +181,11 @@ test('a default-version match on the game node, in a browser', { skip: !enabled,
   assert.equal(coordinator.versionHosts?.stats?.().matches ?? 0, 0);
 });
 
-test('an older version\'s match in the coordinator\'s version host, on its Workers, in a browser', { skip: !enabled, timeout: 5 * 60 * 1000 }, async () => {
+test('an older version\'s match in the game node\'s version host, on its Worker, in a browser', { skip: !enabled, timeout: 5 * 60 * 1000 }, async () => {
   await play('act1autochess');
-  const stats = coordinator.versionHosts.stats();
+  const stats = game.versionHosts.stats();
   assert.equal(stats.matches, 1);
-  assert.deepEqual([stats.combat?.ready, stats.combat?.size], [2, 2]);
+  // SP_NODE_VERSION_COMBAT_WORKERS (default 1) server-combat Worker per version host
+  assert.ok(stats.combat?.size >= 1 && stats.combat.ready === stats.combat.size, JSON.stringify(stats.combat));
+  assert.equal(coordinator.versionHosts?.stats?.().matches ?? 0, 0, 'nothing in the coordinator\'s version host');
 });

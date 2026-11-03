@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { getData } from '../../server/data.js';
+import { unitStatsEntry } from '../../shared/protocol.js';
 
 const D = getData({ log: { warn() {}, error() {}, info() {} } });
 const GR = (gid) => D.garrisons[gid];
@@ -359,7 +360,9 @@ test('缇缇 125 + S2 封护 (GitHub #162): every 0.25 s sleep pulse of the ward
 
 // PRTS 卫戍协议：盟约 下半, 3月27日更新#2: 「[Ⅳ阶]华法琳：赋予的特质的叠层上限从 初始12/精锐24 降低至 初始7/精锐14」 — the
 // data's 7 / 14 (GitHub #175; from PR #192 by @kukiC)
-test('ADD_BOND 华法琳 72: the front operator gets garrison_95 (own active bonds +1 / +2), capped at the data\'s 7 / 14 (GitHub #175)', () => {
+// 「双判」 (feedback #15, the owner's plan of 2026-11-02): as on the 日服 / 台服 client the granted trait triggers twice — two
+// copies, each with the data cap: 2 × per a skill start, 2 × 7 / 2 × 14 a battle
+test('ADD_BOND 华法琳 72: the front operator gets garrison_95 twice (own active bonds +1 / +2 per copy), each capped at the data\'s 7 / 14 (GitHub #175, feedback #15)', () => {
   for (const [gid, per, cap] of [['garrison_72_a', 1, 7], ['garrison_72_b', 2, 14]]) {
     const give = GR(gid).bbStr.give_garrison_id;
     const h = battle({
@@ -369,20 +372,44 @@ test('ADD_BOND 华法琳 72: the front operator gets garrison_95 (own active bon
     const f = h.unit('front');
     assert.equal(num(GR(give).bb.bond_add_count), per);
     skill(h, f);
-    assert.deepEqual(gains(h), { yanShip: per, kjeragShip: per });
+    assert.deepEqual(gains(h), { yanShip: 2 * per, kjeragShip: 2 * per }, `${gid}: two triggers per skill start`);
     assert.equal(num(GR(give).bb.max_add_count_per_battle), cap, `${give}: the data cap`);
     for (let i = 1; i < 7; i++) skill(h, f);
-    assert.deepEqual(gains(h), { yanShip: cap, kjeragShip: cap }, `${gid}: the seventh activation reaches the cap`);
+    assert.deepEqual(gains(h), { yanShip: 2 * cap, kjeragShip: 2 * cap }, `${gid}: the seventh activation reaches both caps`);
     skill(h, f);
-    assert.deepEqual(gains(h), { yanShip: cap, kjeragShip: cap }, `${gid}: the eighth adds no layers`);
+    assert.deepEqual(gains(h), { yanShip: 2 * cap, kjeragShip: 2 * cap }, `${gid}: the eighth adds no layers`);
     for (let i = 0; i < 30; i++) skill(h, f);
-    assert.deepEqual(gains(h), { yanShip: cap, kjeragShip: cap }, `${gid}: later activations stay capped`);
+    assert.deepEqual(gains(h), { yanShip: 2 * cap, kjeragShip: 2 * cap }, `${gid}: later activations stay capped`);
     skill(h, h.unit('warfarin'));
     skill(h, h.unit('side'));
-    assert.equal(gains(h).yanShip, cap, '华法琳 herself / other operators do not carry the trait');
-    assert.ok(h.eventsOf('fx').some((e) => e[1] === 'garrisonGrant' && e[4].id === f.id && e[4].key === give), 'grant fx');
+    assert.equal(gains(h).yanShip, 2 * cap, '华法琳 herself / other operators do not carry the trait');
+    assert.equal(h.eventsOf('fx').filter((e) => e[1] === 'garrisonGrant' && e[4].id === f.id && e[4].key === give).length, 1, 'one grant fx');
     checkInvariants(h.b);
     cover(gid); cover(give);
+  }
+});
+
+test('华法琳 双判 on the real chess (feedback #15): 风笛 in front gains 2 × 7 维多利亚 / 远见 / 不屈, 魔王 adds to each trigger', () => {
+  const kinds = { victoriaShip: B(0), visiShip: B(0), indomShip: B(0) };
+  const extra = num(GR('garrison_59_a').bb.extra_cnt);
+  for (const [wid, per, cap] of [['chess_char_4_26_a', 1, 7], ['chess_char_4_26_b', 2, 14], ['chess_char_5_04_a', 1, 7], ['chess_char_5_04_b', 2, 14]]) {
+    const solo = makeBattle({ units: [{ chessId: wid, row: 10, col: 4 }, { chessId: 'chess_char_4_07_a', row: 10, col: 5 }], bonds: kinds, autoFinish: false, timeLimit: 400 });
+    solo.step(1);
+    for (let i = 0; i < 10; i++) skill(solo, solo.unit('chess_char_4_07_a'));
+    assert.deepEqual(gains(solo), { victoriaShip: 2 * cap, visiShip: 2 * cap, indomShip: 2 * cap }, `${wid}: 2 × ${cap}`);
+    checkInvariants(solo.b);
+    // 魔王 below 风笛, facing her (UP = +row): +extra on each of the two triggers, outside the caps
+    const h = makeBattle({
+      units: [{ chessId: wid, row: 10, col: 4 }, { chessId: 'chess_char_4_07_a', row: 10, col: 5 }, { chessId: 'chess_char_4_25_a', row: 9, col: 5, dir: 'UP' }],
+      bonds: kinds, autoFinish: false, timeLimit: 400,
+    });
+    h.step(1);
+    const f = h.unit('chess_char_4_07_a');
+    skill(h, f);
+    for (const b of Object.keys(kinds)) assert.equal(gains(h)[b], 2 * (per + extra), `${wid}: ${b} after one skill start with 魔王`);
+    for (let i = 1; i < 7; i++) skill(h, f); // the seventh start fills both copies' caps
+    for (const b of Object.keys(kinds)) assert.equal(gains(h)[b], 2 * cap + 2 * 7 * extra, `${wid}: ${b} capped base + 魔王's extras`);
+    checkInvariants(h.b);
   }
 });
 
@@ -462,6 +489,25 @@ test('ADD_BOND 耀骑士临光 145 / 160 (real chess): self + front get 144 (red
     assert.ok(!f.findBuff(`gar:garrison_144_${sfx}`).mods.aspd, 'ASPD comes from 159 only (no double count)');
     checkInvariants(h.b);
     for (const g of D.chess[id].garrisonIds) cover(g);
+  }
+});
+
+test('feedback #86: 史尔特尔 (42) in front of 耀骑士临光 — 144 cuts her knock-out timer, with 骑士戒律 too; the card\'s live respawnTime says so', () => {
+  for (const items of [[], ['chess_item_6_10_e_a', 'chess_item_6_09_e_a']]) {
+    const h = makeBattle({
+      units: [{ chessId: 'chess_char_6_17_a', row: 10, col: 4 }, { chessId: 'chess_char_5_07_a', row: 10, col: 5, items }],
+      bonds: { kazimierzShip: B(30) }, autoFinish: false, timeLimit: 400,
+    });
+    h.step(1);
+    const s = h.unit('chess_char_5_07_a');
+    const k = Math.floor(30 / GR('garrison_144_a').bb.divide_num);
+    const mul144 = 1 + GR('garrison_144_a').bb.respawn_time * k;
+    approx(s.findBuff('gar:garrison_144_a').mods.redeployMul, mul144, '144 on her');
+    const want = s.base.respawnTime * mul144 * (items.length ? 1 + D.items['chess_item_6_10_e_a'].params.respawn_time : 1);
+    assert.equal(unitStatsEntry(s, s.s).respawnTime, Math.round(want * 10) / 10, 'the card');
+    h.b.retreat(s, { reason: 'retreat', dying: true }); // 余烬's forced exit
+    approx(s.respawnAt - s.deathAt, want, 'the knock-out timer');
+    checkInvariants(h.b);
   }
 });
 

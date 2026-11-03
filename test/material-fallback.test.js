@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { openiFallbackUrl, withMaterialFallback, fetchMaterial, loadMaterialImage, transientMaterialError } from '../public/js/materialFallback.js';
+import { openiFallbackUrl, withMaterialFallback, fetchMaterial, loadMaterialImage, transientMaterialError, materialCredentials } from '../public/js/materialFallback.js';
 import { installPixiMaterialFallback } from '../public/js/render/materialLoader.js';
 
 const origin = 'https://game.example';
@@ -270,4 +270,39 @@ test('Pixi loads through the adapter report progress: a slow skeleton keeps load
   installPixiMaterialFallback({ settings: { ADAPTER: adapter }, Assets: { loader: { parsers: [parser] } } }, { timeoutMs: 20, idleMs: 60, retryMs: [] });
   assert.equal(await parser.load('/assets/test/slow.skel'), 'skeleton');
   assert.deepEqual(seen, ['/assets/test/slow.skel']);
+});
+
+// 联动 pack (rel26, 2026-11-02): the edge serves /assets/collab/ from its own copy behind the password gate; the page
+// textures and sounds fetched without credentials got 401 (Jinan: ~94 % of the requests for 结城理's model page).
+const collab = '/assets/collab/spine/op/char_4217_makoto/front/char_4217_makoto.png';
+test('the 联动 pack is fetched with the page\'s own credentials, every other material without', () => {
+  for (const value of [collab, collab + '?sp_source=openi', origin + collab, '/assets/collab/audio/voice/jp/char_4217_makoto/cn_020.mp3']) {
+    assert.equal(materialCredentials(value, origin), 'same-origin', value);
+  }
+  for (const value of [path, forced, '/media/voice/cn/test', '/assets/spine/op/char_002_amiya/front/char_002_amiya.png',
+    'https://other.example' + collab, '//other.example' + collab, '/assets/collab/../x.png', '/assets/collabx/x.png', '/data/assets-collab.json', null, 42]) {
+    assert.equal(materialCredentials(value, origin), 'omit', String(value));
+  }
+});
+
+test('a 联动 page texture and sound carry the gate cookie (same-origin), a public one none', async t => {
+  const previous = globalThis.createImageBitmap;
+  globalThis.createImageBitmap = async () => ({ width: 1, height: 1, close() {} });
+  t.after(() => { if (previous === undefined) delete globalThis.createImageBitmap; else globalThis.createImageBitmap = previous; });
+  const seen = [];
+  class BaseTexture { constructor(image, data) { this.image = image; this.data = data; this.resource = {}; } }
+  class Texture { constructor(base) { this.baseTexture = base; } }
+  const parser = { name: 'loadTextures', config: { preferCreateImageBitmap: true, preferWorkers: true }, load: async () => 'stock' };
+  const pixi = { BaseTexture, Texture, utils: { getResolutionOfUrl: () => 1 }, settings: { ADAPTER: {
+    fetch: async (url, init) => { seen.push([url, init.credentials]); return new Response('png'); },
+  } }, Assets: { loader: { parsers: [parser] } } };
+  installPixiMaterialFallback(pixi);
+  await parser.load(collab, {}, {});
+  await parser.load(path, {}, {});
+  assert.deepEqual(seen, [[collab, 'same-origin'], [path, 'omit']]);
+  const heard = [];
+  const fetch = async (url, init) => { heard.push([url, init.credentials]); return new Response('mp3'); };
+  await fetchMaterial('/assets/collab/audio/sfx/battle/b_char/b_char_atkboost.mp3', r => r.text(), { fetch });
+  await fetchMaterial('/media/voice/cn/test', r => r.text(), { fetch });
+  assert.deepEqual(heard, [['/assets/collab/audio/sfx/battle/b_char/b_char_atkboost.mp3', 'same-origin'], ['/media/voice/cn/test', 'omit']]);
 });

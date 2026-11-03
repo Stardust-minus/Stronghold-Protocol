@@ -107,6 +107,8 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
       if (sandbox && scriptMode() !== 'sandbox') throw new HostError('PLUGIN_SANDBOX_DISABLED', 'SP_PLUGIN_SCRIPTS=sandbox required');
       if (sandbox && scripts.some(p => p.class !== 'script')) throw new HostError('PLUGIN_SANDBOX_CLASS', 'trusted plugins must never enter SES');
       this.plugins = versionKind ? String(set.name || csUrlPart(cs)) : (set.plugins || []).map((p) => `${p.id}@${p.version}`).join(', ');
+      /** a 'version' pool's host: its version id (running()) */
+      this.versionId = versionKind && typeof set.name === 'string' ? set.name : null;
       /** @type {Map<string, MatchProxy>} */
       this.matches = new Map();
       this.lastBeat = Date.now();
@@ -269,6 +271,16 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
         for (const k of Object.keys(combat)) combat[k] += h.combat?.[k] ?? 0;
       }
       return { workers: hosts.size, matches, transport: o.transport === 'worker' ? 'worker' : 'process', ...(combat.size ? { combat } : {}) };
+    },
+    /**
+     * The hosts that run now, by version id ('version' pools) or cs, with their matches — a game node's status for the
+     * coordinator's placement (server/cluster/directory.js).
+     * @returns {{ id: string, matches: number }[]}
+     */
+    /** How many hosts may run at once (`maxWorkers`). */
+    limit: o.maxWorkers,
+    running() {
+      return [...hosts.values()].filter((h) => !h.dead).map((h) => ({ id: h.versionId ?? h.cs, matches: h.matches.size }));
     },
     /** Stop every worker (the server stops; the lobby has disposed its rooms first). */
     close() {

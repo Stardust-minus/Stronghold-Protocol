@@ -17,6 +17,15 @@
 //     no reply, still loading its data set) is asked again with a growing pause for up to RESTORE_WAIT_MS — the server
 //     does not listen meanwhile; anything else (a refused password, a document that does not decode) is final at once.
 //
+// Official versions' rooms (DESIGN §35.23: their matches run in this process's version hosts — server/match/host/, kind
+// 'version' — also on the cluster coordinator) are checkpointed the same way, by their host: it posts the match's
+// snapshot at each safe point and when asked (every round, the shutdown: MatchProxy.checkpoint), this process stores it
+// under `V.<room>.<matchNo>.<seed>` in an envelope that names the version ({ kind: 'hosted', version, … }), and the lobby
+// document's reference is { kind: 'hosted', id, seed, matchNo, version }. At startup such a match is created again in its
+// version's host from the checkpoint (restoreHosted: MatchProxy.restore); one the host refuses closes its room
+// ('node-restarted') like any match that cannot come back. A release before this one reads such a reference as a match
+// it cannot restore (neither 'local' nor 'remote'): it closes that room and restores everything else.
+//
 // Nothing here may disturb a match: a capture that fails keeps the previous checkpoint, a store that is down is skipped
 // (and counted), every timer is unref'd.
 
@@ -24,6 +33,7 @@ import { snapshotMatch, restoreMatch, CHECKPOINT_PREP_END } from '../match/snaps
 import { createRngFromState } from '../sim/rng.js';
 import { restoreLobby, roomDoc, sessionDoc, LOBBY_DOC_VERSION, SESSION_FIELDS } from './lobbyState.js';
 import { TRANSIENT_FAILURES } from './store.js';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 /** Default interval between rounds of writes (ms). */
 export const SAVE_MS = 10_000;
@@ -40,6 +50,12 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 
 /** A local match's checkpoint id: room, match number and seed (a new match of the room never reuses it). */
 export const localCheckpointId = (code, matchNo, seed) => `L.${code}.${matchNo}.${(seed >>> 0).toString(36)}`;
+
+/** An official version's hosted match's checkpoint id (the header), built like a local one. */
+export const hostedCheckpointId = (code, matchNo, seed) => `V.${code}.${matchNo}.${(seed >>> 0).toString(36)}`;
+
+/** Envelope version of a hosted match's checkpoint (the match document has its own, SNAPSHOT_VERSION). */
+export const HOSTED_CHECKPOINT_VERSION = 1;
 
 export class LobbyPersister {
   /**
@@ -62,6 +78,11 @@ export class LobbyPersister {
      * @type {WeakMap<object, { id: string, seed: number, matchNo: number, room: string, json: string | null, pending: Promise<boolean> | null }>}
      */
     this.matches = new WeakMap();
+    /**
+     * official versions' hosted matches (their MatchProxy; the header), the same records as `matches`
+     * @type {WeakMap<object, { id: string, seed: number, matchNo: number, room: string, json: string | null, pending: Promise<boolean> | null }>}
+     */
+    this.hosted = new WeakMap();
     /** checkpoint ids written by this process and still named by the last lobby document */
     this.written = new Set();
     /** @type {Map<string, any[]>} player id → what its stored session record was made of (sessionKey) */
@@ -73,6 +94,8 @@ export class LobbyPersister {
     this.closed = false;
     this.counts = { captures: 0, captureSkips: 0, docWrites: 0, docFailures: 0, restoredSessions: 0, restoredRooms: 0,
       restoredMatches: 0, droppedMatches: 0, deleted: 0 };
+    /** official versions' hosted matches (the header): checkpoints stored, restores asked of a host, applied, refused */
+    this.hostedCounts = { captures: 0, restoring: 0, restored: 0, refused: 0 };
     // every local match the lobby starts offers its safe points here (Lobby.startMatch: opts.onCheckpoint); a cluster
     // lobby rebuilds a lost node's matches from their checkpoints (ClusterLobby.recoverRemote)
     lobby.onCheckpoint = (room, ctx, match, reason) => this.capture(room, match, reason);
@@ -97,8 +120,54 @@ export class LobbyPersister {
     return m;
   }
 
+  /**
+   * An official version's running match in its match host (the header): its MatchProxy, when its checkpoints are on.
+   * @returns {any}
+   */
+  hostedMatch(room) {
+    const m = room.match;
+    if (!m || room.disposed || !room.matchCtx?.live || !m.hosted || room.modded || room.version === DEFAULT_VERSION
+      || m.opts?.checkpoints !== true || m.ended || m.disposed || m.forgotten) return null;
+    return m;
+  }
+
+  /** The checkpoint record of a hosted match (created on first use; seed and number are the ones it was created with). */
+  hostedRecord(room, match) {
+    let rec = this.hosted.get(match);
+    if (!rec) {
+      const seed = Number(match.opts?.seed) >>> 0, matchNo = Number.isSafeInteger(match.opts?.matchNo) ? match.opts.matchNo : room.matchCount;
+      rec = { id: hostedCheckpointId(room.code, matchNo, seed), seed, matchNo, room: room.code, json: null, pending: null };
+      this.hosted.set(match, rec);
+    }
+    return rec;
+  }
+
+  /** Store the checkpoint a hosted match just posted (MatchProxy.lastCheckpoint). */
+  captureHosted(room, match, reason) {
+    if (this.closed || this.hostedMatch(room) !== match) return null;
+    const cp = match.lastCheckpoint;
+    if (!cp || typeof cp.json !== 'string') return null;
+    const rec = this.hostedRecord(room, match);
+    // the document as the host serialized it (one JSON object, ipc.js): wrapped, not parsed again on this event loop
+    const head = JSON.stringify({ v: HOSTED_CHECKPOINT_VERSION, kind: 'hosted', room: room.code, matchNo: rec.matchNo, seed: rec.seed,
+      version: room.version, reason: typeof reason === 'string' ? reason : cp.reason || 'tick' });
+    const json = `${head.slice(0, -1)},"match":${cp.json}}`;
+    if (json === rec.json) return rec;
+    rec.json = json;
+    this.hostedCounts.captures++;
+    rec.pending = this.store.saveCheckpoint(rec.id, json).then((ok) => { if (ok) this.written.add(rec.id); return ok; });
+    return rec;
+  }
+
+  /** Ask a hosted match's host for its checkpoint now; resolves once it is stored (or there was none to take). */
+  async askHosted(room, match, reason) {
+    try { await match.checkpoint(reason); } catch { /* the host is gone: the last checkpoint stays */ }
+    return this.hosted.get(match)?.pending ?? null;
+  }
+
   /** Take a local match's checkpoint now (a safe point, or the periodic round) and queue its write. */
   capture(room, match, reason = 'tick') {
+    if (match?.hosted) return this.captureHosted(room, match, reason);
     if (this.closed || this.localMatch(room) !== match) return null;
     const doc = snapshotMatch(match);
     if (!doc) { this.counts.captureSkips++; return null; }
@@ -113,6 +182,11 @@ export class LobbyPersister {
 
   /** The lobby document's reference of a room's running match. */
   matchRef(room) {
+    const hosted = this.hostedMatch(room);
+    if (hosted) {
+      const rec = this.hosted.get(hosted);
+      return rec && rec.json ? { kind: 'hosted', id: rec.id, seed: rec.seed, matchNo: rec.matchNo, version: room.version } : null;
+    }
     if (this.cluster) return this.lobby.remoteMatchRef(room);
     const m = this.localMatch(room);
     if (!m) return null;
@@ -125,6 +199,12 @@ export class LobbyPersister {
     if (this.busy) { if (reason === 'tick') return false; await this.busy; }
     const run = (async () => {
       const pending = [];
+      // official versions' matches: their hosts post a checkpoint each (or nothing, past their last safe point; the write
+      // that safe point started is still awaited)
+      for (const room of this.lobby.rooms.values()) {
+        const h = this.hostedMatch(room);
+        if (h) pending.push(this.askHosted(room, h, reason));
+      }
       if (!this.cluster) for (const room of this.lobby.rooms.values()) {
         const m = this.localMatch(room);
         if (!m) continue;
@@ -167,7 +247,10 @@ export class LobbyPersister {
       key.push(s.playerId, s.name, s.isBot, s.ready, s.left, s.band, s.revivalVote, s.owner, s.skins, s.card, s.loadout, s.ops, s.notOwned,
         s.diy, s.loadoutCs, s.notOwnedCs, s.diyCs);
     }
-    if (room.match) key.push(this.cluster ? this.lobby.remoteMatchKey(room) : this.matches.get(room.match)?.json != null);
+    if (room.match) {
+      const hosted = this.hostedMatch(room);
+      key.push(hosted ? `hosted:${this.hosted.get(hosted)?.json != null}` : this.cluster ? this.lobby.remoteMatchKey(room) : this.matches.get(room.match)?.json != null);
+    }
     return key;
   }
 
@@ -181,17 +264,17 @@ export class LobbyPersister {
     const same = (a, b) => !!a && a.length === b.length && a.every((v, i) => v === b[i]);
     for (const room of this.lobby.rooms.values()) {
       const key = this.roomKey(room), prev = this.roomsStored.get(room.code);
-      const local = !this.cluster && room.match ? this.matchRef(room) : null;
+      const local = room.match && (!this.cluster || this.hostedMatch(room)) ? this.matchRef(room) : null;
       if (same(prev, key)) {
         roomCodes.add(room.code);
-        if (local) named.add(local.id);
+        if (local?.id) named.add(local.id);
         continue;
       }
       const doc = roomDoc(room, (r) => this.matchRef(r), sessionOf);
       if (!doc) continue;
       roomCodes.add(room.code);
       roomKeys.set(room.code, key);
-      if (doc.match?.kind === 'local') named.add(doc.match.id);
+      if (doc.match?.kind === 'local' || doc.match?.kind === 'hosted') named.add(doc.match.id);
       rooms.push([room.code, JSON.stringify(doc)]);
     }
     const sessions = [], keys = new Map();
@@ -283,19 +366,23 @@ export class LobbyPersister {
     if (!result.ok) { this.log.warn?.(`[persist] saved lobby not restored (${result.reason})`); return result; }
     this.counts.restoredSessions += result.sessions;
     this.counts.restoredRooms += result.rooms;
-    let matches = 0;
+    let matches = 0, hosted = 0;
     for (const { room, ref, departed } of result.matches) {
       let ok = false;
-      try { ok = this.cluster ? this.lobby.restoreRemoteMatch(room, ref, departed) : await this.restoreLocal(room, ref, departed); }
+      try {
+        ok = ref?.kind === 'hosted' ? await this.restoreHosted(room, ref, departed)
+          : this.cluster ? this.lobby.restoreRemoteMatch(room, ref, departed) : await this.restoreLocal(room, ref, departed);
+      }
       catch (e) { this.log.warn?.(`[persist] ${room.code}: match not restored (${e.message})`); }
-      if (ok) matches++;
+      if (ok) { matches++; if (ref?.kind === 'hosted') hosted++; }
       else {
         this.counts.droppedMatches++;
         if (!room.disposed) this.lobby.disposeRoom(room, 'node-restarted');
       }
     }
-    if (!this.cluster) this.counts.restoredMatches += matches;
-    this.log.info?.(`[persist] restored ${result.sessions} session(s) (${result.expired} expired), ${result.rooms} room(s), ${matches} match(es)${this.cluster ? ' being placed' : ''}`);
+    // (a hosted match is counted in `hosted` once its host applied the checkpoint)
+    if (!this.cluster) this.counts.restoredMatches += matches - hosted;
+    this.log.info?.(`[persist] restored ${result.sessions} session(s) (${result.expired} expired), ${result.rooms} room(s), ${matches} match(es)${this.cluster ? ' being placed' : ''}${hosted ? ` (${hosted} in version hosts)` : ''}`);
     return { ...result, matches };
   }
 
@@ -327,6 +414,54 @@ export class LobbyPersister {
     return true;
   }
 
+  /**
+   * An official version's match back from its checkpoint (the header) in its version's host: created there from the
+   * checkpoint's seats and seed (MatchProxy.restore) — accepted now, applied by the host in the background. A refusal
+   * (the checkpoint does not fit this release's data or engine, the host does not boot) closes the room
+   * ('node-restarted'), as a match that cannot come back does. @returns {Promise<boolean>} accepted
+   */
+  async restoreHosted(room, ref, departed) {
+    if (ref?.kind !== 'hosted' || typeof ref.id !== 'string' || room.version === DEFAULT_VERSION || ref.version !== room.version
+      || !this.lobby.versionHosts) return false;
+    const loaded = await this.store.loadCheckpoint(ref.id);
+    const cp = loaded.value;
+    if (!cp || cp.v !== HOSTED_CHECKPOINT_VERSION || cp.kind !== 'hosted' || cp.room !== room.code || cp.version !== room.version
+      || !cp.match || typeof cp.match !== 'object' || !Array.isArray(cp.match.seats)
+      || (cp.seed >>> 0) !== (ref.seed >>> 0) || cp.matchNo !== ref.matchNo) {
+      this.log.warn?.(`[persist] ${room.code}: ${room.version} checkpoint ${loaded.ok ? 'missing or foreign' : 'unreadable'}`);
+      return false;
+    }
+    const doc = cp.match;
+    let restored = null;
+    const result = this.lobby.startMatch(room, room.matchKey, room.matchKeys, { restore: {
+      seed: cp.seed, matchNo: cp.matchNo, seats: doc.seats, spectators: room.spectators.map((s) => s.playerId),
+      apply: (match) => {
+        if (!match?.hosted || typeof match.restore !== 'function') throw new Error('not a version host match');
+        restored = match.restore(doc, { replay: cp.reason === CHECKPOINT_PREP_END });
+      },
+    } });
+    const match = room.match;
+    if (result?.error || !restored || !match) return false;
+    // named at once by the checkpoint it came from (the same id): the host's own replaces it as soon as it posts one
+    const rec = this.hostedRecord(room, match);
+    rec.json = `restoring:${rec.id}`;
+    this.written.add(rec.id);
+    this.hostedCounts.restoring++;
+    restored.then((ok) => {
+      this.hostedCounts.restoring--;
+      // (a server stopping meanwhile disposed the match: nothing was refused)
+      if (this.closed && !ok) return;
+      this.hostedCounts[ok ? 'restored' : 'refused']++;
+      if (ok) { this.log.info?.(`[persist] ${room.code} ${room.version} match #${cp.matchNo} restored in its version host`); return; }
+      this.log.warn?.(`[persist] ${room.code} ${room.version} match #${cp.matchNo} refused by its version host: room closed`);
+      if (!room.disposed && this.lobby.rooms.get(room.code) === room && !room.match) this.lobby.disposeRoom(room, 'node-restarted');
+    });
+    // departed seats (also those whose players did not come back) leave the restored match now — once (the host takes
+    // these after the restore: one ordered channel per match)
+    for (const id of departed) this.lobby.callMatch(room, 'onLeave', id);
+    return true;
+  }
+
   /** Stop the timer and write everything one last time; the lobby then closes its rooms without telling anybody. */
   async shutdown() {
     if (this.closed) return false;
@@ -341,7 +476,7 @@ export class LobbyPersister {
 
   snapshot() {
     return { enabled: true, saveMs: this.saveMs, ...this.counts, ...(this.cluster ? { remote: { ...this.lobby.restoreStats } } : {}),
-      store: this.store.snapshot() };
+      hosted: { ...this.hostedCounts }, store: this.store.snapshot() };
   }
 
   async close() {

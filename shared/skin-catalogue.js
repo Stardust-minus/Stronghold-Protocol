@@ -2718,5 +2718,86 @@ export const SKIN_CATALOGUE = Object.freeze([
     "officialId": "char_473_mberry@nian#9",
     "wikiIndex": 2,
     "charName": "桑葚" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4123_ela_rainbow6_2",
+    "charId": "char_4123_ela",
+    "name": N_("密室"),
+    "brand": N_("彩虹六号：围攻"),
+    "officialId": "char_4123_ela@rainbow6#2",
+    "wikiIndex": 1,
+    "charName": "艾拉" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4141_marcil_dungeon_1",
+    "charId": "char_4141_marcil",
+    "name": N_("泰拉冒险"),
+    "brand": N_("迷宫饭"),
+    "officialId": "char_4141_marcil@dungeon#1",
+    "wikiIndex": 1,
+    "charName": "玛露西尔" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4182_oblvns_avemujica_1",
+    "charId": "char_4182_oblvns",
+    "name": N_("旋律的主人"),
+    "brand": N_("Ave Mujica"),
+    "officialId": "char_4182_oblvns@avemujica#1",
+    "wikiIndex": 1,
+    "charName": "丰川祥子" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4217_makoto_p3r_1",
+    "charId": "char_4217_makoto",
+    "name": N_("见证荣光"),
+    "brand": N_("女神异闻录３ Reload"),
+    "officialId": "char_4217_makoto@p3r#1",
+    "wikiIndex": 1,
+    "charName": "结城理" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_456_ash_rainbow6_1",
+    "charId": "char_456_ash",
+    "name": N_("游侠"),
+    "brand": N_("彩虹六号：围攻"),
+    "officialId": "char_456_ash@rainbow6#1",
+    "wikiIndex": 1,
+    "charName": "灰烬" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_1045_svash2_sale_20",
+    "charId": "char_1045_svash2",
+    "name": N_("雪覆伦城"),
+    "brand": N_("忒斯特收藏"),
+    "officialId": "char_1045_svash2@sale#20",
+    "wikiIndex": 1,
+    "charName": "凛御银灰" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4039_horn_epoque_59",
+    "charId": "char_4039_horn",
+    "name": N_("锋光初现"),
+    "brand": N_("时代"),
+    "officialId": "char_4039_horn@epoque#59",
+    "wikiIndex": 2,
+    "charName": "号角" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4098_vvana_epoque_59",
+    "charId": "char_4098_vvana",
+    "name": N_("还愿礼"),
+    "brand": N_("时代"),
+    "officialId": "char_4098_vvana@epoque#59",
+    "wikiIndex": 2,
+    "charName": "薇薇安娜" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4162_cathy_kitchen_5",
+    "charId": "char_4162_cathy",
+    "name": N_("暖冬教室"),
+    "brand": N_("罗德厨房"),
+    "officialId": "char_4162_cathy@kitchen#5",
+    "wikiIndex": 1,
+    "charName": "凯瑟琳" // i18n-ignore: exact Wiki image-title lookup, not UI text
   }
 ].map(skin => Object.freeze(skin)));

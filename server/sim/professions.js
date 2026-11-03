@@ -47,6 +47,7 @@ import { absoluteRangeKeys } from './targeting.js';
 import { bodyKeys, bodyInRange, bodyInRangeTile } from './body.js';
 import { COLS, CHAIN_RADIUS } from './constants.js';
 import { textCount, textFinite } from '../../shared/plugins/textNumber.js';
+import { acquireTargets, effectiveProfile } from './ai.js';
 
 const P = (o) => Object.freeze(o);
 const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
@@ -350,19 +351,59 @@ const installStalker = (battle, unit) => {
   battle.addBuff(unit, { key: 'trait:stalker', mods: { dodgePhys: p, dodgeArts: p, taunt: -1 }, persist: true, allowDead: true });
 };
 
-const installHunter = (battle, unit) => {
-  const max = unit.profile.ammoMax ?? 8;
-  unit.trait.ammo = max;
-  unit.trait.reloadAcc = 0;
-  battle.on('tick', (ctx) => {
-    if (!unit.alive || !unit.deployed) return;
-    if (battle.time - unit.lastAttackAt >= 1 && unit.trait.ammo < max) {
-      unit.trait.reloadAcc += ctx.dt;
-      if (unit.trait.reloadAcc >= 1) { unit.trait.reloadAcc -= 1; unit.trait.ammo++; }
-    } else unit.trait.reloadAcc = 0;
-  }, { owner: unit });
-  battle.on('deploy', (ctx) => { if (ctx.unit === unit) unit.trait.ammo = max; }, { owner: unit });
+/**
+ * 猎手 (hunter) — PRTS 分支特性信息 猎手: "入场时持有自身子弹上限数的子弹（竖直显示于自身模型右下），该子弹机制不是弹药";
+ * "存在子弹且攻击范围内存在目标时进行攻击，不存在子弹/子弹未满且攻击范围内无目标时进行装弹，通常情况下每次装填1颗"; "装弹行为属于
+ * 普通攻击行为，持续时间使用装填间隔，装填间隔默认为自身基础攻击间隔，不受攻速/攻击间隔变化影响". A reload is an action of the
+ * attack loop (canAttack runs once the attack cooldown is over, ai.js updateAlly): it lasts the unit's BASE attack time
+ * (`base.bat`: ASPD and attack-interval buffs never change it) and loads one bullet when it ends — taken when the magazine
+ * is empty (targets or not) or not full with nobody in range. Like an attack it waits out a stun / freeze (no cooldown
+ * countdown) and a 缴械 (ai.js returns before canAttack) [ASSUMED for 缴械: "属于普通攻击行为"]. HUN-X (trait bb
+ * extra_add, profile `ammoExtra`): a reload begun on an empty magazine loads 1 + that ("子弹数量为空时下次装填额外加装1发子弹").
+ * A reload is no attack: no attack SP (PRTS 莱伊 "装弹行为不触发攻击回复"), no 'attack' hook. Each reload sends b.ev
+ * ['reload', id, seconds] (display only: the model's Reload clip, render/spine.js reload) and the magazine travels in
+ * b.snap `mag` (snapshot.js magazineView: the bullets at the model's lower right). 莱伊's kit (op-ray.js) keeps her own copy
+ * of this loop for her S1 / S3 additions. Until rel26 the engine loaded one bullet per second after 1 s without an attack
+ * and never paused the attacks for it (反馈 #91 「雪猎攻击缺失补弹机制」).
+ */
+/** The magazine of a 猎手's trait ("最多8发"). */
+export const hunterMagazine = (unit) => Math.max(1, Math.floor(num(unit.profile?.ammoMax, 8)));
+/** A 猎手's reload: its base attack time (PRTS: "装填间隔默认为自身基础攻击间隔，不受攻速/攻击间隔变化影响"). */
+const hunterReloadTime = (unit) => Math.max(0.05, num(unit.base?.bat, 1));
+const resetHunter = (unit) => { unit.trait.ammo = hunterMagazine(unit); unit.trait.reloading = false; unit.trait.loadExtra = 0; };
+/** Begin a reload of `seconds` (the attack cooldown runs it); its bullet comes when the cooldown is over. */
+export function startHunterReload(battle, unit, seconds) {
+  const t = unit.trait;
+  t.reloading = true;
+  const extra = Math.max(0, Math.floor(num(unit.profile?.ammoExtra, 0)));
+  if ((t.ammo ?? 0) <= 0 && extra > 0) t.loadExtra = (t.loadExtra ?? 0) + extra;
+  unit.atkCd = seconds;
+  battle._ev(['reload', unit.id, Math.round(seconds * 1000) / 1000]);
+}
+const finishHunterReload = (unit) => {
+  const t = unit.trait;
+  t.reloading = false;
+  const add = 1 + Math.max(0, Math.floor(num(t.loadExtra, 0)));
+  t.loadExtra = 0;
+  t.ammo = Math.min(hunterMagazine(unit), (t.ammo ?? 0) + add);
 };
+const installHunter = (battle, unit) => {
+  resetHunter(unit);
+  battle.on('deploy', (ctx) => { if (ctx.unit === unit) resetHunter(unit); }, { owner: unit });
+};
+function hunterCanAttack(battle, unit) {
+  const t = unit.trait;
+  // the pre-move commit (ai.js noteAttackCommit) asks while the cooldown still runs out this tick: answer from the
+  // magazine and change nothing, so every reload lasts its whole time
+  if (unit.atkCd > 1e-9) return !t.reloading && (t.ammo ?? 0) > 0;
+  if (t.reloading) finishHunterReload(unit);
+  const ammo = t.ammo ?? 0;
+  if (ammo <= 0 || (ammo < hunterMagazine(unit) && !acquireTargets(battle, unit, effectiveProfile(unit)).length)) {
+    startHunterReload(battle, unit, hunterReloadTime(unit));
+    return false;
+  }
+  return true;
+}
 
 /**
  * 回环射手 (loopshooter) trait "持有回旋投射物时才能够攻击（投射物需要时间回收）": its projectile is a boomerang that
@@ -504,10 +545,9 @@ export const SUB = Object.freeze({
         });
       }
     } }),
-  hunter: P({ install: installHunter,
-    canAttack: (battle, unit) => (unit.trait.ammo ?? 8) > 0,
+  hunter: P({ install: installHunter, canAttack: hunterCanAttack,
     dmgMul: (b, u) => u.profile.ammoScale ?? 1.2,
-    afterAttack: (battle, unit) => { unit.trait.ammo = Math.max(0, (unit.trait.ammo ?? 8) - 1); } }),
+    afterAttack: (battle, unit) => { unit.trait.ammo = Math.max(0, (unit.trait.ammo ?? 0) - 1); } }),
   loopshooter: P({ projectile: 'boomerang', boomerang: true, install: installLoopshooter,
     canAttack: (battle, unit) => !(unit.trait.boomerangsOut > 0) }),
   reaperrange: P({ allInRange: true,
@@ -616,7 +656,7 @@ const TUNE = {
   bombarder: (tb) => ({ shockScale: num(tb['attack@append_atk_scale'], 0.5), shockTimes: num(tb['attack@times'], 2) }),
   // PRTS 溅射半径一览 特殊: 格雷伊 1.0 (the branch's 1.1 otherwise)
   splashcaster: (tb, def) => ((def.charId ?? def.raw?.charId) === 'char_253_greyy' ? { splashRadius: 1.0 } : {}),
-  hunter: (tb) => ({ ammoMax: num(tb.value, 8), ammoScale: num(tb.atk_scale, 1.2) }),
+  hunter: (tb) => ({ ammoMax: num(tb.value, 8), ammoScale: num(tb.atk_scale, 1.2), ammoExtra: num(tb.extra_add, 0) }),
   reaperrange: (tb, def) => ({ frontScale: num(tb.atk_scale, 1.5), frontGrid: def.raw?.trait?.rangeGrid ?? null }),
   funnel: (tb) => ({ funnel: { init: num(tb.init_atk_scale, 0.2), delta: num(tb.delta_atk_scale, 0.15), max: num(tb.max_atk_scale, 1.1) } }),
   mystic: (tb) => ({ storeMax: num(tb.times, 3) }),

@@ -11,6 +11,8 @@ import { DATA, makeMatch, checkInvariants } from './harness.js';
 const GAME = Object.keys(C2S).filter((t) => t.startsWith('g.') && t !== 'g.leave');
 const BANDS = Object.keys(DATA.bands);
 const BONDS = Object.keys(DATA.bonds);
+/** 自选 candidates for g.diyChoose (feedback #114): owned 6★ picks, so a choice can name a real operator */
+const DIY_IDS = (DATA.backups?.diy?.ownedPool || []).slice(0, 12);
 const ONLY_SEED = process.env.MATCH_FUZZ_SEED === undefined ? null : Number(process.env.MATCH_FUZZ_SEED);
 assert.ok(ONLY_SEED === null || (Number.isInteger(ONLY_SEED) && ONLY_SEED >= 1 && ONLY_SEED <= 0xffffffff),
   'MATCH_FUZZ_SEED must be an integer between 1 and 4294967295');
@@ -48,6 +50,11 @@ function randomIntent(rng, m, ps) {
       matchId: rng() < 0.8 ? m.battlePrefix : 'stale-match',
     };
     case 'g.emote': return { t, id: rng.pick(EMOTES) };
+    // 自选候补 (feedback #114): a tier's two fielded candidates — mostly the 自选 tiers and real picks, sometimes not
+    case 'g.diyChoose': return {
+      t, tier: rng() < 0.8 ? rng.pick([5, 6]) : 1 + rng.int(9),
+      charIds: Array.from({ length: rng() < 0.8 ? 2 : rng.int(5) }, () => (DIY_IDS.length && rng() < 0.8 ? rng.pick(DIY_IDS) : rng.pick(['char_x', 'constructor', '__proto__']))),
+    };
     case 'g.bondPlan': return rng() < 0.2 ? { t } : { t, bondId: rng() < 0.7 ? rng.pick(BONDS) : rng.pick(['constructor', '__proto__', 'bond_x']) };
     case 'g.watch': return { t, fieldId: rng.pick(['n:p_0', 'n:p_1', 'n:ai_0', 'u', 'b1', 'b2', 'zz', '']) };
     case 'g.autoplay': return { t, on: rng() < 0.05 };

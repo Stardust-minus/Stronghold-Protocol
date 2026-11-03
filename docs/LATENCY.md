@@ -43,6 +43,16 @@ The lobby and battle HUD use a compact service button: hover/keyboard focus prev
 
 A short response spike may coexist with a normal cached pressure label. The window can miss a brief outlier, and its label does not measure browser stalls, network congestion, compression/TCP queues or combat Worker saturation. It is a coarse main-thread responsiveness hint, not a capacity guarantee.
 
+## Client-side prediction of prep intents (rel26)
+
+Buying, selling, deploying / withdrawing / moving an operator, refreshing, freezing and levelling the shop used to show only when the next `m.private` arrived — one RTT, more after a lost segment (TCP holds everything behind it). Since rel26 the browser shows them at once and the server stays the only authority:
+
+- `ui/gameLogic/predict.js` applies an intent's direct effects to the shown `m.private`: funds, the shop slots (sold, frozen; a level-up's new empty slots and next price from `m.private` `shop.next`), the hand / temp / board pieces, the deploy count. Derived panels (bonds, effects, the layer forecast, summons granted on a deployment, pieces an effect grants, stats) and anything the server's RNG decides (the cards of a refresh) wait for the server. An intent whose outcome is not certain is not predicted, or only its payment is, and waits as before: a merge-completing buy (an elite or a golden item), a sale whose equipment would overflow or merge, a move of a summon or of an operator with summons, a second level-up before the first is acknowledged.
+- The server echoes the `rid` of the latest such intent of a seat (`shared/protocol.js` `ACKED_INTENTS`), accepted or refused, as that seat's `m.private` `ack` (`server/match/match/platform.js`; 0 after every reconnect; not saved in checkpoints). `ui/prediction.js` replays every pending intent over each authoritative `m.private` and drops it once a state with `ack ≥ rid` arrives — that state contains it, whatever the server made of it. The reply alone is not enough: under backpressure the game node writes the reply before a queued `m.private`. A refused intent is dropped with its error toast, and the next state shows the server's truth.
+- A sent request is never resent (`net.js`): a socket that drops rejects it, so a predicted intent can never be applied twice. A request that times out is dropped from the replay; its outcome, if any, arrives with the server's state.
+- A piece bought by prediction carries a negative placeholder uid. An intent naming it (deployed, sold, equipped before the purchase is acknowledged) is shown at once but sent only when the real uid is known (the new copy in the slot the prediction used). Intents leave in the order they were made, so everything made after such an intent waits too.
+- A server without `ack` (rel25 and older) leaves the prediction off; `localStorage['sp.noPredict'] = '1'` switches it off in a browser.
+
 ## Local regression checks
 
 ```sh

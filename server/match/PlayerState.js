@@ -121,7 +121,6 @@
 //                 DIY draws (diyRollEntries) and the reward / grant draws (diyStockEntries), the pick of a piece (diyPickOf)
 //   common.js     HAND_SIZE, TEMP_SIZE, MAX_OFFER_SLOTS, OK, fail
 
-import { isCollabRoom } from '../../shared/experimental.js';
 import { FIELD } from './board.js';
 import { computeBonds } from './bondsMeta.js';
 import { HAND_SIZE, TEMP_SIZE } from './player/common.js';
@@ -198,6 +197,13 @@ export class PlayerState {
      * started, re-checked; frozen; {} = none (bots always). setDiy makes `this.gd` the player's data view.
      */
     this.diy = Object.freeze({});
+    /**
+     * 自选候补 (feedback #114, player/diy.js): every checked pick the seat brought — its slots and its 候补 (bench keys) —;
+     * {} = none (bots always). `diy` is what of it fills the slots now.
+     */
+    this.diyPreset = Object.freeze({});
+    /** 自选候补: the candidates the player chose per tier in the briefing ({ [tier]: charIds }), null = none (the default) */
+    this.diyChoice = null;
     /** @type {Map<string, object>} slot id (normal / elite) → composed 自选 record (setDiy) */
     this._diyRecords = new Map();
     /** the copies of the slotted pieces (initDiyStock, once the match's bans are drawn) */
@@ -208,7 +214,7 @@ export class PlayerState {
     // keeps the vanilla kit list and drops a plugin operator with no error (checkDiyPicks is lenient).
     // Bots never slot 自选; they read the human's composed records once this succeeds (bot.js chessRec).
     // 联动干员: the match's own switch (its experimental options, from the room at its start; shared/experimental.js)
-    if (!this.isBot && seat.diy) this.setDiy(seat.diy, { ...(this.m.diyKitted ? { kitted: this.m.diyKitted } : {}), collab: isCollabRoom(this.m.experimental) });
+    if (!this.isBot && seat.diy) this.setDiy(seat.diy, this.diyMatchOpts());
     this.shop = { level: 1, upgradePrice: this.gd.upgradeBase(1) ?? 0, slots: [], frozen: false, freeRefreshes: 0 };
     /** reward offers queue (merge rewards, special refreshes): { tier, source, label, slots: [{ kind, id, price, sold }] } */
     this.offers = [];

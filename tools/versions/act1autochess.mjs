@@ -23,6 +23,33 @@ export default Object.freeze({
   }),
   // 上半's bondInfoDict has activeType / isActiveInDeck instead of activeCondition; its 盟约·辅助干员 is a NORMAL row that
   // backs itself up (tools/versions/adapters.mjs)
+  // Every 自选 6★ the default offers and the pin predates (the owner's decisions of 2026-11-02: rel25's 塔露拉 冻河 国度 and
+  // the collab 焰狐龙梓兰 结城理, then the same 自选 range as the default — 6★ the version fields as shop chess stay shop
+  // chess): each one's own records, with the summons they name, come from the commit the default reads it from
+  // (tools/versions/act2autochess.mjs: fe7d8d05, or 08ba2aea for the three of 2026-11-01), so they equal the default's.
+  // 麒麟R夜刀 is in the pinned tables but without EXE-Y (uniequip_003_yato2 is newer than every pin): his records are
+  // replaced by the default's (`replace`, the owner's decision of 2026-11-02). The other collab picks keep the pin's.
+  lateOperators: Object.freeze([
+    Object.freeze({
+      sha: 'fe7d8d05edc36cf5678a24bfe9e84e891f6cf7ad',
+      charIds: Object.freeze([
+        'char_1015_aglna2', 'char_1029_yato2', 'char_1048_orchd2', 'char_1050_chen3', 'char_1051_headb2',
+        'char_1052_kalts2', 'char_2027_wang', 'char_4037_demetr', 'char_4217_makoto', 'char_4226_veen',
+        'char_4228_closur', 'char_4229_aphris', 'char_4230_mcnist', 'char_4231_clemnt', 'char_4235_thumpy',
+      ]),
+      replace: Object.freeze(['char_1029_yato2']),
+    }),
+    Object.freeze({ sha: '08ba2aea0e8dba88eff0ec0d2c87e24b4db626f8', charIds: Object.freeze(['char_4244_tocka', 'char_4246_dminon', 'char_4247_oxi']) }),
+  ]),
+  // 第一期 has no 奥术 or 独行 bond: the owner's decision of 2026-11-02, after the precedents — 水月 (伏击客) is 迅捷 here
+  // where 第二期 makes it 独行, 史尔特尔 loses 奥术: 国度 协防 + 迅捷, 塔露拉 协防 + 不屈 (her death rule adds 不屈 layers
+  // alone), 玛露西尔 协防 alone
+  diyBonds: Object.freeze({
+    char_4246_dminon: Object.freeze(['swiftShip']),
+    char_4247_oxi: Object.freeze(['indomShip']),
+    char_4141_marcil: Object.freeze([]),
+  }),
+  diyTalentNotes: Object.freeze({ char_4247_oxi: '技能持续期间我方干员阵亡时，【不屈】层数+1' }),
   adapters: Object.freeze(['bondActiveType', 'selfBackupPreset']),
   research: 'docs/research/versions/act1autochess/',
   // the 下半-measured tables (shop stock overrides, the measured draft weights) are left out: uniform draws [ASSUMED]

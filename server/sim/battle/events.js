@@ -7,7 +7,7 @@ import { EVENT_BUFFER_CAP } from '../constants.js';
 import { damageRows } from '../damageBoard.js';
 import { elementView } from '../attack.js';
 import { unitStatsEntry } from '../../../shared/protocol.js';
-import { unitInfo, snapshotUnits, ammoView, wolfView, negView, moteView, coinView, mysticView, layerView, chargeView, feverView } from '../snapshot.js';
+import { unitInfo, snapshotUnits, ammoView, magazineView, wolfView, negView, moteView, coinView, mysticView, layerView, chargeView, feverView } from '../snapshot.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -79,6 +79,7 @@ export class BattleEvents {
    *         come back on: _layBody — where they fell, or their home);
    *   elem: [[id, element, fill, cooldownEnd, cooldown]] — the element gauge each unit shows (attack/element.js elementView);
    *   ammo: [[id, rounds left, rounds in the magazine]] — a running ammo skill, whole rounds (snapshot.js ammoView): the segmented bar;
+   *   mag: [[id, bullets, the magazine]] — a 猎手's trait bullets (snapshot.js magazineView): the column at the model's lower right;
    *   coins: [[id, balance, cap]] — a live Swire skill purse, zero included (snapshot.js coinView);
    *   wolves: [[id, 狼影 left, the talent's maximum]] — 伺夜's 狼群 (snapshot.js wolfView): the pips under the HP bar;
    *   neg: [[id, fill]] — the share of its cap a negative-HP pool holds (snapshot.js negView; 斩业星熊's 我执): the red bar;
@@ -100,7 +101,7 @@ export class BattleEvents {
    *         dying ones in their death window included.
    *   face: [[id, ±1]] — a scripted horizontal sign (心虚设计师, mem.publishFacing): the model turns with the front
    *         cut while it stands. Display only; the nine-field tuples and the golden canon omit it.
-   * ammo / coins / wolves / neg / motes / fever / energy / layers / charges / stand / standCut / face are display only: no sim
+   * ammo / mag / coins / wolves / neg / motes / fever / energy / layers / charges / stand / standCut / face are display only: no sim
    * state reads them, and the nine-field unit tuples are unchanged. bondTimers is also display only (golden canon excludes it).
    */
   snapshot({ includeUnitStats = false } = {}) {
@@ -148,6 +149,8 @@ export class BattleEvents {
       if (v) (elem || (elem = [])).push([u.id, v[0], v[1], v[2], v[3]]);
       const am = ammoView(u);
       if (am) (ammo || (ammo = [])).push([u.id, am[0], am[1]]);
+      const mg = magazineView(u);
+      if (mg) (snap.mag || (snap.mag = [])).push([u.id, mg[0], mg[1]]);
       const wv = wolfView(u);
       if (wv) (wolves || (wolves = [])).push([u.id, wv[0], wv[1]]);
       const ng = negView(u);
@@ -187,11 +190,20 @@ export class BattleEvents {
   /**
    * Field meta for m.field: deployed units and knocked-out operators waiting to redeploy. The optional detail cache
    * is sent only on entry/start/resync and filtered to this view's units, never regenerated during combat.
+   * A deployed unit out of sight (`hidden`: an enemy inside a DISAPPEAR segment, 凯尔希·思衡托 in flight) is listed too,
+   * flagged `hidden: true`: the snapshots leave it out until it comes back, and a view entered meanwhile (a watched
+   * field, 联防, a reconnect) never got its 'spawn' — it then reappeared as an unknown enemy-styled placeholder without a
+   * panel (render/app.js createUnknown; rel26, the owner's report of 2026-11-02 「红色水滴」). A viewer draws only what the
+   * snapshots list: the flag tells a static placement (a scouted / finished board) to skip it.
    */
   fieldMeta({ includeUnitStats = false } = {}) {
-    const units = this.units.filter((u) => (u.alive && u.deployed && !u.hidden) || this.isDown(u))
-      .map(u => unitInfo(u, includeUnitStats ? u._s || u.base : null));
-    const listed = includeUnitStats ? new Set(units.map(u => u.id)) : null;
+    const units = this.units.filter((u) => (u.alive && u.deployed) || this.isDown(u))
+      .map((u) => {
+        const info = unitInfo(u, includeUnitStats ? u._s || u.base : null);
+        return u.hidden && u.alive && u.deployed ? { ...info, hidden: true } : info;
+      });
+    // the opening panel cache only for what is in sight (a hidden unit has no card to open)
+    const listed = includeUnitStats ? new Set(units.filter((u) => !u.hidden).map((u) => u.id)) : null;
     return {
       fieldId: this.fieldId, kind: this.kind, rect: { ...this.rect }, stageId: this.stageId,
       players: this.players.map((p) => p.playerId),

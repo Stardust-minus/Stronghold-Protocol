@@ -132,6 +132,37 @@ test('荒芜拉普兰德 S3 ③: a drone on its target attacks every attack inte
   }
 });
 
+test('反馈 #103 荒芜拉普兰德 S3: the fx name the drone — every droneLock its index `k` and where it picked (`at`), every hit its `k` and target (`tid`) — so the client flies the same wolf', () => {
+  for (const id of BOTH) {
+    const h = wolf(id, [{ key: 'weak', pos: [10, 7], rec: dummy('weak', { hp: 900 }) }, { key: 'far', pos: [12, 9] }]);
+    const u = h.unit(id);
+    assert.ok(h.runUntil(() => u.skill.active, 5));
+    h.run(20);
+    const fx = h.eventsOf('fx').filter((e) => e[4] && (e[1] === 'droneLock' ? e[4].src === u.id : e[4].id === u.id));
+    const locks = fx.filter((e) => e[1] === 'droneLock');
+    const n = u.mem.drones.length;
+    assert.ok(locks.length > n, 'a re-pick after the weak one fell');
+    for (const [, , , , x] of locks) {
+      assert.ok(Number.isInteger(x.k) && x.k >= 0 && x.k < n, 'k: the drone index');
+      assert.ok(Array.isArray(x.at) && x.at.length === 2 && x.at.every(Number.isFinite), 'at: where it picked');
+    }
+    // the last lock of each drone names the enemy it sits on now; each hit names its drone's target
+    for (let k = 0; k < n; k++) {
+      const last = locks.filter((e) => e[4].k === k).at(-1);
+      assert.ok(last, `drone ${k} locked`);
+      assert.equal(last[4].id, u.mem.drones[k].t?.id, `drone ${k}: its last lock is its target`);
+    }
+    const hits = fx.filter((e) => e[1] === 'drone' && e[4].tid != null);
+    assert.ok(hits.length > 0);
+    for (const e of hits) {
+      assert.ok(Number.isInteger(e[4].k) && e[4].k < n);
+      const lock = locks.filter((l) => l[4].k === e[4].k && l[4].id === e[4].tid);
+      assert.ok(lock.length, 'a hit on the target its drone locked');
+    }
+    done(h);
+  }
+});
+
 test('荒芜拉普兰德 S3: every drone picks the enemy nearest to itself; a dead target sends it to the 1.5 square around it, the next lock restarts its ramp; nothing left → it circles (0.9, 1 tile/s, counter-clockwise)', () => {
   for (const id of BOTH) {
     const h = wolf(id, [{ key: 'weak', pos: [10, 6], rec: dummy('weak', { hp: 900 }) }, { key: 'e', pos: [12, 9] }]);

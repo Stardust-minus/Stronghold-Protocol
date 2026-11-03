@@ -459,7 +459,8 @@ export function createFallbackView(host, opts = {}) {
       if (field?.rect && Number.isFinite(field.rect.r0)) st.rect = { ...field.rect };
       for (const u of Array.isArray(field?.units) ? field.units : []) if (u && u.id != null) {
         st.units.set(u.id, u);
-        st.snapUnits.set(u.id, [u.id, u.x, u.y, u.maxHp, u.maxHp, 0, 0, 0, 0]);
+        // a unit out of sight (UnitInfo `hidden`) is known, not drawn: the snapshots list it once it is back
+        if (!u.hidden) st.snapUnits.set(u.id, [u.id, u.x, u.y, u.maxHp, u.maxHp, 0, 0, 0, 0]);
       }
       schedule();
     },

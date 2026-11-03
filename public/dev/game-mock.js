@@ -412,16 +412,31 @@ function setPhase(phase, variant) {
 }
 
 // m.result in the exact shape of server/match/results.js buildResult (title = config.titles record, stats.gold = spent)
+// ?variant=hidden — the Hidden Core was fought (lost): the 领袖战输出 lists both scopes (feedback #70 / #81)
 function buildResult(victory) {
   const titles = (data.get('config')?.titles || []).filter((t) => victory || !t.onlyOnWin);
   const pickTitle = (i) => { const t = titles[[0, 3, 5, 2][i] % Math.max(1, titles.length)]; return t ? { id: t.id, name: t.name, picId: t.picId, text: t.text } : null; };
+  const hidden = victory && VARIANTS.has('hidden');
+  // the 领袖战 damage report of a row (server/match/results.js bossDamageRows, compact): its lineup's operators, falling shares
+  const report = (lineup, i) => {
+    if (!victory || i === 3) return undefined;
+    const scope = (kind, total, seconds) => {
+      const w = lineup.map((_, k) => 0.62 ** k), sum = w.reduce((a, b) => a + b, 0);
+      const ops = lineup.map((u, k) => ({ id: u.id, damage: Math.round((total * 0.97 * w[k]) / sum), ...(k === 2 ? { healing: Math.round(total * 0.05) } : {}) }));
+      return { kind, round: 14, seconds, total, ...(ops[2] ? { healing: ops[2].healing } : {}), otherDamage: Math.round(total * 0.03), ops };
+    };
+    return [scope('boss', [2860000, 1940000, 1210000][i], 96.4), ...(hidden ? [scope('hidden', [740000, 520000, 310000][i], 41.2)] : [])];
+  };
   return {
-    victory, roundsPassed: victory ? 14 : 11, hiddenReached: false, hiddenCleared: false, reason: victory ? 'victory' : 'defeat',
+    victory, roundsPassed: victory ? 14 : 11, hiddenReached: hidden, hiddenCleared: false, reason: victory ? 'victory' : 'defeat',
     bossId: 'boss_5', hiddenBossId: 'boss_8', difficulty: 'HARD', modeId: 'mode_multi_hard', stageId: S.pub.stageId, durationMs: 52 * 60000,
-    players: S.pub.players.map((p, i) => ({
+    players: S.pub.players.map((p, i) => {
+      const lineup = VARIANTS.has('equipped') ? equippedLineup() : shuffle(S.pool).slice(0, 8 + (i % 2)).map((c, k) => ({ id: k < 3 ? c.goldenId : c.chessId, golden: k < 3, tier: c.tier, row: 9 + (k % 4), col: 2 + k, items: [] }));
+      const damage = report(lineup, i);
+      return {
       playerId: p.playerId, seat: p.seat, name: p.name, isBot: p.isBot, left: false, alive: i !== 3, victory, lp: [12, 12, 12, 0][i], bandId: p.bandId,
       roundsPassed: i === 3 ? 9 : victory ? 14 : 11, eliminatedRound: i === 3 ? 10 : null, title: pickTitle(i),
-      lineup: VARIANTS.has('equipped') ? equippedLineup() : shuffle(S.pool).slice(0, 8 + (i % 2)).map((c, k) => ({ id: k < 3 ? c.goldenId : c.chessId, golden: k < 3, tier: c.tier, row: 9 + (k % 4), col: 2 + k, items: [] })),
+      lineup, ...(damage ? { damage } : {}),
       bonds: shuffle(data.list('bonds')).slice(0, 4).map((b, k) => ({ bondId: b.bondId, count: 3 - (k % 3), layers: [359, 136, 34, 12][k], active: k < 3, tier: k < 3 ? 1 : 0 })),
       stats: {
         dmgDealt: [2310000, 1720000, 980000, 402000][i], kills: [412, 388, 301, 150][i], leaks: [3, 6, 9, 31][i], gold: [188, 164, 231, 90][i],
@@ -429,7 +444,8 @@ function buildResult(victory) {
         activatedLayers: [541, 402, 377, 120][i], lpLost: [16, 19, 12, 24][i], perfectRounds: [11, 12, 9, 4][i],
       },
       trophies: i === 3 ? 1 : 5, reward: i === 3 ? 170 : 425,
-    })),
+      };
+    }),
   };
 }
 

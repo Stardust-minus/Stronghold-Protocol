@@ -79,6 +79,7 @@ import { recordError, installTrafficMeter } from './diag.js';
 import { installContent, installContentSet } from './content.js';
 import { cosmetics } from './cosmetics.js';
 import { sanitizeVersions, roomVersion, isDefaultVersion, matchFrameVersion } from './versions.js';
+import { prediction } from './ui/prediction.js';
 
 const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
@@ -351,7 +352,8 @@ function wireNet() {
     if (store.get().ui.resumed) store.patch('ui', { resumed: false });
     maybeFinishRestore();
   });
-  net.on('m.private', (msg) => { matchAt = Date.now(); store.patch('match', { private: payload(msg) }); });
+  // the prep intents still pending are replayed over it (ui/prediction.js; the server's own state when none is)
+  net.on('m.private', (msg) => { matchAt = Date.now(); store.patch('match', { private: prediction.authoritative(payload(msg)) }); });
   net.on('m.layer', (msg) => {
     const s = store.get();
     if (selectRoute(s) === 'game' && msg.playerId === s.me?.playerId) audio.layerGain(msg.bondId, msg.add);

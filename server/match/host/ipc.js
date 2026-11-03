@@ -50,6 +50,13 @@ export function validHostMessage(m) {
       && (m.result.ok === undefined || typeof m.result.ok === 'boolean') && boundedJson(m, HOST_IPC_LIMITS.reply);
     case 'end': return (m.summary == null || object(m.summary)) && boundedJson(m, HOST_IPC_LIMITS.reply);
     case 'failed': return str(m.error, HOST_IPC_LIMITS.error) && boundedJson(m, HOST_IPC_LIMITS.error + 512);
+    // a match's checkpoint (entry.js postCheckpoint): the snapshot document as one JSON string, checked by its outline only
+    // (the store keeps it as is; a restore parses and checks it, server/match/snapshot.js checkSnapshot)
+    case 'checkpoint': return Object.keys(m).length === 4 && str(m.reason, 32) && typeof m.json === 'string' && m.json.length >= 2
+      && m.json.length <= HOST_IPC_LIMITS.message && m.json[0] === '{' && m.json[m.json.length - 1] === '}' && Buffer.byteLength(m.json) <= HOST_IPC_LIMITS.message;
+    case 'restored': return Object.keys(m).length === 2;
+    case 'removed': return Object.keys(m).length === 4 && !!m.playerId && str(m.playerId, 128) && object(m.removal)
+      && Object.keys(m.removal).length === 2 && str(m.removal.reason, 32) && Number.isSafeInteger(m.removal.rounds) && m.removal.rounds >= 0;
     default: return false;
   }
 }

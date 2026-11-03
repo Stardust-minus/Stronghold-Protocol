@@ -491,13 +491,15 @@ export class Net {
    * session to send it on, BAD_MSG when it fails shared/protocol.js validation locally.
    * @param {string} t message type (C2S)
    * @param {object} [fields]
-   * @param {{timeout?: number}} [opts]
+   * @param {{timeout?: number, onRid?: (rid: number) => void}} [opts] `onRid`: told the request's rid at once (the
+   *   client-side prediction matches it against m.private `ack`, ui/prediction.js)
    * @returns {Promise<any>}
    */
   request(t, fields = {}, opts = {}) {
     return new Promise((resolve, reject) => {
       if (t === 'hello') { reject(new NetError('BAD_MSG', 'use setName() for hello')); return; }
       const rid = this._nextRid();
+      if (typeof opts.onRid === 'function') { try { opts.onRid(rid); } catch { /* the caller's bookkeeping only */ } }
       const msg = { ...(fields && typeof fields === 'object' ? fields : {}), t, rid };
       const bad = validateC2S(msg);
       if (bad) {

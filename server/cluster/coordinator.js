@@ -66,7 +66,8 @@ export async function startCoordinator({ nodes, build, protocol = PROTOCOL_VERSI
     app = await startServer({ ...options, host: options.host ?? '127.0.0.1', combatWorkers: 0, trialWorkers: 0,
       snapshotHz: options.snapshotHz ?? 10, wsCompression: 'off', allowAsyncHandlers: true, phaseMetrics: phases,
       getClusterLoad: () => platform.publicLoad(),
-      lobbyFactory: params => new ClusterLobby({ ...params, platform }) });
+      // versionPlacement: where another official version's match runs (ClusterLobby; SP_VERSION_PLACEMENT otherwise)
+      lobbyFactory: params => new ClusterLobby({ ...params, platform, ...(options.versionPlacement ? { versionPlacement: options.versionPlacement } : {}) }) });
     sink = createReceiptSink({ platform, lobby: app.lobby, offThreadBytes: receiptWorker ? RECEIPT_OFF_THREAD_BYTES : 0, metrics: phases });
     for (const node of nodes) handlers.set(node.nodeId, createRpcHandler({
       authority: createRpcAuthenticator({ key: node.key, scope: node.nodeId }), operations: sink.opsForNode(node.nodeId) }));

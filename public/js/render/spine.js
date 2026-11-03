@@ -29,6 +29,10 @@
 //                                         skill's flag is off again within the same 0.5 s window (sim skills.js), so
 //                                         without this the actor fell through to its idle and played no skill clip at
 //                                         all (player report).
+//   reload(seconds)                       a 猎手's reload began (b.ev 'reload'): the skeleton's Reload clip set over it —
+//                                         Begin once, the Loop scaled to the reload's length, End when it is over, then
+//                                         base; a skill's own `<prefix>_Reload_*` set while that skill runs (莱伊's
+//                                         Skill_2_Reload_*); an attack cuts it (the bullet came with the reload's end)
 //   deploy()                              'Start' once, then base
 //   die()                                 die clip once (callers fade out afterwards); a skeleton without one holds its
 //                                         idle clip's first frame (GitHub issue #25: the attack loop went on)
@@ -54,6 +58,9 @@ const clampN = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
 /** Longest wind-up compression (× the rhythm speed) when the look-ahead is shorter than the natural wind-up. */
 export const MAX_WIND_SPEEDUP = 2.5;
+
+/** Game s after a reload's end before the actor closes it with Reload_End (the next reload or attack comes first). */
+const RELOAD_GRACE = 0.12;
 
 /** Floor for the one-shot window of a skill clip with no Begin / own Idle (a very short clip still gets frames). */
 const SKILL_CLIP_MIN = 0.2;
@@ -438,7 +445,7 @@ export class SpineActor {
     }
     try { this.spine.stateData.defaultMix = 0.12; } catch { /* ignore */ }
     this.base = 'idle';
-    this.mode = 'base';           // base | attack | skillBegin | deploy | die | stun | change
+    this.mode = 'base';           // base | attack | reload | skillBegin | deploy | die | stun | change
     this.endClip = null;          // setForm's closing clip, played as a change clip once the clock reaches endAt,
     this.endAt = 0;               // landing in endRoles (the next form's) when given
     this.endRoles = null;
@@ -760,6 +767,44 @@ export class SpineActor {
   }
 
   /**
+   * A 猎手's reload began now (b.ev ['reload', id, seconds], server/sim/professions.js installHunter: PRTS 分支特性信息 猎手
+   * "装弹行为属于普通攻击行为，持续时间使用装填间隔"): the skeleton's Reload clips — Begin once (not when a reload follows a
+   * reload: the loop goes on), the Loop at one cycle per reload (the official loop lasts the base attack time), End once the
+   * reload is over, then the resting state. While a skill runs, that skill's own `<prefix>_Reload_*` set when the skeleton
+   * has one (莱伊 Skill_2_Reload_*, Skill_3_Reload_*). [ASSUMED] the Down sets (Reload_Down_* / Down_Reload_*) are never
+   * picked: the event does not say the operator faces down. A model without a Reload_Loop keeps its pose (false).
+   * @param {number} seconds the reload's length (game s)
+   */
+  reload(seconds) {
+    if (this.dead || this.mode === 'stun' || this.mode === 'die' || this.mode === 'change' || this.mode === 'deploy') return false;
+    const set = this._reloadClips();
+    if (!set) return false;
+    const loopDur = this.dur(set.loop);
+    const dur = clampN(Number.isFinite(seconds) && seconds > 0 ? seconds : loopDur, 0.1, 8);
+    const again = this.mode === 'reload';   // a reload right after a reload (inside RELOAD_GRACE): the loop goes on
+    const begin = !again && set.begin ? set.begin : null;
+    const lead = begin ? Math.min(this.dur(begin), dur / 2) : 0;
+    const ts = clampN(loopDur / Math.max(0.05, dur - lead), 0.35, 4);
+    this.mode = 'reload';
+    this.wound = false;
+    this.windUntil = null;
+    this.reloadUntil = this.clock + dur;
+    this.reloadEnd = set.end;
+    if (begin) { this._play(begin, false, { mix: 0.06 }); this._queue(set.loop, true, ts); }
+    else this._play(set.loop, true, { timeScale: ts, mix: again ? 0 : 0.06 });
+    return true;
+  }
+
+  /** The Reload clip set in force ({ begin, loop, end }), null when the skeleton has no Reload loop. */
+  _reloadClips() {
+    const of = (p) => (this.has(`${p}_Loop`)
+      ? { begin: this.has(`${p}_Begin`) ? `${p}_Begin` : null, loop: `${p}_Loop`, end: this.has(`${p}_End`) ? `${p}_End` : null }
+      : null);
+    const pre = this.skillOn ? this._skillPrefix() : '';
+    return (pre && of(`${pre}_Reload`)) || of('Reload');
+  }
+
+  /**
    * Begin / loop / end, and no idle of its own: the loop is the stance for the whole skill (DESIGN §34.4).
    * A distinct skill.idle (折桠 Skill_2_Idle) is the stance between attacks, so the loop stays the attack clip.
    * via:'attack' (远牙: the role is the normal attack triple) is not a skill stance.
@@ -1046,6 +1091,15 @@ export class SpineActor {
           // a skill with its own idle: back to that idle (its end clip is for the end of the skill, setSkill(false))
           const toSkillIdle = clip === this.roles.skill && !!this._skillIdle();
           if (clip && this.has(clip.end) && !toSkillIdle) { this._play(clip.end, false); this._queue(this._baseName(), true); }
+          else this._play(this._baseName(), true, { mix: 0.15 });
+        }
+        break;
+      case 'reload':
+        // the reload is over: its End, then the resting state — a beat later, so that the next reload (its loop goes on)
+        // or the attack the bullet came for takes over first [ASSUMED 0.12 s]
+        if (this.clock >= this.reloadUntil + RELOAD_GRACE) {
+          this.mode = 'base';
+          if (this.reloadEnd && this.has(this.reloadEnd)) { this._play(this.reloadEnd, false, { mix: 0.06 }); this._queue(this._baseName(), true); }
           else this._play(this._baseName(), true, { mix: 0.15 });
         }
         break;

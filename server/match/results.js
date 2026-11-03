@@ -84,24 +84,73 @@ function rewardFor(gd, roundsPassed) {
 }
 
 /**
+ * How the result screen draws a chess of `ps` (a lineup entry, a damage row): its 自选 pick, the stand-in it fielded, the
+ * skin it wore.
+ *   diy        0.2.0 自选编队: a DIY slot's pick — the result screen names and draws the operator (shared/diy.js diyRecord)
+ *   standInFor 0.2.0 补位: a chess this player fielded as its stand-in — the result screen draws the stand-in (the owner's
+ *              recall of the official mode, 2026-10-06); the replaced operator's charId, like the sim's UnitInfo
+ * @returns {{ diy?: { charId: string, skillIndex: number, uniEquipId: string|null }, standInFor?: string, skinId?: string }}
+ */
+function pieceLook(ps, chessId) {
+  const e = {};
+  const pick = typeof ps.diyPickOf === 'function' ? ps.diyPickOf(chessId) : null;
+  if (pick) e.diy = { charId: pick.charId, skillIndex: pick.skillIndex, uniEquipId: pick.uniEquipId };
+  const si = typeof ps.fieldsStandIn === 'function' && ps.fieldsStandIn(chessId) ? ps.gd.standIn(chessId) : null;
+  if (si && si.standInFor) e.standInFor = si.standInFor;
+  const chess = ps.gd.chess(chessId);
+  const skinId = chess && typeof ps.skinIdFor === 'function' ? ps.skinIdFor(chess) : null;
+  if (skinId) e.skinId = skinId;
+  return e;
+}
+
+/** Operator rows a final scope's damage report keeps per player (a board holds 10; summons are credited to theirs). */
+export const BOSS_DAMAGE_OPS = 12;
+
+/**
+ * The 领袖战 damage report of one player (feedback #70 「对局记录里可以看到boss战每个干员dps」, #81 「结算页面加入干员伤害统计」):
+ * one entry per final scope it fought — 最终攻势 ('boss') and 隐秘核心 ('hidden') — from the server's damage ledger frozen at
+ * the scope's end (server/match/damageBoard.js `finals`): `seconds` its battle time (the DPS / HPS divisor), `total` its
+ * authoritative damage sum and `healing` its healing, `otherDamage` / `otherHealing` what no operator owns (devices), and
+ * `ops` its operators (summons credited to their operator) by damage, at most BOSS_DAMAGE_OPS. Whole numbers but `seconds`
+ * (0.1 s). Compact — m.result goes out once per member (and into the end receipt, server/cluster/receipts.js, 2 MiB):
+ * zero amounts but `total` / an op's `damage` are left out, and an op names how it is drawn (pieceLook: 自选 pick, stand-in,
+ * skin) only when the row's lineup has no entry of its chess id (the page takes the lineup entry's; `lineupIds`).
+ * Empty for a browser-run match (clientCombat: the ledger is not authoritative there) and for a player that fought no final
+ * scope.
+ * @param {Set<string>} [lineupIds] the chess ids of the row's lineup
+ * @returns {Array<{ kind: 'boss'|'hidden', round: number, seconds: number, total: number, healing?: number,
+ *   otherDamage?: number, otherHealing?: number, ops: Array<{ id: string, damage: number, healing?: number }> }>}
+ */
+export function bossDamageRows(m, ps, lineupIds = new Set()) {
+  const finals = !m.clientCombat && m.damageBoard?.finals;
+  if (!finals || typeof finals !== 'object') return [];
+  const n = (v) => (Number.isFinite(v) && v > 0 ? Math.round(v) : 0);
+  const some = (k, v) => (n(v) ? { [k]: n(v) } : {});
+  const out = [];
+  for (const kind of ['boss', 'hidden']) {
+    const packet = finals[kind];
+    const row = Array.isArray(packet?.owners) ? packet.owners.find((o) => o?.playerId === ps.playerId) : null;
+    if (!row || !(row.seconds > 0)) continue;
+    const ops = (Array.isArray(row.operators) ? row.operators : [])
+      .filter((op) => typeof op?.defId === 'string' && ps.gd.chess(op.defId))
+      .map((op) => ({ id: op.defId, damage: n(op.damage), ...some('healing', op.healing), ...(lineupIds.has(op.defId) ? {} : pieceLook(ps, op.defId)) }))
+      .sort((a, b) => b.damage - a.damage || (b.healing || 0) - (a.healing || 0))
+      .slice(0, BOSS_DAMAGE_OPS);
+    out.push({ kind, round: Number.isInteger(packet.round) ? packet.round : 0, seconds: Math.round(row.seconds * 10) / 10,
+      total: n(row.total), ...some('healing', row.healing), ...some('otherDamage', row.otherDamage), ...some('otherHealing', row.otherHealing), ops });
+  }
+  return out;
+}
+
+/**
  * One player's m.result row: `roundsPassed` its own (eliminated in round k ⇒ k − 1), `cleared` whether the team's clear
  * counts for it, `title` its 评语 (assignTitles) or null.
  */
 function resultRow(m, ps, { roundsPassed, cleared, hiddenCleared, title }) {
   const gd = m.gd;
-  const lineup = boardOrder(ps.board).filter((x) => x.piece.kind === 'chess').map(({ r, c, piece }) => {
-    const e = { id: piece.id, golden: gd.isGolden(piece.id), tier: gd.tierOf(piece.id), row: r, col: c, items: (piece.items || []).map((i) => i.id) };
-    // 0.2.0 自选编队: a DIY slot's pick — the result screen names and draws the operator (shared/diy.js diyRecord)
-    const pick = typeof ps.diyPickOf === 'function' ? ps.diyPickOf(piece.id) : null;
-    if (pick) e.diy = { charId: pick.charId, skillIndex: pick.skillIndex, uniEquipId: pick.uniEquipId };
-    // 0.2.0 补位: a chess this player fielded as its stand-in — the result screen draws the stand-in (the owner's recall
-    // of the official mode, 2026-10-06); `standInFor` = the replaced operator's charId, like the sim's UnitInfo
-    const si = typeof ps.fieldsStandIn === 'function' && ps.fieldsStandIn(piece.id) ? gd.standIn(piece.id) : null;
-    if (si && si.standInFor) e.standInFor = si.standInFor;
-    const skinId = typeof ps.skinIdFor === 'function' ? ps.skinIdFor(ps.gd.chess(piece.id)) : null;
-    if (skinId) e.skinId = skinId;
-    return e;
-  });
+  const lineup = boardOrder(ps.board).filter((x) => x.piece.kind === 'chess').map(({ r, c, piece }) => (
+    { id: piece.id, golden: gd.isGolden(piece.id), tier: gd.tierOf(piece.id), row: r, col: c, items: (piece.items || []).map((i) => i.id), ...pieceLook(ps, piece.id) }));
+  const damage = bossDamageRows(m, ps, new Set(lineup.map((e) => e.id)));
   return {
     playerId: ps.playerId,
     seat: ps.seat,
@@ -124,6 +173,8 @@ function resultRow(m, ps, { roundsPassed, cleared, hiddenCleared, title }) {
       bossDamage: Math.round(ps.stats.bossDamage), activatedLayers: ps.activatedLayers(), lpLost: ps.stats.lpLost,
       perfectRounds: ps.stats.perfectRounds,
     },
+    // the operators' damage / healing of each final scope the player fought (feedback #70 / #81), absent otherwise
+    ...(damage.length ? { damage } : {}),
     title: m.test === true || Number.isInteger(ps.aiTakeoverRound) ? null : title,
     trophies: m.test === true || Number.isInteger(ps.aiTakeoverRound) ? 0 : trophiesFor(gd, roundsPassed, cleared && hiddenCleared),
     reward: m.test === true || Number.isInteger(ps.aiTakeoverRound) ? 0 : rewardFor(gd, roundsPassed),

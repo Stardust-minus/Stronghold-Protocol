@@ -1,6 +1,6 @@
 // Pixi's loader parsers fetch Spine skeletons, atlases and every page separately. Keep their canonical cache keys,
 // parse/unload/refcount behavior, and retry only the resource that failed (never re-download an entire model).
-import { MATERIAL_IMAGE_TIMEOUT_MS, isPublicMaterialUrl, loadMaterialImage, readMaterialBody, withMaterialFallback } from '../materialFallback.js';
+import { MATERIAL_IMAGE_TIMEOUT_MS, isPublicMaterialUrl, loadMaterialImage, materialCredentials, readMaterialBody, withMaterialFallback } from '../materialFallback.js';
 
 const parsers = new WeakSet();
 const adapters = new WeakSet();
@@ -43,7 +43,7 @@ export function installPixiMaterialFallback(PIXI, options) {
           // The stock worker's decode error can escape its promise, and its Image branch may resolve an already
           // complete but broken image. Keep decoding inside this attempt so both failures reach the one retry.
           const decode = premultiplied ? { premultiplyAlpha: 'none' } : undefined;
-          const image = bitmap ? await createImageBitmap(await (await readMaterialBody(await adapter.fetch(source, { credentials: 'omit', signal }), progress)).blob(), decode)
+          const image = bitmap ? await createImageBitmap(await (await readMaterialBody(await adapter.fetch(source, { credentials: materialCredentials(source, options?.origin), signal }), progress)).blob(), decode)
             : await loadMaterialImage(source, { ...options, signal, fallback: false });
           const data = { ...asset?.data };
           data.resolution ??= PIXI.utils.getResolutionOfUrl(url);

@@ -40,6 +40,11 @@
 // it (a record's id stays what it was). 统计数据 filters by version (recordsOfVersion: the version shown by default,
 // 全部版本 on request) and the levels count the records of one season (recordsOfSeason: 第一期 / 第二期 each have their own
 // 卫戍认证 table).
+// The 领袖战 damage report (feedback #70 / #81, ui/bossDamage.js): a settled row keeps its `damage` (the operators' damage
+// and healing of each final scope the player fought) so a re-viewed settlement lists it; a compacted row drops it, and a
+// record that does not fit the budget is kept without the reports before it is dropped (fitToBudget). An optional row
+// field: no envelope version — an older build drops it and goes on recording [ASSUMED: a bump would stop an older build
+// (a rollback) from recording at all].
 // Test matches (DESIGN §34.8) never create local records, including quits. Server awards are
 // zero; a live marker latches until the next match. Legacy marked imports are dropped on load
 // and merge, and pure aggregates/badge helpers exclude them even if handed a raw record.
@@ -57,6 +62,7 @@ import { PHASE } from '../../../shared/constants.js';
 import { MAX_PLAYER_CAPACITY } from '../../../shared/playerCapacity.js';
 import { sanitizeName } from './playerName.js';
 import { DEFAULT_VERSION, versionById } from '../../../shared/versions.js';
+import { normalizeBossDamage } from './bossDamage.js';
 
 /** Current record-envelope version (bump + add a MIGRATIONS step when the record shape changes). */
 export const STATS_VERSION = 3;
@@ -244,8 +250,13 @@ function normalizePlayerRow(raw, quit = false) {
     bonds,
     ...(Array.isArray(p.usedBondIds) ? { usedBondIds: usedBondIdsOf(p) } : {}),
     stats: normalizeStatBlock(p.stats),
+    // the 领袖战 damage report (see the header), without the operators' skins (the lineup keeps none either)
+    ...(damageOf(p.damage).length ? { damage: damageOf(p.damage) } : {}),
   };
 }
+
+/** A row's 领袖战 damage report as a record keeps it (ui/bossDamage.js normalizeBossDamage: compact, no skins). */
+const damageOf = (raw) => normalizeBossDamage(raw, { skins: false, compact: true });
 
 /**
  * Normalize ONE match record to the current shape (a strict schema: missing fields get defaults, unknown ones are
@@ -426,7 +437,8 @@ export function compactRecord(rec) {
 
 /**
  * What goes to storage: the newest FULL_KEEP and highest bond-layer record as they are, other older ones compacted, then dropped until
- * the JSON fits `maxChars` (the newest record is always kept).
+ * the JSON fits `maxChars` (the newest record is always kept); a full record that does not fit is tried without its rows'
+ * 领袖战 damage reports before it is dropped.
  * @param {any[]} records newest first
  * @param {number} [maxChars]
  * @returns {any[]}
@@ -436,13 +448,24 @@ export function fitToBudget(records, maxChars = MAX_CHARS) {
   let used = 40; // the envelope itself
   const peakId = highestBondRecord(records.slice(0, MAX_RECORDS))?.record.id;
   records.slice(0, MAX_RECORDS).forEach((r, i) => {
-    const rec = i < FULL_KEEP || r.id === peakId ? r : compactRecord(r);
-    const n = JSON.stringify(rec).length + 1;
+    let rec = i < FULL_KEEP || r.id === peakId ? r : compactRecord(r);
+    let n = JSON.stringify(rec).length + 1;
+    // a full record over the budget first gives up its 领袖战 damage reports (see the header), still re-viewable
+    if (kept.length && used + n > maxChars && hasDamage(rec)) {
+      rec = withoutDamage(rec);
+      n = JSON.stringify(rec).length + 1;
+    }
     if (kept.length && used + n > maxChars) return;
     used += n;
     kept.push(rec);
   });
   return kept;
+}
+
+const hasDamage = (rec) => Array.isArray(rec?.players) && rec.players.some((p) => p && p.damage);
+/** A record without its rows' 领袖战 damage reports. */
+function withoutDamage(rec) {
+  return { ...rec, players: rec.players.map((p) => { if (!p?.damage) return p; const { damage, ...rest } = p; void damage; return rest; }) };
 }
 
 /** [ASSUMED] Official peak layers are approximated by the self player's active bonds at settlement. */

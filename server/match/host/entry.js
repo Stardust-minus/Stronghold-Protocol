@@ -27,6 +27,18 @@
 //                                           (shared/versions.js versionOfData; DESIGN §35.23 — an official version's host)
 //   { type: 'call', matchId, method, args, id? }   one MATCH INTERFACE call; with `id` its answer is posted as 'reply'
 //   { type: 'dispose', matchId }            the match is disposed and forgotten
+// A match that removes a human for good (the AFK rule, a kick vote) posts { type: 'removed', matchId, playerId, removal }
+// (the proxy's opts.onRemove: the platform detaches the seat), then quits the seat itself.
+//   { type: 'create', matchId, opts, restore: { doc, replay } }   a match back from its checkpoint (an official version's
+//                                           room after a restart, server/persist/persister.js restoreHosted): built from the
+//                                           checkpoint's seats and seed like a create, the checkpoint applied
+//                                           (server/match/snapshot.js restoreMatch) instead of start() — 'restored' then, or
+//                                           'failed' { restore: true } when it does not fit
+// Checkpoints (docs/DEPLOY.md「断点续玩」): a match created with opts.checkpoints (the lobby sets it for an official
+// version's room while the server keeps checkpoints) posts { type: 'checkpoint', matchId, reason, json } — the
+// snapshotMatch document as JSON — at each of its safe points (Match._checkpoint), once restored ('restored'), and when
+// the main process asks ({ type: 'call', method: 'checkpoint', args: [reason] }: the periodic round and the shutdown;
+// its 'reply' { ok, taken } comes after the checkpoint). The same state twice (same reason) is posted once.
 // Logs go to the main process ('log': its logger prefixes them with the set's `[cs:<8 hex>]`).
 // options.virtualTime (tests / tools only): the matches run on a VirtualScheduler stepped in 20 ms slices — an all-AI
 // match to its end in seconds — with the heartbeats still going.
@@ -78,6 +90,10 @@ const queue = [];
 let booted = false;
 let MatchClass = null;
 let VirtualScheduler = null;
+/** server/match/snapshot.js and the RNG restore, imported once the data is installed (boot) */
+let snapshotMatch = null, restoreMatch = null, createRngFromState = null;
+/** matchId → the last checkpoint it posted, for a match created with opts.checkpoints */
+const checkpointing = new Map();
 /** Prep EffectRefs this content set grants to every player. Empty when the set has no data.dsl. */
 let dslGrants = [];
 /** @type {Map<string, any>} */
@@ -191,6 +207,26 @@ async function boot() {
     }
   };
   if (options.virtualTime) ({ VirtualScheduler } = await import('../scheduler.js'));
+  ({ snapshotMatch, restoreMatch } = await import('../snapshot.js'));
+  ({ createRngFromState } = await import('../../sim/rng.js'));
+}
+
+/**
+ * Post a match's checkpoint (the header) when it may be taken now (snapshot.js canSnapshot) and differs from the last
+ * one posted. @returns {boolean} a checkpoint of the current state is with the main process
+ */
+function postCheckpoint(matchId, match, reason) {
+  const last = checkpointing.get(matchId);
+  if (!last || typeof snapshotMatch !== 'function') return false;
+  const doc = snapshotMatch(match);
+  if (!doc) return false;
+  let json;
+  try { json = JSON.stringify(doc); } catch { return false; }
+  if (last.json === json && last.reason === reason) return true;
+  last.json = json;
+  last.reason = reason;
+  post({ type: 'checkpoint', matchId, reason: String(reason || 'tick').slice(0, 32), json });
+  return true;
 }
 
 /** A MATCH INTERFACE method a match class may lack: what the platform does then (server/lobby.js callMatch). */
@@ -220,7 +256,7 @@ function diag(match) {
   };
 }
 
-function create(matchId, opts) {
+function create(matchId, opts, restore = null) {
   // an official version's match runs on that version's data only (DESIGN §35.23): never another version's data set
   const want = typeof opts.version === 'string' ? opts.version : DEFAULT_VERSION;
   if (want !== versionOfData(installed)) {
@@ -243,6 +279,11 @@ function create(matchId, opts) {
       send: (playerId, msg) => { post({ type: 'send', matchId, playerId, msg }); return true; },
       broadcast: (msg) => post({ type: 'broadcast', matchId, msg }),
       onEnd: (summary) => post({ type: 'end', matchId, summary: plain(summary) }),
+      // the match removed a human for good (the AFK rule, a kick vote): the platform detaches the seat (proxy opts.onRemove)
+      onRemove: (playerId, removal) => post({ type: 'removed', matchId, playerId,
+        removal: { reason: typeof removal?.reason === 'string' ? removal.reason.slice(0, 32) : 'removed', rounds: Number.isSafeInteger(removal?.rounds) ? removal.rounds : 0 } }),
+      // its safe points (Match._checkpoint) when the main process keeps checkpoints of this room (the header)
+      ...(opts.checkpoints === true ? { onCheckpoint: (m, reason) => postCheckpoint(matchId, m, reason) } : {}),
       ...(sched ? { scheduler: sched } : {}),
     });
   } catch (e) {
@@ -251,9 +292,30 @@ function create(matchId, opts) {
     return;
   }
   matches.set(matchId, match);
+  if (opts.checkpoints === true) checkpointing.set(matchId, { json: null, reason: null });
+  if (restore) {
+    // a match back from its checkpoint: applied to the fresh match instead of start() (snapshot.js restoreMatch)
+    let ok = false;
+    try {
+      ok = restoreMatch(match, restore.doc, { createRngFromState, log, replay: restore.replay === true });
+    } catch (e) { log.error(`[host] match ${matchId} checkpoint could not be applied`, e); }
+    if (!ok) {
+      matches.delete(matchId);
+      checkpointing.delete(matchId);
+      try { match.dispose?.(); } catch { /* ignore */ }
+      post({ type: 'failed', matchId, error: 'checkpoint refused', restore: true });
+      return;
+    }
+    post({ type: 'restored', matchId });
+    // its own checkpoint at once (a coordinator that saves its state now names this match again)
+    if (opts.checkpoints === true) postCheckpoint(matchId, match, 'restored');
+    if (sched) pump(match, sched);
+    return;
+  }
   try { match.start(); } catch (e) {
     log.error(`[host] match ${matchId} failed to start`, e);
     matches.delete(matchId);
+    checkpointing.delete(matchId);
     try { match.dispose?.(); } catch { /* ignore */ }
     post({ type: 'failed', matchId, error: String(e?.message || e).slice(0, 300) });
     return;
@@ -312,9 +374,13 @@ const findId = (match) => { for (const [id, m] of matches) if (m === match) retu
 
 function handle(m) {
   if (!m || typeof m !== 'object') return;
-  if (m.type === 'create') { if (!matches.has(m.matchId)) create(m.matchId, m.opts || {}); return; }
+  if (m.type === 'create') {
+    if (!matches.has(m.matchId)) create(m.matchId, m.opts || {}, m.restore && typeof m.restore === 'object' && m.restore.doc ? m.restore : null);
+    return;
+  }
   const match = matches.get(m.matchId);
   if (m.type === 'dispose') {
+    checkpointing.delete(m.matchId);
     if (match) { matches.delete(m.matchId); try { match.dispose?.(); } catch (e) { log.error(`[host] match ${m.matchId} dispose threw`, e); } }
     return;
   }
@@ -322,6 +388,11 @@ function handle(m) {
     let result;
     if (!match) result = { error: 'WRONG_PHASE', detail: 'no running match' };
     else if (m.method === 'diag') result = diag(match);
+    // the main process's periodic round / shutdown (the header): the checkpoint goes first, then this reply
+    else if (m.method === 'checkpoint') {
+      try { result = { ok: true, taken: postCheckpoint(m.matchId, match, Array.isArray(m.args) && typeof m.args[0] === 'string' ? m.args[0] : 'tick') }; }
+      catch (e) { log.error(`[host] match ${m.matchId} checkpoint threw`, e); result = { ok: false, taken: false }; }
+    }
     else {
       try {
         const fn = match[m.method];

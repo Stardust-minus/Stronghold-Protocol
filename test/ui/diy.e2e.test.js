@@ -158,7 +158,7 @@ describe('自选编队 picker: Esc closes only the picker (real server, no art n
         await c.page.keyboard.press('Escape');
         await c.page.waitForSelector(picker, { hidden: true, timeout: 3000 });
         assert.ok(await c.page.$('.lo'), `${slot}: Esc keeps the 干员调配 overlay${search ? ' (from the search field)' : ''}`);
-        assert.equal((await c.page.$$('.diy-slot')).length, 4, `${slot}: the four slots stay`);
+        assert.equal((await c.page.$$('.diy-slot')).length, 8, `${slot}: the eight positions stay (four per tier, feedback #114)`);
       }
       // an Esc pressed the moment the picker appears — before the next animation frame — closes it too: its listener comes
       // with the picker's own commit (a plain effect attached it a frame later and the overlay skipped the key: the
@@ -198,7 +198,7 @@ describe('0.2.0 自选编队 — a slotted operator in the own shop and battle (
       await c.click('.lo .lo-tab[data-tab="diy"]');
       await c.page.waitForSelector(`.diy-slot[data-slot="${SLOT}"] .diy-slot__fill`, { visible: true, timeout: 15000 });
       const slots = await c.page.evaluate(() => [...document.querySelectorAll('.diy-slot')].map((el) => el.dataset.slot));
-      assert.deepEqual(slots, ['chess_char_5_diy1_a', 'chess_char_5_diy2_a', 'chess_char_6_diy1_a', 'chess_char_6_diy2_a']);
+      assert.deepEqual(slots, ['chess_char_5_diy1_a', 'chess_char_5_diy2_a', 'diyBench_5_1', 'diyBench_5_2', 'chess_char_6_diy1_a', 'chess_char_6_diy2_a', 'diyBench_6_1', 'diyBench_6_2']);
       await c.shot('tab');
       await c.click(`.diy-slot[data-slot="${SLOT}"] .diy-slot__fill`);
       await c.page.waitForSelector(`[data-testid="diy-picker"] .diy-opt[data-char="${SIEGE}"]`, { visible: true, timeout: 8000 });

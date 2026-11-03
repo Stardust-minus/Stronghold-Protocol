@@ -112,6 +112,7 @@ import { ExitModal, AwayOverlay, awayStore } from '../ui/matchChrome.js';
 import { RoundPopup, PhasePopup, phasePopupOf, roundsToBoss, preloadPopupArt } from '../ui/matchPopups.js';
 import { openGuide } from '../ui/guide.js';
 import { actions, onRefreshBusy } from '../ui/gameActions.js';
+import { prediction } from '../ui/prediction.js';
 import { FacingWheel, holdPiece, setPieceDir, syncPieceDirs, showRange, useTileScreen } from '../ui/facingWheel.js';
 import { Underframe, underframeRect, TempRowNotice } from '../ui/underframe.js';
 import { StandInTags } from './game/standInTags.js';
@@ -139,14 +140,14 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, serverNow, isSpectating } from '../store.js';
 import { battleRunner } from '../battle/runner.js';
 import '../ui/pluginFrame.js';
-import { isClientCombat, observeTarget, teammateProgress, cameraLayers, layerCamera, avatarLayer, loneHalf, sidesOf, resumedWatch, followedScout, uniteRelayKey, currentRelayField } from '../battle/observe.js';
+import { isClientCombat, observeTarget, teammateProgress, cameraLayers, layerCamera, avatarLayer, loneHalf, sidesOf, resumedWatch, followedScout, uniteRelayKey, currentRelayField, relayShown } from '../battle/observe.js';
 import { screenStrip, playerBonds, playerLayer, detailBondOwner, toggleBond, popupView } from '../ui/watchBonds.js';
 import { data, getMode } from '../data.js';
 import { audio, resultSpeaker, resultVoiceSlot } from '../audio.js';
 import { useDocClass, FullscreenButton, reducedMotion } from '../ui/device.js';
 // MatchEnded, PausedOverlay, the highlight styles and keepEarly live in ./game/*.js.
 import { HUD_HZ_MS, MERGE_HL, SEL_RANGE, cx } from './game/marks.js';
-import { keepEarly, audioEarly, snapshotStats, snapshotUnitStats, notePieceUnits } from './game/early.js';
+import { keepEarly, trimEarly, audioEarly, snapshotStats, snapshotUnitStats, notePieceUnits } from './game/early.js';
 import { MatchEnded, PausedOverlay } from './game/overlays.js';
 import { inspectRange } from './game/range.js';
 import { t, tParts } from '../../../shared/i18n.js';
@@ -567,6 +568,7 @@ function MatchScreen() {
   live.current.deviceBattle = !!shownField && !shownField.prep;
   const staleFieldRef = useRef(null);
   const enteredFieldRef = useRef(null);
+  const enteredMetasRef = useRef(new WeakSet());          // battle metas (m.field objects) this screen entered
   const enteredViewRef = useRef(null);
   const pressSel = useRef(null);                         // the selected piece when the current field press began
   const enteredRelayRef = useRef(null);
@@ -574,6 +576,9 @@ function MatchScreen() {
     if (enteredRelayRef.current === relayKey) return;
     enteredRelayRef.current = relayKey;
     if (!relayKey) return;
+    // the field on screen already is this relay round (its b.start beat the throttled m.public): nothing to reset —
+    // re-entering it from its opening meta lost every unit's UnitInfo (observe.js relayShown)
+    if (relayShown(enteredFieldRef.current, pub)) return;
     const currentId = pub?.fields?.find(f => f?.kind === 'unite')?.fieldId;
     // Keep early frames of the new field, but no HUD, selection or detail from the previous helpers.
     evBufRef.current = new Map([...evBufRef.current].filter(([id]) => id === currentId));
@@ -600,7 +605,8 @@ function MatchScreen() {
     // field object) must still know which battle the device units already noted belong to.
     const previousFieldId = lastFieldRef.current;
     const previousDevices = deviceUnitsRef.current;
-    if (enteredViewRef.current !== view) {
+    const viewChanged = enteredViewRef.current !== view;
+    if (viewChanged) {
       // A replacement engine has no field, even when the match's m.field object did not change. While it loads,
       // buffer frames instead of sending them to a null/destroyed view; its subscription below asks for fresh meta.
       enteredViewRef.current = view;
@@ -641,6 +647,11 @@ function MatchScreen() {
     if (lastFieldRef.current && lastFieldRef.current !== field.fieldId) setDetail((d) => (inBattleCard(d) ? null : d));
     // the watched player's scouted board sent again (each of their changes): the renderer keeps the unchanged pieces
     // (render/app.js enterBattle) and the camera stays — the pen too, should the viewer be looking at it
+    // a battle meta entered once already, entered again (the refs were reset meanwhile): it is as old as its first entry,
+    // and the units announced since then are not in it — the renderer would draw them as unknown placeholders (the
+    // red droplets of 2026-11-02). Asked for a fresh meta below; a replaced view asks by itself (the subscription).
+    const staleMeta = !field.prep && enteredMetasRef.current.has(field) && !viewChanged;
+    enteredMetasRef.current.add(field);
     const rescout = !!field.prep && !!enteredFieldRef.current?.prep && enteredFieldRef.current.fieldId === field.fieldId;
     enteredFieldRef.current = field;
     lastFieldRef.current = field.fieldId;
@@ -697,7 +708,8 @@ function MatchScreen() {
       // above and places the units again, including an empty board (GitHub #87).
       view.pushSnapshot({
         fieldId: field.fieldId, gt: 0,
-        units: field.units.filter((u) => u && u.id != null).map((u) => [u.id, Number(u.x) || 0, Number(u.y) || 0, u.maxHp || 1, u.maxHp || 1, 0, 0, 0, 0]),
+        // (a unit out of sight — UnitInfo `hidden`: in a DISAPPEAR segment, in flight — is known but not drawn)
+        units: field.units.filter((u) => u && u.id != null && !u.hidden).map((u) => [u.id, Number(u.x) || 0, Number(u.y) || 0, u.maxHp || 1, u.maxHp || 1, 0, 0, 0, 0]),
       });
     }
     if (earlySnap) {
@@ -708,6 +720,10 @@ function MatchScreen() {
       }
       hudRef.current = snapHud(earlySnap);
       setHud(hudRef.current);
+    }
+    if (staleMeta) {
+      if (field.local) battleRunner?.reshow();
+      else net.request('g.watch', { fieldId: field.fieldId }).catch(() => {});
     }
   }, [view, showPrep, priv, editable, field, combat, mode, watchingOther, watching, holdSeq, relayKey, relayFieldReady]);
 
@@ -778,7 +794,7 @@ function MatchScreen() {
         const buf = evBufRef.current.get(msg.fieldId) || [];
         // only state-bearing tuples are replayed later (see the enter effect)
         for (const e of msg.ev) if (keepEarly(e)) buf.push(e);
-        if (buf.length > 1500) buf.splice(0, buf.length - 1500);
+        trimEarly(buf);
         evBufRef.current.set(msg.fieldId, buf);
         if (evBufRef.current.size > 8) evBufRef.current.delete(evBufRef.current.keys().next().value);
         return;
@@ -1158,6 +1174,8 @@ function MatchScreen() {
       if (ok && await actions.destroy(piece.uid)) { closeIt(); return true; }
       return false;
     }
+    // predicted (ui/prediction.js): the piece is gone from the view at once — its card goes with it, not one RTT later
+    if (prediction.enabled) closeIt();
     if (await actions.sell(piece.uid)) { closeIt(); return true; }
     return false;
   }, []);

@@ -232,7 +232,8 @@ test('historical battle traits grant front skills, heal on freeze and never emit
   const target = h.unit('t_melee'), healer = h.unit('t_heal');
   const enemy = h.spawn('enemy_test', { pos: [11, 5] });
   h.b.emit('skillStart', { unit: target });
-  assert.equal(h.result().perPlayer.p1.layerGains.preciShip, 1);
+  // 华法琳's trait (garrison_72) fires twice per skill start in every version (feedback #15 「ff0没有双判」, rel26)
+  assert.equal(h.result().perPlayer.p1.layerGains.preciShip, 2);
   healer.hp -= 300;
   const hp = healer.hp;
   h.b.applyStatus(enemy, 'freeze', { duration: 5, source: healer });

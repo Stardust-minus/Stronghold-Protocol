@@ -793,7 +793,12 @@ export class Network {
           if (details !== null) pong.loadDetails = details;
         } catch { /* diagnostics cannot interrupt heartbeat replies */ }
       }
-      if (this.getClusterLoad) {
+      // a session whose match this process hosts (the coordinator's version rooms: ClusterLobby.hostsMatchOf) gets this
+      // process's load alone — the game-node summary is not its game
+      let hostsMatch = false;
+      try { hostsMatch = this.getClusterLoad !== null && typeof this.handler.hostsMatchOf === 'function' && this.handler.hostsMatchOf(conn.session) === true; }
+      catch { /* diagnostics cannot interrupt heartbeat replies */ }
+      if (this.getClusterLoad && !hostsMatch) {
         try {
           // one summary of every node per second instead of one per heartbeat (cost grew with clients × nodes)
           const cache = this.clusterLoadCache;

@@ -5,7 +5,7 @@
 // offline too long (掉线由 AI 接管: _checkOffline at each prep end, released by onReconnect), dispose.
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
-import { C2S } from '../../../shared/protocol.js';
+import { C2S, ACKED_INTENTS } from '../../../shared/protocol.js';
 import { PHASE, ERR } from '../../../shared/constants.js';
 import { syntheticResult } from '../fields.js';
 import { FLOW_TICKER_PRIORITY, OK, fail, AFK_ACTIONS, OFFLINE_TAKEOVER_ROUNDS } from './common.js';
@@ -13,6 +13,7 @@ import { msg } from '../../../shared/i18n.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
 
 const GAME_TYPES = new Set(Object.keys(C2S).filter((t) => Object.hasOwn(C2S, t) && (t.startsWith('g.') || t.startsWith('b.'))));
+const ACKED = new Set(ACKED_INTENTS);
 
 export class MatchPlatform {
   start() {
@@ -71,6 +72,14 @@ export class MatchPlatform {
     }
     // the AFK rule counts accepted substantive intents only (a spectator's g.watch never is one)
     if (!(res && res.error) && AFK_ACTIONS.has(msg.t)) ps.afkActed = true;
+    // client-side prediction (rel26, shared/protocol.js ACKED_INTENTS): the browser's rid of this prep intent, accepted
+    // or refused, rides on the seat's next m.private as `ack` — the flush below sends it before the reply, and an
+    // m.private that is queued behind the reply still names what it contains. Only a browser's request carries a rid
+    // (an external AI's or a bot's intent never does).
+    if (ACKED.has(msg.t) && Number.isInteger(msg.rid) && msg.rid > 0 && !ps.isBot) {
+      ps.intentAck = msg.rid;
+      this.markPrivate(ps);
+    }
     try { this.flush(); } catch (e) { this.reportError('flush', e); }
     if (res && typeof res === 'object' && res.error) return res;
     return OK;
@@ -150,6 +159,8 @@ export class MatchPlatform {
       const was = ps.connected;
       ps.connected = true;
       ps.offlineRounds = 0;
+      // a new socket (or a reloaded page, whose rids start over): no intent of it has been handled yet
+      ps.intentAck = 0;
       // 掉线由 AI 接管: back in the match, the player plays the seat again (an AI 托管 of its own choice stays on)
       const released = ps.offlineAutoplay && ps.autoplay && !this.ended;
       ps.offlineAutoplay = false;

@@ -3577,7 +3577,7 @@
       ],
       "enemies": {"enemy_1288_duskls":[27,2,25,0,280253],"enemy_1288_duskls_2":[57,5,52,3526,746937],"enemy_1292_duskld":[51,5,46,1640,1113980]},
       "hooks": [1,151,6493,793,793,1340,1340,0,14,137,63,59,286,34522,42,21,135,123,1,155,0,0,0],
-      "events": {"atk":1128,"deploy":14,"die":14,"dmg":1340,"engage":12,"fx":320,"leak":123,"rate":84,"skill":122,"spawn":149,"status":308},
+      "events": {"atk":1128,"deploy":14,"die":14,"dmg":1340,"engage":12,"fx":320,"leak":123,"rate":84,"reload":340,"skill":122,"spawn":149,"status":308},
       "fx": {"displace":8,"ember":141,"reload":44,"revive":111,"zone":16},
       "snaps": "8e7eae25 d69eb301 b815c324 c7eba732 b1c50b22 1510d99f 26ebbd68 3e84f7c6 32213a16 01bc94d9 2e45f96c 398b7f9d d4765271 6b855139 c3b5a212 e8228eff 64236fa4 5d5600b2 b9fbc315 54764cde 9ee3a865 fa0f1c44"
     },
@@ -3616,7 +3616,7 @@
       ],
       "enemies": {"enemy_1045_hammer_2":[18,0,18,13428,120989],"enemy_1061_zomshd":[60,6,54,24949,556863]},
       "hooks": [1,102,6792,507,507,504,504,23237,26,98,38,37,0,17363,67,25,78,72,1,26,0,0,0],
-      "events": {"atk":507,"deploy":24,"die":26,"dmg":504,"engage":12,"fx":15,"leak":72,"skill":75,"spawn":90,"status":60},
+      "events": {"atk":507,"deploy":24,"die":26,"dmg":504,"engage":12,"fx":15,"leak":72,"reload":214,"skill":75,"spawn":90,"status":60},
       "fx": {"displace":15},
       "snaps": "db570559 aa769cff 4af75276 aca90dc0 491d5b7c bd2dfc6b a6e62060 51da3f60 83d55f46 444d0704 26653ad4 03334a6c 3e69e9e6 d8254790 2d0f7bb9 eec2ae72 615f367f 838123f7 09c7edb1 31d70722 2cbc543c df1daa17 9edb44fd"
     },
@@ -3657,7 +3657,7 @@
       ],
       "enemies": {"enemy_1249_lysdb_2":[60,60,0,0,1289945],"enemy_1251_lysyta":[51,51,0,0,502541],"enemy_1254_lypa_2":[54,54,0,0,1934918]},
       "hooks": [1,179,6167,621,621,7913,7913,0,165,165,70,67,0,33987,61,0,165,0,1,165,0,0,0],
-      "events": {"atk":2618,"deploy":12,"die":165,"dmg":7853,"engage":10,"fx":169,"rate":151,"skill":137,"spawn":179,"status":62},
+      "events": {"atk":2618,"deploy":12,"die":165,"dmg":7853,"engage":10,"fx":169,"rate":151,"reload":283,"skill":137,"spawn":179,"status":62},
       "fx": {"aoe":95,"displace":14,"shieldBreak":60},
       "snaps": "975a40db 626eec84 7d9ad8f4 4bf4f2e2 18297212 c14ad281 3fe2498b 6bbe5080 e8a053bb d3bb85f0 f92e3493 1a01d744 9de4bdc1 0d245df5 fe1b01d0 1cc3033e 79406533 5ddd40d1 b048e585 12df0bd2 bf96052f"
     },

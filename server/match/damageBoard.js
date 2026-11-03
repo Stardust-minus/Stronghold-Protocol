@@ -21,6 +21,9 @@ export class DamageBoard {
     this.fields = new Map();
     this.previousRound = null;
     this._frozen = null;
+    // the frozen packet of each final scope (最终攻势 'boss', 隐秘核心 'hidden'), kept for the settlement (results.js
+    // bossDamageRows; feedback #70 / #81): a later scope never overwrites another one's
+    this.finals = {};
   }
 
   /** Call on actual battle start, NOT startRound/PREP. Same-round unite preserves normal finals. */
@@ -104,6 +107,7 @@ export class DamageBoard {
       this.status = 'frozen';
       this._frozen = this._packet();
       this.previousRound = clone(this._frozen);
+      if (this.phase === 'boss' || this.phase === 'hidden') this.finals = { ...this.finals, [this.phase]: clone(this._frozen) };
     }
     return clone(this._frozen);
   }

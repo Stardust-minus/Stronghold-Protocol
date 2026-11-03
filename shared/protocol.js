@@ -10,7 +10,7 @@ import { isSkinChoices } from './skins.js';
 export const SERVER_LOAD_STATES = Object.freeze(['unknown', 'normal', 'busy', 'overloaded']);
 export const normalizeServerLoad = value => typeof value === 'string' && SERVER_LOAD_STATES.includes(value) ? value : 'unknown';
 import { isDroppableChess } from './standIn.js';
-import { diySlotIds, validateDiyPicks } from './diy.js';
+import { diySlotIds, diyBenchIds, validateDiyPicks } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT, hasPotentialData } from './potential.js';
 import { isContentHash } from './plugins/identity.js';
 import { isPluginId } from './plugins/manifest.js';
@@ -412,7 +412,8 @@ export function checkNotOwned(list, getChess) {
  * (room for more slots in a later season); the semantic check (`checkDiyPicks`) is LENIENT, like checkNotOwned: an
  * illegal pick — not a pick of the slot's tier, an operator without a kit, a prototype off its locked skill, an unknown
  * skill / module, the same operator twice in a tier, an owned operator in a second slot, an unknown slot — is dropped,
- * never the whole roster; only malformed input is BAD_MSG.
+ * never the whole roster; only malformed input is BAD_MSG. The map also carries the 候补 (feedback #114: `diyBench_<tier>_<n>`
+ * keys, shared/diy.js DIY_BENCH_SIZE): four slots + four bench keys fill the limit.
  */
 export const DIY_LIMITS = Object.freeze({ slots: 8 });
 const isDiyPickWire = (p) => p === null || (isPlain(p) && isId(p.charId)
@@ -426,7 +427,8 @@ export const isDiyPicks = (v) => isMap(v, DIY_LIMITS.slots, isId, isDiyPickWire)
  * the slots are taken in data order (tier 5, then tier 6), and each pick is kept when the roster so far plus it still
  * passes shared/diy.js validateDiyPicks — so the result always passes it, and of two picks that clash (one owned operator
  * in two slots, one operator twice in a tier) the first slot keeps it. Kept picks are complete
- * (`{ charId, skillIndex, uniEquipId }`: a prototype's locked selection, uniEquipId null = no module).
+ * (`{ charId, skillIndex, uniEquipId }`: a prototype's locked selection, uniEquipId null = no module). The 候补 keys come
+ * after every slot (tier 5's, then tier 6's), so a slot wins a clash with a bench pick.
  * `collab`: the room has 联动干员 on (shared/diy.js isCollabPick; off = a collab pick is dropped).
  * @param {any} picks `room.diy.picks`
  * @param {{ data: any, kitted?: Iterable<string>|((id: string) => boolean)|null, collab?: boolean }} opts
@@ -435,7 +437,7 @@ export const isDiyPicks = (v) => isMap(v, DIY_LIMITS.slots, isId, isDiyPickWire)
  */
 export function checkDiyPicks(picks, { data, kitted = null, collab = false } = { data: null }) {
   if (!isDiyPicks(picks)) return { error: 'BAD_MSG', detail: 'bad 自选 picks' };
-  const slots = diySlotIds(data);
+  const slots = [...diySlotIds(data), ...diyBenchIds(data)];
   /** @type {Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>} */
   const kept = {};
   let dropped = 0;
@@ -479,17 +481,22 @@ const statView = (x) => ({
  * target-selection grid (the sim's `unit.liveRangeGrid`, Battle._refreshRange; community report E1 after 0.1.0: 烛煌
  * S3's 4-11 never reached the card). `dir`: the unit's facing now (UP / RIGHT / DOWN / LEFT; UnitInfo.dir is the facing
  * at send time and the snapshot tuples carry none) — the detail card's range overlay rotates by it (GitHub PR #281).
+ * An ally with a redeploy time carries `respawnTime` (s, one decimal): the time a knock-out now waits — its own
+ * `base.respawnTime` × the redeploy multipliers (`s.redeployMul` × `unit.persist.redeployMul`: equipment, 特质 such as
+ * 耀骑士临光's grant, bonds, strategies), the formula of Battle._remove; `base.respawnTime` its own (feedback #86: the
+ * card showed only the record's 再部署).
  * @param {{ id?: number, uid?: number|null, defId?: string, hp?: number, alive?: boolean, base?: any, liveRangeGrid?: any, dir?: string, cultMul?: { atk: number, def: number, hp: number }, side?: string } | null} u
  * @param {any} [s] aggregated stats (missing ⇒ the base)
  * @returns {{ id: number|null, uid: number|null, defId: string|null, hp: number, alive: boolean, maxHp: number, atk: number,
  *   def: number, res: number, interval: number|null, blockCnt: number, moveSpeed: number,
  *   base: { maxHp: number, atk: number, def: number, res: number, interval: number|null, blockCnt: number, moveSpeed: number },
- *   range?: Array<[number, number]>, dir?: string, silenced: boolean }}
+ *   respawnTime?: number, range?: Array<[number, number]>, dir?: string, silenced: boolean }}
  */
 export function unitStatsEntry(u, s = null) {
   const own = u && u.base && typeof u.base === 'object' ? u.base : {};
   const base = u && u.cultMul ? cultivatedStats(own, u.cultMul) : own;
   const cur = s && typeof s === 'object' ? s : base;
+  const rt = u?.side !== 'enemy' ? fin(own.respawnTime, 0) : 0;
   const range = u?.side !== 'enemy' && Array.isArray(u?.liveRangeGrid)
     ? u.liveRangeGrid.filter((p) => Array.isArray(p) && Number.isInteger(p[0]) && Number.isInteger(p[1])).map((p) => /** @type {[number, number]} */ ([p[0], p[1]]))
     : null;
@@ -500,7 +507,8 @@ export function unitStatsEntry(u, s = null) {
     hp: Math.max(0, Math.round(fin(u?.hp))),
     alive: u?.alive !== false,
     ...statView(cur),
-    base: statView(base),
+    ...(rt > 0 ? { respawnTime: round1(rt * fin(cur.redeployMul, 1) * fin(u?.persist?.redeployMul, 1)) } : {}),
+    base: rt > 0 ? { ...statView(base), respawnTime: round1(rt) } : statView(base),
     ...(range ? { range } : {}),
     ...(isDir(u?.dir) ? { dir: u.dir } : {}),
     // the enemy card greys a SILENCE-format line (折射) from this; absent flags ⇒ not silenced
@@ -540,6 +548,14 @@ const target = (v) => {
   if (v.area === 'hand') return isInt(v.idx, 0, GEO.HAND_SIZE - 1);
   return false;
 };
+
+/**
+ * The prep intents the browser predicts (rel26, public/js/ui/prediction.js): the match echoes the `rid` of the latest
+ * one it handled from a seat — accepted or refused — as that seat's m.private `ack` (server/match/match/platform.js), so
+ * the client knows which of its predicted intents an authoritative state already contains. A server without `ack`
+ * (rel25 and older) leaves the client's prediction off.
+ */
+export const ACKED_INTENTS = Object.freeze(['g.buy', 'g.sell', 'g.move', 'g.refresh', 'g.freeze', 'g.levelUp']);
 
 /** @type {Record<string, { [field: string]: ((v:any)=>boolean) | string[], $optional?: string[] }>} */
 export const C2S = {
@@ -653,6 +669,9 @@ export const C2S = {
 
   // match
   'g.infoReady': { setupRevision: (v) => isInt(v, 0, 2 ** 31), $optional: ['setupRevision'] },
+  // 自选候补 (feedback #114, shared/diy.js resolveDiySlots): in the briefing (INFO_CHECK) the candidates of one tier of the
+  // player's preset that fill its slots — exactly min(slots, candidates) distinct charIds of m.private diyChoice
+  'g.diyChoose': { tier: (v) => isInt(v, 1, 9), charIds: (v) => isList(v, 4, isId) },
   'g.rerollVote': { voteId: (v) => isInt(v, 1, 2 ** 31), agree: isBool },
   // 投票移出 (server/match/match/kickVote.js): propose removing an offline teammate under AI takeover (SP_DRAFT / PREP),
   // and answer the open vote (m.public kickVote.id); the proposer's agree:false withdraws it
@@ -849,6 +868,9 @@ export const EV = Object.freeze({
   // only: the renderer paces the attack clip over it (render/attackRate.js) instead of waiting to measure two attacks,
   // which is what made the first swing of a skill / buff change slow-motion for a while.
   RATE: 'rate',
+  // ['reload', id, seconds] - a 猎手 began a reload of that length (server/sim/professions.js installHunter, 莱伊's kit):
+  // display only, the model's Reload clip over it (render/spine.js reload); its bullets are b.snap `mag`
+  RELOAD: 'reload',
 });
 
 /**

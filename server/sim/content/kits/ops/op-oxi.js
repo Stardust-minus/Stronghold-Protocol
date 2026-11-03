@@ -121,7 +121,10 @@ function installDeathLayers(battle, unit) {
     const u = c.unit, sk = unit.skill;
     if (c.reason !== 'killed' || c.revivedBy || u === unit || u?.side !== 'ally' || u.kind !== 'op' || !up(unit)) return;
     if (!(sk?.id === S3 ? sk.active : sk?.id === S2 && stateOf(unit).layers > 0)) return;
-    for (const bond of DEATH_BONDS) battle.addLayers(unit.ownerId, bond, DEATH_LAYERS, 'oxi', { source: unit });
+    // her own 奥术 / 不屈 only: 第一期 has no 奥术 and makes her 协防 + 不屈 (tools/versions/act1autochess.mjs diyBonds), and a
+    // gain to a bond the version lacks would fail the field's result check (server/match/fields.js 'bond')
+    const own = unit.def?.bonds || [];
+    for (const bond of DEATH_BONDS) if (own.includes(bond)) battle.addLayers(unit.ownerId, bond, DEATH_LAYERS, 'oxi', { source: unit });
   }, { owner: unit });
 }
 

@@ -389,6 +389,47 @@
 .steam__outcome, .steam__rounds, .steam__when, .sbtn { animation: steam-bar 420ms var(--ease-out) 520ms both; }
 @keyframes steam-bar { from { opacity: 0; transform: translateY(.2rem); } }
 
+/* 领袖战输出 (feedback #70 / #81): a card's boss-damage report — a disclosure under its stats (screens/result.js BossDamage) */
+.rdmg { border: 1px solid var(--line); background: rgba(8, 11, 10, .72); }
+.rdmg__sum { display: flex; align-items: center; gap: .1rem; padding: .05rem .1rem; cursor: pointer; list-style: none; font-size: calc(.14 * var(--t)); color: var(--text-md); min-height: max(.32rem, calc(28px * var(--ui))); }
+.rdmg__sum::-webkit-details-marker { display: none; }
+.rdmg__sum::marker { content: ''; }
+.rdmg__sum:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 2px; }
+.rdmg__sum > .icon { width: .16rem; height: .16rem; flex: none; color: var(--mint-500); }
+.rdmg__title { font-weight: 700; color: #fff; white-space: nowrap; }
+.rdmg__peek { display: inline-flex; align-items: baseline; gap: .04rem; margin-left: .06rem; white-space: nowrap; }
+.rdmg__peek small { font-size: calc(.12 * var(--t)); color: var(--text-lo); }
+.rdmg__peek b { font-size: calc(.16 * var(--t)); color: var(--gold); }
+.rdmg__chev { margin-left: auto; transition: transform .16s ease; }
+.rdmg[open] .rdmg__chev { transform: rotate(90deg); }
+.rdmg__bar { display: flex; flex-wrap: wrap; align-items: center; gap: .06rem .12rem; padding: .04rem .1rem .06rem; border-top: 1px solid var(--line); }
+.rdmg__seg { display: flex; border: 1px solid var(--line); }
+.rdmg__seg > button { min-width: .6rem; min-height: max(.28rem, calc(26px * var(--ui))); padding: 0 .08rem; border: 0; background: transparent; color: var(--text-md); font: inherit; font-size: max(calc(.13 * var(--t)), calc(12px * var(--ui))); cursor: pointer; }
+.rdmg__seg > button + button { border-left: 1px solid var(--line); }
+.rdmg__seg > button.is-on { background: var(--mint-500); color: var(--text-on-mint); font-weight: 600; }
+.rdmg__seg > button:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 2px; }
+.rdmg__scope { font-size: calc(.13 * var(--t)); color: var(--text-md); }
+.rdmg__total { margin-left: auto; display: inline-flex; align-items: baseline; gap: .04rem; flex-wrap: wrap; font-size: calc(.12 * var(--t)); color: var(--text-lo); }
+.rdmg__total b { font-size: calc(.16 * var(--t)); color: #fff; margin-right: .06rem; }
+.rdmg__rows { list-style: none; margin: 0; padding: .02rem .1rem .08rem; display: grid; gap: .03rem; }
+.rdmg__cols { padding: .03rem .1rem 0; font-size: calc(.11 * var(--t)); color: var(--text-lo); }
+.rdmg__cols .rdmg__val { font-size: inherit; color: inherit; }
+.rdmg__row { display: grid; grid-template-columns: .2rem .34rem minmax(0, 1.4fr) minmax(.4rem, 1fr) auto 3.4em 3.6em; align-items: center; gap: .08rem; font-size: calc(.13 * var(--t)); color: var(--text-md); }
+.rdmg__rank { text-align: right; color: var(--text-lo); }
+.rdmg__other { display: inline-flex; align-items: center; justify-content: center; width: .34rem; height: .34rem; background: #0e1210; box-shadow: 0 0 0 1px var(--line); color: var(--text-lo); }
+.rdmg__other svg, .rdmg__other .gicon { width: .2rem; height: .2rem; }
+.rdmg__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; }
+.rdmg__meter { display: block; height: 4px; overflow: hidden; background: var(--mint-a10); }
+.rdmg__meter > i { display: block; height: 100%; width: 100%; border-radius: 0 4px 4px 0; background: var(--mint-700); transform-origin: left; }
+.rdmg__val { text-align: right; color: #fff; font-size: calc(.15 * var(--t)); }
+.rdmg__rate, .rdmg__share { text-align: right; color: var(--text-lo); white-space: nowrap; }
+.rdmg__empty { margin: 0; padding: .06rem .1rem .08rem; font-size: calc(.13 * var(--t)); color: var(--text-lo); }
+@media (prefers-reduced-motion: reduce) { .rdmg__chev { transition: none; } }
+@media (forced-colors: active) {
+  .rdmg__meter { border: 1px solid CanvasText; background: Canvas; }
+  .rdmg__meter > i { forced-color-adjust: none; background: repeating-linear-gradient(135deg, CanvasText 0 2px, Canvas 2px 4px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .settle *, .settle *::before, .settle *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; }
   .sintro { display: none; }

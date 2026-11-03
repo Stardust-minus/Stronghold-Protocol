@@ -45,7 +45,9 @@ import {
 import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, setNotOwned, setDiyPicks, setSkins, applyOperatorPreset } from '../ui/loadoutSync.js';
 import { serializeOperatorPreset, parseOperatorPreset, OPERATOR_PRESET_MAX_BYTES } from '../ui/operatorPresetModel.js';
 import { SkinPicker } from '../ui/skinPicker.js';
-import { ownAppearance } from '../ui/skinAssets.js';
+import { ownAppearance, appearanceEntry } from '../ui/skinAssets.js';
+import { skinIdFor } from '../../../shared/skins.js';
+import { DynamicIllustration } from '../ui/dynamicIllustration.js';
 import { OperatorVoice } from '../ui/operatorVoice.js';
 import { CultivationSelects, CultivationSection, cultivationView, potentialEditable } from './cultivation.js';
 import { setOwned, notOwnedCount } from '../ui/ownershipModel.js';
@@ -57,7 +59,7 @@ import { ModuleGlyph, ModuleInfo, SkillOption, SkillIcon, SkillSection, ModuleSe
 export { ModuleGlyph, ModuleInfo, SkillOption };
 import { LoadoutStats } from '../ui/loadoutStats.js';
 export { LoadoutStats, statsPreview } from '../ui/loadoutStats.js';
-import { diyCount, sanitizeDiyPicks, setPick, diySlotList, slotRecord } from '../ui/diyModel.js';
+import { diyCount, diyCapacity, diyMatchOff, sanitizeDiyPicks, setPick, diySlotList, slotRecord } from '../ui/diyModel.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { copyText } from '../ui/clipboard.js';
 import { toast } from '../ui/toasts.js';
@@ -221,10 +223,14 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
   const choice = effectiveChoice(entries, chess, golden);
   const cv = cultivationView(chess.charId, ops);
   const changed = choice.changed || cv.changed;
+  // the chosen appearance's 动态立绘 animates over the art box (ui/dynamicIllustration.js cover mode, 12 % as the picture's
+  // object-position: the face)
+  const dyn = appearanceEntry(m, chess.charId, skinIdFor(skins, chess.charId))?.dynamic || null;
   return html`<aside class="lo-detail" aria-label=${t('{name} 调配', { name: chess.name })}>
     <div class="lo-dhead">
       <div class=${cx('lo-dhead__art', `lo-dhead__art--t${chess.tier}`)}>
         <${Img} src=${chessPortraitUrl(m, ownAppearance(golden || chess, { skins }))} fallbackSrc=${chessPortraitUrl(m, golden || chess)} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
+        ${dyn ? html`<${DynamicIllustration} mode="cover" entry=${dyn} focusY=${12} minWidth=${80} />` : null}
       </div>
       <div class="lo-dhead__info">
         <div class="lo-dhead__chips"><${TierChip} tier=${chess.tier} size="md" />
@@ -725,9 +731,14 @@ function LoadoutScreen({ st, leaving = false }) {
   const nNotOwned = notOwnedCount(st.notOwned, ownRoster);
   // 自选编队 (0.2.0 DIY): the stored picks, those the server would keep (the kit list of the last welcome)
   const nDiy = diyCount(st.diy);
+  // the slots and the 候补 (feedback #114): 8 with the official data
+  const diyCap = (ready && diyCapacity(diyData())) || 8;
   // 联动干员: in a room with it on, the collab 6★ are picks too (the server keeps them only there)
   const collabRoom = useStore((s) => isCollabRoom(s.room?.experimental));
   const diyLegal = ready ? sanitizeDiyPicks(st.diy, diyData(), st.diyKitted || [], { collab: collabRoom }) : {};
+  // 自选候补 (feedback #114): opened during a match, whose bans are known, the 自选编队 cards name the bonds that are off
+  const matchPub = useStore((s) => (s.room?.inMatch ? s.match?.public ?? null : null));
+  const diyOff = ready ? diyMatchOff(matchPub, data.get('config')) : null;
   const setDiySlot = (slotId, pick) => setDiyPicks(setPick(loadoutStore.get().diy, slotId, pick));
   const clearDiy = async () => {
     if (!nDiy) return;
@@ -961,7 +972,7 @@ function LoadoutScreen({ st, leaving = false }) {
       </div>
       ${tab === 'diy' ? html`<div class="lo-top__right">
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status" data-testid="diy-sync">${t(syncText)}</span>` : null}
-        <span class="lo-count">${t('已选')} <b class="num">${nDiy}</b><span class="num t-dim">/4</span></span>
+        <span class="lo-count">${t('已选')} <b class="num">${nDiy}</b><span class="num t-dim">/${diyCap}</span></span>
         <${Button} variant="ghost" size="sm" data-testid="diy-export" data-preset-action="export" onClick=${openExport} title=${t('导出完整干员预设')}>${t('导出预设')}<//>
         <${Button} variant="ghost" size="sm" data-testid="diy-import" data-preset-action="import" disabled=${!ready} onClick=${openImport} title=${t('导入干员预设（兼容旧配置）')}>${t('导入预设')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" data-testid="diy-reset" disabled=${!nDiy} onClick=${clearDiy}>${t('全部清空')}<//>
@@ -1035,7 +1046,7 @@ function LoadoutScreen({ st, leaving = false }) {
       : html`<p class=${cx('lo-note', locked && 'is-locked')}><${Icon} name="info" />${locked ? lockedText : fromText}</p>`}
     ${!ready ? html`<div class="lo-loading"><${Spinner} size="sm" />${t('正在载入干员数据（打开页面后仅载入一次）…')}</div>`
       : lost.length ? html`<${DataMissing} files=${lost} />` : tab === 'diy'
-      ? html`<${DiyPanel} m=${m} picks=${st.diy || {}} legal=${diyLegal} kitted=${st.diyKitted} collab=${collabRoom} onSet=${setDiySlot} skins=${st.skins} skinSync=${st.skinSync} onSkins=${setSkins} ops=${st.ops} onOps=${setOpsOf} />`
+      ? html`<${DiyPanel} m=${m} picks=${st.diy || {}} legal=${diyLegal} kitted=${st.diyKitted} collab=${collabRoom} onSet=${setDiySlot} skins=${st.skins} skinSync=${st.skinSync} onSkins=${setSkins} ops=${st.ops} onOps=${setOpsOf} off=${diyOff} />`
       : tab === 'ownership'
       ? html`<${OwnershipPanel} m=${m} roster=${ownRoster} notOwned=${st.notOwned} onToggle=${toggleOwned} />`
       : deck ? html`<main class="lo-deckwrap">

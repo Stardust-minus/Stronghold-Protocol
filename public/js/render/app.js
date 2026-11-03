@@ -274,6 +274,8 @@ export async function createFieldView(host, options = {}) {
     vfxGround: new P.Container(), vfxOver: new P.Container(),
   };
   layers.units.sortableChildren = true;
+  // the HUDs under the feet (render/units.js HUD_LAYOUT) overlap the next row's units: a nearer unit's HUD draws over a farther one's
+  layers.bars.sortableChildren = true;
   world.addChild(layers.ground, layers.anim, layers.overlay, layers.shadow, layers.groundFx, layers.vfxGround, layers.fxNormal, layers.units, layers.fxAdd, layers.vfxOver, layers.bars, layers.text);
   stage.addChild(backdrop, world, layers.screen);
 
@@ -377,6 +379,8 @@ export async function createFieldView(host, options = {}) {
   let leaderHidden = true;    // shown only by the boss-field prep camera (leaderShown)
 
   const heightAt = (r, c) => (tiles ? tiles.heightAt(r, c) : 0);
+  /** Whether the view runs on the battle's clock: a battle on screen — not the prep board, not a scouted prep board. */
+  const battleClock = () => mode === 'battle' && !battleMeta?.prep;
   const ctx = {
     P, layers, assets, settings, fx: null, shadowTex: shadowTexture(),
     audio: opts.audio || null,   // the prep landings' sound (UnitView.land → audio.deployCue)
@@ -384,8 +388,11 @@ export async function createFieldView(host, options = {}) {
     // frame, because it is a preference of the page (ui/fieldHost.js passes the settings it already subscribes to).
     myPlayerId: typeof opts.myPlayerId === 'string' ? opts.myPlayerId : null,
     cam: () => cam, heightAt,
-    animRate: () => (mode === 'battle' ? interp.rate : 1),
-    timeScale: () => (opts.playbackTime ? 1 : mode === 'battle' ? interp.rate : 1),
+    // a scouted prep board (a teammate's lineup during prep, battleMeta.prep) is a prep board, not a battle: its models idle
+    // at the own prep's pace, never at a battle clock (the stream's 2 game s per real second, 4 under 战斗 2 倍速 — the
+    // owner's report of 2026-11-02: 「在备战阶段观战队友，队友场上的动画会以二倍速播放」)
+    animRate: () => (battleClock() ? interp.rate : 1),
+    timeScale: () => (opts.playbackTime ? 1 : battleClock() ? interp.rate : 1),
     // (a chess fighting as its 补位 stand-in — `standInFor` — reads the stand-in's record: its attack interval)
     lookupDef: (info) => {
       const rec = info.side === 'enemy' ? data.enemy(info.defId)
@@ -1563,6 +1570,12 @@ export async function createFieldView(host, options = {}) {
     const rect = meta.rect ? normRect(meta.rect) : (meta.kind === 'boss' || meta.kind === 'hidden' ? { ...GEO.BOSS_RECT } : meta.kind === 'unite' ? { ...GEO.UNITE_RECT } : { ...GEO.NORMAL_RECT });
     // prep: true = a read-only scouting board (a teammate's lineup during prep): prep-style pieces, no bars
     battleMeta = { fieldId: meta.fieldId ?? null, kind: meta.kind || 'normal', rect, stageId: meta.stageId ?? null, prep: meta.prep === true };
+    // the units' UnitInfo before any scene work: a throw below (the pen, the stage, the board rect — guarded by
+    // ui/fieldHost.js) used to leave the field entered with no info at all, every unit an unknown placeholder
+    for (const u of Array.isArray(meta.units) ? meta.units : []) {
+      const info = applyInfo(u);
+      if (info && battleMeta.prep) info._look = scoutLook(u);
+    }
     // a scouted teammate's board shows THEIR pen (m.field nextEnemies; without it the shared wave composition of the
     // own preview, bounties excluded); a real battle empties the pen (the enemies are about to spawn)
     if (battleMeta.prep) setPenList(Array.isArray(meta.nextEnemies) ? meta.nextEnemies : (ownPen || []).filter((x) => x && x.source !== 'bounty' && x.source !== 'effect'));
@@ -1573,10 +1586,6 @@ export async function createFieldView(host, options = {}) {
     }
     tiles.setBattleRect(rect);
     board3d?.setBattleRect(rect);
-    for (const u of Array.isArray(meta.units) ? meta.units : []) {
-      const info = applyInfo(u);
-      if (info && battleMeta.prep) info._look = scoutLook(u);
-    }
     // the official effects of this battle's units load now (the prep → battle switch), the board's heights for their
     // depth-tested materials
     if (ofx.active && !battleMeta.prep) {
@@ -1770,6 +1779,8 @@ export async function createFieldView(host, options = {}) {
         if (v) { const custom = pluginFx.skill(v, !!e[2]); v.setSkill?.(!!e[2]); if ((!wiring.skill(v, !!e[2]) && !custom) || !e[2]) fx.skill(v, !!e[2]); }
         break;
       }
+      // a 猎手's reload ['reload', id, seconds] (shared/protocol.js EV.RELOAD): its Reload clip over it
+      case 'reload': { const v = views.get(e[1]); if (v) v.onReload?.(Number(e[2]) || 0); break; }
       // the skill slot an enemy ability casts (PR #275): the view swaps to that slot's clip (a multi-skill boss's Skill_01..04)
       // (and its official skill effects: render/vfx/skillfx.js cast — index v2 has the enemies' skills)
       // an attack-class skill cast in the attack's turn ['cast', id, slot, dur, clip] plays its clip in place of the attack
@@ -1935,7 +1946,9 @@ export async function createFieldView(host, options = {}) {
         if (s.anim === ANIM.DIE || !(s.hp > 0)) continue; // the tail of its DIE window: stays gone
         gone.delete(id);                                  // alive again (redeployed without an event)
       }
-      if (!v) v = battleView(id) || createUnknown(id, s);
+      // a corpse nobody announced (its DIE window in the snapshots: the field meta lists only the living — a field entered
+      // or re-entered while it died) is not drawn: as an unknown it was a red placeholder diamond flashing for 0.8 s
+      if (!v) v = battleView(id) || (s.anim === ANIM.DIE || !(s.hp > 0) ? null : createUnknown(id, s));
       if (!v) continue;
       if (!v._seen) { v._seen = true; v.fadeIn = 0; queueBeam(v, renderT); }
       syncView(v, presentation.sample(s), renderT);

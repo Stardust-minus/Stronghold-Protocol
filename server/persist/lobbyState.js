@@ -7,7 +7,8 @@
 //     reconnect window. A client that comes back with its token after the restart is the same player in the same seat.
 //     A session outside any room is not saved: its client simply gets a fresh identity (nothing is lost).
 //   * rooms: code, mode, difficulty, options, host, seats (humans and AI), spectators, the per-network keys, the match
-//     counter — and the running match's reference: a local match's checkpoint id (`local`), or a cluster match's
+//     counter — and the running match's reference: a local match's checkpoint id (`local`), an official version's match
+//     in its version host (`hosted`: checkpoint id and version, server/persist/persister.js), or a cluster match's
 //     assignment (`remote`: node, epochs and its assignment DTO — the game node keeps the checkpoint itself).
 //
 // WHAT IS NOT
@@ -168,7 +169,8 @@ export function restoreLobby({ doc, registry, lobby, now = Date.now(), log = nul
 function roomFrom(r, sessions, lobby, now) {
   if (!plain(r) || !ROOM_RE.test(String(r.code)) || lobby.rooms.has(r.code) || !['solo', 'coop'].includes(r.mode)
     || !DIFFICULTIES.includes(r.difficulty) || !isExperimental(r.experimental) || !Array.isArray(r.seats)) return null;
-  // another official version's room comes back as that version's room, without its match (hosted matches keep no checkpoint)
+  // another official version's room comes back as that version's room (its match, if any, from its `hosted` checkpoint:
+  // persister.js restoreHosted) — only while this server still offers that version
   const version = r.version ?? DEFAULT_VERSION;
   if (version !== DEFAULT_VERSION && !(lobby.versionEnabled?.(version) && lobby.versionAvailable?.(version))) return null;
   const room = new Room(r.code, r.mode, r.difficulty, Number.isFinite(r.createdAt) ? r.createdAt : now, experimentalOptions(r.experimental), version);

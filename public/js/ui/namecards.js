@@ -4,6 +4,11 @@
 // faction's colour). A card id is `loading:<key>` or `camp:<key>`; an unknown id (an older or newer client's) shows nothing.
 // `skin:<skin id>` (feedback #24, the owner's decision of 2026-10-17): an operator skin's full illustration (assets.json
 // skins[id].illustration, ~4 MB — only the plates that use it load it; the picker shows the skins' half-body art).
+// A collab operator's skin (its art in the collab pack, shared/collabAssets.js) is never a name card: a plate shows in
+// every room the player joins, and a room without 联动干员 must not load the pack's art.
+// A skin card whose skin has an official 动态立绘 (skins[id].dynamic; the owner's decision of 2026-11-02) animates it over
+// the static plate where the plate is at least 200 px wide and on screen (ui/dynamicIllustration.js cover mode: its slot
+// cap, off-screen unloads, reduced-motion / slow-device / failure fallbacks to the static picture).
 // The pick is kept in the browser (NAMECARD_PREF) and travels with room.card (ui/playerCard.js) so teammates see it.
 // The part of a picture the plate shows (feedback #61): dragged up and down in the picker, `y` in percent (NAMECARD_Y_PREF,
 // room.card bgY); a faction emblem has nothing to crop. Styles: --nc-y in css/screens/lobby.css.
@@ -13,6 +18,8 @@ import { html, Icon } from './components.js';
 import { data, useData } from '../data.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { OPERATOR_SKINS } from '../../../shared/skins.js';
+import { isCollabUrl } from '../../../shared/collabAssets.js';
+import { DynamicIllustration } from './dynamicIllustration.js';
 
 export const NAMECARD_PREF = 'room.namecard';
 export const NAMECARD_Y_PREF = 'room.namecard.y';
@@ -119,9 +126,18 @@ const safeUrl = (src) => (typeof src === 'string' && src && !/["\\)]/.test(src) 
 export function namecardSrc(card, m = data.get('assets'), half = false) {
   if (card?.kind === 'skin') {
     const s = m?.skins && typeof m.skins === 'object' && Object.hasOwn(m.skins, card.skinId) ? m.skins[card.skinId] : null;
-    return safeUrl(half ? s?.portrait : s?.illustration);
+    const url = half ? s?.portrait : s?.illustration;
+    return isCollabUrl(url) ? null : safeUrl(url);
   }
   return safeUrl(card && m?.ui && typeof m.ui === 'object' ? m.ui[card.assetKey] : null);
+}
+
+/** The 动态立绘 of a skin card's skin (`skins[id].dynamic`), or null — never a collab one (see the header). */
+export function namecardDynamic(card, m = data.get('assets')) {
+  if (card?.kind !== 'skin') return null;
+  const s = m?.skins && typeof m.skins === 'object' && Object.hasOwn(m.skins, card.skinId) ? m.skins[card.skinId] : null;
+  const dyn = s?.dynamic;
+  return dyn && typeof dyn.skel === 'string' && !isCollabUrl(dyn.skel) && !isCollabUrl(s.illustration) ? dyn : null;
 }
 
 /**
@@ -135,7 +151,9 @@ export function NameCardLayer({ card, y = null }) {
   const src = namecardSrc(nc);
   if (!nc || !src) return null;
   const pos = namecardY(y);
-  return html`<span class=${`nc-layer nc-layer--${nc.kind}`} style=${`--nc:url("${src}")${nc.tint ? `; --nc-tint:${nc.tint}` : ''}${pos == null ? '' : `; --nc-y:${pos}%`}`} aria-hidden="true"></span>`;
+  const dyn = namecardDynamic(nc);
+  return html`<span class=${`nc-layer nc-layer--${nc.kind}`} style=${`--nc:url("${src}")${nc.tint ? `; --nc-tint:${nc.tint}` : ''}${pos == null ? '' : `; --nc-y:${pos}%`}`} aria-hidden="true">${
+    dyn ? html`<${DynamicIllustration} mode="cover" entry=${dyn} focusY=${pos ?? defaultY(nc)} minWidth=${200} />` : null}</span>`;
 }
 
 /** Whether a card has a picture to crop (a faction emblem does not). @param {any} nc */
@@ -201,7 +219,7 @@ export function NameCardPicker({ current, y = null, onPick, onAdjust = null, onC
   // the skins in the art index, searchable by skin, brand or operator name; tiles show the half-body art (lazy)
   const needle = q.trim().toLowerCase();
   const charName = (s) => String(s.charName || '');
-  const skins = OPERATOR_SKINS.filter((s) => m?.skins?.[s.id]?.illustration)
+  const skins = OPERATOR_SKINS.filter((s) => m?.skins?.[s.id]?.illustration && !isCollabUrl(m.skins[s.id].illustration))
     .filter((s) => !needle || [t(s.name), t(s.brand || ''), charName(s)].some((x) => x.toLowerCase().includes(needle)));
   const skinCard = (s) => { const id = `skin:${s.id}`, src = namecardSrc(namecardOf(id), m, true);
     return html`<button key=${id} type="button" class=${`nc-pick__card nc-pick__card--skin${current === id ? ' is-on' : ''}`} onClick=${() => pick(id)} title=${`${charName(s)} · ${t(s.name)}`}>

@@ -2,6 +2,7 @@
 
 import { int, isObj, sortedPlayers } from './shared.js';
 import { t } from '../../../../shared/i18n.js';
+import { normalizeBossDamage } from '../bossDamage.js';
 
 
 // ---- result -----------------------------------------------------------------------------------------------------------
@@ -37,6 +38,8 @@ export function normalizeResult(res, pub) {
       lineup: (Array.isArray(p.lineup) ? p.lineup : Array.isArray(p.board) ? p.board : []).filter(isObj).slice(0, 12),
       bonds: (Array.isArray(p.bonds) ? p.bonds : Array.isArray(pp.bonds) ? pp.bonds : []).filter(isObj),
       stats: isObj(p.stats) ? p.stats : {},
+      // the 领袖战 damage report (ui/bossDamage.js; feedback #70 / #81): [] when the row has none
+      damage: normalizeBossDamage(p.damage),
       trophies: Number.isFinite(p.trophies) ? p.trophies : 0,
       reward: Number.isFinite(p.reward) ? p.reward : 0,
       left: !!p.left,

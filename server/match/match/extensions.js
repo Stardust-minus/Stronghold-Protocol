@@ -59,8 +59,11 @@ export class MatchExtensions {
     // A forced phase replacement may reuse the same round/field ids; only its new field objects may write scores.
     if (phase !== 'unite' && this.damageBoard.round === this.round && this.damageBoard.phase === phase) {
       const previous = this.damageBoard.freeze();
+      const finals = this.damageBoard.finals;
       this.damageBoard = createDamageBoard(this.battlePrefix);
       this.damageBoard.previousRound = previous;
+      // the re-fought scope freezes again: only the other final scope's packet carries over
+      if (finals && typeof finals === 'object') this.damageBoard.finals = Object.fromEntries(Object.entries(finals).filter(([k]) => k !== phase));
     }
     this.damageBoard.startCombat(this.round, phase, this.order);
     this._damageSampleAt = -Infinity;

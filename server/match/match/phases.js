@@ -1,4 +1,5 @@
-// server/match/match/phases.js — Match methods: the round flow up to the prep — INFO_CHECK, the strategy draft
+// server/match/match/phases.js — Match methods: the round flow up to the prep — INFO_CHECK (with the 自选候补 choice),
+// the strategy draft
 // (BAND_DRAFT: one countdown of BAND_TURN_SECONDS per turn, 队友已选, the highlighted strategy on a timeout, skips),
 // BATTLE_CHECK and ROUND_START (the round's enemies — a normal wave or the boss pairing — planned before the players'
 // round start).
@@ -13,6 +14,8 @@ import { OK, fail, DELAYS, BAND_TURN_SECONDS } from './common.js';
 export class MatchPhases {
   enterInfoCheck() {
     this.phase = PHASE.INFO_CHECK;
+    // 自选候补 (feedback #114): each human's choice — else the default — against this setup's bans (the start, a 重刷本局)
+    this.resolveDiyChoices();
     for (const ps of this.order) if (ps.botControlled) ps.infoReady = true;
     // solo: no time limit (the player confirms); co-op: the official 25 s guard
     this.setDeadline(this.soloUntimed ? 0 : this.gd.timer('infoCheck'), () => this.enterBandDraft());
@@ -20,6 +23,33 @@ export class MatchPhases {
     for (const ps of this.order) this.markPrivate(ps);
     this.flush(true);
     this.maybeEndInfo();
+  }
+
+  /** 自选候补 (feedback #114; player/diy.js resolveDiy): the bans a 自选 choice is read against — drawn and static. */
+  diyOff() {
+    return new Set([...(this.disabledBonds || []), ...(this.staticInactiveBonds || [])]);
+  }
+
+  /** 自选候补: field each human's choice (or the default) against this setup's bans; a changed slot gets a new stock. */
+  resolveDiyChoices() {
+    const off = this.diyOff();
+    for (const ps of this.order) if (!ps.isBot && ps.resolveDiy(off)) ps.initDiyStock(off);
+  }
+
+  /**
+   * g.diyChoose { tier, charIds } (自选候补, feedback #114): during the briefing (INFO_CHECK — after it the slots are
+   * fixed) the candidates of one tier of the player's preset that fill its slots (player/diy.js chooseDiy); the slots
+   * and the stock follow at once. Ready or not, until the briefing ends; during a 重刷本局 vote too (a passed vote keeps
+   * the choice and reads it against the new bans).
+   */
+  chooseDiy(ps, tier, charIds) {
+    if (this.phase !== PHASE.INFO_CHECK) return fail(ERR.WRONG_PHASE);
+    const r = ps.chooseDiy(tier, charIds);
+    if (!('ok' in r)) return fail(ERR.BAD_TARGET, r.error);
+    const off = this.diyOff();
+    if (ps.resolveDiy(off)) ps.initDiyStock(off);
+    this.markPrivate(ps);
+    return OK;
   }
 
   maybeEndInfo() {
@@ -44,6 +74,8 @@ export class MatchPhases {
   enterBandDraft() {
     if (this.phase !== PHASE.INFO_CHECK) return;
     this.phase = PHASE.BAND_DRAFT;
+    // 自选候补: the choice is over — the m.private of a player who had one drops it
+    for (const ps of this.order) if (!ps.isBot && ps.hasDiyChoice()) this.markPrivate(ps);
     let order = this.order.map((p) => p.playerId);
     if (!this.isSolo) this.rngDraft.shuffle(order);
     order = this.humansFirst(order);

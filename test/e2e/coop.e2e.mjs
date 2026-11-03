@@ -129,6 +129,7 @@ async function buyOne(c, sel = BUYABLE, { shot = null } = {}) {
   if (shot) await c.shot(shot);
   await c.click('.scard.is-armed');
   const after = await c.waitFor((s) => s.funds !== before.funds || s.phase !== 'PREP', 'purchase', 8000);
+  await c.predictionSettled(); // the bought piece's uid is the server's from here (a predicted purchase has a placeholder)
   c.note(`bought${sel.includes('item') ? ' item' : ''} in two taps (funds ${before.funds} → ${after.funds})`);
   return after.funds < before.funds;
 }

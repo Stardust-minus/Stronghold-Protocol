@@ -8,6 +8,9 @@
 //                       at most once (耀骑士临光 already carries the 144/159 it grants to itself). A granted trait keeps
 //                       its data cap like a native one: 华法琳's garrison_95 stops at 7 / 14 layers per battle (PRTS 下半
 //                       3月27日更新#2: 「从 初始12/精锐24 降低至 初始7/精锐14」; GitHub #175, PR #192 by @kukiC).
+//                       华法琳's grant is installed twice on its target (`copy` 2, a cap of its own: two triggers per
+//                       skill start, 2 × 7 / 2 × 14 per bond and battle, 魔王's extra on each) — the 日服 / 台服 client's
+//                       「双判」, a deliberate deviation from the CN client (feedback #15, the owner's plan of 2026-11-02).
 //   layer events        act1autochess_gar_event_useskill (skillStart) · _selfkillenemy (kill, every check_cnt) ·
 //                       _selfdead (death 'killed'; texts with 替身 also on every substitute ⇄ body swap, read from the
 //                       dollkeeper flag unit.trait.doll) · _consume_ammo (ammoUsed; range_id 0-1 self, 1-1 front tile,
@@ -81,22 +84,48 @@ function farToothGrants() {
   return FAR_TOOTH;
 }
 
+/**
+ * 华法琳 (char_171_bldsk): the ADD_BOND traits whose grant fires twice (feedback #15, the 日服 / 台服 「双判」: the trait she
+ * hands to the operator in front triggers twice — 风笛 gains 2 × 7 维多利亚 / 远见 / 不屈 layers a battle, and 魔王 adds
+ * to each trigger). Default data: garrison_72_a / _b; another version's build (S.isVersionData): the ADD_BOND traits of
+ * her official chess records, found by charId — garrison and chess ids are season-local.
+ */
+export const GRANT_TWICE_CHAR = 'char_171_bldsk';
+export const GRANT_TWICE_DEFAULT = Object.freeze(new Set(['garrison_72_a', 'garrison_72_b']));
+let GRANT_TWICE = null;
+let GRANT_TWICE_DATA = null;
+function grantTwiceGivers() {
+  const d = S.gameData();
+  if (!S.isVersionData(d)) return GRANT_TWICE_DEFAULT;
+  if (GRANT_TWICE_DATA !== d) {
+    GRANT_TWICE_DATA = d;
+    GRANT_TWICE = new Set();
+    for (const [id, c] of Object.entries(d.chess || {})) {
+      if (c?.charId !== GRANT_TWICE_CHAR || !S.isOfficialId('chess', id) || !Array.isArray(c.garrisonIds)) continue;
+      for (const gid of c.garrisonIds) if (S.garrisonRecord(gid)?.effectKey === 'ADD_BOND') GRANT_TWICE.add(gid);
+    }
+  }
+  return GRANT_TWICE;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // install
 
 export function install(battle) {
   const all = [];
   const owned = new Map(); // unit → Set(garrisonId)
-  const add = (unit, g, grantedBy = null) => {
+  const add = (unit, g, grantedBy = null, copy = 1) => {
     let set = owned.get(unit);
     if (!set) { set = new Set(); owned.set(unit, set); }
-    if (set.has(g.garrisonId)) return null;
-    set.add(g.garrisonId);
+    // a second copy (华法琳's 双判) is its own instance: own cap, own counters
+    const own = copy > 1 ? `${g.garrisonId}#${copy}` : g.garrisonId;
+    if (set.has(own)) return null;
+    set.add(own);
     const bb = g.bb || {};
     const cap = S.num(bb.max_add_count_per_battle, 0) > 0 ? S.num(bb.max_add_count_per_battle) : Infinity;
     const it = {
-      unit, g, gid: g.garrisonId, key: g.effectKey, bb, bbStr: g.bbStr || {}, grantedBy,
-      cap, capKey: `gar:${g.garrisonId}:${unit.id}`, cnt: 0, k: -1,
+      unit, g, gid: g.garrisonId, key: g.effectKey, bb, bbStr: g.bbStr || {}, grantedBy, copy,
+      cap, capKey: copy > 1 ? `gar:${g.garrisonId}:${unit.id}:${copy}` : `gar:${g.garrisonId}:${unit.id}`, cnt: 0, k: -1,
     };
     all.push(it);
     return it;
@@ -111,6 +140,7 @@ export function install(battle) {
   if (!all.length) return;
 
   const grants = [];
+  const twice = grantTwiceGivers();
   for (const it of all.slice()) {
     if (it.key !== 'ADD_BOND' && it.g.battleRuneKey !== 'give_garrion_to_front') continue;
     const g2 = S.garrisonRecord(it.bbStr.give_garrison_id ?? it.bbStr.give_garrion_id);
@@ -118,6 +148,8 @@ export function install(battle) {
     for (const t of grantTargets(battle, it)) {
       const got = add(t, g2, it);
       if (got) grants.push(got);
+      // the second trigger rides with the first (one grant shown): a target that already owned the trait natively gets none
+      if (got && twice.has(it.gid)) add(t, g2, it, 2);
     }
   }
 

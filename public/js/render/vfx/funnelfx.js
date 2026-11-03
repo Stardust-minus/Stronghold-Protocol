@@ -54,6 +54,8 @@ export const RETURN_S = 2;
 export const LUNGE_S = 0.85;
 /** Tiles within which a kit fx's point is on an enemy view. */
 const SNAP = 0.6;
+/** Tiles a 荒芜拉普兰德 S3 unit may be drawn off the sim's place (the kit's 'droneLock' `at`, a free unit's pulse) before it is put there [ASSUMED]. */
+const SNAP_S3 = 0.75;
 /** Battle seconds after an 'atk' within which the target's damage belongs to it (the flight plus a margin). */
 const HIT_WINDOW = 0.35;
 /** 荒芜拉普兰德 S3 as the sim kit flies it (server/sim/content/kits/ops/chess_char_6_18-whitw2.js WHITW2_*): the spread and
@@ -491,25 +493,40 @@ export class FunnelFx {
     return [dr.x - 10, dr.y - 9, -(g + FLY_H)];
   }
 
-  /** The kit's 'droneLock' (a unit picks `tgt`): the free unit nearest to it chases it, the trace mark over it. */
-  _lock(U, tgt, x, y) {
+  /**
+   * The kit's 'droneLock' (a unit picks `tgt`): that unit chases it, the trace mark over it. The kit names the unit (`k`,
+   * its index; `at` = where it was when it picked: a unit drawn more than SNAP_S3 away is put there); without `k` (an
+   * older server) the free unit nearest to the target takes it. A target with no view sends the unit to the lock's point
+   * (it circles there). 反馈 #103: the nearest-free rule dropped a lock when no unit looked free — a target that died
+   * while its wolf was on it, before this view saw the death — and that wolf circled where the target fell for the rest
+   * of the skill while the sim's bit another enemy.
+   */
+  _lock(U, tgt, x, y, k = null, at = null) {
     const D = U.s3?.drones;
     if (!D || !D.length) return false;
     const tx = tgt ? tgt.x : x, ty = tgt ? tgt.y : y;
-    const free = (dr) => dr.phase === 'spread' || dr.phase === 'seek' || !dr.t || !alive(dr.t);
-    let best = null, bd = Infinity;
-    for (const dr of D) {
-      if (!free(dr)) continue;
-      const d = Math.hypot(dr.x - tx, dr.y - ty);
-      if (d < bd) { bd = d; best = dr; }
+    let best = Number.isInteger(k) && k >= 0 && k < D.length ? D[k] : null;
+    if (!best) {
+      const free = (dr) => dr.phase === 'spread' || dr.phase === 'seek' || !dr.t || !alive(dr.t);
+      let bd = Infinity;
+      for (const dr of D) {
+        if (!free(dr)) continue;
+        const d = Math.hypot(dr.x - tx, dr.y - ty);
+        if (d < bd) { bd = d; best = dr; }
+      }
+      if (!best) return true;
+      if (best.t && !alive(best.t)) this._lost(U, best);
     }
-    if (!best) return true;
-    if (best.t && !alive(best.t)) this._lost(U, best);
+    if (Array.isArray(at) && Number.isFinite(at[0]) && Number.isFinite(at[1]) && Math.hypot(best.x - at[0], best.y - at[1]) > SNAP_S3) {
+      best.x = at[0]; best.y = at[1];
+    }
     this._marks(best, null);
     best.t = tgt || null;
+    best.goal = !tgt && Number.isFinite(tx) && Number.isFinite(ty) ? { x: tx, y: ty } : null;
     best.phase = tgt ? 'chase' : 'seek';
     best.v = S3.chase.v0;
     best.orbit = null;
+    best.idleT = 0;
     if (tgt && this._has(U.plan.dispersed.marks.trace)) best.trace = this.w.playOn(U.plan.dispersed.marks.trace, tgt, { follow: true, loop: true, important: true });
     return true;
   }
@@ -521,15 +538,20 @@ export class FunnelFx {
     if (latchOn && this._has(dr.latchedKey)) dr.latched = this.w.playOn(dr.latchedKey, latchOn, { follow: true, loop: true, important: true });
   }
 
-  /** A unit's target fell or left: it reappears near that spot and waits for its next lock (the sim's draw is its own). */
+  /**
+   * A unit's target fell or left: a latched unit reappears near that spot (the sim's draw is its own), a chasing one picks
+   * again where it is (the sim kit's flyDrone); either waits for its next lock.
+   */
   _lost(U, dr) {
-    const h = S3.side / 2;
-    const at = dr.t ? { x: dr.t.x, y: dr.t.y } : { x: dr.x, y: dr.y };
-    dr.x = at.x + (rnd(U.id, dr.seed * 7 + 1) * 2 - 1) * h;
-    dr.y = at.y + (rnd(U.id, dr.seed * 7 + 2) * 2 - 1) * h;
-    dr.seed += 3;
+    if (dr.phase === 'lock') {
+      const h = S3.side / 2;
+      const at = dr.t ? { x: dr.t.x, y: dr.t.y } : { x: dr.x, y: dr.y };
+      dr.x = at.x + (rnd(U.id, dr.seed * 7 + 1) * 2 - 1) * h;
+      dr.y = at.y + (rnd(U.id, dr.seed * 7 + 2) * 2 - 1) * h;
+      dr.seed += 3;
+    }
     this._marks(dr, null);
-    dr.t = null; dr.phase = 'seek'; dr.orbit = null; dr.idleT = 0;
+    dr.t = null; dr.goal = null; dr.phase = 'seek'; dr.orbit = null; dr.idleT = 0;
   }
 
   /** One frame of the dispersed units (the sim kit's flyDrone, mirrored). */
@@ -548,6 +570,17 @@ export class FunnelFx {
         continue;
       }
       if ((dr.phase === 'chase' || dr.phase === 'lock') && !alive(dr.t)) this._lost(U, dr);
+      if (dr.phase === 'seek' && dr.goal) {
+        // a lock on a target this view does not draw: it flies to the lock's point, then circles there
+        const s = acc(dr, S3.chase);
+        const dx = dr.goal.x - dr.x, dy = dr.goal.y - dr.y, L = Math.hypot(dx, dy);
+        if (L > s + 0.12) {
+          if (L > 1e-9) { dr.hx = dx / L; dr.hy = dy / L; }
+          dr.x += dr.hx * s; dr.y += dr.hy * s;
+          continue;
+        }
+        dr.goal = null; dr.idleT = 0.25;
+      }
       if (dr.phase === 'seek') {
         // no lock yet: it circles counter-clockwise, its heading the tangent (after a beat: the lock comes in the same tick)
         dr.idleT = (dr.idleT || 0) + dt;
@@ -578,9 +611,28 @@ export class FunnelFx {
    * The kit's 'drone' of a dispersed unit: the hit of the one on that target (latched — or still chasing it: the sim's
    * unit is there already, so it latches now), else the sim's place of a free one.
    */
-  _pulse(U, x, y) {
+  _pulse(U, x, y, k = null, tid = null) {
     const D = U.s3?.drones;
     if (!D) return false;
+    // the kit names the unit (`k`) and, for a hit, its target (`tid`): that unit is on that target now (a lock this view
+    // missed is taken up here), or — a free unit's once-a-second pulse — at that place
+    const own = Number.isInteger(k) && k >= 0 && k < D.length ? D[k] : null;
+    if (own && tid != null) {
+      const tv = this.w.view(tid);
+      if (alive(tv)) {
+        if (own.t !== tv || own.phase !== 'lock') {
+          this._marks(own, null);
+          own.t = tv; own.goal = null; own.orbit = null; own.phase = 'lock';
+          this._marks(own, tv);
+        }
+        for (const key of own.unit?.hits?.[0] || []) this.w.playOn(key, tv, { flipFrom: U.v || undefined });
+        return U.s3.drawable;
+      }
+    } else if (own && own.phase !== 'lock') {
+      const d = Math.hypot(own.x - x, own.y - y);
+      if (d > SNAP_S3) { own.x = x; own.y = y; own.orbit = null; } else if (d > 0.25) { own.x += (x - own.x) / 2; own.y += (y - own.y) / 2; own.orbit = null; }
+      return U.s3.drawable;
+    }
     let best = null, bd = 0.5;
     for (const dr of D) {
       if ((dr.phase !== 'lock' && dr.phase !== 'chase') || !dr.t || !alive(dr.t)) continue;
@@ -656,7 +708,7 @@ export class FunnelFx {
     if (kind === 'droneLock') {
       const U = extra.src != null ? this.of(this.w.view(extra.src)) : null;
       if (!U) return false;
-      if (U.plan.dispersed && U.s3) return this._lock(U, this.w.view(extra.id), x, y) && U.s3.drawable;
+      if (U.plan.dispersed && U.s3) return this._lock(U, this.w.view(extra.id), Number(x), Number(y), extra.k, extra.at) && U.s3.drawable;
       return this._drawable(U) && !!this._remoteMode(U);
     }
     const U = extra.id != null ? this.of(this.w.view(extra.id)) : null;
@@ -668,7 +720,7 @@ export class FunnelFx {
       return false;
     }
     if (kind === 'drone') {
-      if (U.s3) return this._pulse(U, Number(x), Number(y));
+      if (U.s3) return this._pulse(U, Number(x), Number(y), extra.k, extra.tid ?? null);
       if (this._remoteMode(U)) return this._remoteHit(U, Number(x), Number(y));
       return false;
     }

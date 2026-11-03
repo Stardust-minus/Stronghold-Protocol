@@ -6,10 +6,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, diyRecord } from '../../shared/diy.js';
+import { DataSource } from '../../server/sim/simdata.js';
 
 const BACKUPS = JSON.parse(readFileSync(new URL('../../data/backups.json', import.meta.url), 'utf8'));
 const CHESS = JSON.parse(readFileSync(new URL('../../data/chess.json', import.meta.url), 'utf8'));
@@ -341,4 +342,33 @@ test('the composed record names her bonds: 协防, 奥术 and 不屈', () => {
   const rec = diyRecord('chess_char_6_diy1_a', { charId: OXI, skillIndex: 2, uniEquipId: null }, { elite: true, data: { chess: CHESS, backups: BACKUPS } });
   assert.deepEqual(rec.bonds, ['emptyShip', 'arcaneShip', 'indomShip']);
   assert.equal(rec.dmgType, 'arts');
+});
+
+test('第一期 (no 奥术 bond there, tools/versions/act1autochess.mjs diyBonds): 协防 + 不屈; a knocked-out ally while S3 lasts gives 不屈 alone', () => {
+  for (const slug of ['act1autochess', 'act1autochess-v1_1']) {
+    const dir = new URL(`../../data/versions/${slug}/`, import.meta.url);
+    const raw = Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => [f.slice(0, -5), JSON.parse(readFileSync(new URL(f, dir), 'utf8'))]));
+    assert.ok(!Object.hasOwn(raw.bonds, 'arcaneShip'), `${slug}: no 奥术`);
+    assert.deepEqual(raw.backups.diy.operators[OXI].bonds, ['emptyShip', 'indomShip'], slug);
+    assert.ok(raw.backups.diy.ownedPool.includes(OXI), `${slug}: an owned 自选 pick`);
+    for (const form of Object.values(raw.backups.units[OXI].forms)) {
+      assert.match(form.talents[0].desc, /技能持续期间我方干员阵亡时，【不屈】层数\+1$/, slug);
+      assert.doesNotMatch(form.talents[0].desc, /奥术】/, slug);
+    }
+    const data = new DataSource({ enemies: ENEMIES }, new DataSource(raw));
+    const h = makeBattle({
+      data, timeLimit: 600, autoFinish: false, seed: 5, enemies: [], flags: { dpPerSec: 0, dpMax: 999 },
+      units: [{ uid: 1, diy: { slot: SLOT[5], charId: OXI, skillIndex: 2, uniEquipId: null }, elite: true, row: 10, col: 5 },
+        { uid: 2, chessId: 'chess_char_1_01_a', row: 11, col: 5 }],
+    });
+    h.step();
+    const u = h.unit(1);
+    assert.deepEqual(u.def.bonds, ['emptyShip', 'indomShip'], slug);
+    h.b.flags.layerGainsEnabled = true;
+    fillSp(u); u.skill.activate('manual');
+    h.b.kill(h.unit(2), { reason: 'killed' });
+    h.step();
+    assert.deepEqual(h.b._pp(u.ownerId).layerGains, { indomShip: 1 }, `${slug}: 不屈 alone`);
+    done(h);
+  }
 });

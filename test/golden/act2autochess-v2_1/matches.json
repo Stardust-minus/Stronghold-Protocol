@@ -1275,7 +1275,7 @@
         },
         {
           "round": 12,
-          "h_0": [1,14,12,0,2,6,8,"eac8ebe4",99,"arcaneShip 0/2, kazimierzShip 0/10, kjeragShip 1/18, miraShip 0/8, preciShip 2/31, sargonShip 1/31, skillfulShip 1/5, suntShip 1/0, swiftShip 1/14, visiShip 0/8",14,31,17,115],
+          "h_0": [1,14,12,0,2,6,8,"eac8ebe4",99,"arcaneShip 0/2, kazimierzShip 0/10, kjeragShip 1/18, miraShip 0/8, preciShip 2/31, sargonShip 1/31, skillfulShip 1/5, suntShip 1/0, swiftShip 1/14, visiShip 0/8",13,31,18,115],
           "ai_0": [1,27,12,0,0,6,8,"e177279e",99,"arcaneShip 1/2, kazimierzShip 0/2, lateranoShip 1/10, miraShip 1/26, preciShip 1/24, sargonShip 0/4, steadShip 1/9, swiftShip 1/28, visiShip 0/2, yanShip 0/24",18,31,13,119]
         },
         {
@@ -1295,7 +1295,7 @@
           "title": {"id":"comment_2","name":"不朽盟约","picId":"comment_icon_2","text":"激活的盟约层数总和最高"},
           "trophies": 3,
           "reward": 320,
-          "stats": {"activatedLayers":76,"bossDamage":233078,"dmgDealt":2852304,"gold":144,"itemsEquipped":21,"kills":380,"leaks":27,"lpLost":20,"merges":5,"perfectRounds":10,"refreshes":27},
+          "stats": {"activatedLayers":76,"bossDamage":233078,"dmgDealt":2838208,"gold":144,"itemsEquipped":21,"kills":379,"leaks":28,"lpLost":20,"merges":5,"perfectRounds":10,"refreshes":27},
           "lineup": ["3_13_b@12,5[1_01_e_b+1_01_e_a]","2_06_a@12,6","4_05_a@12,7","4_14_b@11,8","6_05_a@10,3[1_05_e_a+5_01_e_a]","1_12_b@10,8[2_04_e_a]","6_19_a@9,4[5_03_e_a]","6_06_a@9,9[3_05_e_a+3_11_e_b]"],
           "bonds": ["arcaneShip 0/2","kazimierzShip 0/18","kjeragShip 0/26","miraShip 0/8","preciShip 0/31","sargonShip 2/42","skillfulShip 0/5","soloShip 1/0","suntShip 1/0","swiftShip 1/34","visiShip 0/8"]
         },
@@ -1552,7 +1552,7 @@
           "title": {"id":"comment_2","name":"不朽盟约","picId":"comment_icon_2","text":"激活的盟约层数总和最高"},
           "trophies": 3,
           "reward": 320,
-          "stats": {"activatedLayers":76,"bossDamage":233078,"dmgDealt":2829226,"gold":144,"itemsEquipped":21,"kills":378,"leaks":29,"lpLost":20,"merges":5,"perfectRounds":10,"refreshes":27},
+          "stats": {"activatedLayers":76,"bossDamage":233078,"dmgDealt":2829202,"gold":144,"itemsEquipped":21,"kills":378,"leaks":29,"lpLost":20,"merges":5,"perfectRounds":10,"refreshes":27},
           "lineup": ["3_13_b@12,5[1_01_e_b+1_01_e_a]","2_06_a@12,6","4_05_a@12,7","4_14_b@11,8","6_05_a@10,3[1_05_e_a+5_01_e_a]","1_12_b@10,8[2_04_e_a]","6_19_a@9,4[5_03_e_a]","6_06_a@9,9[3_05_e_a+3_11_e_b]"],
           "bonds": ["arcaneShip 0/2","kazimierzShip 0/18","kjeragShip 0/26","miraShip 0/8","preciShip 0/31","sargonShip 2/42","skillfulShip 0/5","soloShip 1/0","suntShip 1/0","swiftShip 1/34","visiShip 0/8"]
         },
