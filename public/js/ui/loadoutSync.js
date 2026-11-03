@@ -42,7 +42,7 @@ import { POTENTIAL_DEFAULT, CULTIVATE_DEFAULT } from '../../../shared/potential.
 import { ruleOption } from '../../../shared/plugins/rules.js';
 import { OWNERSHIP_PREF, parseStoredOwnership, parseStoredOwnershipChars, toStoredOwnership, toStoredOwnershipV1, cleanIds, sanitizeNotOwned,
   notOwnedView, rebaseChars } from './ownershipModel.js';
-import { parseStoredDiy, toStoredDiy, cleanPicks, sanitizeDiyPicks, diyPrefKey } from './diyModel.js';
+import { parseStoredDiy, parseStoredDiyFallback, toStoredDiy, cleanPicks, sanitizeDiyPicks, diyPrefKey, diyPicksFor } from './diyModel.js';
 import { cardStore, CARD_KEY, CARD_SYNC_KEY, cardOperators } from './seatArt.js';
 import { cardStore as playerCardStore, cardMessage, refreshTrophies } from './playerCard.js';
 import { needsContent, serverDefaultVersion } from '../versions.js';
@@ -67,6 +67,10 @@ function readStoredOps() {
 }
 function readStoredDiy(version = DEFAULT_VERSION) {
   try { return parseStoredDiy(loadPref(diyPrefKey(version), null)); } catch { return {}; }
+}
+/** The collab fallbacks of a version's picks (feedback #128: diyModel.js setPickKeepingFallback). */
+function readStoredDiyFallback(version = DEFAULT_VERSION) {
+  try { return parseStoredDiyFallback(loadPref(diyPrefKey(version), null)); } catch { return {}; }
 }
 
 function readStoredSkins() {
@@ -130,6 +134,7 @@ export const loadoutStore = createStore({
   notOwned: legacyNotOwned || [], // 干员持有: base chess ids marked 未持有 (sorted; [] = every operator owned) — the view
   notOwnedChars: legacyNotOwned ? null : parseStoredOwnershipChars(storedOwnership),
   diy: readStoredDiy(), // 自选编队: { [slotBaseId]: { charId, skillIndex?, uniEquipId? } } ({} = every slot empty)
+  diyFallback: readStoredDiyFallback(), // feedback #128: position → the pick a collab 6★ there replaced (fielded where 联动干员 is off)
   diyVersion: DEFAULT_VERSION,
   diyKitted: null,     // the operators a DIY slot may field (welcome.diyKitted; null before the first welcome)
   skins: readStoredSkins(),
@@ -178,7 +183,7 @@ export function refreshViews({ target = loadoutStore } = {}) {
     viewMaps.set(patch.notOwned || s.notOwned, map);
   }
   const version = pageVersion();
-  if (version !== s.diyVersion) { patch.diy = readStoredDiy(version); patch.diyVersion = version; }
+  if (version !== s.diyVersion) { patch.diy = readStoredDiy(version); patch.diyFallback = readStoredDiyFallback(version); patch.diyVersion = version; }
   if (Object.keys(patch).length) target.set(patch);
 }
 
@@ -410,11 +415,15 @@ export function applyOwnershipImport(list, lookup) {
   return { applied: clean.length, dropped: Math.max(0, asked - clean.length) };
 }
 
-/** Replace the stored 自选编队 picks of the version on screen (its own key: diyModel.js diyPrefKey; the sync picks the change up). */
-export function setDiyPicks(picks) {
+/**
+ * Replace the stored 自选编队 picks of the version on screen (its own key: diyModel.js diyPrefKey; the sync picks the change
+ * up) and their collab fallbacks (feedback #128; none by default: an import or 全部清空 drops them).
+ */
+export function setDiyPicks(picks, fallback = null) {
   const next = cleanPicks(picks);
-  try { savePref(diyPrefKey(loadoutStore.get().diyVersion), toStoredDiy(next)); } catch { /* private mode: the session keeps it */ }
-  loadoutStore.set({ diy: next });
+  const fb = cleanPicks(fallback);
+  try { savePref(diyPrefKey(loadoutStore.get().diyVersion), toStoredDiy(next, fb)); } catch { /* private mode: the session keeps it */ }
+  loadoutStore.set({ diy: next, diyFallback: fb });
 }
 
 /**
@@ -739,7 +748,8 @@ export function installCardSync({ net, timers, target = cardStore, getChessReady
 
 /**
  * Wire the 自选编队 sync once (0.2.0 DIY): `room.diy { picks }` after every welcome and edit. The picks go as stored
- * (structurally clean); the server keeps the legal ones. During a match the server stores them for the next one
+ * (structurally clean; in a room without 联动干员 a collab pick's position sends its fallback — feedback #128,
+ * diyModel.js diyPicksFor); the server keeps the legal ones. During a match the server stores them for the next one
  * (ROOM_STARTED → 'locked'): the setting is out of match. Every `welcome` also brings the operators a DIY slot may field
  * (`diyKitted`, the picker's list).
  * @param {{ net: any, timers?: { setTimeout: Function, clearTimeout: Function }, target?: ReturnType<typeof createStore>,
@@ -776,7 +786,15 @@ export function installDiySync({ net, timers, target = loadoutStore, notify, con
     lockedText: N_('自选编队是局外设置，修改将在下一局生效'),
     async prepare() {
       if (target === loadoutStore) refreshViews(); // the picks of the version on screen
-      return cleanPicks(target.get().diy);
+      // feedback #128: where 联动干员 is off, a collab pick's position sends its fallback (diyModel.js diyPicksFor). backups.json
+      // names the collab 6★: a page that never opened 干员调配 has not loaded it yet, so a preset with fallbacks waits for it
+      const s = target.get();
+      const collab = isCollabRoom(app?.get?.()?.room?.experimental);
+      if (!collab && Object.keys(cleanPicks(s.diyFallback)).length && data.status('backups') !== 'ready') {
+        try { await data.loadAll('chess', 'backups'); } catch { /* missing: the stored picks go, the server drops a collab one */ }
+      }
+      const cur = target.get();
+      return cleanPicks(diyPicksFor(cur.diy, cur.diyFallback, { chess: data.get('chess'), backups: data.get('backups') }, { collab }));
     },
   });
   return { flush: sync.flush, dispose() { offKit?.(); offKitContent?.(); sync.dispose(); } };

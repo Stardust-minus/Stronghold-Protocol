@@ -8,6 +8,10 @@
 // fielded ones follow — an unfinished draft changes nothing. Without a choice the server fields the default: the first
 // two in the player's order whose bonds are not all banned (then the rest in order).
 // The view is hookless (unit-tested by calling it); DiyChoice keeps the drafts.
+// The briefing's dock (feedback #127, planned by the owner on 2026-11-03: 「需要在每场开局前，准备阶段提醒自选进行4选2」 —
+// 「开局选自选的界面需要滚动，太不显眼了」): `dock` draws the section as one strip pinned above 准备就绪 (screens/briefing.js),
+// outside the scrolling column — the tiers side by side, compact candidates — highlighted while a tier is still on the
+// default and the player is not ready (`ready`).
 
 import { useState } from '../../vendor/hooks.module.js';
 import { html, TierChip, Icon } from './components.js';
@@ -84,40 +88,61 @@ function Candidate({ tier, c, on, onTap, disabled, skins }) {
 
 /**
  * The section's view: one row per tier with a choice. `drafts` tier → charIds being chosen; `onTap(tier, charId)`.
- * @param {{ priv: any, drafts?: Record<string, string[]>, onTap: (tier: number, charId: string) => void, disabled?: boolean }} props
+ * `dock` (feedback #127, see the header): the briefing's pinned strip; `ready`: the player is ready (the strip stops
+ * calling for a choice).
+ * @param {{ priv: any, drafts?: Record<string, string[]>, onTap: (tier: number, charId: string) => void, disabled?: boolean,
+ *   dock?: boolean, ready?: boolean }} props
  */
-export function DiyChoiceView({ priv, drafts = {}, onTap, disabled = false }) {
+export function DiyChoiceView({ priv, drafts = {}, onTap, disabled = false, dock = false, ready = false }) {
   const tiers = diyChoiceTiers(priv);
   if (!tiers.length) return null;
   const skins = isObj(priv?.skins) ? priv.skins : {};
+  const rows = tiers.map((x) => {
+    const draft = Array.isArray(drafts[x.tier]) ? drafts[x.tier] : null;
+    const sel = draft || x.chosen;
+    const need = Math.min(x.slots, x.candidates.length);
+    return html`<div key=${x.tier} class=${cx('diychoice__tier', !x.picked && !draft && 'is-default')} data-tier=${x.tier}>
+      <span class="diychoice__head"><${TierChip} tier=${x.tier} size="sm" /><b>${t('{tier}阶', { tier: x.tier })}</b>
+        <span class="num diychoice__n">${sel.length}/${need}</span>
+        ${draft && draft.length < need ? html`<small class="diychoice__hint"><${Icon} name="info" />${t('再选 {n} 名后生效', { n: need - draft.length })}</small>`
+          : !x.picked ? html`<small class="diychoice__hint t-dim">${t('未选择：默认上场')}</small>` : null}
+      </span>
+      <div class="diychoice__row">
+        ${x.candidates.map((c) => html`<${Candidate} key=${c.charId} tier=${x.tier} c=${c} on=${sel.includes(c.charId)} skins=${skins}
+          disabled=${disabled} onTap=${(id) => onTap(x.tier, id)} />`)}
+      </div>
+    </div>`;
+  });
+  if (dock) {
+    // still on the default somewhere (no choice sent for a tier, no draft under way): the strip asks for one
+    const todo = tiers.some((x) => !x.picked && !Array.isArray(drafts[x.tier]));
+    // 「4 选 2」 when every tier offers as many; else 每阶选 2 名 (a preset may hold three in a tier)
+    const k = Math.min(...tiers.map((x) => x.slots));
+    const ns = [...new Set(tiers.map((x) => x.candidates.length))];
+    return html`<section class=${cx('diychoice', 'diychoice--dock', todo && !ready && 'is-todo')} data-testid="diy-choice" aria-label=${t('自选上场')}>
+      <div class="diychoice__bar">
+        <b class="diychoice__title"><${Icon} name="user" />${t('自选上场')}<span class="diychoice__pick num">${ns.length === 1 ? t('{n} 选 {k}', { n: ns[0], k }) : t('每阶选 {k} 名', { k })}</span></b>
+        <span class="diychoice__lead">${todo
+          ? t('点选每阶本局上场的自选干员（卡片标出了本局被禁用的盟约）；不选则由排在前面、盟约没有全部被禁用的干员上场。')
+          : t('已选好本局上场的自选干员；本阶段结束前仍可更改。')}</span>
+      </div>
+      <div class="diychoice__tiers">${rows}</div>
+    </section>`;
+  }
   return html`<div class="diychoice" data-testid="diy-choice">
     <h3 class="brief-h"><span>${t('自选上场')}</span><span class="micro">SUPPORT OPERATORS</span></h3>
     <p class="diychoice__lead">${t('从你的自选预设中为每阶选出上场的干员（看过禁用盟约后再定）；就绪后、本阶段结束前仍可更改。')}</p>
-    ${tiers.map((x) => {
-      const draft = Array.isArray(drafts[x.tier]) ? drafts[x.tier] : null;
-      const sel = draft || x.chosen;
-      const need = Math.min(x.slots, x.candidates.length);
-      return html`<div key=${x.tier} class="diychoice__tier" data-tier=${x.tier}>
-        <span class="diychoice__head"><${TierChip} tier=${x.tier} size="sm" /><b>${t('{tier}阶', { tier: x.tier })}</b>
-          <span class="num diychoice__n">${sel.length}/${need}</span>
-          ${draft && draft.length < need ? html`<small class="diychoice__hint"><${Icon} name="info" />${t('再选 {n} 名后生效', { n: need - draft.length })}</small>`
-            : !x.picked ? html`<small class="diychoice__hint t-dim">${t('未选择：默认上场')}</small>` : null}
-        </span>
-        <div class="diychoice__row">
-          ${x.candidates.map((c) => html`<${Candidate} key=${c.charId} tier=${x.tier} c=${c} on=${sel.includes(c.charId)} skins=${skins}
-            disabled=${disabled} onTap=${(id) => onTap(x.tier, id)} />`)}
-        </div>
-      </div>`;
-    })}
+    ${rows}
   </div>`;
 }
 
 /**
  * The briefing's 自选上场 section (nothing without m.private.diyChoice). `onChoose(tier, charIds)` sends g.diyChoose and
- * resolves true on success.
- * @param {{ priv: any, onChoose: (tier: number, charIds: string[]) => Promise<boolean>, disabled?: boolean }} props
+ * resolves true on success; `dock` / `ready` as DiyChoiceView.
+ * @param {{ priv: any, onChoose: (tier: number, charIds: string[]) => Promise<boolean>, disabled?: boolean, dock?: boolean,
+ *   ready?: boolean }} props
  */
-export function DiyChoice({ priv, onChoose, disabled = false }) {
+export function DiyChoice({ priv, onChoose, disabled = false, dock = false, ready = false }) {
   const [drafts, setDrafts] = useState({});
   const [busy, setBusy] = useState(false);
   const tap = async (tier, charId) => {
@@ -137,5 +162,5 @@ export function DiyChoice({ priv, onChoose, disabled = false }) {
     setBusy(false);
     setDrafts((d) => ({ ...d, [tier]: undefined }));
   };
-  return DiyChoiceView({ priv, drafts, onTap: tap, disabled: disabled || busy });
+  return DiyChoiceView({ priv, drafts, onTap: tap, disabled: disabled || busy, dock, ready });
 }

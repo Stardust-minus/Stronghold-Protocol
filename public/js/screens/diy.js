@@ -17,6 +17,9 @@
 // in the player's order; the match's briefing lets the player pick any two once the bans are known (ui/diyChoice.js) —
 // without a choice the first two whose bonds are not all banned play. Opened during a match (the bans known: `off`), a
 // card names its operator's bonds that are off this match (ui/diyModel.js diyBanHint).
+// 联动干员的回退 (feedback #128; ui/diyModel.js diyPicksFor): where 联动干员 is off the tab shows each position as it plays
+// there — the pick a collab 6★ replaced, or the empty position — and the card names the collab operator held for rooms
+// with it on (`held`).
 
 import { CollabNotice } from '../ui/collab.js';
 import { BanLine } from '../ui/diyChoice.js';
@@ -68,9 +71,14 @@ function Bonds({ bonds, off = null }) {
 
 /** One slot: operator, class, bonds, skill/module, display skin and an owned pick's potential/cultivation. `off`: the
  *  match's banned bonds (null outside a match). */
-function SlotCard({ m, slot, pick, illegal, onOpen, onClear, skins = {}, ops = {}, onOps = null, off = null }) {
+function SlotCard({ m, slot, pick, illegal, onOpen, onClear, skins = {}, ops = {}, onOps = null, off = null, held = null }) {
   const D = diyData();
   const rec = pick ? slotRecord(slot.slotId, pick, D) : null;
+  // feedback #128: the collab operator this position fields in a room with 联动干员 on
+  const heldName = held ? slotRecord(slot.slotId, held, D)?.name || held.charId : null;
+  const heldLine = heldName ? html`<p class="diy-slot__held" data-testid="diy-collab-held"><${Icon} name="info" />${rec
+    ? t('未开启联动干员：这里改用原来的自选；开启联动干员的房间里仍是「{name}」', { name: heldName })
+    : t('未开启联动干员：「{name}」只在开启联动干员的房间上场', { name: heldName })}</p>` : null;
   const elite = pick ? slotRecord(slot.slotId, pick, D, { elite: true }) : null;
   const label = slot.n ? t('{tier}阶 自选 · {n}', { tier: slot.tier, n: slot.n }) : t('{tier}阶 自选', { tier: slot.tier });
   if (!rec) {
@@ -82,6 +90,7 @@ function SlotCard({ m, slot, pick, illegal, onOpen, onClear, skins = {}, ops = {
         <small>${t('调度中心等级 {level} 起出现在商店', { level: slot.shopLevel })}</small>
       </button>
       ${pick ? html`<p class="diy-slot__bad"><${Icon} name="warn" />${t('这项自选在当前版本不可用，开局时会被移除')}</p>` : null}
+      ${heldLine}
     </div>`;
   }
   const proto = !!pick && D.backups?.diy?.prototypes?.[slot.tier]?.includes(pick.charId);
@@ -108,6 +117,7 @@ function SlotCard({ m, slot, pick, illegal, onOpen, onClear, skins = {}, ops = {
         : onOps ? html`<span class="diy-slot__cult"><${CultivationSelects} charId=${rec.charId} ops=${ops} onSet=${onOps} /></span>` : null}
       <${OperatorVoice} charId=${rec.assets?.voice || rec.charId} />
       ${illegal ? html`<p class="diy-slot__bad"><${Icon} name="warn" />${t('这项自选在当前版本不可用，开局时会被移除')}</p>` : null}
+      ${heldLine}
     </div>
     <div class="diy-slot__acts">
       <${Button} variant="secondary" size="sm" icon="refresh" data-testid="diy-change" onClick=${() => onOpen(slot.slotId)}>${t('更换')}<//>
@@ -433,13 +443,14 @@ export function DiyPanel(props) {
 
 /**
  * The tab's view (no hooks: the tests draw it): `picking` = the position being filled, or null; `off` = the match's banned
- * bonds when the tab is opened during a match (ui/diyModel.js diyMatchOff), else null.
+ * bonds when the tab is opened during a match (ui/diyModel.js diyMatchOff), else null; `held` = position → the collab pick
+ * a room without 联动干员 does not field (feedback #128: ui/diyModel.js diyCollabHeld; `picks` are then the ones it fields).
  */
-export function DiyPanelView({ m, picks, legal, kitted, collab = false, onSet, picking, onPicking: setPicking, skins = {}, skinSync = 'idle', onSkins, ops = {}, onOps = null, off = null }) {
+export function DiyPanelView({ m, picks, legal, kitted, collab = false, onSet, picking, onPicking: setPicking, skins = {}, skinSync = 'idle', onSkins, ops = {}, onOps = null, off = null, held = {} }) {
   const slots = diyPositions(diyData());
   const slot = picking ? slots.find((s) => s.slotId === picking) : null;
   const tiers = [...new Set(slots.map((s) => s.tier))];
-  const card = (s) => html`<${SlotCard} key=${s.slotId} m=${m} slot=${s} pick=${picks[s.slotId] || null} off=${off}
+  const card = (s) => html`<${SlotCard} key=${s.slotId} m=${m} slot=${s} pick=${picks[s.slotId] || null} off=${off} held=${held?.[s.slotId] || null}
     skins=${skins} illegal=${!!picks[s.slotId] && !legal[s.slotId]} onOpen=${setPicking} onClear=${(id) => onSet(id, null)} ops=${ops} onOps=${onOps} />`;
   return html`<main class="diy" data-testid="diy">
     ${collab ? html`<${CollabNotice} />` : null}

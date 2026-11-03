@@ -278,6 +278,26 @@ test('S3 日冕重烈: ATK +, no attacks, 5 rows every 80 frames, 13 rows and 60
   done(h);
 });
 
+// feedback #124 (planned by the owner on 2026-11-03: 「塔露拉三技能能不能改成异拉一样的开启方式？不然只有接敌才开火雨」): her S3
+// casts as 荒芜拉普兰德's does — GDGLOW_SKILL_2, a selectable enemy anywhere on the field (after the 3 s of the automatic
+// operations' cooldown), not only one in her melee range; with no enemy on the field it waits
+test('S3 casts like 荒芜拉普兰德\'s (feedback #124): an enemy anywhere on the field, far out of her range; none on the field, it waits', () => {
+  for (const [tier, elite] of ALL_FORMS) {
+    const { h, u } = field({ tier, elite, skill: 2, row: 10, col: 1, enemies: [{ key: 'enemy_dummy', pos: [12, 10] }] });
+    assert.equal(u.skill.rule, 'GDGLOW_SKILL_2');
+    fillSp(u);
+    assert.equal(h.b.blockedTargets(u, { canHitFly: false })[0] ?? null, null, 'nothing in her reach');
+    h.runUntil(() => u.skill.active, 6);
+    assert.ok(u.skill.active, `tier ${tier} elite ${elite}: cast with the only enemy 9 tiles away`);
+    done(h);
+  }
+  const { h, u } = field({ skill: 2, row: 10, col: 1 });
+  fillSp(u);
+  h.run(6);
+  assert.equal(u.skill.active, false, 'no enemy on the field: no cast');
+  done(h);
+});
+
 test('S3 簇火: touching an enemy it blasts arts with the ATK it was created with; 元素伤害 on a burst target; 15 % on a repeat of the wave', () => {
   const { h, u } = field({ skill: 2, row: 10, col: 5, enemies: [{ key: 'enemy_dummy', pos: [10, 7] }] });
   const bb = bbOf(true, S3), sk = u.skill, e = h.enemies()[0];

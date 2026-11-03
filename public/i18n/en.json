@@ -3567,5 +3567,12 @@
   "拖动、缩放座位卡上的动态立绘": "Drag and zoom the animated art on your seat card",
   "缩小": "Zoom out",
   "放大": "Zoom in",
-  "恢复默认取景": "Reset framing"
+  "恢复默认取景": "Reset framing",
+  "{tier}阶 已选 {n}/{total} 名自选干员": "Tier {tier}: {n}/{total} custom operators chosen",
+  "未开启联动干员：这里改用原来的自选；开启联动干员的房间里仍是「{name}」": "Collab operators are off: this position uses its earlier pick; in a room with them on it is still {name}",
+  "未开启联动干员：「{name}」只在开启联动干员的房间上场": "Collab operators are off: {name} plays only in a room with them on",
+  "{n} 选 {k}": "Pick {k} of {n}",
+  "点选每阶本局上场的自选干员（卡片标出了本局被禁用的盟约）；不选则由排在前面、盟约没有全部被禁用的干员上场。": "Tap who plays this match in each tier (the cards mark the Alliances banned this match); without a choice, the first ones in your order whose Alliances are not all banned play.",
+  "已选好本局上场的自选干员；本阶段结束前仍可更改。": "Custom operators set for this match; you can still change them until this step ends.",
+  "每阶选 {k} 名": "Pick {k} per tier"
 }

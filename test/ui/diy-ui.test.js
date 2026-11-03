@@ -194,6 +194,26 @@ test('diy sync: welcome brings the kit list and sends room.diy; edits are deboun
   s.dispose();
 });
 
+// feedback #128: where 联动干员 is off a collab pick's position sends its fallback; the host's switch resends the collab pick
+test('diy sync: a room without 联动干员 gets the fallback of a collab pick, one with it the collab pick', async () => {
+  const ASH = { charId: 'char_456_ash', skillIndex: 2, uniEquipId: null };
+  const net = fakeNet();
+  const T = fakeTimers();
+  const app = createStore({ room: { code: 'ABCD', experimental: {} } });
+  const target = createStore({ diy: { [T5A]: ASH, [T6A]: { charId: SHARP } }, diyFallback: { [T5A]: SIEGE_PICK }, diyKitted: null, open: false, diySync: 'idle' });
+  const s = installDiySync({ net, timers: T, target, app, content: null, notify() {} });
+  net.emit('welcome', { diyKitted: [SIEGE, SHARP] });
+  await T.advance(100);
+  assert.deepEqual(net.sent.at(-1), { t: 'room.diy', picks: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } } });
+  app.set({ room: { code: 'ABCD', experimental: { collabOps: true } } });
+  await T.advance(SYNC_DEBOUNCE_MS + 10);
+  assert.deepEqual(net.sent.at(-1), { t: 'room.diy', picks: { [T5A]: ASH, [T6A]: { charId: SHARP } } });
+  app.set({ room: { code: 'ABCD', experimental: {} } });
+  await T.advance(SYNC_DEBOUNCE_MS + 10);
+  assert.deepEqual(net.sent.at(-1).picks[T5A], SIEGE_PICK, 'switched off again: the fallback');
+  s.dispose();
+});
+
 // ---- the tab --------------------------------------------------------------------------------------------------------------
 
 describe('自选编队 tab (screens/diy.js)', () => {

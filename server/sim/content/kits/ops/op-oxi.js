@@ -23,7 +23,9 @@
 //   official blackboard; PRTS's 0.9 is the same circle by collider), healing her heal_ratio of the sum. Each cast adds one
 //   layer: ATK / DEF + per layer, her attacks strike every enemy she blocks; stack_duration refreshes on a gain, and on
 //   expiry one layer goes and the time refreshes (PRTS 备注).
-// - S3 日冕重烈 (MANUAL, data DEFAULT): ATK + for the duration, no attacks (the 怒火 fills meanwhile). Every 80 frames (PRTS:
+// - S3 日冕重烈 (MANUAL, data DEFAULT; cast like 荒芜拉普兰德's S3 — GDGLOW_SKILL_2, "全场存在可选目标时释放技能": feedback #124,
+//   planned by the owner on 2026-11-03 — players found that she only rained fire once an enemy reached her): ATK + for
+//   the duration, no attacks (the 怒火 fills meanwhile). Every 80 frames (PRTS:
 //   the 2.67 s is a rounding) a wave of 簇火 starts on normal_half_width rows either side of hers, each from the farthest
 //   tile up to FLAME_BACK behind her still on the map, and flies wave_speed ahead to wave_exit_distance past the map's edge.
 //   At half time it overloads: 60 frames, overload_half_width rows. A 簇火 (the client's projectile_chr_oxi_s_3_heatwave:
@@ -252,6 +254,8 @@ export default {
         },
         [S3]: {
           kind: 'duration', mods: { atkPct: num(b3.atk) }, flags: { disarm: true },
+          // feedback #124 (see the header): a selectable enemy anywhere on the field, not the basic strategy's enemy in range
+          trigger: { rule: 'GDGLOW_SKILL_2' },
           onStart({ battle, unit }) {
             const owner = CHANNEL.get(battle);
             if (up(owner) && owner !== unit && owner.skill?.active) return;

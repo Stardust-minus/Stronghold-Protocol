@@ -58,7 +58,7 @@ test('#120 production path: her S3 running, another operator of ours knocked out
   assert.deepEqual(gains(bt), [1, 1]);
 });
 
-test('#120 the rule needs her skill running: S3 ready but not cast (no enemy in her range yet) → a knocked-out ally gives nothing', REAL, () => {
+test('#120 the rule needs her skill running: S3 ready but not cast yet (the automatic cast waits for its 3 s cooldown) → a knocked-out ally gives nothing', REAL, () => {
   const { bt, oxi, rest } = oxiBattle(2);
   for (let i = 0; i < 30 && !(oxi.deployed && rest[0].deployed); i++) bt.step();
   oxi.skill.sp = oxi.skill.spCost;

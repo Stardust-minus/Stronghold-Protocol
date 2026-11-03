@@ -20,6 +20,13 @@
 // slots), 3–4 under `diyBench_<tier>_<n>` keys (shared/diy.js DIY_BENCH_SIZE); in the match's briefing the player picks
 // any two of them (ui/diyChoice.js). Every position is drawn and checked as a pick of its tier. In a match, whose bans
 // are known, a card names the bonds of its operator that are off (diyMatchOff / diyBanHint).
+// 联动干员的回退 (feedback #128, planned by the owner on 2026-11-03: 「在禁用联动干员的时候应该fallback到之前选用的自选干员，
+// 而不是继续保留无法使用的联动干员」): a collab 6★ put over a position's own pick keeps that pick as the position's fallback
+// (`sp.pref.diy` { v, picks, fallback }; setPickKeepingFallback); wherever 联动干员 is off — every room without the host's
+// switch, and outside a room — the position fields its fallback instead (diyPicksFor: what the tab shows and what goes to
+// the server), and a room with it on fields the collab pick again. A collab pick with no fallback (the position was empty)
+// leaves the position empty there. The fallback goes when the position gets another non-collab pick or is cleared; an
+// import or 全部清空 drops them all.
 
 import { DIY_LIMITS, checkDiyPicks } from '../../../shared/protocol.js';
 import { diySlotIds, diySlot, diyPool, isPrototypePick, isCollabPick, lockedSelection, isDiyModule, diyRecord, diyTiers,
@@ -67,8 +74,66 @@ export function parseStoredDiy(raw) {
   return isObj(raw) ? cleanPicks(raw.picks) : {};
 }
 
-/** Serialised form for localStorage. */
-export const toStoredDiy = (picks) => ({ v: DIY_VERSION, picks: cleanPicks(picks) });
+/** The collab fallbacks of a stored setting (feedback #128; any junk → {}): `{ v, picks, fallback }`. @param {any} raw */
+export function parseStoredDiyFallback(raw) {
+  return isObj(raw) ? cleanPicks(raw.fallback) : {};
+}
+
+/**
+ * Serialised form for localStorage; `fallback` (feedback #128) only when there is one — a reader without it keeps reading
+ * `picks` alone.
+ */
+export const toStoredDiy = (picks, fallback = null) => {
+  const fb = cleanPicks(fallback);
+  return Object.keys(fb).length ? { v: DIY_VERSION, picks: cleanPicks(picks), fallback: fb } : { v: DIY_VERSION, picks: cleanPicks(picks) };
+};
+
+/**
+ * Set (or with null, clear) one position keeping its collab fallback (feedback #128, see the header): a collab 6★ over a
+ * non-collab pick remembers that pick; over another collab pick the position keeps the fallback it had; over an empty
+ * position there is none; any other pick, and a clear, drop it. Returns the new `{ picks, fallback }` (the inputs are not
+ * changed).
+ * @param {any} picks @param {any} fallback @param {string} slotId @param {any} pick @param {any} data `{ chess, backups }`
+ */
+export function setPickKeepingFallback(picks, fallback, slotId, pick, data) {
+  const cur = cleanPicks(picks)[slotId] ?? null;
+  const fb = { ...cleanPicks(fallback) };
+  const collab = isObj(pick) && isId(pick.charId) && isCollabPick(data, pick.charId);
+  if (!collab || !cur) delete fb[slotId];
+  else if (!isCollabPick(data, cur.charId)) fb[slotId] = cur;
+  return { picks: setPick(picks, slotId, pick), fallback: fb };
+}
+
+/**
+ * The picks a context fields (feedback #128, see the header): with `collab` (a room with 联动干员 on) the stored picks;
+ * else each collab pick replaced by its position's fallback, or left out without one. The data names the collab 6★
+ * (shared/diy.js isCollabPick: nothing is replaced before backups.json loads).
+ * @param {any} picks @param {any} fallback @param {any} data @param {{ collab?: boolean }} [opts]
+ * @returns {Record<string, { charId: string, skillIndex?: number, uniEquipId?: string|null }>}
+ */
+export function diyPicksFor(picks, fallback, data, { collab = false } = {}) {
+  const clean = cleanPicks(picks);
+  if (collab) return clean;
+  const fb = cleanPicks(fallback);
+  const out = {};
+  for (const [key, p] of Object.entries(clean)) {
+    if (!isCollabPick(data, p.charId)) out[key] = p;
+    else if (fb[key] && !isCollabPick(data, fb[key].charId)) out[key] = fb[key];
+  }
+  return out;
+}
+
+/**
+ * The positions whose stored pick is a collab 6★ that a context without 联动干员 does not field (feedback #128): position →
+ * that pick; {} with `collab`. The 自选编队 tab names them on the position's card (its fallback, or the empty position).
+ * @param {any} picks @param {any} data @param {{ collab?: boolean }} [opts]
+ */
+export function diyCollabHeld(picks, data, { collab = false } = {}) {
+  const out = {};
+  if (collab) return out;
+  for (const [key, p] of Object.entries(cleanPicks(picks))) if (isCollabPick(data, p.charId)) out[key] = p;
+  return out;
+}
 
 /**
  * The localStorage key (store.js prefix `sp.pref.`) of a version's picks: 'diy' for 第二期下半, 'diy.<slug>' else.

@@ -157,6 +157,77 @@ describe('the briefing\'s 自选上场 (ui/diyChoice.js)', () => {
   });
 });
 
+// feedback #127 (planned by the owner on 2026-11-03; 「开局选自选的界面需要滚动，太不显眼了」): the briefing draws 自选上场 as
+// a strip pinned above 准备就绪 — the same candidates and taps — calling for a choice while a tier is on the default
+describe('the briefing\'s 自选上场 dock (feedback #127)', () => {
+  const tier = (t, picked) => ({ tier: t, slots: 2, candidates: [own(CHEN), own(KALTS), own(IFRIT), own(HUANG)], chosen: [CHEN, KALTS], picked });
+  const dock = (tiers, o = {}) => expand(C.DiyChoiceView({ priv: { diyChoice: { tiers } }, onTap: o.onTap || (() => {}), dock: true, ...o }), 4);
+  test('one strip: both tiers, 4 选 2, the candidates and their taps as in the section', () => {
+    const taps = [];
+    const tree = dock([tier(5, false), tier(6, false)], { onTap: (t, id) => taps.push([t, id]) });
+    assert.ok(hasClass(tree, 'diychoice--dock') && hasClass(tree, 'is-todo'));
+    assert.equal(tree.props['data-testid'], 'diy-choice');
+    assert.ok(textOf(tree).includes('4 选 2'));
+    assert.deepEqual([...walk(tree)].filter((v) => hasClass(v, 'diychoice__tier')).map((v) => v.props['data-tier']), [5, 6]);
+    const cands = [...walk(tree)].filter((v) => hasClass(v, 'diychoice__c'));
+    assert.equal(cands.length, 8);
+    cands[6].props.onClick();
+    assert.deepEqual(taps, [[6, IFRIT]]);
+  });
+  test('it calls for a choice only while a tier is on the default (no choice, no draft) and the player is not ready', () => {
+    assert.ok(hasClass(dock([tier(5, true), tier(6, false)]), 'is-todo'));
+    assert.ok(!hasClass(dock([tier(5, true), tier(6, true)]), 'is-todo'));
+    assert.ok(textOf(dock([tier(5, true), tier(6, true)])).includes('已选好本局上场的自选干员'));
+    assert.ok(!hasClass(dock([tier(5, false)], { ready: true }), 'is-todo'), 'ready: no call');
+    assert.ok(!hasClass(dock([tier(5, false)], { drafts: { 5: [IFRIT] } }), 'is-todo'), 'a draft under way');
+    assert.equal(C.DiyChoiceView({ priv: {}, onTap() {}, dock: true }), null);
+  });
+});
+
+// feedback #128 (planned by the owner on 2026-11-03: 「在禁用联动干员的时候应该fallback到之前选用的自选干员」): a collab 6★ over a
+// position's own pick keeps that pick, fielded wherever 联动干员 is off
+describe('联动干员的回退 (feedback #128, ui/diyModel.js)', () => {
+  const ASH = 'char_456_ash', YATO2 = 'char_1029_yato2';
+  test('setPickKeepingFallback: collab over own keeps it, over collab keeps the old one, over empty none; own or clear drop it', () => {
+    let r = M.setPickKeepingFallback({ [T5A]: own(SIEGE) }, {}, T5A, own(ASH), D);
+    assert.deepEqual(r, { picks: { [T5A]: own(ASH) }, fallback: { [T5A]: own(SIEGE) } });
+    r = M.setPickKeepingFallback(r.picks, r.fallback, T5A, own(YATO2), D);
+    assert.deepEqual(r.fallback, { [T5A]: own(SIEGE) }, 'collab over collab');
+    assert.deepEqual(M.setPickKeepingFallback(r.picks, r.fallback, T5A, own(KALTS), D), { picks: { [T5A]: own(KALTS) }, fallback: {} });
+    assert.deepEqual(M.setPickKeepingFallback(r.picks, r.fallback, T5A, null, D), { picks: {}, fallback: {} });
+    assert.deepEqual(M.setPickKeepingFallback({}, {}, B51, own(ASH), D).fallback, {}, 'over an empty position');
+    assert.deepEqual(M.setPickKeepingFallback({ [T5A]: own(ASH), [T6A]: own(SIEGE) }, { [T5A]: own(KALTS) }, T6A, own(IFRIT), D).fallback, { [T5A]: own(KALTS) }, 'another position keeps its own');
+  });
+  test('diyPicksFor / diyCollabHeld: off, the fallback (or nothing) plays; on, the collab pick', () => {
+    const picks = { [T5A]: own(ASH), [B51]: own(YATO2), [T6A]: own(SIEGE) };
+    const fb = { [T5A]: own(KALTS) };
+    assert.deepEqual(M.diyPicksFor(picks, fb, D, { collab: true }), picks);
+    assert.deepEqual(M.diyPicksFor(picks, fb, D), { [T5A]: own(KALTS), [T6A]: own(SIEGE) });
+    assert.deepEqual(M.diyCollabHeld(picks, D), { [T5A]: own(ASH), [B51]: own(YATO2) });
+    assert.deepEqual(M.diyCollabHeld(picks, D, { collab: true }), {});
+    assert.deepEqual(M.diyPicksFor(picks, fb, null), picks, 'no data: nothing is replaced');
+    // what the server keeps of it outside a collab room: the fallback, and no collab pick
+    assert.deepEqual(Object.keys(M.sanitizeDiyPicks(M.diyPicksFor(picks, fb, D), D, KIT)), [T5A, T6A]);
+  });
+  test('the stored form carries the fallbacks only when there are some; an older reader keeps reading the picks', () => {
+    assert.deepEqual(M.toStoredDiy({ [T5A]: own(ASH) }, { [T5A]: own(KALTS) }), { v: 1, picks: { [T5A]: own(ASH) }, fallback: { [T5A]: own(KALTS) } });
+    assert.deepEqual(M.toStoredDiy({ [T5A]: own(KALTS) }, {}), { v: 1, picks: { [T5A]: own(KALTS) } });
+    const stored = M.toStoredDiy({ [T5A]: own(ASH) }, { [T5A]: own(KALTS) });
+    assert.deepEqual(M.parseStoredDiy(stored), { [T5A]: own(ASH) });
+    assert.deepEqual(M.parseStoredDiyFallback(stored), { [T5A]: own(KALTS) });
+    assert.deepEqual(M.parseStoredDiyFallback({ v: 1, picks: {} }), {});
+  });
+  test('the tab names the held collab operator: on its fallback card and on an empty position', () => {
+    const shown = { [T5A]: own(KALTS) };
+    const tree = expand(DiyPanelView({ m: null, picks: shown, legal: shown, kitted: KIT, held: { [T5A]: own(ASH), [B51]: own(YATO2) }, onSet() {}, picking: null, onPicking() {} }), 4);
+    const cards = [...walk(tree)].filter((v) => hasClass(v, 'diy-slot'));
+    const heldOf = (slot) => { const c = cards.find((v) => v.props['data-slot'] === slot); return [...walk(c)].find((v) => v.props?.['data-testid'] === 'diy-collab-held') || null; };
+    assert.ok(textOf(heldOf(T5A)).includes('这里改用原来的自选'));
+    assert.ok(textOf(heldOf(B51)).includes('只在开启联动干员的房间上场'));
+    assert.equal(heldOf(T6A), null);
+  });
+});
+
 // rel27 (the owner, 11-03: 「干员调配的甄选干员，仍然显示1/2，不是四个」): the 甄选干员 card closing a tier in 干员调配's
 // card view counts the tier's four positions (slots + 候补), shows every candidate's face (a 2 × 2 grid past two), and the
 // bottom bar's open 名额 count them too.
