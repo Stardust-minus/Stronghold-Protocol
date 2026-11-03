@@ -249,12 +249,6 @@
 .diychoice--dock .diychoice__flag, .diychoice--dock .diychoice__tag { top: 0; font-size: calc(.11 * var(--t)); line-height: 1.35; }
 .diychoice--dock .diychoice__flag { left: 0; }
 .diychoice--dock .diychoice__tag { right: 0; }
-/* short landscape phones: the avatar over the name, no bond row, no lead (the cards' flags and the title stay) */
-@media (max-height: 520px) {
-  .diychoice--dock .diychoice__lead, .diychoice--dock .diychoice__bonds { display: none; }
-  .diychoice--dock .diychoice__c { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
-  .diychoice--dock .diychoice__c .uthumb { --ut: .56rem; grid-row: auto; }
-}
 
 /* 已就绪 x/N over the bracketed pips, 准备就绪 */
 .brief__foot {
@@ -318,6 +312,10 @@
   .brief .stephead__name { min-width: 0; white-space: normal; text-wrap: balance; line-height: 1.1; }
   .brief .stephead__name:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
   .brief .stephead__name:lang(ja) { line-break: strict; }
+  /* 自选上场's dock (feedback #127): the avatar over the name, no bond row, no lead (the cards' flags and the title stay) */
+  .diychoice--dock .diychoice__lead, .diychoice--dock .diychoice__bonds { display: none; }
+  .diychoice--dock .diychoice__c { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
+  .diychoice--dock .diychoice__c .uthumb { --ut: .56rem; grid-row: auto; }
 }
 /* … and in a short desktop window (≤ 640 px tall: 1024×600) at 大 / 特大 (§35.51 review: the micro cut and over 玩法说明 there) */
 @media (max-height: 640px) {
