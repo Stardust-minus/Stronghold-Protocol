@@ -1290,6 +1290,15 @@ existing draw sequence.
 
 `server/testMode.js` gates immutable test rooms. `shared/testMode.js` validates the bounded command catalogue; `server/match/match/testCommands.js` invokes normal match/player primitives for the current host. Normal matches reject every `g.test` and omit all test metadata. Test rooms require join/watch acknowledgement, suppress awards and local records, and expose their audit tail. `server/match/testTrace.js` writes init/call/timer inputs to the server logger; `server/match/testReplay.js` re-simulates a complete journal with identical build/content. See [deployment](DEPLOY.md) and [playing](PLAYING.md) for controls and assumptions.
 
+调控台 (feedback #125, the owner's decisions of 2026-11-03): a private room's `experimental.console` (shared/experimental.js
+isConsoleRoom; room settings, 5 s warning, ui/consoleRoom.js) makes its matches test matches without the input journal,
+whatever `SP_TEST_MODE` says — the switch rides with the options to game nodes, version hosts and persisted rooms. Every
+seated player commands their own seat (per-player rate bucket); round / phase / timers / hp / teamLp only for the match's
+only human; bounty takes a count (1–20, at most 20 waiting per player, no leader); a co-op chess grant leaves the shared
+pool alone. The upstream test rules hold otherwise: no titles / trophies / rewards, no local records, no checkpoint (a
+release switch ends such a match). Never at room.create, never in matchmaking (a test room cannot queue as a party
+either), not on the room list. Tests: test/console-room.test.js, test/ui/console-room.e2e.test.js.
+
 
 ### Plugin bond records (0.3.1)
 

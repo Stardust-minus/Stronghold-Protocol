@@ -83,7 +83,7 @@ export function battleSpeedScale(pub) {
  * one fell short / 'next' it starts with the next battle / 'idle' not enough votes.
  * @param {any} pub m.public
  * @param {any} myId
- * @returns {{ status: 'on'|'ending'|'next'|'idle', mine: boolean, count: number, need: number } | null}
+ * @returns {{ status: 'on'|'ending'|'next'|'idle', mine: boolean, count: number, need: number, voter: boolean } | null}
  */
 export function speedVoteState(pub, myId) {
   const v = pub?.speedVote;
@@ -91,7 +91,10 @@ export function speedVoteState(pub, myId) {
   const agreed = Array.isArray(v.agreed) ? v.agreed : [];
   const running = battleSpeedScale(pub) > 1;
   const status = running ? (v.next ? 'on' : 'ending') : v.next ? 'next' : 'idle';
-  return { status, mine: agreed.includes(myId), count: agreed.length, need: Number(v.need) || 0 };
+  // rel29 (feedback #130): `ids` the voters — an eliminated human is none while one still in the match is online; a
+  // server without it (rel28) counts every connected human
+  const voter = Array.isArray(v.ids) ? v.ids.includes(myId) : true;
+  return { status, mine: agreed.includes(myId), count: agreed.length, need: Number(v.need) || 0, voter };
 }
 
 /**

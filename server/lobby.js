@@ -125,6 +125,12 @@
 //     picks are checked against the room again (seatSettings: a collab pick of a room that is off now is dropped and its
 //     slot stays empty) and the match takes the room's switch with its options (PlayerDiy.setDiy `collab`). A room with it
 //     on never enters matchmaking (matchmakingMembers BAD_MSG).
+//   * 调控台 (feedback #125, the owner's decisions of 2026-11-03): `experimental.console` — like collabOps, set by the host of
+//     a private room with room.setExperimental only (the page shows a 5 s warning first), never at room.create, never in a
+//     matchmade room, and a room with it never enters matchmaking (shared/experimental.js isConsoleRoom). Its matches are
+//     test matches without the input journal (server/match/Match.js): g.test is routed for them although this process's
+//     test switch is off (routeGameNow). Such a room is not listed (listable), like a test room. Party matchmaking refuses a
+//     test room too (matchmakingMembers).
 //   * Content identity (DESIGN §32, the plugin system's first step): the lobby is given the server's vanilla content
 //     (server/plugins/identity.js; none in unit tests that build a Lobby without it). Every `welcome` carries
 //     `content: { vanilla: <cs> }` — and `plugins: <n>` when this server has n > 0 unofficial plugins (every class but a
@@ -193,8 +199,8 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
-//   * Display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, trophies?, look?, avatarLook?, artX?, artY?, artZoom? } (the
-//     seat card's framing of the look's 动态立绘, rel27: shared/protocol.js) — a portrait operator and an
+//   * Display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, bgX?, bgZoom?, trophies?, look?, avatarLook?, artX?, artY?, artZoom? } (the
+//     seat card's framing of the look's 动态立绘, rel27; the background's framing bgX / bgY / bgZoom, #129: shared/protocol.js) — a portrait operator and an
 //     avatar operator (real operators of the game data: cardCharIds, else BAD_MSG), a namecard background id (format
 //     only) and a self-reported trophy
 //     count (cosmetic, never used by a match), the art of the portrait and the avatar (look / avatarLook: 精二 '', 精一
@@ -252,7 +258,7 @@ import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, ROOM_LIST_
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, isOfficialAvatar } from '../shared/protocol.js';
 import { isSkinChoices, skinFor } from '../shared/skins.js';
 import { CARD_ROSTER } from '../shared/card-roster.js';
-import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isCollabRoom, isExperimental, sameExperimental } from '../shared/experimental.js';
+import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isCollabRoom, isConsoleRoom, isExperimental, sameExperimental } from '../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
 import { encode, isErrCode, sendEncodedMany, sendMessage, sendRaw, sendSession, TokenBucket } from './net.js';
 import { isCompressibleType } from './wsCompression.js';
@@ -399,6 +405,7 @@ function cardCharIds(data) {
   return ids;
 }
 const sameCard = (a, b) => (a?.charId ?? '') === (b?.charId ?? '') && (a?.avatar ?? '') === (b?.avatar ?? '') && (a?.bg ?? '') === (b?.bg ?? '') && (a?.bgY ?? -1) === (b?.bgY ?? -1)
+  && (a?.bgX ?? -1) === (b?.bgX ?? -1) && (a?.bgZoom ?? -1) === (b?.bgZoom ?? -1)
   && (a?.trophies ?? 0) === (b?.trophies ?? 0) && (a?.look ?? '') === (b?.look ?? '') && (a?.avatarLook ?? '') === (b?.avatarLook ?? '')
   && (a?.artX ?? -1) === (b?.artX ?? -1) && (a?.artY ?? -1) === (b?.artY ?? -1) && (a?.artZoom ?? -1) === (b?.artZoom ?? -1);
 /** A card look ('' / 'e1' / a skin id) that `charId` can wear. */
@@ -1242,6 +1249,8 @@ export class Lobby {
     if (!isExperimental(experimental)) return fail(ERR.BAD_MSG);
     // 联动干员 only from the room's settings, after the host confirmed the warning (header)
     if (isCollabRoom(experimental)) return fail(ERR.BAD_MSG, 'collabOps: turned on in the room settings only');
+    // 调控台 (header): the same — the host confirms its warning in the room settings
+    if (isConsoleRoom(experimental)) return fail(ERR.BAD_MSG, 'console: turned on in the room settings only');
     if (roomCapacity(mode, experimental) > MAX_SEATS && !this.supportsCapacity(session)) return fail(ERR.BAD_MSG);
     if (this.maintenance()) return fail(ERR.MAINTENANCE);
     if (this.queue.has(session)) return fail(ERR.QUEUED);
@@ -1443,6 +1452,7 @@ export class Lobby {
     const capacity = roomCapacity(room.mode, experimental);
     if (room.source !== 'private' && capacity !== room.capacity) return fail(ERR.BAD_MSG, 'matchmade room capacity cannot change');
     if (room.source !== 'private' && isCollabRoom(experimental)) return fail(ERR.BAD_MSG, 'collabOps: private rooms only');
+    if (room.source !== 'private' && isConsoleRoom(experimental)) return fail(ERR.BAD_MSG, 'console: private rooms only');
     if (capacity > MAX_SEATS && (!this.supportsCapacity(session) || !this.capacityClients(room, capacity))) return fail(ERR.BAD_MSG);
     // Reject before touching options, ready flags, replay or seats, including a
     // disconnected human / AI in a high slot. A shrink never reassigns seats.
@@ -1461,9 +1471,13 @@ export class Lobby {
     return OK;
   }
 
-  /** Whether a room can go on 同盟列表 at all (feedback #30): a private co-op room of eight seats or more, plugins and tests excluded. */
+  /**
+   * Whether a room can go on 同盟列表 at all (feedback #30): a private co-op room of eight seats or more, plugins, tests and
+   * 调控台 rooms (header) excluded.
+   */
   listable(room) {
-    return room.mode === 'coop' && room.source === 'private' && !room.test && room.capacity >= ROOM_LIST_MIN_CAPACITY && !room.modded;
+    return room.mode === 'coop' && room.source === 'private' && !room.test && !isConsoleRoom(room.experimental)
+      && room.capacity >= ROOM_LIST_MIN_CAPACITY && !room.modded;
   }
 
   /** Whether a listed room is waiting for players right now: full, started, queued or hostless rooms drop out by themselves. */
@@ -2200,6 +2214,8 @@ export class Lobby {
     if (difficulty !== room.difficulty) return fail(ERR.BAD_MSG, 'party difficulty must match the room');
     if (room.seats.some((seat) => seat?.isBot)) return fail(ERR.BAD_MSG, 'public matchmaking has no AI players');
     if (isCollabRoom(room.experimental)) return fail(ERR.BAD_MSG, 'a room with collabOps on cannot enter matchmaking');
+    // a test match's commands and a 调控台 room's (header) never reach a matchmade room
+    if (room.test || isConsoleRoom(room.experimental)) return fail(ERR.BAD_MSG, 'a test or console room cannot enter matchmaking');
     if (room.activeHumans().some(seat => !seat.connected || (seat.playerId !== room.hostId && seat.ready !== true))) return fail(ERR.NOT_READY);
     const sessions = room.activeHumans().map((seat) => this.registry.byId(seat.playerId));
     if (!sessions.length || sessions.some((s) => !this.isOnline(s))) return fail(ERR.NOT_READY, 'all party members must be online');
@@ -2305,6 +2321,7 @@ export class Lobby {
       || offer.deadline <= now) return fail(ERR.BAD_TARGET, 'expired matchmaking offer');
     if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== offer.required) return fail(ERR.BAD_MSG);
     if (isCollabRoom(offer.experimental)) return fail(ERR.BAD_MSG, 'a matchmade room never has collabOps');
+    if (isConsoleRoom(offer.experimental)) return fail(ERR.BAD_MSG, 'a matchmade room never has the console');
     const oldRooms = new Set();
     for (const session of sessions) {
       const entry = this.queue.entries.get(session.playerId);
@@ -2435,7 +2452,7 @@ export class Lobby {
    * clears it; an unknown operator is BAD_MSG — and copy it to the player's seat (never a spectator's), broadcasting the
    * room state when it changed. An unchanged card costs nothing; a change beyond CARD_CHANGES per CARD_WINDOW_MS is RATE.
    */
-  setCard(session, { charId, avatar, bg, bgY, trophies, look, avatarLook, artX, artY, artZoom }) {
+  setCard(session, { charId, avatar, bg, bgY, bgX, bgZoom, trophies, look, avatarLook, artX, artY, artZoom }) {
     const known = cardCharIds(this.dataFor(this.roomOf(session)));
     const real = (id) => CARD_ROSTER_IDS.has(id) || known.has(id);
     if ((charId && !real(charId)) || (avatar && !real(avatar) && !isOfficialAvatar(avatar))) return fail(ERR.BAD_MSG, 'unknown operator');
@@ -2455,6 +2472,10 @@ export class Lobby {
     if (back) next.bg = back;
     const y = bgY === undefined ? prev.bgY : bgY;
     if (back && y >= 0) next.bgY = y;
+    // its horizontal position and zoom (feedback #129) the same way: kept with a background, -1 clears
+    const x = bgX === undefined ? prev.bgX : bgX, z = bgZoom === undefined ? prev.bgZoom : bgZoom;
+    if (back && x >= 0) next.bgX = x;
+    if (back && z >= 100) next.bgZoom = z;
     // the seat card's framing of the look's 动态立绘 (rel27): all three or none, only with that look — a new look starts at
     // its portrait crop
     const sameLook = (next.look ?? '') === (prev.look ?? '');
@@ -2986,7 +3007,9 @@ export class Lobby {
   routeGameNow(session, msg) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
-    if (msg.t === 'g.test') {
+    // a 调控台 room (header) takes g.test whatever this process's test switch says; its match decides who may command
+    const consoleRoom = isConsoleRoom(room.experimental);
+    if (msg.t === 'g.test' && !consoleRoom) {
       if (!this.testEnabled) return fail(ERR.TEST_DISABLED);
       if (room.test !== true) return fail(ERR.TEST_FORBIDDEN);
     }
@@ -2996,7 +3019,7 @@ export class Lobby {
       return OK;
     }
     // a spectator only watches (header): nothing else of it ever reaches the match
-    if (msg.t !== 'g.watch' && !(room.test && msg.t === 'g.test') && room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
+    if (msg.t !== 'g.watch' && !((room.test || consoleRoom) && msg.t === 'g.test') && room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
     let res;
     try {
       res = room.match.handle(session.playerId, msg);

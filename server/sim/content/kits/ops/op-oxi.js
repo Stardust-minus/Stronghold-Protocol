@@ -33,7 +33,9 @@
 //   (projectile_range) is gone and blasts range_radius with the ATK it was created with
 //   × heatwave_atk_scale, arts, or 元素伤害 on a target in its 灼燃 burst; a later 簇火 of the same wave deals
 //   same_wave_repeat_damage_scale to a target already hit. The first wave comes one interval after the cast [ASSUMED]; 簇火
-//   in flight outlive the skill [ASSUMED, as 克莱门莎's shots]. One 塔露拉 channels per field (PRTS); a second only stands.
+//   in flight outlive the skill [ASSUMED, as 克莱门莎's shots]. One 塔露拉 channels per field (PRTS); a second only stands —
+//   per player (feedback #133, planned by the owner on 2026-11-03: in 联防 the second player's 塔露拉 rained no fire while
+//   the first one's S3 ran): the official field has one doctor, so each doctor's 塔露拉 channels on a shared field.
 // - This game's rule, the owner's decision of 2026-11-02 (no official source): while her skill lasts — S3 running, or S2
 //   with a layer up; S1 has no duration — every other operator of our side knocked out gives her player DEATH_LAYERS 奥术
 //   and 不屈 layers. Her bonds 协防 + 奥术 + 不屈 are the same decision (tools/build-data.mjs DIY_EXTRA_BONDS).
@@ -53,8 +55,9 @@ const FLAME_GAP = 80 / 30, OVERLOAD_GAP = 60 / 30;
 const LAYERS = 'oxi:layers';
 const DEATH_LAYERS = 1;
 const DEATH_BONDS = Object.freeze(['arcaneShip', 'indomShip']);
-/** battle → the 塔露拉 channelling S3 (PRTS: "场上只有一名塔露拉可以引导簇火"). */
+/** battle → (her player → the 塔露拉 channelling S3) (PRTS: "场上只有一名塔露拉可以引导簇火"; per player: feedback #133). */
 const CHANNEL = new WeakMap();
+const channelsOf = (battle) => { let m = CHANNEL.get(battle); if (!m) CHANNEL.set(battle, (m = new Map())); return m; };
 
 const stateOf = (unit) => (unit.mem.oxi ??= { anger: 0, growAt: 0, castAt: -Infinity, layers: 0, source: null, fire: null });
 const targetOf = (battle, unit) => battle.blockedTargets(unit, GROUND)[0]
@@ -257,9 +260,10 @@ export default {
           // feedback #124 (see the header): a selectable enemy anywhere on the field, not the basic strategy's enemy in range
           trigger: { rule: 'GDGLOW_SKILL_2' },
           onStart({ battle, unit }) {
-            const owner = CHANNEL.get(battle);
+            const channels = channelsOf(battle);
+            const owner = channels.get(unit.ownerId ?? null);
             if (up(owner) && owner !== unit && owner.skill?.active) return;
-            CHANNEL.set(battle, unit);
+            channels.set(unit.ownerId ?? null, unit);
             stateOf(unit).fire = { next: battle.time + FLAME_GAP, over: false, wave: 0 };
           },
           onTick({ battle, unit, skill }) {
@@ -276,7 +280,8 @@ export default {
           },
           onEnd({ battle, unit }) {
             stateOf(unit).fire = null;
-            if (CHANNEL.get(battle) === unit) CHANNEL.delete(battle);
+            const channels = channelsOf(battle);
+            if (channels.get(unit.ownerId ?? null) === unit) channels.delete(unit.ownerId ?? null);
           },
         },
       },

@@ -17,7 +17,7 @@
 //   gain_bond_char_per_round {round,preround,bond}     哈洛德   rounds round, round+preround, …: a <bond> chess (≤ shop level, else any tier)
 //   first_buy_in_round_char_price_change {price,bond}  休露丝   first <bond> chess of the round costs `price` (bought in the
 //                                                               shop: onBuy — a free pick / grant never uses it up)
-//   band_cost_coin_reach_cnt_gain_chess_from_pool      潘格尼尼 once coin_cnt funds spent in total: 1 chess of pool (elite 拉特兰 ≥ T4)
+//   band_cost_coin_reach_cnt_gain_chess_from_pool      潘格尼尼 every coin_cnt funds spent in total: 1 chess of pool (elite 拉特兰 ≥ T4)
 //   round_start_bond_check_gain_layer                  余       round start of `round`: exactly factioncount active bonds → +count1, else each active +count2
 //                                                               — never to a bond without layers (noStack; the owner's decision of 2026-10-08)
 //   up_shop_add_special_goods {count,choice,pool}      凯瑟琳   every level-up: pick 1 of `count` items of pool (free)
@@ -259,14 +259,27 @@ K.first_buy_in_round_char_price_change = (ps) => ({
   },
 });
 
+/**
+ * 潘格尼尼 【定制铳械】 「累计花费55资金后，获得1名4阶及以上随机的精锐<拉特兰>干员」. Feedback #131 (the owner's decision of
+ * 2026-11-04, no official source): every coin_cnt funds spent in total give one — the data text says 「每累计花费55资金，」
+ * (tools/build-data.mjs BAND_TEXT_EDITS); until rel28 only the first 55 did. `spent` counts every fund spent, `done` the
+ * operators given: due = ⌊spent / coin_cnt⌋ − done, so a checkpoint of an older build (done 1, spent frozen at the grant)
+ * owes nothing, and an older build restoring this one's (done ≥ 1) gives no more. A roll or a grant that fails (an empty
+ * pool, no room) is owed and tried again on the next spend.
+ */
 K.band_cost_coin_reach_cnt_gain_chess_from_pool = (ps) => ({
   onSpend(ctx, ev) {
     const p = ps[0];
-    if (ctx.counter('band:paganini:done') > 0) return;
+    const step = int(p.coin_cnt, 0);
+    if (step <= 0) return;
     const spent = ctx.incCounter('band:paganini:spent', Math.max(0, int(ev.amount, 0)));
-    if (spent < int(p.coin_cnt, 0)) return;
-    const r = ctx.rollPool(p.pool);
-    if (r && grant(ctx, r.id, { source: 'band' })) ctx.setCounter('band:paganini:done', 1);
+    let guard = 0;
+    const limit = burstLimit(10000); // [ASSUMED] as 绮良's: one spend gives at most this many
+    while (ctx.counter('band:paganini:done') < Math.floor(spent / step) && guard++ < limit) { // loop-cap: coin_cnt
+      const r = ctx.rollPool(p.pool);
+      if (!r || !grant(ctx, r.id, { source: 'band' })) return;
+      ctx.incCounter('band:paganini:done', 1);
+    }
   },
 });
 

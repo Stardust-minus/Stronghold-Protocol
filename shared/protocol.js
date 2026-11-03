@@ -520,7 +520,7 @@ export function unitStatsEntry(u, s = null) {
 export const DIRS = Object.freeze(['UP', 'RIGHT', 'DOWN', 'LEFT']);
 const isDir = (v) => DIRS.includes(v);
 
-// ---- display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, trophies?, look?, avatarLook?, artX?, artY?, artZoom? }
+// ---- display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, bgX?, bgZoom?, trophies?, look?, avatarLook?, artX?, artY?, artZoom? }
 
 /**
  * `room.card`: the player's display card, shown to the room on its seat (room.state seats[].card) — `charId`: the card's
@@ -532,13 +532,16 @@ const isDir = (v) => DIRS.includes(v);
  * avatar operator — '' its 精二 art (as before), 'e1' its 精一 art, or a skin id of that operator (the server checks it
  * belongs to it: shared/skins.js skinFor). `bg` may be `skin:<skin id>`, the skin's full illustration. `bgY` (feedback
  * #61): the vertical position of the background in percent, the part of the picture the plate shows; -1 the default.
+ * `bgX` / `bgZoom` (feedback #129, rel29): its horizontal position in percent and its zoom in percent of the size that just
+ * covers the plate (100–CARD_LIMITS.bgZoomMax), -1 each the default (centred, 100) — the picture's bgX% bgY% point on the
+ * plate's, scaled about it (public/js/ui/namecards.js); kept with a background like bgY (a rel28 server ignores them).
  * `artX` / `artY` / `artZoom` (rel27, the owner's decision of 2026-11-03): how the seat card frames the `look` skin's 动态立绘
  * — centre in per-mille of its bounds (x from the left, y from the top), zoom in percent of their height shown (100–2500);
  * all three or none (-1 each: the portrait crop), kept only with a skin `look`, dropped when the look changes (a rel26 server
  * ignores them: it validates and reads named fields only).
  * A field the message leaves out keeps its stored value.
  */
-export const CARD_LIMITS = Object.freeze({ idLength: 48, trophies: 1_000_000 });
+export const CARD_LIMITS = Object.freeze({ idLength: 48, trophies: 1_000_000, bgZoomMax: 400 });
 const isCardCharId = (v) => v === '' || (isStr(v, CARD_LIMITS.idLength) && /^char_[0-9a-z_]+$/.test(v));
 /** An official player avatar (display_meta_table playerAvatarData, assets.json ui['playerAvatar/<id>'], feedback #100). */
 export const isOfficialAvatar = (v) => isStr(v, CARD_LIMITS.idLength) && /^avatar_[0-9A-Za-z_]+$/.test(v);
@@ -647,10 +650,11 @@ export const C2S = {
   // Independent display-only choices: actual charId → admitted manifest key; accepted in INFO_CHECK only.
   'room.skins': { choices: isSkinChoices },
   // the display card (CARD_LIMITS above; server/lobby.js setCard): stored per session, copied to the player's seat
-  'room.card': { charId: isCardCharId, avatar: isCardAvatar, bg: isCardBg, bgY: (v) => isInt(v, -1, 100), trophies: (v) => isInt(v, 0, CARD_LIMITS.trophies),
+  'room.card': { charId: isCardCharId, avatar: isCardAvatar, bg: isCardBg, bgY: (v) => isInt(v, -1, 100), bgX: (v) => isInt(v, -1, 100),
+    bgZoom: (v) => v === -1 || isInt(v, 100, CARD_LIMITS.bgZoomMax), trophies: (v) => isInt(v, 0, CARD_LIMITS.trophies),
     look: isCardLook, avatarLook: isCardLook, artX: (v) => isInt(v, -1, 1000), artY: (v) => isInt(v, -1, 1000),
     artZoom: (v) => v === -1 || isInt(v, 100, 2500),
-    $optional: ['charId', 'avatar', 'bg', 'bgY', 'trophies', 'look', 'avatarLook', 'artX', 'artY', 'artZoom'] },
+    $optional: ['charId', 'avatar', 'bg', 'bgY', 'bgX', 'bgZoom', 'trophies', 'look', 'avatarLook', 'artX', 'artY', 'artZoom'] },
   // spectator seats (remake feature, community report #26; MAX_SPECTATORS): take one of a co-op room's spectator seats —
   // in its lobby or while its match runs — never a player seat; the host frees one by playerId (the spectator gets
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.

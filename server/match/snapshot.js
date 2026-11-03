@@ -83,10 +83,11 @@ export const MATCH_FIELDS = Object.freeze({
     'BattleClass', 'battleContent', 'timerScale', 'baseGameSpeed', 'snapshotHz', 'localReplica', 'botRehearsal', 'botSliceMs',
     'botRehearsalDelegate', 'botRehearsalDelegateMs', 'hostId', 'ds', 'clientCombat', 'verifyMode', 'combatPool', 'trialPool',
     'headlessSliceMs', 'battlePrefix', 'experimental', 'revivalEnabled', 'disableSharedPool', 'poolPlan', 'playerCapacity',
-    'capacityExperiment', 'twentyPlayerMode', 'disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'enemyHpMul', 'enemyAtkMul', 'players', 'order', 'spectators', 'botBands', 'stage', 'pool',
+    'capacityExperiment', 'twentyPlayerMode', 'disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'uniteHumansFirst', 'enemyHpMul', 'enemyAtkMul', 'players', 'order', 'spectators', 'botBands', 'stage', 'pool',
     'playerPools', 'itemPool', 'ended', 'disposed',
-    // 0.3.1: the content set's declared windows and the room's 测试 flag (both from the match options)
-    'offers', 'test',
+    // 0.3.1: the content set's declared windows and the room's 测试 flag (both from the match options); the 调控台 switch
+    // (feedback #125, from opts.experimental — a console match is a test match and never checkpoints, canSnapshot)
+    'offers', 'test', 'consoleRoom',
     // 0.3.2: the official version (a hosted match's: its match host checkpoints it, server/persist/persister.js), the bot
     // strategy, the room's simulation pool, the external AI
     'version', 'bot', 'simPool', 'externalAI',

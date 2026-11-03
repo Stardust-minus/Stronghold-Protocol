@@ -252,7 +252,7 @@
 //                    re-exported here, OK, fail, BOSS_CLOCK_MS, AFK_ACTIONS)
 
 import { PHASE, modeIdFor } from '../../shared/constants.js';
-import { enemyHpMulAt, experimentalOptions } from '../../shared/experimental.js';
+import { enemyHpMulAt, experimentalOptions, isConsoleRoom } from '../../shared/experimental.js';
 import { roomCapacity } from '../../shared/playerCapacity.js';
 import { createDamageBoard } from './damageBoard.js';
 import { MatchExtensions } from './match/extensions.js';
@@ -410,7 +410,13 @@ export class Match {
      * The extra state exists only then, and public / result views omit the keys while this is false, so a
      * normal match stays byte-identical.
      */
-    this.test = opts.test === true;
+    /**
+     * 调控台 (feedback #125, shared/experimental.js isConsoleRoom): the room's switch rides with its options — a game node, a
+     * version host and a restore see it without a test key — and makes this a test match without the input journal, in
+     * which every seated player commands their own seat (match/testCommands.js).
+     */
+    this.consoleRoom = isConsoleRoom(opts.experimental);
+    this.test = opts.test === true || this.consoleRoom;
     if (this.test) {
       /** phase deadlines are armed. false holds the callback (g.test timers) instead of scaling time to 0. */
       this.testTimers = true;
@@ -495,6 +501,8 @@ export class Match {
     /** the room's battle rules: every battle gets them as spec flags (_ruleFlags), the match's own layer writers read them */
     this.disableLayerCap = this.experimental.disableLayerCap === true;
     this.disableHitLimit = this.experimental.disableHitLimit === true;
+    /** AI 联防置后 (shared/experimental.js isUniteHumansFirst): 联防 helpers are humans first (unite.js helperOrder) */
+    this.uniteHumansFirst = this.experimental.uniteHumansFirst === true;
     /**
      * the room's enemy multipliers (1 = none): spec flags too, and the leader pool's size (bossRounds.js). enemyHpMul is the
      * single multiplier (1 under a by-round plan, experimental.enemyHpPlan): a round's own is enemyHpMulAt().
@@ -675,7 +683,8 @@ export class Match {
     // so one callback cannot run to HARD_CAP_SECONDS. Virtual time stays unbounded (the defaults
     // above). The input journal records the steps that callback took; replay stops there.
     this.externalAI = createExternalAI(this, opts);
-    if (this.test && opts.journal !== false) installTestTrace(this, opts);
+    // (a 调控台 match keeps no journal: it is not a replayable test session, and its lines would fill the production log)
+    if (opts.test === true && !this.consoleRoom && opts.journal !== false) installTestTrace(this, opts);
   }
 
   /**

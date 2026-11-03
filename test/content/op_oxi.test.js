@@ -332,6 +332,29 @@ test('S3: one 塔露拉 channels per field', () => {
   done(h);
 });
 
+test('S3: each player\'s 塔露拉 channels on a shared field (联防, feedback #133)', () => {
+  const golden = BACKUPS.diy.slots[SLOT[5]].goldenId;
+  const oxi = (uid) => ({ uid, kind: 'chess', chessId: golden, diy: { charId: OXI, skillIndex: 2, uniEquipId: null }, row: 10, col: 5 });
+  const h = makeBattle({
+    kind: 'boss', defs: { enemies: ENEMIES }, timeLimit: 600, autoFinish: false, seed: 5,
+    flags: { dpPerSec: 0, dpMax: 999 }, hooks: ['damaged', 'skillStart', 'skillEnd'], captureNoisy: true,
+    players: [
+      { playerId: 'p1', seat: 0, side: 'L', colOffset: 0, units: [oxi(1)], bonds: {} },
+      { playerId: 'p2', seat: 1, side: 'R', colOffset: 0, units: [oxi(2)], bonds: {} },
+    ],
+  });
+  h.step();
+  const u = h.unit(1), v = h.unit(2);
+  assert.notEqual(u.ownerId, v.ownerId);
+  fillSp(u); fillSp(v);
+  u.skill.activate('manual');
+  h.step();
+  v.skill.activate('manual');
+  assert.ok(u.mem.oxi.fire, 'the first');
+  assert.ok(v.mem.oxi.fire, 'the second player\'s too');
+  done(h);
+});
+
 test('an operator of ours knocked out while her skill lasts gives 奥术 and 不屈 layers; S1, her own death and an idle S3 give none', () => {
   const ally = { uid: 2, chessId: 'chess_char_1_01_a', row: 11, col: 5 };
   const gains = (h, u) => { const g = h.b._pp(u.ownerId).layerGains; return [g.arcaneShip ?? 0, g.indomShip ?? 0]; };

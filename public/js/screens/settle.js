@@ -433,7 +433,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext, onDetail = null, versi
       <div class="splate">
         <${PlayerAvatar} player=${self} self=${true} class="splate__ava" />
         <div class=${cx('splate__info', card.bg && 'has-nc')}>
-          <${NameCardLayer} card=${card.bg} y=${card.bgY} />
+          <${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />
           <b class="splate__name">${self.name}</b>
           <span class="splate__rank" title=${t('累计奖杯')}><${TrophyBadge} count=${prog.trophies} /><small><${Icon} name="crown" />${prog.trophies}</small></span>
           <span class="splate__gain"><small><${Icon} name="crown" />${t('获得奖杯')}</small><b class="num">${self.trophies}</b></span>
@@ -494,7 +494,7 @@ function TeamCard({ p, i, gd, self, victory, raw }) {
       <div class="tcard__rounds"><span>${t('通过回合')}</span><b class="num">${p.roundsPassed}</b></div>
     </div>
     <div class=${cx('tcard__plate', !p.isBot && card?.bg && 'has-nc')}>
-      ${p.isBot ? null : html`<${NameCardLayer} card=${card?.bg} y=${card?.bgY} />`}
+      ${p.isBot ? null : html`<${NameCardLayer} card=${card?.bg} y=${card?.bgY} x=${card?.bgX} zoom=${card?.bgZoom} />`}
       ${self ? html`<i class="tcard__me" aria-hidden="true"><${Icon} name="user" /></i>` : null}
       <${PlayerAvatar} player=${p} self=${self} class="tcard__ava" />
       <span class="tcard__who">

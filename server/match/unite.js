@@ -184,15 +184,19 @@ export function helperStats(m, ps, results) {
  * active bond > layers > standing > number of active bonds > seat (Σ layers already ranks the pair before standing,
  * so repeating it after the bond count changes nothing). The two keys before the seat are the owner's tie-break
  * (2026-10-17, feedback #13): mid-game every perfect player fields 8 units with a bond active, so PRTS's keys tie
- * and the seat alone used to decide — the official tie-break after them is unknown [ASSUMED]. No RNG.
+ * and the seat alone used to decide — the official tie-break after them is unknown [ASSUMED]. No RNG. A room with AI 联防置后
+ * (m.uniteHumansFirst) ranks every human first, in both orders.
  */
 export function helperOrder(m, perfects, results) {
   const st = new Map(perfects.map((ps) => [ps.playerId, helperStats(m, ps, results)]));
   const S = (ps) => st.get(ps.playerId);
-  const select = perfects.slice().sort((a, b) => S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).standing - S(a).standing
+  // AI 联防置后 (the room's uniteHumansFirst, shared/experimental.js): every human before any seat the engine plays (an AI
+  // teammate, AI 托管), each side in the order below; off, 0 throughout
+  const engine = (ps) => (m?.uniteHumansFirst === true && ps.botControlled ? 1 : 0);
+  const select = perfects.slice().sort((a, b) => engine(a) - engine(b) || S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).standing - S(a).standing
     || S(b).activeBonds - S(a).activeBonds || S(b).layers - S(a).layers || a.seat - b.seat)
     .slice(0, m.gd.unite.maxHelpers);
-  return select.sort((a, b) => S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).layers - S(a).layers || S(b).standing - S(a).standing
+  return select.sort((a, b) => engine(a) - engine(b) || S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).layers - S(a).layers || S(b).standing - S(a).standing
     || S(b).activeBonds - S(a).activeBonds || a.seat - b.seat);
 }
 

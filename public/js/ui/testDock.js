@@ -97,10 +97,13 @@ export function dockMetricsFromStyle(style, fallback = DOCK_REM) {
 
 /**
  * Default dock box. `{ sheet: true }` at width ≤ 720. Otherwise a field panel in CSS px.
+ * `tall` (the 调控台 of a console match, ui/consolePanel.js): the box reaches down to just above the shop bar (shopTop)
+ * instead of the full hand — it may cover the bench's left end, which the player can still see past it.
  * @param {{ width: number, height: number, rem?: number }} size  `rem`: the measured layout root (else remOf)
  * @param {typeof DOCK_REM} [metrics]
+ * @param {{ tall?: boolean }} [opts]
  */
-export function dockHome(size, metrics = DOCK_REM) {
+export function dockHome(size, metrics = DOCK_REM, { tall = false } = {}) {
   const w = Number(size?.width) || 0;
   const h = Number(size?.height) || 0;
   if (!(w > 0) || !(h > 0) || w <= 720) return { sheet: true };
@@ -109,7 +112,7 @@ export function dockHome(size, metrics = DOCK_REM) {
   const width = Math.min(px(metrics.width), w * 0.28);
   const x = px(metrics.teamRight + metrics.margin);
   const y = px(Math.max(metrics.bondBottom, metrics.topBar) + metrics.margin);
-  const bottom = h - px(metrics.handClear + metrics.margin);
+  const bottom = h - px((tall ? metrics.shopTop : metrics.handClear) + metrics.margin);
   const height = Math.max(0, bottom - y);
   return { sheet: false, x, y, width, height, rem };
 }

@@ -100,6 +100,25 @@
    other controls squeezed it to a few px at the default height (the panel body scrolls instead) */
 .testconsole__log { margin: 0; padding: 0; list-style: none; min-height: 1.1rem; max-height: 2.4rem; overflow: auto; overflow-wrap: anywhere; }
 .testconsole__log .is-bad { color: #ff8a5c; }
+/* 调控台 (feedback #125, ui/consolePanel.js; .is-console): the dock reaches down to just above the shop bar (testDock.js
+   dockHome `tall`). The header row and the 指令 select stay put; the form and the match-wide buttons scroll only when they
+   must; the log scrolls in its own box (about six rows, newest first) and gives way first. A name picker (搜索 over a long
+   list) sits beside a number field; hints and the layers refusal take their own line. */
+.testconsole.is-console .testconsole__body { display: flex; flex-direction: column; overflow: hidden; }
+.testconsole.is-console .testconsole__head { flex: none; }
+.testconsole__console { display: flex; flex-direction: column; gap: .06rem; min-width: 0; min-height: 0; flex: 1 1 auto; }
+.testconsole__console > .testconsole__field { flex: none; }
+.testconsole__mid { flex: 0 1 auto; min-height: 0; overflow: auto; display: grid; gap: .06rem; align-content: start; }
+.testconsole__pick { display: flex; flex-wrap: wrap; gap: .02rem .06rem; flex: 1 1 9em; min-width: 0; }
+.testconsole__pick > .testconsole__field { flex: 1 1 100%; }
+.testconsole__row .testconsole__field.testconsole__num { flex: 0 0 4.6em; }
+.testconsole__hint, .testconsole__warn { flex: 1 1 100%; line-height: 1.4; }
+.testconsole__warn { color: #ff8a5c; }
+.testconsole__shared { gap: .04rem; }
+.testconsole__shared button { padding: .02rem .06rem; }
+.testconsole__logbox { flex: 0 50 auto; min-height: 0; display: flex; flex-direction: column; gap: .02rem; }
+.testconsole__console .testconsole__log { line-height: 1.35; min-height: calc(2 * 1.35em); max-height: calc(6 * 1.35em); flex: 0 1 auto; }
+.testconsole__logtoggle { display: none; }
 @media (max-width: 720px) {
   .testconsole {
     top: 8px !important; left: 8px !important; width: auto !important;
@@ -111,6 +130,23 @@
   .testconsole__field input, .testconsole__field select {
     min-height: 32px; min-width: 32px; font-size: 14px; padding: 6px 10px;
   }
+  /* 调控台 on a phone: the phone HUD's compact sizes, labels beside their controls, fields side by side; the sheet may
+     grow over the board, 收起 and the header stay; the log shows its newest two rows until opened */
+  .testconsole.is-console.is-open { max-height: calc(100vh - 16px) !important; }
+  .testconsole.is-console .testconsole__body, .testconsole.is-console.is-open .testconsole__body {
+    font-size: 11px; max-height: calc(78vh - 34px) !important; padding: 6px; gap: 4px;
+  }
+  .testconsole.is-console .testconsole__tab, .testconsole.is-console .testconsole__run, .testconsole.is-console .testconsole__row button,
+  .testconsole.is-console .testconsole__logtoggle, .testconsole.is-console .testconsole__field input, .testconsole.is-console .testconsole__field select {
+    min-height: 26px; min-width: 26px; font-size: 11px; padding: 2px 6px;
+  }
+  .testconsole.is-console .testconsole__field { display: flex; align-items: center; gap: 4px; }
+  .testconsole.is-console .testconsole__field > input, .testconsole.is-console .testconsole__field > select { flex: 1 1 auto; width: auto; }
+  .testconsole.is-console .testconsole__pick { flex: 1 1 24em; }
+  .testconsole.is-console .testconsole__pick > .testconsole__field { flex: 1 1 10em; }
+  .testconsole.is-console .testconsole__row .testconsole__field.testconsole__num { flex: 0 0 7.5em; }
+  .testconsole__logtoggle { display: inline-block; align-self: flex-start; color: #1a1408; background: #e8b84a; border: 0; font-weight: 700; cursor: pointer; }
+  .testconsole__logbox:not(.is-open) .testconsole__log { min-height: 0; max-height: calc(2 * 1.35em); overflow: hidden; }
 }
 
 /* ---- top bar -------------------------------------------------------------------------------------- */
@@ -261,6 +297,7 @@
 .speedvote.is-mine { border-color: var(--mint-400); color: var(--mint-400); }
 .speedvote.is-on { background: var(--mint-500); border-color: var(--mint-400); color: var(--text-on-mint); box-shadow: 0 0 .22rem rgba(23, 249, 183, .45); }
 .speedvote.is-busy { opacity: .6; }
+.speedvote.is-out { opacity: .55; }
 .speedvote:disabled { cursor: default; }
 
 /* boss-round overtime warning (ui/hud.js OvertimeWarning; red DOT look: official icon_warn / blood_icon + bg_lose_hp) */

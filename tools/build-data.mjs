@@ -1546,6 +1546,32 @@ function buildItems(ctx, effects) {
 // ===== bands (策略) ===============================================================================
 
 /**
+ * This game's wording of a strategy whose rule the owner changed (no official source): [bandId, from, to] replace the
+ * official text in the band's desc / descRaw and in its effect's (effects.json, the same text). A rule that no longer
+ * matches warns. 潘格尼尼 【定制铳械】 (feedback #131, the owner's decision of 2026-11-04): every 55 funds spent in total
+ * give an operator, not only the first 55 (server/sim/content/bands/meta.js band_cost_coin_reach_cnt_gain_chess_from_pool).
+ */
+const BAND_TEXT_EDITS = Object.freeze([
+  ['band_paganini', /累计花费(\d+)资金后，/, '每累计花费$1资金，'],
+]);
+
+function applyBandTextEdits(bands, effects) {
+  for (const [bandId, from, to] of BAND_TEXT_EDITS) {
+    const b = bands[bandId];
+    if (!b) continue;
+    for (const rec of [b, effects[b.effectId]]) {
+      if (!rec) continue;
+      for (const k of ['desc', 'descRaw']) {
+        if (typeof rec[k] !== 'string') continue;
+        if (!from.test(rec[k])) { warn(`band ${bandId}: text edit ${from} matches no ${k}`); continue; }
+        rec[k] = rec[k].replace(from, to);
+      }
+    }
+  }
+}
+
+
+/**
  * Build data/bands.json: the 40 season strategies. `bondIds` (the bonds a strategy is built around: shared/bandBonds.js
  * over its text and blackboards, needing bonds.json and choices.json pools) is added in main() once those are built.
  */
@@ -3494,6 +3520,7 @@ async function main() {
   const garrisons = buildGarrisons(ctx, chess);
   const items = buildItems(ctx, effects);
   const bands = buildBands(ctx, effects);
+  applyBandTextEdits(bands, effects);
   const enemies = buildEnemies(ctx);
   for (const p of passes) p.tokens = buildTokens(p.ctx, p.chess, p.tokenOwners, enemies);
   const tokens = passes[FULL_RANK].tokens;

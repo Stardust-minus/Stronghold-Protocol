@@ -708,7 +708,7 @@ export function installOwnershipSync({ net, timers, target = loadoutStore, notif
 export function installPlayerCardSync({ net, timers, target = playerCardStore, listChess, notify, content = appContentSet, app = store } = {}) {
   const list = listChess || (() => data.list('chess'));
   return installPrefSync({
-    net, timers, target, notify, key: ['charId', 'avatar', 'bg', 'bgY', 'trophies', 'look', 'avatarLook', 'art'], stateKey: 'sync', msgType: 'room.card', field: null, tag: 'playerCard',
+    net, timers, target, notify, key: ['charId', 'avatar', 'bg', 'bgY', 'bgX', 'bgZoom', 'trophies', 'look', 'avatarLook', 'art'], stateKey: 'sync', msgType: 'room.card', field: null, tag: 'playerCard',
     lockedText: null, // room.card has no phase gate: never WRONG_PHASE / ROOM_STARTED
     content, app, gate: () => true, seatBound: false,
     async prepare() {

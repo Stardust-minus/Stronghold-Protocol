@@ -10,8 +10,12 @@
 // it over the static plate on screen, at any width (ui/dynamicIllustration.js cover mode on the shared renderer; still under
 // reduced motion, the static picture on a failure).
 // The pick is kept in the browser (NAMECARD_PREF) and travels with room.card (ui/playerCard.js) so teammates see it.
-// The part of a picture the plate shows (feedback #61): dragged up and down in the picker, `y` in percent (NAMECARD_Y_PREF,
-// room.card bgY); a faction emblem has nothing to crop. Styles: --nc-y in css/screens/lobby.css.
+// The part of a picture the plate shows (feedback #61; #129, the owner's plan of 2026-11-03: moved freely and zoomed, as the
+// seat card's 调整立绘): `x` / `y` in percent and `zoom` in percent of the cover size (NAMECARD_X_PREF / NAMECARD_Y_PREF /
+// NAMECARD_ZOOM_PREF, room.card bgX / bgY / bgZoom) — the picture's x% y% point sits on the plate's x% y% point and the
+// picture is drawn `cover` × zoom about it, so one framing reads the same on plates of any shape (the picker's 9:2, a seat,
+// 成就统计, the settlement); a faction emblem has nothing to crop. A rel28 server keeps bgY only (it ignores bgX / bgZoom):
+// the plate then shows the picture centred at its normal size. Styles: --nc-x / --nc-y / --nc-z in css/screens/lobby.css.
 // Styles: css/screens/lobby.css (.has-nc / .nc-layer / .nc-pick).
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Icon } from './components.js';
@@ -20,25 +24,68 @@ import { t, N_ } from '../../../shared/i18n.js';
 import { OPERATOR_SKINS } from '../../../shared/skins.js';
 import { isCollabUrl } from '../../../shared/collabAssets.js';
 import { DynamicIllustration } from './dynamicIllustration.js';
+import { CARD_LIMITS } from '../../../shared/protocol.js';
 
 export const NAMECARD_PREF = 'room.namecard';
 export const NAMECARD_Y_PREF = 'room.namecard.y';
+export const NAMECARD_X_PREF = 'room.namecard.x';
+export const NAMECARD_ZOOM_PREF = 'room.namecard.zoom';
 
 /** A stored or received vertical position: an integer 0–100, else null (the card's default). @param {unknown} y */
 export const namecardY = (y) => (Number.isInteger(y) && y >= 0 && y <= 100 ? y : null);
+/** A stored or received horizontal position (#129): an integer 0–100, else null (centred). @param {unknown} x */
+export const namecardX = namecardY;
+/** The zoom limits (#129), in percent of the size that just covers the plate. */
+export const NAMECARD_ZOOM = Object.freeze({ min: 100, max: CARD_LIMITS.bgZoomMax });
+/** A stored or received zoom: an integer NAMECARD_ZOOM.min–max, else null (100). @param {unknown} z */
+export const namecardZoom = (z) => (Number.isInteger(z) && z >= NAMECARD_ZOOM.min && z <= NAMECARD_ZOOM.max ? z : null);
 
 /** The default position of a card (css/screens/lobby.css .nc-layer, .nc-layer--skin). */
 const defaultY = (card) => (card?.kind === 'skin' ? 24 : 50);
+/** The framing a card starts at: centred, its default height, the cover size. */
+export const defaultFrame = (card) => ({ x: 50, y: defaultY(card), zoom: 100 });
 
 /**
- * The position after dragging a picture of `aspect` (height / width) by `dy` px in a plate of `width` × `height` drawn
- * `background-size: cover`: the picture follows the pointer (dragging down shows more of its top).
+ * The pixels a picture of `aspect` (height / width) drawn `cover` × zoom/100 overhangs a plate of `width` × `height`,
+ * across and down ([0, 0] while the picture is not measured).
+ * @returns {[number, number]}
+ */
+export function namecardSpare({ width, height, aspect, zoom = 100 }) {
+  if (!(aspect > 0) || !(width > 0) || !(height > 0)) return [0, 0];
+  const s = Math.max(width, height / aspect) * (Math.max(NAMECARD_ZOOM.min, zoom) / 100);
+  return [s - width, s * aspect - height];
+}
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const follow = (v, d, spare) => (spare > 0 ? clamp(v - (d / spare) * 100, 0, 100) : v);
+
+/**
+ * The framing after dragging the picture by (dx, dy) px from `from` (#129): it follows the pointer — dragging right / down
+ * shows more of its left / top; an axis with nothing to spare keeps its value. Not rounded (a drag in progress draws
+ * smoothly; roundFrame before it is stored).
+ * @param {{ x: number, y: number, zoom: number }} from @param {number} dx @param {number} dy
+ * @param {{ width: number, height: number, aspect: number }} plate
+ */
+export function dragNamecard(from, dx, dy, plate) {
+  const [sx, sy] = namecardSpare({ ...plate, zoom: from.zoom });
+  return { x: follow(from.x, dx, sx), y: follow(from.y, dy, sy), zoom: from.zoom };
+}
+
+/** A framing with its zoom clamped to NAMECARD_ZOOM (the position stays: the zoom is about that point). */
+export const zoomNamecard = (from, zoom) => ({ ...from, zoom: clamp(Number.isFinite(zoom) ? zoom : 100, NAMECARD_ZOOM.min, NAMECARD_ZOOM.max) });
+
+/** The integers a framing is stored and sent as. */
+export const roundFrame = (f) => ({ x: Math.round(clamp(f.x, 0, 100)), y: Math.round(clamp(f.y, 0, 100)),
+  zoom: Math.round(clamp(f.zoom, NAMECARD_ZOOM.min, NAMECARD_ZOOM.max)) });
+
+/**
+ * The vertical position after dragging by `dy` px at the cover size (feedback #61's rule, kept for its callers).
  * @returns {number} an integer 0–100; `from` when the whole height already shows
  */
 export function dragNamecardY(from, dy, { width, height, aspect }) {
-  const spare = width * aspect - height;
+  const [, spare] = namecardSpare({ width, height, aspect });
   if (!(spare > 0)) return from;
-  return Math.max(0, Math.min(100, Math.round(from - (dy / spare) * 100)));
+  return Math.round(follow(from, dy, spare));
 }
 
 /** The loading pictures (one per simulation difficulty). */
@@ -140,65 +187,126 @@ export function namecardDynamic(card, m = data.get('assets')) {
   return dyn && typeof dyn.skel === 'string' && !isCollabUrl(dyn.skel) && !isCollabUrl(s.illustration) ? dyn : null;
 }
 
+/** A framing value in range (a drag in progress is fractional), else null. */
+const inRange = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
+const pct = (v) => `${Math.round(v * 100) / 100}%`;
+
 /**
- * The card behind a name plate (the room's seat cards, the 成就统计 card, the top bar's chip): put it inside a
- * `.has-nc` element; nothing for no / an unknown card.
- * @param {{ card: string|null|undefined, y?: number|null }} props `y`: room.card bgY
+ * The card behind a name plate (the room's seat cards, the 成就统计 card, the settlement plates, the draft rows): put it
+ * inside a `.has-nc` element; nothing for no / an unknown card. A picture card draws in .nc-layer__pic, framed by x / y /
+ * zoom (header); a faction emblem ignores them.
+ * @param {{ card: string|null|undefined, y?: number|null, x?: number|null, zoom?: number|null }} props room.card bgY / bgX / bgZoom
  */
-export function NameCardLayer({ card, y = null }) {
+export function NameCardLayer({ card, y = null, x = null, zoom = null }) {
   useData('assets');
   const nc = namecardOf(card);
   const src = namecardSrc(nc);
   if (!nc || !src) return null;
-  const pos = namecardY(y);
+  if (!adjustable(nc)) {
+    return html`<span class=${`nc-layer nc-layer--${nc.kind}`} style=${`--nc:url("${src}")${nc.tint ? `; --nc-tint:${nc.tint}` : ''}`} aria-hidden="true"></span>`;
+  }
+  const py = inRange(y, 0, 100), px = inRange(x, 0, 100), z = inRange(zoom, NAMECARD_ZOOM.min, NAMECARD_ZOOM.max);
   const dyn = namecardDynamic(nc);
-  return html`<span class=${`nc-layer nc-layer--${nc.kind}`} style=${`--nc:url("${src}")${nc.tint ? `; --nc-tint:${nc.tint}` : ''}${pos == null ? '' : `; --nc-y:${pos}%`}`} aria-hidden="true">${
-    dyn ? html`<${DynamicIllustration} mode="cover" entry=${dyn} focusY=${pos ?? defaultY(nc)} />` : null}</span>`;
+  const style = `--nc:url("${src}")${px == null ? '' : `; --nc-x:${pct(px)}`}${py == null ? '' : `; --nc-y:${pct(py)}`}${z == null || z === 100 ? '' : `; --nc-z:${z / 100}`}`;
+  return html`<span class=${`nc-layer nc-layer--${nc.kind}`} style=${style} aria-hidden="true"><span class="nc-layer__pic"></span>${
+    dyn ? html`<${DynamicIllustration} mode="cover" entry=${dyn} framing=${{ focusX: px ?? 50, focusY: py ?? defaultY(nc), zoom: (z ?? 100) / 100 }} />` : null}</span>`;
 }
 
 /** Whether a card has a picture to crop (a faction emblem does not). @param {any} nc */
 const adjustable = (nc) => !!nc && nc.kind !== 'camp';
 
-/** 调整显示范围 (feedback #61): a plate to drag up and down and the same as a slider, for a keyboard. */
-function NameCardAdjust({ card, y, onAdjust, onDone }) {
+const SETTLE_MS = 450;
+const ZOOM_STEP = 1.25;
+
+/**
+ * 调整位置和缩放 (feedback #61, #129): a plate of the seat's shape to drag the picture around (both ways), the wheel / a pinch /
+ * − + and the slider to zoom, the arrow keys (Shift: ×5) and + / − on the focused plate; 恢复默认 back to the card's
+ * default. `onAdjust(frame)` gets the rounded framing when a drag ends or a zoom settles (room.card is rate-limited, so
+ * not on every move), null for the default.
+ */
+function NameCardAdjust({ card, x = null, y = null, zoom = null, onAdjust, onDone }) {
   const nc = namecardOf(card);
   const src = namecardSrc(nc);
-  const [pos, setPos] = useState(namecardY(y) ?? defaultY(nc));
-  const plate = useRef(null);
-  const aspect = useRef(0);
-  const drag = useRef(null);
+  const def = defaultFrame(nc);
+  const [frame, setFrame] = useState({ x: namecardX(x) ?? def.x, y: namecardY(y) ?? def.y, zoom: namecardZoom(zoom) ?? def.zoom });
+  const live = useRef(frame); live.current = frame;
+  const report = useRef(onAdjust); report.current = onAdjust;
+  const plate = useRef(null), aspect = useRef(0), drag = useRef(null), pointers = useRef(new Map()), settle = useRef(null);
   useEffect(() => {
     const img = new Image();
     img.onload = () => { if (img.naturalWidth) aspect.current = img.naturalHeight / img.naturalWidth; };
     if (src) img.src = src;
   }, [src]);
-  const onDown = (e) => { drag.current = { at: e.clientY, from: pos }; e.currentTarget.setPointerCapture?.(e.pointerId); };
-  const onMove = (e) => {
-    if (!drag.current || !plate.current) return;
-    const { width, height } = plate.current.getBoundingClientRect();
-    // a picture still loading counts as square, as most illustrations are: the plate never ignores the drag
-    setPos(dragNamecardY(drag.current.from, e.clientY - drag.current.at, { width, height, aspect: aspect.current || 1 }));
+  // closed (✕, Esc, the backdrop) while a zoom is still settling: it is kept, as 完成 would
+  useEffect(() => () => { if (settle.current) { clearTimeout(settle.current); settle.current = null; report.current(roundFrame(live.current)); } }, []);
+  // a picture still loading counts as square, as most illustrations are: the plate never ignores the drag
+  const box = () => { const r = plate.current?.getBoundingClientRect(); return { width: r?.width || 0, height: r?.height || 0, aspect: aspect.current || 1 }; };
+  const commit = (f) => { clearTimeout(settle.current); settle.current = null; const out = roundFrame(f); setFrame(out); onAdjust(out); };
+  const later = (f) => { setFrame(f); clearTimeout(settle.current); settle.current = setTimeout(() => commit(f), SETTLE_MS); };
+  const zoomBy = (factor) => later(zoomNamecard(live.current, live.current.zoom * factor));
+  const onDown = (e) => {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
+    const pts = [...pointers.current.values()];
+    drag.current = { start: live.current, x: e.clientX, y: e.clientY, dist: pts.length === 2 ? Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]) : 0 };
   };
-  const onUp = () => { if (drag.current) { drag.current = null; onAdjust(pos); } };
+  const onMove = (e) => {
+    const d = drag.current;
+    if (!d || !pointers.current.has(e.pointerId) || !plate.current) return;
+    pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
+    const pts = [...pointers.current.values()];
+    d.moved = true;
+    if (pts.length === 2 && d.dist > 0) setFrame(zoomNamecard(d.start, d.start.zoom * Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]) / d.dist));
+    else setFrame(dragNamecard(d.start, e.clientX - d.x, e.clientY - d.y, box()));
+  };
+  const onUp = (e) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size) { const [rest] = pointers.current.values(); drag.current = { start: live.current, x: rest[0], y: rest[1], dist: 0, moved: !!drag.current?.moved }; return; }
+    // a tap is no change (room.card is rate-limited)
+    if (drag.current) { const { moved } = drag.current; drag.current = null; if (moved) commit(live.current); }
+  };
+  const onWheel = (e) => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015)); };
+  const onKey = (e) => {
+    const step = e.shiftKey ? 5 : 1;
+    const moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+    if (moves[e.key]) {
+      e.preventDefault();
+      const f = live.current;
+      // the arrow moves the picture the way it points (as a drag would): → shows more of its left
+      later({ ...f, x: clamp(f.x + moves[e.key][0], 0, 100), y: clamp(f.y + moves[e.key][1], 0, 100) });
+    } else if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(ZOOM_STEP); }
+    else if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomBy(1 / ZOOM_STEP); }
+  };
+  const z = Math.round(frame.zoom);
   return html`<div class="nc-adjust">
-    <div class="nc-adjust__plate has-nc" ref=${plate} data-testid="nc-adjust-plate" onPointerDown=${onDown} onPointerMove=${onMove} onPointerUp=${onUp} onPointerCancel=${onUp}>
-      <${NameCardLayer} card=${card} y=${pos} />
-      <span class="nc-adjust__hint">${t('上下拖动调整显示范围')}</span>
+    <div class="nc-adjust__plate has-nc" ref=${plate} data-testid="nc-adjust-plate" tabIndex="0" role="application"
+        aria-label=${t('拖动调整位置，滚轮或双指缩放')}
+        onPointerDown=${onDown} onPointerMove=${onMove} onPointerUp=${onUp} onPointerCancel=${onUp} onWheel=${onWheel} onKeyDown=${onKey}>
+      <${NameCardLayer} card=${card} x=${frame.x} y=${frame.y} zoom=${frame.zoom} />
+      <span class="nc-adjust__hint"><${Icon} name="expand" />${t('拖动调整位置，滚轮或双指缩放')}</span>
     </div>
-    <input type="range" class="nc-adjust__range" min="0" max="100" step="1" value=${pos} aria-label=${t('调整显示范围')}
-      onInput=${(e) => setPos(Number(e.currentTarget.value))} onChange=${(e) => onAdjust(Number(e.currentTarget.value))} />
+    <div class="nc-adjust__zoom">
+      <button type="button" class="nc-adjust__btn nc-adjust__btn--sq" data-testid="nc-adjust-out" onClick=${() => zoomBy(1 / ZOOM_STEP)}
+        disabled=${z <= NAMECARD_ZOOM.min} aria-label=${t('缩小')}><${Icon} name="minus" /></button>
+      <input type="range" class="nc-adjust__range" data-testid="nc-adjust-zoom" min=${NAMECARD_ZOOM.min} max=${NAMECARD_ZOOM.max} step="1" value=${z}
+        aria-label=${t('缩放')} onInput=${(e) => setFrame(zoomNamecard(live.current, Number(e.currentTarget.value)))}
+        onChange=${(e) => commit(zoomNamecard(live.current, Number(e.currentTarget.value)))} />
+      <button type="button" class="nc-adjust__btn nc-adjust__btn--sq" data-testid="nc-adjust-in" onClick=${() => zoomBy(ZOOM_STEP)}
+        disabled=${z >= NAMECARD_ZOOM.max} aria-label=${t('放大')}><${Icon} name="plus" /></button>
+      <b class="nc-adjust__pct num" data-testid="nc-adjust-pct">${z}%</b>
+    </div>
     <div class="nc-adjust__foot">
-      <button type="button" class="nc-adjust__btn" onClick=${() => { setPos(defaultY(nc)); onAdjust(null); }}>${t('恢复默认')}</button>
-      <button type="button" class="nc-adjust__btn nc-adjust__btn--go" data-testid="nc-adjust-done" onClick=${onDone}>${t('完成')}</button>
+      <button type="button" class="nc-adjust__btn" data-testid="nc-adjust-reset" onClick=${() => { clearTimeout(settle.current); settle.current = null; setFrame(def); onAdjust(null); }}>${t('恢复默认')}</button>
+      <button type="button" class="nc-adjust__btn nc-adjust__btn--go" data-testid="nc-adjust-done" onClick=${() => { if (settle.current) commit(live.current); onDone(); }}>${t('完成')}</button>
     </div>
   </div>`;
 }
 
 /**
- * 名片底图 picker: 不使用底图 and every card; picking a card with a picture goes on to its position (`onAdjust`), any
- * other closes it. Esc / the backdrop close it too.
+ * 名片底图 picker: 不使用底图 and every card; picking a card with a picture goes on to its framing (`onAdjust`: a rounded
+ * { x, y, zoom }, null for the default), any other closes it. Esc / the backdrop close it too.
  */
-export function NameCardPicker({ current, y = null, onPick, onAdjust = null, onClose }) {
+export function NameCardPicker({ current, y = null, x = null, zoom = null, onPick, onAdjust = null, onClose }) {
   useData('assets');
   const m = data.get('assets');
   const [q, setQ] = useState('');
@@ -230,7 +338,7 @@ export function NameCardPicker({ current, y = null, onPick, onAdjust = null, onC
     <div class="nc-pick__panel" role="dialog" aria-modal="true" aria-label=${t('名片底图')}>
       <header class="nc-pick__head"><strong>NAME CARD</strong><span class="nc-pick__title">${t('名片底图')}</span>
         <button type="button" class="nc-pick__x" onClick=${onClose} aria-label=${t('关闭')}><${Icon} name="close" /></button></header>
-      ${adjusting && namecardOf(current) ? html`<${NameCardAdjust} key=${current} card=${current} y=${y} onAdjust=${onAdjust} onDone=${onClose} />` : html`<div class="nc-pick__grid">
+      ${adjusting && namecardOf(current) ? html`<${NameCardAdjust} key=${current} card=${current} x=${x} y=${y} zoom=${zoom} onAdjust=${onAdjust} onDone=${onClose} />` : html`<div class="nc-pick__grid">
         <button type="button" class=${`nc-pick__card nc-pick__card--none${!namecardOf(current) ? ' is-on' : ''}`} onClick=${() => pick('')}>
           <span class="nc-pick__art"><${Icon} name="close" /><span class="nc-pick__name">${t('不使用底图')}</span></span></button>
         <h4 class="nc-pick__theme">${t('模拟场景')}</h4>
@@ -244,7 +352,8 @@ export function NameCardPicker({ current, y = null, onPick, onAdjust = null, onC
         ${skins.map(skinCard)}
       </div>`}
       <footer class="nc-pick__foot"><small>${t('名片底图显示在同盟席位的名牌后面，同盟里的博士都能看到')}</small>
-        ${!adjusting && onAdjust && adjustable(namecardOf(current)) ? html`<button type="button" class="nc-adjust__btn" data-testid="nc-adjust-open" onClick=${() => setAdjusting(true)}>${t('调整显示范围')}</button>` : null}</footer>
+        ${!adjusting && onAdjust && adjustable(namecardOf(current)) ? html`<button type="button" class="nc-adjust__btn nc-adjust__btn--go" data-testid="nc-adjust-open" onClick=${() => setAdjusting(true)}>
+          <${Icon} name="expand" />${t('调整位置和缩放')}</button>` : null}</footer>
     </div>
   </div>`;
 }

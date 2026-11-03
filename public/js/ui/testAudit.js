@@ -38,6 +38,10 @@ export function explainTestDetail(detail) {
     case 'layers': return t('层数不能减少');
     case 'timers': return t('作战进行中不能开关计时');
     case 'bond': return t('这个盟约不能在本模式使用');
+    // 调控台 (feedback #125, server/match/match/testCommands.js)
+    case 'shared': return t('有其他博士在场时不能使用影响整局的指令');
+    case 'leader': return t('不能添加敌方领袖');
+    case 'bounty': return t('下一场作战最多添加 {max} 个敌人，还可添加 {left} 个', params);
     default: return '';
   }
 }

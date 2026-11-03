@@ -105,7 +105,7 @@ export class MatchViews {
       } : null,
       // 投票移出 an offline AI-托管 teammate (kickVote.js): null or { id, proposerId, targetId, voters, agreed, rejected, need, deadline }
       kickVote: this.kickVoteView(),
-      // 战斗 2 倍速 (speedVote.js): { agreed, voters, need, next, on, speed }
+      // 战斗 2 倍速 (speedVote.js): { agreed, voters, ids, need, next, on, speed }
       speedVote: this.speedVoteView(),
       factions: this.factions.slice(),
       disabledBonds: [...new Set([...this.disabledBonds, ...this.staticInactiveBonds])].sort(),

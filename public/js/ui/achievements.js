@@ -22,7 +22,7 @@ import { CardAvatarLive } from './avatarLive.js';
 import { peekStatsRecords, aggregateStats, countsTowardStats, selfRowOf, roundsOf, FULL_KEEP } from './stats.js';
 import { TrophyBadge } from './trophies.js';
 import { NameCardLayer, NameCardPicker } from './namecards.js';
-import { useMyCard, trophyTotal, setCardBackground, setCardBackgroundY, setCardAvatar, setAvatarLook } from './playerCard.js';
+import { useMyCard, trophyTotal, setCardBackground, setCardBackgroundFrame, setCardAvatar, setAvatarLook } from './playerCard.js';
 import { cardOperators, cardAvatarUrl, lookOptions } from './seatArt.js';
 import { AvatarPicker } from './opPicker.js';
 import { Emblem } from './emblem.js';
@@ -303,7 +303,7 @@ function Plate({ me, card, s, p, done, total, gd, onAvatar, onBg }) {
   const face = cardAvatarUrl(card.avatar, gd.m, card.avatarLook) || (opRec ? chessAvatarUrl(gd.m, opRec) : null);
   return html`<div class="ach-plate">
     <div class=${cx('ach-card', card.bg && 'has-nc')}>
-      <${NameCardLayer} card=${card.bg} y=${card.bgY} />
+      <${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />
       <button type="button" class="ach-card__ava" onClick=${onAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>
         <${Img} src=${face} alt="" fallback=${html`<span class="ach-card__glyph">${[...(me?.name || '?')][0]}</span>`} />
         <${CardAvatarLive} m=${gd.m} avatar=${card.avatar} look=${card.avatarLook || ''} />
@@ -485,7 +485,7 @@ export function AchievementPanel({ me, onClose }) {
       <button type="button" class="ach__close" onClick=${close} aria-label=${t('关闭')}><${Icon} name="close" /></button>
       <span class="ach__foot">${t('本机记录 · 保存在这台设备的浏览器里 · 每局结束后更新')}</span>
     </div>`}
-    ${picking === 'bg' ? html`<${NameCardPicker} current=${card.bg} y=${card.bgY} onPick=${setCardBackground} onAdjust=${setCardBackgroundY} onClose=${() => setPicking(null)} />` : null}
+    ${picking === 'bg' ? html`<${NameCardPicker} current=${card.bg} x=${card.bgX} y=${card.bgY} zoom=${card.bgZoom} onPick=${setCardBackground} onAdjust=${setCardBackgroundFrame} onClose=${() => setPicking(null)} />` : null}
     ${picking === 'avatar' ? html`<${AvatarPicker} current=${card.avatar} list=${cardList} m=${gd.m}
       looks=${{ kind: 'avatar', current: card.avatarLook, onLook: (look) => { setAvatarLook(look); setPicking(null); } }}
       onPick=${(id) => { setCardAvatar(id); if (!id || lookOptions(gd.m, id, 'avatar').length < 2) setPicking(null); }}

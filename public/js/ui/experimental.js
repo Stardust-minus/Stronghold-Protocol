@@ -5,6 +5,7 @@ import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shar
 import { ENEMY_HP_PLAN_MAX, ENEMY_MULTIPLIERS, canonicalEnemyHpPlan, enemyHpMulAt, isEnemyHpPlan, isEnemyMultiplier } from '../../../shared/experimental.js';
 import { autoPoolPlan, canonicalPoolPlan, isPoolPlan, poolCount } from '../../../shared/poolPlan.js';
 import { confirmCollab } from './collab.js';
+import { confirmConsole } from './consoleRoom.js';
 
 /** A room's enemy multiplier as the page shows it: 1 when it has none. */
 const enemyMul = value => (isEnemyMultiplier(value) ? value : 1);
@@ -45,13 +46,15 @@ export function experimentalOptions(input) {
     ...(enemyMul(input?.enemyAtkMul) !== 1 ? { enemyAtkMul: input.enemyAtkMul } : {}),
     ...(capacity === MAX_SEATS ? {} : { playerCapacity: capacity }),
     ...(plan ? { poolPlan: plan } : {}),
-    ...(input?.collabOps === true ? { collabOps: true } : {}) };
+    ...(input?.collabOps === true ? { collabOps: true } : {}),
+    ...(input?.console === true ? { console: true } : {}),
+    ...(input?.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}) };
 }
 
 /** Whether any option differs from a standard room's (the room's 实验性选项 button is then marked). */
 export function experimentalChanged(input) {
   const options = experimentalOptions(input);
-  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyHpPlan || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps;
+  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyHpPlan || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps || !!options.console || !!options.uniteHumansFirst;
 }
 
 export function experimentalSummary(input) {
@@ -59,7 +62,7 @@ export function experimentalSummary(input) {
   const summary = t('复活 {0} · 共享卡池 {1}', { 0: options.revivalEnabled ? t('开启') : tc('toggle', '关闭'), 1: options.disableSharedPool ? tc('toggle', '关闭') : t('开启') });
   const rules = [summary, options.disableDuckLord && t('禁用鸭爵策略'), options.disableLayerCap && t('禁用层数上限'), options.disableHitLimit && t('禁用单次伤害上限'),
     options.enemyHpMul && t('敌人生命 ×{n}', { n: options.enemyHpMul }), options.enemyHpPlan && t('敌人生命 {plan}', { plan: enemyHpPlanText(options.enemyHpPlan) }), options.enemyAtkMul && t('敌人攻击 ×{n}', { n: options.enemyAtkMul }),
-    options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }), options.collabOps && t('联动干员')].filter(Boolean).join(' · ');
+    options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }), options.uniteHumansFirst && t('AI 联防置后'), options.collabOps && t('联动干员'), options.console && t('调控台')].filter(Boolean).join(' · ');
   return options.playerCapacity ? t('{rules} · {n} 人模式', { rules, n: options.playerCapacity }) : rules;
 }
 
@@ -129,6 +132,23 @@ export function collabRow({ value, source = 'private', ...rest }) {
     } });
 }
 
+/**
+ * 调控台 (shared/experimental.js isConsoleRoom): a private room only, solo or co-op. Off → on asks the host to confirm the
+ * warning first (ui/consoleRoom.js, a 5 s hold), as 联动干员; on → off at once.
+ */
+export function consoleRow({ value, source = 'private', ...rest }) {
+  const { options, locked, send } = optionsEditor({ value, ...rest });
+  if (source !== 'private') return null;
+  const on = options.console === true;
+  return switchRow({ id: 'experimental-console', testid: 'experimental-console', title: t('调控台'), checked: on, disabled: locked,
+    note: t('开启后，本房间所有博士可在对局中调用干员、装备、盟约层数与敌人。对局不计入战绩与成就。开启前需确认提示。'),
+    onChange: (next, e) => {
+      if (!next) { const { console: off, ...rules } = options; send(rules); return; }
+      if (e?.currentTarget) e.currentTarget.checked = on; // off until the warning is confirmed
+      confirmConsole().then((ok) => { if (ok) send({ ...options, console: true }); });
+    } });
+}
+
 /** The battle rules: 规则 in a co-op room, the single page of a solo room (no teammate to rescue there). */
 export function ruleRows({ value, mode = 'coop', source = 'private', ...rest }) {
   const { options, locked, send } = optionsEditor({ value, ...rest });
@@ -183,7 +203,10 @@ export function ruleRows({ value, mode = 'coop', source = 'private', ...rest }) 
       disabled: locked, onChange: setPlan, testid: 'experimental-enemy-hp-plan-switch' }),
     plan ? planEditor() : null,
     multiplier('enemyAtkMul', 'experimental-enemy-atk', t('敌人攻击倍率'), t('全部敌人的攻击力，包含敌方领袖。')),
+    mode === 'solo' ? null : switchRow({ id: 'experimental-unite-humans', title: t('AI 联防置后'), note: t('联防先按原有排序从真人博士中挑选，AI 队友和 AI 托管中的博士排在所有真人之后。'),
+      checked: options.uniteHumansFirst === true, disabled: locked, onChange: on => send({ ...options, uniteHumansFirst: on }) }),
     collabRow({ value, source, ...rest }),
+    consoleRow({ value, source, ...rest }),
   ];
 }
 

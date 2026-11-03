@@ -475,7 +475,8 @@ export function PauseButton({ paused, busy = false, onToggle }) {
 
 /**
  * 战斗 2 倍速 (server/match/match/speedVote.js): this seat's standing vote with the count, and what the votes do. A spectator
- * seat has no vote: it only sees that a battle runs at it.
+ * seat has no vote: it only sees that a battle runs at it. An eliminated doctor (feedback #130) is no voter while someone
+ * still in the match is online: the switch stays, greyed, with the count of those who vote and why.
  */
 export function SpeedVote({ pub, myId, spectator = false, onVote }) {
   const [busy, setBusy] = useState(false);
@@ -483,7 +484,9 @@ export function SpeedVote({ pub, myId, spectator = false, onVote }) {
   if (!v || (spectator && v.status !== 'on' && v.status !== 'ending')) return null;
   const on = v.status === 'on' || v.status === 'ending';
   const label = on ? t('本场 2 倍速') : v.status === 'next' ? t('下一场起 2 倍速') : t('2 倍速');
-  const tip = v.status === 'ending' ? t('票数不足，下一场战斗恢复常速')
+  const out = !spectator && !v.voter;
+  const tip = out ? t('已淘汰的博士不参与 2 倍速投票')
+    : v.status === 'ending' ? t('票数不足，下一场战斗恢复常速')
     : t('{need} 人同意后，下一场战斗起以 2 倍速进行', { need: v.need });
   const press = async () => {
     setBusy(true);
@@ -491,8 +494,8 @@ export function SpeedVote({ pub, myId, spectator = false, onVote }) {
     setBusy(false);
   };
   return html`<${Tooltip} text=${tip} placement="bottom">
-    <button type="button" class=${cx('speedvote', 'tapx', on && 'is-on', v.mine && 'is-mine', v.count > 0 && 'is-called', busy && 'is-busy')}
-        aria-pressed=${v.mine ? 'true' : 'false'} aria-label=${`${label} ${v.count}/${v.need}`} disabled=${busy || spectator} data-testid="speed-vote" data-status=${v.status}
+    <button type="button" class=${cx('speedvote', 'tapx', on && 'is-on', v.mine && !out && 'is-mine', v.count > 0 && 'is-called', busy && 'is-busy', out && 'is-out')}
+        aria-pressed=${v.mine && !out ? 'true' : 'false'} aria-label=${`${label} ${v.count}/${v.need}`} disabled=${busy || spectator || out} data-testid="speed-vote" data-status=${v.status} data-out=${out ? '' : null}
         onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }} onClick=${press}>
       <i class="speedvote__glyph" aria-hidden="true">▶▶</i><span class="speedvote__label">${label}</span>
       ${spectator ? null : html`<span class="speedvote__count num">${v.count}/${v.need}</span>`}

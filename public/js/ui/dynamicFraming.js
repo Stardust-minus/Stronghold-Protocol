@@ -4,7 +4,8 @@
 //   - rectLayout: a skeleton rect into a box like CSS `object-fit: cover; object-position: posX% posY%` — the official
 //     avatar / portrait crops (skins[id].dynamic.frames, matched offline against the official pictures), so the live
 //     picture frames exactly like the static one under it;
-//   - the 名片: the whole bounds, cover, posY = its stored y (as before: illustrationLayout's cover);
+//   - the 名片: the whole bounds, cover × its stored zoom, its stored x / y as the position (ui/namecards.js, #129: the
+//     static plate's CSS rule — the bounds' x% y% point on the box's x% y% point);
 //   - a room seat: the player's own framing (room.card artX / artY / artZoom, seatRect), else the portrait crop.
 
 import { appearanceEntry } from './skinAssets.js';
@@ -17,13 +18,14 @@ import { isCollabUrl } from '../../../shared/collabAssets.js';
 export const ART_LIMITS = Object.freeze({ min: 0, max: 1000, zoomMin: 100, zoomMax: 2500 });
 
 /**
- * The container transform that fits `rect` into a bw × bh box as `object-fit: cover; object-position: posX% posY%`.
+ * The container transform that fits `rect` into a bw × bh box as `object-fit: cover; object-position: posX% posY%`, the
+ * cover size × `zoom` (≥ 1; the same posX% posY% point stays on the box's).
  * @param {number} bw @param {number} bh @param {{ x: number, y: number, width: number, height: number }} rect y-up
- * @param {number} [posX] 0–100 @param {number} [posY] 0–100
+ * @param {number} [posX] 0–100 @param {number} [posY] 0–100 @param {number} [zoom]
  * @returns {{ scale: number, x: number, y: number }}
  */
-export function rectLayout(bw, bh, rect, posX = 50, posY = 50) {
-  const scale = Math.max(bw / rect.width, bh / rect.height);
+export function rectLayout(bw, bh, rect, posX = 50, posY = 50, zoom = 1) {
+  const scale = Math.max(bw / rect.width, bh / rect.height) * (zoom > 1 ? zoom : 1);
   const ox = (bw - rect.width * scale) * (posX / 100), oy = (bh - rect.height * scale) * (posY / 100);
   return { scale, x: ox - rect.x * scale, y: oy + (rect.y + rect.height) * scale };
 }
@@ -89,15 +91,15 @@ export function moveArt(bw, bh, b, art, dx, dy, factor = 1) {
 }
 
 /**
- * The transform for one embedded view: `framing` { rect, posX?, posY? } (a crop), { focusY } (the whole bounds, the 名片),
- * or { art } (a seat; null art = { rect, posX, posY } fallback given as `rect`).
+ * The transform for one embedded view: `framing` { rect, posX?, posY? } (a crop), { focusX?, focusY, zoom? } (the whole
+ * bounds, the 名片), or { art } (a seat; null art = { rect, posX, posY } fallback given as `rect`).
  * @param {number} bw @param {number} bh @param {{ x: number, y: number, width: number, height: number }} bounds
  * @param {any} framing
  */
 export function framingLayout(bw, bh, bounds, framing) {
   if (framing?.art) return rectLayout(bw, bh, seatRect(bw, bh, bounds, framing.art));
   if (framing?.rect) return rectLayout(bw, bh, framing.rect, framing.posX ?? 50, framing.posY ?? 50);
-  return rectLayout(bw, bh, bounds, 50, framing?.focusY ?? 50);
+  return rectLayout(bw, bh, bounds, framing?.focusX ?? 50, framing?.focusY ?? 50, framing?.zoom ?? 1);
 }
 
 

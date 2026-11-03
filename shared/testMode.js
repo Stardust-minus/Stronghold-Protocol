@@ -5,7 +5,7 @@
 // [ASSUMED] No official source settles a test console. Bounds are absolute and strict (a value
 // outside them is an error, never a clamp): funds 0..99999, LP 0..999, team LP 0..9999, bond
 // layers 0..BOND_LAYER_SAFE_MAX (the match refuses what its own cap does not allow), shop lists of 1..12 slots, round 1..99 (the match rechecks the mode's
-// last / hidden round). A shape the catalogue does not name is BAD_MSG. A present field of the
+// last / hidden round), bounty count 1..TEST_BOUNTY_MAX (absent = 1). A shape the catalogue does not name is BAD_MSG. A present field of the
 // wrong type or out of range is BAD_TARGET. A shape refusal is audited as { rejected: true } so
 // the log does not keep the raw payload.
 
@@ -21,6 +21,14 @@ export const TEST_RATE_COUNT = 8;
 export const TEST_RATE_WINDOW_MS = 10_000;
 export const TEST_LOG_CAP = 200;
 export const TEST_PUBLIC_LOG = 12;
+/** bounty's `count` (optional, default 1): the enemies one command adds to the player's next battle. */
+export const TEST_BOUNTY_MAX = 20;
+/**
+ * 调控台 (feedback #125, server/match/match/testCommands.js): at most this many console enemies wait for one player's next
+ * battle, and the commands that change the whole match — allowed there only to the match's only human.
+ */
+export const TEST_BOUNTY_BATTLE_MAX = 20;
+export const TEST_SHARED = Object.freeze(['round', 'phase', 'timers', 'hp', 'teamLp']);
 
 export const TEST_COMMANDS = Object.freeze([
   'funds', 'chess', 'item', 'token', 'lp', 'hp', 'teamLp', 'round', 'phase',
@@ -130,13 +138,18 @@ export function parseTestArgs(cmd, args) {
       return { args: { amount: r.args.amount } };
     }
     case 'chess':
-    case 'item':
-    case 'bounty': {
-      const key = cmd === 'bounty' ? 'enemyKey' : 'id';
-      const r = exact(args, [key]);
+    case 'item': {
+      const r = exact(args, ['id']);
       if (r.error) return r;
-      if (!isId(r.args[key])) return { error: 'BAD_TARGET' };
-      return { args: { [key]: r.args[key] } };
+      if (!isId(r.args.id)) return { error: 'BAD_TARGET' };
+      return { args: { id: r.args.id } };
+    }
+    case 'bounty': {
+      const r = exact(args, ['enemyKey', 'count']);
+      if (r.error) return r;
+      if (!isId(r.args.enemyKey)) return { error: 'BAD_TARGET' };
+      if (r.args.count !== undefined && !isInt(r.args.count, 1, TEST_BOUNTY_MAX)) return { error: 'BAD_TARGET' };
+      return { args: { enemyKey: r.args.enemyKey, ...(r.args.count === undefined ? {} : { count: r.args.count }) } };
     }
     case 'token': {
       const r = exact(args, ['id', 'ownerUid']);

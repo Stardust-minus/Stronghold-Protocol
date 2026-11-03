@@ -11,7 +11,7 @@ import { createStore, loadPref, savePref, useStore, shallowEqual } from '../stor
 import { useData } from '../data.js';
 import { peekStatsRecords, selfRowOf } from './stats.js';
 import { CARD_PREF, cardAvatarUrl } from './seatArt.js';
-import { NAMECARD_PREF, NAMECARD_Y_PREF, namecardOf, namecardY } from './namecards.js';
+import { NAMECARD_PREF, NAMECARD_Y_PREF, NAMECARD_X_PREF, NAMECARD_ZOOM_PREF, namecardOf, namecardY, namecardX, namecardZoom } from './namecards.js';
 import { C2S } from '../../../shared/protocol.js';
 import { cardArt } from './dynamicFraming.js';
 
@@ -44,6 +44,8 @@ export const cardStore = createStore({
   avatar: str(loadPref(AVATAR_PREF, '')),
   bg: str(loadPref(NAMECARD_PREF, '')),
   bgY: namecardY(loadPref(NAMECARD_Y_PREF, null)),
+  bgX: namecardX(loadPref(NAMECARD_X_PREF, null)),
+  bgZoom: namecardZoom(loadPref(NAMECARD_ZOOM_PREF, null)),
   look: str(loadPref(CARD_LOOK_PREF, '')),
   avatarLook: str(loadPref(AVATAR_LOOK_PREF, '')),
   art: parseArt(loadPref(CARD_ART_PREF, '')),
@@ -79,12 +81,20 @@ export function setCardArt(art) {
 }
 /** @param {string} look '' / 'e1' / a skin id of the 头像 operator */
 export function setAvatarLook(look) { savePref(AVATAR_LOOK_PREF, str(look)); cardStore.set({ avatarLook: str(look) }); }
-/** @param {number|null} y the background's vertical position in percent (feedback #61); null = the card's default */
-export function setCardBackgroundY(y) { const v = namecardY(y); savePref(NAMECARD_Y_PREF, v); cardStore.set({ bgY: v }); }
-/** @param {string} bg '' = none (another background starts at its default position) */
+/**
+ * The background's framing (feedback #61, #129: ui/namecards.js): { x, y, zoom } in percent, each null / out of range =
+ * the card's default; null = all three back to it.
+ * @param {{ x?: number|null, y?: number|null, zoom?: number|null }|null} frame
+ */
+export function setCardBackgroundFrame(frame) {
+  const x = namecardX(frame?.x), y = namecardY(frame?.y), z = namecardZoom(frame?.zoom);
+  savePref(NAMECARD_X_PREF, x); savePref(NAMECARD_Y_PREF, y); savePref(NAMECARD_ZOOM_PREF, z);
+  cardStore.set({ bgX: x, bgY: y, bgZoom: z });
+}
+/** @param {string} bg '' = none (another background starts at its default framing) */
 export function setCardBackground(bg) {
   const id = namecardOf(bg) ? bg : '';
-  if (id !== cardStore.get().bg) setCardBackgroundY(null);
+  if (id !== cardStore.get().bg) setCardBackgroundFrame(null);
   savePref(NAMECARD_PREF, id); cardStore.set({ bg: id });
 }
 
@@ -101,7 +111,8 @@ export function cardMessage(card) {
   const bg = namecardOf(card?.bg) ? card.bg : '';
   const look = charId ? str(card?.look) : '';
   const art = look && look !== 'e1' && card?.art ? cardArt({ artX: card.art.x, artY: card.art.y, artZoom: card.art.zoom }) : null;
-  return { charId, avatar, bg, bgY: bg ? namecardY(card?.bgY) ?? -1 : -1, trophies,
+  return { charId, avatar, bg, bgY: bg ? namecardY(card?.bgY) ?? -1 : -1, bgX: bg ? namecardX(card?.bgX) ?? -1 : -1,
+    bgZoom: bg ? namecardZoom(card?.bgZoom) ?? -1 : -1, trophies,
     look, avatarLook: avatar ? str(card?.avatarLook) : '', artX: art?.x ?? -1, artY: art?.y ?? -1, artZoom: art?.zoom ?? -1 };
 }
 

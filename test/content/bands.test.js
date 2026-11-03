@@ -273,21 +273,42 @@ test('休露丝 雪域礼赠: the first <谢拉格> operator bought each round c
   cover('band_sciurus');
 });
 
-test('潘格尼尼 定制铳械: after 55 funds spent in total, 1 random elite <拉特兰> operator of tier ≥ IV (once)', () => {
+test('潘格尼尼 定制铳械: every 55 funds spent in total, 1 random elite <拉特兰> operator of tier ≥ IV (feedback #131)', () => {
   const seed = seedWithBond('lateranoShip', 6, 3);
   const { ps } = setup({ band: 'band_paganini', seed });
-  ps.funds = 200;
+  ps.funds = 400;
   const grants = spyGrants(ps);
   const spend = (n) => { ps.spend(n); ps._afterSpend(n, 'test'); };
   spend(30); spend(24);
   assert.equal(grants.length, 0);
   spend(1);
   assert.equal(grants.length, 1);
-  const c = DATA.chess[grants[0]];
-  assert.ok(c.isGolden && c.tier >= 4 && c.bonds.includes('lateranoShip'), grants[0]);
-  spend(60);
-  assert.equal(grants.length, 1, 'once');
+  spend(54);
+  assert.equal(grants.length, 1, 'the next 55 counts from the first');
+  spend(1);
+  assert.equal(grants.length, 2, 'a second at 110');
+  spend(110);
+  assert.equal(grants.length, 4, 'one spend crossing two marks gives two');
+  for (const id of grants) {
+    const c = DATA.chess[id];
+    assert.ok(c.isGolden && c.tier >= 4 && c.bonds.includes('lateranoShip'), id);
+  }
+  assert.equal(ps.counters['band:paganini:done'], 4);
   cover('band_paganini');
+});
+
+test('潘格尼尼 定制铳械: a checkpoint of the once-only build (done 1, spent frozen at the grant) owes nothing more', () => {
+  const seed = seedWithBond('lateranoShip', 6, 3);
+  const { ps } = setup({ band: 'band_paganini', seed });
+  ps.funds = 200;
+  ps.counters['band:paganini:spent'] = 58;
+  ps.counters['band:paganini:done'] = 1;
+  const grants = spyGrants(ps);
+  const spend = (n) => { ps.spend(n); ps._afterSpend(n, 'test'); };
+  spend(51);
+  assert.equal(grants.length, 0, '109 < 110');
+  spend(1);
+  assert.equal(grants.length, 1, 'the second at 110');
 });
 
 test('余 文火慢炖: R8 round start — exactly 1 active bond +36 layers, otherwise every active bond +12', () => {

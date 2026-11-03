@@ -6,7 +6,7 @@ import { Lobby, Room } from '../lobby.js';
 import { encode, isErrCode, sendSession } from '../net.js';
 import { rebindSession, remoteAiTakeover, welcomeAgain } from '../aiTakeover.js';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, MATCHMAKING_VERSION, modeIdFor } from '../../shared/constants.js';
-import { experimentalOptions, isExperimental, sameExperimental } from '../../shared/experimental.js';
+import { experimentalOptions, isCollabRoom, isConsoleRoom, isExperimental, sameExperimental } from '../../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, roomCapacity } from '../../shared/playerCapacity.js';
 import { DEFAULT_VERSION } from '../../shared/versions.js';
 
@@ -315,6 +315,8 @@ export class ClusterLobby extends Lobby {
     if (!offer || first?.offerId !== offer.id || offer.entries.length !== offer.required
       || sessions.length !== offer.required || now >= offer.deadline) invalid(ERR.BAD_TARGET);
     if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== offer.required) invalid(ERR.BAD_MSG);
+    // a matchmade room never has 联动干员 or the 调控台 (Lobby.allocateMatchmadeRoom)
+    if (isCollabRoom(offer.experimental) || isConsoleRoom(offer.experimental)) invalid(ERR.BAD_MSG);
     const oldRooms = new Set();
     for (const session of sessions) {
       const entry = this.queue.entries.get(session.playerId);

@@ -704,9 +704,7 @@
 .avatar__img, .cardpick__img { position: relative; }
 .nc-layer[data-dyn="live"] { --nc: none; }
 .rseat.is-offline .rseat__art .dyn-cover { filter: grayscale(.8) brightness(.6); }
-/* on a 名片 plate the shade that keeps the name readable stays above the animation (lobby.css .nc-layer--skin) */
-.nc-layer--skin .dyn-cover::after { content: ""; position: absolute; inset: 0;
-  background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .45) 50%, rgba(8, 11, 11, .1))); }
+/* on a 名片 plate the shade that keeps the name readable stays above the animation: the layer's own ::after (lobby.css .nc-layer) */
 .lo-skin__tools { display: flex; flex-wrap: wrap; gap: .08rem; margin-top: .08rem; }
 .lo-skin__error { color: var(--red-400, #ef8f8f); font-size: max(.16rem, 12px); }
 @media (pointer: coarse) { .lo-skin__tools .btn { min-height: 44px; } }

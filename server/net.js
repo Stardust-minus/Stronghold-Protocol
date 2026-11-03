@@ -166,7 +166,7 @@ export class Session {
     this.diy = null;
     /** @type {Readonly<Record<string, string>>} display-only skin choices (lobby-owned) */
     this.skins = Object.freeze({});
-    /** @type {Readonly<{ charId?: string, avatar?: string, bg?: string, trophies?: number }> | null} display card (lobby-owned, room.card) */
+    /** @type {Readonly<{ charId?: string, avatar?: string, bg?: string, bgY?: number, bgX?: number, bgZoom?: number, trophies?: number }> | null} display card (lobby-owned, room.card) */
     this.card = null;
     /** @type {boolean} the latest hello carried the owner's key (服主, server/ownerFile.js); decided again on every hello */
     this.owner = false;

@@ -8,7 +8,7 @@ import { installPlayerCardSync, SYNC_DEBOUNCE_MS, RETRY_MS } from '../../public/
 
 const ticks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 const WISADEL = 'char_1035_wisdel', HEIDI = 'char_4045_heidi';
-const EMPTY = { charId: '', avatar: '', bg: '', bgY: -1, trophies: 0, look: '', avatarLook: '', artX: -1, artY: -1, artZoom: -1 };
+const EMPTY = { charId: '', avatar: '', bg: '', bgY: -1, bgX: -1, bgZoom: -1, trophies: 0, look: '', avatarLook: '', artX: -1, artY: -1, artZoom: -1 };
 
 function harness({ card = {}, chess = [] } = {}) {
   const listeners = new Map(), pending = new Map();
@@ -68,6 +68,24 @@ test('every part of the card is an edit: look, avatar, avatar look, background',
   await h.timers.advance(SYNC_DEBOUNCE_MS);
   assert.deepEqual(h.net.sent.at(-1), { t: 'room.card', ...EMPTY, charId: HEIDI, look: 'char_4045_heidi_epoque_1', avatar: WISADEL, avatarLook: 'e1', artX: 420, artY: 310, artZoom: 260 });
   assert.equal(h.target.get().sync, 'synced');
+});
+
+test('the background\'s framing (#129) is an edit: bgX / bgY / bgZoom go out with the background, -1 without one', async (t) => {
+  const h = harness();
+  t.after(h.dispose);
+  h.target.set({ bg: 'skin:char_103_angel_wild_1' });
+  await h.timers.advance(SYNC_DEBOUNCE_MS);
+  const n = h.net.sent.length;
+  h.target.set({ bgX: 80, bgY: 30, bgZoom: 250 });
+  await h.timers.advance(SYNC_DEBOUNCE_MS);
+  assert.equal(h.net.sent.length, n + 1);
+  assert.deepEqual(h.net.sent.at(-1), { t: 'room.card', ...EMPTY, bg: 'skin:char_103_angel_wild_1', bgX: 80, bgY: 30, bgZoom: 250 });
+  h.target.set({ bgZoom: 260 });
+  await h.timers.advance(SYNC_DEBOUNCE_MS);
+  assert.equal(h.net.sent.at(-1).bgZoom, 260, 'the zoom alone is an edit');
+  h.target.set({ bg: '' });
+  await h.timers.advance(SYNC_DEBOUNCE_MS);
+  assert.deepEqual(h.net.sent.at(-1), { t: 'room.card', ...EMPTY }, 'no background: no framing');
 });
 
 test('RATE, TIMEOUT and OFFLINE do not end the sync (the room screen\'s effect gave up for good after the first)', async (t) => {

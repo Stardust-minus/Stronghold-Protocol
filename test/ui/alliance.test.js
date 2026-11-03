@@ -101,7 +101,7 @@ test('experimental rules display room options without a revival ballot', () => {
   const switches = [];
   const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node?.props) { if (node.props.role === 'switch') switches.push(node); visit(node.props.children); } };
   visit(view);
-  assert.equal(switches.length, 8); // … 按回合设置敌人生命倍率 (rel27) and 联动干员 (a private room's: settingsRows' default source)
+  assert.equal(switches.length, 10); // … 按回合设置敌人生命倍率 (rel27), 联动干员 and 调控台 (#125; a private room's: settingsRows' default source), AI 联防置后 (rel29)
   assert.ok(switches.every(node => node.props.disabled));
   assert.deepEqual(switches.filter(node => node.props.checked).map(node => node.props.id), ['experimental-revival', 'experimental-pool'],
     'the limits, expanded rooms and manual pools stay default off independently of both original rules');

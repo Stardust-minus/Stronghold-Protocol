@@ -62,7 +62,7 @@ import { CARD_PREF, cardOperators, seatPortrait, cardAvatarUrl, lookOptions } fr
 import { SeatLive } from '../ui/seatLive.js';
 import { CardAvatarLive } from '../ui/avatarLive.js';
 import { cardArt } from '../ui/dynamicFraming.js';
-import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundY, setCardLook, setAvatarLook, setCardArt } from '../ui/playerCard.js';
+import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundFrame, setCardLook, setAvatarLook, setCardArt } from '../ui/playerCard.js';
 import { OperatorPicker, AvatarPicker } from '../ui/opPicker.js';
 import { NameCardLayer, NameCardPicker } from '../ui/namecards.js';
 import { TrophyBadge } from '../ui/trophies.js';
@@ -72,7 +72,8 @@ import { ProtocolScene } from '../ui/protocolScene.js';
 import { usePresence, useRise, afterLeave } from '../ui/transitions.js';
 import { experimentalChanged, experimentalSummary } from '../ui/experimental.js';
 import { CollabNotice } from '../ui/collab.js';
-import { isCollabRoom } from '../../../shared/experimental.js';
+import { ConsoleNotice } from '../ui/consoleRoom.js';
+import { isCollabRoom, isConsoleRoom } from '../../../shared/experimental.js';
 import { RoomSettings, settingsPage } from '../ui/roomSettings.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { QueueFlow, queueActive } from '../ui/matchmaking.js';
@@ -141,6 +142,7 @@ export function partyQueueReason(room, myId, online = true) {
   if (room?.mode !== 'coop' || room.inMatch) return t('仅等待中的好友同盟可组队匹配');
   if (room.hostId !== myId) return t('由同盟创建者发起组队匹配');
   if (isCollabRoom(room.experimental)) return t('开启联动干员的同盟不能组队匹配');
+  if (isConsoleRoom(room.experimental)) return t('开启调控台的同盟不能组队匹配');
   const seats = room.seats?.filter(Boolean) || [];
   if (seats.some(s => s.isBot)) return t('请先移除 AI 队友，公开匹配仅限真人');
   if (!seats.length || seats.some(s => s.connected === false)) return t('请等待所有队友连接后再匹配');
@@ -333,7 +335,7 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
     ${seat.isBot && facts.isHost ? html`<button type="button" class="rseat__kick rseat__kick--bot" disabled=${busy === `rm${index}`}
       onClick=${() => onRemoveBot(index)} title=${t('移除该 AI 队友')} aria-label=${t('移除 AI 队友')}><${Icon} name="robot" /><${Icon} name="close" /></button>` : null}
     <div class=${`rseat__plate${card?.bg ? ' has-nc' : ''}`}>
-      ${card?.bg ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} />` : null}
+      ${card?.bg ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />` : null}
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
       ${isMe && onPickAvatar
         ? html`<button type="button" class="rseat__ava" onClick=${onPickAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>
@@ -654,6 +656,7 @@ export function RoomScreen() {
     <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
     <${VersionVote} room=${room} />
     ${isCollabRoom(room.experimental) ? html`<div class="rs-collab"><${CollabNotice} /></div>` : null}
+    ${isConsoleRoom(room.experimental) ? html`<div class="rs-collab"><${ConsoleNotice} /></div>` : null}
     ${bannerText ? html`<p class="rs-verbanner" data-testid="version-banner"><${Icon} name="info" />${bannerText}</p>` : null}
 
     <footer class="rs-foot">
@@ -717,7 +720,7 @@ export function RoomScreen() {
     ${picking === 'avatar' ? html`<${AvatarPicker} current=${myCard.avatar} list=${cardList} m=${m}
       looks=${{ kind: 'avatar', current: myCard.avatarLook, onLook: (look) => { setAvatarLook(look); setPicking(null); } }}
       onPick=${(id) => { setCardAvatar(id); if (!id || lookOptions(m, id, 'avatar').length < 2) setPicking(null); }} onClose=${() => setPicking(null)} />` : null}
-    ${picking === 'bg' ? html`<${NameCardPicker} current=${myCard.bg} y=${myCard.bgY} onPick=${setCardBackground} onAdjust=${setCardBackgroundY} onClose=${() => setPicking(null)} />` : null}
+    ${picking === 'bg' ? html`<${NameCardPicker} current=${myCard.bg} x=${myCard.bgX} y=${myCard.bgY} zoom=${myCard.bgZoom} onPick=${setCardBackground} onAdjust=${setCardBackgroundFrame} onClose=${() => setPicking(null)} />` : null}
     ${protoShown ? html`<${RoomProtocol} room=${room} busy=${busy} onClose=${() => setPicker(false)} onPick=${setDifficulty} leaving=${protoLeaving} difficulties=${protoDifficulties} />` : null}
     ${versionOpen && versionCtl ? html`<${VersionPicker} mode="room" versions=${versions || [{ id: curVersion, roomModes: [room.mode] }]} current=${curVersion}
       serverDefault=${serverDefault} roomMode=${room.mode} editable=${versionEditable && !versionWhy} busy=${busy === 'version'}

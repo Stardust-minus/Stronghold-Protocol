@@ -2398,8 +2398,12 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
    left where the name sits; then the picker.
    ========================================================================================== */
 .has-nc { position: relative; isolation: isolate; text-shadow: 0 1px 2px rgba(0, 0, 0, .8); }
-.nc-layer { position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
-  background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .9), rgba(8, 11, 11, .62) 50%, rgba(8, 11, 11, .2))), var(--nc) center var(--nc-y, 50%) / cover no-repeat, #101514; }
+.nc-layer { position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; overflow: hidden; background: #101514; }
+/* a picture card (#129, ui/namecards.js): the picture's x% y% point on the plate's, drawn cover × --nc-z about it; the shade
+   that keeps the name readable stays above it (and above a 动态立绘 over it) */
+.nc-layer__pic { position: absolute; inset: 0; background: var(--nc) var(--nc-x, 50%) var(--nc-y, 50%) / cover no-repeat;
+  transform: scale(var(--nc-z, 1)); transform-origin: var(--nc-x, 50%) var(--nc-y, 50%); }
+.nc-layer::after { content: ""; position: absolute; inset: 0; background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .9), rgba(8, 11, 11, .62) 50%, rgba(8, 11, 11, .2))); }
 .ach-card.has-nc { background: #101514; --nc-shade: linear-gradient(90deg, rgba(6, 9, 9, .5), rgba(6, 9, 9, .12) 55%, transparent); }
 .ach-card.has-nc .ach-card__id { background: rgba(8, 12, 11, .62); color: #e6ecea; }
 .ach-card.has-nc .ach-card__brand { display: none; }
@@ -2632,6 +2636,7 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .rseat__plate.has-nc, .me-chip.has-nc { overflow: hidden; }
 .nc-layer--camp { background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .5) 55%, rgba(8, 11, 11, .12))),
   var(--nc) right 6% center / auto 150% no-repeat, var(--nc-tint, #1d2624); }
+.nc-layer--camp::after { content: none; }
 .rseat__bg { position: absolute; right: .04rem; top: .04rem; z-index: 1; display: grid; place-items: center; width: max(.3rem, 22px); height: max(.3rem, 22px); padding: 0;
   color: #eef0ef; background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .25); border-radius: 3px; cursor: pointer; opacity: .7; }
 .rseat__bg:hover, .rseat__bg:focus-visible { opacity: 1; border-color: #5df0c6; }
@@ -2653,11 +2658,23 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .nc-pick__theme--skins { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .nc-pick__search { flex: 0 1 200px; min-width: 0; height: 26px; padding: 0 8px; font: inherit; font-size: 13px; font-weight: 400; color: #e6ecea;
   background: rgba(0, 0, 0, .4); border: 1px solid rgba(255, 255, 255, .18); outline: none; }
-.nc-layer--skin { background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .45) 50%, rgba(8, 11, 11, .1))),
-  var(--nc) center var(--nc-y, 24%) / cover no-repeat, #101514; }
-/* 调整显示范围 (feedback #61): the plate follows the pointer; the shape of a room seat's name plate */
+.nc-layer--skin .nc-layer__pic { background-position: var(--nc-x, 50%) var(--nc-y, 24%); transform-origin: var(--nc-x, 50%) var(--nc-y, 24%); }
+.nc-layer--skin::after { background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .45) 50%, rgba(8, 11, 11, .1))); }
+/* 调整位置和缩放 (feedback #61, #129): the plate follows the pointer, the wheel / a pinch / the slider zoom; the shape of a
+   room seat's name plate */
 .nc-adjust { display: flex; flex-direction: column; gap: 10px; padding: 12px; overflow: auto; }
-.nc-adjust__plate { width: min(100%, 600px); aspect-ratio: 9 / 2; margin: 0 auto; border-radius: 2px; overflow: hidden; background: #101514; cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.nc-adjust__plate { width: min(100%, 600px); aspect-ratio: 9 / 2; margin: 0 auto; border-radius: 2px; overflow: hidden; background: #101514; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.nc-adjust__plate:active { cursor: grabbing; }
+.nc-adjust__plate:focus-visible { outline: 2px solid #4fe8c0; outline-offset: 2px; }
+.nc-adjust__hint .icon { width: 1.1em; height: 1.1em; }
+.nc-adjust__zoom { display: flex; align-items: center; gap: 8px; width: min(100%, 600px); margin: 0 auto; }
+.nc-adjust__zoom .nc-adjust__range { flex: 1 1 auto; width: auto; margin: 0; }
+.nc-adjust__pct { min-width: 3.4em; text-align: right; color: #8ff3d6; font-size: 14px; }
+.nc-adjust__btn.nc-adjust__btn--sq { display: inline-grid; place-items: center; min-width: 34px; padding: 0; }
+.nc-adjust__btn--sq .icon { width: 16px; height: 16px; }
+.nc-adjust__btn:disabled { opacity: .4; cursor: default; }
+.nc-pick__foot .nc-adjust__btn { display: inline-flex; align-items: center; gap: 6px; }
+.nc-pick__foot .nc-adjust__btn .icon { width: 1.1em; height: 1.1em; }
 .nc-adjust__hint { position: absolute; left: 10px; bottom: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 13px; color: #e6ecea; background: rgba(0, 0, 0, .5); border-radius: 2px; pointer-events: none; }
 .nc-adjust__range { width: min(100%, 600px); margin: 0 auto; accent-color: #4fe8c0; }
 .nc-adjust__foot { display: flex; justify-content: center; gap: 10px; }

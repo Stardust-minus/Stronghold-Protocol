@@ -8,7 +8,7 @@ export const EXPERIMENTAL_DEFAULTS = Object.freeze({ revivalEnabled: false, disa
  * Optional booleans: absent when off, so an ordinary room, a saved room and a queue key keep their old shape.
  * @type {ReadonlySet<string | symbol>}
  */
-const OPTIONAL_FLAGS = new Set(['disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'collabOps']);
+const OPTIONAL_FLAGS = new Set(['disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'collabOps', 'console', 'uniteHumansFirst']);
 /**
  * The enemy multipliers a room can pick (feedback #47); the first, a standard room's, is never stored: an ordinary room,
  * a saved room and a queue key keep their old shape.
@@ -74,7 +74,7 @@ const hpKey = value => {
 export function isExperimental(value) {
   if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return false;
   const keys = Reflect.ownKeys(value);
-  if (keys.length < 2 || keys.length > 11) return false;
+  if (keys.length < 2 || keys.length > 13) return false;
   for (const key of Object.keys(EXPERIMENTAL_DEFAULTS)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor?.enumerable !== true || typeof descriptor.value !== 'boolean') return false;
@@ -94,9 +94,11 @@ export function isExperimental(value) {
 /**
  * @param {{ revivalEnabled: boolean, disableSharedPool: boolean, playerCapacity?: number, disableDuckLord?: boolean,
  *   disableLayerCap?: boolean, disableHitLimit?: boolean, enemyHpMul?: number, enemyAtkMul?: number,
- *   enemyHpPlan?: readonly (readonly number[])[], poolPlan?: readonly number[], collabOps?: boolean }} [value] `poolPlan`:
- *   手动指定卡池编组, one pool number per seat (shared/poolPlan.js); it states every seat's pool, so it replaces 禁用共享卡池.
- *   `enemyHpPlan`: 敌人生命倍率 by round (isEnemyHpPlan); it replaces enemyHpMul. `collabOps`: 联动干员 (isCollabRoom).
+ *   enemyHpPlan?: readonly (readonly number[])[], poolPlan?: readonly number[], collabOps?: boolean, console?: boolean,
+ *   uniteHumansFirst?: boolean }} [value]
+ *   `poolPlan`: 手动指定卡池编组, one pool number per seat (shared/poolPlan.js); it states every seat's pool, so it replaces
+ *   禁用共享卡池. `enemyHpPlan`: 敌人生命倍率 by round (isEnemyHpPlan); it replaces enemyHpMul. `collabOps`: 联动干员
+ *   (isCollabRoom). `console`: 调控台 (isConsoleRoom). `uniteHumansFirst`: AI 联防置后 (server/match/unite.js helperOrder).
  */
 export function experimentalOptions(value = EXPERIMENTAL_DEFAULTS) {
   if (!isExperimental(value)) throw new TypeError('invalid experimental options');
@@ -111,7 +113,9 @@ export function experimentalOptions(value = EXPERIMENTAL_DEFAULTS) {
     ...hpOption(value),
     ...(enemyMultiplier(value.enemyAtkMul) !== 1 ? { enemyAtkMul: value.enemyAtkMul } : {}),
     ...(value.poolPlan ? { poolPlan: Object.freeze(canonicalPoolPlan(value.poolPlan)) } : {}),
-    ...(value.collabOps === true ? { collabOps: true } : {}) });
+    ...(value.collabOps === true ? { collabOps: true } : {}),
+    ...(value.console === true ? { console: true } : {}),
+    ...(value.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}) });
 }
 
 /** The HP rule as stored: a plan (it replaces the single multiplier), else the single multiplier when ≠ 1, else nothing. */
@@ -130,7 +134,7 @@ export const experimentalKey = value => {
   const capacity = roomCapacity('coop', value);
   const legacy = capacity === MAX_SEATS ? key : `${key}:${capacity}`;
   const hp = hpKey(value), atk = enemyMultiplier(value.enemyAtkMul);
-  return `${duckLordDisabled(value) ? `${legacy}:duck` : legacy}${value.disableLayerCap === true ? ':layers' : ''}${value.disableHitLimit === true ? ':hits' : ''}${hp ? `:${hp}` : ''}${atk !== 1 ? `:atk${atk}` : ''}${value.poolPlan ? `:pools${planKey(value)}` : ''}${value.collabOps === true ? ':collab' : ''}`;
+  return `${duckLordDisabled(value) ? `${legacy}:duck` : legacy}${value.disableLayerCap === true ? ':layers' : ''}${value.disableHitLimit === true ? ':hits' : ''}${hp ? `:${hp}` : ''}${atk !== 1 ? `:atk${atk}` : ''}${value.poolPlan ? `:pools${planKey(value)}` : ''}${value.collabOps === true ? ':collab' : ''}${value.console === true ? ':console' : ''}${value.uniteHumansFirst === true ? ':humans' : ''}`;
 };
 export const sameExperimental = (a, b) => !!a && !!b
   && a.revivalEnabled === b.revivalEnabled && a.disableSharedPool === b.disableSharedPool
@@ -141,7 +145,9 @@ export const sameExperimental = (a, b) => !!a && !!b
   && hpKey(a) === hpKey(b)
   && enemyMultiplier(a.enemyAtkMul) === enemyMultiplier(b.enemyAtkMul)
   && planKey(a) === planKey(b)
-  && (a.collabOps === true) === (b.collabOps === true);
+  && (a.collabOps === true) === (b.collabOps === true)
+  && (a.console === true) === (b.console === true)
+  && (a.uniteHumansFirst === true) === (b.uniteHumansFirst === true);
 
 /**
  * Whether a room's options change a rule of the game, whatever the seat count: any key but playerCapacity that is set
@@ -159,3 +165,24 @@ export const experimentalRuleChanged = value => !!value && Object.entries(value)
  * @param {any} value a room's / match's experimental options
  */
 export const isCollabRoom = value => !!value && typeof value === 'object' && value.collabOps === true;
+
+/**
+ * 调控台 (feedback #125, the owner's decisions of 2026-11-03): with `console` on, the room's matches run as test matches
+ * (DESIGN §34.8 phase 2, server/match/match/testCommands.js) without the input journal — every seated player commands
+ * their own seat; a command that changes the whole match only while that player is its only human — and count for
+ * nothing (no titles / trophies / rewards; the client keeps no record). Set by the host of a private (自建) room in the
+ * room settings after a 5 s warning (ui/consoleRoom.js), never at room.create; a room with it never enters matchmaking
+ * and a matchmade room never has it (server/lobby.js). It rides with the options, so a game node, a version host and a
+ * restored room see it like any rule; a console match takes no checkpoint (snapshot.js canSnapshot: a test match).
+ * @param {any} value a room's / match's experimental options
+ */
+export const isConsoleRoom = value => !!value && typeof value === 'object' && value.console === true;
+
+/**
+ * AI 联防置后 (the owner's request of 2026-11-04): with `uniteHumansFirst` on, the 联防 helpers are chosen among the humans
+ * first — the usual order (server/match/unite.js helperOrder) within them — and the seats the engine plays (an AI teammate,
+ * a human under AI 托管) only after every human; the pair's order (who meets the enemies first) puts the human first too
+ * [ASSUMED]. A rule of the room, any room; it changes nothing outside 联防. A rel28 server refuses it (isExperimental).
+ * @param {any} value a room's / match's experimental options
+ */
+export const isUniteHumansFirst = value => !!value && typeof value === 'object' && value.uniteHumansFirst === true;

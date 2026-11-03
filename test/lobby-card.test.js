@@ -170,6 +170,41 @@ test('bgY (feedback #61): the background\'s position travels with it, -1 clears 
   assert.equal(a.card.bgY, undefined, 'no background, no position');
 });
 
+test('bgX / bgZoom (feedback #129): the background\'s horizontal position and zoom travel with it like bgY; -1 clears; the room sees them', (t) => {
+  const ok = (msg) => assert.equal(validateC2S({ t: 'room.card', ...msg }), null, JSON.stringify(msg));
+  const bad = (msg, field) => assert.equal(validateC2S({ t: 'room.card', ...msg }), `bad field ${field}`, JSON.stringify(msg));
+  ok({ bgX: 0 }); ok({ bgX: 100 }); ok({ bgX: -1 }); ok({ bgZoom: 100 }); ok({ bgZoom: CARD_LIMITS.bgZoomMax }); ok({ bgZoom: -1 });
+  bad({ bgX: 101 }, 'bgX'); bad({ bgX: 2.5 }, 'bgX'); bad({ bgX: -2 }, 'bgX');
+  bad({ bgZoom: 99 }, 'bgZoom'); bad({ bgZoom: 0 }, 'bgZoom'); bad({ bgZoom: CARD_LIMITS.bgZoomMax + 1 }, 'bgZoom'); bad({ bgZoom: 150.5 }, 'bgZoom');
+  const f = fixture(t);
+  const a = f.player(), b = f.player();
+  const code = f.lobby.onMessage(a, { t: 'room.create', mode: 'coop' }).code ?? f.states(a).at(-1).code;
+  assert.ok(f.lobby.onMessage(b, { t: 'room.join', code }).ok !== false);
+  // a skin card and the plain ones alike (every look of the 名片干员 — 精二 '', 精一 'e1', a skin — keeps it)
+  for (const look of ['', 'e1']) {
+    f.clock.time += CARD_WINDOW_MS;
+    assert.deepEqual(f.card(a, { charId: AMIYA, look, bg: 'skin:char_103_angel_wild_1', bgX: 80, bgY: 30, bgZoom: 250 }), { ok: true });
+    assert.deepEqual({ ...a.card }, { charId: AMIYA, ...(look ? { look } : {}), bg: 'skin:char_103_angel_wild_1', bgX: 80, bgY: 30, bgZoom: 250 }, `look '${look}'`);
+  }
+  assert.deepEqual(f.states(b).at(-1).seats.find((s) => s?.playerId === a.playerId).card.bgZoom, 250, 'the room sees the framing');
+  const heard = f.states(b).length;
+  f.clock.time += CARD_WINDOW_MS;
+  f.card(a, { bgX: 0 });
+  assert.equal(a.card.bgX, 0, '0 is a position, not a cleared one');
+  assert.equal(f.states(b).length, heard + 1, 'a change of bgX alone is a change of the card');
+  f.card(a, { bgZoom: 300 });
+  assert.equal(f.states(b).length, heard + 2, 'and of bgZoom alone');
+  f.card(a, { trophies: 2 });
+  assert.deepEqual([a.card.bgX, a.card.bgY, a.card.bgZoom], [0, 30, 300], 'left out: kept');
+  f.clock.time += CARD_WINDOW_MS;
+  f.card(a, { bgX: -1, bgZoom: -1 });
+  assert.equal(Object.hasOwn(a.card, 'bgX') || Object.hasOwn(a.card, 'bgZoom'), false, '-1 clears');
+  assert.equal(a.card.bgY, 30, 'bgY stays');
+  f.card(a, { bgX: 20, bgZoom: 200 });
+  f.card(a, { bg: '' });
+  assert.deepEqual([a.card.bg, a.card.bgX, a.card.bgY, a.card.bgZoom], [undefined, undefined, undefined, undefined], 'no background, no framing');
+});
+
 test(`at most ${CARD_CHANGES} changes per ${CARD_WINDOW_MS / 1000} s per session (RATE), repeats are free`, (t) => {
   const { clock, lobby, player, states, card } = fixture(t);
   const a = player(), b = player();

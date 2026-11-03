@@ -7,6 +7,10 @@
 // it and is ignored while typing and when that key is bound to a game shortcut. Escape closes it. Enter in a
 // field runs the command. The host drags it by the header. The default sits on the field only (right of the
 // team roster, below the bond strip, above the hand) at 1280×720 and 1920×1080. At ≤720px it stays the top sheet.
+// 调控台 (feedback #125; shared/experimental.js isConsoleRoom, m.public experimental): the same dock, titled 调控台, for
+// every seated player of the match (their own seat), with the console body of ui/consolePanel.js (names, not ids); the
+// match-wide controls only while the player is the match's only human — the server checks the same. TestMark reads
+// 调控台 there. An upstream test room keeps this file's own body.
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html } from './components.js';
@@ -18,6 +22,8 @@ import { t } from '../../../shared/i18n.js';
 import { actionForKey } from './gameLogic/shortcuts.js';
 import { settingsStore } from './settings.js';
 import { formatAuditLine, newestFirst, testRefusalText } from './testAudit.js';
+import { ConsoleBody } from './consolePanel.js';
+import { isConsoleRoom } from '../../../shared/experimental.js';
 import { clampDock, dockHome, dockMetricsFromStyle, DOCK_REM, readDockPos, writeDockPos } from './testDock.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -30,9 +36,14 @@ function rememberOpen(open) {
   try { globalThis.localStorage?.setItem(DOCK_KEY, open ? '1' : '0'); } catch { /* private mode */ }
 }
 
-/** The amber 测试 mark on a room card, the HUD, the step header and the result. */
-export function TestMark({ class: cls = '' }) {
-  return html`<span class=${cx('testmark', cls)} data-testid="test-mark">${t('测试')}</span>`;
+/**
+ * The amber 测试 mark on a room card, the HUD, the step header and the result — 调控台 for a console match (`console`,
+ * else the store's match / room options).
+ */
+export function TestMark({ class: cls = '', console: on = undefined }) {
+  const stored = useStore((s) => isConsoleRoom(s.match.public?.experimental) || isConsoleRoom(s.room?.experimental));
+  const consoleOn = on === undefined ? stored : on === true;
+  return html`<span class=${cx('testmark', cls)} data-testid="test-mark">${consoleOn ? t('调控台') : t('测试')}</span>`;
 }
 
 function num(raw) {
@@ -85,11 +96,25 @@ function ownedTokenIds(owned) {
 }
 
 /**
+ * Whether the viewer may use the panel (a test match: its host; a 调控台 match: every seated player) and the match-wide
+ * controls (the host of a test match; in a 调控台 match the only human). Hookless (tests).
+ * @param {any} pub m.public @param {string|null|undefined} myId @param {string|null|undefined} hostId
+ * @returns {{ show: boolean, console: boolean, shared: boolean }}
+ */
+export function testConsoleAccess(pub, myId, hostId) {
+  const consoleOn = isConsoleRoom(pub?.experimental);
+  const players = Array.isArray(pub?.players) ? pub.players : [];
+  const show = !!pub && pub.test === true && !!myId && (consoleOn ? players.some((p) => p && p.playerId === myId) : myId === hostId);
+  const shared = show && (!consoleOn || players.every((p) => !p || p.playerId === myId || p.isBot === true));
+  return { show, console: consoleOn, shared };
+}
+
+/**
  * Collapsible host dock. Returns null unless this match is a test match and the viewer commands it.
  */
 export function TestConsole() {
   const pub = useStore((s) => s.match.public);
-  useData('chess', 'items', 'tokens', 'bonds', 'bands', 'enemies');
+  useData('chess', 'items', 'tokens', 'bonds', 'bands', 'enemies', 'bosses', 'config');
   const mine = useStore((s) => s.match.private);
   const myId = useStore((s) => s.me.playerId);
   const hostId = useStore((s) => s.room && s.room.hostId);
@@ -111,6 +136,8 @@ export function TestConsole() {
   const boxRef = useRef(null);
   boxRef.current = box;
   const dragRef = useRef(null);
+  // 调控台: the taller dock (testDock.js dockHome `tall`), placed again when the match turns out to be one
+  const tall = isConsoleRoom(pub?.experimental);
   useEffect(() => {
     const place = () => {
       const vw = window.innerWidth || 0;
@@ -124,17 +151,18 @@ export function TestConsole() {
       // the real layout root (界面大小's --sp-ui and the 异形屏适配 box included), as fieldHost.js / settle.js read it
       let rem;
       try { rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 0; } catch { rem = 0; }
-      const home = dockHome({ width: vw, height: vh, rem }, metrics);
+      const home = dockHome({ width: vw, height: vh, rem }, metrics, { tall });
       if (home.sheet) { setSheet(true); setBox(null); return; }
       setSheet(false);
       const stored = readDockPos(globalThis.localStorage);
       const pos = clampDock(stored || { x: home.x, y: home.y }, { width: vw, height: vh }, home);
-      setBox({ x: pos.x, y: pos.y, width: home.width, height: home.height });
+      // (tall: a dragged-down panel still ends above the shop bar)
+      setBox({ x: pos.x, y: pos.y, width: home.width, height: tall ? Math.max(home.height + home.y - pos.y, home.height / 2) : home.height });
     };
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
-  }, []);
+  }, [tall]);
   const setOpen = (next) => {
     setOpenState((cur) => {
       const value = typeof next === 'function' ? next(cur) : next;
@@ -174,7 +202,8 @@ export function TestConsole() {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
-  if (!pub || pub.test !== true || !myId || myId !== hostId) return null;
+  const access = testConsoleAccess(pub, myId, hostId);
+  if (!access.show) return null;
   const table = { chess: 'chess', item: 'items', token: 'tokens', bond: 'bonds', strategy: 'bands', bounty: 'enemies' }[cmd];
   const owned = [...(mine?.hand || []), ...(mine?.temp || []), ...(mine?.board || []).map((x) => x.piece || x)].filter((x) => x?.kind === 'chess');
   const tokenIds = cmd === 'token' ? ownedTokenIds(owned) : null;
@@ -272,16 +301,18 @@ export function TestConsole() {
     const cur = boxRef.current;
     if (cur) writeDockPos(cur, globalThis.localStorage);
   };
-  return html`<aside class=${cx('testconsole', open && 'is-open', sheet && 'is-sheet')} data-testid="test-console" ref=${dock} style=${style}>
-    <button type="button" class="testconsole__tab" aria-expanded=${open ? 'true' : 'false'} title=${t('按反引号键（Backquote）开关测试面板')} onClick=${() => setOpen(!open)}>
-      ${open ? t('收起') : t('测试')}
+  return html`<aside class=${cx('testconsole', open && 'is-open', sheet && 'is-sheet', access.console && 'is-console')} data-testid="test-console" ref=${dock} style=${style}>
+    <button type="button" class="testconsole__tab" aria-expanded=${open ? 'true' : 'false'} title=${access.console ? t('按反引号键（Backquote）开关调控台') : t('按反引号键（Backquote）开关测试面板')} onClick=${() => setOpen(!open)}>
+      ${open ? t('收起') : access.console ? t('调控台') : t('测试')}
     </button>
     ${open ? html`<div class="testconsole__body">
       <header class="testconsole__head" onPointerDown=${onHeadDown} onPointerMove=${onHeadMove} onPointerUp=${onHeadUp} onPointerCancel=${onHeadUp}>
-        <${TestMark} />
-        <b>${t('测试指令')}</b>
+        <${TestMark} console=${access.console} />
+        <b>${access.console ? t('指令') : t('测试指令')}</b>
         <span class="t-dim">${t('已执行 {n} 次', { n: pub.testActions | 0 })}</span>
       </header>
+      ${access.console ? html`<${ConsoleBody} pub=${pub} priv=${mine} shared=${access.shared} send=${send} runRef=${runRef}
+        toastBad=${() => toast(t('无效的目标'), 'error')} />` : html`
       <div class="testconsole__row">
         <button type="button" onClick=${() => send('timers', { on: false })}>${t('关闭计时')}</button>
         <button type="button" onClick=${() => send('timers', { on: true })}>${t('开启计时')}</button>
@@ -344,6 +375,7 @@ export function TestConsole() {
       <ul class="testconsole__log">
         ${log.length ? log.map((e) => html`<li key=${e.seq} class=${e.ok ? 'is-ok' : 'is-bad'}>${formatAuditLine(e, names.get(e.playerId))}</li>`) : html`<li class="t-dim">${t('尚无测试指令')}</li>`}
       </ul>
+      `}
     </div>` : null}
   </aside>`;
 }

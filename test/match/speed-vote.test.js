@@ -56,7 +56,7 @@ test('AI seats are no voters; an offline vote neither counts nor blocks and coun
   assert.deepEqual(counted(m), [3, 3, 2, false]);
 });
 
-test('spectators, AI seats and offline seats have no vote; an eliminated human does; a repeat is a no-op; a burst is refused', (t) => {
+test('spectators, AI seats and offline seats have no vote; a repeat is a no-op; a burst is refused', (t) => {
   const h = fake({ humans: 2, bots: 1, spectators: ['viewer'] });
   t.after(() => h.m.dispose());
   const m = h.m;
@@ -69,10 +69,32 @@ test('spectators, AI seats and offline seats have no vote; an eliminated human d
   assert.equal(m.handle('p_0', { t: 'g.speedVote', agree: true }).ok, true);
   assert.equal(m.handle('p_0', { t: 'g.speedVote', agree: false }).error, ERR.RATE);
   assert.deepEqual(m.speedVoteView().agreed, ['p_0']);
+});
+
+test('an eliminated human is no voter while one still in the match is online (feedback #130); then the eliminated vote', (t) => {
+  // the report: a 4-player match, 2 eliminated, 1 left — 3 confirmations were still needed for the last one standing
+  const h = fake({ humans: 4 });
+  t.after(() => h.m.dispose());
+  const m = h.m;
+  m.onLeave('p_3');
   h.ps('p_1').alive = false;
-  assert.equal(vote(h, 'p_1', true).ok, true);
+  h.ps('p_2').alive = false;
+  assert.deepEqual(counted(m), [1, 1, 0, false]);
+  assert.deepEqual(m.speedVoteView().ids, ['p_0']);
+  assert.equal(vote(h, 'p_1', true).ok, true, 'the eliminated keep the switch');
+  assert.deepEqual(counted(m), [1, 1, 0, false], 'but it does not count');
+  vote(h, 'p_0', true);
+  assert.deepEqual(counted(m), [1, 1, 1, true], 'the one standing alone passes it');
+  // nobody still in the match online (the AI plays for p_0): the eliminated connected doctors vote [ASSUMED]
+  m.onDisconnect('p_0');
+  assert.deepEqual(m.speedVoteView().ids, ['p_1', 'p_2']);
+  assert.deepEqual(counted(m), [2, 2, 1, false]);
+  vote(h, 'p_2', true);
   assert.deepEqual(counted(m), [2, 2, 2, true]);
+  m.onReconnect('p_0');
+  assert.deepEqual(m.speedVoteView().ids, ['p_0']);
   h.ps('p_1').alive = true;
+  h.ps('p_2').alive = true;
 });
 
 test('a vote takes effect when the next battle starts, a running battle keeps its speed, falling short restores the next one', (t) => {
@@ -153,12 +175,15 @@ test('m.public carries the count', (t) => {
   const h = fake({ humans: 2 });
   t.after(() => h.m.dispose());
   vote(h, 'p_1', true);
-  assert.deepEqual(h.m.publicView().speedVote, { agreed: ['p_1'], voters: 2, need: 2, next: false, on: false, speed: h.m.baseGameSpeed });
+  assert.deepEqual(h.m.publicView().speedVote, { agreed: ['p_1'], voters: 2, ids: ['p_0', 'p_1'], need: 2, next: false, on: false, speed: h.m.baseGameSpeed });
 });
 
 test('client: what the switch shows', () => {
   const pub = (phase, v) => ({ phase, speedVote: { agreed: ['a'], need: 2, next: false, on: false, ...v } });
-  assert.deepEqual(speedVoteState(pub('PREP', {}), 'a'), { status: 'idle', mine: true, count: 1, need: 2 });
+  assert.deepEqual(speedVoteState(pub('PREP', {}), 'a'), { status: 'idle', mine: true, count: 1, need: 2, voter: true });
+  // rel29: `ids` names the voters (an eliminated doctor is none); a rel28 server sends none: everyone votes
+  assert.equal(speedVoteState(pub('PREP', { ids: ['b'] }), 'a').voter, false);
+  assert.equal(speedVoteState(pub('PREP', { ids: ['a', 'b'] }), 'a').voter, true);
   assert.equal(speedVoteState(pub('PREP', { next: true }), 'b').status, 'next');
   assert.equal(speedVoteState(pub('PREP', { next: true }), 'b').mine, false);
   assert.equal(speedVoteState(pub('COMBAT', { on: true, next: true }), 'a').status, 'on');

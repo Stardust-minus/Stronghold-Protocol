@@ -4,9 +4,12 @@
 // [ASSUMED] A remake convenience, not an official rule.
 //
 // The vote (g.speedVote { agree }): a switch every seated human holds at any time of a running match, spectator seats and
-// AI seats excepted; an eliminated human keeps it. voters = the humans connected and not left, recounted on every read,
-// so a vote of someone offline neither counts nor blocks (it counts again when they are back); need = rerollNeed(voters),
-// ceil(0.75 × voters), the same bar as 重刷本局; a lone human passes it alone.
+// AI seats excepted. voters = the humans connected, not left and still in the match, recounted on every read, so a vote
+// of someone offline neither counts nor blocks (it counts again when they are back); need = rerollNeed(voters),
+// ceil(0.75 × voters), the same bar as 重刷本局; a lone human passes it alone. An eliminated human (观战 of the rest)
+// keeps the switch but is no voter (feedback #130, planned by the owner on 2026-11-03: 「4人局后期，淘汰2人，
+// 退出1人…2倍速仍需要3人确认」) — until no human still in the match is connected: then the eliminated ones connected vote
+// [ASSUMED], so the doctors watching the AI play out the rest can still speed it up. m.public speedVote.ids names the voters.
 // It only takes effect when a battle starts: _applySpeedVote runs before the fields of a normal, 联防 or boss / hidden
 // battle are built and sets m.gameSpeed for that battle, so everything that reads it — the deadline, the boss clock, the
 // Worker's pacing, a replica's b.start — agrees for the battle's whole length: a running battle never changes speed. Falling
@@ -37,15 +40,18 @@ export class MatchSpeedVote {
   }
 
   /**
-   * m.public speedVote: `agreed` the voters counted now, `voters` their number, `need` the yes votes it takes; `next`:
+   * m.public speedVote: `agreed` the voters counted now, `voters` their number and `ids` them (rel29: an eliminated human
+   * is none while one still in the match is connected), `need` the yes votes it takes; `next`:
    * the next battle starts at 2 倍速 as things stand; `on`: the battle running (or the last one) was started at it, at
    * `speed` game seconds per real second (a stream viewer's clock; a replica has it from b.start).
    */
   speedVoteView() {
-    const voters = this.humans().filter((p) => p.connected).map((p) => p.playerId);
+    const online = this.humans().filter((p) => p.connected);
+    const inMatch = online.filter((p) => p.alive);
+    const voters = (inMatch.length ? inMatch : online).map((p) => p.playerId);
     const agreed = voters.filter((id) => this._speedVotes.has(id));
     const need = rerollNeed(voters.length);
-    return { agreed, voters: voters.length, need, next: voters.length > 0 && agreed.length >= need,
+    return { agreed, voters: voters.length, ids: voters, need, next: voters.length > 0 && agreed.length >= need,
       on: this._speedUp, speed: this.gameSpeed };
   }
 
