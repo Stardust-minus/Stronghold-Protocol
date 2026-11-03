@@ -471,7 +471,7 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
       m.fields.forEach((f, i) => { if (f.fieldId !== `b${i + 1}`) fail(`boss field id ${f.fieldId}`); });
       if (!hidden && m.teamLp !== lpSum) fail(`team LP ${m.teamLp} != Σ alive LP ${lpSum}`);
       if (hidden && m.teamLp !== teamLp0) fail(`hidden core changed team LP ${teamLp0} → ${m.teamLp}`);
-      const want = bossPoolHp(gd, hidden ? m.hiddenBossId : m.bossId, alive.length, { experimental: m.capacityExperiment, hpMul: m.enemyHpMul });
+      const want = bossPoolHp(gd, hidden ? m.hiddenBossId : m.bossId, alive.length, { experimental: m.capacityExperiment, hpMul: m.enemyHpMulAt() });
       if (!m.bossPool || m.bossPool.maxHp !== want) fail(`boss pool ${m.bossPool && m.bossPool.maxHp} != ${want}`);
       if (hidden && !hiddenEligible(gd, { layerSum: m.hiddenLayerSum, teamLp: m.teamLp,
         aliveCount: m.finalAliveCount, experimental: m.capacityExperiment })) fail('hidden core entered while not eligible');

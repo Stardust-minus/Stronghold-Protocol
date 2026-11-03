@@ -9,6 +9,7 @@ import { cardAvatarUrl, lookOptions, officialAvatars } from './seatArt.js';
 import { CARD_SYNC } from './playerCard.js';
 import { t, tName } from '../../../shared/i18n.js';
 import { isOfficialAvatar } from '../../../shared/protocol.js';
+import { OfficialAvatarLive } from './avatarLive.js';
 
 /**
  * @param {{ title: any, micro: string, current: string, list: any[], m: any, faceOf?: (c: any) => (string | null),
@@ -74,7 +75,7 @@ export function AvatarPicker({ current, list, m, onPick, onClose, looks = null }
   const body = official && groups.length ? html`<div class="cardpick__grid cardpick__grid--official">
     ${groups.map((g) => html`<h4 key=${g.key} class="cardpick__group">${t(g.title)}</h4>
       ${g.items.map((a) => html`<button key=${a.id} type="button" class=${`cardpick__op${current === a.id ? ' is-on' : ''}`} data-avatar=${a.id} aria-label=${t('官方头像')} onClick=${() => onPick(a.id)}>
-        <span class="cardpick__img"><img src=${a.src} alt="" loading="lazy" draggable=${false} /></span></button>`)}`)}
+        <span class="cardpick__img"><img src=${a.src} alt="" loading="lazy" draggable=${false} /><${OfficialAvatarLive} id=${a.id} /></span></button>`)}`)}
   </div>` : null;
   return html`<${OperatorPicker} title=${t('头像')} micro="AVATAR" current=${current} list=${list} m=${m} faceOf=${(c) => cardAvatarUrl(c.charId, m)} looks=${official ? null : looks} tabs=${tabs} body=${body}
     autoLabel=${t('默认')} autoTitle=${t('不使用头像：显示策略图标或名字首字')} autoIcon="user"

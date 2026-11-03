@@ -50,8 +50,9 @@ export class MatchCombat {
    * local replica, a client-run field and the server's check of it all fight the same battle. Nothing when off.
    */
   _ruleFlags() {
+    const hp = this.enemyHpMulAt(); // this round's (a by-round plan, feedback #118)
     return { ...(this.disableLayerCap ? { layerCapOff: true } : {}), ...(this.disableHitLimit ? { hitLimitOff: true } : {}),
-      ...(this.enemyHpMul !== 1 ? { enemyHpMul: this.enemyHpMul } : {}), ...(this.enemyAtkMul !== 1 ? { enemyAtkMul: this.enemyAtkMul } : {}) };
+      ...(hp !== 1 ? { enemyHpMul: hp } : {}), ...(this.enemyAtkMul !== 1 ? { enemyAtkMul: this.enemyAtkMul } : {}) };
   }
 
   /** Battle options of a player's normal field (after the onBattleStart handlers). */

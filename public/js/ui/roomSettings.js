@@ -25,7 +25,7 @@ export function changedPages(room) {
   const options = experimentalOptions(room?.experimental);
   return {
     alliance: roomCapacity('coop', options) > MAX_SEATS || !!options.disableDuckLord || room?.listed === true || room?.aiTakeoverEnabled === true || room?.aiPicksLast === false,
-    rules: options.revivalEnabled || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyAtkMul || !!options.collabOps,
+    rules: options.revivalEnabled || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyHpPlan || !!options.enemyAtkMul || !!options.collabOps,
     pools: options.disableSharedPool || !!options.poolPlan,
   };
 }

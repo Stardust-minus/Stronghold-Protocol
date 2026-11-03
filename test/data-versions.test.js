@@ -139,7 +139,7 @@ test('profiles: the default stays on the commit its data was built from; pins pi
   assert.equal(v21.diyBonds, undefined, '第二期上半 has every bond the default names');
   for (const p of [v12, v11]) {
     assert.deepEqual(p.diyBonds, { char_4246_dminon: ['swiftShip'], char_4247_oxi: ['indomShip'], char_4141_marcil: [] }, p.id);
-    assert.deepEqual(p.diyTalentNotes, { char_4247_oxi: '技能持续期间我方干员阵亡时，【不屈】层数+1' }, p.id);
+    assert.deepEqual(p.diyTalentNotes, { char_4247_oxi: '二技能有层数或三技能持续期间，我方其他干员阵亡时，【不屈】层数+1（联防、最终攻势、隐秘核心中不生效）' }, p.id);
   }
   assert.equal(pinGroupOf('excel/uniequip_table.json'), 'character');
   assert.equal(pinGroupOf('excel/range_table.json'), 'range');

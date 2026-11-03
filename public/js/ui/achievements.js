@@ -18,6 +18,7 @@ import { html, Icon, MicroLabel, doctorNo } from './components.js';
 import { Img, BandIcon, BondGlyph, UnitThumb, useGameData } from './gameComponents.js';
 import { chessAvatarUrl } from './assetUrls.js';
 import { data } from '../data.js';
+import { CardAvatarLive } from './avatarLive.js';
 import { peekStatsRecords, aggregateStats, countsTowardStats, selfRowOf, roundsOf, FULL_KEEP } from './stats.js';
 import { TrophyBadge } from './trophies.js';
 import { NameCardLayer, NameCardPicker } from './namecards.js';
@@ -305,6 +306,7 @@ function Plate({ me, card, s, p, done, total, gd, onAvatar, onBg }) {
       <${NameCardLayer} card=${card.bg} y=${card.bgY} />
       <button type="button" class="ach-card__ava" onClick=${onAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>
         <${Img} src=${face} alt="" fallback=${html`<span class="ach-card__glyph">${[...(me?.name || '?')][0]}</span>`} />
+        <${CardAvatarLive} m=${gd.m} avatar=${card.avatar} look=${card.avatarLook || ''} />
         <span class="ach-card__lv" title=${t('等级')}><b class="num">${lv.lv}</b><small>LV</small></span></button>
       <span class="ach-card__who">
         <span class="ach-card__name">${me?.name || t('博士')}</span>

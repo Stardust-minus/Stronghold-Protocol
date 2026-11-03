@@ -687,12 +687,19 @@
 .lo-dynamic__controls { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem; margin-top: .12rem; font-size: max(.14rem, 12px); color: var(--text-lo); }
 .lo-dynamic__controls select { max-width: 100%; background: var(--bg-1); color: var(--text-hi); border: 1px solid var(--line); min-height: 36px; }
 .lo-dynamic-switch { display: flex; justify-content: flex-end; margin-bottom: .08rem; }
-/* 动态立绘 embedded where the art already shows (ui/dynamicIllustration.js cover mode: a 名片 plate, an operator's art box):
-   over the static picture, which stays underneath for every load failure, the slot cap and off-screen unloads */
+/* 动态立绘 embedded where the art already shows (ui/dynamicIllustration.js cover mode, one shared renderer —
+   ui/dynamicStage.js): a 2D canvas over the static picture, which shows until the first live frame and after any failure */
 .dyn-cover { position: absolute; inset: 0; display: block; overflow: hidden; pointer-events: none; border-radius: inherit; }
-.dyn-cover__canvas { position: absolute; inset: 0; display: block; }
+.dyn-cover__canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 .dyn-cover__canvas[hidden] { display: none; }
-.dyn-cover__canvas canvas { display: block; width: 100%; height: 100%; }
+/* the live picture replaces its box's static one (the same crop) once its first frame is drawn: never two framings at once */
+[data-dyn="live"] > img:not(.dyn-seq) { visibility: hidden; }
+/* an official dynamic avatar's frame sequence (ui/avatarLive.js): the lossless animated WebP stretched over the box */
+.dyn-seq { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; border-radius: inherit; }
+/* the avatar slots a live layer sits in are its containing block */
+.avatar__img, .cardpick__img { position: relative; }
+.nc-layer[data-dyn="live"] { --nc: none; }
+.rseat.is-offline .rseat__art .dyn-cover { filter: grayscale(.8) brightness(.6); }
 /* on a 名片 plate the shade that keeps the name readable stays above the animation (lobby.css .nc-layer--skin) */
 .nc-layer--skin .dyn-cover::after { content: ""; position: absolute; inset: 0;
   background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .45) 50%, rgba(8, 11, 11, .1))); }
@@ -1185,6 +1192,8 @@
 .lo-diy__glyph { width: 52%; height: 52%; }
 .lo-diy__faces { display: flex; flex-direction: column; gap: 4px; width: 70%; }
 .lo-diy__face { display: grid; place-items: center; width: 100%; aspect-ratio: 1; object-fit: cover; background: #1a1f1d; border: 1px solid var(--tc); font-weight: 900; }
+/* three or four candidates (rel26 候补): a 2 × 2 grid inside the frame */
+.lo-diy__faces.is-grid { display: grid; grid-template-columns: repeat(2, 1fr); width: 92%; }
 .lo-diy__label { font-size: max(calc(.16 * var(--t)), 11px); font-weight: 800; letter-spacing: .1em; }
 .lo-diy__n { font-size: max(calc(.3 * var(--t)), 16px); color: var(--text-lo); }
 .lo-diy__n b { color: var(--text-hi); font-size: max(calc(.4 * var(--t)), 20px); }

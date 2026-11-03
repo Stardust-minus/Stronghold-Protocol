@@ -335,7 +335,7 @@ test('an operator of ours knocked out while her skill lasts gives 奥术 and 不
 });
 
 test('her talent card states this game\'s rule, in every form', () => {
-  for (const form of Object.values(FORMS)) assert.match(form.talents[0].desc, /技能持续期间我方干员阵亡时，【奥术】和【不屈】层数\+1/);
+  for (const form of Object.values(FORMS)) assert.match(form.talents[0].desc, /\n二技能有层数或三技能持续期间，我方其他干员阵亡时，【奥术】和【不屈】层数\+1（联防、最终攻势、隐秘核心中不生效）$/);
 });
 
 test('the composed record names her bonds: 协防, 奥术 and 不屈', () => {
@@ -352,7 +352,7 @@ test('第一期 (no 奥术 bond there, tools/versions/act1autochess.mjs diyBonds
     assert.deepEqual(raw.backups.diy.operators[OXI].bonds, ['emptyShip', 'indomShip'], slug);
     assert.ok(raw.backups.diy.ownedPool.includes(OXI), `${slug}: an owned 自选 pick`);
     for (const form of Object.values(raw.backups.units[OXI].forms)) {
-      assert.match(form.talents[0].desc, /技能持续期间我方干员阵亡时，【不屈】层数\+1$/, slug);
+      assert.match(form.talents[0].desc, /\n二技能有层数或三技能持续期间，我方其他干员阵亡时，【不屈】层数\+1（联防、最终攻势、隐秘核心中不生效）$/, slug);
       assert.doesNotMatch(form.talents[0].desc, /奥术】/, slug);
     }
     const data = new DataSource({ enemies: ENEMIES }, new DataSource(raw));

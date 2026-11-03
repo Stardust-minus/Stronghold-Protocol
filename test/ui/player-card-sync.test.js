@@ -8,7 +8,7 @@ import { installPlayerCardSync, SYNC_DEBOUNCE_MS, RETRY_MS } from '../../public/
 
 const ticks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 const WISADEL = 'char_1035_wisdel', HEIDI = 'char_4045_heidi';
-const EMPTY = { charId: '', avatar: '', bg: '', bgY: -1, trophies: 0, look: '', avatarLook: '' };
+const EMPTY = { charId: '', avatar: '', bg: '', bgY: -1, trophies: 0, look: '', avatarLook: '', artX: -1, artY: -1, artZoom: -1 };
 
 function harness({ card = {}, chess = [] } = {}) {
   const listeners = new Map(), pending = new Map();
@@ -60,6 +60,13 @@ test('every part of the card is an edit: look, avatar, avatar look, background',
   }
   assert.deepEqual(h.net.sent.at(-1), { t: 'room.card', ...EMPTY, charId: HEIDI, look: 'e1', avatar: WISADEL, avatarLook: 'e1' });
   assert.equal(h.net.sent.length, 4);
+  // the seat framing of a skin look's 动态立绘 (rel27) is an edit too; with 'e1' (no 动态立绘) it is not sent
+  h.target.set({ art: { x: 420, y: 310, zoom: 260 } });
+  await h.timers.advance(SYNC_DEBOUNCE_MS);
+  assert.equal(h.net.sent.at(-1).artX, -1, 'no framing with 精一');
+  h.target.set({ look: 'char_4045_heidi_epoque_1' });
+  await h.timers.advance(SYNC_DEBOUNCE_MS);
+  assert.deepEqual(h.net.sent.at(-1), { t: 'room.card', ...EMPTY, charId: HEIDI, look: 'char_4045_heidi_epoque_1', avatar: WISADEL, avatarLook: 'e1', artX: 420, artY: 310, artZoom: 260 });
   assert.equal(h.target.get().sync, 'synced');
 });
 

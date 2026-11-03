@@ -9,6 +9,7 @@ import { chessAvatarUrl } from './assetUrls.js';
 import { data, getChess, useData } from '../data.js';
 import { t } from '../../../shared/i18n.js';
 import { appearanceRecord } from './skinAssets.js';
+import { diyRecordFor } from './gameLogic/diy.js';
 
 export function damageNumber(value) {
   const n = Number.isFinite(value) && value > 0 ? value : 0;
@@ -28,6 +29,7 @@ export function acceptDamageSnapshot(current, next, matchId) {
 }
 
 const amount = (n) => Number.isFinite(n) && n > 0 ? n : 0;
+const isPick = (p) => !!p && typeof p === 'object' && typeof p.charId === 'string' && !!p.charId;
 
 /** @param {'damage'|'healing'} metric the ranked value; healing lists only the pieces that healed. */
 export function damageRows(snapshot, ownerId, metric = 'damage') {
@@ -38,7 +40,7 @@ export function damageRows(snapshot, ownerId, metric = 'damage') {
   const rows = (Array.isArray(owner.operators) ? owner.operators : [])
     .filter(row => row && Number.isFinite(row.damage) && row.damage >= 0)
     .map((row, i) => ({ key: typeof row.key === 'string' ? row.key : `uid:${row.uid}:${i}`, uid: row.uid, defId: row.defId,
-      damage: row.damage, healing: amount(row.healing), other: false }));
+      damage: row.damage, healing: amount(row.healing), other: false, ...(isPick(row.diy) ? { diy: row.diy } : {}) }));
   if (amount(owner.otherDamage) || amount(owner.otherHealing)) {
     rows.push({ key: 'other', uid: null, defId: null, damage: amount(owner.otherDamage), healing: amount(owner.otherHealing), other: true });
   }
@@ -107,12 +109,16 @@ export function damageGroups(snapshot, owners, metric = 'damage') {
 
 export function damageAppearance(chess, row, ownerId, units = []) {
   const unit = units.find(u => u?.ownerId === ownerId && u.defId === row.defId && u.uid === row.uid && u.kind === 'op');
-  if (!chess || !unit?.skinId) return chess;
-  return appearanceRecord({ ...chess, charId: unit.spine, assets: { ...chess.assets, avatar: unit.avatar } }, unit.skinId);
+  // a 自选 piece: its defId is the DIY slot (named 「甄选干员」) — the board draws the picked operator (rel27, the owner's
+  // report of 11-03), from the row's pick (the ledger's, every field and view) or the unit's (b.snap meta)
+  const pick = isPick(row?.diy) ? row.diy : isPick(unit?.diy) ? unit.diy : null;
+  const base = chess && pick ? diyRecordFor(chess, pick, { chess: data.get('chess'), backups: data.get('backups') }) || chess : chess;
+  if (!base || !unit?.skinId) return base;
+  return appearanceRecord({ ...base, charId: unit.spine, assets: { ...base.assets, avatar: unit.avatar } }, unit.skinId);
 }
 
 export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, uniteRelay = false, bossOwners = null, bossHidden = false, open = false, onToggle, units = [] }) {
-  useData('chess', 'assets');
+  useData('chess', 'assets', 'backups');
   const boss = Array.isArray(bossOwners) && bossOwners.length > 0;
   const owners = boss ? bossOwners : Array.isArray(uniteOwners) && uniteOwners.length ? uniteOwners : [{ playerId: ownerId, name: ownerName || t('当前视角') }];
   const ownersKey = JSON.stringify(owners);

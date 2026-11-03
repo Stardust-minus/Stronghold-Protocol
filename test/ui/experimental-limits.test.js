@@ -52,7 +52,7 @@ test('the enemy multipliers: a list in every room, ×1 absent, the marker and su
     const hp = nodes.find((n) => n.props.id === 'experimental-enemy-hp'), atk = nodes.find((n) => n.props.id === 'experimental-enemy-atk');
     assert.ok(hp && atk, `${mode} ${source}`);
     assert.equal(hp.props.value, 1); assert.equal(atk.props.value, 3);
-    assert.deepEqual([].concat(hp.props.children).flat().map((o) => o.props.value), [1, 1.25, 1.5, 2, 3, 5]);
+    assert.deepEqual([].concat(hp.props.children).flat().map((o) => o.props.value), [1, 1.25, 1.5, 2, 2.5, 3, 5]);
     hp.props.onChange({ currentTarget: { value: '2' } });
     assert.deepEqual(sent.at(-1), rules({ disableLayerCap: true, enemyAtkMul: 3, enemyHpMul: 2 }));
     atk.props.onChange({ currentTarget: { value: '1' } });

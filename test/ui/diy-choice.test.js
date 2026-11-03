@@ -156,3 +156,34 @@ describe('the briefing\'s 自选上场 (ui/diyChoice.js)', () => {
     assert.deepEqual([...walk(draft)].filter((v) => hasClass(v, 'diychoice__c')).map((v) => v.props['aria-pressed']), ['false', 'false', 'true', 'false']);
   });
 });
+
+// rel27 (the owner, 11-03: 「干员调配的甄选干员，仍然显示1/2，不是四个」): the 甄选干员 card closing a tier in 干员调配's
+// card view counts the tier's four positions (slots + 候补), shows every candidate's face (a 2 × 2 grid past two), and the
+// bottom bar's open 名额 count them too.
+describe('干员调配: the 甄选干员 card counts the four positions', async () => {
+  const { DiyDeckCard } = await import('../../public/js/screens/loadout.js');
+  const positions = M.diyPositions(D);
+  // the text in document order (textOf collects a node's own strings before its children's)
+  const flat = (v) => (Array.isArray(v) ? v.map(flat).join('') : v == null || typeof v === 'boolean' ? '' : typeof v !== 'object' ? String(v) : flat(v.props?.children));
+  const card = (picks) => {
+    const tree = DiyDeckCard({ m: null, tier: 6, slots: positions, picks, onOpen() {} });
+    const all = [...walk(tree)];
+    return { n: flat(all.find((x) => hasClass(x, 'lo-diy__n'))), faces: all.find((x) => hasClass(x, 'lo-diy__faces')) || null };
+  };
+  test('empty → 0/4 and the glyph; two slots and one 候补 → 3/4 in a grid; all four → 4/4', () => {
+    assert.equal(card({}).n, '0/4');
+    assert.equal(card({}).faces, null);
+    const three = card({ [T6A]: own(SIEGE), chess_char_6_diy2_a: own(IFRIT), [B61]: own(MGLLAN) });
+    assert.equal(three.n, '3/4');
+    assert.ok(hasClass(three.faces, 'is-grid'), 'past two faces: the grid');
+    assert.equal(three.faces.props.children.length, 3);
+    const two = card({ [T6A]: own(SIEGE), [B62]: own(KALTS) });
+    assert.equal(two.n, '2/4', 'a 候补 counts like a slot');
+    assert.ok(!hasClass(two.faces, 'is-grid'));
+    assert.equal(card({ [T6A]: own(SIEGE), chess_char_6_diy2_a: own(IFRIT), [B61]: own(MGLLAN), [B62]: own(KALTS) }).n, '4/4');
+  });
+  test('the tier-5 card is the tier-5 positions only', () => {
+    const tree = DiyDeckCard({ m: null, tier: 5, slots: positions, picks: { [T6A]: own(SIEGE), [B51]: own(CHEN) }, onOpen() {} });
+    assert.equal(flat([...walk(tree)].find((x) => hasClass(x, 'lo-diy__n'))), '1/4');
+  });
+});

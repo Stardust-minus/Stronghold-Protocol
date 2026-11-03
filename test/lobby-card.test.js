@@ -248,3 +248,41 @@ test('look / avatarLook (feedback #9 / #24): 精一 or a skin of that very opera
   assert.deepEqual(f.card(s, { avatar: '', avatarLook: 'e1' }), { ok: true });
   assert.deepEqual({ ...s.card }, { charId: other });
 });
+
+test('artX / artY / artZoom (rel27): the seat card\'s framing of the look\'s 动态立绘 — all three, only with that look, dropped on a new look', (t) => {
+  const ok = (msg) => assert.equal(validateC2S({ t: 'room.card', ...msg }), null, JSON.stringify(msg));
+  const bad = (msg, field) => assert.equal(validateC2S({ t: 'room.card', ...msg }), `bad field ${field}`, JSON.stringify(msg));
+  ok({ artX: 0, artY: 1000, artZoom: 100 }); ok({ artX: -1, artY: -1, artZoom: -1 }); ok({ artZoom: 2500 });
+  bad({ artX: 1001 }, 'artX'); bad({ artY: -2 }, 'artY'); bad({ artZoom: 99 }, 'artZoom'); bad({ artZoom: 2501 }, 'artZoom'); bad({ artX: 0.5 }, 'artX');
+  // a rel26 server's schema (no art fields) passes the message and reads named fields only
+  assert.equal(validateC2S({ t: 'room.card', charId: AMIYA, extraField: 1 }), null, 'unknown keys are ignored, never refused');
+  const withSkin = SKINS.find((s) => OPS.includes(s.charId) && SKINS.filter((x) => x.charId === s.charId).length > 1);
+  assert.ok(withSkin, 'an operator of the data with two skins');
+  const second = SKINS.find((s) => s.charId === withSkin.charId && s.id !== withSkin.id);
+  const f = fixture(t);
+  const a = f.player(), b = f.player();
+  const code = f.lobby.onMessage(a, { t: 'room.create', mode: 'coop' }).code ?? f.states(a).at(-1).code;
+  assert.ok(f.lobby.onMessage(b, { t: 'room.join', code }).ok !== false);
+  const art = { artX: 420, artY: 310, artZoom: 260 };
+  assert.deepEqual(f.card(a, { charId: withSkin.charId, look: withSkin.id, ...art }), { ok: true });
+  assert.deepEqual({ ...a.card }, { charId: withSkin.charId, look: withSkin.id, ...art });
+  assert.deepEqual(f.states(b).at(-1).seats.find((s) => s?.playerId === a.playerId).card, { charId: withSkin.charId, look: withSkin.id, ...art }, 'the room sees the framing');
+  f.clock.time += CARD_WINDOW_MS;
+  f.card(a, { trophies: 3 });
+  assert.equal(a.card.artZoom, 260, 'left out: kept');
+  f.card(a, { artX: 100, artY: 5 });
+  assert.equal(a.card.artX, undefined, 'a partial framing is none');
+  f.card(a, art);
+  assert.equal(a.card.artX, 420);
+  f.clock.time += CARD_WINDOW_MS;
+  f.card(a, { look: second.id });
+  assert.equal(a.card.artX, undefined, 'a new look starts at its portrait crop');
+  f.card(a, { look: second.id, ...art });
+  f.card(a, { artX: -1, artY: -1, artZoom: -1 });
+  assert.equal(a.card.artZoom, undefined, '-1 clears');
+  f.clock.time += CARD_WINDOW_MS;
+  f.card(a, { look: 'e1', ...art });
+  assert.equal(a.card.artX, undefined, '精一 has no 动态立绘: no framing');
+  f.card(a, { look: '', ...art });
+  assert.equal(a.card.artX, undefined, 'no look, no framing');
+});

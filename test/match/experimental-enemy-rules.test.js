@@ -28,7 +28,7 @@ const YAN = ['chess_char_6_15_a', 'chess_char_5_12_a', 'chess_char_4_17_a', 'che
 const ENEMY = Object.keys(DATA.enemies).find((k) => DATA.enemies[k].stats?.maxHp > 0 && DATA.enemies[k].stats?.atk > 0 && !DATA.enemies[k].tokenOnly);
 
 test('shape: ×1 is absent, the listed multipliers are the only legal values, the key names them', () => {
-  assert.deepEqual([...ENEMY_MULTIPLIERS], [1, 1.25, 1.5, 2, 3, 5]);
+  assert.deepEqual([...ENEMY_MULTIPLIERS], [1, 1.25, 1.5, 2, 2.5, 3, 5]); // 2.5: rel27 (#118 names it)
   assert.deepEqual(Object.keys(experimentalOptions(rules({ enemyHpMul: 1, enemyAtkMul: 1 }))), ['revivalEnabled', 'disableSharedPool']);
   assert.equal(experimentalKey(rules({ enemyHpMul: 1 })), '00');
   assert.equal(sameExperimental(rules({ enemyHpMul: 1 }), rules()), true);
@@ -42,7 +42,8 @@ test('shape: ×1 is absent, the listed multipliers are the only legal values, th
     assert.equal(isExperimental(rules({ enemyHpMul: v })), false, `hp ${v}`);
     assert.equal(isExperimental(rules({ enemyAtkMul: v })), false, `atk ${v}`);
   }
-  assert.ok(validateC2S('room.setExperimental', { experimental: rules({ enemyHpMul: 5 }) }).ok !== false);
+  assert.equal(validateC2S({ t: 'room.setExperimental', experimental: rules({ enemyHpMul: 5 }) }), null); // was a call that always passed
+  assert.equal(validateC2S({ t: 'room.setExperimental', experimental: rules({ enemyHpMul: 4 }) }), 'bad field experimental');
 });
 
 test('spec flags: every battle of a room with multipliers carries them; a standard room carries neither', (t) => {

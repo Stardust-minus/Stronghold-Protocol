@@ -218,6 +218,8 @@ describe('extracted board files (when a local client was extracted)', { skip: !m
     for (const [g, entries] of Object.entries(manifest.groups)) {
       for (const [n, e] of Object.entries(entries)) {
         if (!/\.webp$/.test(e?.path || '')) continue;
+        // the official dynamic avatars' frame sequences (ui/avatar_dyn/<id>, rel27) are animated originals, not PNG copies
+        if (g.startsWith('ui/avatar_dyn/')) { assert.ok(existsSync(onDisk(e.path)), `${g}/${n}`); continue; }
         assert.ok(existsSync(onDisk(e.path)), `${g}/${n}`);
         assert.ok(existsSync(onDisk(pngOf(e.path))), `${g}/${n}: PNG`);
         assert.ok(e.webp === 'lossy' || e.webp === 'lossless', `${g}/${n}: mode ${e.webp}`);

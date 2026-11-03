@@ -1,13 +1,38 @@
 import { html } from './components.js';
-import { t, tc } from '../../../shared/i18n.js';
+import { t, tc, tParts } from '../../../shared/i18n.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
 import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
-import { ENEMY_MULTIPLIERS, isEnemyMultiplier } from '../../../shared/experimental.js';
+import { ENEMY_HP_PLAN_MAX, ENEMY_MULTIPLIERS, canonicalEnemyHpPlan, enemyHpMulAt, isEnemyHpPlan, isEnemyMultiplier } from '../../../shared/experimental.js';
 import { autoPoolPlan, canonicalPoolPlan, isPoolPlan, poolCount } from '../../../shared/poolPlan.js';
 import { confirmCollab } from './collab.js';
 
 /** A room's enemy multiplier as the page shows it: 1 when it has none. */
 const enemyMul = value => (isEnemyMultiplier(value) ? value : 1);
+/**
+ * The HP rule of the page's options (shared/experimental.js hpOption): a by-round plan (feedback #118) replaces the single
+ * multiplier; a plan of one multiplier throughout is that multiplier.
+ */
+function hpRule(input) {
+  const plan = canonicalEnemyHpPlan(input?.enemyHpPlan);
+  if (plan) return { enemyHpPlan: plan.map(([from, mul]) => [from, mul]) };
+  const flat = isEnemyHpPlan(input?.enemyHpPlan) ? input.enemyHpPlan[0][1] : enemyMul(input?.enemyHpMul);
+  return flat !== 1 ? { enemyHpMul: flat } : {};
+}
+/** The last round the plan editor offers (co-op's last round 14, a hidden leader's 15). */
+const PLAN_ROUND_UI_MAX = 15;
+/** The multiplier `steps` places above `mul` in ENEMY_MULTIPLIERS (clamped). */
+const stepUp = (mul, steps) => ENEMY_MULTIPLIERS[Math.min(ENEMY_MULTIPLIERS.length - 1, Math.max(0, ENEMY_MULTIPLIERS.indexOf(enemyMul(mul)) + steps))];
+/**
+ * A plan's segments as text: 「1–5回合 ×1 / 6–8回合 ×1.5 / 9回合起 ×2.5」 (the player's own wording in feedback #118).
+ * @param {readonly (readonly number[])[]} plan
+ */
+export function enemyHpPlanText(plan) {
+  return plan.map(([from, mul], i) => {
+    const next = plan[i + 1];
+    if (!next) return t('{a}回合起 ×{m}', { a: from, m: mul });
+    return next[0] - 1 === from ? t('{a}回合 ×{m}', { a: from, m: mul }) : t('{a}–{b}回合 ×{m}', { a: from, b: next[0] - 1, m: mul });
+  }).join(' / ');
+}
 
 export function experimentalOptions(input) {
   const capacity = roomCapacity('coop', input);
@@ -16,7 +41,7 @@ export function experimentalOptions(input) {
     ...(capacity > MAX_SEATS && input?.disableDuckLord === true ? { disableDuckLord: true } : {}),
     ...(input?.disableLayerCap === true ? { disableLayerCap: true } : {}),
     ...(input?.disableHitLimit === true ? { disableHitLimit: true } : {}),
-    ...(enemyMul(input?.enemyHpMul) !== 1 ? { enemyHpMul: input.enemyHpMul } : {}),
+    ...hpRule(input),
     ...(enemyMul(input?.enemyAtkMul) !== 1 ? { enemyAtkMul: input.enemyAtkMul } : {}),
     ...(capacity === MAX_SEATS ? {} : { playerCapacity: capacity }),
     ...(plan ? { poolPlan: plan } : {}),
@@ -26,14 +51,14 @@ export function experimentalOptions(input) {
 /** Whether any option differs from a standard room's (the room's 实验性选项 button is then marked). */
 export function experimentalChanged(input) {
   const options = experimentalOptions(input);
-  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps;
+  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyHpPlan || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps;
 }
 
 export function experimentalSummary(input) {
   const options = experimentalOptions(input);
   const summary = t('复活 {0} · 共享卡池 {1}', { 0: options.revivalEnabled ? t('开启') : tc('toggle', '关闭'), 1: options.disableSharedPool ? tc('toggle', '关闭') : t('开启') });
   const rules = [summary, options.disableDuckLord && t('禁用鸭爵策略'), options.disableLayerCap && t('禁用层数上限'), options.disableHitLimit && t('禁用单次伤害上限'),
-    options.enemyHpMul && t('敌人生命 ×{n}', { n: options.enemyHpMul }), options.enemyAtkMul && t('敌人攻击 ×{n}', { n: options.enemyAtkMul }),
+    options.enemyHpMul && t('敌人生命 ×{n}', { n: options.enemyHpMul }), options.enemyHpPlan && t('敌人生命 {plan}', { plan: enemyHpPlanText(options.enemyHpPlan) }), options.enemyAtkMul && t('敌人攻击 ×{n}', { n: options.enemyAtkMul }),
     options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }), options.collabOps && t('联动干员')].filter(Boolean).join(' · ');
   return options.playerCapacity ? t('{rules} · {n} 人模式', { rules, n: options.playerCapacity }) : rules;
 }
@@ -112,12 +137,40 @@ export function ruleRows({ value, mode = 'coop', source = 'private', ...rest }) 
     const { [field]: previous, ...rules } = options;
     send(next === 1 ? rules : { ...rules, [field]: next });
   };
-  const multiplier = (field, id, title, note) => html`<label class="experimental-option" for=${id}>
+  const multiplier = (field, id, title, note, disabled = false) => html`<label class="experimental-option" for=${id}>
     <span><strong>${title}</strong><small>${note}</small></span>
-    <select id=${id} value=${enemyMul(options[field])} disabled=${locked} onChange=${e => setEnemyMul(field, Number(e.currentTarget.value))}>
+    <select id=${id} value=${enemyMul(options[field])} disabled=${locked || disabled} onChange=${e => setEnemyMul(field, Number(e.currentTarget.value))}>
       ${ENEMY_MULTIPLIERS.map(n => html`<option key=${n} value=${n}>×${n}</option>`)}
     </select>
   </label>`;
+  // 敌人生命倍率 by round (feedback #118): the plan replaces the single multiplier; a plan left with one segment is that one
+  const plan = options.enemyHpPlan || null;
+  const sendPlan = next => { const { enemyHpMul, enemyHpPlan, ...rules } = options; send({ ...rules, ...hpRule({ enemyHpPlan: next }) }); };
+  const setPlan = on => {
+    if (!on) { const { enemyHpPlan, ...rules } = options; send({ ...rules, ...hpRule({ enemyHpMul: plan ? plan[0][1] : options.enemyHpMul }) }); return; }
+    const base = enemyMul(options.enemyHpMul); // the player's example from ×1: 1–5 ×1, 6–8 ×1.5, 9 on ×2.5
+    sendPlan([[1, base], [6, stepUp(base, 2)], [9, stepUp(base, 4)]]);
+  };
+  const planEditor = () => {
+    const segs = plan.map(([from, mul]) => [from, mul]);
+    const put = (i, seg) => sendPlan(segs.map((s, j) => (j === i ? seg : s)));
+    const rounds = i => { const lo = segs[i - 1][0] + 1, hi = i + 1 < segs.length ? segs[i + 1][0] - 1 : PLAN_ROUND_UI_MAX; const out = []; for (let r = lo; r <= hi; r++) out.push(r); return out; };
+    const last = segs[segs.length - 1];
+    return html`<div class="experimental-plan" data-testid="experimental-enemy-hp-plan">
+      ${segs.map(([from, mul], i) => html`<div class="experimental-plan__row" key=${i} data-testid="experimental-enemy-hp-seg">
+        ${i === 0 ? html`<span class="experimental-plan__from">${t('第 {n} 回合起', { n: 1 })}</span>`
+          : html`<label class="experimental-plan__from">${tParts('第 {n} 回合起', { n: html`<select aria-label=${t('起始回合')} data-testid="experimental-enemy-hp-from" value=${from} disabled=${locked}
+              onChange=${e => put(i, [Number(e.currentTarget.value), mul])}>${rounds(i).map(r => html`<option key=${r} value=${r}>${r}</option>`)}</select>` })}</label>`}
+        <select aria-label=${t('敌人生命倍率')} data-testid="experimental-enemy-hp-mul" value=${mul} disabled=${locked} onChange=${e => put(i, [from, Number(e.currentTarget.value)])}>
+          ${ENEMY_MULTIPLIERS.map(n => html`<option key=${n} value=${n}>×${n}</option>`)}
+        </select>
+        ${i === 0 ? html`<span class="experimental-plan__gap"></span>` : html`<button type="button" class="experimental-plan__del" data-testid="experimental-enemy-hp-del" disabled=${locked}
+          title=${t('删除此阶段')} aria-label=${t('删除此阶段')} onClick=${() => sendPlan(segs.filter((_, j) => j !== i))}>×</button>`}
+      </div>`)}
+      ${segs.length < ENEMY_HP_PLAN_MAX && last[0] < PLAN_ROUND_UI_MAX ? html`<button type="button" class="experimental-plan__add" data-testid="experimental-enemy-hp-add" disabled=${locked}
+        onClick=${() => sendPlan([...segs, [last[0] + 1, stepUp(last[1], 1)]])}>${t('添加阶段')}</button>` : null}
+    </div>`;
+  };
   return [
     mode === 'solo' ? null : switchRow({ id: 'experimental-revival', title: t('队友复活'), note: t('符合救援条件的队友可支付 10 生命抵消死亡，每人每局一次。'), checked: options.revivalEnabled,
       disabled: locked, onChange: on => send({ ...options, revivalEnabled: on }) }),
@@ -125,7 +178,10 @@ export function ruleRows({ value, mode = 'coop', source = 'private', ...rest }) 
       disabled: locked, onChange: on => send({ ...options, disableLayerCap: on }) }),
     switchRow({ id: 'experimental-hit-limit', title: t('禁用单次伤害上限'), note: t('对敌方领袖的单次伤害达到 30 万及以上时不再被取消。'), checked: options.disableHitLimit === true,
       disabled: locked, onChange: on => send({ ...options, disableHitLimit: on }) }),
-    multiplier('enemyHpMul', 'experimental-enemy-hp', t('敌人生命倍率'), t('全部敌人的生命上限，包含敌方领袖的共享生命值。')),
+    multiplier('enemyHpMul', 'experimental-enemy-hp', t('敌人生命倍率'), t('全部敌人的生命上限，包含敌方领袖的共享生命值。'), !!plan),
+    switchRow({ id: 'experimental-enemy-hp-plan', title: t('按回合设置敌人生命倍率'), note: t('从指定回合起改用新的倍率，前期不加血、后期再加，难度循序渐进。'), checked: !!plan,
+      disabled: locked, onChange: setPlan, testid: 'experimental-enemy-hp-plan-switch' }),
+    plan ? planEditor() : null,
     multiplier('enemyAtkMul', 'experimental-enemy-atk', t('敌人攻击倍率'), t('全部敌人的攻击力，包含敌方领袖。')),
     collabRow({ value, source, ...rest }),
   ];
@@ -144,4 +200,15 @@ export function poolRows({ value, seats = [], ...rest }) {
       disabled: locked || manual, onChange: on => send({ ...options, disableSharedPool: on }) }),
     switchRow({ id: 'experimental-pools-manual', title: t('手动指定卡池编组'), note: t('由创建者决定一共几个卡池、每个卡池包含哪些席位。'), checked: manual, disabled: locked, onChange: setManual }),
   ];
+}
+
+/**
+ * The enemy multipliers of the match's round, for the enemy detail's preview (screens/game.js): a by-round plan's segment
+ * of `round` (feedback #118), else the room's single ones; null when none.
+ * @param {any} experimental the match's options (m.public experimental) @param {number} round
+ */
+export function roundEnemyMul(experimental, round) {
+  if (!experimental) return null;
+  const hp = enemyHpMulAt(experimental, round), atk = enemyMul(experimental.enemyAtkMul);
+  return hp === 1 && atk === 1 ? null : { ...(hp !== 1 ? { enemyHpMul: hp } : {}), ...(atk !== 1 ? { enemyAtkMul: atk } : {}) };
 }

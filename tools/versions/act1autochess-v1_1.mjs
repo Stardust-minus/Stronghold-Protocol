@@ -55,7 +55,7 @@ export default Object.freeze({
     char_4247_oxi: Object.freeze(['indomShip']),
     char_4141_marcil: Object.freeze([]),
   }),
-  diyTalentNotes: Object.freeze({ char_4247_oxi: '技能持续期间我方干员阵亡时，【不屈】层数+1' }),
+  diyTalentNotes: Object.freeze({ char_4247_oxi: '二技能有层数或三技能持续期间，我方其他干员阵亡时，【不屈】层数+1（联防、最终攻势、隐秘核心中不生效）' }),
   adapters: Object.freeze(['bondActiveType', 'selfBackupPreset', 'launchMilestones']),
   research: 'docs/research/versions/act1autochess-v1_1/',
   tables: Object.freeze({ stock: null, shopDraft: null, tacticDraft: null, bountyDrafts: null }),

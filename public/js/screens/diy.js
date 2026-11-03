@@ -33,8 +33,8 @@ import { CultivationSelects, CultivationSection } from './cultivation.js';
 import { SkillIcon, ModuleGlyph, SkillSection, ModuleSection, ProfFilter, rowControlHit } from './loadoutSections.js';
 import { t } from '../../../shared/i18n.js';
 import { SkinPicker } from '../ui/skinPicker.js';
-import { ownAppearance, appearanceEntry } from '../ui/skinAssets.js';
-import { DynamicIllustration } from '../ui/dynamicIllustration.js';
+import { ownAppearance } from '../ui/skinAssets.js';
+import { LiveArt } from '../ui/dynamicIllustration.js';
 import { skinIdFor } from '../../../shared/skins.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -328,9 +328,6 @@ export function DiyPickerView({ m, slot, picks, kitted, collab = false, onDone, 
   const note = slot.tier === 5 ? t('6★ 原型干员与持有的 6★ 干员，另有 4★ 原型干员（先锋、特种除外）') : t('6★ 原型干员与持有的 6★ 干员');
   const base = draft ? slotRecord(slot.slotId, draft, D, { potential }) : null;
   const golden = draft ? slotRecord(slot.slotId, draft, D, { elite: true, potential }) : null;
-  // the chosen appearance's 动态立绘 animates over the art box (ui/dynamicIllustration.js cover mode; a collab skin's only
-  // in a room with 联动干员 on: `m` holds the collab pack only there)
-  const pickDyn = draft ? appearanceEntry(m, draft.charId, skinIdFor(skins, draft.charId))?.dynamic || null : null;
   const previewEntries = base ? { [base.baseId || base.chessId]: { skill: skillOn, module: modOn || 'none' } } : {};
   const previewChess = (id) => id === golden?.chessId ? golden : base;
   // the 默认 badge is suppressed: on a slot record `isDefault` marks the CURRENT pick (shared/standIn.js composeUnitRecord),
@@ -382,7 +379,7 @@ export function DiyPickerView({ m, slot, picks, kitted, collab = false, onDone, 
             <div class="lo-dhead">
               <div class=${cx('lo-dhead__art', `lo-dhead__art--t${slot.tier}`)}>
                 <${Img} src=${chessPortraitUrl(m, ownAppearance(golden || base, { skins }))} fallbackSrc=${chessPortraitUrl(m, golden || base)} fallback=${html`<b class="diy-pick__glyph">${[...(unit.name || '?')][0]}</b>`} />
-                ${pickDyn ? html`<${DynamicIllustration} mode="cover" entry=${pickDyn} focusY=${12} minWidth=${80} />` : null}
+                <${LiveArt} m=${m} charId=${draft.charId} skins=${skins} kind="portrait" posY=${12} />
               </div>
               <div class="lo-dhead__info">
                 <div class="lo-dhead__chips"><${TierChip} tier=${slot.tier} size="md" /><${KindTag} proto=${ch.proto} /></div>

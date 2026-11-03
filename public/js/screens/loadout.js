@@ -45,9 +45,8 @@ import {
 import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, setNotOwned, setDiyPicks, setSkins, applyOperatorPreset } from '../ui/loadoutSync.js';
 import { serializeOperatorPreset, parseOperatorPreset, OPERATOR_PRESET_MAX_BYTES } from '../ui/operatorPresetModel.js';
 import { SkinPicker } from '../ui/skinPicker.js';
-import { ownAppearance, appearanceEntry } from '../ui/skinAssets.js';
-import { skinIdFor } from '../../../shared/skins.js';
-import { DynamicIllustration } from '../ui/dynamicIllustration.js';
+import { ownAppearance } from '../ui/skinAssets.js';
+import { LiveArt } from '../ui/dynamicIllustration.js';
 import { OperatorVoice } from '../ui/operatorVoice.js';
 import { CultivationSelects, CultivationSection, cultivationView, potentialEditable } from './cultivation.js';
 import { setOwned, notOwnedCount } from '../ui/ownershipModel.js';
@@ -59,7 +58,7 @@ import { ModuleGlyph, ModuleInfo, SkillOption, SkillIcon, SkillSection, ModuleSe
 export { ModuleGlyph, ModuleInfo, SkillOption };
 import { LoadoutStats } from '../ui/loadoutStats.js';
 export { LoadoutStats, statsPreview } from '../ui/loadoutStats.js';
-import { diyCount, diyCapacity, diyMatchOff, sanitizeDiyPicks, setPick, diySlotList, slotRecord } from '../ui/diyModel.js';
+import { diyCount, diyCapacity, diyMatchOff, sanitizeDiyPicks, setPick, diyPositions, slotRecord } from '../ui/diyModel.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { copyText } from '../ui/clipboard.js';
 import { toast } from '../ui/toasts.js';
@@ -176,6 +175,7 @@ export function RosterRow({ m, chess, golden, entries, ops = {}, skins = {}, sel
     <button type="button" class="lo-card__pick" aria-pressed=${selected ? 'true' : 'false'} title=${chess.name} onClick=${() => onPick(chess.chessId)}>
       <span class="lo-card__art">
         <${Img} src=${chessAvatarUrl(m, ownAppearance(chess, { skins }))} fallbackSrc=${chessAvatarUrl(m, chess)} fallback=${html`<span class="lo-card__glyph">${[...(chess.name || '?')][0]}</span>`} />
+        <${LiveArt} m=${m} charId=${chess.charId} skins=${skins} kind="avatar" />
         <${TierChip} tier=${chess.tier} size="sm" class="lo-card__tier" />
       </span>
       <span class="lo-card__id">
@@ -223,14 +223,11 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
   const choice = effectiveChoice(entries, chess, golden);
   const cv = cultivationView(chess.charId, ops);
   const changed = choice.changed || cv.changed;
-  // the chosen appearance's 动态立绘 animates over the art box (ui/dynamicIllustration.js cover mode, 12 % as the picture's
-  // object-position: the face)
-  const dyn = appearanceEntry(m, chess.charId, skinIdFor(skins, chess.charId))?.dynamic || null;
   return html`<aside class="lo-detail" aria-label=${t('{name} 调配', { name: chess.name })}>
     <div class="lo-dhead">
       <div class=${cx('lo-dhead__art', `lo-dhead__art--t${chess.tier}`)}>
         <${Img} src=${chessPortraitUrl(m, ownAppearance(golden || chess, { skins }))} fallbackSrc=${chessPortraitUrl(m, golden || chess)} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
-        ${dyn ? html`<${DynamicIllustration} mode="cover" entry=${dyn} focusY=${12} minWidth=${80} />` : null}
+        <${LiveArt} m=${m} charId=${chess.charId} skins=${skins} kind="portrait" posY=${12} />
       </div>
       <div class="lo-dhead__info">
         <div class="lo-dhead__chips"><${TierChip} tier=${chess.tier} size="md" />
@@ -339,6 +336,7 @@ export function DeckCard({ m, chess, golden, entries, ops = {}, skins = {}, sele
       <button type="button" class="lo-op__pick" aria-pressed=${selected ? 'true' : 'false'} title=${chess.name} onClick=${() => onPick(chess.chessId)}>
         <span class="lo-op__art">
           <${Img} src=${chessPortraitUrl(m, ownAppearance(chess, { skins })) || chessAvatarUrl(m, chess)} fallbackSrc=${chessPortraitUrl(m, chess) || chessAvatarUrl(m, chess)} fallback=${html`<span class="lo-op__glyph">${[...(chess.name || '?')][0]}</span>`} />
+          <${LiveArt} m=${m} charId=${chess.charId} skins=${skins} kind="portrait" posY=${6} />
         </span>
         <${Img} src=${subProfIconUrl(m, chess)} class="lo-op__sub" />
         ${notOwned ? html`<span class="lo-op__ribbon" title=${t('未持有（干员持有）：由替补干员上场')}>${t('替补')}</span>` : null}
@@ -383,8 +381,11 @@ export function TierMark({ m, tier, count }) {
   </div>`;
 }
 
-/** The 甄选干员 card closing tiers 5 and 6: the 自选编队 slots of that tier, filled / total; opens the 自选编队 tab. */
-function DiyDeckCard({ m, tier, slots, picks, onOpen }) {
+/**
+ * The 甄选干员 card closing tiers 5 and 6: the 自选编队 positions of that tier (its slots and 候补, ui/diyModel.js diyPositions —
+ * four since rel26), filled / total; opens the 自选编队 tab.
+ */
+export function DiyDeckCard({ m, tier, slots, picks, onOpen }) {
   const mine = slots.filter((s) => s.tier === tier);
   if (!mine.length) return null;
   const D = diyData();
@@ -392,7 +393,7 @@ function DiyDeckCard({ m, tier, slots, picks, onOpen }) {
   return html`<button type="button" class=${cx('lo-op', 'lo-op--diy', `lo-op--t${tier}`)} data-diy-tier=${tier} onClick=${onOpen}
       title=${t('{tier}阶 自选名额：持有的 6★ 干员或原型干员', { tier })}>
     <span class="lo-diy__frame">
-      ${recs.length ? html`<span class="lo-diy__faces">${recs.map((r, i) => html`<${Img} key=${i} src=${chessAvatarUrl(m, r)} class="lo-diy__face" fallback=${html`<span class="lo-diy__face">${[...(r.name || '?')][0]}</span>`} />`)}</span>`
+      ${recs.length ? html`<span class=${cx('lo-diy__faces', recs.length > 2 && 'is-grid')}>${recs.map((r, i) => html`<${Img} key=${i} src=${chessAvatarUrl(m, r)} class="lo-diy__face" fallback=${html`<span class="lo-diy__face">${[...(r.name || '?')][0]}</span>`} />`)}</span>`
         : html`<svg class="lo-diy__glyph" viewBox="0 0 40 40" aria-hidden="true"><path d="M17 6a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM8 34c0-8 4-14 9-14s9 6 9 14z" fill="currentColor" /><path d="M31 21v10M26 26h10" stroke="currentColor" stroke-width="2.4" /></svg>`}
     </span>
     <span class="lo-diy__label">${t('甄选干员')}</span>
@@ -720,7 +721,8 @@ function LoadoutScreen({ st, leaving = false }) {
   ui.current = { deck: view === 'deck', drawer, menu, quick, setDrawer, setMenu, setQuick };
   const itemsReady = useData('items');
   const codex = useMemo(() => codexItems(data.get('items')), [itemsReady, data.locale()]);
-  const diySlots = ready ? diySlotList(diyData()) : [];
+  // the 自选编队 positions (slots + 候补: four per tier) — the 甄选干员 card's n / 4, the tier counts and the open 名额
+  const diySlots = ready ? diyPositions(diyData()) : [];
 
   const tab = st.tab === 'ownership' || st.tab === 'diy' ? st.tab : 'loadout';
   // leaving 干员调配 (干员持有, the 甄选干员 card, or openLoadout naming a tab) closes the card view's layers: hidden, they

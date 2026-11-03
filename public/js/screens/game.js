@@ -155,6 +155,7 @@ import { contentSet } from '../content.js';
 import { DEFAULT_VERSION, shownVersion } from '../versions.js';
 import { VersionVote } from '../ui/versionVote.js';
 import { TestConsole } from '../ui/testConsole.js';
+import { roundEnemyMul } from '../ui/experimental.js';
 
 // 作战统计 is opt-in (settings `combatMetrics`, default off). The runner does not import the settings store;
 // this screen pushes the switch. Outside a browser battleRunner is null, so this is a no-op.
@@ -2043,7 +2044,7 @@ function MatchScreen() {
         place=${bpPlace} over=${!!resolved && bpPlace === dSide}
         onClose=${() => setBondOpen(null)} onMember=${(id, items, standInFor, diy, skinId) => setDetail({ kind: 'chess', id, owner: bondPop.ownerId, items: items || null, standInFor: standInFor || null, diy: diy || null, ...(skinId ? { skinId } : null) })} />` : null}
 
-      ${resolved ? html`<${DetailPanel} detail=${resolved} snapHp=${snapHp} enemyMul=${pub?.experimental} onClose=${() => { setDetail(null); setSel(null); }}
+      ${resolved ? html`<${DetailPanel} detail=${resolved} snapHp=${snapHp} enemyMul=${roundEnemyMul(pub?.experimental, pub?.round)} onClose=${() => { setDetail(null); setSel(null); }}
         bonds=${detailBonds} offBonds=${offBonds} loadout=${detailLoadout} ops=${priv?.ops ?? null} side=${dSide} shopOpen=${shopOpen} live=${liveStats} bondTimers=${bondTimers} voice=${true}
         morphMode=${morphMode} unequipAllowed=${unequipAllow}
         onUnequip=${editable && unequipAllow ? (itemUid) => actions.unequip(itemUid) : null}

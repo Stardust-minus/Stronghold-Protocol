@@ -59,7 +59,10 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
 import { data, useData, getConfig } from '../data.js';
 import { CARD_PREF, cardOperators, seatPortrait, cardAvatarUrl, lookOptions } from '../ui/seatArt.js';
-import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundY, setCardLook, setAvatarLook } from '../ui/playerCard.js';
+import { SeatLive } from '../ui/seatLive.js';
+import { CardAvatarLive } from '../ui/avatarLive.js';
+import { cardArt } from '../ui/dynamicFraming.js';
+import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundY, setCardLook, setAvatarLook, setCardArt } from '../ui/playerCard.js';
 import { OperatorPicker, AvatarPicker } from '../ui/opPicker.js';
 import { NameCardLayer, NameCardPicker } from '../ui/namecards.js';
 import { TrophyBadge } from '../ui/trophies.js';
@@ -295,6 +298,11 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
   const ready = seat.ready || seat.isBot || isHostSeat;
   const src = seat.isBot ? null : seatPortrait(seat, portraits);
   const card = isMe ? myCard : seat.card && typeof seat.card === 'object' ? seat.card : null;
+  // the 名片干员's look and its seat framing (rel27: a skin with a 动态立绘 plays live, framed as its owner set it)
+  const liveChar = isMe ? portraits.myCard : typeof seat.card === 'string' ? seat.card : seat.card?.charId;
+  const liveLook = isMe ? portraits.myLook : seat.card?.look;
+  const liveArt = isMe ? myCard.art || null : cardArt(seat.card);
+  const avatarLive = html`<${CardAvatarLive} m=${portraits.m} avatar=${card?.avatar} look=${card?.avatarLook || ''} />`;
   const owner = isOwnerSeat(seat);
   const canPick = isMe && !seat.isBot && !!onPickCard;
   return html`<article class=${`rseat${ready ? ' is-ready' : ''}${flash ? ' is-flash' : ''}${isMe ? ' is-me' : ''}${isHostSeat ? ' is-host' : ''}${offline ? ' is-offline' : ''}${seat.isBot ? ' is-bot' : ''}${owner ? ' is-owner' : ''}`}
@@ -305,6 +313,8 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
     <div class=${`rseat__art${canPick ? ' is-pickable' : ''}`} onClick=${canPick ? onPickCard : undefined} title=${canPick ? t('点击更换名片干员') : undefined}>
       ${src && bad !== src ? html`<img src=${src} alt="" draggable=${false} loading="lazy" onError=${() => setBad(src)} />`
         : html`<span class="rseat__glyph">${seat.isBot ? html`<${Icon} name="robot" />` : [...(seat.name || '?')][0]}</span>`}
+      ${!seat.isBot && src && bad !== src ? html`<${SeatLive} m=${portraits.m} charId=${liveChar} look=${liveLook || ''} art=${liveArt}
+        editable=${isMe && !!onPickCard} onCommit=${setCardArt} />` : null}
       ${canPick ? html`<button type="button" class="rseat__pick" onClick=${(e) => { e.stopPropagation(); onPickCard(); }} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null}
       ${isHostSeat ? html`<span class="rseat__host">${t('创建者')}</span>` : null}
       ${offline ? html`<span class="rseat__lost"><${Icon} name="wifiOff" />${t('失去信号')}</span>` : null}
@@ -327,8 +337,9 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
       ${isMe && onPickAvatar
         ? html`<button type="button" class="rseat__ava" onClick=${onPickAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>
-            <${AvatarFrame} size="sm" name=${seat.name} src=${cardAvatarUrl(card?.avatar, portraits.m, card?.avatarLook)} seat=${index} self=${true} /><span class="rseat__ava-pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
-        : html`<${AvatarFrame} size="sm" name=${seat.name} src=${seat.isBot ? null : cardAvatarUrl(card?.avatar, portraits.m, card?.avatarLook)} seat=${index} bot=${seat.isBot} self=${isMe} />`}
+            <${AvatarFrame} size="sm" name=${seat.name} src=${cardAvatarUrl(card?.avatar, portraits.m, card?.avatarLook)} seat=${index} self=${true} live=${avatarLive} /><span class="rseat__ava-pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
+        : html`<${AvatarFrame} size="sm" name=${seat.name} src=${seat.isBot ? null : cardAvatarUrl(card?.avatar, portraits.m, card?.avatarLook)} seat=${index} bot=${seat.isBot} self=${isMe}
+            live=${seat.isBot ? null : avatarLive} />`}
       <span class="rseat__who">
         ${seat.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<b class=${`rseat__name${owner ? ' sp-owner-name' : ''}`}>${seat.name || t('博士')}</b>
         <${OwnerBadge} seat=${seat} />

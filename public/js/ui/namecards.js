@@ -6,9 +6,9 @@
 // skins[id].illustration, ~4 MB — only the plates that use it load it; the picker shows the skins' half-body art).
 // A collab operator's skin (its art in the collab pack, shared/collabAssets.js) is never a name card: a plate shows in
 // every room the player joins, and a room without 联动干员 must not load the pack's art.
-// A skin card whose skin has an official 动态立绘 (skins[id].dynamic; the owner's decision of 2026-11-02) animates it over
-// the static plate where the plate is at least 200 px wide and on screen (ui/dynamicIllustration.js cover mode: its slot
-// cap, off-screen unloads, reduced-motion / slow-device / failure fallbacks to the static picture).
+// A skin card whose skin has an official 动态立绘 (skins[id].dynamic; the owner's decisions of 2026-11-02 / 11-03) animates
+// it over the static plate on screen, at any width (ui/dynamicIllustration.js cover mode on the shared renderer; still under
+// reduced motion, the static picture on a failure).
 // The pick is kept in the browser (NAMECARD_PREF) and travels with room.card (ui/playerCard.js) so teammates see it.
 // The part of a picture the plate shows (feedback #61): dragged up and down in the picker, `y` in percent (NAMECARD_Y_PREF,
 // room.card bgY); a faction emblem has nothing to crop. Styles: --nc-y in css/screens/lobby.css.
@@ -153,7 +153,7 @@ export function NameCardLayer({ card, y = null }) {
   const pos = namecardY(y);
   const dyn = namecardDynamic(nc);
   return html`<span class=${`nc-layer nc-layer--${nc.kind}`} style=${`--nc:url("${src}")${nc.tint ? `; --nc-tint:${nc.tint}` : ''}${pos == null ? '' : `; --nc-y:${pos}%`}`} aria-hidden="true">${
-    dyn ? html`<${DynamicIllustration} mode="cover" entry=${dyn} focusY=${pos ?? defaultY(nc)} minWidth=${200} />` : null}</span>`;
+    dyn ? html`<${DynamicIllustration} mode="cover" entry=${dyn} focusY=${pos ?? defaultY(nc)} />` : null}</span>`;
 }
 
 /** Whether a card has a picture to crop (a faction emblem does not). @param {any} nc */

@@ -1851,6 +1851,22 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .rseat__pick .icon { width: 1.1em; height: 1.1em; }
 .rseat__art:hover .rseat__pick, .rseat__pick:focus-visible { opacity: 1; border-color: #5df0c6; }
 @media (max-width: 900px) { .rseat__pick span { display: none; } }
+/* the seat card's 动态立绘 framing (rel27, ui/seatLive.js): 调整立绘 under 更换立绘, the framer over the art while open */
+.rseat__frame { position: absolute; right: .08rem; top: calc(.5rem + max(.36rem, 22px) + .06rem); z-index: 2; display: inline-flex; align-items: center; gap: .04rem;
+  height: max(.36rem, 22px); padding: 0 .1rem; font: inherit; font-size: max(calc(.17 * var(--t, 1rem)), 12px); color: #d8e6e1; background: rgba(12, 16, 15, .78);
+  border: 1px solid rgba(255, 255, 255, .18); border-radius: .04rem; cursor: pointer; opacity: .82; }
+.rseat__frame .icon { width: 1.1em; height: 1.1em; }
+.rseat__art:hover .rseat__frame, .rseat__frame:focus-visible { opacity: 1; border-color: #5df0c6; }
+@media (max-width: 900px) { .rseat__frame span { display: none; } }
+.rseat__framer { position: absolute; inset: 0; z-index: 3; cursor: grab; touch-action: none; user-select: none;
+  outline: 2px dashed rgba(93, 240, 198, .85); outline-offset: -3px; background: rgba(0, 0, 0, .04); }
+.rseat__framer:active { cursor: grabbing; }
+.rseat__framer-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: .06rem;
+  padding: .06rem; background: rgba(8, 11, 11, .82); cursor: default; }
+.rseat__framer-bar button { display: inline-flex; align-items: center; gap: .03rem; min-width: max(.4rem, 28px); height: max(.4rem, 28px); padding: 0 .06rem;
+  font: inherit; color: #e6f0ec; background: #1d2423; border: 1px solid rgba(255, 255, 255, .2); border-radius: .04rem; cursor: pointer; }
+.rseat__framer-bar button:disabled { opacity: .4; cursor: default; }
+.rseat__framer-bar b { min-width: 3.2em; text-align: center; color: #8ff3d6; }
 .cardpick .modal__body, .cardpick { --cp-size: max(.86rem, 52px); }
 .cardpick__tabs { display: flex; gap: .06rem; margin-bottom: .1rem; }
 .cardpick__tabs button { min-height: 28px; padding: .03rem .16rem; font: inherit; font-size: max(calc(.15 * var(--t)), 12px); color: var(--text-md); background: none; border: 1px solid var(--line-2); cursor: pointer; }

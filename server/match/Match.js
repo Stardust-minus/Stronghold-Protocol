@@ -252,7 +252,7 @@
 //                    re-exported here, OK, fail, BOSS_CLOCK_MS, AFK_ACTIONS)
 
 import { PHASE, modeIdFor } from '../../shared/constants.js';
-import { experimentalOptions } from '../../shared/experimental.js';
+import { enemyHpMulAt, experimentalOptions } from '../../shared/experimental.js';
 import { roomCapacity } from '../../shared/playerCapacity.js';
 import { createDamageBoard } from './damageBoard.js';
 import { MatchExtensions } from './match/extensions.js';
@@ -495,7 +495,10 @@ export class Match {
     /** the room's battle rules: every battle gets them as spec flags (_ruleFlags), the match's own layer writers read them */
     this.disableLayerCap = this.experimental.disableLayerCap === true;
     this.disableHitLimit = this.experimental.disableHitLimit === true;
-    /** the room's enemy multipliers (1 = none): spec flags too, and the leader pool's size (bossRounds.js) */
+    /**
+     * the room's enemy multipliers (1 = none): spec flags too, and the leader pool's size (bossRounds.js). enemyHpMul is the
+     * single multiplier (1 under a by-round plan, experimental.enemyHpPlan): a round's own is enemyHpMulAt().
+     */
     this.enemyHpMul = this.experimental.enemyHpMul ?? 1;
     this.enemyAtkMul = this.experimental.enemyAtkMul ?? 1;
     if (opts.seats.length > this.playerCapacity) throw new RangeError('Match: seats exceed room capacity');
@@ -674,6 +677,13 @@ export class Match {
     this.externalAI = createExternalAI(this, opts);
     if (this.test && opts.journal !== false) installTestTrace(this, opts);
   }
+
+  /**
+   * The enemy HP multiplier of round `round` (default: this round): the by-round plan's segment (feedback #118), else the
+   * room's single multiplier. A battle's spec flag and a leader pool's size take it when they are made.
+   * @param {number} [round]
+   */
+  enemyHpMulAt(round = this.round) { return enemyHpMulAt(this.experimental, round); }
 }
 
 // the method modules, in this order (a name defined twice is an error, never a silent override)

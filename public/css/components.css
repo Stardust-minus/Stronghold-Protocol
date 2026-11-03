@@ -896,6 +896,15 @@
 .experimental-capacity { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: max(calc(.16 * var(--t)), calc(13px * var(--ui))); color: var(--text-lo); }
 .experimental-capacity select, .experimental-option select { min-height: 40px; min-width: 100px; padding: 8px 12px; background: var(--bg-3); color: var(--text-hi); border: 1px solid var(--line-3); font: inherit; }
 .experimental-capacity select:focus-visible, .experimental-option select:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+.experimental-plan { display: grid; gap: 8px; padding: 2px 0 14px; border-bottom: 1px solid var(--line); }
+.experimental-plan__row { display: flex; align-items: center; gap: 12px; }
+.experimental-plan__from { flex: 1 1 auto; display: flex; align-items: center; gap: 6px; color: var(--text-hi); }
+.experimental-plan select { min-height: 36px; min-width: 72px; padding: 6px 10px; background: var(--bg-3); color: var(--text-hi); border: 1px solid var(--line-3); font: inherit; }
+.experimental-plan select:focus-visible, .experimental-plan button:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+.experimental-plan__gap, .experimental-plan__del { flex: none; width: 36px; height: 36px; }
+.experimental-plan__del { background: transparent; color: var(--text-lo); border: 1px solid var(--line-3); font: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
+.experimental-plan__add { justify-self: start; min-height: 36px; padding: 6px 14px; background: var(--bg-3); color: var(--mint-400); border: 1px dashed var(--line-3); font: inherit; cursor: pointer; }
+.experimental-plan button:disabled, .experimental-plan select:disabled { opacity: .65; cursor: default; }
 .experimental-options { display: grid; gap: 8px; }.experimental-option { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .experimental-option > span { display: grid; gap: 7px; }.experimental-option strong { font-size: max(calc(.19 * var(--t)), calc(15px * var(--ui))); color: var(--text-hi); font-weight: 500; }.experimental-option small { color: var(--text-lo); font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); line-height: 1.6; }
 .experimental-option input { flex: none; appearance: none; width: 36px; height: 20px; border-radius: 10px; border: 1px solid var(--line-3); background: var(--bg-3); cursor: pointer; }

@@ -1,7 +1,8 @@
-// Real-server browser E2E of 动态立绘 where the art shows (ui/dynamicIllustration.js cover mode; the owner's decision of
-// 2026-11-02): the player's own 名片 plate in a room animates its skin's dynamic illustration (耀骑士临光「复现荣光」, its
-// background and foreground layers too); 干员调配's art box animates the chosen appearance's (凛御银灰「雪覆伦城」, extracted
-// from the client in rel26); never more live renderers than the cap; under prefers-reduced-motion both stay static.
+// Real-server browser E2E of 动态立绘 where the art shows (ui/dynamicIllustration.js cover mode on the shared renderer,
+// ui/dynamicStage.js; the owner's decisions of 2026-11-02 / 11-03): the player's own 名片 plate in a room animates its
+// skin's dynamic illustration (耀骑士临光「复现荣光」, its background and foreground layers too); 干员调配's art box
+// animates the chosen appearance's (凛御银灰「雪覆伦城」, extracted from the client in rel26) in its official portrait crop;
+// one renderer for all; animated under prefers-reduced-motion too (the owner's decision of 2026-11-03).
 //
 //   SP_E2E=1 node --test test/ui/dynamic-illustration.e2e.test.js
 //
@@ -18,14 +19,15 @@ const ENABLED = process.env.SP_E2E === '1' && hasChrome() && existsSync(path.joi
   && existsSync(path.join(ROOT, `public/assets/skins/${OP_SKIN}/dynamic`));
 const PLATE = '.rseat__plate.has-nc [data-testid="dynamic-cover"]';
 const ART = '.lo-detail .lo-dhead__art [data-testid="dynamic-cover"]';
-const liveCount = (c) => c.page.evaluate(() => import('/js/ui/dynamicIllustration.js').then((m) => m.dynamicSlots.live));
+const contexts = (c) => c.page.evaluate(() => import('/js/ui/dynamicStage.js').then((m) => m.dynamicStage.contexts));
 const drawn = (c, sel) => c.page.$eval(sel, (el) => {
-  const cv = el.querySelector('canvas');
-  return { state: el.dataset.state, canvas: !!cv && cv.width > 0 && cv.height > 0 && !el.querySelector('.dyn-cover__canvas').hidden };
+  const cv = el.querySelector('canvas.dyn-cover__canvas');
+  return { state: el.dataset.state, canvas: !!cv && cv.width > 0 && cv.height > 0 && !cv.hidden };
 });
+const sig = (c, sel) => c.page.$eval(`${sel} canvas`, (cv) => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let s = 0; for (let i = 0; i < d.length; i += 97) s = (s * 31 + d[i]) >>> 0; return s; });
 
 describe('动态立绘 on 名片 and the operator page (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + installed dynamic illustrations)' }, () => {
-  test('a room seat plate and 干员调配\'s art box animate; within the cap; static under reduced motion', { timeout: 5 * 60 * 1000 }, async () => {
+  test('a room seat plate and 干员调配\'s art box animate on one renderer; animated under reduced motion too', { timeout: 5 * 60 * 1000 }, async () => {
     const srv = await startRealServer({});
     const P = (await import('puppeteer-core')).default;
     const c = new Client(P, srv.base, 'dyn', { prefix: 'dynillust', prefs: { 'loadout.view': 'list', 'room.namecard': `skin:${PLATE_SKIN}`, skins: { v: 1, choices: { [OP_CHAR]: OP_SKIN } } } });
@@ -44,8 +46,8 @@ describe('动态立绘 on 名片 and the operator page (real server)', { skip: !
       await c.page.waitForFunction((id) => document.querySelector('.lo-card.is-sel')?.dataset.chess === id, { timeout: 5000 }, OP);
       await c.page.waitForSelector(`${ART}[data-state="ready"]`, { timeout: 60000 });
       assert.deepEqual(await drawn(c, ART), { state: 'ready', canvas: true }, 'the art box animates');
-      const n = await liveCount(c);
-      assert.ok(n >= 1 && n <= 4, `live renderers within the cap: ${n}`);
+      assert.equal(await contexts(c), 1, 'the plate and the art box on one shared renderer');
+      assert.ok(JSON.parse(await c.page.$eval(ART, (el) => el.dataset.frame)).rect, 'the art box in its official portrait crop');
       await sleep(1500);
       await c.shot('operator');
 
@@ -56,9 +58,9 @@ describe('动态立绘 on 名片 and the operator page (real server)', { skip: !
       await c.click('.rs-loadout');
       await c.page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
       await c.page.$eval(`.lo-card[data-chess="${OP}"]`, (e) => { e.scrollIntoView({ block: 'center' }); e.click(); });
-      await c.page.waitForSelector(ART, { timeout: 8000 });
-      await sleep(2000);
-      assert.deepEqual(await drawn(c, ART), { state: 'idle', canvas: false }, 'reduced motion: static');
+      await c.page.waitForSelector(`${ART}[data-state="ready"]`, { timeout: 60000 });
+      const s1 = await sig(c, ART); await sleep(1500); const s2 = await sig(c, ART);
+      assert.notEqual(s1, s2, 'reduced motion: animated all the same (not honoured, the owner\'s decision)');
       assert.deepEqual(c.problems.filter((p) => p.startsWith('pageerror:')), []);
     } finally {
       await c.close();

@@ -520,7 +520,7 @@ export function unitStatsEntry(u, s = null) {
 export const DIRS = Object.freeze(['UP', 'RIGHT', 'DOWN', 'LEFT']);
 const isDir = (v) => DIRS.includes(v);
 
-// ---- display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, trophies?, look?, avatarLook? } -----
+// ---- display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, trophies?, look?, avatarLook?, artX?, artY?, artZoom? }
 
 /**
  * `room.card`: the player's display card, shown to the room on its seat (room.state seats[].card) — `charId`: the card's
@@ -532,6 +532,10 @@ const isDir = (v) => DIRS.includes(v);
  * avatar operator — '' its 精二 art (as before), 'e1' its 精一 art, or a skin id of that operator (the server checks it
  * belongs to it: shared/skins.js skinFor). `bg` may be `skin:<skin id>`, the skin's full illustration. `bgY` (feedback
  * #61): the vertical position of the background in percent, the part of the picture the plate shows; -1 the default.
+ * `artX` / `artY` / `artZoom` (rel27, the owner's decision of 2026-11-03): how the seat card frames the `look` skin's 动态立绘
+ * — centre in per-mille of its bounds (x from the left, y from the top), zoom in percent of their height shown (100–2500);
+ * all three or none (-1 each: the portrait crop), kept only with a skin `look`, dropped when the look changes (a rel26 server
+ * ignores them: it validates and reads named fields only).
  * A field the message leaves out keeps its stored value.
  */
 export const CARD_LIMITS = Object.freeze({ idLength: 48, trophies: 1_000_000 });
@@ -644,7 +648,9 @@ export const C2S = {
   'room.skins': { choices: isSkinChoices },
   // the display card (CARD_LIMITS above; server/lobby.js setCard): stored per session, copied to the player's seat
   'room.card': { charId: isCardCharId, avatar: isCardAvatar, bg: isCardBg, bgY: (v) => isInt(v, -1, 100), trophies: (v) => isInt(v, 0, CARD_LIMITS.trophies),
-    look: isCardLook, avatarLook: isCardLook, $optional: ['charId', 'avatar', 'bg', 'bgY', 'trophies', 'look', 'avatarLook'] },
+    look: isCardLook, avatarLook: isCardLook, artX: (v) => isInt(v, -1, 1000), artY: (v) => isInt(v, -1, 1000),
+    artZoom: (v) => v === -1 || isInt(v, 100, 2500),
+    $optional: ['charId', 'avatar', 'bg', 'bgY', 'trophies', 'look', 'avatarLook', 'artX', 'artY', 'artZoom'] },
   // spectator seats (remake feature, community report #26; MAX_SPECTATORS): take one of a co-op room's spectator seats —
   // in its lobby or while its match runs — never a player seat; the host frees one by playerId (the spectator gets
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.
@@ -816,7 +822,8 @@ export const S2C = [
   'b.sync', 'b.ext',
   // Complete public round ledger (server combat): m.damage { matchId, round, phase: normal|unite|boss|hidden,
   // status: live|frozen, owners: [{ playerId, name?, seat?, total, healing, seconds, otherDamage, otherHealing,
-  // operators: [{ key, uid, defId, damage, healing }] }] }. PREP retains frozen previous-round rows; battle start resets.
+  // operators: [{ key, uid, defId, damage, healing, diy? }] }] } (diy: a 自选 piece's pick, its defId being the DIY slot).
+  // PREP retains frozen previous-round rows; battle start resets.
   // Operator keys identify pieces, not definitions. Damage is actual opposing HP lost, healing the effective HP restored,
   // summons credited to root ops; seconds is the owner's battle time this round (DPS / HPS).
   // Client-authoritative combat sends available:false with owners:[] instead of trusting submitted operator stats.

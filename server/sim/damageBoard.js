@@ -3,6 +3,15 @@
 const histories = new WeakMap();
 const damage = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0;
 export const operatorDamageKey = (playerId, uid, fallback = null) => JSON.stringify([playerId, uid ?? `unit:${fallback}`]);
+/**
+ * A 自选 piece's pick { charId, skillIndex, uniEquipId } (rel27: its row's defId is the DIY slot, whose own name is
+ * 「甄选干员」 — the board names the picked operator from this), or null.
+ */
+export function diyPick(pick) {
+  if (!pick || typeof pick !== 'object' || typeof pick.charId !== 'string' || !pick.charId) return null;
+  return { charId: pick.charId, skillIndex: Number.isInteger(pick.skillIndex) ? pick.skillIndex : 0,
+    uniEquipId: typeof pick.uniEquipId === 'string' ? pick.uniEquipId : null };
+}
 
 /** A root operator, not a guessed owner from a token's definition or playerId. */
 function rootOperator(source, operators) {
@@ -36,7 +45,8 @@ export function damageRows(battle) {
       const key = operatorDamageKey(ps.playerId, u.uid, u.id);
       if (!metadata.has(key)) {
         const input = u.uid == null ? null : ps.input?.units?.find((p) => p.uid === u.uid && p.kind !== 'token');
-        metadata.set(key, { key, uid: u.uid ?? null, defId: input?.chessId ?? u.defId ?? null });
+        const diy = diyPick(u.def?.diyFor ? u.def.loadout?.diy : null);
+        metadata.set(key, { key, uid: u.uid ?? null, defId: input?.chessId ?? u.defId ?? null, ...(diy ? { diy } : {}) });
       }
     }
     rows.set(ps.playerId, { playerId: ps.playerId, total: damage(battle._perPlayer?.[ps.playerId]?.damageDealt),
@@ -63,6 +73,7 @@ export function emptyDamageRows(spec) {
   return { owners: (spec.players || []).map((p) => ({ playerId: p.playerId, total: 0, healing: 0,
     operators: (p.units || []).filter((u) => u.kind !== 'token').map((u, i) => ({
       key: operatorDamageKey(p.playerId, u.uid, `input:${i}`), uid: u.uid ?? null, defId: u.chessId ?? null, damage: 0, healing: 0,
+      ...(diyPick(u.loadout?.diy) ? { diy: diyPick(u.loadout.diy) } : {}),
     })), otherDamage: 0, otherHealing: 0 })) };
 }
 

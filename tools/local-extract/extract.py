@@ -80,6 +80,7 @@ import scenes  # noqa: E402  (the battlefield scene table and exporter; imports 
 import fx  # noqa: E402  (the official battle effects, DESIGN §33; imports UnityPy only when it runs)
 import operators  # noqa: E402 (installed plugin operators' optional official art, §34.28)
 import versions  # noqa: E402 (the official-version roster's missing presentation art)
+import avatars  # noqa: E402 (the official dynamic player avatars, opt-in --only ui/avatar_dyn; rel27)
 
 ROOT = Path(__file__).resolve().parents[2]
 HOME = Path.home()
@@ -1126,6 +1127,8 @@ def main():
                                  'textureFormat': args.fx_texture_format, 'textureFormats': ['webp', 'png'],
                                  'sample': {'keys': fx.FX_SAMPLE_KEYS, 'units': fx.FX_SAMPLE_UNITS,
                                             'coverage': fx.FX_COVERAGE_KEYS}},
+                          'avatarDyn': {'sub': avatars.SUB, 'bundle': avatars.BUNDLE, 'format': avatars.FORMAT,
+                                        'version': avatars.VERSION, 'optIn': True},
                           'scenes': {'sub': scenes.SCENE_SUB, 'tex': scenes.TEX_SUB,
                                      'version': scenes.SCENE_EXTRACT_VERSION,
                                      'stages': [{'id': sid, 'bundle': scenes.scene_bundle(sid), 'deps': deps}
@@ -1148,7 +1151,10 @@ def main():
     art_on = wants_sub(args.only, operators.SUB) and (bool(args.only) or args.plugin_art)
     art_ids = spine_ids(args.only, operators.SUB, operators.references(Path(args.plugin_root))) if art_on else []
     versions_on = not args.only or 'versions' in args.only
-    if not jobs and not enemy_ids and not token_ids and not stage_ids and not fx_on and not art_on and not versions_on:
+    # the official dynamic avatars: opt-in like fx (a plain run leaves them out; the page keeps the static pictures)
+    avatars_on = any(p.rstrip('/') == avatars.SUB or p.startswith(avatars.SUB + '/') for p in args.only)
+    if not jobs and not enemy_ids and not token_ids and not stage_ids and not fx_on and not art_on and not versions_on \
+            and not avatars_on:
         print(f'--only {args.only}: no job matches', file=sys.stderr)
         return 2
     out_root = Path(args.out)
@@ -1175,6 +1181,8 @@ def main():
                               add_only=args.fx_add_only,
                               catalogue=False if args.fx_skins == 'off' else args.fx_skins or None,
                               skin_bundles=args.fx_skin_bundles or None, collab=args.fx_collab)
+    if avatars_on:
+        total += avatars.export(ab_root, out_root, manifest, print)
     if stage_ids:
         total += export_scenes(ab_root, out_root, manifest, print, stage_ids, scene_roots(ab_root, args.scenes))
     old, old_chars = {}, {}

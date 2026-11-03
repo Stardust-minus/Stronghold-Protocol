@@ -86,7 +86,7 @@ describe('塔露拉 in 自选编队 (real server)', { skip: !ENABLED && 'set SP_
         if (card) break;
       }
       assert.ok(card?.includes('塔露拉'), 'the detail card opens');
-      assert.ok(card.includes('技能持续期间我方干员阵亡时'), 'this game\'s rule is on her card');
+      assert.ok(card.includes('三技能持续期间，我方其他干员阵亡时'), 'this game\'s rule is on her card');
       await c.shot('card');
       await c.page.keyboard.press('Escape');
 

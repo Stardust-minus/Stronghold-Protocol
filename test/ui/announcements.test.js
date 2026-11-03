@@ -87,52 +87,60 @@ test('shipped announcement data validates; optional board is mounted from the lo
 
 test('the notices: the 0.3.1 sync (2026-10-18) over this update (skin effects, card looks, kick and reroll votes, the layer forecast, the fixes, the feedback board and status page) over a 0.3.0 recap (official effects, voices, 8–20 seats choosing at once, restart recovery, credits to the original and to xinhai-ai, the access rule); the introduction is retained with the credit and a first-visit guide', () => {
   const entries = parseAnnouncements(JSON.parse(source('../../data/announcements.json')));
-  assert.equal(entries.length, 6);
+  assert.equal(entries.length, 7);
+  // 2026-11-03 (rel27): live dynamic art in more places (and the seat framing), the official dynamic avatars, the
+  // per-round enemy HP multiplier (#118), the 甄选干员 count, the damage board's 自选 names, 塔露拉's talent note
+  assert.equal(entries[0].title, '版本更新：动态立绘全面播放，官方动态头像，敌人生命倍率按回合设置');
+  assert.equal(entries[0].date, '2026-11-03');
+  const rel27 = entries[0].paragraphs.join('\n');
+  for (const phrase of ['干员调配', '自选立绘框', '名片', '玩家头像', '「调整立绘」', '夕「青玉砚」', '「组织」', '「凝视映像」', '粒子特效',
+    '「按回合设置敌人生命倍率」', '2.5 倍', '「甄选干员」', '4 名候选', '伤害统计', '塔露拉']) assert.ok(rel27.includes(phrase), phrase);
+  assert.doesNotMatch(rel27, /ModelScope|OpenI|签名|nginx|Worker|WebGL|\/feedback|\/assets/i);
   // 2026-11-03 (rel26): older versions get the later 6★ 自选, 4 自选 candidates (pick 2), client-side prediction, the
   // mechanic fixes from the feedback board, the HUD under the feet, the new skins and dynamic art, the view fixes
-  assert.equal(entries[0].title, '版本更新：历史版本补齐新干员，自选四选二，操作即时响应');
-  assert.equal(entries[0].date, '2026-11-03');
-  const rel26 = entries[0].paragraphs.join('\n');
+  assert.equal(entries[1].title, '版本更新：历史版本补齐新干员，自选四选二，操作即时响应');
+  assert.equal(entries[1].date, '2026-11-03');
+  const rel26 = entries[1].paragraphs.join('\n');
   for (const phrase of ['第一期、第二期', '麒麟R夜刀', 'EXE-Y', '从下次维护起', '「未知」', '4 名候选', '「自选上场」', '任选 2 名', '标红', '标黄',
     '立即显示结果', '华法琳', '魔王三技能', '雪猎', '荒芜拉普兰德', '再部署时间', '模型脚下', '「领袖战输出」', '凛御银灰「雪覆伦城」',
     '薇薇安娜「还愿礼」', '号角「锋光初现」', '凯瑟琳「暖冬教室」', '5 款联动皮肤', '60 套动态立绘', '红色水滴', '2 倍速']) assert.ok(rel26.includes(phrase), phrase);
   assert.doesNotMatch(rel26, /ModelScope|OpenI|签名|nginx|Worker|\/feedback|\/assets\/collab|预测/i);
   // 2026-11-02 (rel25): the three new 自选 6★, the collab switch and its copyright warning, the reroll and the 淘汰 result
-  assert.equal(entries[1].title, '版本更新：塔露拉、冻河、国度加入自选，实验性联动干员');
-  assert.equal(entries[1].date, '2026-11-02');
-  const rel25 = entries[1].paragraphs.join('\n');
+  assert.equal(entries[2].title, '版本更新：塔露拉、冻河、国度加入自选，实验性联动干员');
+  assert.equal(entries[2].date, '2026-11-02');
+  const rel25 = entries[2].paragraphs.join('\n');
   for (const phrase of ['塔露拉（协防、奥术、不屈）', '冻河（协防、灵巧、迅捷）', '国度（协防、独行）', '奥术与不屈各 +1 层', '「联动干员」', '自建同盟的房主',
     '灰烬、艾拉、麒麟R夜刀、焰狐龙梓兰、玛露西尔、丰川祥子、结城理', '等待 5 秒确认', '版权风险由启用和使用联动干员的玩家自行承担', '只有开启的房间才会加载',
     '不能组队匹配', '「重刷本局」', '「前往结算」', '克莱门莎']) assert.ok(rel25.includes(phrase), phrase);
   assert.doesNotMatch(rel25, /ModelScope|OpenI|签名|nginx|Worker|\/feedback|\/assets\/collab/i);
   // 2026-11-02 (rel23/rel24): 2 倍速、手动卡池编组、公开同盟
-  assert.equal(entries[2].title, '版本更新：战斗 2 倍速、手动卡池编组、公开同盟');
-  assert.equal(entries[2].date, '2026-11-02');
-  const rel23 = entries[2].paragraphs.join('\n');
+  assert.equal(entries[3].title, '版本更新：战斗 2 倍速、手动卡池编组、公开同盟');
+  assert.equal(entries[3].date, '2026-11-02');
+  const rel23 = entries[3].paragraphs.join('\n');
   for (const phrase of ['「2 倍速」', '3/4 在线博士', '下一场战斗开始', '本地演算', '「禁用层数上限」', '「禁用单次伤害上限」', '「敌人生命倍率」', '「敌人攻击倍率」',
     '3 人一组', '总时间预算', '「公开同盟」', '「公开到同盟列表」', '多个难度', '「反馈板」', '「手动指定卡池编组」', '「多人同盟」', '「实验性规则」', '「卡池」']) assert.ok(rel23.includes(phrase), phrase);
   assert.doesNotMatch(rel23, /ModelScope|OpenI|签名|nginx|Worker|\/feedback/i);
   // 2026-10-30: the 0.3.3 notice goes on top (rel22)
-  assert.equal(entries[3].title, '版本更新：同步原作 0.3.3，历史版本可玩，处理反馈板计划内容');
-  assert.equal(entries[3].date, '2026-10-30');
-  const sync33 = entries[3].paragraphs.join('\n');
+  assert.equal(entries[4].title, '版本更新：同步原作 0.3.3，历史版本可玩，处理反馈板计划内容');
+  assert.equal(entries[4].date, '2026-10-30');
+  const sync33 = entries[4].paragraphs.join('\n');
   for (const phrase of ['原作 0.3.2 与 0.3.3', '第一期上半', '26 款皮肤', '不会恢复', '「重刷本局」不再限制次数', '「部署时按格子吸附」', '198 个官方头像',
     'github.com/sganggs/Stronghold-Protocol']) assert.ok(sync33.includes(phrase), phrase);
   assert.doesNotMatch(sync33, /ModelScope|OpenI|签名|nginx|\/feedback/i);
   // 2026-10-18: the 0.3.0 (10-16), skin-effect (10-17) and 0.3.1 (10-18) notices folded into one recap (rel25, the bound)
-  assert.equal(entries[4].title, '10 月中旬更新回顾：原作 0.3.0 与 0.3.1、官方特效与皮肤特效');
-  assert.equal(entries[4].date, '2026-10-18');
-  const recap = entries[4].paragraphs.join('\n');
+  assert.equal(entries[5].title, '10 月中旬更新回顾：原作 0.3.0 与 0.3.1、官方特效与皮肤特效');
+  assert.equal(entries[5].date, '2026-10-18');
+  const recap = entries[5].paragraphs.join('\n');
   for (const phrase of ['原作 0.3.0 与 0.3.1', '请刷新页面重新进入', '「设置 → 官方特效」', '专属特效', '「协议已失效」', '全员同时选择', '「正在恢复对局…」', '「投票移出」',
     '「本土语言」', '「显示其他玩家的皮肤」', '「反馈板」', '「服务器状态」', 'github.com/sganggs/Stronghold-Protocol', 'github.com/xinhai-ai/Stronghold-Protocol',
     '@Misyra', '插件功能和测试房间本服务器暂不开放', 'Bilibili@雨千代chiyo', '只向中国大陆网络开放']) assert.ok(recap.includes(phrase), phrase);
   assert.doesNotMatch(recap, /ModelScope|OpenI|签名|nginx|\/feedback|\/monitor|Grafana/i);
-  assert.equal(entries[5].title, '欢迎游玩卫戍协议！卫来！');
-  assert.equal(entries[5].date, '2026-10-06');
-  assert.match(entries[5].paragraphs.join('\n'), /纯公益.*非官方/);
-  assert.match(entries[5].paragraphs.join('\n'), /github\.com\/sganggs\/Stronghold-Protocol/);
-  assert.match(entries[5].paragraphs.join('\n'), /界面致谢：.*Bilibili@雨千代chiyo/);
-  assert.match(entries[5].paragraphs.join('\n'), /第一次来的博士：.*「玩法说明」/);
+  assert.equal(entries[6].title, '欢迎游玩卫戍协议！卫来！');
+  assert.equal(entries[6].date, '2026-10-06');
+  assert.match(entries[6].paragraphs.join('\n'), /纯公益.*非官方/);
+  assert.match(entries[6].paragraphs.join('\n'), /github\.com\/sganggs\/Stronghold-Protocol/);
+  assert.match(entries[6].paragraphs.join('\n'), /界面致谢：.*Bilibili@雨千代chiyo/);
+  assert.match(entries[6].paragraphs.join('\n'), /第一次来的博士：.*「玩法说明」/);
   // condensed on 2026-10-17 (the 0.3.0 notice alone had grown past 3000): the board scrolls, but the notices stay bounded
   assert.ok(entries.flatMap(entry => entry.paragraphs).join('\n').length < 4000, 'the notices stay readable');
 });

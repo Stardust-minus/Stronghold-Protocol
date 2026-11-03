@@ -735,7 +735,10 @@ const DIY_EXTRA_BONDS = Object.freeze({
  * A line added to the first talent's text of every form: a rule of this game, not of the official tables (the owner's
  * decision of 2026-11-02; the kit op-oxi.js carries it out).
  */
-const DIY_TALENT_NOTES = Object.freeze({ char_4247_oxi: '技能持续期间我方干员阵亡时，【奥术】和【不屈】层数+1' });
+// 塔露拉's line states where the owner's rule counts (feedback #120, the owner's decision of 2026-11-03: the rule as it is):
+// normal battles only (no IN_BATTLE layer gain in 联防 / 最终攻势 / 隐秘核心), while S3 runs or S2 has a layer (S1 never),
+// another operator of ours knocked out, and only the bonds she carries (the 第一期 profiles name 不屈 alone)
+const DIY_TALENT_NOTES = Object.freeze({ char_4247_oxi: '二技能有层数或三技能持续期间，我方其他干员阵亡时，【奥术】和【不屈】层数+1（联防、最终攻势、隐秘核心中不生效）' });
 /** This version's DIY_EXTRA_BONDS / DIY_TALENT_NOTES: the profile's `diyBonds` / `diyTalentNotes` replace an entry. */
 const diyExtraBondsOf = (id) => (PROFILE.diyBonds && Object.hasOwn(PROFILE.diyBonds, id) ? PROFILE.diyBonds[id] : DIY_EXTRA_BONDS[id]) ?? [];
 const diyTalentNoteOf = (id) => (PROFILE.diyTalentNotes && Object.hasOwn(PROFILE.diyTalentNotes, id) ? PROFILE.diyTalentNotes[id] : DIY_TALENT_NOTES[id]) ?? null;

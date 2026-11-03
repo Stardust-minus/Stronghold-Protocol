@@ -1,5 +1,7 @@
 // Match lifecycle ledger: replace absolute field scores, retain normal + unite, freeze before fields are cleared.
 // No players/board references survive capture, and no per-hit or per-tick aggregation is required on main.
+import { diyPick } from '../sim/damageBoard.js';
+
 const amount = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : null;
 // Healing (fork 2026-10-16, the upstream 作战统计 merged into this board): optional on input — a row without it heals 0.
 const healAmount = (n) => n === undefined ? 0 : amount(n);
@@ -70,7 +72,9 @@ export class DamageBoard {
         if (typeof op?.key !== 'string' || opKeys.has(op.key) || amount(op.damage) == null || healAmount(op.healing) == null
           || (op.uid != null && !Number.isSafeInteger(op.uid)) || (op.defId != null && typeof op.defId !== 'string')) return false;
         opKeys.add(op.key);
-        operators.push({ key: op.key, uid: op.uid ?? null, defId: op.defId ?? null, damage: op.damage, healing: healAmount(op.healing) });
+        const diy = diyPick(op.diy);
+        operators.push({ key: op.key, uid: op.uid ?? null, defId: op.defId ?? null, damage: op.damage, healing: healAmount(op.healing),
+          ...(diy ? { diy } : {}) });
       }
       rows.push({ playerId: owner.playerId, total: owner.total, healing: healAmount(owner.healing), operators,
         otherDamage: owner.otherDamage, otherHealing: healAmount(owner.otherHealing) });

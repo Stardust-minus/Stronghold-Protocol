@@ -842,11 +842,13 @@ export function Spinner({ size = 'md', label, tone = 'mint', class: cls }) {
 
 const SEAT_HUES = [162, 196, 38, 280];
 /**
- * Square avatar frame with bracket corners. Falls back to a glyph (first letter / robot).
+ * Square avatar frame with bracket corners. Falls back to a glyph (first letter / robot). `live`: drawn over the picture —
+ * the 动态立绘 of the avatar's skin (ui/dynamicIllustration.js LiveArt, its avatar crop; the caller passes it so this
+ * module needs no renderer import).
  * @param {{ name?: string, src?: string, size?: 'sm'|'md'|'lg'|'xl', seat?: number, host?: boolean, bot?: boolean,
- *   self?: boolean, ready?: boolean, offline?: boolean, dead?: boolean, empty?: boolean, class?: string }} props
+ *   self?: boolean, ready?: boolean, offline?: boolean, dead?: boolean, empty?: boolean, live?: any, class?: string }} props
  */
-export function AvatarFrame({ name = '', src, size = 'md', seat = 0, host, bot, self, ready, offline, dead, empty, class: cls }) {
+export function AvatarFrame({ name = '', src, size = 'md', seat = 0, host, bot, self, ready, offline, dead, empty, live = null, class: cls }) {
   const [bad, fail] = useImageFailure(src);
   const imgOk = !!src && !bad;
   const hue = SEAT_HUES[((seat | 0) % 4 + 4) % 4];
@@ -855,7 +857,7 @@ export function AvatarFrame({ name = '', src, size = 'md', seat = 0, host, bot, 
       ready && 'is-ready', offline && 'is-offline', dead && 'is-dead', empty && 'is-empty', cls)} style=${`--seat-hue:${hue}`}>
     <div class="avatar__img">
       ${empty ? html`<${Icon} name="plus" class="avatar__empty" />`
-        : imgOk ? html`<${MaterialImage} src=${src} alt="" draggable=${false} onError=${fail} />`
+        : imgOk ? html`<${MaterialImage} src=${src} alt="" draggable=${false} onError=${fail} />${live}`
         : bot ? html`<${Icon} name="robot" class="avatar__bot" />`
         : html`<span class="avatar__glyph">${glyph}</span>`}
     </div>

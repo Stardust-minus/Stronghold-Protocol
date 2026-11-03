@@ -8,7 +8,9 @@ import { parseRichText, rtClassName } from './richText.js';
 import { t as tr } from '../../../shared/i18n.js';
 import { appearanceRecord } from './skinAssets.js';
 import { MaterialImage, useImageFailure } from './materialImage.js';
-import { useCardAvatar } from './playerCard.js';
+import { useCardAvatarPick } from './playerCard.js';
+import { cardAvatarUrl } from './seatArt.js';
+import { CardAvatarLive } from './avatarLive.js';
 import { useStore } from '../store.js';
 import { skinsStore, ownerSkin } from './skins.js';
 import { settingsStore } from './settingsStore.js';
@@ -287,10 +289,12 @@ export function RichTip({ text, children, placement = 'top' }) {
   return html`<${Tooltip} text=${text ? html`<${RichText} text=${text} />` : null} placement=${placement}>${children}<//>`;
 }
 
-/** A human player's picked 头像 (room.card avatar, ui/playerCard.js) — or `then` when none — over the fallback. */
+/** A human player's picked 头像 (room.card avatar, ui/playerCard.js) — or `then` when none — over the fallback; a
+ * picked 头像 with a 动态立绘 / an official dynamic avatar plays live over it (rel27, ui/avatarLive.js), in the match too. */
 function PickedFace({ playerId, then, fallback }) {
-  const face = useCardAvatar(playerId);
-  return html`<${Img} src=${face || then} fallbackSrc=${face ? then : null} fallback=${fallback} />`;
+  const [id, look] = useCardAvatarPick(playerId);
+  const face = cardAvatarUrl(id, undefined, look);
+  return html`<${Img} src=${face || then} fallbackSrc=${face ? then : null} fallback=${fallback} />${face ? html`<${CardAvatarLive} m=${data.get('assets')} avatar=${id} look=${look} />` : null}`;
 }
 
 /**

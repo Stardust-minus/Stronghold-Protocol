@@ -161,3 +161,14 @@ test('fieldMeta sides come from actual halves even when the first unite helper i
   assert.deepEqual(meta.sides, { rightFirst: 'R', leftSecond: 'L' });
   assert.equal(Object.hasOwn(h.b.result(), 'damageRows'), false, 'trial/default result shape unchanged');
 });
+
+test('rel27: a 自选 piece\'s row carries its pick (its defId is the DIY slot, named 甄选干员); other rows carry none', () => {
+  const h = arena();
+  const b = h.b, u = h.unit(11), e = h.spawn('score_dummy', { pos: [11, 8] });
+  // as simdata getDiy builds it: diyFor = the slot's base id, loadout.diy = the checked pick
+  u.def = { ...u.def, diyFor: 'chess_char_6_diy1_a', loadout: { ...(u.def.loadout || {}), diy: { charId: 'char_248_mgllan', skillIndex: 2, uniEquipId: null, extra: 'x' } } };
+  hit(b, u, e, 40);
+  const ops = row(b).operators;
+  assert.deepEqual(ops.find((op) => op.uid === 11).diy, { charId: 'char_248_mgllan', skillIndex: 2, uniEquipId: null });
+  assert.equal(ops.find((op) => op.uid === 12).diy, undefined);
+});

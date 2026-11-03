@@ -102,6 +102,9 @@ import { canUseWorkerRehearsal, createWorkerRehearsal } from './combat/rehearsal
 import { snapshotTrialInput } from './combat/trial.js';
 import { morphSlotPolicy, ruleOption } from '../../shared/plugins/rules.js';
 
+/** The enemy HP multiplier of the match's round (a by-round plan, feedback #118; a bare match-like object: its single one). */
+const roundHpMul = (m) => (typeof m.enemyHpMulAt === 'function' ? m.enemyHpMulAt() : (m.enemyHpMul ?? 1));
+
 /**
  * Drive a step generator (planLayoutSteps, createRehearsalSteps, arrangeSteps, botPrepBeginSteps …) to its end in one
  * go and return its value — the synchronous form every step generator also has (tools, tests, botPrep).
@@ -256,7 +259,7 @@ export function bountyKillChance(m, ps, card) {
   if (!e || !e.stats) return 0.5;
   const model = fieldModel(m, ps);
   const sc = gd.enemyScale(m.round);
-  const hp = Math.max(1, (e.stats.maxHp || 1000) * sc.hpMul * (m.enemyHpMul ?? 1));
+  const hp = Math.max(1, (e.stats.maxHp || 1000) * sc.hpMul * roundHpMul(m));
   const def = e.stats.def || 0;
   const res = e.stats.res || 0;
   const fly = isFlyKey(gd, card.enemyKey) || HOVER.has(card.enemyKey);
@@ -860,7 +863,7 @@ export function fieldModel(m, ps = null) {
         foes.set(k, (foes.get(k) || 0) + (isLeader ? LEADER_HP * LEADER_WEIGHT : (e.stats.maxHp || 1000) * n));
       }
       // the leader counts like LEADER_WEIGHT tough enemies: its huge pool makes damage on it worth a lot everywhere
-      const hp = isLeader ? LEADER_HP : ((e && e.stats && e.stats.maxHp) || 1000) * ((s.mods && s.mods.hpMul) || 1) * (m.enemyHpMul ?? 1);
+      const hp = isLeader ? LEADER_HP : ((e && e.stats && e.stats.maxHp) || 1000) * ((s.mods && s.mods.hpMul) || 1) * roundHpMul(m);
       const spd = ((e && e.stats && e.stats.moveSpeed) || 1) * ((s.mods && s.mods.speedMul) || 1);
       const air = HOVER.has(s.enemyKey);
       const key = `${s.routeIndex}|${isLeader ? 'boss' : ''}|${air ? 'air' : ''}`;
@@ -1362,7 +1365,7 @@ function bossCandidateOpts(m, ps, byUid, plan) {
     if (Array.isArray(ev.spawns)) spawns = ev.spawns;
     if (Array.isArray(ev.routes)) routes = ev.routes;
   }
-  const hp = bossPoolHp(m.gd, bossId, alive.length, { hpMul: m.enemyHpMul ?? 1 });
+  const hp = bossPoolHp(m.gd, bossId, alive.length, { hpMul: roundHpMul(m) });
   return {
     seed: faRehearsalSeed(m, ps),
     kind,

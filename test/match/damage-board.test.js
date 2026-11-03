@@ -152,3 +152,17 @@ test('malformed/nonfinite/unknown-owner rows are rejected atomically and additiv
   assert.equal(sum(b).total, 10);
   assert.ok(S2C.includes('m.damage') && S2C.includes('b.damage'));
 });
+
+test('rel27: the ledger keeps a 自选 row\'s pick (well-formed only) through packet, freeze and the finals', () => {
+  const b = createDamageBoard('fixtureMatch');
+  b.startCombat(1, 'boss', owners);
+  const row = { playerId: 'p0', total: 30, otherDamage: 0, operators: [
+    { key: operatorDamageKey('p0', 11), uid: 11, defId: 'chess_char_6_diy1_a', damage: 20, diy: { charId: 'char_248_mgllan', skillIndex: 1, uniEquipId: 'uniequip_002_mgllan', junk: 1 } },
+    { key: operatorDamageKey('p0', 12), uid: 12, defId: 'chess_char_5_diy1_a', damage: 10, diy: { charId: 7 } },
+  ] };
+  assert.ok(b.replaceField({ matchId: 'fixtureMatch', round: 1, phase: 'boss', fieldId: 'boss', gt: 2, owners: [row], final: true }));
+  const ops = b.freeze().owners.find((o) => o.playerId === 'p0').operators;
+  assert.deepEqual(ops.find((op) => op.uid === 11).diy, { charId: 'char_248_mgllan', skillIndex: 1, uniEquipId: 'uniequip_002_mgllan' });
+  assert.equal(ops.find((op) => op.uid === 12).diy, undefined, 'a malformed pick is dropped, the row kept');
+  assert.equal(b.finals.boss.owners.find((o) => o.playerId === 'p0').operators.find((op) => op.uid === 11).diy.charId, 'char_248_mgllan');
+});
