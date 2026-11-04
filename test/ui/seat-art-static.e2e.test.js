@@ -13,10 +13,10 @@ import path from 'node:path';
 import { Client, ROOT, sleep, hasChrome, startRealServer } from '../e2e/client.mjs';
 
 // rel30 HD (hd30's manifest): almost every look draws its HD picture now (ui/seatLive.js); the 180×360 with these maths is
-// left for a look without the HD fields — and a scene 精二 without a cut-out (main's rule: never its 立绘), e.g. 冻河
+// left for a look without the HD fields (rel31: a scene 精二 draws its whole 立绘 too), e.g. 荆棘 / 雄狮 精二
 const assets = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'));
-const plainE2 = (c) => !!c?.portraitE2 && (!c.illustrationE2 || (c.portraitSceneE2 === true && !c.portraitHDE2));
-const CHAR = ['char_4244_tocka', 'char_103_angel'].find((id) => plainE2(assets.chars[id])) ?? null;
+const plainE2 = (c) => !!c?.portraitE2 && (!c.illustrationE2 || !Array.isArray(c.portraitBoxE2));
+const CHAR = ['char_1039_thorn2', 'char_373_lionhd', 'char_4010_etlchi', 'char_4138_narant', 'char_103_angel'].find((id) => plainE2(assets.chars[id])) ?? null;
 const ENABLED = process.env.SP_E2E === '1' && hasChrome() && !!CHAR && existsSync(path.join(ROOT, `public/assets/char/portrait/${CHAR}_2.png`));
 
 describe('调整立绘 on a static portrait (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + the portraits installed)' }, () => {

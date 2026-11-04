@@ -15,16 +15,18 @@
 // 180×360 once it has loaded (the 180×360 until then, and alone if it fails — placed where the HD one goes, so a framing
 // keeps its meaning):
 //   - a look with its `illustration` and `portraitBox`: the whole 立绘, placed so that, with no framing, the portrait box
-//     lands exactly where the 180×360 lands (cover at 50% 12%) — the default looks as before, only sharper; its framing is
-//     in the 立绘 (the box as the 100 % view; pan across all of it, the box included where it runs past the 立绘's edge;
-//     zoom to ART_LIMITS);
-//   - a scene look (`portraitScene`, main's decision of 11-04: never the scene) or one with only `portraitHD`: the cut-out
-//     HD portrait in the 180×360's own space — the same framing values as without HD;
-//   - a skin with a 动态立绘 keeps its skeleton framing; under the live one goes its 立绘 by the box ↔ official-crop match
-//     (its cut-out portraitHD on the crop for a scene look).
+//     lands exactly where the 180×360 lands (cover at 50% 12%); its framing is in the 立绘 (the box as the default view;
+//     pan across all of it, the box included where it runs past the 立绘's edge; zoom out to the 立绘's whole height, in to
+//     ART_LIMITS). A scene look (`portraitScene*`) too, its scene drawn (rel31, the owner of 11-04: 「一直用整张原画」;
+//     rel30 drew a scene look's cut-out in the 180×360's space, which could neither zoom out nor get sharper);
+//   - a look with only `portraitHD`: the HD portrait in the 180×360's own space — the same framing values as without HD;
+//   - a skin with a 动态立绘 keeps its skeleton framing; under the live one goes its 立绘 by the box ↔ official-crop match.
 // A look without the HD fields frames as above (its 180×360 as the space).
+// A frame saved before rel31 (ui/playerCard.js: no space mark) on a static scene look was in the cut-out's space; one's own
+// seat drops it once (the default, sent to the room like 重置) instead of showing another part of the 立绘.
 // On one's own seat (a 名片干员 picked) 「调整立绘」 opens the framer: drag to move, wheel / pinch / − + to zoom (shown
-// relative to the default: 100 % = the default; the box always filled), 重置 back to the default, 完成 to close; a change
+// relative to the default: 100 % = the default; the box always filled, so a look framed in its 180×360 cannot go below
+// its default, one framed in its 立绘 can, down to the 立绘's whole height), 重置 back to the default, 完成 to close; a change
 // is sent when a drag ends or a zoom settles (room.card is rate-limited), not on every move.
 import { useRef, useState, useEffect } from '../../vendor/hooks.module.js';
 import { html, Icon } from './components.js';
@@ -67,7 +69,7 @@ const PORTRAIT = pictureBounds(180, 360);
  * @param {[number, number]|null} [illNat] the 立绘's natural size once loaded
  */
 export function seatSpace(dyn, nat, pic = null, illNat = null) {
-  const whole = !!(pic?.illustration && pic.box) && !pic.scene;
+  const whole = !!(pic?.illustration && pic.box);
   const cut = !whole && !!pic?.hd;
   if (dyn) {
     const crop = cropFraming(dyn, 'portrait', 50, 12)?.rect ?? null;
@@ -85,6 +87,14 @@ export function seatSpace(dyn, nat, pic = null, illNat = null) {
   if (!nat || !(nat[0] > 0) || !(nat[1] > 0)) return null;
   const b = pictureBounds(nat[0], nat[1]);
   return { bounds: b, pic: b, hdSrc: null, hd: null, crop: b, place: false, zoomMax: STATIC_ZOOM_MAX };
+}
+
+/**
+ * Whether a look's framing space moved in rel31: a static scene look with its 立绘 (rel30 framed its cut-out / 180×360).
+ * A frame saved before then means another region now. @param {any} dyn lookDynamic() @param {any} pic portraitSourceOf
+ */
+export function sceneSpaceMoved(dyn, pic) {
+  return !dyn && !!pic?.scene && !!(pic.illustration && pic.box);
 }
 
 /** The default view (no framing) of a space as an art triple: its crop `cover` at 50% 12%. */
@@ -118,11 +128,16 @@ const boxStyle = (b, hidden) => (b ? `left:${px(b.left)};top:${px(b.top)};width:
  * The seat card's picture: the static portrait, the live layer when the look has a 动态立绘, the framer on one's own seat.
  * Rendered inside `.rseat__art` (the <img> and the live layer stay its direct children: [data-dyn="live"] > img).
  * @param {{ m: any, src: string, source?: any, charId: string, look: string,
- *   art: { x: number, y: number, zoom: number }|null, editable?: boolean,
+ *   art: { x: number, y: number, zoom: number }|null, legacyArt?: boolean, editable?: boolean,
  *   onCommit?: (art: { x: number, y: number, zoom: number }|null) => void, onError?: () => void }} props
+ *   `legacyArt`: one's own frame was saved before rel31 (ui/playerCard.js artSpace).
  */
-export function SeatArt({ m, src, source = null, charId, look, art, editable = false, onCommit, onError }) {
+export function SeatArt({ m, src, source = null, charId, look, art: savedArt, legacyArt = false, editable = false, onCommit, onError }) {
   const dyn = lookDynamic(m, charId, look);
+  // a pre-rel31 frame of a static scene look (sceneSpaceMoved): shown as the default, and on one's own seat dropped once
+  const stale = legacyArt && !!savedArt && sceneSpaceMoved(dyn, source);
+  const art = stale ? null : savedArt;
+  useEffect(() => { if (stale && editable) onCommit?.(null); }, [stale, editable]);
   const [nat, setNat] = useState(null);
   const [hdNat, setHdNat] = useState(null), [hdReady, setHdReady] = useState(false), [hdFailed, setHdFailed] = useState(false);
   const [box, setBox] = useState(null);

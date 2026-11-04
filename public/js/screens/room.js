@@ -62,7 +62,7 @@ import { CARD_PREF, cardOperators, seatPortrait, seatPortraitSource, cardAvatarU
 import { SeatArt } from '../ui/seatLive.js';
 import { CardAvatarLive } from '../ui/avatarLive.js';
 import { cardArt } from '../ui/dynamicFraming.js';
-import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundFrame, setCardLook, setAvatarLook, setCardArt } from '../ui/playerCard.js';
+import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundFrame, setCardLook, setAvatarLook, setCardArt, ART_SPACE } from '../ui/playerCard.js';
 import { OperatorPicker, AvatarPicker } from '../ui/opPicker.js';
 import { NameCardLayer, NameCardPicker } from '../ui/namecards.js';
 import { TrophyBadge } from '../ui/trophies.js';
@@ -317,7 +317,7 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
     <header class="rseat__strip"><i></i><${SeatPool} room=${room} index=${index} /><span class="num">P${index + 1}</span></header>
     <div class=${`rseat__art${canPick ? ' is-pickable' : ''}`} onClick=${canPick ? onPickCard : undefined} title=${canPick ? t('点击更换名片干员') : undefined}>
       ${src && bad !== src ? html`<${SeatArt} key=${src} m=${portraits.m} src=${src} source=${pic} charId=${liveChar || ''} look=${liveLook || ''} art=${liveArt}
-          editable=${canPick && !!liveChar} onCommit=${setCardArt} onError=${() => setBad(src)} />`
+          legacyArt=${isMe && !!myCard.art && myCard.artSpace !== ART_SPACE} editable=${canPick && !!liveChar} onCommit=${setCardArt} onError=${() => setBad(src)} />`
         : html`<span class="rseat__glyph">${seat.isBot ? html`<${Icon} name="robot" />` : [...(seat.name || '?')][0]}</span>`}
       ${canPick ? html`<button type="button" class="rseat__pick" onClick=${(e) => { e.stopPropagation(); onPickCard(); }} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null}
       ${isHostSeat ? html`<span class="rseat__host">${t('创建者')}</span>` : null}

@@ -16,9 +16,9 @@ import { Client, ROOT, sleep, hasChrome, startRealServer } from '../e2e/client.m
 const assets = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'));
 const onDisk = (u) => typeof u === 'string' && existsSync(path.join(ROOT, 'public', u));
 const CHAR = Object.entries(assets.chars).find(([, c]) => Array.isArray(c.portraitBoxE2) && !c.portraitSceneE2 && onDisk(c.illustrationE2) && onDisk(c.portraitHDE2) && onDisk(c.portraitE2))?.[0];
-/** a scene 精二 without a cut-out (today's 180×360, never its 立绘) and a scene skin with one (the cut-out, never its 立绘) */
-const SCENE_E2 = Object.entries(assets.chars).find(([, c]) => c.portraitSceneE2 === true && !c.portraitHDE2 && onDisk(c.portraitE2) && onDisk(c.illustrationE2))?.[0];
-const SCENE_SKIN = Object.entries(assets.skins).find(([, s]) => s.portraitScene === true && onDisk(s.portraitHD) && onDisk(s.portrait) && onDisk(s.illustration))?.[0];
+/** a scene 精二 and a static scene skin with their 立绘 installed (rel31: the seat draws the whole 立绘, scene included) */
+const SCENE_E2 = Object.entries(assets.chars).find(([, c]) => c.portraitSceneE2 === true && Array.isArray(c.portraitBoxE2) && onDisk(c.portraitE2) && onDisk(c.illustrationE2))?.[0];
+const SCENE_SKIN = Object.entries(assets.skins).find(([, s]) => s.portraitScene === true && !s.dynamic && Array.isArray(s.portraitBox) && onDisk(s.portrait) && onDisk(s.illustration))?.[0];
 const ENABLED = process.env.SP_E2E === '1' && hasChrome() && !!CHAR;
 
 describe('HD portraits (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + an operator with the HD fields installed)' }, () => {
@@ -97,27 +97,46 @@ describe('HD portraits (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome
       assert.ok(card, 'a card shows the HD crop');
       const attrs = await a.page.$eval('.lo .lo-op__art img', (i) => [i.getAttribute('loading'), i.getAttribute('decoding')]);
       assert.deepEqual(attrs, ['lazy', 'async']);
-      // scene looks (main's rule of 11-04): never their 立绘 — a scene skin draws its cut-out, a scene 精二 without one
-      // today's 180×360 with today's maths; the page never even asks for their 立绘
-      const asked = [];
-      a.page.on('request', (r) => asked.push(r.url()));
+      // rel31 (the owner of 11-04: 「一直用整张原画」): a scene look draws its whole 立绘 too, its box on the 180×360's place,
+      // and frames in it (zooming out below its default); a frame saved before rel31 is dropped once on a static scene
+      // look and kept on a look without a scene
       await a.page.keyboard.press('Escape');
       await a.page.waitForFunction(() => !document.querySelector('.lo'), { timeout: 5000 });
-      if (SCENE_SKIN) {
-        const sk = assets.skins[SCENE_SKIN];
-        await a.page.evaluate((ch, look) => import('/js/ui/playerCard.js').then((m) => { m.setCardOperator(ch); m.setCardLook(look); }), sk.charId, SCENE_SKIN);
-        await a.page.waitForSelector(`${MINE} > img.rseat__hd[data-state="ready"]`, { timeout: 30000 });
-        assert.ok((await a.page.$eval(`${MINE} > img.rseat__hd`, (i) => i.getAttribute('src'))).endsWith(sk.portraitHD.split('/').slice(-2).join('/')), 'a scene skin: its cut-out');
+      const LEGACY = { x: 480, y: 300, zoom: 260 };
+      const myArt = () => a.page.evaluate(() => import('/js/ui/playerCard.js').then((m) => { const s = m.cardStore.get(); return [s.art, s.artSpace]; }));
+      const injectLegacy = (art) => a.page.evaluate((art) => import('/js/ui/playerCard.js').then((m) => { m.cardStore.set({ art, artSpace: 0 }); }), art);
+      await injectLegacy(LEGACY);
+      await sleep(1500);
+      assert.deepEqual((await myArt())[0], LEGACY, 'a pre-rel31 frame on a look without a scene: kept');
+      const scenes = [SCENE_E2 && [SCENE_E2, '', assets.chars[SCENE_E2].illustrationE2, assets.chars[SCENE_E2].portraitBoxE2],
+        SCENE_SKIN && [assets.skins[SCENE_SKIN].charId, SCENE_SKIN, assets.skins[SCENE_SKIN].illustration, assets.skins[SCENE_SKIN].portraitBox]].filter(Boolean);
+      assert.ok(scenes.length, 'a scene 精二 or a scene skin with its 立绘 installed');
+      for (const [ch, look, ill, box] of scenes) {
+        await a.page.evaluate((ch, look) => import('/js/ui/playerCard.js').then((m) => { m.setCardOperator(ch); m.setCardLook(look); }), ch, look);
+        const tail = ill.split('/').slice(-2).join('/');
+        await a.page.waitForFunction((sel, tail) => { const i = document.querySelector(`${sel} > img.rseat__hd`); return i && i.dataset.state === 'ready' && (i.getAttribute('src') || '').endsWith(tail); },
+          { timeout: 30000 }, MINE, tail);
+        await sleep(400);
+        const gs = await geometry(a, MINE, box);
+        gs.hd.box.forEach((v, i) => assert.ok(Math.abs(v - gs.cover[i]) <= 1, `${ch} '${look}': the box lands on the 180×360's place: ${gs.hd.box} vs ${gs.cover}`));
+        await injectLegacy(LEGACY);
+        const t0 = Date.now();
+        while ((await myArt())[0] && Date.now() - t0 < 8000) await sleep(200);
+        assert.deepEqual(await myArt(), [null, 0], `${ch} '${look}': a pre-rel31 frame on a scene look is dropped`);
+        // zoom out below the default
+        await a.page.hover(MINE);
+        await a.click(`${MINE} [data-testid="seat-frame"]`);
+        const zoomText = () => a.page.$eval('[data-testid="seat-frame-zoom"]', (el) => parseInt(el.textContent, 10));
+        assert.equal(await zoomText(), 100);
+        assert.equal(await a.page.$eval('[data-testid="seat-frame-out"]', (el) => el.disabled), false, 'zoom out is enabled at the default');
+        await a.click('[data-testid="seat-frame-out"]'); await a.click('[data-testid="seat-frame-out"]');
+        await sleep(900);
+        assert.ok((await zoomText()) < 100, `${ch} '${look}': zoomed out below the default (${await zoomText()}%)`);
+        const [saved, space] = await myArt();
+        assert.ok(saved && space === 31, `saved with the rel31 space mark: ${JSON.stringify([saved, space])}`);
+        await a.click('[data-testid="seat-frame-done"]');
+        await a.shot(`scene-${look || 'e2'}-zoomed-out`);
       }
-      if (SCENE_E2) {
-        await a.page.evaluate((ch) => import('/js/ui/playerCard.js').then((m) => { m.setCardOperator(ch); m.setCardLook(''); }), SCENE_E2);
-        await a.page.waitForFunction((sel, tail) => (document.querySelector(`${sel} > img`)?.getAttribute('src') || '').endsWith(tail), { timeout: 15000 }, MINE, assets.chars[SCENE_E2].portraitE2.split('/').slice(-2).join('/'));
-        await sleep(1500);
-        assert.equal(await a.page.$(`${MINE} > img.rseat__hd`), null, 'a scene 精二 without a cut-out: no HD picture');
-        assert.equal(await a.page.$eval(`${MINE} > img`, (i) => i.getAttribute('style') || ''), '', 'today\'s CSS cover');
-      }
-      const ills = [SCENE_SKIN && assets.skins[SCENE_SKIN].illustration, SCENE_E2 && assets.chars[SCENE_E2].illustrationE2].filter(Boolean).map((u) => u.split('/').slice(-2).join('/'));
-      assert.deepEqual(asked.filter((u) => ills.some((t) => u.endsWith(t))), [], 'no scene 立绘 requested');
       for (const cl of [a, b, d]) assert.deepEqual(cl.problems.filter((p) => p.startsWith('pageerror:')), []);
     } finally { await a.close(); await b.close(); await d.close(); await srv.stop(); }
   });

@@ -55,10 +55,11 @@ export function chessAvatarUrl(m, chess, { skin = null } = {}) {
  * `illustrationSize` / `illustrationSizeE2` ([W, H], layout before it loads), `portraitBox` / `portraitBoxE2` ([x, y, w, h]
  * fractions of [W, H] from the top-left: where the 180×360 sits — w·W : h·H = 1 : 2; x / y may be < 0 and x + w > 1, the
  * portrait running past the 立绘's edge) and `portraitScene` / `portraitSceneE2: true` (the 立绘 has an opaque scene behind
- * the character where the portrait is transparent). A scene look never draws its 立绘 anywhere (main's rule of 11-04):
- * its source has no illustration / box, only the cut-out `portraitHD*` — and without one (hd30 emits none where it would
- * not be sharper) today's 180×360 with today's maths. A manifest without the fields (an older one, a plugin's art, a look
- * the matcher missed) has only the 180×360.
+ * the character where the portrait is transparent). The large views draw `portraitHD*` (for a scene look the cut-out) or
+ * the 180×360, never a 立绘. The seat card draws the whole 立绘 of every look that has one, its scene too (rel31, the
+ * owner of 11-04: 「一直用整张原画」 — rel30 kept a scene look to its cut-out, which could neither zoom out nor get sharper),
+ * so a scene look's source keeps its illustration / box like any other. A manifest without the fields (an older one, a
+ * plugin's art, a look the matcher missed) has only the 180×360.
  */
 const HD_FIELDS = Object.freeze({
   portrait: { hd: 'portraitHD', ill: 'illustration', box: 'portraitBox', size: 'illustrationSize', hdSize: 'portraitHDSize', scene: 'portraitScene' },
@@ -75,7 +76,7 @@ const isSize = (v) => Array.isArray(v) && v.length === 2 && v.every((n) => Numbe
 /**
  * A portrait as drawn from a manifest entry's `field` ('portrait' | 'portraitE2'): { src: the 180×360, hd: its HD crop or
  * null, illustration + box: the whole 立绘 and where the portrait sits in it (both or neither), size: the 立绘's [W, H] or
- * null, scene: a cut-out look (views and the seat framer keep to the cut-out) }; null without src.
+ * null, scene: the 立绘 has a scene behind the character (its portraitHD is a cut-out) }; null without src.
  */
 export function portraitSourceOf(entry, field) {
   const src = str(entry?.[field]);
@@ -83,8 +84,7 @@ export function portraitSourceOf(entry, field) {
   const k = HD_FIELDS[field];
   if (!k) return plainSource(src);
   const scene = entry[k.scene] === true;
-  // a scene look: never its 立绘 (no illustration / box at all, so no view can draw it)
-  const box = !scene && isPortraitBox(entry[k.box]) ? entry[k.box] : null;
+  const box = isPortraitBox(entry[k.box]) ? entry[k.box] : null;
   const illustration = box ? str(entry[k.ill]) : null;
   return { src, hd: str(entry[k.hd]), illustration, box: illustration ? box : null,
     size: illustration && isSize(entry[k.size]) ? entry[k.size] : null, scene };

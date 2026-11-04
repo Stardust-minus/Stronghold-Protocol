@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { chessPortraitSource, chessPortraitUrl, chessPortraitHdUrl, portraitChain, portraitSourceOf, isPortraitBox, chainProps } from '../../public/js/ui/assetUrls.js';
 import { lookUrl, lookPortraitSource, seatPortrait, seatPortraitSource, cardOperators, cardContext } from '../../public/js/ui/seatArt.js';
-import { seatSpace, defaultArt, staticBox, illustrationBox, boxRect, illustrationAround } from '../../public/js/ui/seatLive.js';
+import { seatSpace, defaultArt, staticBox, illustrationBox, boxRect, illustrationAround, sceneSpaceMoved } from '../../public/js/ui/seatLive.js';
 import { ART_LIMITS, STATIC_ZOOM_MAX } from '../../public/js/ui/dynamicFraming.js';
 
 const assets = JSON.parse(readFileSync(new URL('../../data/assets.json', import.meta.url), 'utf8'));
@@ -71,7 +71,9 @@ test('the 180×360 pick is what it was for every chess record and look of the sh
     if (src && e && (src.src === e.portraitE2 || src.src === e.portrait)) {
       const e2 = src.src === e.portraitE2 && src.src !== e.portrait;
       assert.equal(src.hd, (e2 ? e.portraitHDE2 : e.portraitHD) ?? null, `${c.chessId}: the HD of the form picked`);
-      if (e2 ? e.portraitSceneE2 : e.portraitScene) assert.equal(src.illustration, null, `${c.chessId}: a scene form never names its 立绘`);
+      // rel31: a scene form keeps its 立绘 for the seat card; the large views still never draw one
+      if (src.illustration) assert.equal(src.illustration, e2 ? e.illustrationE2 : e.illustration, `${c.chessId}: the 立绘 of the form picked`);
+      for (const u of portraitChain(assets, [c])) assert.ok(u !== e.illustration && u !== e.illustrationE2, `${c.chessId}: a large view never draws a 立绘`);
     }
     n++;
   }
@@ -145,40 +147,51 @@ test('a box past the 立绘\'s edge: the framing space holds both, the default s
   }
 });
 
-test('a scene look (portraitScene) frames its cut-out portraitHD only, in the 180×360\'s own space — the same values as without HD', () => {
+test('rel31: a scene look (portraitScene) frames its whole 立绘 in the seat, scene included — exactly as a look without a scene', () => {
   const scene = { ...WHOLE, scene: true };
-  const sp = seatSpace(null, null, scene), sd = seatSpace(null, [180, 360], null);
-  assert.equal(sp.hdSrc, '/a/h1.png', 'the cut-out, never the 立绘');
-  assert.equal(sp.place, false, 'no framing: the CSS cover, as the 180×360');
-  assert.equal(illustrationBox(223, 478, sp, null), null);
-  for (const art of [{ x: 500, y: 300, zoom: 250 }, { x: 0, y: 1000, zoom: 100 }]) sameBox(illustrationBox(223, 478, sp, art), staticBox(223, 478, sd, art), 1e-6, JSON.stringify(art));
-  assert.equal(seatSpace(null, null, { ...WHOLE, illustration: null, box: null }).hdSrc, '/a/h1.png', 'only a portraitHD: the same');
-  // under a 动态立绘: the cut-out on the official crop
+  const sp = seatSpace(null, null, scene), sw = seatSpace(null, null, WHOLE);
+  assert.deepEqual(sp, sw, 'the same space as a non-scene look');
+  assert.equal(sp.hdSrc, '/a/i1.png', 'the whole 立绘');
+  assert.equal(sp.place, true);
+  assert.equal(sp.zoomMax, ART_LIMITS.zoomMax);
+  for (const [bw, bh] of BOXES) {
+    const d = defaultArt(bw, bh, sp);
+    assert.ok(d.zoom > ART_LIMITS.zoomMin, `${bw}×${bh}: the default (${d.zoom}) can zoom out`);
+    sameBox(staticBox(bw, bh, sp, null), cssCover(bw, bh, 180, 360), 1e-6, `${bw}×${bh}: the default lands on the 180×360's place`);
+  }
+  assert.equal(seatSpace(null, null, { ...WHOLE, illustration: null, box: null }).hdSrc, '/a/h1.png', 'only a portraitHD: in the 180×360 space');
+  // under a 动态立绘: its 立绘 by the box ↔ official crop match, the framing still the skeleton's
   const [, s] = Object.entries(assets.skins).find(([, x]) => x.dynamic?.frames?.portrait);
   const dsp = seatSpace(s.dynamic, null, scene);
-  assert.equal(dsp.hdSrc, '/a/h1.png');
-  assert.deepEqual(dsp.hd, s.dynamic.frames.portrait);
+  assert.equal(dsp.hdSrc, '/a/i1.png');
+  assert.deepEqual(dsp.hd, illustrationAround(s.dynamic.frames.portrait, BOX));
+  assert.equal(dsp.bounds, s.dynamic.bounds);
 });
 
-test('a scene look never draws its 立绘: the cut-out portraitHD, and without one today\'s 180×360 with today\'s maths', () => {
+test('rel31: a scene look keeps its 立绘 in its source (the seat), the large views still draw the 180×360 / cut-out only', () => {
   // char_4244_tocka-like: E2 a scene with no portraitHDE2 (hd30 emits none where it would not be sharper)
   const tocka = { portrait: '/a/t1.png', portraitE2: '/a/t2.png', illustration: '/a/ti1.png', portraitBox: BOX, portraitHD: '/a/th1.png',
     illustrationE2: '/a/ti2.png', portraitBoxE2: BOX, illustrationSizeE2: [1800, 1700], portraitSceneE2: true };
   const e2 = portraitSourceOf(tocka, 'portraitE2');
-  assert.deepEqual(e2, { src: '/a/t2.png', hd: null, illustration: null, box: null, size: null, scene: true }, 'no 立绘, no box, no HD');
+  assert.deepEqual(e2, { src: '/a/t2.png', hd: null, illustration: '/a/ti2.png', box: BOX, size: [1800, 1700], scene: true });
   const m = { chars: { char_t: tocka }, skins: {} };
-  assert.deepEqual(portraitChain(m, [{ charId: 'char_t', isGolden: true }]), ['/a/t2.png'], 'large views: the 180×360');
-  const sp = seatSpace(null, [180, 360], e2), sd = seatSpace(null, [180, 360], null);
-  assert.deepEqual(sp, sd, 'the seat: exactly the plain 180×360 space');
-  assert.equal(sp.hdSrc, null);
-  assert.equal(staticBox(223, 478, sp, null), null, 'no framing: its CSS cover');
-  assert.equal(seatSpace(null, null, e2), null, 'and like the 180×360 it waits for its size');
-  // E1 of the same char is not a scene: the whole 立绘 there
-  assert.equal(portraitSourceOf(tocka, 'portrait').illustration, '/a/ti1.png');
-  // a scene skin with a cut-out: the cut-out only, its 立绘 never named
+  assert.deepEqual(portraitChain(m, [{ charId: 'char_t', isGolden: true }]), ['/a/t2.png'], 'large views: the 180×360, never the 立绘');
+  const sp = seatSpace(null, [180, 360], e2);
+  assert.equal(sp.hdSrc, '/a/ti2.png', 'the seat: the whole 立绘');
+  assert.equal(sp.place, true);
+  // a scene skin with a cut-out: large views the cut-out, the seat its 立绘
   const sk = portraitSourceOf({ portrait: '/a/s.png', portraitHD: '/a/sh.png', illustration: '/a/si.png', portraitBox: BOX, portraitScene: true }, 'portrait');
-  assert.deepEqual([sk.hd, sk.illustration, sk.box], ['/a/sh.png', null, null]);
-  assert.equal(seatSpace(null, null, sk).hdSrc, '/a/sh.png');
+  assert.deepEqual([sk.hd, sk.illustration, sk.box], ['/a/sh.png', '/a/si.png', BOX]);
+  assert.equal(seatSpace(null, null, sk).hdSrc, '/a/si.png');
   const [, dyn] = Object.entries(assets.skins).find(([, x]) => x.dynamic?.frames?.portrait);
-  assert.equal(seatSpace(dyn.dynamic, null, e2).hdSrc, null, 'under a 动态立绘: the 180×360 on the crop, no 立绘');
+  assert.equal(seatSpace(dyn.dynamic, null, e2).hdSrc, '/a/ti2.png', 'under a 动态立绘: its 立绘 on the crop');
+});
+
+test('rel31: only a static scene look\'s frame changed space (a frame saved before rel31 is dropped there, kept elsewhere)', () => {
+  const [, dyn] = Object.entries(assets.skins).find(([, x]) => x.dynamic?.frames?.portrait);
+  assert.equal(sceneSpaceMoved(null, { ...WHOLE, scene: true }), true, 'a static scene look with its 立绘');
+  assert.equal(sceneSpaceMoved(null, WHOLE), false, 'a look without a scene: the 立绘 already in rel30');
+  assert.equal(sceneSpaceMoved(dyn.dynamic, { ...WHOLE, scene: true }), false, 'a 动态立绘: the skeleton, unchanged');
+  assert.equal(sceneSpaceMoved(null, { ...WHOLE, scene: true, illustration: null, box: null }), false, 'no 立绘: the 180×360 space, unchanged');
+  assert.equal(sceneSpaceMoved(null, null), false);
 });

@@ -35,9 +35,15 @@ export const AVATAR_PREF = 'room.avatar';
 /** The looks ('' 精二, 'e1' 精一, a skin id) of the 名片干员 and of the 头像 operator. */
 export const CARD_LOOK_PREF = 'room.card.look';
 export const AVATAR_LOOK_PREF = 'room.avatar.look';
-/** How the seat card frames the 名片干员 (rel27: a 动态立绘; rel30: every look): "x,y,zoom" (ui/dynamicFraming.js ART_LIMITS), '' = the default. */
+/**
+ * How the seat card frames the 名片干员 (rel27: a 动态立绘; rel30: every look): "x,y,zoom,space" (ui/dynamicFraming.js
+ * ART_LIMITS; space = ART_SPACE, absent before rel31 — older builds read the first three), '' = the default.
+ */
 export const CARD_ART_PREF = 'room.card.art';
+/** The space mark of a frame saved since rel31, when a static scene look's frame moved into its whole 立绘 (ui/seatLive.js sceneSpaceMoved). */
+export const ART_SPACE = 31;
 const parseArt = (v) => { const [x, y, zoom] = String(v ?? '').split(',').map(Number); return cardArt({ artX: x, artY: y, artZoom: zoom }); };
+const parseArtSpace = (v) => { const s = Number(String(v ?? '').split(',')[3]); return Number.isSafeInteger(s) && s > 0 ? s : 0; };
 
 export const cardStore = createStore({
   charId: str(loadPref(CARD_PREF, '')),
@@ -49,6 +55,7 @@ export const cardStore = createStore({
   look: str(loadPref(CARD_LOOK_PREF, '')),
   avatarLook: str(loadPref(AVATAR_LOOK_PREF, '')),
   art: parseArt(loadPref(CARD_ART_PREF, '')),
+  artSpace: parseArtSpace(loadPref(CARD_ART_PREF, '')),
   trophies: null, // read from the stats on first use
 });
 
@@ -77,7 +84,7 @@ export function setCardLook(look) {
 /** @param {{ x: number, y: number, zoom: number }|null} art the seat card's framing of the look (ui/seatLive.js); null = the default */
 export function setCardArt(art) {
   const a = art ? cardArt({ artX: art.x, artY: art.y, artZoom: art.zoom }) : null;
-  savePref(CARD_ART_PREF, a ? `${a.x},${a.y},${a.zoom}` : ''); cardStore.set({ art: a });
+  savePref(CARD_ART_PREF, a ? `${a.x},${a.y},${a.zoom},${ART_SPACE}` : ''); cardStore.set({ art: a, artSpace: a ? ART_SPACE : 0 });
 }
 /** @param {string} look '' / 'e1' / a skin id of the 头像 operator */
 export function setAvatarLook(look) { savePref(AVATAR_LOOK_PREF, str(look)); cardStore.set({ avatarLook: str(look) }); }
