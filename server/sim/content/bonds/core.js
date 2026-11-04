@@ -45,6 +45,7 @@ import { FORCED_EXIT } from '../../constants.js';
 import { damageAttackType, isHpLoss } from '../../attack.js';
 import { msg } from '../../../../shared/i18n.js';
 import { bbCap } from '../../../../shared/plugins/officialBounds.js';
+import { milestonesDue } from '../../../../shared/constants.js';
 import { textFinite } from '../../../../shared/plugins/textNumber.js';
 
 const num = S.num;
@@ -65,6 +66,14 @@ const BUFF_KEYS = Object.freeze({
 const SARGON_SHARE_KEY = 'act2autochess_bond_eff_sargon[share]';
 const VICTORIA_REWARD_KEY = 'bond_layer_added_reward_equip';
 const VICTORIA_COUNTER = 'bond:victoria:hammers';
+/**
+ * Milestones one payment pays, shared with every call its own grants re-enter (grantItem → onGain / onMerge → hammers →
+ * payHammers): each nested call used to bring a bound of its own, so a deep chain could pay ~100^MAX_DEPTH. What is
+ * left is caught up by the next hook. An official match never owes more than floor(999 / 25) = 39 in all.
+ */
+const VICTORIA_PAY_MAX = 100;
+/** gd (the player's data view) → playerId → { left }: the budget of the payment running now (never saved). */
+const HAMMER_BUDGETS = new WeakMap();
 
 /** Bond effect blackboard `{ ...bb, ...bbStr }` of a core bond (null when the data record is missing). */
 export function bondBb(bondId, key = BUFF_KEYS[bondId]) {
@@ -711,29 +720,42 @@ export function install(battle) {
  * onActiveBonds hook of the recompute that activated it, e.g. placing the third member in prep (the maintainer's report
  * of the official game, 2026-10-15; research 02 §3.3 / §8 Q7: the payout counts layers added while inactive) — and
  * the hooks below catch up anything a capped nested dispatch skipped; same rule as 远见 / 奇迹 (addon/meta.js).
+ * Bounded twice (2026-11-04, a game node held for good by ~4 000 000 hammers): VICTORIA_PAY_MAX per payment, nested
+ * calls included, and milestonesDue's ceiling in a room with the layer cap lifted.
  */
 export function payHammers(ctx) {
   if (!ctx.bondActive('victoriaShip')) return 0;
   const p = S.buffParams(ctx.data?.bonds?.victoriaShip ?? S.bondRecord('victoriaShip'), VICTORIA_REWARD_KEY);
   const step = Math.floor(num(p?.layer, 0));
   if (!p || !(step > 0)) return 0;
-  const due = Math.floor(ctx.layers('victoriaShip') / step);
+  // a room with the cap lifted pays no more than 999 layers would (shared/constants.js milestonesDue)
+  const due = milestonesDue(ctx.layers('victoriaShip'), step, ctx.layerCapOff === true);
   // [ASSUMED] DESIGN §32.5: each milestone pays at most the official `count` cap. Official count is 1.
   const count = Math.min(bbCap('count'), Math.max(0, Math.floor(num(p.count, 1))));
   let granted = 0;
-  // re-read the counter every milestone: grantItem dispatches onGain, which re-enters this function (nested payments
-  // must not be paid twice by the outer loop)
-  for (let guard = 0; guard < 100; guard++) {
-    const paid = ctx.counter(VICTORIA_COUNTER);
-    if (paid >= due) break;
-    ctx.setCounter(VICTORIA_COUNTER, paid + 1);
-    for (let i = 0; i < count; i++) {
-      const id = ctx.rollItem({ pool: p.pool });
-      // onPrepEnd: grantItem stows this and does not merge until the next prep start, so a second copy does not
-      // take an equipped hammer off for the fight (effectsMeta _deferItemMerge). [ASSUMED] every item that hook grants.
-      if (id && ctx.grantItem(id, { source: 'bond:victoriaShip' })) granted++;
+  // one budget for this payment and the calls it re-enters (VICTORIA_PAY_MAX)
+  const owner = ctx.gd !== null && typeof ctx.gd === 'object' ? ctx.gd : null;
+  let byPlayer = owner ? HAMMER_BUDGETS.get(owner) : null;
+  if (owner && !byPlayer) HAMMER_BUDGETS.set(owner, (byPlayer = new Map()));
+  const outer = !byPlayer || !byPlayer.has(ctx.playerId);
+  const budget = outer ? { left: VICTORIA_PAY_MAX } : byPlayer.get(ctx.playerId);
+  if (outer && byPlayer) byPlayer.set(ctx.playerId, budget);
+  try {
+    // re-read the counter every milestone: grantItem dispatches onGain, which re-enters this function (nested payments
+    // must not be paid twice by the outer loop)
+    while (budget.left > 0) { // loop-cap: VICTORIA_PAY_MAX per payment, nested calls included
+      const paid = ctx.counter(VICTORIA_COUNTER);
+      if (paid >= due) break;
+      budget.left--;
+      ctx.setCounter(VICTORIA_COUNTER, paid + 1);
+      for (let i = 0; i < count; i++) {
+        const id = ctx.rollItem({ pool: p.pool });
+        // onPrepEnd: grantItem stows this and does not merge until the next prep start, so a second copy does not
+        // take an equipped hammer off for the fight (effectsMeta _deferItemMerge). [ASSUMED] every item that hook grants.
+        if (id && ctx.grantItem(id, { source: 'bond:victoriaShip' })) granted++;
+      }
     }
-  }
+  } finally { if (outer && byPlayer) byPlayer.delete(ctx.playerId); }
   if (granted && typeof ctx.toast === 'function') ctx.toast(msg('【维多利亚】获得{n}件维式重锤', { n: granted }), 'info');
   return granted;
 }

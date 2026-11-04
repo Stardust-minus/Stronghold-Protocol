@@ -33,6 +33,7 @@ import { UnofficialMark, VersionTag } from '../ui/pluginTag.js';
 import { TestMark } from '../ui/testConsole.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { bossDamageList, opLook } from '../ui/bossDamage.js';
+import { MatchName, useIsOwner } from '../ui/ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -184,11 +185,12 @@ function PlayerCard({ p, myId, titles, best, solo = false, skinOwnerId = null })
   const band = p.bandId ? gd.band(p.bandId) : null;
   const lineup = p.lineup.slice(0, 10);
   const bonds = resultBonds(p.bonds, (id) => gd.bond(id));
-  return html`<article class=${cx('rcard', p.playerId === myId && 'is-self', p.alive === false && 'is-dead')}>
+  const owner = useIsOwner(p); // 服主 (ui/ownerName.js): the gold edge of the card
+  return html`<article class=${cx('rcard', owner && 'is-sp-owner', p.playerId === myId && 'is-self', p.alive === false && 'is-dead')}>
     <header class="rcard__head">
       <${PlayerAvatar} player=${p} self=${p.playerId === myId} />
       <div class="rcard__who">
-        <b class="rcard__name">${p.name}${p.isBot ? html`<span class="rcard__ai">AI</span>` : null}${p.playerId === myId ? html`<span class="rcard__you">${t('你')}</span>` : null}</b>
+        <b class="rcard__name"><${MatchName} player=${p} name=${p.name} />${p.isBot ? html`<span class="rcard__ai">AI</span>` : null}${p.playerId === myId ? html`<span class="rcard__you">${t('你')}</span>` : null}</b>
         ${Number.isInteger(p.aiTakeoverRound) ? html`<small>${t('第 {round} 回合接替 AI；含此前席位数据，不计入个人统计或奖励。', { round: p.aiTakeoverRound })}</small>` : null}
         <span class="rcard__band">${band ? html`<${BandIcon} bandId=${band.bandId} size="xs" />${band.name}` : '—'}</span>
       </div>

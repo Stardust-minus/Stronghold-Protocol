@@ -1839,6 +1839,8 @@ function MatchScreen() {
   const liveLayers = (combat || settleMode) && battleState?.bondLayers ? battleState.bondLayers : null;
   // the observing pill names the player whose bonds the strip shows (the same teammate as the strip's "👁 name" tag)
   const observingName = cc && combat && watchedFid ? (!strip.self && stripFid === watchedFid ? strip.name : (players.find((p) => p.fieldId === watchedFid || ownFieldId(p.playerId) === watchedFid)?.name || t('队友'))) : null;
+  // …and its playerId, for the 服主 mark on the pill (ui/ownerName.js)
+  const observingId = observingName ? (!strip.self && stripFid === watchedFid ? strip.ownerId : players.find((p) => p.fieldId === watchedFid || ownFieldId(p.playerId) === watchedFid)?.playerId) ?? null : null;
   const watchedP = watchingOther ? (players.find((p) => p.playerId !== myId && (watching === ownFieldId(p.playerId) || (watching === p.fieldId && String(watching).startsWith('n:')))) || null) : null;
   const watchedName = watchingOther ? (watchedP?.name || players.find((p) => watching === p.fieldId)?.name || t('队友')) : null;
   const stripBonds = strip.bonds;
@@ -1969,7 +1971,7 @@ function MatchScreen() {
           }}><${Icon} name=${bondsCollapsed ? 'chevronRight' : 'chevronLeft'} /></button>
         <div id="match-bond-strip" class="gm__bond-list" hidden=${bondsCollapsed}>
           <${BondStrip} bonds=${stripBonds} layersDisabled=${layersDisabled} openId=${bondPop && bondPop.ownerId === strip.ownerId ? bondPop.bondId : null}
-            owner=${strip.name} forecast=${ownForecast} onOpen=${(id) => openBond(id, strip.ownerId, 'strip')} />
+            owner=${strip.name} ownerId=${strip.name ? strip.ownerId : null} forecast=${ownForecast} onOpen=${(id) => openBond(id, strip.ownerId, 'strip')} />
         </div>
       </div>
 
@@ -2000,7 +2002,7 @@ function MatchScreen() {
 
       ${combat || mode === 'settle' ? html`<${CombatHud} pub=${pub} myId=${myId} watching=${watchingNow} hud=${hud} myDone=${!!myDone && alive}
         spectating=${!alive} spectator=${spectator} onWatch=${watchField}
-        client=${cc ? { progress, observing: observingName ? { name: observingName } : null, onBack: alive ? backHome : null, layers, layer, onLayer: setLayer } : null}
+        client=${cc ? { progress, observing: observingName ? { name: observingName, ...(observingId ? { playerId: observingId } : {}) } : null, onBack: alive ? backHome : null, layers, layer, onLayer: setLayer } : null}
         halves=${!cc && layers.length ? { layers, layer, onLayer: setLayer } : null} />` : null}
 
       ${showDeadPill(alive, phase) ? (spectator

@@ -16,7 +16,8 @@ import { onStartUnite } from '../botEmotes.js';
 export class MatchUnite {
   startUnite(plan) {
     if (this.capacityExperiment && !this.alivePlayers().length) { this.settle(null, null); return; }
-    this._applySpeedVote();
+    // No _applySpeedVote here (feedback #137, planned by the owner): a 联防 (both rounds of a relay) continues the
+    // round's battle at the speed startCombat gave it, whoever left or went offline in between (speedVote.js header).
     if (plan.uniteRound === 1) this._uniteRelay = { rounds: [], eligible: new Set() };
     if (plan.uniteRound && !this.clientCombat) plan.battleId = `${this.battlePrefix}.${this.round}.${++this._battleSeq}.relay${plan.uniteRound}`;
     if (this.clientCombat) { this._startUniteClient(plan); return; }

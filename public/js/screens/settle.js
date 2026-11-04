@@ -35,6 +35,7 @@ import { VersionTag } from '../ui/pluginTag.js';
 import { shownVersion, seasonOf } from '../versions.js';
 import { ResultView, resultBonds, BossDamageBrief } from './result.js';
 import { t } from '../../../shared/i18n.js';
+import { MatchName, useIsOwner } from '../ui/ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 const pad2 = (n) => String(Math.max(0, Math.trunc(n) || 0)).padStart(2, '0');
@@ -485,7 +486,8 @@ function TeamCard({ p, i, gd, self, victory, raw }) {
   const cleared = rowCleared(raw, p, victory);
   const band = p.bandId ? gd.band(p.bandId) : null;
   const card = useSeatCard(p.playerId, self);
-  return html`<article class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail')} style=${`--i:${i}`}>
+  const owner = useIsOwner(p); // 服主 (ui/ownerName.js): the gold plate
+  return html`<article class=${cx('tcard', owner && 'is-sp-owner', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail')} style=${`--i:${i}`}>
     <header class="tcard__head" aria-hidden="true"><i class="tcard__pin"></i><span class="tcard__code"><i></i><i></i><i></i>STRONGHOLD PROTOCOL</span><span class="tcard__seat num">${pad2(p.seat + 1)}</span></header>
     <div class="tcard__art">
       <${Img} src=${v?.artHd || v?.art || v?.avatar} fallbackSrc=${[v?.art, v?.avatar]} class=${cx('tcard__img', v?.art ? 'is-portrait' : 'is-avatar')} fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
@@ -499,7 +501,7 @@ function TeamCard({ p, i, gd, self, victory, raw }) {
       ${self ? html`<i class="tcard__me" aria-hidden="true"><${Icon} name="user" /></i>` : null}
       <${PlayerAvatar} player=${p} self=${self} class="tcard__ava" />
       <span class="tcard__who">
-        <b class="tcard__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<span>${p.name}</span>${p.isBot ? html`<span class="tcard__ai">AI</span>` : null}</b>
+        <b class="tcard__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<${MatchName} player=${p} name=${p.name} />${p.isBot ? html`<span class="tcard__ai">AI</span>` : null}</b>
         ${band ? html`<span class="tcard__band"><${BandIcon} bandId=${band.bandId} size="xs" /><span>${band.name}</span></span>` : null}
       </span>
     </div>

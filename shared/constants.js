@@ -141,6 +141,18 @@ export function layerGainRoom(before, n, uncapped = false) {
 }
 
 /**
+ * The milestones "every `step` layers" a bond has earned at `layers` (远见 / 奇迹 funds, 维多利亚 hammers): floor(layers / step).
+ * `uncapped` (the room lifted the cap): never more than BOND_LAYER_CAP layers earn — the layers may grow on, the rewards
+ * stop where an official match's do. A capped room is unchanged (its layers never pass the cap). 2026-11-04: a 调控台 room
+ * set 维多利亚 to ~1e8 layers and its ~4 000 000 hammers held a game node's main thread until it was restarted.
+ */
+export function milestonesDue(layers, step, uncapped = false) {
+  if (!(step > 0) || !(layers > 0)) return 0;
+  const due = Math.floor(layers / step);
+  return uncapped && BOND_LAYER_CAP > 0 && Number.isFinite(BOND_LAYER_CAP) ? Math.min(due, Math.floor(BOND_LAYER_CAP / step)) : due;
+}
+
+/**
  * Official boss-hit limit "限伤" (docs/research/11-limits-official.md §2): `AutoChessBattleConst.MAX_BATTLE_DAMAGE =
  * 300000`. In a boss battle outside training — our battle kinds 'boss' (Final Assault) and 'hidden' (Hidden Core) — a
  * single hit on a leader (`AutoChessBattleUtil.IsBossEnemy`: an enemyId of activity_table autoChessData.bossInfoDict

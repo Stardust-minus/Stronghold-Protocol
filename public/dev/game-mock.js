@@ -905,6 +905,14 @@ function renderBar() { render(html`<${Switcher} />`, bar); }
 window.addEventListener('keydown', (e) => { if (e.key === '`') bar.classList.toggle('hidden'); });
 if (SHOT) bar.classList.add('hidden');
 
+/**
+ * 服主 (ui/ownerName.js; rel32): ?variant=owner marks Doctor·B's seat (a teammate), ownerSelf your own, ownerSpec the first
+ * spectator seat (with `spectators`). `owner` also marks the AI seat, which must never show it (the client guards it too).
+ */
+function ownerSeat(p) {
+  return (VARIANTS.has('owner') && (p.playerId === 'p3' || p.playerId === 'ai_2')) || (VARIANTS.has('ownerSelf') && p.playerId === ME);
+}
+
 // ---- boot ---------------------------------------------------------------------------------------------------------------------
 async function boot() {
   net.request = mockRequest;
@@ -916,8 +924,9 @@ async function boot() {
     room: {
       code: 'MOCK', hostId: VARIANTS.has('notHost') ? 'ai_2' : ME, mode: 'coop', difficulty: 'HARD', inMatch: true,
       seats: PLAYERS.map((p) => ({ seat: p.seat, playerId: p.playerId, name: p.name, isBot: p.isBot, ready: true, connected: true,
-        ...(MOCK_CARDS[p.playerId] ? { card: MOCK_CARDS[p.playerId] } : {}) })),
-      ...(VARIANTS.has('spectators') ? { spectators: [{ playerId: 'sp_1', name: '观战者甲', connected: true }, { playerId: 'sp_2', name: '观战者乙', connected: false }] } : {}),
+        ...(MOCK_CARDS[p.playerId] ? { card: MOCK_CARDS[p.playerId] } : {}), ...(ownerSeat(p) ? { owner: true } : {}) })),
+      ...(VARIANTS.has('spectators') ? { spectators: [{ playerId: 'sp_1', name: '观战者甲', connected: true, ...(VARIANTS.has('ownerSpec') ? { owner: true } : {}) },
+        { playerId: 'sp_2', name: '观战者乙', connected: false }] } : {}),
     },
   });
   await data.loadAll(GAME_FILES);

@@ -43,13 +43,15 @@ import { bondIconUrl } from './assetUrls.js';
 import { data } from '../data.js';
 import { appearanceRecord, ownAppearance } from './skinAssets.js';
 import { t, tc, tParts, tName } from '../../../shared/i18n.js';
+import { OwnerMark } from './ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
 /** The "👁 name" tag of a teammate's strip (DESIGN §20.15). */
-function OwnerTag({ owner }) {
+function OwnerTag({ owner, ownerId = null }) {
+  // 服主 (ui/ownerName.js OwnerMark): the 「♛ 服主」 tag before the watched teammate's name, which then turns gold (css sibling rule)
   return html`<span class="bstrip__owner" title=${t('正在查看 {owner} 的盟约', { owner })} data-owner=${owner}>
-    <${GIcon} name="eye" class="bstrip__eye" /><${MicroLabel}>${owner}</${MicroLabel}>
+    <${GIcon} name="eye" class="bstrip__eye" />${ownerId ? html`<${OwnerMark} player=${ownerId} />` : null}<${MicroLabel}>${owner}</${MicroLabel}>
   </span>`;
 }
 
@@ -109,17 +111,17 @@ function BondScroller({ count, children }) {
  *   owner?: string|null, forecast?: any }} props — owner: the watched teammate's name (null = your own bonds); forecast:
  *   the own m.private.layerForecast in PREP, else null
  */
-export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null, owner = null, forecast = null }) {
+export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null, owner = null, ownerId = null, forecast = null }) {
   const sorted = sortBonds(bonds, (id) => data.lookup('bonds', id));
   if (!sorted.length) {
     return html`<div class=${cx('bstrip', 'bstrip--empty', owner && 'is-other')} data-owner=${owner || null}>
-      ${owner ? html`<${OwnerTag} owner=${owner} />` : html`<${MicroLabel}>BONDS</${MicroLabel}>`}<span>${owner ? t('{owner} 尚未激活盟约', { owner }) : t('部署干员以激活盟约')}</span></div>`;
+      ${owner ? html`<${OwnerTag} owner=${owner} ownerId=${ownerId} />` : html`<${MicroLabel}>BONDS</${MicroLabel}>`}<span>${owner ? t('{owner} 尚未激活盟约', { owner }) : t('部署干员以激活盟约')}</span></div>`;
   }
   const m = data.get('assets');
   const shown = sorted;
   const strip = html`<div tabindex="0" class=${cx('bstrip', layersDisabled && 'is-frozen', owner && 'is-other')} role="list"
       aria-label=${owner ? t('{owner} 的盟约', { owner }) : t('我的盟约')} data-owner=${owner || null}>
-    ${owner ? html`<${OwnerTag} owner=${owner} />` : null}
+    ${owner ? html`<${OwnerTag} owner=${owner} ownerId=${ownerId} />` : null}
     ${shown.map((b) => {
       const rec = data.lookup('bonds', b.bondId);
       const th = Array.isArray(b.thresholds) && b.thresholds.length ? b.thresholds : rec?.thresholds || [];

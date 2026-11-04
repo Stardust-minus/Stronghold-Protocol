@@ -12,6 +12,7 @@ import { useCardAvatarPick } from './playerCard.js';
 import { cardAvatarUrl } from './seatArt.js';
 import { CardAvatarLive } from './avatarLive.js';
 import { useStore } from '../store.js';
+import { OwnerAvatarFx } from './ownerName.js';
 import { skinsStore, ownerSkin } from './skins.js';
 import { settingsStore } from './settingsStore.js';
 import {
@@ -319,6 +320,7 @@ export function PlayerAvatar({ player, size = 'md', self = false, class: cls }) 
   return html`<span class=${cx('pavatar', `pavatar--${size}`, self && 'is-self', dead && 'is-dead', left && 'is-left', player?.isBot && 'is-bot',
       player?.connected === false && !player?.isBot && 'is-offline', cls)} style=${`--seat-hue:${hue}`}>
     <span class="pavatar__img">${face}</span>
+    ${player?.isBot || player?.playerId == null ? null : html`<${OwnerAvatarFx} player=${player} />`}
     ${pending ? html`<span class="pavatar__rescue" aria-label=${tr('等待救援')}><${Icon} name="hourglass" /></span>` : null}
     ${dead ? html`<span class="pavatar__x" aria-label=${tr('已淘汰')}><${Icon} name="close" /></span>` : null}
     ${left ? html`<span class="pavatar__door" aria-label=${tr('已离开')}><${Icon} name="exit" /></span>` : null}

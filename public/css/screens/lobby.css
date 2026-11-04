@@ -2689,12 +2689,83 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .nc-pick__card--none .nc-pick__art { justify-content: center; color: #9aa6a2; border: 1px dashed rgba(255, 255, 255, .18); }
 .nc-pick__card--none .icon { width: 18px; height: 18px; }
 
-/* 服主 */
-.sp-owner-name { color: #ffd27a !important; }
-.sp-owner-badge { display: inline-flex; align-items: center; gap: 2px; flex: none; padding: 0 5px; font-size: max(calc(.12 * var(--t)), 10px); line-height: 1.5; font-weight: 700;
-  color: #e4bd60; border: 1px solid #e4bd60; border-radius: 2px; white-space: nowrap; }
-.sp-owner-badge .icon { width: 1.1em; height: 1.1em; }
-.rseat.is-owner .rseat__plate { border-color: rgba(228, 189, 96, .65); }
+/* ---- 服主 (ui/ownerName.js; rel32 — the mark in the match too; v2 after the owner's 「简约高级一点」) ---------------------------
+   A precise accent in the game's own language, not decoration: one flat gold (#e6c27a: ≥ 6:1 on every dark panel it
+   sits on), 1px lines, corner brackets, the header strip. Same sizes and spacing as everybody else's; nothing moves,
+   nothing glows, no gradient text — so prefers-reduced-motion needs nothing of its own. */
+:root { --sp-own: #e6c27a; --sp-own-line: rgba(230, 194, 122, .78); --sp-own-ink: #2a1d05; }
+
+.sp-owner-name { color: var(--sp-own) !important; }
+
+/* the tag 「♛ 服主」 (English "Owner"): 1px gold outline (inset, so it is exactly the AI tag's height), transparent, a thin
+   crown. Wherever a name is shown — the room, the roster, every in-match name, the results; the crown alone only where no
+   name is shown at all. */
+.sp-owner-badge { display: inline-flex; align-items: center; justify-content: center; gap: .2em; flex: none; vertical-align: middle; box-sizing: border-box;
+  padding: 0 .05rem; font-size: max(calc(.11 * var(--t)), 10px); font-weight: 700; letter-spacing: .06em; white-space: nowrap;
+  color: var(--sp-own); background: transparent; box-shadow: inset 0 0 0 1px var(--sp-own-line); }
+.sp-owner-badge .icon { width: 1.05em !important; height: 1.05em !important; color: inherit !important; } /* not the host label's icon rules */
+.sp-owner-badge .icon path { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; }
+/* glyph only (in-match, where space is tight): the same outlined tag, square */
+.sp-owner-badge--compact { padding: 0; width: 1.45em; height: 1.45em; }
+.sp-owner-badge--compact .icon { width: 1em !important; height: 1em !important; }
+/* a match name and its tag on one line: the name gives way (ellipsis) before the tag could wrap or clip */
+.sp-owner-line { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: nowrap; vertical-align: middle; }
+.sp-owner-line > .sp-owner-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcard__name .sp-owner-badge { font-size: calc(.11 * var(--t)); padding: 0 .05rem; }
+.tcard__name .sp-owner-badge { font-size: .12rem; padding: 0 .04rem; }
+/* in-match, each tag a step under its own name's size (the names scale with the screen, so the tag does too) */
+.team__nameline .sp-owner-badge { font-size: max(.11rem, calc(9px * var(--ui))); }
+.spec__row .sp-owner-badge { font-size: calc(.13 * var(--t)); }
+.chud__prog .sp-owner-badge { font-size: .11rem; }
+.vswitch__label .sp-owner-badge { font-size: .13rem; letter-spacing: .04em; }
+.danmaku__item .sp-owner-badge, .damage-board__group-heading .sp-owner-badge { font-size: max(calc(.11 * var(--t)), calc(10px * var(--ui))); }
+.spov__wtext .sp-owner-badge { font-size: calc(.11 * var(--t)); }
+.bstrip__owner .sp-owner-badge { font-size: max(.11rem, calc(9px * var(--ui))); margin-right: 4px; }
+.team--list .team__nameline .sp-owner-badge { font-size: calc(var(--team-fs, 12px) * .78); letter-spacing: 0; }
+/* where the bare name filled its row, the name + tag line does */
+.spec__row > .sp-owner-line, .damage-board__group-heading > .sp-owner-line { flex: 1 1 auto; }
+.bstrip__owner .sp-owner-badge + .micro { color: var(--sp-own); }
+
+/* every match avatar (PlayerAvatar → OwnerAvatarFx): a 1px gold line on the avatar's own edge */
+.sp-owner-fx { position: absolute; inset: -1px; z-index: 2; pointer-events: none; border: 1px solid var(--sp-own); }
+
+/* the in-match roster (ui/teamPanel.js): a 2px gold bar on the left edge of the row's name panel (list rows: of the row) */
+.team__nameline { display: flex; align-items: center; min-width: 0; max-width: 1.9rem; }
+.team__nameline .team__name { min-width: 0; }
+.team__row.is-sp-owner .team__info { box-shadow: inset 2px 0 0 var(--sp-own); }
+.team__row.is-dead .sp-owner-name { opacity: .6; }
+.team--list .team__nameline { flex: 1 1 3em; max-width: none; }
+.team--list .team__nameline .team__name { flex: 0 1 auto; }
+.team--list .team__row.is-sp-owner { box-shadow: inset 2px 0 0 var(--sp-own); }
+.team--list .team__row.is-sp-owner .team__info { box-shadow: none; }
+
+/* the results: the report card's left rule, the team card's plate edge (the own card keeps the plain plate under the gold name) */
+.rcard.is-sp-owner { border-left-color: var(--sp-own); }
+.tcard.is-sp-owner .tcard__plate { box-shadow: inset 0 0 0 1px var(--sp-own-line); }
+.tcard.is-self.is-sp-owner .tcard__plate { background: linear-gradient(90deg, #1b2120, #232b2a 60%, #2b3433); }
+
+/* the room seat (screens/room.js): its structure only — the header strip, a hairline round the card, brackets on the plate */
+.rseat.is-owner::before { content: ''; position: absolute; inset: -4px; z-index: 0; border: 1px solid var(--sp-own-line); pointer-events: none; }
+.rseat.is-owner .rseat__strip span { color: var(--sp-own); }
+.rseat.is-owner .rseat__strip i { background: repeating-linear-gradient(90deg, rgba(230, 194, 122, .75) 0 3px, transparent 3px 5px); }
+.rseat.is-owner.is-ready .rseat__strip { background: var(--sp-own); }
+.rseat.is-owner.is-ready .rseat__strip i { background: repeating-linear-gradient(90deg, rgba(42, 29, 5, .6) 0 3px, transparent 3px 5px); }
+.rseat.is-owner.is-ready .rseat__strip span, .rseat.is-owner.is-ready .rseat__ownertag { color: var(--sp-own-ink); }
+.rseat.is-owner.is-ready .rseat__clip { background: var(--sp-own); }
+.rseat__ownertag { display: inline-flex; align-items: center; gap: .06rem; font-family: var(--font-num); font-size: max(calc(.1 * var(--t)), 8px); font-weight: 700;
+  letter-spacing: .16em; line-height: 1; color: var(--sp-own); }
+.rseat__ownertag i { width: .3rem !important; }
+.rseat.is-owner .rseat__plate::after { content: ''; position: absolute; inset: -1px; pointer-events: none; --b: 7px;
+  background: linear-gradient(var(--sp-own), var(--sp-own)) left top / var(--b) 1px no-repeat, linear-gradient(var(--sp-own), var(--sp-own)) left top / 1px var(--b) no-repeat,
+    linear-gradient(var(--sp-own), var(--sp-own)) right top / var(--b) 1px no-repeat, linear-gradient(var(--sp-own), var(--sp-own)) right top / 1px var(--b) no-repeat,
+    linear-gradient(var(--sp-own), var(--sp-own)) left bottom / var(--b) 1px no-repeat, linear-gradient(var(--sp-own), var(--sp-own)) left bottom / 1px var(--b) no-repeat,
+    linear-gradient(var(--sp-own), var(--sp-own)) right bottom / var(--b) 1px no-repeat, linear-gradient(var(--sp-own), var(--sp-own)) right bottom / 1px var(--b) no-repeat; }
+.rseat.is-owner .rseat__plate .avatar { --bk-c: var(--sp-own); } /* the avatar's own corner brackets (theme.css .brackets) in gold */
+.specbar__who.is-owner { border-color: var(--sp-own-line); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* nothing of the owner mark moves (v2) */
+}
 .set-owner { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .set-owner h4 { margin: 0; font-size: 14px; color: var(--text-hi); }
 .set-owner__row { display: flex; gap: 8px; align-items: center; }

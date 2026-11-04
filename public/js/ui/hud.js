@@ -43,6 +43,7 @@ import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { uniteRelayRound } from '../battle/observe.js';
 import { UnofficialMark, ruleLine } from './pluginTag.js';
 import { TestMark } from './testConsole.js';
+import { MatchName } from './ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -75,7 +76,7 @@ export function SpectatorPill({ spectators, myId, isHost, onRemove }) {
       <ul class="spec__roster" data-testid="spectator-roster">
         ${list.map((s) => html`<li key=${s.playerId} class=${cx('spec__row', s.playerId === myId && 'is-me', s.connected === false && 'is-offline')}>
           <${Icon} name=${s.connected === false ? 'wifiOff' : 'eye'} class="spec__ico" />
-          <span class="spec__name">${s.name || t('博士')}</span>
+          <${MatchName} player=${s} class="spec__name" />
           ${s.playerId === myId ? html`<span class="seat__you">${t('你')}</span>` : null}
           ${isHost && onRemove ? html`<${Button} variant="ghost" size="sm" square=${true} icon="close" loading=${busy === s.playerId} data-testid="spectator-remove"
             onClick=${() => remove(s.playerId)} aria-label=${t('移出观战者 {name}', { name: s.name || '' })} title=${t('移出该观战者')} />` : null}

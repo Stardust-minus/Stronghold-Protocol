@@ -143,12 +143,64 @@ test('the speed stays under the ceiling', (t) => {
   assert.equal(h.m.gameSpeed, 200);
 });
 
-test('every battle start applies the vote before its fields are built', () => {
+test('every battle start applies the vote before its fields are built; a 联防 does not recount (feedback #137)', () => {
   const src = (f) => readFileSync(new URL(`../../server/match/match/${f}`, import.meta.url), 'utf8');
   assert.ok(src('combat.js').includes('  startCombat() {\n    this._applySpeedVote();'));
   assert.ok(src('bossRounds.js').includes('  startFinalAssault(hidden) {\n    this._applySpeedVote();'));
-  const unite = src('unitePhase.js');
-  assert.ok(unite.indexOf('this._applySpeedVote()') > 0 && unite.indexOf('this._applySpeedVote()') < unite.indexOf('const limit = '));
+  assert.equal(src('unitePhase.js').includes('this._applySpeedVote()'), false, 'the 联防 keeps the round\'s speed');
+});
+
+/**
+ * feedback #137 (planned by the owner, 2026-11-04): 「联防前退出，当次2倍速失效」 — 2 倍速 passed in a 4-player room, one
+ * voter left before the 联防, the 联防 ran at 1× and the next battle at 2× again. From the wave's start to the 联防 settle
+ * the speed stays; the next round's battle counts the votes as usual. p_0 leaks (the 联防 is fought by p_1 – p_3).
+ */
+function uniteRoom(t, o = {}) {
+  const h = makeMatch({ mode: 'coop', humans: 4, seed: 3702, fake: true, instant: false, ...o,
+    script: (b) => (b.kind === 'normal' ? { leaks: { p_0: 3 }, duration: 4 } : { duration: 4 }) }).start();
+  t.after(() => h.m.dispose());
+  h.toPrep(1);
+  for (const id of ['p_1', 'p_2', 'p_3']) vote(h, id, true); // 3 of 4: the bar (3) is met
+  return h;
+}
+for (const clientCombat of [false, true]) {
+  for (const how of ['onLeave', 'onDisconnect']) {
+    test(`feedback #137 (${clientCombat ? 'client-side combat' : 'server-run'}): a voter who ${how === 'onLeave' ? 'quits' : 'goes offline'} during the battle does not take the 联防 off 2 倍速`, (t) => {
+      const h = uniteRoom(t, { clientCombat });
+      const m = h.m, fast = m.baseGameSpeed * SPEED_VOTE_MULT;
+      h.drive(() => m.phase === PHASE.COMBAT);
+      assert.equal(m.gameSpeed, fast);
+      m[how]('p_3');
+      assert.deepEqual(counted(m), [3, 3, 2, false], 'the votes as they stand fall short');
+      h.drive(() => m.phase === PHASE.UNITE);
+      assert.deepEqual(m.unitePlan.helpers.map((p) => p.playerId).includes('p_1'), true);
+      assert.equal(m.gameSpeed, fast, 'the 联防 continues the round at 2 倍速');
+      assert.deepEqual([m.speedVoteView().on, m.speedVoteView().speed], [true, fast]);
+      if (clientCombat) assert.equal(h.lastTo('p_1', 'b.start').speed, fast, 'the 联防 replica runs at it');
+      else assert.equal(m.deadline - m.sched.now(), Math.round((m.uniteTimeLimit() / fast) * 1000), 'the 联防 countdown is the sped-up one');
+      h.drive(() => m.phase === PHASE.SETTLE || m.phase === PHASE.PREP);
+      assert.equal(m.gameSpeed, fast, 'the settle leaves it alone');
+      h.drive(() => m.phase === PHASE.COMBAT && m.round === 2);
+      assert.equal(m.gameSpeed, m.baseGameSpeed, 'the next battle counts the votes as usual: 2 of 3 is short');
+      assert.equal(m.speedVoteView().on, false);
+    });
+  }
+}
+
+test('feedback #137: votes that pass during the battle do not speed up its 联防; the next round\'s battle starts at 2 倍速', (t) => {
+  const h = makeMatch({ mode: 'coop', humans: 4, seed: 3702, fake: true, instant: false,
+    script: (b) => (b.kind === 'normal' ? { leaks: { p_0: 3 }, duration: 4 } : { duration: 4 }) }).start();
+  t.after(() => h.m.dispose());
+  const m = h.m;
+  h.toPrep(1);
+  h.drive(() => m.phase === PHASE.COMBAT);
+  assert.equal(m.gameSpeed, m.baseGameSpeed);
+  for (const id of ['p_1', 'p_2', 'p_3']) vote(h, id, true);
+  assert.equal(m.speedVoteView().next, true);
+  h.drive(() => m.phase === PHASE.UNITE);
+  assert.equal(m.gameSpeed, m.baseGameSpeed, 'the round keeps the speed its battle started with');
+  h.drive(() => m.phase === PHASE.COMBAT && m.round === 2);
+  assert.equal(m.gameSpeed, m.baseGameSpeed * SPEED_VOTE_MULT);
 });
 
 test('a checkpoint restore drops the votes and goes back to the base speed', (t) => {

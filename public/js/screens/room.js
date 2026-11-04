@@ -314,7 +314,7 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
       style=${`--i:${index}`}>
     <span class="rseat__clip" aria-hidden="true"></span>
     ${consent ? html`<span class="rseat__consent" data-testid="script-consented">${t('已同意')}</span>` : null}
-    <header class="rseat__strip"><i></i><${SeatPool} room=${room} index=${index} /><span class="num">P${index + 1}</span></header>
+    <header class="rseat__strip">${owner ? html`<span class="rseat__ownertag" data-owner-tag="1" title=${t('服主')}><i></i>OWNER</span>` : html`<i></i>`}<${SeatPool} room=${room} index=${index} /><span class="num">P${index + 1}</span></header>
     <div class=${`rseat__art${canPick ? ' is-pickable' : ''}`} onClick=${canPick ? onPickCard : undefined} title=${canPick ? t('点击更换名片干员') : undefined}>
       ${src && bad !== src ? html`<${SeatArt} key=${src} m=${portraits.m} src=${src} source=${pic} charId=${liveChar || ''} look=${liveLook || ''} art=${liveArt}
           legacyArt=${isMe && !!myCard.art && myCard.artSpace !== ART_SPACE} editable=${canPick && !!liveChar} onCommit=${setCardArt} onError=${() => setBad(src)} />`
@@ -341,9 +341,9 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
       ${isMe && onPickAvatar
         ? html`<button type="button" class="rseat__ava" onClick=${onPickAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>
-            <${AvatarFrame} size="sm" name=${seat.name} src=${cardAvatarUrl(card?.avatar, portraits.m, card?.avatarLook)} seat=${index} self=${true} live=${avatarLive} /><span class="rseat__ava-pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
+            <${AvatarFrame} size="sm" name=${seat.name} src=${cardAvatarUrl(card?.avatar, portraits.m, card?.avatarLook)} seat=${index} self=${true} live=${avatarLive} class=${owner ? 'is-sp-owner' : undefined} /><span class="rseat__ava-pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
         : html`<${AvatarFrame} size="sm" name=${seat.name} src=${seat.isBot ? null : cardAvatarUrl(card?.avatar, portraits.m, card?.avatarLook)} seat=${index} bot=${seat.isBot} self=${isMe}
-            live=${seat.isBot ? null : avatarLive} />`}
+            live=${seat.isBot ? null : avatarLive} class=${owner ? 'is-sp-owner' : undefined} />`}
       <span class="rseat__who">
         ${seat.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<b class=${`rseat__name${owner ? ' sp-owner-name' : ''}`}>${seat.name || t('博士')}</b>
         <${OwnerBadge} seat=${seat} />
@@ -359,7 +359,7 @@ function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {
   if (!facts.spectators.length) return null;
   return html`<section class="specbar" aria-label=${t('观战席')}>
     <span class="specbar__label"><${Icon} name="eye" />${t('观战席')}<b class="num">${facts.spectators.length}</b><span class="num t-dim">${MAX_SPECTATORS > 0 ? `/${MAX_SPECTATORS}` : ` / ${t('无上限')}`}</span></span>
-    ${facts.spectators.map((s) => html`<span key=${s.playerId} class=${`specbar__who${s.playerId === myId ? ' is-me' : ''}${s.connected === false ? ' is-offline' : ''}`}>
+    ${facts.spectators.map((s) => html`<span key=${s.playerId} class=${`specbar__who${s.playerId === myId ? ' is-me' : ''}${s.connected === false ? ' is-offline' : ''}${isOwnerSeat(s) ? ' is-owner' : ''}`}>
       ${s.connected === false ? html`<${Icon} name="wifiOff" />` : null}<span class=${isOwnerSeat(s) ? 'sp-owner-name' : ''}>${s.name || t('博士')}</span><${OwnerBadge} seat=${s} />${s.playerId === myId ? html`<span class="seat__you">${t('你')}</span>` : null}
       ${facts.isHost ? html`<${Button} variant="ghost" size="sm" square=${true} icon="close" loading=${busy === `rs${s.playerId}`}
         onClick=${() => onRemove(s.playerId)} aria-label=${t('移出观战者 {name}', { name: s.name || '' })} title=${t('移出该观战者')} />` : null}

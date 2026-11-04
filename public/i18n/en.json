@@ -3603,6 +3603,8 @@
   "可不填": "optional",
   "尚无调控台指令": "No console commands yet",
   "当前 {n} 层": "Now {n} layers",
+  "层数最多 {max}": "At most {max} layers",
+  "当前 {n} 层，最多 {max} 层": "Now {n} layers, at most {max}",
   "所属棋子": "Owner piece",
   "指令": "Command",
   "搜索": "Search",

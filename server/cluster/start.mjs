@@ -8,6 +8,7 @@ import { startCoordinator } from './coordinator.js';
 import { startIngress } from './ingress.js';
 import { netCounters } from '../net.js';
 import { stateDeltaStats } from '../stateTransport.js';
+import { startMainWatchdog } from './watchdog.js';
 
 const NET_LOG_MS = 60_000;
 
@@ -49,6 +50,10 @@ async function main() {
   });
   // Readiness is administrative output only: no keys, tickets, sessions or full config.
   console.log(JSON.stringify({ event: 'ready', role: config.role, node: process.version }));
+  // a game node whose main thread stops answering is killed and restarted by its container (./watchdog.js)
+  if (config.role === 'game') {
+    try { startMainWatchdog({ role: 'game' }); } catch { console.error('[cluster] watchdog not started'); }
+  }
   // backpressure and m.state totals since start, once a minute when they moved (this role has no /healthz of its own)
   let lastNet = '';
   setInterval(() => {

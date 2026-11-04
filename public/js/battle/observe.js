@@ -171,9 +171,9 @@ export function cameraLayers(field, pub, myId) {
   const right = at('R');
   if ((field.kind === 'boss' || field.kind === 'hidden') && (!left || !right)) return [];
   return [
-    { key: 'L', label: label(left), self: left === myId, watch: !!left && left !== myId },
+    { key: 'L', label: label(left), self: left === myId, watch: !!left && left !== myId, playerId: left },
     { key: 'ALL', label: t('全景'), self: false, watch: false },
-    { key: 'R', label: label(right), self: right === myId, watch: !!right && right !== myId },
+    { key: 'R', label: label(right), self: right === myId, watch: !!right && right !== myId, playerId: right },
   ];
 }
 

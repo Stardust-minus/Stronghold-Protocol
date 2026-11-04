@@ -4,17 +4,26 @@
 //
 // [ASSUMED] No official source settles a test console. Bounds are absolute and strict (a value
 // outside them is an error, never a clamp): funds 0..99999, LP 0..999, team LP 0..9999, bond
-// layers 0..BOND_LAYER_SAFE_MAX (the match refuses what its own cap does not allow), shop lists of 1..12 slots, round 1..99 (the match rechecks the mode's
+// layers 0..BOND_LAYER_SAFE_MAX (the match refuses past testLayersMax: its own cap, TEST_LAYERS_UNCAPPED_MAX with the cap lifted), shop lists of 1..12 slots, round 1..99 (the match rechecks the mode's
 // last / hidden round), bounty count 1..TEST_BOUNTY_MAX (absent = 1). A shape the catalogue does not name is BAD_MSG. A present field of the
 // wrong type or out of range is BAD_TARGET. A shape refusal is audited as { rejected: true } so
 // the log does not keep the raw payload.
 
-import { BOND_LAYER_SAFE_MAX } from './constants.js';
+import { BOND_LAYER_CAP, BOND_LAYER_SAFE_MAX } from './constants.js';
 
 export const TEST_FUNDS_MAX = 99999;
 export const TEST_LP_MAX = 999;
 export const TEST_TEAM_LP_MAX = 9999;
 export const TEST_LAYERS_MAX = BOND_LAYER_SAFE_MAX;
+/**
+ * The bond layers a test / 调控台 command may set in a room with the layer cap lifted (2026-11-04: a console room set
+ * 维多利亚 to ~1e8 and its hammers held a game node's main thread for good). 100× the official 999 — far enough past it to
+ * see what an uncapped bond does — and the same five digits as funds. A gain the match earns itself is not bounded here.
+ */
+export const TEST_LAYERS_UNCAPPED_MAX = 99_999;
+/** The most layers a test command may set in a room (`uncapped`: experimental disableLayerCap); detail `layersMax|{max}`. */
+export const testLayersMax = (uncapped) => (uncapped === true ? TEST_LAYERS_UNCAPPED_MAX
+  : BOND_LAYER_CAP > 0 && Number.isFinite(BOND_LAYER_CAP) ? BOND_LAYER_CAP : TEST_LAYERS_UNCAPPED_MAX);
 export const TEST_SHOP_SLOTS_MAX = 12;
 export const TEST_ROUND_MAX = 99;
 export const TEST_RATE_COUNT = 8;

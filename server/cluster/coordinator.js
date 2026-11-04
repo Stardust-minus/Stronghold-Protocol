@@ -57,7 +57,7 @@ export async function startCoordinator({ nodes, build, protocol = PROTOCOL_VERSI
         const room = app?.lobby.getRoom(info.roomCode);
         const plan = app?.lobby.assignments.get(info.assignmentId);
         if (!plan || room !== plan.room) return;
-        if (['NODE_RESTARTED', 'NODE_LOST'].includes(info.reason) && app.lobby.recoverRemote(room, plan)) return;
+        if (['NODE_RESTARTED', 'NODE_LOST'].includes(info.reason) && app.lobby.recoverRemote(room, plan, info.reason)) return;
         app.lobby.disposeRoom(room, closeReasonFor(info.reason));
       } });
   } catch (e) { phases.dispose(); throw e; }

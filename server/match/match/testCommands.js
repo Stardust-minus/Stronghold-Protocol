@@ -41,6 +41,10 @@
 //     the shape itself was refused.
 //   * bond count sets the ordinary extra-member bonus (0..99), allowing activation without
 //     pieces. computeBonds still decides the tier; a mode-disabled bond is refused.
+//   * bond layers go up to the room's cap — with the cap lifted to TEST_LAYERS_UNCAPPED_MAX (99 999), detail
+//     `layersMax|{max}` (2026-11-04: ~1e8 layers of 维多利亚 held a game node). Every other number is small already: funds
+//     99 999, LP 999, team LP 9 999, hp an O(1) write, round 99, shop 12 slots, bounty 20 (+20 waiting), extra members 99;
+//     a grant is one piece per command at 8 per 10 s; the "every N layers" rewards stop at 999 layers' (milestonesDue).
 //
 // 调控台 (feedback #125, the owner's decisions of 2026-11-03; Match.consoleRoom, shared/experimental.js isConsoleRoom): a
 // private room's switch makes its matches test matches without the input journal, with these differences:
@@ -55,7 +59,7 @@
 //     untouched; equipment keeps the displayed-offer bookkeeping above.
 
 import { ERR, PHASE, layerGainRoom } from '../../../shared/constants.js';
-import { parseTestArgs, isTestCommand, TEST_LOG_CAP, TEST_RATE_COUNT, TEST_RATE_WINDOW_MS, TEST_SHARED, TEST_BOUNTY_BATTLE_MAX } from '../../../shared/testMode.js';
+import { parseTestArgs, isTestCommand, testLayersMax, TEST_LOG_CAP, TEST_RATE_COUNT, TEST_RATE_WINDOW_MS, TEST_SHARED, TEST_BOUNTY_BATTLE_MAX } from '../../../shared/testMode.js';
 import { OK, fail } from './common.js';
 
 const BLOCKED = new Set([PHASE.LOBBY, PHASE.COMBAT, PHASE.UNITE, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE, PHASE.RESULT]);
@@ -390,6 +394,9 @@ export class MatchTestCommands {
       if (count !== undefined) ps.recompute();
       return OK;
     }
+    // at most the room's cap, or TEST_LAYERS_UNCAPPED_MAX with it lifted (shared/testMode.js testLayersMax, 2026-11-04)
+    const max = testLayersMax(this.disableLayerCap === true);
+    if (layers > max) return fail(ERR.BAD_TARGET, `layersMax|${JSON.stringify({ max })}`);
     const delta = layers - cur;
     if (layerGainRoom(cur, delta, this.disableLayerCap) !== delta) return fail(ERR.BAD_TARGET);
     const add = ps.addLayers(id, delta, { reason: 'test' });

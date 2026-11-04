@@ -561,7 +561,8 @@ registry.garrison('SERVER_ADD_BOND_METHOD', {
 ```
 
 ### 2.4 The handler context (`ctx`)
-Reads: `playerId seat name round phase modeId difficulty isSolo isCoop data (frozen raw data) gd (GameData) rng`
+Reads: `playerId seat name round phase modeId difficulty isSolo isCoop layerCapOff data (frozen raw data) gd (GameData) rng`
+(`layerCapOff`: the room lifted the bond layer cap; "every N layers" rewards still stop at 999 layers', `milestonesDue` in shared/constants.js)
 (`rng()`, `rng.int(n)`, `rng.pick(a)`, `rng.chance(p)`, `rng.shuffle(a)` — the match's meta stream, never
 `Math.random`), `seedFor(salt)` (a uint32 from the match seed and `salt`, the same for every player, dispatch and preview:
 `createRng(ctx.seedFor('duck:' + round))` gives every player of a round the same draw, GitHub #839), `funds() lp() alive() bandId() shopLevel() bond(id) bonds() bondActive(id) bondCount(id) layers(id)

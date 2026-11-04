@@ -46,6 +46,7 @@ import { PHONE_QUERY, rosterPools, rosterStartsOpen, teamDensity, teamEmoteMode,
 import { useMedia } from './device.js';
 import { useStore } from '../store.js';
 import { BondPlanTag } from './bondPlan.js';
+import { MatchName, useIsOwner } from './ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -234,7 +235,8 @@ function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, sel
   const inTeam = team.has(p.playerId);
   const band = p.bandId ? data.lookup('bands', p.bandId)?.name : null; // the avatar no longer shows it (#100)
   const { click, dblClick } = clicks;
-  return html`<div data-seat=${p.seat} class=${cx('team__row', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && !p.pendingDeath && 'is-dead', p.pendingDeath && 'is-pending', open && 'is-open', offline && 'is-offline')}>
+  const owner = useIsOwner(p); // 服主 (ui/ownerName.js): the gold wash of the row
+  return html`<div data-seat=${p.seat} class=${cx('team__row', owner && 'is-sp-owner', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && !p.pendingDeath && 'is-dead', p.pendingDeath && 'is-pending', open && 'is-open', offline && 'is-offline')}>
     <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${[title, inTeam && !self ? t('与你在同一战场') : null, band].filter(Boolean).join(' · ')} aria-label=${title} aria-expanded=${observe && !self && !half ? String(open) : undefined}>
       <${PlayerAvatar} player=${p} self=${self} />
       ${inTeam ? html`<span class=${cx('team__frame', !frameArt && 'team__frame--plain')} style=${frameArt ? `--frame:url("${frameArt}")` : undefined} aria-hidden="true"></span>` : null}
@@ -245,7 +247,7 @@ function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, sel
         : spMark === 'turn' ? html`<span class="team__spmark is-turn" title=${t('正在决策…')}><i></i><i></i><i></i></span>` : null}
     </button>
     <div class="team__info">
-      <span class="team__name" title=${p.name || t('博士')}>${p.name || t('博士')}</span>
+      <span class="team__nameline"><${MatchName} player=${p} class="team__name" title=${p.name || t('博士')} /></span>
       <div class="team__line">
         <${LpTower} value=${lp.lp} size="sm" tone=${Number.isFinite(lp.lp) && lp.lp - lp.pending <= 5 ? 'danger' : null} pending=${lp.pending}
           tip=${rowLpTip(lp, cap)} />

@@ -13,6 +13,7 @@ import { PlayerAvatar } from './gameComponents.js';
 import { EmoteArt, ensureEmoteCss } from './emotes.js';
 import { EMOTE_BUBBLE_MS, emoteInfo } from '../../../shared/constants.js';
 import { t } from '../../../shared/i18n.js';
+import { MatchName } from './ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -126,7 +127,7 @@ export function Danmaku({ players, myId, ttl = EMOTE_BUBBLE_MS }) {
       return html`<div key=${x.key} class=${cx('danmaku__item', x.self && 'is-self')} data-emote=${x.id}
         style=${`--dm-lane:${x.lane};--dm-dur:${x.end - x.start}ms`} title=${e ? t(e.label) : ''}>
         <span class="danmaku__who">${x.pids.slice(0, 3).map((pid) => html`<${PlayerAvatar} key=${pid} player=${byId.get(pid) || { playerId: pid }} size="sm" self=${pid === myId} />`)}</span>
-        <span class="danmaku__name">${first?.name || t('博士')}</span>
+        <${MatchName} player=${first || { playerId: x.pids[0] }} name=${first?.name || t('博士')} class="danmaku__name" />
         ${x.pids.length > 1 ? html`<b class="danmaku__n num">×${x.pids.length}</b>` : null}
         <span class="danmaku__art"><${EmoteArt} id=${x.id} /></span>
       </div>`;

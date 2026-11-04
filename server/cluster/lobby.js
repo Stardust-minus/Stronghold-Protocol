@@ -31,6 +31,8 @@ const startError = error => isErrCode(error?.code) ? error.code : RETRYABLE_STAR
 // and a node whose checkpoint store is not answering yet says NOT_READY), retrying every RESTORE_RETRY_MS on these
 // codes; any other failure closes its room at once.
 const RESTORE_WAIT_MS = 120_000, RESTORE_RETRY_MS = 1000;
+/** How often one match is placed again after its game node was lost (recoverRemote; NODE_RESTARTED does not count). */
+export const NODE_LOST_PLACEMENTS = 1;
 const RESTORE_RETRY = new Set(['NO_NODE', 'NOT_READY', 'TRANSPORT', 'TIMEOUT', 'BAD_REPLY', 'CLOSED', 'NODE_UNAVAILABLE', 'SESSION_BUSY', 'ROOM_BUSY']);
 
 /** The humans of an assignment that keep an AI seat's id (server/aiTakeover.js): a seat taken in an earlier match of theirs. */
@@ -227,6 +229,8 @@ export class ClusterLobby extends Lobby {
     this.restoreStats = { pending: 0, adopted: 0, rebuilt: 0, failed: 0 };
     /** checkpoints are kept (server/persist/persister.js sets it): a lost node's matches are rebuilt (recoverRemote) */
     this.checkpointsOn = false;
+    /** `code#matchNo` → the times that match was placed again after its node was lost (recoverRemote, NODE_LOST_PLACEMENTS) */
+    this.nodeLostPlacements = new Map();
     /** another official version's matches: on a game node, or in this process's version host (versionPlacementFrom) */
     this.versionPlacement = versionPlacementFrom(versionPlacement);
   }
@@ -843,10 +847,21 @@ export class ClusterLobby extends Lobby {
    * rebuilds it from its last checkpoint instead of the room closing (restoreRemoteMatch, no take-over). @returns
    * {boolean} it is being placed again (false: the caller closes the room as before)
    */
-  recoverRemote(room, plan) {
+  recoverRemote(room, plan, reason = null) {
     if (!this.checkpointsOn || this.clusterClosed || room.disposed || room.match !== plan.proxy || plan.restoring && !plan.published) return false;
     const ref = this.remoteMatchRef(room);
     if (!ref) return false;
+    // a match whose node was lost twice is not placed a third time: a match that holds its node's main thread (the
+    // node's watchdog kills it, server/cluster/watchdog.js) would hold every node it is placed on in turn. A release's
+    // restart (NODE_RESTARTED) is not a loss and is not counted.
+    if (reason === 'NODE_LOST') {
+      const key = `${room.code}#${ref.matchNo}`, placed = this.nodeLostPlacements.get(key) ?? 0;
+      if (placed >= NODE_LOST_PLACEMENTS) {
+        this.log.warn(`[lobby] ${room.code} match #${room.matchCount} lost with its game node again: not placed again`);
+        return false;
+      }
+      this.nodeLostPlacements.set(key, placed + 1);
+    }
     this.assignments.delete(plan.spec.assignmentId);
     plan.proxy.ended = true; // the old actor is gone: neither a late receipt nor its release touch this room again
     const old = room.matchCtx;
@@ -863,7 +878,11 @@ export class ClusterLobby extends Lobby {
   cancelManual(room) { this.manualPending.get(room?.code)?.abort(); }
   onDisconnect(session) { this.cancelManual(this.roomOf(session)); return super.onDisconnect(session); }
   removeMember(room, playerId) { this.cancelManual(room); return super.removeMember(room, playerId); }
-  disposeRoom(room, reason) { this.cancelManual(room); return super.disposeRoom(room, reason); }
+  disposeRoom(room, reason) {
+    this.cancelManual(room);
+    for (const key of this.nodeLostPlacements.keys()) if (key.startsWith(`${room?.code}#`)) this.nodeLostPlacements.delete(key);
+    return super.disposeRoom(room, reason);
+  }
   shutdown(reason) {
     this.clusterClosed = true;
     for (const plan of this.manualPending.values()) plan.abort();

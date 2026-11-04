@@ -10,11 +10,15 @@
 // keeps the switch but is no voter (feedback #130, planned by the owner on 2026-11-03: 「4人局后期，淘汰2人，
 // 退出1人…2倍速仍需要3人确认」) — until no human still in the match is connected: then the eliminated ones connected vote
 // [ASSUMED], so the doctors watching the AI play out the rest can still speed it up. m.public speedVote.ids names the voters.
-// It only takes effect when a battle starts: _applySpeedVote runs before the fields of a normal, 联防 or boss / hidden
-// battle are built and sets m.gameSpeed for that battle, so everything that reads it — the deadline, the boss clock, the
-// Worker's pacing, a replica's b.start — agrees for the battle's whole length: a running battle never changes speed. Falling
-// under the bar puts the next battle back on the base speed. Only the clocks scale: game seconds, ticks and every result
-// stay what they are, so the time limits in data and combatTimeScale are not touched.
+// It only takes effect when a battle starts: _applySpeedVote runs before the fields of a normal or a boss / hidden battle
+// are built and sets m.gameSpeed for that battle, so everything that reads it — the deadline, the boss clock, the
+// Worker's pacing, a replica's b.start — agrees for the battle's whole length: a running battle never changes speed. A
+// 联防 (and the second round of a relay) is no new start: it continues the round's battle at the speed that battle
+// started with, from the wave's start to the 联防 settle (feedback #137, planned by the owner on 2026-11-04: 「联防前退出，
+// 当次2倍速失效…波次开始到联防结算整个阶段应该不用变更状态」 — a voter who left or went offline during the normal
+// battle dropped the count under the bar, and the 联防 fell back to 1×). Falling under the bar puts the next round's
+// battle back on the base speed. Only the clocks scale: game seconds, ticks and every result stay what they are, so the
+// time limits in data and combatTimeScale are not touched.
 // Everything here is transient: a checkpoint restore drops the votes and goes back to the base speed
 // (server/match/snapshot.js MATCH_FIELDS).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
@@ -41,9 +45,10 @@ export class MatchSpeedVote {
 
   /**
    * m.public speedVote: `agreed` the voters counted now, `voters` their number and `ids` them (rel29: an eliminated human
-   * is none while one still in the match is connected), `need` the yes votes it takes; `next`:
-   * the next battle starts at 2 倍速 as things stand; `on`: the battle running (or the last one) was started at it, at
-   * `speed` game seconds per real second (a stream viewer's clock; a replica has it from b.start).
+   * is none while one still in the match is connected), `need` the yes votes it takes; `next`: the next battle start
+   * (a round's battle or a boss round; a 联防 keeps `on`) is at 2 倍速 as things stand; `on`: the battle running (or the
+   * last one) was started at it, at `speed` game seconds per real second (a stream viewer's clock; a replica has it from
+   * b.start).
    */
   speedVoteView() {
     const online = this.humans().filter((p) => p.connected);
@@ -55,7 +60,7 @@ export class MatchSpeedVote {
       on: this._speedUp, speed: this.gameSpeed };
   }
 
-  /** A battle is about to start: its speed, from the votes as they stand. */
+  /** A normal or boss / hidden battle is about to start: its speed, from the votes as they stand (a 联防 keeps it). */
   _applySpeedVote() {
     const up = this.speedVoteView().next;
     if (up === this._speedUp) return;

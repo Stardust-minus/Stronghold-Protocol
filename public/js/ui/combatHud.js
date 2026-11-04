@@ -15,6 +15,7 @@ import { DpCounter } from './hud.js';
 import { GIcon } from './gameComponents.js';
 import { switcherLabel, cycleField } from './gameLogic.js';
 import { t } from '../../../shared/i18n.js';
+import { MatchName } from './ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -23,7 +24,7 @@ function ProgressList({ list }) {
   if (!Array.isArray(list) || !list.length) return null;
   return html`<div class="chud__progress" role="list" aria-label=${t('队友作战进度')}>
     ${list.map((p) => html`<span key=${p.playerId} role="listitem" class=${cx('chud__prog', p.done && 'is-done')}>
-      <b>${p.name}</b>
+      <${MatchName} player=${p} tag="b" />
       ${p.done
         ? html`<span class="chud__prog__ok" aria-label=${t('作战结束')}>✓</span>`
         : html`<span class="num">${(p.resolved ?? p.killed) != null && p.total != null ? `${p.resolved ?? p.killed}/${p.total}` : '•••'}</span>`}
@@ -76,7 +77,7 @@ function LayerPill({ layers, layer, onLayer, observing = false, onBack = null })
   return html`<div class=${cx('vswitch', 'chud__layers', observing && 'is-observing')}>
     <button type="button" class="vswitch__arrow" disabled=${idx <= 0} aria-label=${t('左侧战场')} onClick=${() => step(-1)}><${Icon} name="chevronLeft" /></button>
     <span class="vswitch__label">
-      ${cur && cur.watch ? html`<${GIcon} name="eye" />` : null}<span>${cur ? cur.label : t('全景')}</span></span>
+      ${cur && cur.watch ? html`<${GIcon} name="eye" />` : null}${cur && cur.watch && cur.playerId ? html`<${MatchName} player=${{ playerId: cur.playerId }} name=${cur.label} />` : html`<span>${cur ? cur.label : t('全景')}</span>`}</span>
     <button type="button" class="vswitch__arrow" disabled=${idx >= layers.length - 1} aria-label=${t('右侧战场')} onClick=${() => step(1)}><${Icon} name="chevronRight" /></button>
     ${observing && onBack ? html`<button type="button" class="btn btn--secondary btn--sm chud__back" onClick=${() => onBack()}>
       <span class="btn__label">${t('返回战场')}</span></button>` : null}
@@ -95,7 +96,7 @@ function ClientHud({ hud, myDone, spectating, spectator = false, client }) {
       ${spectating && !observing ? (spectator ? html`<div class="chud__msg" role="status"><${GIcon} name="eye" /><span>${t('观战中，可点击左侧成员头像前往查看')}</span></div>`
         : html`<div class="chud__msg chud__msg--dead" role="status"><${Icon} name="close" /><span>${t('你已被淘汰，可点击队友头像前往查看')}</span></div>`) : null}
       ${observing && !halves ? html`<div class="vswitch chud__observe is-single" role="status">
-        <span class="vswitch__label"><${GIcon} name="eye" /><span>${observing.name}</span></span>
+        <span class="vswitch__label"><${GIcon} name="eye" />${observing.playerId ? html`<${MatchName} player=${{ playerId: observing.playerId }} name=${observing.name} />` : html`<span>${observing.name}</span>`}</span>
         ${client.onBack ? html`<button type="button" class="btn btn--secondary btn--sm chud__back" onClick=${() => client.onBack()}>
           <span class="btn__label">${t('返回战场')}</span></button>` : null}
       </div>` : null}

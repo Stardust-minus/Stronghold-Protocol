@@ -3,6 +3,7 @@
 // pick is a native <select> of localized names (value = the id; 干员 and 装备 grouped by tier), with a 搜索 field above a
 // list longer than SEARCH_MIN that filters by name; 召唤物 lists the placeable summons of a piece the player holds, picked
 // by name. 盟约 sets the absolute layers, prefilled with the player's own and never lower (the server refuses a decrease),
+// never past testLayersMax (the room's cap, 99 999 with it lifted; the server refuses more, detail layersMax),
 // plus the optional 额外人数; 加入敌人 (bounty) adds 1–20 of an enemy to the player's next battle (the match's leaders left
 // out). The match-wide controls (timers, phase jumps, 回合, 领袖生命, 队伍生命) only for the match's only human (the server
 // checks the same). 下一轮商店 and 机变 take raw ids upstream and are left out here [ASSUMED: the owner did not ask for them].
@@ -12,7 +13,7 @@ import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { html } from './components.js';
 import { data } from '../data.js';
 import { t, N_ } from '../../../shared/i18n.js';
-import { TEST_BOUNTY_MAX, TEST_BOUNTY_BATTLE_MAX } from '../../../shared/testMode.js';
+import { TEST_BOUNTY_MAX, TEST_BOUNTY_BATTLE_MAX, testLayersMax } from '../../../shared/testMode.js';
 import { matchClock, explainTestDetail } from './testAudit.js';
 import { ERR_TEXT } from '../../../shared/constants.js';
 
@@ -220,6 +221,7 @@ export function ConsoleBody({ pub, priv, shared, send, runRef, toastBad }) {
   // 盟约: the layers field starts at the player's own count of the picked bond
   useEffect(() => { if (shownCmd === 'bond') setLayers(String(cur)); }, [shownCmd, bondId]);
   const nLayers = num(layers);
+  const maxLayers = testLayersMax(pub?.experimental?.disableLayerCap === true);
   const pick = (key) => (value) => setSel((s) => ({ ...s, [key]: value }));
   const search = (key) => (q) => setQuery((s) => ({ ...s, [key]: q }));
 
@@ -272,7 +274,8 @@ export function ConsoleBody({ pub, priv, shared, send, runRef, toastBad }) {
         <label class="testconsole__field testconsole__num">${t('额外人数')}
           <input value=${extra} onInput=${(e) => setExtra(e.target.value)} inputmode="numeric" placeholder=${t('可不填')} data-testid="console-extra" /></label>
         ${nLayers != null && nLayers < cur ? html`<small class="testconsole__warn" data-testid="console-layers-low">${t('不能低于当前层数 {n}', { n: cur })}</small>`
-          : html`<small class="testconsole__hint t-dim">${t('当前 {n} 层', { n: cur })}</small>`}` : null}
+          : nLayers != null && nLayers > maxLayers ? html`<small class="testconsole__warn" data-testid="console-layers-high">${t('层数最多 {max}', { max: maxLayers })}</small>`
+          : html`<small class="testconsole__hint t-dim">${t('当前 {n} 层，最多 {max} 层', { n: cur, max: maxLayers })}</small>`}` : null}
       ${shownCmd === 'bounty' ? html`<label class="testconsole__field testconsole__num">${t('数量')}
           <input value=${count} onInput=${(e) => setCount(e.target.value)} inputmode="numeric" data-testid="test-console-bounty-count" /></label>
         <small class="testconsole__hint t-dim">${t('加入你的下一场战斗；每场最多 {max} 个，不含领袖', { max: TEST_BOUNTY_BATTLE_MAX })}</small>` : null}

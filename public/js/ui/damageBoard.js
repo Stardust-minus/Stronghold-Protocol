@@ -10,6 +10,7 @@ import { data, getChess, useData } from '../data.js';
 import { t } from '../../../shared/i18n.js';
 import { appearanceRecord } from './skinAssets.js';
 import { diyRecordFor } from './gameLogic/diy.js';
+import { MatchName } from './ownerName.js';
 
 export function damageNumber(value) {
   const n = Number.isFinite(value) && value > 0 ? value : 0;
@@ -155,7 +156,7 @@ export function DamageBoard({ snapshot, ownerId, ownerName, uniteOwners = null, 
       <div class="damage-board__columns" aria-hidden="true"><span>${score.shared ? t('干员 / 本人占比') : healing ? t('干员 / 治疗占比') : t('干员 / 伤害占比')}</span><span>${healing ? t('有效治疗') : t('实际伤害')}</span></div>
       ${score.shared ? html`<div class=${`damage-board__groups${score.groups.length > 2 ? ' is-many' : ''}`}>
         ${score.groups.map(group => html`<section key=${group.playerId} class="damage-board__group" data-player-id=${group.playerId} aria-label=${t('{name}的输出', { name: group.name })}>
-          <header class="damage-board__group-heading"><strong title=${group.name}>${group.name}</strong>
+          <header class="damage-board__group-heading"><${MatchName} player=${{ playerId: group.playerId }} name=${group.name} tag="strong" title=${group.name} />
             <span>${t('小计')} <b class="num">${group.available ? damageNumber(group.total) : '—'}</b></span>
             <span>${rateLabel} <b class="num">${group.available ? rateText(damageRate(group.total, group.seconds)) : '—'}</b></span></header>
           <${DamageRows} score=${group} manifest=${manifest} ownerName=${group.name} shared=${true} units=${units} metric=${metric} />

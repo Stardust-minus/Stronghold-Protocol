@@ -27,6 +27,7 @@ import { sortedPlayers, draftMyTurn } from './gameLogic.js';
 import { data } from '../data.js';
 import { t, tc, tName } from '../../../shared/i18n.js';
 import { sentText } from './lang.js';
+import { MatchName } from './ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -236,7 +237,7 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
           return html`<div key=${pid} class=${cx('spov__who', cur && 'is-cur', picked && 'is-done', pid === myId && 'is-self')}>
             <span class="spov__idx num">${i + 1}</span>
             <${PlayerAvatar} player=${p || { name: '?' }} size="sm" self=${pid === myId} />
-            <span class="spov__wtext"><span class="spov__wname">${p?.name || t('博士')}</span>
+            <span class="spov__wtext"><${MatchName} player=${p || { playerId: pid }} name=${p?.name || t('博士')} class="spov__wname" />
               ${pickName ? html`<span class="spov__wpick" data-picked-idx=${pick.idx} title=${pickName}>${pickName}</span>` : null}
             </span>
             <span class="spov__wstate">${left ? html`<${Icon} name="exit" />` : picked ? html`<${Icon} name="check" />` : cur ? html`<${Icon} name="hourglass" />` : html`<${Icon} name="dots" />`}</span>
