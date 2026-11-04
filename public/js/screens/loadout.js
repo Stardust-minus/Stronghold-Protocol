@@ -31,7 +31,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../ven
 import { usePresence, LEAVE_MS } from '../ui/transitions.js';
 import { html, Icon, MicroLabel, Button, TierChip, TextField, Countdown, Spinner, confirmDialog, hasDeadline, Modal, Fragment } from '../ui/components.js';
 import { Img, RichText, UnitThumb, PromotionIcon } from '../ui/gameComponents.js';
-import { chessAvatarUrl, chessPortraitUrl, profGlyphUrl, subProfIconUrl, bondIconUrl, itemIconUrl, uiUrl } from '../ui/assetUrls.js';
+import { chessAvatarUrl, portraitChain, chainProps, profGlyphUrl, subProfIconUrl, bondIconUrl, itemIconUrl, uiUrl } from '../ui/assetUrls.js';
 import { GarrisonBlock } from '../ui/detailPanel.js';
 import { data, useData, localAsset, DATA_FILES } from '../data.js';
 import { useStore, loadPref, savePref } from '../store.js';
@@ -226,7 +226,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
   return html`<aside class="lo-detail" aria-label=${t('{name} 调配', { name: chess.name })}>
     <div class="lo-dhead">
       <div class=${cx('lo-dhead__art', `lo-dhead__art--t${chess.tier}`)}>
-        <${Img} src=${chessPortraitUrl(m, ownAppearance(golden || chess, { skins }))} fallbackSrc=${chessPortraitUrl(m, golden || chess)} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
+        <${Img} ...${chainProps(portraitChain(m, [ownAppearance(golden || chess, { skins }), golden || chess]))} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
         <${LiveArt} m=${m} charId=${chess.charId} skins=${skins} kind="portrait" posY=${12} />
       </div>
       <div class="lo-dhead__info">
@@ -335,7 +335,7 @@ export function DeckCard({ m, chess, golden, entries, ops = {}, skins = {}, sele
       </div>
       <button type="button" class="lo-op__pick" aria-pressed=${selected ? 'true' : 'false'} title=${chess.name} onClick=${() => onPick(chess.chessId)}>
         <span class="lo-op__art">
-          <${Img} src=${chessPortraitUrl(m, ownAppearance(chess, { skins })) || chessAvatarUrl(m, chess)} fallbackSrc=${chessPortraitUrl(m, chess) || chessAvatarUrl(m, chess)} fallback=${html`<span class="lo-op__glyph">${[...(chess.name || '?')][0]}</span>`} />
+          <${Img} ...${chainProps([...portraitChain(m, [ownAppearance(chess, { skins }), chess]), chessAvatarUrl(m, chess)].filter(Boolean))} fallback=${html`<span class="lo-op__glyph">${[...(chess.name || '?')][0]}</span>`} />
           <${LiveArt} m=${m} charId=${chess.charId} skins=${skins} kind="portrait" posY=${6} />
         </span>
         <${Img} src=${subProfIconUrl(m, chess)} class="lo-op__sub" />

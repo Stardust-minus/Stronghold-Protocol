@@ -48,36 +48,113 @@ export function chessAvatarUrl(m, chess, { skin = null } = {}) {
 }
 
 /**
- * Half-body portrait (180×360) for a chess record (golden → E2 portrait when present).
+ * The HD pictures of a portrait (rel30, the owner's 「来点高清立绘」; hd30's manifest contract,
+ * /root/projects/rel30-20261104/hd/contract.md): next to the 180×360 `portrait` / `portraitE2` of a char (and `portrait` of
+ * a skin) the manifest may carry `portraitHD` / `portraitHDE2` (the same 1:2 framing cut from the illustration at its
+ * native resolution; outside the illustration transparent), `illustration` / `illustrationE2` (the whole 立绘),
+ * `illustrationSize` / `illustrationSizeE2` ([W, H], layout before it loads), `portraitBox` / `portraitBoxE2` ([x, y, w, h]
+ * fractions of [W, H] from the top-left: where the 180×360 sits — w·W : h·H = 1 : 2; x / y may be < 0 and x + w > 1, the
+ * portrait running past the 立绘's edge) and `portraitScene` / `portraitSceneE2: true` (the 立绘 has an opaque scene behind
+ * the character where the portrait is transparent). A scene look never draws its 立绘 anywhere (main's rule of 11-04):
+ * its source has no illustration / box, only the cut-out `portraitHD*` — and without one (hd30 emits none where it would
+ * not be sharper) today's 180×360 with today's maths. A manifest without the fields (an older one, a plugin's art, a look
+ * the matcher missed) has only the 180×360.
+ */
+const HD_FIELDS = Object.freeze({
+  portrait: { hd: 'portraitHD', ill: 'illustration', box: 'portraitBox', size: 'illustrationSize', hdSize: 'portraitHDSize', scene: 'portraitScene' },
+  portraitE2: { hd: 'portraitHDE2', ill: 'illustrationE2', box: 'portraitBoxE2', size: 'illustrationSizeE2', hdSize: 'portraitHDSizeE2', scene: 'portraitSceneE2' },
+});
+
+/** A portraitBox: four finite numbers, a positive size, overlapping the picture (it may run past its edges). */
+export function isPortraitBox(b) {
+  return Array.isArray(b) && b.length === 4 && b.every((v) => typeof v === 'number' && Number.isFinite(v))
+    && b[2] > 0 && b[3] > 0 && b[0] < 1 && b[1] < 1 && b[0] + b[2] > 0 && b[1] + b[3] > 0;
+}
+const isSize = (v) => Array.isArray(v) && v.length === 2 && v.every((n) => Number.isFinite(n) && n > 0);
+
+/**
+ * A portrait as drawn from a manifest entry's `field` ('portrait' | 'portraitE2'): { src: the 180×360, hd: its HD crop or
+ * null, illustration + box: the whole 立绘 and where the portrait sits in it (both or neither), size: the 立绘's [W, H] or
+ * null, scene: a cut-out look (views and the seat framer keep to the cut-out) }; null without src.
+ */
+export function portraitSourceOf(entry, field) {
+  const src = str(entry?.[field]);
+  if (!src) return null;
+  const k = HD_FIELDS[field];
+  if (!k) return plainSource(src);
+  const scene = entry[k.scene] === true;
+  // a scene look: never its 立绘 (no illustration / box at all, so no view can draw it)
+  const box = !scene && isPortraitBox(entry[k.box]) ? entry[k.box] : null;
+  const illustration = box ? str(entry[k.ill]) : null;
+  return { src, hd: str(entry[k.hd]), illustration, box: illustration ? box : null,
+    size: illustration && isSize(entry[k.size]) ? entry[k.size] : null, scene };
+}
+const plainSource = (src) => (src ? { src, hd: null, illustration: null, box: null, size: null, scene: false } : null);
+
+/**
+ * The half-body portrait of a chess record (golden → E2 portrait when present) with its HD pictures (portraitSourceOf).
  * @param {any} m
  * @param {any} chess
  */
-export function chessPortraitUrl(m, chess, { skin = null } = {}) {
+export function chessPortraitSource(m, chess, { skin = null } = {}) {
   const appearance = appearanceEntry(m, chess?.charId || chess?.assets?.spine, chess?.skinId);
-  if (str(appearance?.portrait)) return appearance.portrait;
+  if (str(appearance?.portrait)) return portraitSourceOf(appearance, 'portrait');
   const picture = skinPicture(m, chess, skin, 'portrait');
-  if (picture) return picture;
+  if (picture) return plainSource(picture);
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.portrait);
   if (!chars) return null;
+  const pick = (entry, e2) => (e2 && str(entry?.portraitE2) ? portraitSourceOf(entry, 'portraitE2') : portraitSourceOf(entry, 'portrait'));
   if (id) {
     // A golden piece whose portrait id is the character key uses portraitE2 when the entry has one.
     // An entry with only `portrait` (a custom golden URL included) keeps that URL. Official ids are
     // `charId_1` / `charId_2` and are not character keys, so they stay on the suffix branches below.
-    if (chars[id]) return (chess?.isGolden ? str(chars[id].portraitE2) : null) || str(chars[id].portrait);
+    if (chars[id]) return pick(chars[id], !!chess?.isGolden);
     if (id.endsWith('_2')) {
       const base = chars[id.slice(0, -2)];
-      if (base) return str(base.portraitE2) || str(base.portrait);
+      if (base) return pick(base, true);
     }
     if (id.endsWith('_1')) {
       const base = chars[id.slice(0, -2)];
-      if (base) return str(base.portrait);
+      if (base) return portraitSourceOf(base, 'portrait');
     }
   }
   const byChar = chess?.charId ? chars[chess.charId] : null;
   if (!byChar) return null;
-  return (chess?.isGolden ? str(byChar.portraitE2) : null) || str(byChar.portrait);
+  return pick(byChar, !!chess?.isGolden);
 }
+
+/**
+ * Half-body portrait (180×360) for a chess record (golden → E2 portrait when present).
+ * @param {any} m
+ * @param {any} chess
+ */
+export function chessPortraitUrl(m, chess, opts) {
+  return chessPortraitSource(m, chess, opts)?.src ?? null;
+}
+
+/** The HD crop of chessPortraitUrl's portrait (rel30: the same framing, the illustration's resolution), or null. */
+export function chessPortraitHdUrl(m, chess, opts) {
+  return chessPortraitSource(m, chess, opts)?.hd ?? null;
+}
+
+/**
+ * The pictures a large half-body view tries in order (rel30 HD): each record's HD crop, then its 180×360 — the first
+ * record is the worn appearance, the next ones its fallbacks (the default look); duplicates and nulls dropped. The HD crop
+ * frames exactly like the 180×360 (only sharper), so a box styled for the one shows the other the same.
+ * @param {any} m @param {any[]} records @returns {string[]}
+ */
+export function portraitChain(m, records, opts) {
+  const out = [];
+  for (const rec of records) {
+    const p = rec ? chessPortraitSource(m, rec, opts) : null;
+    for (const u of [p?.hd, p?.src]) if (u && !out.includes(u)) out.push(u);
+  }
+  return out;
+}
+
+/** <Img> props for a picture chain: the first URL, the rest as its fallbacks. @param {string[]} srcs */
+export const chainProps = (srcs) => ({ src: srcs[0] ?? null, fallbackSrc: srcs.slice(1) });
 
 /** Skill icon of a chess record (manifest `skills[iconId]`, else the empty skill sprite). */
 export function skillIconUrl(m, chess) {

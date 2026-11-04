@@ -74,6 +74,7 @@ import {
 } from './assets/spine.mjs';
 import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash, droppedEntries, MANIFEST_VERSION } from './assets/manifest.mjs';
 import { retainInstalledSkins } from './prepare-operator-skins.mjs';
+import { applyIllustrations } from './assets/illustrations.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { statsTemplateJobs } from './assets/stats-template.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
@@ -544,6 +545,10 @@ async function main() {
   const importedSkins = retainInstalledSkins(current, ASSETS);
   if (Object.keys(importedSkins.skins).length) body.skins = importedSkins.skins;
   for (const rel of importedSkins.files) resolved.files.add(rel);
+  // HD static art (rel30): the registry's 立绘 / portrait_hd fields where their files are on disk (tools/assets/illustrations.mjs)
+  const hdArt = applyIllustrations(body, { assetRoot: ASSETS });
+  body = hdArt.body;
+  for (const rel of hdArt.files) resolved.files.add(rel);
   const importedVoices = retainManifestVoices(current?.audio, body.audio, ASSETS);
   body.audio = importedVoices.audio;
   for (const rel of importedVoices.files) resolved.files.add(rel);

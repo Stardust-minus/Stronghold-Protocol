@@ -537,8 +537,10 @@ const isDir = (v) => DIRS.includes(v);
  * plate's, scaled about it (public/js/ui/namecards.js); kept with a background like bgY (a rel28 server ignores them).
  * `artX` / `artY` / `artZoom` (rel27, the owner's decision of 2026-11-03): how the seat card frames the `look` skin's 动态立绘
  * — centre in per-mille of its bounds (x from the left, y from the top), zoom in percent of their height shown (100–2500);
- * all three or none (-1 each: the portrait crop), kept only with a skin `look`, dropped when the look changes (a rel26 server
- * ignores them: it validates and reads named fields only).
+ * all three or none (-1 each: the portrait crop), dropped when the look or the operator changes (a rel26 server ignores
+ * them: it validates and reads named fields only). rel30 (the owner, 2026-11-04): kept with any look of a picked `charId`
+ * — 精二 '', 精一 'e1' and a skin without a 动态立绘 frame their static portrait (its own picture as the bounds:
+ * public/js/ui/seatLive.js); a rel27–29 server keeps them with a skin look only (the others then show the default).
  * A field the message leaves out keeps its stored value.
  */
 export const CARD_LIMITS = Object.freeze({ idLength: 48, trophies: 1_000_000, bgZoomMax: 400 });

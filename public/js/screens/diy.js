@@ -26,7 +26,7 @@ import { BanLine } from '../ui/diyChoice.js';
 import { useLayoutEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, Button, TierChip, TextField } from '../ui/components.js';
 import { Img, BondGlyph } from '../ui/gameComponents.js';
-import { chessAvatarUrl, chessPortraitUrl, profIconUrl, subProfIconUrl, bondIconUrl, skillRecordIconUrl, moduleTypeIconUrl } from '../ui/assetUrls.js';
+import { chessAvatarUrl, portraitChain, chainProps, profIconUrl, subProfIconUrl, bondIconUrl, skillRecordIconUrl, moduleTypeIconUrl } from '../ui/assetUrls.js';
 import { data } from '../data.js';
 import { MODULE_NONE, PROF_NAME, skillLabel, moduleBadge, quickSkillTags, opsOf, chessOptions } from '../ui/loadoutModel.js';
 import { diyPositions, diyBanHint, pickChoices, pickOptions, slotRecord, defaultPick } from '../ui/diyModel.js';
@@ -98,7 +98,7 @@ function SlotCard({ m, slot, pick, illegal, onOpen, onClear, skins = {}, ops = {
   const mod = elite?.module?.active ? elite.module : null;
   const ban = diyBanHint(rec.charId, D, off);
   return html`<div class=${cx('diy-slot', `diy-slot--t${slot.tier}`, illegal && 'is-bad', ban && (ban.all ? 'is-banned' : 'is-partban'))} data-slot=${slot.slotId} data-char=${rec.charId}>
-    <div class="diy-slot__art"><${Img} src=${chessPortraitUrl(m, ownAppearance(elite || rec, { skins }))} fallbackSrc=${chessPortraitUrl(m, elite || rec)} fallback=${html`<b>${[...(rec.name || '?')][0]}</b>`} /></div>
+    <div class="diy-slot__art"><${Img} ...${chainProps(portraitChain(m, [ownAppearance(elite || rec, { skins }), elite || rec]))} fallback=${html`<b>${[...(rec.name || '?')][0]}</b>`} /></div>
     <div class="diy-slot__body">
       <div class="diy-slot__head"><${TierChip} tier=${slot.tier} size="sm" /><span class="diy-slot__label">${label}</span><${KindTag} proto=${proto} /></div>
       <b class="diy-slot__name">${rec.name}</b>
@@ -388,7 +388,7 @@ export function DiyPickerView({ m, slot, picks, kitted, collab = false, onDone, 
           ${ch && unit && base ? html`
             <div class="lo-dhead">
               <div class=${cx('lo-dhead__art', `lo-dhead__art--t${slot.tier}`)}>
-                <${Img} src=${chessPortraitUrl(m, ownAppearance(golden || base, { skins }))} fallbackSrc=${chessPortraitUrl(m, golden || base)} fallback=${html`<b class="diy-pick__glyph">${[...(unit.name || '?')][0]}</b>`} />
+                <${Img} ...${chainProps(portraitChain(m, [ownAppearance(golden || base, { skins }), golden || base]))} fallback=${html`<b class="diy-pick__glyph">${[...(unit.name || '?')][0]}</b>`} />
                 <${LiveArt} m=${m} charId=${draft.charId} skins=${skins} kind="portrait" posY=${12} />
               </div>
               <div class="lo-dhead__info">

@@ -35,7 +35,7 @@ export const AVATAR_PREF = 'room.avatar';
 /** The looks ('' 精二, 'e1' 精一, a skin id) of the 名片干员 and of the 头像 operator. */
 export const CARD_LOOK_PREF = 'room.card.look';
 export const AVATAR_LOOK_PREF = 'room.avatar.look';
-/** How the seat card frames the 名片干员's 动态立绘 (rel27): "x,y,zoom" (ui/dynamicFraming.js ART_LIMITS), '' = its portrait crop. */
+/** How the seat card frames the 名片干员 (rel27: a 动态立绘; rel30: every look): "x,y,zoom" (ui/dynamicFraming.js ART_LIMITS), '' = the default. */
 export const CARD_ART_PREF = 'room.card.art';
 const parseArt = (v) => { const [x, y, zoom] = String(v ?? '').split(',').map(Number); return cardArt({ artX: x, artY: y, artZoom: zoom }); };
 
@@ -74,7 +74,7 @@ export function setCardLook(look) {
   if (str(look) !== cardStore.get().look) setCardArt(null);
   savePref(CARD_LOOK_PREF, str(look)); cardStore.set({ look: str(look) });
 }
-/** @param {{ x: number, y: number, zoom: number }|null} art the seat card's framing of the look's 动态立绘; null = the portrait crop */
+/** @param {{ x: number, y: number, zoom: number }|null} art the seat card's framing of the look (ui/seatLive.js); null = the default */
 export function setCardArt(art) {
   const a = art ? cardArt({ artX: art.x, artY: art.y, artZoom: art.zoom }) : null;
   savePref(CARD_ART_PREF, a ? `${a.x},${a.y},${a.zoom}` : ''); cardStore.set({ art: a });
@@ -110,7 +110,8 @@ export function cardMessage(card) {
   const charId = str(card?.charId), avatar = str(card?.avatar);
   const bg = namecardOf(card?.bg) ? card.bg : '';
   const look = charId ? str(card?.look) : '';
-  const art = look && look !== 'e1' && card?.art ? cardArt({ artX: card.art.x, artY: card.art.y, artZoom: card.art.zoom }) : null;
+  // the seat framing goes with a picked 名片干员, whatever its look (rel30; rel27–29: a skin look only)
+  const art = charId && card?.art ? cardArt({ artX: card.art.x, artY: card.art.y, artZoom: card.art.zoom }) : null;
   return { charId, avatar, bg, bgY: bg ? namecardY(card?.bgY) ?? -1 : -1, bgX: bg ? namecardX(card?.bgX) ?? -1 : -1,
     bgZoom: bg ? namecardZoom(card?.bgZoom) ?? -1 : -1, trophies,
     look, avatarLook: avatar ? str(card?.avatarLook) : '', artX: art?.x ?? -1, artY: art?.y ?? -1, artZoom: art?.zoom ?? -1 };

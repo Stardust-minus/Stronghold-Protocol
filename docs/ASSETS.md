@@ -510,6 +510,12 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                          // keyed by the installation's own skin id (char_4058_pepe@sightseer#2; a cosmetic plugin writes
                          // the same map, docs/PLUGINS.md §9). Neither is emitted today: the committed manifest has no
                          // such picture and no per-skin art, so a plugin's write and not a build fills them
+                         // HD static art (rel30, tools/assets/hd-art/README.md): illustration / illustrationE2 (the PRTS
+                         // 立绘), illustrationSize(E2) [W, H], portraitBox(E2) [x, y, w, h] fractions (the in-game portrait's
+                         // area, 1:2), portraitHD(E2) (that area at native resolution), portraitHDSize(E2) and portraitScene(E2) — portraitHD only
+                         // where the area is ≥ 180 px wide (never coarser than the portrait); skins[id] take
+                         // illustrationSize, portraitBox, portraitHD, portraitHDSize and portraitScene (the 立绘 has a
+                         // scene behind the character; portraitHD is then a cut-out with the portrait's silhouette)
   enemies: { [enemyId]: { icon, spine?: Spine, spineAliasOf?: enemyId,
                           spineLocal?: { group, skel, atlas, textures, …Spine } } },
                           // spineLocal: an optional local-client model; file names in a data/local-assets.json group,

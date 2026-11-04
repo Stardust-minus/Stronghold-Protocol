@@ -68,14 +68,17 @@ export function makeLookups(ready = true) {
 }
 
 /**
- * <img> that swaps to a fallback node when the URL is missing or fails.
- * @param {{ src?: string|null, class?: string, alt?: string, fallback?: any, style?: string }} props
+ * <img> that swaps to a fallback node when the URL is missing or fails. `fallbackSrc`: a URL, or URLs tried in order
+ * (rel30: an HD portrait, then its 180×360, then the default look's); decoded off the main thread (decoding="async").
+ * @param {{ src?: string|null, class?: string, alt?: string, fallback?: any, fallbackSrc?: string|null|(string|null)[], style?: string }} props
  */
 export function Img({ src, class: cls, alt = '', fallback = null, fallbackSrc = null, style }) {
   const [bad, fail] = useImageFailure(src);
-  if (!src || bad) return fallbackSrc && fallbackSrc !== src
-    ? html`<${Img} src=${fallbackSrc} class=${cls} alt=${alt} fallback=${fallback} style=${style} />` : fallback;
-  return html`<${MaterialImage} class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onError=${fail} />`;
+  if (!src || bad) {
+    const rest = (Array.isArray(fallbackSrc) ? fallbackSrc : [fallbackSrc]).filter((u) => u && u !== src);
+    return rest.length ? html`<${Img} src=${rest[0]} fallbackSrc=${rest.slice(1)} class=${cls} alt=${alt} fallback=${fallback} style=${style} />` : fallback;
+  }
+  return html`<${MaterialImage} class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" decoding="async" style=${style} onError=${fail} />`;
 }
 
 /** Owner-aware operator pictures, with live selection / settings updates even on an already open card.

@@ -60,10 +60,10 @@ test('every part of the card is an edit: look, avatar, avatar look, background',
   }
   assert.deepEqual(h.net.sent.at(-1), { t: 'room.card', ...EMPTY, charId: HEIDI, look: 'e1', avatar: WISADEL, avatarLook: 'e1' });
   assert.equal(h.net.sent.length, 4);
-  // the seat framing of a skin look's 动态立绘 (rel27) is an edit too; with 'e1' (no 动态立绘) it is not sent
+  // the seat framing (rel27: a skin look's 动态立绘; rel30: any look, 精一 too) is an edit too
   h.target.set({ art: { x: 420, y: 310, zoom: 260 } });
   await h.timers.advance(SYNC_DEBOUNCE_MS);
-  assert.equal(h.net.sent.at(-1).artX, -1, 'no framing with 精一');
+  assert.deepEqual([h.net.sent.at(-1).artX, h.net.sent.at(-1).artY, h.net.sent.at(-1).artZoom], [420, 310, 260], 'a framing of the 精一 portrait');
   h.target.set({ look: 'char_4045_heidi_epoque_1' });
   await h.timers.advance(SYNC_DEBOUNCE_MS);
   assert.deepEqual(h.net.sent.at(-1), { t: 'room.card', ...EMPTY, charId: HEIDI, look: 'char_4045_heidi_epoque_1', avatar: WISADEL, avatarLook: 'e1', artX: 420, artY: 310, artZoom: 260 });

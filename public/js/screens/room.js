@@ -58,8 +58,8 @@ import { hasScriptConsent, rememberScriptConsent, pageVersion } from '../content
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
 import { data, useData, getConfig } from '../data.js';
-import { CARD_PREF, cardOperators, seatPortrait, cardAvatarUrl, lookOptions } from '../ui/seatArt.js';
-import { SeatLive } from '../ui/seatLive.js';
+import { CARD_PREF, cardOperators, seatPortrait, seatPortraitSource, cardAvatarUrl, lookOptions } from '../ui/seatArt.js';
+import { SeatArt } from '../ui/seatLive.js';
 import { CardAvatarLive } from '../ui/avatarLive.js';
 import { cardArt } from '../ui/dynamicFraming.js';
 import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundFrame, setCardLook, setAvatarLook, setCardArt } from '../ui/playerCard.js';
@@ -298,9 +298,12 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
   const isHostSeat = seat.playerId === room.hostId;
   const offline = seat.connected === false && !seat.isBot;
   const ready = seat.ready || seat.isBot || isHostSeat;
-  const src = seat.isBot ? null : seatPortrait(seat, portraits);
+  // the portrait and its HD illustration (rel30: ui/assetUrls.js portraitSourceOf)
+  const pic = seat.isBot ? null : seatPortraitSource(seat, portraits);
+  const src = pic?.src ?? null;
   const card = isMe ? myCard : seat.card && typeof seat.card === 'object' ? seat.card : null;
-  // the 名片干员's look and its seat framing (rel27: a skin with a 动态立绘 plays live, framed as its owner set it)
+  // the 名片干员's look and its seat framing (rel27: a skin with a 动态立绘 plays live, framed as its owner set it; rel30: every
+  // look, the static portrait too — ui/seatLive.js)
   const liveChar = isMe ? portraits.myCard : typeof seat.card === 'string' ? seat.card : seat.card?.charId;
   const liveLook = isMe ? portraits.myLook : seat.card?.look;
   const liveArt = isMe ? myCard.art || null : cardArt(seat.card);
@@ -313,10 +316,9 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
     ${consent ? html`<span class="rseat__consent" data-testid="script-consented">${t('已同意')}</span>` : null}
     <header class="rseat__strip"><i></i><${SeatPool} room=${room} index=${index} /><span class="num">P${index + 1}</span></header>
     <div class=${`rseat__art${canPick ? ' is-pickable' : ''}`} onClick=${canPick ? onPickCard : undefined} title=${canPick ? t('点击更换名片干员') : undefined}>
-      ${src && bad !== src ? html`<img src=${src} alt="" draggable=${false} loading="lazy" onError=${() => setBad(src)} />`
+      ${src && bad !== src ? html`<${SeatArt} key=${src} m=${portraits.m} src=${src} source=${pic} charId=${liveChar || ''} look=${liveLook || ''} art=${liveArt}
+          editable=${canPick && !!liveChar} onCommit=${setCardArt} onError=${() => setBad(src)} />`
         : html`<span class="rseat__glyph">${seat.isBot ? html`<${Icon} name="robot" />` : [...(seat.name || '?')][0]}</span>`}
-      ${!seat.isBot && src && bad !== src ? html`<${SeatLive} m=${portraits.m} charId=${liveChar} look=${liveLook || ''} art=${liveArt}
-        editable=${isMe && !!onPickCard} onCommit=${setCardArt} />` : null}
       ${canPick ? html`<button type="button" class="rseat__pick" onClick=${(e) => { e.stopPropagation(); onPickCard(); }} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null}
       ${isHostSeat ? html`<span class="rseat__host">${t('创建者')}</span>` : null}
       ${offline ? html`<span class="rseat__lost"><${Icon} name="wifiOff" />${t('失去信号')}</span>` : null}

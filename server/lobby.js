@@ -200,7 +200,7 @@
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
 //   * Display card (fork lobby, 2026-10-14): room.card { charId?, avatar?, bg?, bgY?, bgX?, bgZoom?, trophies?, look?, avatarLook?, artX?, artY?, artZoom? } (the
-//     seat card's framing of the look's 动态立绘, rel27; the background's framing bgX / bgY / bgZoom, #129: shared/protocol.js) — a portrait operator and an
+//     seat card's framing of its picture, rel27 / rel30; the background's framing bgX / bgY / bgZoom, #129: shared/protocol.js) — a portrait operator and an
 //     avatar operator (real operators of the game data: cardCharIds, else BAD_MSG), a namecard background id (format
 //     only) and a self-reported trophy
 //     count (cosmetic, never used by a match), the art of the portrait and the avatar (look / avatarLook: 精二 '', 精一
@@ -2476,12 +2476,12 @@ export class Lobby {
     const x = bgX === undefined ? prev.bgX : bgX, z = bgZoom === undefined ? prev.bgZoom : bgZoom;
     if (back && x >= 0) next.bgX = x;
     if (back && z >= 100) next.bgZoom = z;
-    // the seat card's framing of the look's 动态立绘 (rel27): all three or none, only with that look — a new look starts at
-    // its portrait crop
-    const sameLook = (next.look ?? '') === (prev.look ?? '');
+    // the seat card's framing of its picture (rel27: a skin look's 动态立绘; rel30: any look of a picked operator — 精二,
+    // 精一, a static skin frame the static portrait): all three or none — another look or operator starts at its default
+    const sameLook = (next.look ?? '') === (prev.look ?? '') && (next.charId ?? '') === (prev.charId ?? '');
     const frame = [artX, artY, artZoom].every((v) => v === undefined) ? (sameLook ? [prev.artX, prev.artY, prev.artZoom] : [])
       : [artX, artY, artZoom];
-    if (next.look && next.look !== 'e1' && frame.length === 3 && frame[0] >= 0 && frame[1] >= 0 && frame[2] >= 100) [next.artX, next.artY, next.artZoom] = frame;
+    if (next.charId && frame.length === 3 && frame[0] >= 0 && frame[1] >= 0 && frame[2] >= 100) [next.artX, next.artY, next.artZoom] = frame;
     if (count > 0) next.trophies = count;
     const card = Object.keys(next).length ? Object.freeze(next) : null;
     if (!sameCard(card, session.card)) {

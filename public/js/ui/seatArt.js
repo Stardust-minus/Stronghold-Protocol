@@ -4,7 +4,7 @@
 // (lookUrl, lookOptions); the 头像 the same (`avatarLook`).
 // The pick's store and the seat helpers below it (PR #643 split 6) stay for ui/loadoutSync.js installCardSync and for
 // screens that read a plain charId; this fork's seat cards use seatPortrait and the richer seats[].card.
-import { chessPortraitUrl } from './assetUrls.js';
+import { chessPortraitSource, portraitSourceOf } from './assetUrls.js';
 import { data } from '../data.js';
 import { N_ } from '../../../shared/i18n.js';
 import { createStore, loadPref, savePref } from '../store.js';
@@ -86,6 +86,23 @@ export function lookUrl(m, charId, look = '', kind = 'avatar') {
 }
 
 /**
+ * The portrait of a card look with its HD pictures (rel30; ui/assetUrls.js portraitSourceOf) — the same pick as
+ * lookUrl(m, charId, look, 'portrait'); null when unknown.
+ * @param {any} m @param {string} charId @param {string} [look]
+ */
+export function lookPortraitSource(m, charId, look = '') {
+  if (typeof charId !== 'string' || !m) return null;
+  if (look && look !== 'e1') {
+    const s = m.skins && typeof m.skins === 'object' && Object.hasOwn(m.skins, look) ? m.skins[look] : null;
+    if (s && s.charId === charId && str(s.portrait)) return portraitSourceOf(s, 'portrait');
+  }
+  const chars = typeof m.chars === 'object' ? m.chars : null;
+  const c = chars && Object.hasOwn(chars, charId) ? chars[charId] : null;
+  if (!c) return null;
+  return (look !== 'e1' && str(c.portraitE2) ? portraitSourceOf(c, 'portraitE2') : null) || portraitSourceOf(c, 'portrait');
+}
+
+/**
  * The looks an operator offers on a card: [{ id, name, src }] — 精二 ('' — only when the art has an E2 form), 精一 ('e1';
  * '' when there is no E2 form, the default then) and each skin in the manifest; one entry = nothing to choose.
  * @param {any} m @param {string} charId @param {'avatar'|'portrait'} kind
@@ -133,16 +150,21 @@ export function officialAvatars(m) {
  * the 5★/6★ operators chosen by the player id — the same on every client (null before the data loads).
  * @param {any} seat room.state seat @param {{ pool: any[], byChar: Map<string, any>, m: any, myId: any, myCard: string, myLook?: string }} ctx
  */
-export function seatPortrait(seat, { pool, byChar, m, myId, myCard, myLook = '' }) {
+export function seatPortrait(seat, ctx) {
+  return seatPortraitSource(seat, ctx)?.src ?? null;
+}
+
+/** seatPortrait with the picture's HD sources (rel30: ui/assetUrls.js portraitSourceOf), or null. */
+export function seatPortraitSource(seat, { pool, byChar, m, myId, myCard, myLook = '' }) {
   if (!seat || seat.playerId == null) return null;
   // seats[].card is { charId, bg, trophies } (ui/playerCard.js); a bare string is the design's original form
   const pick = (seat.playerId === myId && myCard) || (typeof seat.card === 'string' ? seat.card : seat.card?.charId);
   const rec = pick && byChar ? byChar.get(pick) : null;
   const mine = seat.playerId === myId && myCard;
   const look = mine ? myLook : typeof seat.card?.look === 'string' ? seat.card.look : '';
-  if (rec) return (look && lookUrl(m, rec.charId, look, 'portrait')) || chessPortraitUrl(m, rec);
+  if (rec) return (look && lookPortraitSource(m, rec.charId, look)) || chessPortraitSource(m, rec);
   if (!Array.isArray(pool) || !pool.length) return null;
-  return chessPortraitUrl(m, pool[hash32(seat.playerId) % pool.length]);
+  return chessPortraitSource(m, pool[hash32(seat.playerId) % pool.length]);
 }
 
 /**

@@ -35,7 +35,7 @@ import { useGameData, makeLookups, BandIcon, BondGlyph, Img } from '../ui/gameCo
 import { data, useData } from '../data.js';
 import { fmtNum, diyRecordFor, cardStandIn } from '../ui/gameLogic.js';
 import { useDocClass } from '../ui/device.js';
-import { uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl } from '../ui/assetUrls.js';
+import { uiUrl, chessAvatarUrl, portraitChain, itemIconUrl } from '../ui/assetUrls.js';
 import { identity } from '../net.js';
 import { TITLE_HEX_SECTORS, titleSectorClip } from '../ui/titleHexagon.js';
 import { store, createStore, useStore, selectRoute } from '../store.js';
@@ -260,10 +260,11 @@ function AchievementOperator({ unit, gd }) {
   const backups = data.get('backups');
   const chess = unit.diy && base ? diyRecordFor(base, unit.diy, { chess: data.get('chess'), backups })
     : base ? cardStandIn(base, { unit, backups }) || base : null;
-  const portrait = chess ? chessPortraitUrl(gd.m, { ...chess, assets: { ...chess.assets,
-    portrait: `${chess.charId}_${chess.status?.phase === 2 ? 2 : 1}` } }) : null;
+  // rel30: its HD crop first (the same framing), the 180×360 on a failure
+  const portraits = chess ? portraitChain(gd.m, [{ ...chess, assets: { ...chess.assets,
+    portrait: `${chess.charId}_${chess.status?.phase === 2 ? 2 : 1}` } }]) : [];
   return html`<li class="st-achievement-unit" title=${chess?.name || unit.id}>
-    <${Img} src=${portrait} class="st-achievement-unit__portrait" fallback=${html`<span>${chess?.name || unit.id}</span>`} />
+    <${Img} src=${portraits[0]} fallbackSrc=${portraits.slice(1)} class="st-achievement-unit__portrait" fallback=${html`<span>${chess?.name || unit.id}</span>`} />
     <${Img} src=${uiUrl(gd.m, `statistics/achievementTier${unit.tier || chess?.tier}`)} class="st-achievement-unit__tier" />
     ${chess?.status ? html`<div class="st-achievement-unit__level">
       <${Img} src=${uiUrl(gd.m, `statistics/achievementElite${chess.status.phase}`)} />

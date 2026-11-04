@@ -3618,5 +3618,6 @@
   "调整位置和缩放": "Position & zoom",
   "拖动调整位置，滚轮或双指缩放": "Drag to move; scroll or pinch to zoom",
   "AI 联防置后": "AI last in Unite",
-  "联防先按原有排序从真人博士中挑选，AI 队友和 AI 托管中的博士排在所有真人之后。": "Unite picks among human Doctors first in the usual order; AI teammates and Doctors under AI control come after every human."
+  "联防先按原有排序从真人博士中挑选，AI 队友和 AI 托管中的博士排在所有真人之后。": "Unite picks among human Doctors first in the usual order; AI teammates and Doctors under AI control come after every human.",
+  "拖动、缩放座位卡上的立绘": "Drag and zoom the art on your seat card"
 }

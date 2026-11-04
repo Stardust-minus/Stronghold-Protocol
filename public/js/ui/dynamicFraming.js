@@ -6,7 +6,10 @@
 //     picture frames exactly like the static one under it;
 //   - the 名片: the whole bounds, cover × its stored zoom, its stored x / y as the position (ui/namecards.js, #129: the
 //     static plate's CSS rule — the bounds' x% y% point on the box's x% y% point);
-//   - a room seat: the player's own framing (room.card artX / artY / artZoom, seatRect), else the portrait crop.
+//   - a room seat: the player's own framing (room.card artX / artY / artZoom, seatRect), else the portrait crop. rel30 (the
+//     owner, 2026-11-04): every look has one — a static portrait (精二, 精一, a skin without a 动态立绘) is framed in its own
+//     picture (pictureBounds); a skin with one in its skeleton bounds, and its static portrait (the official crop's rect
+//     there) is placed by the same transform (pictureBox), so the two frame alike and a 动态立绘 that fails shows the same.
 
 import { appearanceEntry } from './skinAssets.js';
 import { skinIdFor } from '../../../shared/skins.js';
@@ -16,6 +19,8 @@ import { isCollabUrl } from '../../../shared/collabAssets.js';
  * bounds' height shown (100 = the whole height; 2500 = a 25th of it). A portrait crop in a seat box is 80–810 % (median
  * 390): the range holds every one with ~3× to zoom in further (past an atlas's own density that only magnifies). */
 export const ART_LIMITS = Object.freeze({ min: 0, max: 1000, zoomMin: 100, zoomMax: 2500 });
+/** The framer's zoom ceiling for a static portrait (rel30, [ASSUMED]): 8× its height (a 180 × 360 picture only blurs past it). */
+export const STATIC_ZOOM_MAX = 800;
 
 /**
  * The container transform that fits `rect` into a bw × bh box as `object-fit: cover; object-position: posX% posY%`, the
@@ -80,9 +85,9 @@ export function artOfRect(bw, bh, b, rect) {
  * @param {number} bw @param {number} bh @param {{ x: number, y: number, width: number, height: number }} b
  * @param {{ x: number, y: number, zoom: number }} art @param {number} dx @param {number} dy @param {number} [factor]
  */
-export function moveArt(bw, bh, b, art, dx, dy, factor = 1) {
+export function moveArt(bw, bh, b, art, dx, dy, factor = 1, zoomMax = ART_LIMITS.zoomMax) {
   const L = ART_LIMITS;
-  const zoom = clamp(art.zoom * factor, L.zoomMin, L.zoomMax);
+  const zoom = clamp(art.zoom * factor, L.zoomMin, Math.min(L.zoomMax, Math.max(L.zoomMin, zoomMax)));
   const r = seatRect(bw, bh, b, { ...art, zoom });
   const perPx = r.height / bh; // skeleton units per box pixel
   const moved = { x: r.x - dx * perPx, y: r.y + dy * perPx, width: r.width, height: r.height };
@@ -102,6 +107,18 @@ export function framingLayout(bw, bh, bounds, framing) {
   return rectLayout(bw, bh, bounds, framing?.focusX ?? 50, framing?.focusY ?? 50, framing?.zoom ?? 1);
 }
 
+
+/** A static picture of natural w × h as a framing space: its own rect, y-up from its bottom-left (pixels). */
+export const pictureBounds = (w, h) => ({ x: 0, y: 0, width: w, height: h });
+
+/**
+ * Where a static picture lands in a box under a container transform (rectLayout / framingLayout): `pic` its rect in the
+ * same y-up space. CSS pixels of the box: { left, top, width, height }.
+ * @param {{ scale: number, x: number, y: number }} l @param {{ x: number, y: number, width: number, height: number }} pic
+ */
+export function pictureBox(l, pic) {
+  return { left: l.x + pic.x * l.scale, top: l.y - (pic.y + pic.height) * l.scale, width: pic.width * l.scale, height: pic.height * l.scale };
+}
 
 /** A skin's dynamic record when it may play here: a real one, never a collab skin's. @param {any} rec skins[id] */
 const playable = (rec) => {

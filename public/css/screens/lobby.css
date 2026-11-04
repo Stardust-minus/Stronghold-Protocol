@@ -1867,6 +1867,9 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
   font: inherit; color: #e6f0ec; background: #1d2423; border: 1px solid rgba(255, 255, 255, .2); border-radius: .04rem; cursor: pointer; }
 .rseat__framer-bar button:disabled { opacity: .4; cursor: default; }
 .rseat__framer-bar b { min-width: 3.2em; text-align: center; color: #8ff3d6; }
+/* a narrow seat (a phone: ~120 px) wraps the bar onto two rows rather than cutting off 完成 (rel30: every look has it) */
+.rseat__framer-bar { flex-wrap: wrap; row-gap: .04rem; }
+@media (max-width: 900px) { .rseat__framer-bar { gap: 3px; padding: 3px; } .rseat__framer-bar button { min-width: 26px; height: 26px; padding: 0 3px; } .rseat__framer-bar b { min-width: 2.8em; } }
 .cardpick .modal__body, .cardpick { --cp-size: max(.86rem, 52px); }
 .cardpick__tabs { display: flex; gap: .06rem; margin-bottom: .1rem; }
 .cardpick__tabs button { min-height: 28px; padding: .03rem .16rem; font: inherit; font-size: max(calc(.15 * var(--t)), 12px); color: var(--text-md); background: none; border: 1px solid var(--line-2); cursor: pointer; }

@@ -315,9 +315,23 @@ test('artX / artY / artZoom (rel27): the seat card\'s framing of the look\'s 动
   f.card(a, { look: second.id, ...art });
   f.card(a, { artX: -1, artY: -1, artZoom: -1 });
   assert.equal(a.card.artZoom, undefined, '-1 clears');
+  // rel30 (the owner, 2026-11-04): every look of a picked operator keeps one — 精二 and 精一 frame the static portrait
   f.clock.time += CARD_WINDOW_MS;
   f.card(a, { look: 'e1', ...art });
-  assert.equal(a.card.artX, undefined, '精一 has no 动态立绘: no framing');
+  assert.deepEqual([a.card.look, a.card.artX, a.card.artY, a.card.artZoom], ['e1', 420, 310, 260], '精一: its static portrait framed');
   f.card(a, { look: '', ...art });
-  assert.equal(a.card.artX, undefined, 'no look, no framing');
+  assert.deepEqual([a.card.look, a.card.artX, a.card.artZoom], [undefined, 420, 260], '精二 (no look): framed too');
+  f.card(a, { trophies: 4 });
+  assert.equal(a.card.artX, 420, 'left out: kept');
+  f.clock.time += CARD_WINDOW_MS;
+  f.card(a, { look: 'e1' });
+  assert.equal(a.card.artX, undefined, '精二 → 精一: a new look starts at its default');
+  f.card(a, { look: 'e1', ...art });
+  const another = OPS.find((id) => id !== withSkin.charId);
+  f.card(a, { charId: another });
+  assert.deepEqual([a.card.charId, a.card.look, a.card.artX], [another, 'e1', undefined], 'another operator in the same look starts at its default');
+  f.clock.time += CARD_WINDOW_MS;
+  f.card(a, { charId: '', ...art });
+  assert.equal(a.card.artX, undefined, 'no 名片干员 picked: no framing');
+  assert.deepEqual(f.states(b).at(-1).seats.find((s) => s?.playerId === a.playerId).card?.artX, undefined, 'and the room sees none');
 });
