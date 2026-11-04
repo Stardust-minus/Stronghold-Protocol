@@ -2722,6 +2722,15 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .spov__wtext .sp-owner-badge { font-size: calc(.11 * var(--t)); }
 .bstrip__owner .sp-owner-badge { font-size: max(.11rem, calc(9px * var(--ui))); margin-right: 4px; }
 .team--list .team__nameline .sp-owner-badge { font-size: calc(var(--team-fs, 12px) * .78); letter-spacing: 0; }
+/* the strategy draft's order rows (screens/bandDraft.js): the tag the size of the row's AI tag; the avatar's ring (a
+   .03rem white box-shadow there, no border) in gold instead of a 1px line beside it */
+.dorder__name .sp-owner-badge { font-size: calc(.11 * var(--t)); padding: 0 .04rem; }
+.dorder .sp-owner-fx { inset: 0; border: 0; box-shadow: 0 0 0 .03rem var(--sp-own); }
+.brief-reroll__players .sp-owner-badge { font-size: max(calc(.11 * var(--t)), 10px); }
+/* a 2px-framed avatar (个人战报): the gold line is the frame */
+.splate .sp-owner-fx { inset: -2px; border-width: 2px; }
+/* the tiny round avatars (a band card's / a 机变 card's pickers, 弹幕): their name beside them carries the mark */
+.dband__who .sp-owner-fx, .spcard__taker .sp-owner-fx, .danmaku__who .sp-owner-fx { display: none; }
 /* where the bare name filled its row, the name + tag line does */
 .spec__row > .sp-owner-line, .damage-board__group-heading > .sp-owner-line { flex: 1 1 auto; }
 .bstrip__owner .sp-owner-badge + .micro { color: var(--sp-own); }

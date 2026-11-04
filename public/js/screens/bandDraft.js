@@ -41,6 +41,7 @@ import { plannableBonds, bondPlanOpen, bondPlanHolders, BondPlanTag, BondPlanPic
 import { MatchInfoDialog, matchInfoModel } from '../ui/matchInfo.js';
 import { useRise } from '../ui/transitions.js';
 import { NameCardLayer } from '../ui/namecards.js';
+import { MatchName } from '../ui/ownerName.js';
 import { TrophyBadge } from '../ui/trophies.js';
 import { cardOperators, seatPortrait } from '../ui/seatArt.js';
 import { rosterPools } from '../ui/teamLayout.js';
@@ -256,7 +257,7 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek }) {
       ${art && !nc ? html`<span class="dorder__art" style=${`background-image:url("${art}")`} aria-hidden="true"></span>` : null}
       <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
       <div class="dorder__text">
-        <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<span>${p.name || t('博士')}</span>${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
+        <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<${MatchName} player=${p} name=${p.name || t('博士')} />${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
         <span class="dorder__state">${picked ? html`<span class="t-mint">${pband?.name || t('已选择')}</span>`
           : cur ? html`<span class="t-gold">${t('决策中')}</span>` : html`<span class="t-dim">${t('等待中')}</span>`}</span>
         ${!solo && p.bondPlan ? html`<${BondPlanTag} bondId=${p.bondPlan} gd=${gd} class="dorder__plan" />` : null}

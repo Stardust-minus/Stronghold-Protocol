@@ -90,6 +90,22 @@ describe('the 服主 mark: room, roster, battle, result — for the owner, a tea
         }, { timeout: 20000 });
         await c.click('.brief__foot .btn--primary', '准备就绪');
       }
+      // 选择策略 (BAND_DRAFT, the user's 「选策略界面的服主标记显示不正常」): the order rows mark the owner's — gold name, the
+      // 「♛ 服主」 tag, the gold avatar ring — and nobody else's
+      for (const c of [owner, mate]) {
+        await c.page.waitForFunction(() => globalThis.__SP__.store.get().match.public?.phase === 'BAND_DRAFT' && document.querySelectorAll('.dorder').length >= 3, { timeout: 40000 });
+        await sleep(900);
+        const rows = await c.page.evaluate(() => [...document.querySelectorAll('.dorder')].map((r) => ({
+          name: (r.querySelector('[data-owner]') || r.querySelector('.dorder__name'))?.textContent.trim(), gold: !!r.querySelector('.dorder__name .sp-owner-name'),
+          tag: !!r.querySelector('.dorder__name [data-owner-badge] .sp-owner-badge__text'), fx: !!r.querySelector('.dorder__face [data-owner-fx]'),
+          oneLine: (() => { const b = r.querySelector('.dorder__name [data-owner-badge]'), n = r.querySelector('.dorder__name .sp-owner-name');
+            if (!b || !n) return true; const br = b.getBoundingClientRect(), nr = n.getBoundingClientRect(); return br.width > 12 && Math.abs((br.top + br.bottom) - (nr.top + nr.bottom)) / 2 < 6; })() })));
+        assert.deepEqual(rows.filter((r) => r.gold).map((r) => r.name), [OWNER], `${c.label}: the owner's draft row has the gold name`);
+        assert.deepEqual(rows.filter((r) => r.tag).map((r) => r.name), [OWNER], `${c.label}: … and the 服主 tag`);
+        assert.deepEqual(rows.filter((r) => r.fx).map((r) => r.name), [OWNER], `${c.label}: … and the gold avatar ring`);
+        assert.ok(rows.every((r) => r.oneLine), `${c.label}: the tag sits on the name's line`);
+        await c.shot('band');
+      }
       const t0 = Date.now();
       while (Date.now() - t0 < 120000) {
         const s = await owner.st();

@@ -102,6 +102,9 @@ test('every in-match surface reads it from the room (ui/ownerName.js); the look 
     'public/js/screens/result.js': /<b class="rcard__name"><\$\{MatchName\} player=\$\{p\}/,
     'public/js/screens/settle.js': /<\$\{MatchName\} player=\$\{p\} name=\$\{p\.name\} \/>/,
     'public/js/screens/room.js': /<span class="rseat__ownertag" data-owner-tag="1"/,
+    // the strategy draft's order (选择策略, the user's 「选策略界面的服主标记显示不正常」: only the avatar was marked) and the reroll vote
+    'public/js/screens/bandDraft.js': /<b class="dorder__name">[^\n]*<\$\{MatchName\} player=\$\{p\} name=\$\{p\.name \|\| t\('博士'\)\} \/>/,
+    'public/js/ui/setupReroll.js': /<\$\{MatchName\} player=\$\{p \|\| \{ playerId: id \}\}/,
   };
   for (const [file, re] of Object.entries(uses)) assert.match(src(file), re, file);
   // the user's 「对局内只有一个皇冠，玩家会不会不知道是服主」: every in-match name carries the full 「♛ 服主」 tag, never the crown alone
@@ -112,7 +115,8 @@ test('every in-match surface reads it from the room (ui/ownerName.js); the look 
   const css = src('public/css/screens/lobby.css');
   const look = css.slice(css.indexOf('/* ---- 服主 (ui/ownerName.js'), css.indexOf('.set-owner {')).replace(/\/\*[\s\S]*?\*\//g, '');
   for (const sel of ['.sp-owner-name', '.sp-owner-badge', '.sp-owner-badge--compact', '.sp-owner-fx', '.team__row.is-sp-owner .team__info', '.rseat.is-owner .rseat__strip',
-    '.rseat__ownertag', '.rseat.is-owner .rseat__plate::after', '.tcard.is-sp-owner .tcard__plate', '.rcard.is-sp-owner']) assert.ok(look.includes(sel), sel);
+    '.rseat__ownertag', '.rseat.is-owner .rseat__plate::after', '.tcard.is-sp-owner .tcard__plate', '.rcard.is-sp-owner', '.dorder__name .sp-owner-badge',
+    '.dorder .sp-owner-fx { inset: 0; border: 0; box-shadow: 0 0 0 .03rem var(--sp-own); }', '.dband__who .sp-owner-fx']) assert.ok(look.includes(sel), sel);
   // the owner's 「简约高级一点」 (v2): nothing moves or glows, no gradient text — reduced motion needs nothing of its own
   for (const banned of ['animation', '@keyframes', '@property', 'text-shadow', 'drop-shadow', 'background-clip', 'conic-gradient', ':has(']) {
     assert.ok(!look.includes(banned), banned);

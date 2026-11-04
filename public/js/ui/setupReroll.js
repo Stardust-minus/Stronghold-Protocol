@@ -7,6 +7,7 @@ import { html, Button, Countdown } from './components.js';
 import { actions } from './gameActions.js';
 import { useStore } from '../store.js';
 import { t } from '../../../shared/i18n.js';
+import { MatchName } from './ownerName.js';
 
 export function SetupReroll({ pub }) {
   const myId = useStore((s) => s.me.playerId);
@@ -40,7 +41,7 @@ export function SetupReroll({ pub }) {
       ${vote ? html`<div class="brief-reroll__players">${vote.voters.map((id) => {
         const p = players.find((p) => p.playerId === id);
         const [cls, text] = answer(id);
-        return html`<span key=${id} class=${cls}>${p?.name || id} · ${text}</span>`;
+        return html`<span key=${id} class=${cls}><${MatchName} player=${p || { playerId: id }} name=${p?.name || id} /> · ${text}</span>`;
       })}</div>` : null}
     </div>
     <div class="brief-reroll__actions">
