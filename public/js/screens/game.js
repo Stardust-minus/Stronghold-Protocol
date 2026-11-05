@@ -4,8 +4,9 @@ import { AiTakeoverPanel } from '../ui/aiTakeover.js';
 //   RESULT / m.result → the settlement flow (screens/settle.js), everything else → MatchScreen below.
 //
 // MatchScreen = full-screen field view (render engine per DESIGN §9, DOM fallback when it can't load)
-// with the DOM HUD layered on top: top bar, bond strip + popup, team panel (click = g.watch), effects,
-// shop bar (prep), merge-reward and 机变 overlays, detail panel, enemy / match-info drawer, combat HUD
+// with the DOM HUD layered on top: top bar, bond strip + popup, team panel (click = g.watch; the own row's 预选盟约 opens
+// the picker the whole match — ui/bondPlan.js), effects, shop bar (prep; my plan's operators lit, the pool teammates'
+// plans as avatars), merge-reward and 机变 overlays, detail panel, enemy / match-info drawer, combat HUD
 // (DP, "作战结束，等待队友完成作战" + teammates' progress, observing pill, 联防 / 最终攻势 ‹ › camera halves),
 // phase banners — the round plate at 回合开始 and the 联防 plate (ui/matchPopups.js) —, the round's result box at SETTLE
 // (官方「作战结束」 + 「全员无伤！」 / 「生命值减少 −N」 and the BATTLEOVER sound; GitHub #235, PR #112), the official 协议启动！
@@ -93,6 +94,7 @@ import { TeamPanel, useRoster } from '../ui/teamPanel.js';
 import { Danmaku } from '../ui/danmaku.js';
 import { DamageBoard, uniteDamageOwners, bossDamageOwners } from '../ui/damageBoard.js';
 import { ShopBar } from '../ui/shopBar.js';
+import { BondPlanDialog, bondPlanOpen, shopPlanMarks } from '../ui/bondPlan.js';
 import { selectedBondTimers } from '../ui/bondTimers.js';
 import { DetailPanel, resolveDetail } from '../ui/detailPanel.js';
 import { RewardOverlay } from '../ui/rewardOverlay.js';
@@ -299,6 +301,7 @@ function MatchScreen() {
   const [emoteOpen, setEmoteOpen] = useState(false);
   const [damageOpen, setDamageOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);          // the 预选盟约 picker (ui/bondPlan.js; the team panel's own row)
   const [exitOpen, setExitOpen] = useState(false);
   const [drag, setDrag] = useState(null);                // { uid, kind, id } while dragging a piece
   const [facing, setFacing] = useState(null);            // direction step: { uid, piece, row, col, grid, name }
@@ -1936,6 +1939,10 @@ function MatchScreen() {
   const detailBonds = detailOwner === strip.ownerId ? stripBonds : playerBonds({ pub, priv, myId, ownerId: detailOwner, live: liveLayers });
   // bonds this mode never activates (标准: 10 of 23, 奥术 among them) — shown 本局禁用 on cards, chips and the popup
   const offBonds = modeOffBonds(getMode(pub?.modeId));
+  // 预选盟约 (ui/bondPlan.js): changeable the whole match while alive (the own row of the team panel opens the picker); the
+  // shop lights my plan's operators and shows the pool teammates' plans
+  const canPlan = !solo && !spectator && alive && !!meP && bondPlanOpen(pub);
+  const shopPlan = solo ? null : shopPlanMarks(pub, myId);
 
   return html`<div class=${cx('screen', 'gm', `gm--${mode}`, pub?.playerCapacity > 4 && 'gm--expanded', drag && 'is-dragging', collapsed && 'is-collapsed', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', pen && 'is-pen', readyWhy && 'has-readywhy')}
       data-camera=${pen ? 'pen' : camKind}>
@@ -1979,7 +1986,7 @@ function MatchScreen() {
         spMarks=${sp ? spMarks(sp, { solo }) : null}
         self=${Number.isFinite(priv?.lp) ? { lp: priv.lp, pending: liveLpNow.pending, unite: liveLpNow.unite, left: liveLpNow.left } : null}
         observe=${cc ? { canObserve: (p) => observeTarget(p, pub, myId, { observing: watchingOther, ownDone: localDone }), observing: watchingOther, onBack: backHome } : null}
-        halves=${layers.length ? { half: avatarHalf, onHalf: avatarPick } : null} />
+        halves=${layers.length ? { half: avatarHalf, onHalf: avatarPick } : null} plan=${canPlan ? { onOpen: () => setPlanOpen(true) } : null} />
 
       <div class="gm__effects"><${EffectsList} effects=${watchingOther && field ? (field.effects ?? null) : priv?.effects} /></div>
 
@@ -1989,7 +1996,7 @@ function MatchScreen() {
       </div>` : null}
 
       ${showShop ? html`<${ShopBar} priv=${priv} editable=${editable} collapsed=${collapsed} refreshBusy=${refreshBusy} onCollapse=${setCollapsed}
-        barRef=${barRef} offBonds=${offBonds}
+        barRef=${barRef} offBonds=${offBonds} plan=${shopPlan}
         onBuy=${buy} onLevel=${() => actions.levelUp()} onRefresh=${() => actions.refresh()} onFreeze=${() => actions.freeze()}
         onDetail=${(id, kind, hint) => setDetail({ kind: kind === 'item' ? 'item' : 'chess', id, hint: hint || null, tap: ++cardTap.current })}
         onDetailClose=${() => setDetail((d) => (d?.kind === 'chess' || d?.kind === 'item' ? null : d))}
@@ -2097,6 +2104,7 @@ function MatchScreen() {
       onConfirm=${(uid) => closeReplace(uid)} onCancel=${() => closeReplace(null)} />` : null}
 
     <${SettingsModal} open=${settingsOpen} onClose=${() => setSettingsOpen(false)} />
+    <${BondPlanDialog} open=${planOpen && canPlan} onClose=${() => setPlanOpen(false)} pub=${pub} myId=${myId} gd=${gd} />
     <${DownedPlate} open=${downed} onWatch=${() => setDowned(false)} onLeave=${() => { setDowned(false); setExitOpen(true); }}
       onSettle=${outRes ? () => { setDowned(false); setOutOpen(true); } : null} />
     <${ExitModal} open=${exitOpen} onClose=${() => setExitOpen(false)} solo=${solo} />

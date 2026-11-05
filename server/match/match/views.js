@@ -151,6 +151,8 @@ export class MatchViews {
         bandId: ps.bandId,
         // the core bond the player announced it means to build (g.bondPlan; display only, kept the whole match), else null
         bondPlan: ps.bondPlan ?? null,
+        // its 副盟约 (g.bondPlan subIds), omitted when none
+        ...(ps.bondPlanSub?.length ? { bondPlanSub: ps.bondPlanSub.slice() } : {}),
         shopLevel: ps.shop.level,
         boardCount: ps.deployCount,
         ready: this.phase === PHASE.INFO_CHECK ? ps.infoReady : ps.ready,

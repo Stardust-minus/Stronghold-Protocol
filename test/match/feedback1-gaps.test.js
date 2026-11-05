@@ -229,8 +229,8 @@ describe('§21.26 found on the way — the client-result layer bound reads the l
   const check = (s, gains, opts = { gd }) => { const v = validateClientResult(s, res(gains), opts); return v.ok ? 'ok' : v.reason; };
   const SEED_107_R12 = ['chess_char_1_06_b', 'chess_char_4_14_a', 'chess_char_4_13_a', 'chess_char_3_14_a', 'chess_char_3_11_a', 'chess_char_4_22_a', 'chess_char_3_20_a', 'chess_char_5_14_b'];
 
-  // GitHub #175 (from PR #192 by @kukiC): the handed-out 华法琳 trait counts at the data cap, 7 / 14 — twice since its 双判
-  // (feedback #15: two copies on the target, each with the cap)
+  // GitHub #175 (from PR #192 by @kukiC): the handed-out 华法琳 trait counts at the data cap, 7 / 14 — the bound still allows
+  // two copies for one release (rel26–rel33 clients counted the 双判 of feedback #15; the sim triggers once since rel34)
   test('华法琳\'s handed-out trait allows twice its data cap of 7 / 14 (GitHub #175, feedback #15)', () => {
     for (const [id, cap] of [['chess_char_4_26_a', 7], ['chess_char_4_26_b', 14]]) {
       const s = spec(3, [id, 'chess_char_1_10_a']); // 华法琳 + 古米
@@ -290,5 +290,5 @@ test('§21.26 docs: DESIGN (the subsection and the normative lines), META, PLAYI
   assert.match(v011, /盟约详情写明「含调和 \+1」/);
   assert.match(v011, /人机不再选择围绕本局禁用盟约的策略（标准模拟下的潘格尼尼、克莱门莎、玛恩纳）/);
   assert.match(v011, /选择策略时，围绕本局禁用盟约的策略（标准模拟下的潘格尼尼、克莱门莎、玛恩纳）标出「本局禁用」并在详情里说明，仍可选择/);
-  assert.match(META, /The strategy draft marks the same bands 本局禁用 for humans \(still selectable\)/);
+  assert.match(META, /The strategy draft marks the same bands for humans \(still selectable\): 「<bond>盟约禁用」 on the card/);
 });

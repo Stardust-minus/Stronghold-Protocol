@@ -360,9 +360,9 @@ test('缇缇 125 + S2 封护 (GitHub #162): every 0.25 s sleep pulse of the ward
 
 // PRTS 卫戍协议：盟约 下半, 3月27日更新#2: 「[Ⅳ阶]华法琳：赋予的特质的叠层上限从 初始12/精锐24 降低至 初始7/精锐14」 — the
 // data's 7 / 14 (GitHub #175; from PR #192 by @kukiC)
-// 「双判」 (feedback #15, the owner's plan of 2026-11-02): as on the 日服 / 台服 client the granted trait triggers twice — two
-// copies, each with the data cap: 2 × per a skill start, 2 × 7 / 2 × 14 a battle
-test('ADD_BOND 华法琳 72: the front operator gets garrison_95 twice (own active bonds +1 / +2 per copy), each capped at the data\'s 7 / 14 (GitHub #175, feedback #15)', () => {
+// rel34 (the maintainer, 2026-11-05 「实际叠层效率为文本效果两倍…可以修了」): the granted trait triggers once, as its text reads —
+// +1 / +2 per skill start, 7 / 14 a battle (rel26–rel33: twice, the 日服 / 台服 「双判」 of feedback #15)
+test('ADD_BOND 华法琳 72: the front operator gets garrison_95 once (own active bonds +1 / +2), capped at the data\'s 7 / 14 (GitHub #175; the 双判 reverted)', () => {
   for (const [gid, per, cap] of [['garrison_72_a', 1, 7], ['garrison_72_b', 2, 14]]) {
     const give = GR(gid).bbStr.give_garrison_id;
     const h = battle({
@@ -372,33 +372,33 @@ test('ADD_BOND 华法琳 72: the front operator gets garrison_95 twice (own acti
     const f = h.unit('front');
     assert.equal(num(GR(give).bb.bond_add_count), per);
     skill(h, f);
-    assert.deepEqual(gains(h), { yanShip: 2 * per, kjeragShip: 2 * per }, `${gid}: two triggers per skill start`);
+    assert.deepEqual(gains(h), { yanShip: per, kjeragShip: per }, `${gid}: one trigger per skill start`);
     assert.equal(num(GR(give).bb.max_add_count_per_battle), cap, `${give}: the data cap`);
     for (let i = 1; i < 7; i++) skill(h, f);
-    assert.deepEqual(gains(h), { yanShip: 2 * cap, kjeragShip: 2 * cap }, `${gid}: the seventh activation reaches both caps`);
+    assert.deepEqual(gains(h), { yanShip: cap, kjeragShip: cap }, `${gid}: the seventh activation reaches the cap`);
     skill(h, f);
-    assert.deepEqual(gains(h), { yanShip: 2 * cap, kjeragShip: 2 * cap }, `${gid}: the eighth adds no layers`);
+    assert.deepEqual(gains(h), { yanShip: cap, kjeragShip: cap }, `${gid}: the eighth adds no layers`);
     for (let i = 0; i < 30; i++) skill(h, f);
-    assert.deepEqual(gains(h), { yanShip: 2 * cap, kjeragShip: 2 * cap }, `${gid}: later activations stay capped`);
+    assert.deepEqual(gains(h), { yanShip: cap, kjeragShip: cap }, `${gid}: later activations stay capped`);
     skill(h, h.unit('warfarin'));
     skill(h, h.unit('side'));
-    assert.equal(gains(h).yanShip, 2 * cap, '华法琳 herself / other operators do not carry the trait');
+    assert.equal(gains(h).yanShip, cap, '华法琳 herself / other operators do not carry the trait');
     assert.equal(h.eventsOf('fx').filter((e) => e[1] === 'garrisonGrant' && e[4].id === f.id && e[4].key === give).length, 1, 'one grant fx');
     checkInvariants(h.b);
     cover(gid); cover(give);
   }
 });
 
-test('华法琳 双判 on the real chess (feedback #15): 风笛 in front gains 2 × 7 维多利亚 / 远见 / 不屈, 魔王 adds to each trigger', () => {
+test('华法琳 on the real chess (the 双判 reverted, rel34): 风笛 in front gains 7 / 14 维多利亚 / 远见 / 不屈, 魔王 adds to each trigger', () => {
   const kinds = { victoriaShip: B(0), visiShip: B(0), indomShip: B(0) };
   const extra = num(GR('garrison_59_a').bb.extra_cnt);
   for (const [wid, per, cap] of [['chess_char_4_26_a', 1, 7], ['chess_char_4_26_b', 2, 14], ['chess_char_5_04_a', 1, 7], ['chess_char_5_04_b', 2, 14]]) {
     const solo = makeBattle({ units: [{ chessId: wid, row: 10, col: 4 }, { chessId: 'chess_char_4_07_a', row: 10, col: 5 }], bonds: kinds, autoFinish: false, timeLimit: 400 });
     solo.step(1);
     for (let i = 0; i < 10; i++) skill(solo, solo.unit('chess_char_4_07_a'));
-    assert.deepEqual(gains(solo), { victoriaShip: 2 * cap, visiShip: 2 * cap, indomShip: 2 * cap }, `${wid}: 2 × ${cap}`);
+    assert.deepEqual(gains(solo), { victoriaShip: cap, visiShip: cap, indomShip: cap }, `${wid}: ${cap}`);
     checkInvariants(solo.b);
-    // 魔王 below 风笛, facing her (UP = +row): +extra on each of the two triggers, outside the caps
+    // 魔王 below 风笛, facing her (UP = +row): +extra on each trigger, outside the cap
     const h = makeBattle({
       units: [{ chessId: wid, row: 10, col: 4 }, { chessId: 'chess_char_4_07_a', row: 10, col: 5 }, { chessId: 'chess_char_4_25_a', row: 9, col: 5, dir: 'UP' }],
       bonds: kinds, autoFinish: false, timeLimit: 400,
@@ -406,9 +406,9 @@ test('华法琳 双判 on the real chess (feedback #15): 风笛 in front gains 2
     h.step(1);
     const f = h.unit('chess_char_4_07_a');
     skill(h, f);
-    for (const b of Object.keys(kinds)) assert.equal(gains(h)[b], 2 * (per + extra), `${wid}: ${b} after one skill start with 魔王`);
-    for (let i = 1; i < 7; i++) skill(h, f); // the seventh start fills both copies' caps
-    for (const b of Object.keys(kinds)) assert.equal(gains(h)[b], 2 * cap + 2 * 7 * extra, `${wid}: ${b} capped base + 魔王's extras`);
+    for (const b of Object.keys(kinds)) assert.equal(gains(h)[b], per + extra, `${wid}: ${b} after one skill start with 魔王`);
+    for (let i = 1; i < 7; i++) skill(h, f); // the seventh start fills the cap of 7 (a; b: 7 × 2 = 14)
+    for (const b of Object.keys(kinds)) assert.equal(gains(h)[b], cap + 7 * extra, `${wid}: ${b} capped base + 魔王's extras`);
     checkInvariants(h.b);
   }
 });

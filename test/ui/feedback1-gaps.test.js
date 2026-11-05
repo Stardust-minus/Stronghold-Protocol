@@ -353,7 +353,7 @@ describe('§21.26 4 — the strategy draft marks a strategy built around a bond 
     assert.equal(bandOffLine([]), '');
     const tag = BandOffTag({ names: ['拉特兰'] });
     assert.ok(hasClass(tag, 'dband__off'));
-    assert.equal(textOf(tag), '本局禁用');
+    assert.equal(textOf(tag), '拉特兰盟约禁用');
     assert.equal(tag.props.title, '本局禁用【拉特兰】盟约，此策略效果可能无法发挥');
     const note = BandOffNote({ names: ['拉特兰'] });
     assert.ok(hasClass(note, 'draft-detail__off'));

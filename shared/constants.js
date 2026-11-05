@@ -355,4 +355,9 @@ export const emoteArtGroup = (id) => { const e = emoteInfo(id); return e ? `emot
 /** Canonical URL of an emote's extracted art (`/assets/local/emoticon/<dir>/<picId>.png`), or null for unknown ids. */
 export const emoteArtPath = (id) => { const e = emoteInfo(id); return e ? `/assets/local/emoticon/${e.dir}/${e.picId}.png` : null; };
 export const EMOTE_COOLDOWN_MS = 1000; // activity_table autoChessData.constData.chatCD (s)
+// 预选盟约 (g.bondPlan, a remake feature, display only): the 副盟约 a plan may name besides its 主盟约 (≤ 5 bonds in all; 4 since the owner's 「副盟约最多选择4个」),
+// and the least time between two changes of a plan once the strategy draft is over — each one is told to everyone in the
+// match (m.notice bondPlan), so a player tapping through the picker cannot flood the others' screens
+export const BOND_PLAN_SUB_MAX = 4;
+export const BOND_PLAN_COOLDOWN_MS = 3000;
 export const EMOTE_BUBBLE_MS = 3000;   // constData.chatTime (s): how long a bubble stays up

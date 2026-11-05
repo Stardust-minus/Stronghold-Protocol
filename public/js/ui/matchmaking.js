@@ -78,7 +78,7 @@ export function queueTime(q, now) {
   return Math.max(0, Math.floor((now - (q?.joinedAt || now)) / 1000));
 }
 
-const REASONS = {
+export const REASONS = {
   cancelled: N_('已取消匹配'), disconnected: N_('连接中断，本次匹配已取消'), timeout: N_('确认超时，已返回匹配入口'),
   confirmation_timeout: N_('确认时间已结束，未确认的博士已退出本次匹配'), unavailable: N_('匹配条件或可用容量已变化，请重新匹配'),
   shutdown: N_('匹配服务已停止'),
@@ -90,6 +90,11 @@ const REASONS = {
   unconfirmed: N_('你或同队成员未完成确认，已退出本次匹配；请重新开始匹配'),
   maintenance: N_('服务器即将维护，匹配已暂停'),
 };
+
+/** The server's reason for a queue state (queue.reason), translated; null when none or unknown. */
+export function offerReasonText(code) {
+  return typeof code === 'string' && REASONS[code] ? t(REASONS[code]) : null;
+}
 
 export function OnlinePlayers() {
   const presence = useStore((s) => s.presence);
@@ -105,7 +110,7 @@ export function queuePopulation(q, online, cancelling = false) {
     ? q.waitingCount : null;
 }
 
-const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。');
+export const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。');
 export const EXPERIMENTAL_RULES = N_('好友小队沿用房间的实验性选项。单人默认只进标准规则的对局，选择「实验性规则」后才会进入改过规则的小队，确认入场前可以看到具体规则。只有单人时一律按标准规则开局。');
 
 export function MatchmakingPanel({ queue, difficulty, experimental, online, onJoin, joining = false, compact = false }) {
@@ -189,9 +194,10 @@ export function MatchmakingPanel({ queue, difficulty, experimental, online, onJo
 
 /**
  * The queue in the hub's frame (2026-10-14: the lobby / room design by 雨千代chiyo, ui/matchFlow.js): 搜寻中 while queued
- * — the time waited, the server's waiting count, 停止搜寻 (the same cancellation as 取消匹配); the confirm step
- * (MatchmakingPanel: 确认入场 / 退出本次匹配) while an offer stands; 搜寻成功 while the game node is prepared. Every
- * state still comes from queue.state; null while not queued.
+ * — the time waited, the server's waiting count, 停止搜寻 (the same cancellation as 取消匹配). While an offer stands the
+ * confirm step is the full-screen takeover over every screen (2026-11-05, ui/matchOffer.js OfferTakeover, mounted by
+ * main.js); here, under it, 搜寻成功 (FoundPanel) holds the place — 队友已集结，请确认入场 until everyone is in, then 全员已确认，
+ * 正在连接游戏节点 while the game node is prepared. Every state still comes from queue.state; null while not queued.
  */
 export function QueueFlow({ queue, difficulty, experimental, online, party = false, class: cls = '' }) {
   useTicker(1000);
@@ -202,7 +208,7 @@ export function QueueFlow({ queue, difficulty, experimental, online, party = fal
     return html`<${FoundPanel} class=${cls} seats=${capacity} text=${t('全员已确认，正在连接游戏节点')} />`;
   }
   if (queue.state === 'offered') {
-    return html`<div class=${`mf-offer ${cls}`}><${MatchmakingPanel} queue=${queue} difficulty=${difficulty} experimental=${experimental} online=${online} /></div>`;
+    return html`<${FoundPanel} class=${cls} seats=${capacity} text=${t('队友已集结，请确认入场')} />`;
   }
   const cancelling = cancellation?.ticketId === queue.ticketId && ['sending', 'recovering', 'confirming'].includes(cancellation?.status);
   const cancelFailed = cancellation?.ticketId === queue.ticketId && cancellation?.status === 'failed';

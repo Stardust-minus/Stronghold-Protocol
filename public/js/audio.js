@@ -14,7 +14,10 @@
 //
 // - The AudioContext is created on the first user gesture (pointerdown/keydown/touchend), so browsers
 //   never block or warn; everything requested before that is remembered (BGM) or dropped (SFX).
-// - Channels: master → { bgm, sfx, voice } gains; volumes from settings (0..1) + mute. Tab hidden ⇒ suspend.
+// - Channels: master → { bgm, sfx, voice } gains; volumes from settings (0..1) + mute. Tab hidden ⇒ suspend, unless a
+//   `keepAwake` key holds the context (ui/offerCues.js while a match offer stands: its cues reach a doctor waiting in
+//   another tab); hidden and held, only the SFX channel sounds — the music and the voices are silent until the page shows.
+//   `synth(build)`: a UI cue drawn in code (ui/offerSynth.js), into the same SFX channel.
 // - BGM: `intro` then `loop` (1 s crossfade); switching tracks fades out/in (0.8 s). The same loop URL
 //   keeps playing across phases (prep and combat share a track). While the music is silent — muted, or the BGM volume
 //   at 0 — no track is downloaded (≈ 14 MB a match): the wanted one is remembered, another one playing stops, and the
@@ -595,6 +598,8 @@ export class AudioManager {
     this.sfxGain = null;
     this.voiceGain = null;
     this.volumes = { bgm: 0.6, sfx: 0.8, voice: 0.8, muted: false };
+    /** keepAwake keys: while any holds, a hidden page keeps the context running (SFX only) */
+    this.awake = new Set();
     this.buffers = new Map(); // url → Promise<AudioBuffer|null> (insertion order = LRU)
     this.bufBytes = new Map(); // url → decoded PCM bytes (the byte budget of the LRU, see _buffer)
     this.warned = new Set();
@@ -738,13 +743,47 @@ export class AudioManager {
   _onVis() {
     try {
       if (!this.ctx) return;
-      if (this.win?.document?.hidden) this.ctx.suspend().catch(() => {});
-      else if (this.ctx.state !== 'running') {
+      const hidden = !!this.win?.document?.hidden;
+      if (this.awake.size) this._applyVolumes(); // hidden and held: the music and voices fall silent (and back)
+      if (hidden && !this.awake.size) this.ctx.suspend().catch(() => {});
+      else if (hidden) {
+        // held awake (keepAwake) behind another tab: no gesture can come from here, the page already had one
+        if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+      } else if (this.ctx.state !== 'running') {
         // back on the page: resume, and keep a gesture ready in case the browser wants one first (iOS after a call)
         this._armUnlock();
         this.ctx.resume().then(() => { if (this.ctx?.state === 'running') this._dropUnlock(); }, () => {});
       }
     } catch { /* ignore */ }
+  }
+
+  /**
+   * Hold the context awake while the page is hidden, as long as any `key` holds (ui/offerCues.js 'offer': a match offer
+   * stands). Hidden and held, only the SFX channel sounds; the last key let go behind another tab suspends it again.
+   * Before the first gesture there is no context and nothing changes. Idempotent per key.
+   * @param {string} key @param {boolean} on
+   */
+  keepAwake(key, on) {
+    const had = this.awake.size > 0;
+    if (on) this.awake.add(key); else this.awake.delete(key);
+    if (had === this.awake.size > 0) return;
+    this._applyVolumes();
+    this._onVis();
+  }
+
+  /**
+   * A UI cue drawn in code rather than a file (ui/offerSynth.js, 确认入场): `build(ctx, out, volume)` schedules its own
+   * nodes into the SFX channel, so mute and the SFX volume apply as to every UI sound. Nothing before the first gesture;
+   * never throws. `name` only labels the cue (diagnostics, the browser tests).
+   * @param {(ctx: AudioContext, out: AudioNode, volume: number) => unknown} build @param {number} [volume] @param {string} [name]
+   * @returns {boolean} whether it was scheduled
+   */
+  synth(build, volume = 0.9, name = '') {
+    try {
+      if (!this.ctx || !this.sfxGain || this.volumes.muted || this.volumes.sfx <= 0 || typeof build !== 'function') return false;
+      build(this.ctx, this.sfxGain, volume);
+      return true;
+    } catch (err) { this._warn(`synth:${name}`, err); return false; }
   }
 
   _warn(key, err) {
@@ -880,12 +919,14 @@ export class AudioManager {
     if (!this.ctx) return;
     try {
       const t = this.ctx.currentTime;
+      // hidden but held awake (keepAwake): the SFX channel only
+      const sfxOnly = this.awake.size > 0 && !!this.win?.document?.hidden;
       this.master.gain.setTargetAtTime(this.volumes.muted ? 0 : 1, t, 0.03);
       // perceptual curve
-      this.bgmGain.gain.setTargetAtTime(this.volumes.bgm ** 2 * 0.55, t, 0.05);
+      this.bgmGain.gain.setTargetAtTime(sfxOnly ? 0 : this.volumes.bgm ** 2 * 0.55, t, 0.05);
       this.sfxGain.gain.setTargetAtTime(this.volumes.sfx ** 2 * 0.9, t, 0.03);
       // no 0.9: a voice line is already mastered as loud as the rest of the official mix (settings 干员语音 tunes it)
-      this.voiceGain.gain.setTargetAtTime(this.volumes.voice ** 2, t, 0.03);
+      this.voiceGain.gain.setTargetAtTime(sfxOnly ? 0 : this.volumes.voice ** 2, t, 0.03);
     } catch { /* ignore */ }
   }
 

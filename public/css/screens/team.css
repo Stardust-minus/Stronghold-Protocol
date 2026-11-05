@@ -190,6 +190,14 @@
   .team.team--list { --team-top: 1.9rem; --team-bottom: 1.4rem; }
 }
 
-/* 预选盟约 glyph on the row's status line (ui/bondPlan.js) */
+/* 预选盟约 glyphs on the row's status line (ui/bondPlan.js; 主盟约 then 副盟约) */
 .team__plan { flex: none; border-color: rgba(78, 216, 175, .25); background: rgba(12, 15, 14, .6); }
 .team__plan .bglyph { width: .18rem; height: .18rem; }
+.team__plan .bplan__sub { width: .15rem; height: .15rem; }
+/* the viewer's own row while its plan can change (rel34): the glyphs, or 「+ 盟约」, open the picker */
+.team__planbtn { flex: none; display: inline-flex; align-items: center; padding: 0; background: none; border: 0; color: inherit; cursor: pointer; }
+.team__planbtn:hover .bplan, .team__planbtn:focus-visible .bplan { border-color: var(--mint-400); background: rgba(78, 216, 175, .16); }
+.team__planadd { display: inline-flex; align-items: center; gap: .02rem; padding: .01rem .05rem; border: 1px dashed rgba(78, 216, 175, .5);
+  color: var(--mint-400); font-size: max(calc(.11 * var(--t)), calc(10px * var(--ui))); font-weight: 700; white-space: nowrap; }
+.team__planadd .icon { width: .12rem; height: .12rem; }
+.team__planbtn:hover .team__planadd, .team__planbtn:focus-visible .team__planadd { border-style: solid; background: rgba(78, 216, 175, .12); }

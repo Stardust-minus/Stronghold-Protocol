@@ -412,7 +412,9 @@ not measurements of the official client.
 
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 
-A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one carries a 本局禁用 tag and note in the strategy draft and stays selectable (bands.json `bondIds`, §21.26).
+A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one — or, since rel34, around a bond of the match's drawn set D — carries a 本局禁用 tag and note in the strategy draft and stays selectable (bands.json `bondIds`, §21.26, `gameLogic matchOffBonds`, §36.11).
+
+预选盟约 (`ui/bondPlan.js`, §36.11): a 主盟约 (a core bond) and up to three 副盟约 (any bond with a member), shown on the draft's order rows and the team panel (the main glyph first); the picker marks 本局禁用 on the static and the drawn bonds and is opened from the draft (预选盟约) or, the whole match while alive, from the viewer's own team-panel row. The shop and promotion-reward cards ring my main plan's operators (strong) and my secondary ones (light) and show the avatars of the pool teammates whose plan holds one of the card's bonds; a change after the draft toasts on the others' screens (`m.notice bondPlan`).
 
 The strategy draft enables skip only on the viewer's turn, with quota left and another unpicked player to pass to.
 The free draft (two or more humans, `m.public.draft.free`; `screens/bandDraft.js` header) has no turn and no skip: 选择

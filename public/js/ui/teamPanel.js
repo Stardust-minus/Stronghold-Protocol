@@ -1,6 +1,8 @@
 // Left team panel (research 06 §11.1, research 09 §3.1): one row per seat — avatar (the picked 头像, else the band icon), name, LP
 // tower, status glyph (… acting / ✓ ready / ⌛ deciding / ⚔ combat / door left / ✕ dead), AI badge, "you" marker, the
-// field being watched (eye badge), the 预选盟约 glyph (ui/bondPlan.js) and emote bubbles. In a boss round the viewer's pair
+// field being watched (eye badge), the 预选盟约 glyphs (ui/bondPlan.js BondPlanTags: 主盟约 ringed, then 副盟约) and emote
+// bubbles; while the viewer may change its plan (`plan` prop: the match screen's bondPlanOpen, alive, not solo) its own
+// row's glyphs — or a 「+ 盟约」 chip without a plan — open the picker (rel34: 「预选的盟约在局内可以二次更改」). In a boss round the viewer's pair
 // is framed in green from the round's start (gameLogic teamFrameIds; community report of 2026-10-06, item 51).
 // Observing (client-side combat, `observe` prop — the official flow): tapping a teammate's avatar expands a mint
 // "前往查看" button under the row (when that teammate can be observed now; otherwise the reason is toasted through
@@ -45,7 +47,7 @@ import { uniteRelayKey } from '../battle/observe.js';
 import { PHONE_QUERY, rosterPools, rosterStartsOpen, teamDensity, teamEmoteMode, teamPanelLayout } from './teamLayout.js';
 import { useMedia } from './device.js';
 import { useStore } from '../store.js';
-import { BondPlanTag } from './bondPlan.js';
+import { BondPlanTags, planIds } from './bondPlan.js';
 import { MatchName, useIsOwner } from './ownerName.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -219,7 +221,7 @@ function RowStatus({ status, meta, offline }) {
 }
 
 /** One seat. `bubble`: its emote beside the row (classic roster), else null. */
-function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, selfLive, cap, uniteLocal, team, frameArt, list, bubble, spMark = null }) {
+function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, selfLive, cap, uniteLocal, team, frameArt, list, bubble, spMark = null, plan = null }) {
   const self = p.playerId === myId;
   const status = p.pendingDeath ? 'rescue' : p.alive === false ? 'dead' : p.status;
   const meta = p.pendingDeath ? { ...STATUS_META.deciding, text: t('等待救援') } : STATUS_META[status] || STATUS_META.acting;
@@ -236,6 +238,7 @@ function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, sel
   const band = p.bandId ? data.lookup('bands', p.bandId)?.name : null; // the avatar no longer shows it (#100)
   const { click, dblClick } = clicks;
   const owner = useIsOwner(p); // 服主 (ui/ownerName.js): the gold wash of the row
+  const planned = planIds(p).length > 0; // 预选盟约 (主 / 副)
   return html`<div data-seat=${p.seat} class=${cx('team__row', owner && 'is-sp-owner', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && !p.pendingDeath && 'is-dead', p.pendingDeath && 'is-pending', open && 'is-open', offline && 'is-offline')}>
     <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${[title, inTeam && !self ? t('与你在同一战场') : null, band].filter(Boolean).join(' · ')} aria-label=${title} aria-expanded=${observe && !self && !half ? String(open) : undefined}>
       <${PlayerAvatar} player=${p} self=${self} />
@@ -253,7 +256,10 @@ function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, sel
           tip=${rowLpTip(lp, cap)} />
         ${lp.left != null ? html`<${MissTag} n=${lp.left} name=${self ? null : p.name || t('博士')} />` : null}
         <${RowStatus} status=${status} meta=${meta} offline=${offline} />
-        ${p.bondPlan ? html`<${BondPlanTag} bondId=${p.bondPlan} compact=${true} class="team__plan" />` : null}
+        ${self && plan ? html`<button type="button" class="team__planbtn" data-testid="bond-plan-team" title=${t('修改预选盟约')} aria-label=${t('修改预选盟约')}
+            aria-haspopup="dialog" onClick=${plan.onOpen}>${planned ? html`<${BondPlanTags} player=${p} compact=${true} class="team__plan" />`
+            : html`<span class="team__planadd"><${Icon} name="plus" />${t('盟约')}</span>`}</button>`
+          : planned ? html`<${BondPlanTags} player=${p} compact=${true} class="team__plan" />` : null}
         ${watched && !self ? html`<span class="team__eye" title=${t('正在查看')}><${GIcon} name="eye" /></span>` : null}
       </div>
       <${ReviveAction} pub=${pub} myId=${myId} target=${p} compact=${list} />
@@ -285,8 +291,9 @@ function PoolHead({ pool }) {
  *   halves.half: the ‹ › layer a tap on that player's avatar switches to (battle/observe.js avatarLayer), null = the usual flow
  *   spMarks: the shared 机变 draft's pick order on the portraits (ui/choiceOverlay.js spMarks: ✓ picked, ••• deciding)
  *   uniteLocal: the local 联防 replica's per-leaker counts while it is on screen (battle runner state().uniteLeft), else null
+ *   plan: { onOpen } while the viewer may change its 预选盟约 (its own row's glyphs open the picker), else null
  */
-export function TeamPanel({ pub, myId, watching, onWatch, roster, emoteTtl = 3000, observe = null, halves = null, self: selfLive = null, cap = 10, uniteLocal = null, spMarks = null }) {
+export function TeamPanel({ pub, myId, watching, onWatch, roster, emoteTtl = 3000, observe = null, halves = null, self: selfLive = null, cap = 10, uniteLocal = null, spMarks = null, plan = null }) {
   const players = sortedPlayers(pub);
   const { density, open: rosterOpen, setOpen: setRosterOpen, phone } = roster;
   const list = density === 'list';
@@ -328,7 +335,7 @@ export function TeamPanel({ pub, myId, watching, onWatch, roster, emoteTtl = 300
   const frameArt = team.size ? localAsset('ui/battle', 'bg_team_border') : null;
   const columns = measured ? layout.columns : 1;
   const style = list ? `--team-columns:${columns};--team-rows:${Math.ceil(players.length / columns)}` : undefined;
-  const row = (p) => html`<${TeamRow} key=${p.playerId} p=${p} pub=${pub} myId=${myId} watching=${watching} onWatch=${onWatch} observe=${observe} halves=${halves} clicks=${clicks} spMark=${spMarks?.get(p.playerId) || null}
+  const row = (p) => html`<${TeamRow} key=${p.playerId} p=${p} pub=${pub} myId=${myId} watching=${watching} onWatch=${onWatch} observe=${observe} halves=${halves} clicks=${clicks} spMark=${spMarks?.get(p.playerId) || null} plan=${plan}
     selfLive=${selfLive} cap=${cap} uniteLocal=${uniteLocal} team=${team} frameArt=${frameArt} list=${list} bubble=${bubbles?.get(p.playerId) || null} />`;
   return html`<aside ref=${panelRef} class=${cx('team', `team--${density}`, list && columns > 1 && 'team--wide', pools && 'team--pools', !rosterOpen && 'is-folded', rosterOpen && 'is-open')} style=${style} aria-label=${t('同盟成员')}>
     <div ref=${headerRef} class="team__header">

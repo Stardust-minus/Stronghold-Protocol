@@ -51,7 +51,7 @@ test('the other event screens at a big 文字大小: 成就统计\'s banner, the
   const briefShort = block(brief, '@media (max-height: 520px) {');
   for (const r of [/\.stephead__micro \{ display: none; \}/, /\.stephead__guide \.btn__label \{ display: none; \}/]) assert.match(briefShort, r);
   // the review: the bars grow at every height (1024×600 at 特大 too), the micro gives way at 大 / 特大 up to 640 px
-  assert.match(brief, /\.brief \.brief-h \{[^}]*height: auto; min-height: \.66rem;/);
+  assert.match(brief, /\.brief \.brief-h \{[^}]*height: auto; min-height: \.52rem;/); // (.66rem before the two-column briefing, 2026-11-05)
   assert.match(block(brief, '@media (max-height: 640px) {'), /:root\[data-text="xl"\] \.stephead__micro \{ display: none; \}/);
   assert.match(readFileSync(path.join(ROOT, 'public/js/ui/matchEnemies.js'), 'utf8'), /<b>\$\{slashBreaks\(name\)\}<\/b>/);
   const draft = block(css('public/css/screens/draft.css'), '@media (max-height: 520px) {');
@@ -71,7 +71,12 @@ test('the other event screens at a big 文字大小: 成就统计\'s banner, the
   assert.match(draftAll, /:root\[data-text="lg"\] \.draft\.has-status \.stephead__name, :root\[data-text="xl"\] \.draft\.has-status \.stephead__name \{ display: none; \}/);
   assert.match(block(draftAll, '@media (max-height: 640px) {'), /\.draft\.has-status \.stephead__name \{ display: none; \}/);
   assert.match(draftAll, /\.draft \.stephead__guide \{ flex: none; \}/);
-  assert.match(brief, /margin: \.1rem \.5rem max\(1\.6rem, calc\(\.76rem \+ \.58 \* var\(--t\)\)\);/);
+  // §35.56 (the 重刷本局 note ran over 2/2): since 2026-11-05 the note is in the foot's own row beside 已就绪 — the foot in the
+  // flow, the dock its left part — instead of a strip that kept the absolute foot's height free below it
+  assert.match(brief, /\n\.brief__foot \{[^}]*position: relative; z-index: 2; flex: none; display: flex;/);
+  assert.match(brief, /\n\.brief__dock \{[^}]*flex: 1 1 0; min-width: 0;/);
+  assert.match(brief, /\n\.brief-reroll \{[^}]*margin: 0;/);
+  assert.match(readFileSync(path.join(ROOT, 'public/js/screens/briefing.js'), 'utf8'), /<footer class="brief__foot">\s*<div class="brief__dock">/);
   assert.match(briefShort, /\.brief \.stephead__name \{ min-width: 0; white-space: normal; text-wrap: balance;/);
   const panels = css('public/css/screens/game-panels.css');
   assert.match(panels, /\.spov \.rt:lang\(ko\), \.spov \.rt-note:lang\(ko\), \.spov \.rt-vup:lang\(ko\) \{ word-break: keep-all; overflow-wrap: break-word; \}/);

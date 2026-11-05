@@ -13,7 +13,7 @@ import { GuideHost } from '/js/ui/guide.js';
 import { GameScreen } from '/js/screens/game.js';
 import { store, emptyMatch, selectRoute } from '/js/store.js';
 import { net, NetError } from '/js/net.js';
-import { data } from '/js/data.js';
+import { data, getMode } from '/js/data.js';
 import { installAudio } from '/js/audio.js';
 import { settingsStore } from '/js/ui/settings.js';
 import { awayStore } from '/js/ui/matchChrome.js';
@@ -284,7 +284,15 @@ function buildState() {
  * member count +1 and carry `harmony` (the bond popup's 调和 row).
  */
 function applyGapVariants() {
-  if (VARIANTS.has('funny')) { S.pub.modeId = 'mode_multi_funny'; S.pub.difficulty = 'FUNNY'; }
+  if (VARIANTS.has('funny')) {
+    S.pub.modeId = 'mode_multi_funny';
+    S.pub.difficulty = 'FUNNY';
+    // 标准 draws no core bond and one add-on (config bans FUNNY) besides its static ten (rel34: the strategy draft and the
+    // 预选盟约 picker mark the drawn set too — gameLogic matchOffBonds)
+    const drawn = S.pub.disabledBonds.filter((id) => data.lookup('bonds', id)?.isCore !== true).slice(0, 1);
+    S.pub.drawnDisabledBonds = drawn;
+    S.pub.disabledBonds = [...new Set([...drawn, ...(getMode('mode_multi_funny')?.inactiveBondIds || [])])];
+  }
   if (VARIANTS.has('morph')) {
     const iso = data.list('items').find((i) => i.canGiveBond && !i.isGolden);
     const hammer = data.list('items').filter((i) => i.giveBondId === 'victoriaShip' && !i.isGolden).sort((a, b) => a.tier - b.tier)[0];

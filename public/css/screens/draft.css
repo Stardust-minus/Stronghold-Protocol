@@ -3,8 +3,9 @@
    portrait grid, detail pane with 初始生命值 and 确认选择; the 本局信息 dialog (js/ui/matchInfo.js MatchInfoDialog,
    GitHub issue #8 item 1). The 「请选择策略」 band and the 协议启动！ screen are css/screens/protocol-boot.css.
    2026-10-13 (the event's pre-game, video 6:29–7:51; the 2026-10-14 UI package by 雨千代chiyo): name-card rows, a 4-wide
-   wall of portraits, the detail pane sliding in on a tap (the order list narrows), 已选定策略 after the pick. Original
-   drawings only; the pg-* keyframes are css/screens/briefing.css.
+   wall of portraits (since 2026-11-05 as many columns as show every portrait: ui/fitGrid.js), the detail pane sliding
+   in on a tap (the order list narrows), 已选定策略 after the pick. Original drawings only; the pg-* keyframes are
+   css/screens/briefing.css.
    ========================================================================================== */
 
 /* ---- layout: order | link | wall | detail (0 wide until a portrait is tapped) ----
@@ -17,26 +18,28 @@
 }
 .draft--detail .draft__main { grid-template-columns: 4.7rem .2rem minmax(0, 1fr) 4.6rem; }
 .draft--detail .draft-order__rows { padding: .08rem .12rem .1rem .28rem; }
-.draft--detail .dorder { grid-template-columns: minmax(0, 1fr) 1.1rem .42rem; gap: .06rem; }
-.draft--detail .dorder__box { width: 1.1rem; height: 1.1rem; }
+.draft--detail .dorder { grid-template-columns: minmax(0, 1fr) calc(var(--drh, 1.26rem) * .873) .42rem; gap: .06rem; }
+.draft--detail .dorder__box { width: calc(var(--drh, 1.26rem) * .873); height: calc(var(--drh, 1.26rem) * .873); }
 .draft--detail .dorder__card { padding: 0 .1rem 0 .14rem; gap: .1rem; }
 .draft--detail .dorder__name { gap: .04rem; font-size: calc(.21 * var(--t)); }
 .draft--detail .dorder__medal { width: .26rem; height: .26rem; }
-.draft--detail .dorder .pavatar { --pa: .74rem; }
+.draft--detail .dorder .pavatar { --pa: calc(var(--drh, 1.26rem) * .587); }
 
 /* ---- the order: name-card rows ---- */
 .draft-order {
-  grid-column: 1; position: relative; display: flex; flex-direction: column; gap: .2rem; min-width: 0; min-height: 0;
-  padding: .3rem 0 .24rem .3rem;
+  grid-column: 1; position: relative; display: flex; flex-direction: column; gap: .14rem; min-width: 0; min-height: 0;
+  padding: .24rem 0 .18rem .3rem;
   background: linear-gradient(180deg, rgba(48, 118, 100, .26), rgba(20, 46, 40, .16) 70%, rgba(14, 24, 22, .06));
   clip-path: polygon(0 0, calc(100% - .5rem) 0, 100% .5rem, 100% 100%, 0 100%);
   animation: pg-left 460ms var(--pg-ease) 100ms backwards;
 }
-.draft-order__deco { flex: none; display: flex; align-items: center; gap: .05rem; height: .34rem; overflow: hidden; }
+.draft-order__deco { flex: none; display: flex; align-items: center; gap: .05rem; height: .28rem; overflow: hidden; }
 .draft-order__deco i { width: .5rem; height: .18rem; background: rgba(63, 230, 180, .4); }
 .draft-order__deco i + i { width: .18rem; }
 .draft-order__deco span { margin-left: .08rem; font-family: var(--font-num); font-size: calc(.1 * var(--t)); line-height: 1.15; letter-spacing: .08em; color: rgba(120, 240, 205, .55); white-space: nowrap; }
-.draft-order__rows { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .24rem; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: .08rem .5rem .1rem .3rem; scrollbar-width: none; }
+/* the rows take the height that shows them all (bandDraft.js DRAFT_ROW_REM, ui/fitGrid.js: --drh, 1.26rem at most, .96 at
+   least — the owner, 2026-11-05: 「尽量不用滚动」); past that (an expanded room's 8–20 seats) the list scrolls */
+.draft-order__rows { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .16rem; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: .06rem .5rem .08rem .3rem; scrollbar-width: none; }
 /* this match's battlefield (#65): the tile map of ui/stagePreview.js and its name */
 .draft-map { flex: none; display: flex; align-items: center; gap: .16rem; min-width: 0; margin-right: .5rem; padding: .08rem .12rem; background: rgba(6, 12, 10, .55); box-shadow: inset 0 0 0 1px rgba(120, 240, 205, .16); }
 .draft--detail .draft-map { margin-right: .12rem; }
@@ -63,7 +66,7 @@
 .draft-order__tip { flex: none; margin: 0; padding-right: .5rem; font-size: calc(.14 * var(--t)); line-height: 1.55; color: var(--text-dim); }
 .draft--detail .draft-order__tip, .draft--detail .draft-order__deco span { display: none; }
 
-.dorder { position: relative; flex: none; display: grid; grid-template-columns: minmax(0, 1fr) 1.2rem .5rem; align-items: center; gap: .1rem; height: 1.26rem;
+.dorder { position: relative; flex: none; display: grid; grid-template-columns: minmax(0, 1fr) calc(var(--drh, 1.26rem) * .952) .5rem; align-items: center; gap: .1rem; height: var(--drh, 1.26rem);
   animation: pg-left 420ms var(--pg-ease) backwards; animation-delay: calc(180ms + var(--i, 0) * 70ms); }
 .dorder__card { position: relative; height: 100%; display: flex; align-items: center; gap: .16rem; min-width: 0; padding: 0 .16rem 0 .2rem; overflow: hidden;
   background: linear-gradient(90deg, #1d2223, #262b2c); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
@@ -72,7 +75,7 @@
 .dorder__art { position: absolute; top: 0; right: 0; bottom: 0; width: 2rem; max-width: 72%; height: 100%; background-size: cover; background-position: 50% 12%; object-fit: cover; object-position: 50% 12%; opacity: .7; pointer-events: none;
   -webkit-mask: linear-gradient(90deg, transparent, #000 40%); mask: linear-gradient(90deg, transparent, #000 40%); }
 .dorder__face { position: relative; flex: none; }
-.dorder .pavatar { --pa: .9rem; box-shadow: 0 0 0 .03rem #e6e9e9; border: 0; }
+.dorder .pavatar { --pa: calc(var(--drh, 1.26rem) * .714); box-shadow: 0 0 0 .03rem #e6e9e9; border: 0; }
 .dorder__me { position: absolute; left: -.14rem; top: -.14rem; width: .32rem; height: .32rem; display: grid; place-items: center; background: var(--mint-500); color: #062019; box-shadow: 0 0 0 .02rem #062019; }
 .dorder__me .icon { width: 72%; height: 72%; }
 .dorder__text { position: relative; display: flex; flex-direction: column; gap: .05rem; min-width: 0; text-shadow: 0 1px 3px #000, 0 0 .1rem #000; }
@@ -82,7 +85,7 @@
 .dorder__medal { flex: none; width: .34rem; height: .34rem; object-fit: contain; filter: drop-shadow(0 1px 2px #000); }
 .dorder__ai { flex: none; font-family: var(--font-num); font-size: calc(.11 * var(--t)); padding: 0 .04rem; background: #a9c3d8; color: #0b1520; }
 .dorder__state { font-size: calc(.15 * var(--t)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dorder__box { position: relative; width: 1.2rem; height: 1.2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .04rem; padding: 0;
+.dorder__box { position: relative; width: calc(var(--drh, 1.26rem) * .952); height: calc(var(--drh, 1.26rem) * .952); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .04rem; padding: 0;
   background: #2b2f30; color: #767c7e; font-size: calc(.2 * var(--t)); font-weight: 700; }
 .dorder__box.is-wait .icon { width: .52rem; height: .52rem; }
 .dorder__box.is-cur { background: linear-gradient(180deg, #f2f4f4, #cdd1d1); color: #15191a; box-shadow: 0 0 0 .03rem #fff, 0 .04rem .14rem rgba(0, 0, 0, .55); }
@@ -120,13 +123,19 @@
   background: linear-gradient(90deg, var(--mint-400) .05rem, rgba(255, 255, 255, .5) .05rem calc(100% - .05rem), var(--mint-400) calc(100% - .05rem)); }
 .draft--detail .draft__link { opacity: 0; }
 
-/* ---- the wall of strategies ---- */
+/* ---- the wall of strategies ----
+   Every portrait in view (the owner, 2026-11-05: 「尽量不用滚动」): bandDraft.js measures the wall's box and sets the column
+   count and the tile size that show them all (ui/fitGrid.js fitTiles: --dcols, --dtile; 1.9rem at most, the design's 4-wide
+   wall when the box is large enough, .9rem at least — past that the wall scrolls, data-fit="scroll"). Without a measure
+   (no ResizeObserver) the design's 4 × 1.9rem. */
 .draft-grid {
   grid-column: 3; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain;
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1.9rem)); justify-content: center; align-content: start; gap: .3rem .26rem;
-  padding: .24rem .3rem .4rem; background: linear-gradient(180deg, rgba(18, 22, 22, .6), rgba(10, 12, 12, .3)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
+  display: grid; grid-template-columns: repeat(var(--dcols, 4), minmax(0, var(--dtile, 1.9rem))); justify-content: center; align-content: start; gap: .24rem .18rem;
+  padding: .2rem .24rem .28rem; background: linear-gradient(180deg, rgba(18, 22, 22, .6), rgba(10, 12, 12, .3)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
   scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .3) transparent;
 }
+/* all in view: the wall sits in the middle of its box (a scrolling one keeps its top reachable) */
+.draft-grid[data-fit="all"] { align-content: center; }
 .dband, .dorder__box, .draft-skip, .draft-lockbtn, .stephead__info { border: 0; font: inherit; }
 .dband {
   position: relative; aspect-ratio: 1; padding: 0; color: var(--text-md); background: #0e1212;
@@ -220,8 +229,15 @@
 /* a strategy built around a bond the mode switches off (bandDraft.js BandOffTag / BandOffNote, DESIGN §21.26 — the
    §21.7 本局禁用 look: dim, dashed, the bond struck through): information only, it stays selectable. Px floors keep it
    readable on phones (1rem = 40 px). */
-.dband__off { position: absolute; left: .1rem; top: .1rem; font-size: max(calc(.12 * var(--t)), 8px); line-height: 1.5; padding: 0 .05rem; color: var(--text-lo); background: rgba(0, 0, 0, .6);
-  border: 1px dashed rgba(255, 255, 255, .32); white-space: nowrap; pointer-events: none; }
+/* 「X盟约禁用」 (the home bond is off this match: the mode's list or the drawn set): a warning tag the eye catches while scanning
+   the wall, and the portrait dimmed; the strategy stays selectable (rel34, the owner: 「让玩家避免选择」) */
+.dband__off { position: absolute; left: .1rem; top: .1rem; z-index: 2; font-size: max(calc(.13 * var(--t)), 9px); font-weight: 700; line-height: 1.5;
+  padding: 0 .06rem; color: #ffe2dc; background: rgba(150, 34, 26, .9); border: 1px solid rgba(255, 120, 100, .75);
+  box-shadow: 0 .02rem .06rem rgba(0, 0, 0, .5); pointer-events: none;
+  /* one line when it fits, else two at the <wbr> after the name (keep-all: never inside a word); anywhere only as a last resort */
+  max-width: calc(100% - .2rem); box-sizing: border-box; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.35; }
+.dband.is-off:not(.is-taken) .dband__frame { filter: grayscale(.55) brightness(.72); }
+.dband.is-off.is-sel:not(.is-taken) .dband__frame, .dband.is-off.is-mine:not(.is-taken) .dband__frame { filter: grayscale(.25) brightness(.9); }
 .draft-detail__off { display: flex; align-items: flex-start; gap: .06rem; margin: .04rem 0 .06rem; padding: .06rem .1rem;
   font-size: max(calc(.15 * var(--t)), 9px); line-height: 1.5; color: var(--text-lo); background: rgba(0, 0, 0, .25); border-left: 2px solid rgba(255, 255, 255, .28); }
 .draft-detail__off .icon { width: max(.16rem, 10px); height: max(.16rem, 10px); flex: none; margin-top: .02rem; }
@@ -350,19 +366,21 @@
    The dialog shows the briefing's own enemy, bond and banned-operator blocks (ui/matchEnemies.js, ui/matchInfo.js, #484)
    at the briefing's size on desktop; every size is max(design rem, px floor), so on a phone (1rem = 40 px) the text
    stays at ≥ 9–15 px and the dialog's body scrolls inside the screen (756×366, 844×390) while the header and the
-   footer (the turn's countdown, 关闭) stay in view. */
+   footer (the turn's countdown, 关闭) stay in view. 2026-11-05 (「尽量不用滚动」): tighter between the blocks, and on a screen
+   wider than 16:9 up to 20rem wide (a wider bond column: the banned operators take a row less) — never closer than 1.1rem
+   to the screen's sides there, so 确认选择 beside it stays on the backdrop (a tap there closes the dialog only). */
 .modal__box.minfo-dlg {
-  width: min(max(17rem, 32px, calc(900px * var(--sp-ui, 1))), calc(100vw - .6rem - var(--sa-l, 0px) - var(--sa-r, 0px)));
+  width: min(max(17rem, 32px, calc(900px * var(--sp-ui, 1)), min(20rem, calc(100vw - 2.2rem))), calc(100vw - .6rem - var(--sa-l, 0px) - var(--sa-r, 0px)));
   max-height: calc(100vh - .6rem);
   max-height: calc(100svh - .6rem);
 }
-.minfo-dlg .modal__head { padding: .16rem .3rem .02rem; }
+.minfo-dlg .modal__head { padding: .08rem .3rem .02rem; }
 .minfo-dlg .modal__head .micro { font-size: max(.11rem, 8px); }
 .minfo-dlg .modal__title { font-size: max(.26rem, 15px); }
-.minfo-dlg .modal__body { display: flex; flex-direction: column; gap: max(.16rem, calc(6px * var(--sp-ui, 1))); padding: .1rem .3rem .2rem; }
+.minfo-dlg .modal__body { display: flex; flex-direction: column; gap: max(.1rem, calc(4px * var(--sp-ui, 1))); padding: .08rem .3rem .06rem; }
 .minfo-dlg__content { flex: none; min-width: 0; }
 .minfo-dlg__content.has-enemies { display: grid; grid-template-columns: minmax(0, 6.2rem) minmax(0, 1fr); gap: max(.2rem, calc(10px * var(--sp-ui, 1))); }
-.minfo-dlg__enemies, .minfo-dlg__bonds { display: flex; flex-direction: column; gap: max(.16rem, calc(6px * var(--sp-ui, 1))); min-width: 0; }
+.minfo-dlg__enemies, .minfo-dlg__bonds { display: flex; flex-direction: column; gap: max(.1rem, calc(4px * var(--sp-ui, 1))); min-width: 0; }
 .minfo-dlg__enemies > *, .minfo-dlg__bonds > * { flex-shrink: 0; }
 /* the shared 本局遭遇敌方 block (ui/matchEnemies.js; its briefing layout is scoped under .brief) stacked into the
    dialog's column: portrait + 敌方领袖 | name, round, abilities, battlefield; the special enemies as rows under them */
@@ -398,7 +416,7 @@
 /* the name; the description in the tooltip (ui/matchEnemies.js, the maintainer's decision of 2026-10-22) */
 .minfo-dlg .brief-faction__text { display: flex; flex-direction: column; gap: .03rem; min-width: 0; overflow-wrap: anywhere; }
 .minfo-dlg .brief-faction__text b { font-size: max(calc(.2 * var(--t)), 12px); color: var(--amber); }
-.minfo-dlg .modal__actions { align-items: center; padding: .12rem .3rem; }
+.minfo-dlg .modal__actions { align-items: center; padding: .08rem .3rem; }
 .minfo-dlg .modal__actions .btn { height: max(.5rem, 30px); font-size: max(.18rem, 12px); }
 .minfo-dlg__status { margin-right: auto; min-width: 0; }
 .minfo-dlg__turn { display: inline-flex; align-items: center; gap: .06rem; font-size: max(.17rem, 11px); font-weight: 700; color: var(--gold); white-space: nowrap; }
@@ -407,10 +425,10 @@
 .minfo-dlg__turn.is-warn { color: var(--orange-hi); }
 .minfo-dlg__turn.is-mint { color: var(--mint-400); }
 .minfo-dlg__turn.is-dim { color: var(--text-lo); }
-.minfo-dlg .brief-bonds, .minfo-dlg .brief-banned { padding: max(.16rem, calc(6px * var(--sp-ui, 1))) max(.2rem, calc(8px * var(--sp-ui, 1))) max(.2rem, calc(8px * var(--sp-ui, 1))); }
-.minfo-dlg .brief-h { font-size: max(.21rem, 12px); margin-bottom: max(.12rem, calc(5px * var(--sp-ui, 1))); }
+.minfo-dlg .brief-bonds, .minfo-dlg .brief-banned { padding: max(.12rem, calc(5px * var(--sp-ui, 1))) max(.2rem, calc(8px * var(--sp-ui, 1))) max(.14rem, calc(6px * var(--sp-ui, 1))); }
+.minfo-dlg .brief-h { font-size: max(.21rem, 12px); margin-bottom: max(.08rem, calc(4px * var(--sp-ui, 1))); }
 .minfo-dlg .brief-h::before { width: max(.06rem, 3px); height: max(.2rem, 11px); }
-.minfo-dlg .brief-bonds__row { gap: max(.16rem, calc(6px * var(--sp-ui, 1))) max(.1rem, calc(4px * var(--sp-ui, 1))); }
+.minfo-dlg .brief-bonds__row { gap: max(.12rem, calc(5px * var(--sp-ui, 1))) max(.1rem, calc(4px * var(--sp-ui, 1))); }
 .minfo-dlg .brief-bond { width: max(1rem, 32px, calc(50px * var(--sp-ui, 1))); }
 .minfo-dlg .brief-bond .bond { --disc: max(.66rem, 32px); }
 .minfo-dlg .brief-bond .bond__name { font-size: max(.16rem, 10px); }

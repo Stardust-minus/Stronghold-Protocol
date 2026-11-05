@@ -160,7 +160,7 @@ describe('0.1.1 gaps: 变形同构体 pairings and 调和\'s +1 (mock harness, h
       }));
       assert.ok(cards.length >= 30, `${cards.length} strategies on offer`);
       assert.deepEqual(cards.filter((c) => c.tag).map((c) => c.id), ['band_paganini', 'band_clementia', 'band_mlynar'], 'only the three');
-      assert.ok(cards.filter((c) => c.tag).every((c) => c.off && c.tag === '本局禁用' && c.inside && c.font >= (touch ? 8 : 11.5)), JSON.stringify(cards.filter((c) => c.tag)));
+      assert.ok(cards.filter((c) => c.tag).every((c) => c.off && /^(拉特兰|阿戈尔|卡西米尔)盟约禁用$/.test(c.tag) && c.inside && c.font >= (touch ? 8 : 11.5)), JSON.stringify(cards.filter((c) => c.tag)));
       assert.equal(cards.find((c) => c.id === 'band_paganini').title, '本局禁用【拉特兰】盟约，此策略效果可能无法发挥');
       await page.screenshot({ path: path.join(OUT, `fb1-gaps-draft-${name}.png`) });
       // its detail pane: the note, inside the pane; 确认选择 stays enabled (information only)

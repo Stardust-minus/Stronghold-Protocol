@@ -124,7 +124,7 @@ describe('多人匹配 scope (real server, headless Chrome)', { skip: !ENABLED &
     assert.deepEqual(offer.experimental, { revivalEnabled: false, disableSharedPool: false, playerCapacity: 8 });
     await me.waitForSelector('.matchmaking__options', { visible: true, timeout: 15000 });
     await settle(me);
-    assert.equal(await me.$eval('.matchmaking', (el) => el.dataset.playerCapacity), '8');
+    assert.equal(await me.$eval('[data-testid="match-offer"]', (el) => el.dataset.playerCapacity), '8'); // 确认入场 (ui/matchOffer.js)
     await shot(me, 'offered');
     for (const c of clients) {
       const state = await c.waitFor('queue.state', (m) => m.state === 'offered');

@@ -11,10 +11,13 @@
 // under it), 本局禁用干员 — with 已就绪 x/N over the person pips (已就绪 2/4 as research 06 §4.1 reads it, no colon) and
 // the big 准备就绪 in the bottom-right corner. The sections come in from the right one after another
 // (css/screens/briefing.css 开局转场).
+// No scrolling (the owner, 2026-11-05: 「优化进入阶段…的UI大小，尽量不用滚动」): the sections sit in two columns —
+// 本局遭遇敌方 over 核心盟约, 附加盟约 over 本局禁用干员 — sized so both fit between the header and the foot; a column
+// scrolls on its own only when it still cannot (a short phone, a big 文字大小).
 // 自选上场 (feedback #114): with more 自选 candidates than slots in a tier (the 候补), the player chooses who plays this
 // match (ui/diyChoice.js; m.private.diyChoice) — since feedback #127 (the owner, 2026-11-03: the last section of the
-// column had to be scrolled to and went unnoticed) in a strip pinned above 准备就绪 with the 重刷本局 bar (`brief__dock`),
-// highlighted until the player chooses or is ready.
+// column had to be scrolled to and went unnoticed) in a strip pinned beside 准备就绪 with the 重刷本局 bar (`brief__dock`,
+// the foot's left part since 2026-11-05), highlighted until the player chooses or is ready.
 
 import { useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon } from '../ui/components.js';
@@ -67,22 +70,25 @@ export function BriefingScreen() {
       total=${phaseTotalSeconds(pub, gd.config)} onExit=${() => setExit(true)} />
     <${UnofficialMark} room=${room} class="brief__modmark" /><${VersionTag} room=${room} class="brief__vertag" />
     <main class="brief__main">
-      <section class="brief-sec brief-sec--enemy" style="--i:1">
-        <${MatchEnemies} pub=${pub} gd=${gd} />
-      </section>
-
-      <section class="brief-sec brief-sec--core" style="--i:2"><${MatchBondRow} title=${t('核心盟约')} micro="CORE BONDS" bonds=${info.core} model=${info} /></section>
-      <section class="brief-sec brief-sec--addon" style="--i:3">
-        <${MatchBondRow} title=${t('附加盟约')} micro="ADD-ON BONDS" bonds=${info.addon} model=${info} />
-        <${MatchLegend} model=${info} />
-      </section>
-      <section class="brief-sec brief-sec--banned" style="--i:4"><${BannedOperators} model=${info} /></section>
+      <div class="brief__col brief__col--enemy">
+        <section class="brief-sec brief-sec--enemy" style="--i:1">
+          <${MatchEnemies} pub=${pub} gd=${gd} />
+        </section>
+        <section class="brief-sec brief-sec--core" style="--i:2"><${MatchBondRow} title=${t('核心盟约')} micro="CORE BONDS" bonds=${info.core} model=${info} /></section>
+      </div>
+      <div class="brief__col brief__col--bonds">
+        <section class="brief-sec brief-sec--addon" style="--i:3">
+          <${MatchBondRow} title=${t('附加盟约')} micro="ADD-ON BONDS" bonds=${info.addon} model=${info} />
+          <${MatchLegend} model=${info} />
+        </section>
+        <section class="brief-sec brief-sec--banned" style="--i:4"><${BannedOperators} model=${info} /></section>
+      </div>
     </main>
-    <div class="brief__dock">
-      ${priv?.diyChoice ? html`<${DiyChoice} priv=${priv} onChoose=${actions.diyChoose} disabled=${!me} dock=${true} ready=${!!me?.ready} />` : null}
-      <${SetupReroll} pub=${pub} />
-    </div>
     <footer class="brief__foot">
+      <div class="brief__dock">
+        ${priv?.diyChoice ? html`<${DiyChoice} priv=${priv} onChoose=${actions.diyChoose} disabled=${!me} dock=${true} ready=${!!me?.ready} />` : null}
+        <${SetupReroll} pub=${pub} />
+      </div>
       <${LoadoutButton} from="briefing" size="lg" class="brief-loadout" />
       <div class="brief-ready">
         <span class="brief-ready__txt">${t('已就绪')}<b class="num">${readyN}</b><span class="num">/${players.length}</span></span>

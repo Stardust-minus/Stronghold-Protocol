@@ -590,6 +590,28 @@ export class GameData {
   }
 
   /**
+   * The bonds a plan may name as its 副盟约 (g.bondPlan subIds, m.public players[].bondPlanSub — the owner's request of
+   * 2026-11-05: 「允许预选副盟约」「盟约预选支持多选」): every bond with at least one visible member, core or add-on, in data
+   * order — all but 绝技 (no member operators). The mode's switched-off bonds and the match's drawn set included, as for
+   * the main plan. Frozen.
+   * @returns {readonly string[]}
+   */
+  subPlannableBondIds() {
+    if (!this._subPlannableBonds) {
+      this._subPlannableBonds = Object.freeze(this.bondIds.filter((id) => {
+        const members = this.bond(id)?.visibleMembers;
+        return Array.isArray(members) && members.length > 0;
+      }));
+    }
+    return this._subPlannableBonds;
+  }
+
+  /** @param {unknown} bondId @returns {boolean} whether `bondId` is one of subPlannableBondIds() (g.bondPlan subIds) */
+  bondSubPlannable(bondId) {
+    return typeof bondId === 'string' && this.subPlannableBondIds().includes(bondId);
+  }
+
+  /**
    * Placeable (hand) tokens a chess sends to the hand when placed on the board: [{ tokenId, count }] — its manually
    * deployable summons (tokens.json `placeable`: 医疗探机, 诅咒娃娃, 海嗣, 狼群, 流形, 爬行号·防护单元; user playtest #6)
    * that the chess makes under `loadout` ({ skillIndex } from shared/protocol.js resolveLoadout; absent ⇒ its default

@@ -822,7 +822,7 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .eqr__hint b { color: var(--text-hi); }
 .eqr__ok-icon { width: .2rem; height: .2rem; margin-right: .06rem; vertical-align: -.03rem; filter: brightness(0) invert(1); }
 
-/* 预选盟约 (ui/bondPlan.js): a player's planned bond — the tag (draft order rows, team panel) and the picker dialog */
+/* 预选盟约 (ui/bondPlan.js): a player's plan — the tags (draft order rows, team panel: 主盟约 then 副盟约) and the picker */
 .bplan { display: inline-flex; align-items: center; gap: .04rem; max-width: 100%; padding: .01rem .06rem .01rem .02rem;
   border: 1px solid rgba(78, 216, 175, .35); background: rgba(78, 216, 175, .08); color: var(--mint-400);
   font-size: max(calc(.12 * var(--t)), calc(11px * var(--ui))); font-weight: 700; white-space: nowrap; }
@@ -846,6 +846,31 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .bplan-card__mine .icon { width: .16rem; height: .16rem; }
 .bplan-card.is-sel { border-color: var(--mint-400); background: linear-gradient(180deg, rgba(78, 216, 175, .18), rgba(12, 15, 14, .85)); }
 .bplan-card.is-off .bglyph { opacity: .6; }
+/* rel34: 主盟约 + 副盟约 (多选) — the tags' main bond, then the smaller secondary glyphs after a rule */
+.bplan__main { display: inline-flex; align-items: center; gap: .04rem; min-width: 0; }
+.bplan .bplan__sub { width: .17rem; height: .17rem; opacity: .9; }
+.bplan__main + .bplan__sub { margin-left: .03rem; padding-left: .04rem; border-left: 1px solid rgba(78, 216, 175, .35); box-sizing: content-box; }
+.modal__box.bplan-dlg { width: min(10.4rem, 96vw); }
+/* one row of the eight core bonds and six columns of 副盟约, so the picker fits a desktop window without scrolling */
+.bplan-sec .bplan-dlg__grid { grid-template-columns: repeat(auto-fill, minmax(1.12rem, 1fr)); gap: .06rem; }
+.bplan-sec .bplan-card { padding: .06rem .04rem; }
+.bplan-sec .bplan-card .bglyph { width: .4rem; height: .4rem; }
+.bplan-sec + .bplan-sec { margin-top: .1rem; }
+.bplan-sec__h { display: flex; align-items: baseline; gap: .1rem; margin: 0 0 .06rem; font-size: max(calc(.15 * var(--t)), calc(13px * var(--ui))); font-weight: 900; color: var(--text-hi); letter-spacing: .06em; }
+.bplan-sec__h small { font-size: max(calc(.12 * var(--t)), calc(11px * var(--ui))); font-weight: 400; color: var(--text-lo); letter-spacing: 0; }
+.bplan-card__text { display: flex; flex-direction: column; align-items: center; gap: .02rem; min-width: 0; max-width: 100%; }
+.bplan-card__off { display: flex; flex-direction: column; align-items: inherit; line-height: 1.25; }
+.bplan-card__off small { font-size: max(calc(.1 * var(--t)), calc(9px * var(--ui))); color: var(--text-lo); }
+.bplan-card__role { font-size: max(calc(.11 * var(--t)), calc(10px * var(--ui))); font-weight: 700; color: var(--mint-400); }
+.bplan-card.is-off { border-style: dashed; }
+.bplan-card.is-dim { opacity: .42; }
+.bplan-card.is-dim.is-sel { opacity: 1; }
+.bplan-sec .bplan-dlg__grid--sub { grid-template-columns: repeat(auto-fill, minmax(1.55rem, 1fr)); gap: .05rem; }
+.bplan-sec .bplan-card--sm { flex-direction: row; justify-content: flex-start; gap: .06rem; padding: .04rem .2rem .04rem .06rem; text-align: left; }
+.bplan-sec .bplan-card--sm .bglyph { flex: none; width: .28rem; height: .28rem; }
+.bplan-card--sm .bplan-card__text { align-items: flex-start; }
+.bplan-card--sm .bplan-card__name { font-size: max(calc(.13 * var(--t)), calc(12px * var(--ui))); }
+.bplan-card--sm .bplan-card__mine .icon { width: .14rem; height: .14rem; }
 /* Plugin offers share choice cards; text and controls remain reachable at large text scale. */
 .offerov { inset: 0; z-index: 24; }
 .offerov__dock { position: absolute; top: .8rem; right: .16rem; z-index: 24; display: flex; flex-wrap: wrap; gap: .08rem; max-width: 80%; max-height: 25%; overflow: auto; }

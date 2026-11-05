@@ -308,7 +308,7 @@ still uses the legacy prep adapter; a trusted strategy must explicitly select th
 × 0.02); a band whose mechanic rides on a bond the mode switches off weighs 0 — `GameData.bandBondIds` (bands.json
 `bondIds`, built by shared/bandBonds.js: the bond names in <…> of its text, the bond ids / bond pools of its blackboards)
 ∩ `modeInactiveBonds`: 标准's 潘格尼尼, 克莱门莎, 玛恩纳 — and with every offered band excluded it takes the default band;
-one rng draw per pick (DESIGN §21.26). The strategy draft marks the same bands 本局禁用 for humans (still selectable).
+one rng draw per pick (DESIGN §21.26). The strategy draft marks the same bands for humans (still selectable): 「<bond>盟约禁用」 on the card since rel34, 本局禁用 before.
 Buys toward a full board first (the cap is 8 from R1; leftover funds are lost), completes the merges it can afford,
 then levels on a curve (L2 ≈ R3, L3 ≈ R5, L4 ≈ R7, L5 ≈ R10, L6 ≈ R12 — the competent curve of docs/BALANCE.md; free
 levels always), then spends the rest (a band that keeps its leftover funds — 坎诺特 利滚利 — holds its interest capital
@@ -1034,7 +1034,9 @@ drawn set; `disabledBonds` = drawn ∪ the mode's static list), `hiddenBossId`, 
 (solo pause, §1.3a),
 `players[].autoplay`, `players[].bondPlan` (the core bond the player announced with `g.bondPlan` — a remake feature,
 display only: GameData.plannableBondIds = every `isCore` bond, the mode's switched-off ones included; changeable from
-INFO_CHECK until round 1's COMBAT, kept the whole match; `null` when none), `players[].uniteLeft` (UNITE, leakers only: their enemies still standing, uncapped — §4),
+INFO_CHECK until the match ends while the player is alive, kept the whole match; `null` when none), `players[].bondPlanSub`
+(its 副盟约: ≤ 4 of GameData.subPlannableBondIds, every bond with a visible member; omitted when none; a change after the
+strategy draft is also an `m.notice bondPlan` — DESIGN §36.11), `players[].uniteLeft` (UNITE, leakers only: their enemies still standing, uncapped — §4),
 `players[].bonds` = `ps.alive ? bondList(gd, ps.bondsView(), { off: offBondCounts(gd, ps) }) : []` — every bond with members, layers or an active tier
 (and, last, every bond the mode never activates that the player has members of: `{ bondId, count, active: false, tier: 0, layers, off: true }`,
 the strip's grey 本局禁用 disc — bondsMeta.offBondCounts, never in the battle input), the same list

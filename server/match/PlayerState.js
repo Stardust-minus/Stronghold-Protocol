@@ -176,6 +176,10 @@ export class PlayerState {
     this.lastEmoteAt = -Infinity;
     /** the core bond the human announced it means to build (g.bondPlan, m.public players[].bondPlan; display only) */
     this.bondPlan = null;
+    /** its 副盟约 (g.bondPlan subIds, m.public players[].bondPlanSub; display only): ≤ BOND_PLAN_SUB_MAX bond ids */
+    this.bondPlanSub = [];
+    /** when the plan last changed after the strategy draft (the m.notice cooldown, BOND_PLAN_COOLDOWN_MS; not saved) */
+    this._planAt = -Infinity;
     /** operator loadout (DESIGN §16): frozen { [baseChessId]: { skill, module } }, {} = every chess on its defaults */
     this.loadout = Object.freeze({});
     // 0.2.2: the per-operator 潜能 / 练度 ({} = every operator 潜能 6, 精英2 Lv.60 — bots always)

@@ -45,6 +45,7 @@ import { ConnectionBanner } from './ui/connBanner.js';
 import { MatchNotice, matchNoticeText, replayingRound, MATCH_NOTICE_REFRESH_MS } from './ui/matchNotice.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { applyLikes, likedToast } from './ui/likes.js';
+import { planNoticeText } from './ui/bondPlan.js';
 import { net, identity, NetError } from './net.js';
 import { createAuthProbe } from './authProbe.js';
 import './queueCancellation.js';
@@ -57,6 +58,8 @@ import { RoomScreen, TrustedNotice } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { preloadBootArt } from './ui/protocolBoot.js';
 import { audio, installAudio } from './audio.js';
+import { installOfferCues } from './ui/offerCues.js';
+import { OfferTakeover, installOfferStage } from './ui/matchOffer.js';
 import { roomCue, cueGate } from './ui/roomCues.js';
 import { settingsStore } from './ui/settings.js';
 import { matchMusic } from './ui/lobbyMusic.js';
@@ -410,6 +413,8 @@ function wireNet() {
   });
   net.on('m.notice', (msg) => {
     if (VOTE_NOTICE[msg.kind]) { const n = VOTE_NOTICE[msg.kind](msg); if (n) toast(n[0], n[1], { ttl: 5000 }); return; }
+    // 预选盟约 changed after the strategy draft (server Match.planBond): told to the others — the changer sees its own tags
+    if (msg.kind === 'bondPlan') { if (msg.playerId !== store.get().me?.playerId) toast(planNoticeText(msg), 'info', { ttl: 5000 }); return; }
     if (msg.kind !== 'afkRemoved') return;
     const rounds = Number.isInteger(msg.rounds) && msg.rounds > 0 ? msg.rounds : 2;
     toast(t('{name} 连续 {n} 回合没有任何操作，已被移出对局', { name: typeof msg.name === 'string' && msg.name ? msg.name : t('博士'), n: rounds }), 'info', { ttl: 6000 });
@@ -505,6 +510,7 @@ function App() {
   return html`<div class="app-root">
     <div class="app-bg" aria-hidden="true"></div>
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
+    <${OfferTakeover} />
     <${TrustedNotice} />
     <${ConnectionBanner} />
     ${route === 'game' ? html`<${MatchNoticeHost} />` : null}
@@ -604,6 +610,10 @@ async function boot() {
   // a cosmetic plugin's sound that will not load falls back like its art (content.js, DESIGN §32 P1a)
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get(),
     onFailed: (url) => cosmetics.fail(url) });
+  // 确认入场 (2026-11-05): the takeover follows the queue (ui/matchOffer.js — the moments kept after an offer ends) and
+  // its sounds play on any screen (ui/offerCues.js: arrival, each acceptance, my accept, the last seconds, all ready)
+  installOfferStage({ subscribe: store.subscribe, getState: store.get });
+  installOfferCues({ subscribe: store.subscribe, getState: store.get });
   matchMusic.load(); // the player's 休整期 / 作战 自选曲 files (IndexedDB)
   // …and the music follows the art: the screen's track again when the cosmetic layers change its URLs
   cosmetics.subscribe(() => audio.refreshBgm());
@@ -633,7 +643,8 @@ async function boot() {
     splash.classList.add('is-done');
     setTimeout(() => splash.remove(), 300);
   }
-  globalThis.__SP__ = { store, net, data, version: 1 };
+  // (audio: the browser tests watch the UI sounds a screen asks for, e.g. test/ui/match-offer.e2e.test.js)
+  globalThis.__SP__ = { store, net, data, audio, version: 1 };
   // A page keeps the modules it imported at load time for its whole lifetime, so a deploy cannot reach an open tab
   // (ui/buildGuard.js): watch `/client-build` (not private health). Outside a match the page reloads itself; during a match the guard says
   // so instead (the connection banner offers 刷新页面) and reloads once the match — settlement screen included — is over,

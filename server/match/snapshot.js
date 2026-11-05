@@ -122,6 +122,8 @@ export const PLAYER_FIELDS = Object.freeze({
     '_botFocus', '_botFocusId', '_botSeenUids', '_deferItemMerge', 'aiTakeoverRound',
     // 自选候补 (feedback #114): the briefing's choice per tier (a server without it ignores the key)
     'diyChoice',
+    // 预选盟约's 副盟约 (rel34, g.bondPlan subIds): a server without it ignores the key; a checkpoint without it keeps []
+    'bondPlanSub',
   ]),
   special: Object.freeze(['ready', 'connected', 'loadout', 'ops', 'skins', 'diyStock']),
   derived: Object.freeze([
@@ -132,6 +134,8 @@ export const PLAYER_FIELDS = Object.freeze({
     '_deployMap', '_deployField', '_legalityStale', '_botPrepToken', '_botPrepWork', '_lastPriv', '_botRangeRecs',
     // the rid echoed as m.private `ack` (client-side prediction, rel26): per socket, reset on every reconnect
     'intentAck',
+    // the 预选盟约 notice cooldown (g.bondPlan): a restored match starts without one
+    '_planAt',
   ]),
 });
 

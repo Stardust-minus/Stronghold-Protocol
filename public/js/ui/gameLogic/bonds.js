@@ -365,6 +365,20 @@ export function modeOffBonds(mode) {
 }
 
 /**
+ * The bonds the strategy draft and the 预选盟约 picker mark 本局禁用 (the owner, 2026-11-05: 「在预选的时候标注本局禁用的
+ * 盟约」「选择策略阶段也可以标注一下本家盟约被禁用的策略」): the mode's static inactive bonds (modeOffBonds, they never
+ * activate) ∪ the match's drawn set D (m.public drawnDisabledBonds — their single-bond operators leave the pool: the
+ * briefing's grey discs, disabledBondSets). Only those two places read it — the shop, the strip and the detail cards keep
+ * modeOffBonds, because a D bond still activates.
+ * @param {any} pub m.public @param {any} mode config.json modes[modeId], or null
+ * @returns {Set<string>}
+ */
+export function matchOffBonds(pub, mode) {
+  const sets = disabledBondSets(pub, isObj(mode) && Array.isArray(mode.inactiveBondIds) ? mode.inactiveBondIds : []);
+  return new Set([...sets.off, ...sets.drawn]);
+}
+
+/**
  * The bonds a strategy is built around that this mode switches off: bands.json `bondIds` (shared/bandBonds.js at build
  * time — the field the server's bot reads too, GameData.bandBondIds) ∩ `off` (modeOffBonds). 标准: 潘格尼尼 → 拉特兰,
  * 克莱门莎 → 阿戈尔, 玛恩纳 → 卡西米尔; the strategy draft marks such a band 本局禁用 (still selectable, DESIGN §21.26).

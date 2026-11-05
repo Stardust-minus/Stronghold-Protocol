@@ -1,11 +1,12 @@
 // server/match/match/intents.js — Match methods: the g.* / b.* intent router (_handle: the prep intents go to
 // PlayerState, the drafts, watching, the pause and the battle reports to the match), emotes, AI 托管 (setAutoplay,
 // kickBot), g.unitStats (the stats the board's units start their next battle with: a preview battle, started, read
-// and dropped) and g.bondPlan (the announced core bond, display only).
+// and dropped) and g.bondPlan (the announced 主盟约 and 副盟约, display only; a change after the strategy draft is told
+// to everyone as m.notice bondPlan).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { unitStatsEntry } from '../../../shared/protocol.js';
-import { PHASE, ERR, EMOTES, EMOTE_COOLDOWN_MS, GEO } from '../../../shared/constants.js';
+import { PHASE, ERR, EMOTES, EMOTE_COOLDOWN_MS, GEO, BOND_PLAN_SUB_MAX, BOND_PLAN_COOLDOWN_MS } from '../../../shared/constants.js';
 import { deriveSeed } from '../../sim/rng.js';
 import { OK, fail } from './common.js';
 import { onHumanEmote } from '../botEmotes.js';
@@ -35,8 +36,8 @@ export class MatchIntents {
       case 'g.bandLock': return this.lockBand(ps);
       // the strategy highlighted in the draft screen (what a timed-out turn takes, timeoutBand)
       case 'g.bandFocus': return this.bandFocus(ps, msg.bandId ?? null);
-      // the core bond the player means to build (display only; the opening phases)
-      case 'g.bondPlan': return this.planBond(ps, msg.bondId ?? null);
+      // the bonds the player means to build (display only): 主盟约 and 副盟约, the whole match
+      case 'g.bondPlan': return this.planBond(ps, msg.bondId ?? null, msg.subIds);
       case 'g.buy': return ps.buy(msg.slot);
       case 'g.refresh': return ps.refresh();
       case 'g.freeze': return ps.freeze();
@@ -90,29 +91,48 @@ export class MatchIntents {
   }
 
   /**
-   * g.bondPlan { bondId? } (a remake feature, display only): the core bond (盟约) the player announces it means to build
-   * — m.public players[].bondPlan, seen by every teammate and spectator for the rest of the match. Changeable from
-   * INFO_CHECK until round 1's battle starts (bondPlanOpen), else WRONG_PHASE; `bondId` one of
-   * GameData.plannableBondIds() (BAD_TARGET otherwise), absent / null clears it; the same plan again changes nothing.
-   * No rule, bot, timer or idle check reads it. AI seats and spectator seats cannot send it (handle refuses them).
-   * @param {PlayerState} ps @param {string|null} bondId
+   * g.bondPlan { bondId?, subIds? } (a remake feature, display only): the bonds (盟约) the player announces it means to
+   * build — m.public players[].bondPlan (the 主盟约: one of GameData.plannableBondIds(), the core bonds; absent / null
+   * clears it) and players[].bondPlanSub (the 副盟约: ≤ BOND_PLAN_SUB_MAX distinct ids of subPlannableBondIds(), not the
+   * main one; absent keeps the current ones minus a new main — an older page's message changes the main only), seen by
+   * every teammate and spectator for the rest of the match. Anything else is BAD_TARGET and changes nothing.
+   * Changeable from INFO_CHECK until the match ends (bondPlanOpen, else WRONG_PHASE — the owner's 「预选的盟约在局内可以
+   * 二次更改」, 2026-11-05) while the player is alive (else ELIMINATED); the same plan again changes nothing. A change after
+   * the strategy draft (any phase but INFO_CHECK / BAND_DRAFT) is told to everyone in the match — m.notice { kind:
+   * 'bondPlan', playerId, name, bondId, subIds }, a toast on the others' screens — at most once per BOND_PLAN_COOLDOWN_MS
+   * (RATE otherwise). No rule, bot, timer or idle check reads the plan. AI seats and spectator seats cannot send it
+   * (handle refuses them).
+   * @param {PlayerState} ps @param {string|null} bondId @param {unknown} [subIds]
    */
-  planBond(ps, bondId) {
+  planBond(ps, bondId, subIds) {
     if (!this.bondPlanOpen()) return fail(ERR.WRONG_PHASE);
+    if (!ps.alive) return fail(ERR.ELIMINATED);
     if (bondId !== null && !this.gd.bondPlannable(bondId)) return fail(ERR.BAD_TARGET);
-    if (ps.bondPlan === bondId) return OK;
+    const prevSub = Array.isArray(ps.bondPlanSub) ? ps.bondPlanSub : [];
+    let sub;
+    if (subIds === undefined) sub = prevSub.filter((id) => id !== bondId);
+    else {
+      if (!Array.isArray(subIds) || subIds.length > BOND_PLAN_SUB_MAX || new Set(subIds).size !== subIds.length) return fail(ERR.BAD_TARGET);
+      if (subIds.some((id) => id === bondId || !this.gd.bondSubPlannable(id))) return fail(ERR.BAD_TARGET);
+      sub = subIds.slice();
+    }
+    if (ps.bondPlan === bondId && sub.length === prevSub.length && sub.every((id, i) => id === prevSub[i])) return OK;
+    const notify = this.phase !== PHASE.INFO_CHECK && this.phase !== PHASE.BAND_DRAFT;
+    const now = this.sched.now();
+    if (notify && now - ps._planAt < BOND_PLAN_COOLDOWN_MS) return fail(ERR.RATE);
     ps.bondPlan = bondId;
+    ps.bondPlanSub = sub;
     this.markPublic();
+    if (notify) {
+      ps._planAt = now;
+      this.broadcast({ t: 'm.notice', kind: 'bondPlan', playerId: ps.playerId, name: ps.name, bondId, subIds: sub.slice() });
+    }
     return OK;
   }
 
-  /** The opening, while a bond plan may change: INFO_CHECK, the strategy draft, BATTLE_CHECK and round 1 up to its battle. */
+  /** While a plan may change: from INFO_CHECK until the match ends (RESULT; an ended match refuses every intent). */
   bondPlanOpen() {
-    switch (this.phase) {
-      case PHASE.INFO_CHECK: case PHASE.BAND_DRAFT: case PHASE.BATTLE_CHECK: return true;
-      case PHASE.ROUND_START: case PHASE.SP_DRAFT: case PHASE.PREP: return this.round <= 1;
-      default: return false;
-    }
+    return this.phase !== PHASE.LOBBY && this.phase !== PHASE.RESULT && !this.ended;
   }
 
   setAutoplay(ps, on) {

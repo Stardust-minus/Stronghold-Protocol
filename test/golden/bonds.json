@@ -581,7 +581,7 @@
       "bossHpLeft": null,
       "rngDraws": 20,
       "errors": {"count":0,"kinds":[]},
-      "players": {"p1":{"killed":27,"total":27,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":58590,"bossDmg":0,"heal":0,"deaths":0,"layerGains":{"miraShip":2}}},
+      "players": {"p1":{"killed":27,"total":27,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":58590,"bossDmg":0,"heal":0,"deaths":0,"layerGains":{"miraShip":1}}},
       "units": [
         ["p1",1,"op","chess_char_1_02_a",1,null,2712.6,1,4,0,0,0,0,0,0],
         ["p1",2,"op","chess_char_3_02_a",1,null,2102.1,1,5,0,0,0,0,0,0],
@@ -601,9 +601,9 @@
         ["p1","~5","token","token_10031_swire2_gdtrap",null,null,1000,1,39,0,0,0,0,0,null]
       ],
       "enemies": {"enemy_1000_gopro_2":[19,19,0,0,29070],"enemy_1325_cbgpro":[5,5,0,0,17100],"enemy_1325_cbgpro_2":[3,3,0,0,12420]},
-      "hooks": [1,43,1315,60,60,104,104,0,27,30,3,3,0,5132,0,0,27,0,1,27,2,0,0],
-      "events": {"atk":60,"deploy":13,"die":30,"dmg":104,"engage":4,"fx":38,"layer":2,"rate":4,"reload":2,"skill":8,"spawn":43,"status":1},
-      "fx": {"buff":1,"coin":8,"explode":3,"garrison":2,"garrisonGrant":1,"spGift":14,"strike":2,"summon":5,"volley":2},
+      "hooks": [1,43,1315,60,60,104,104,0,27,30,3,3,0,5132,0,0,27,0,1,27,1,0,0],
+      "events": {"atk":60,"deploy":13,"die":30,"dmg":104,"engage":4,"fx":37,"layer":1,"rate":4,"reload":2,"skill":8,"spawn":43,"status":1},
+      "fx": {"buff":1,"coin":8,"explode":3,"garrison":1,"garrisonGrant":1,"spGift":14,"strike":2,"summon":5,"volley":2},
       "snaps": "d1ecad1a 633b11b5 e8d12c64 792092dc 9b747cce"
     },
     "bond-kjeragShip-high": {
@@ -1508,7 +1508,7 @@
       "bossHpLeft": null,
       "rngDraws": 7,
       "errors": {"count":0,"kinds":[]},
-      "players": {"p1":{"killed":21,"total":21,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":66273,"bossDmg":0,"heal":0,"deaths":0,"layerGains":{"miraShip":2}}},
+      "players": {"p1":{"killed":21,"total":21,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":66273,"bossDmg":0,"heal":0,"deaths":0,"layerGains":{"miraShip":1}}},
       "units": [
         ["p1",1,"op","chess_char_4_23_a",2,null,2396.9,1,2,0,0,0,0,0,0],
         ["p1",2,"op","chess_char_4_22_a",2,null,2224.2,1,4,2,4552,0,0,11,1],
@@ -1520,9 +1520,9 @@
         ["p1",8,"op","chess_char_3_01_a",2,null,1663.13,1,5,8,25047,0,0,39,1]
       ],
       "enemies": {"enemy_1249_lysdb_2":[5,5,0,0,27000],"enemy_1251_lysyta":[15,15,0,0,37125],"enemy_1328_cbjedi":[1,1,0,0,9000]},
-      "hooks": [1,29,1281,99,99,239,239,1,21,21,5,3,14,5611,39,0,21,0,1,21,2,0,0],
-      "events": {"atk":122,"deploy":8,"die":21,"dmg":234,"engage":5,"fx":42,"layer":2,"rate":27,"skill":8,"spawn":29,"status":101},
-      "fx": {"buff":1,"displace":9,"garrison":2,"garrisonGrant":1,"mote":16,"sandChains":1,"shieldBreak":5,"slash":1,"sp":1,"spGift":4,"truesilver":1},
+      "hooks": [1,29,1281,99,99,239,239,1,21,21,5,3,14,5611,39,0,21,0,1,21,1,0,0],
+      "events": {"atk":122,"deploy":8,"die":21,"dmg":234,"engage":5,"fx":41,"layer":1,"rate":27,"skill":8,"spawn":29,"status":101},
+      "fx": {"buff":1,"displace":9,"garrison":1,"garrisonGrant":1,"mote":16,"sandChains":1,"shieldBreak":5,"slash":1,"sp":1,"spGift":4,"truesilver":1},
       "snaps": "ddc9cf1b a3341252 108d40b2 b376fc13 245bdb75"
     },
     "bond-swiftShip-high": {

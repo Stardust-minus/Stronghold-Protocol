@@ -36,7 +36,11 @@ import { layerGainRoom } from '../../shared/constants.js';
 import { uniteLeft } from '../sim/spec.js';
 import { diyTokenOwner, diyRecordOf } from '../../shared/diy.js';
 import { requiresTraitLayerAuthority } from './operatorTraits.js';
-import { GRANT_TWICE_CHAR, GRANT_TWICE_DEFAULT } from '../sim/content/garrisons/battle.js';
+// 华法琳's grant (garrison_72): the sim triggers it once since rel34 (content/garrisons/battle.js); rel26–rel33 triggered it
+// twice (「双判」, feedback #15). The bound below still allows two copies so a result from the previous client build (still
+// on the version allowlist after a switch) is not refused; an upper bound only. Drop with the next release.
+const LEGACY_TWICE_CHAR = 'char_171_bldsk';
+const LEGACY_TWICE_GIDS = Object.freeze(new Set(['garrison_72_a', 'garrison_72_b']));
 
 export const MAX_TICKS_PER_INTERVAL = 8;
 export const INTERVAL_MS = 1000 / 30;
@@ -661,7 +665,7 @@ function layerBondsOf(p, gd) {
  * What the player's IN_BATTLE layer 特质 can add to each bond in one battle on top of the flat 60 + 4·round (DESIGN
  * §21.26): the traits of its units (garrisons with `bond_add_count` / `bond_add_count_multi`) and the ones their ADD_BOND
  * traits hand out (`give_garrison_id`, counted for every operator of the player — "所有【X】" reaches them all; 华法琳's
- * twice, feedback #15), each on
+ * twice for one more release, LEGACY_TWICE_* above), each on
  * the bonds it names (`bond_by_id` ids; `bond_self` / `bond_actived_maxstack`: every bond of the player's snapshot and
  * units), up to the per-battle cap the sim applies (content/garrisons/battle.js: `max_add_count_per_battle` — a handed-out
  * trait's too, 华法琳's 7 / 14, GitHub #175). A trait the data gives no cap (初雪 / 银灰's freeze trait, 菲莱 / 百炼嘉维尔's per-skill
@@ -691,8 +695,8 @@ function layerAllowanceOf(p, gd) {
       if (!g || g.eventType !== 'IN_BATTLE') continue;
       if (g.effectKey !== 'ADD_BOND') { credit(g, 1); continue; }
       const given = gd.garrison(g.bbStr?.give_garrison_id ?? g.bbStr?.give_garrion_id);
-      // 华法琳's grant triggers twice (content/garrisons/battle.js grantTwiceGivers, feedback #15): two capped copies
-      const twice = GRANT_TWICE_DEFAULT.has(gid) || gd.chess(u.chessId)?.charId === GRANT_TWICE_CHAR;
+      // 华法琳's grant: two capped copies allowed for the previous build's clients (LEGACY_TWICE_*, above)
+      const twice = LEGACY_TWICE_GIDS.has(gid) || gd.chess(u.chessId)?.charId === LEGACY_TWICE_CHAR;
       if (given && given.eventType === 'IN_BATTLE') credit(given, units.length * (twice ? 2 : 1));
     }
   }

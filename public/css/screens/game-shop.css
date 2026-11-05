@@ -165,6 +165,18 @@
 @keyframes scard-rolling { from { opacity: .45; } to { opacity: .9; } }
 @media (prefers-reduced-motion: reduce) { .shopbar.is-rolling .scard--empty { animation: none; opacity: .7; } }
 
+/* 预选盟约 (rel34, ui/bondPlan.js cardPlanMarks): my 主盟约's operators ringed in mint, a 副盟约's more lightly (a ring of its
+   own, so it shows with 可晋升's gold and the frozen overlay), my plan's bond chips lit, the pool teammates' plans as
+   small avatars on the right edge */
+.scard.is-plan::before, .scard.is-plan2::before { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.scard.is-plan::before { box-shadow: inset 0 0 0 2px var(--mint-400), inset 0 0 .26rem rgba(23, 249, 183, .45); }
+.scard.is-plan2::before { box-shadow: inset 0 0 0 1px rgba(78, 216, 175, .9), inset 0 0 .14rem rgba(23, 249, 183, .24); }
+.scard__bond.is-plan { color: #fff; background: rgba(23, 249, 183, .26); box-shadow: 0 0 0 1px rgba(78, 216, 175, .6); padding-right: .04rem; }
+.scard.is-plan2 .scard__bond.is-plan { background: rgba(23, 249, 183, .14); }
+.scard__mates { position: absolute; z-index: 4; right: .04rem; top: .62rem; display: flex; flex-direction: column; align-items: center; gap: .03rem; pointer-events: none; }
+.scard__mates .pavatar { --pa: .3rem; box-shadow: 0 0 0 1px var(--ice), 0 1px 3px rgba(0, 0, 0, .7); }
+.scard__mates b { font-size: .11rem; line-height: 1.3; padding: 0 .03rem; color: var(--ice); background: rgba(0, 0, 0, .7); }
+
 /* ---- funds card ---- */
 .funds { width: 1.18rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .08rem; padding: .06rem; border-left: 1px solid var(--line); }
 .funds__hex {

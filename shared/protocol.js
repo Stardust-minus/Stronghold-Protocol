@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, BOND_PLAN_SUB_MAX } from './constants.js';
 import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS, PLAYER_CAPACITIES, isPlayerCapacity } from './playerCapacity.js';
 import { isExperimental } from './experimental.js';
 import { isSkinChoices } from './skins.js';
@@ -706,9 +706,11 @@ export const C2S = {
   // the strategy highlighted in the draft screen (user playtest #4 item 4): a turn that runs out takes it while it is
   // free (Match.timeoutBand); absent / null clears it
   'g.bandFocus': { bandId: nullable(isId), $optional: ['bandId'] },
-  // the core bond (盟约) the player means to build (a remake feature, display only): from INFO_CHECK until round 1's
-  // battle starts; every teammate and spectator sees it as m.public players[].bondPlan; absent / null clears it
-  'g.bondPlan': { bondId: nullable(isId), $optional: ['bondId'] },
+  // 预选盟约 (a remake feature, display only): `bondId` the 主盟约 — a core bond —, absent / null clears it; `subIds` the
+  // 副盟约 (any bond with a visible member, not the main one; ≤ BOND_PLAN_SUB_MAX), absent keeps the current ones. From
+  // INFO_CHECK until the match ends, while the player is alive; every teammate and spectator sees it as m.public
+  // players[].bondPlan / bondPlanSub, and a change after the strategy draft is told to everyone (m.notice bondPlan)
+  'g.bondPlan': { bondId: nullable(isId), subIds: (v) => isList(v, BOND_PLAN_SUB_MAX, isId), $optional: ['bondId', 'subIds'] },
   'g.buy': { slot: (v) => isInt(v, 0, 15) },
   'g.refresh': {},
   'g.freeze': {},
@@ -828,7 +830,8 @@ export const S2C = [
   // the AFK rule (挂机移出, server/match/Match.js afkRemoveRounds): m.removed { reason: 'afk', rounds } — to the removed
   // player, who is then out of the room as after g.leave (removed while offline: room.closed { reason: 'afk' } on its
   // next resume instead) · m.notice { kind: 'afkRemoved', playerId, name, rounds } — to everyone else in the match
-  // (players and spectator seats)
+  // (players and spectator seats) · m.notice { kind: 'bondPlan', playerId, name, bondId, subIds } — a 预选盟约 changed after
+  // the strategy draft (g.bondPlan): to everyone in the match, the player included; bondId null and subIds [] = cleared
   'm.removed', 'm.notice',
   // client-side combat (DESIGN §14): b.start { battleId, fieldId, kind, spec, authoritative, startAt, serverNow, elapsed,
   // speed, watch?, local?, ext? } · b.pool { hp, max, teamLp, acked: { [fieldId]: cumulative boss damage counted } } ·
