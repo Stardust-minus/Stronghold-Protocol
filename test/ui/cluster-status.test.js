@@ -73,8 +73,8 @@ test('site names cover the exact thirty-two slots in order without changing wire
   assert.equal(gameDisplayName('game-256'), '对战 256');
   for (const label of [null, undefined, 1, 'game-001', 'game-00', 'game-257', 'game-01\n', 'private-node', '罗德岛']) assert.equal(gameDisplayName(label), null);
   const notices = JSON.parse(source('../../data/announcements.json'));
-  assert.equal(notices.length, 10);
-  assert.equal(notices[8].title, '10 月中旬更新回顾：原作 0.3.0 与 0.3.1、官方特效与皮肤特效');
+  assert.equal(notices.length, 11);
+  assert.equal(notices[9].title, '10 月中旬更新回顾：原作 0.3.0 与 0.3.1、官方特效与皮肤特效');
   assert.doesNotMatch(notices.flatMap(notice => notice.paragraphs).join('\n'), /节点更名|服务器更名|罗德岛|企鹅物流/);
 });
 
