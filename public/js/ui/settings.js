@@ -144,7 +144,7 @@ function Slider({ label, micro, value, onInput, icon }) {
 function Toggle({ label, micro, value, onChange }) {
   return html`<div class="set-row">
     <span class="set-row__label">${label}<${MicroLabel}>${micro}<//></span>
-    <button type="button" class=${`set-toggle${value ? ' is-on' : ''}`} role="switch" aria-checked=${value ? 'true' : 'false'}
+    <button type="button" class=${`set-toggle${value ? ' is-on' : ''}`} role="switch" aria-checked=${value ? 'true' : 'false'} aria-label=${label}
       onClick=${() => onChange(!value)}><i></i><span>${value ? tc('toggle', '开启') : tc('toggle', '关闭')}</span></button>
   </div>`;
 }
@@ -513,6 +513,10 @@ export function SettingsModal({ open, onClose }) {
       <p class="set-hint">${t('弹药类技能开启时，在弹药条下方显示剩余弹药 / 总弹药数（如 13/14）；秘术师的血条下方显示储存的攻击能量 / 上限（如 2/3）。官方界面没有这些数字。')}</p>
       <${Toggle} label=${t('盟约效果剩余时间')} micro="BOND TIMERS" value=${s.bondTimers} onChange=${(v) => updateSettings({ bondTimers: v })} />
       <p class="set-hint">${t('选中单位时显示叙拉古、萨尔贡效果的剩余时间，萨尔贡另显示层数。官方界面没有这些数字。')}</p>
+      <${Toggle} label=${t('商店标出我的预选盟约')} micro="MY BOND PLAN" value=${s.planMarkMine} onChange=${(v) => updateSettings({ planMarkMine: v })} />
+      <p class="set-hint">${t('商店和晋升奖励的干员卡上，你的主盟约显示为绿底，副盟约显示为绿框。')}</p>
+      <${Toggle} label=${t('商店标出队友的预选盟约')} micro="TEAM PLANS" value=${s.planMarkMates} onChange=${(v) => updateSettings({ planMarkMates: v })} />
+      <p class="set-hint">${t('共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。')}</p>
       <${Toggle} label=${t('部署时按格子吸附')} micro="SNAP TO TILE" value=${s.deploySnap} onChange=${(v) => updateSettings({ deploySnap: v })} />
       <p class="set-hint">${t('拖动干员时，干员站在目标格子上逐格移动，松手就落在这一格。关闭时干员跟随手指或鼠标自由移动。')}</p>
       <${Toggle} label=${t('全屏时保持屏幕常亮')} micro="SCREEN WAKE LOCK" value=${s.fullscreenWakeLock} onChange=${(v) => updateSettings({ fullscreenWakeLock: v })} />

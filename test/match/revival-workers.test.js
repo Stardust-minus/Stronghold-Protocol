@@ -41,7 +41,7 @@ async function scenario(t, options = {}) {
       // A legal round-7 checkpoint: natural setup and sequential wave RNG, pool-backed pieces on legal tiles.
       for (let r = 1; r < 7; r++) buildNormalWave(this.gd, this.rngWaves, this.factions, r);
       for (const p of this.order) {
-        p.bandId = 'band_bldsk'; p.lp = p.seat === 0 ? 1 : p.seat === 1 ? options.donorLp ?? 11 : 20;
+        p.bandId = 'band_bldsk'; p.lp = p.seat === 0 ? 1 : p.seat === 1 ? options.donorLp ?? 11 : options.othersLp ?? 20;
         p.recompute();
       }
       this.startRound(7); this.setDeadline(0); this.enterPrep();
@@ -150,8 +150,8 @@ test('real six-worker WS independent card pools: rescue retains all four owner s
 });
 
 for (const [label, options, expected] of [
-  ['actual perfect helper below 11 LP', { donorLp: 10 }, 'donor-lp'],
-  ['no leak-free actual helper', { noPerfect: true }, 'no-helper'],
+  // rel35: every living teammate is a donor, so the two seats without pieces (they leak) must end below 11 too
+  ['every living teammate below 11 LP', { donorLp: 10, othersLp: 11 }, 'donor-lp'],
   ['room revival disabled', { revivalEnabled: false }, 'disabled'],
   ['previously rescued target dies again', { used: true }, 'already-used'],
 ]) test(`real six-worker WS finalized diagnosis: ${label}`, { timeout: 15_000 }, async (t) => {
@@ -162,6 +162,20 @@ for (const [label, options, expected] of [
   await clients[1].waitFor('m.public', (p) => p.players.some((x) => x.playerId === target.playerId && x.revivalUnavailableReason === expected), 2000);
   m.startRound(8); reason(m, target, expected); m._finalizePendingDeaths(); assert.equal(m.cleanups, 1);
   assert.deepEqual(collectViolations(m), []); await s.close();
+});
+
+test('real six-worker WS no 联防 (every seat leaked, rel35): a leaking teammate rescues in place', { timeout: 35_000 }, async (t) => {
+  const s = await scenario(t, { noPerfect: true, donorLp: 21 }), { m, clients, target, donor } = s;
+  await s.settle();
+  assert.equal(m.rawUnite, null, 'no 联防 ran'); assert.equal(m.uniteResultView, null);
+  assert.ok(m.lastResults.get(donor.playerId).leaked.some((l) => l && l.counted !== false), 'the donor leaked itself');
+  assert.ok(donor.lp >= 11);
+  assert.equal(target.pendingDeath, true); assert.equal(m.cleanups, 0); reason(m, target, null);
+  await clients[1].waitFor('m.public', (p) => p.phase === 'SETTLE' && p.revival.windowOpen && p.revival.eligible.includes(donor.playerId), 2000);
+  const before = donor.lp;
+  assert.equal((await clients[1].request(s.request())).t, 'ok');
+  assert.equal(donor.lp, before - 10); assert.equal(target.lp, 1); assert.equal(target.revived, true); assert.equal(target.pendingDeath, false);
+  assert.equal(m.cleanups, 0); assert.deepEqual(collectViolations(m), []); await s.close();
 });
 
 for (const cause of ['window-expired', 'window-closed', 'left', 'match-ended']) test(`real six-worker WS pending diagnosis: ${cause}`, { timeout: 35_000 }, async (t) => {

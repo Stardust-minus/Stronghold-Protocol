@@ -2,7 +2,8 @@
 // the server's GameData.plannableBondIds() / subPlannableBondIds(), the change window mirrors Match.bondPlanOpen() (the
 // whole match, rel34), a plan reads as 主盟约 + 副盟约, the picker marks 盟约禁用 on the mode's static bonds and the match's
 // drawn set D (as the strategy draft now does — gameLogic matchOffBonds), the shop marks my plan and the plans of the
-// teammates in my chess pool, the in-match notice names the change, and a strategy the host reserved for an AI reads as
+// teammates in my chess pool on the cards' bond chips (rel35 #152: which teammate is not shown; each has a switch in 设置,
+// on by default), the in-match notice names the change, and a strategy the host reserved for an AI reads as
 // taken until that AI picks.
 
 import { test } from 'node:test';
@@ -14,7 +15,7 @@ import {
   plannableBonds, subPlannableBonds, bondPlanOpen, bondPlanHolders, playerPlan, planIds, planLine, planNoticeText, planOffMarks,
   poolMateIds, shopPlanMarks, cardPlanMarks, PLAN_SUB_MAX,
 } from '../../public/js/ui/bondPlan.js';
-import { matchOffBonds, modeOffBonds, bandOffBonds } from '../../public/js/ui/gameLogic.js';
+import { matchOffBonds, modeOffBonds, bandOffBonds, DEFAULT_SETTINGS, sanitizeSettings } from '../../public/js/ui/gameLogic.js';
 import { reservedBands } from '../../public/js/screens/bandDraft.js';
 
 const BONDS = Object.values(DATA.bonds);
@@ -119,17 +120,31 @@ test('the shop marks my main and secondary bonds and the alive teammates of my c
   assert.deepEqual([...plan.mates.keys()], ['yanShip', 'soloShip', 'egirShip'], 'an eliminated teammate is left out');
   assert.deepEqual(plan.mates.get('yanShip').map((p) => p.playerId), ['p2']);
 
+  // per bond chip: mine (main / secondary) and whether a teammate planned it — no players (the owner on #152)
   const main = cardPlanMarks(['yanShip', 'soloShip'], plan);
   assert.equal(main.level, 'main');
-  assert.deepEqual([...main.mine], ['yanShip']);
-  assert.deepEqual(main.mates.map((p) => p.playerId), ['p2'], 'a teammate once, though two of the card\'s bonds are in its plan');
+  assert.deepEqual(['yanShip', 'soloShip'].map(main.of), ['main', null]);
+  assert.deepEqual([...main.mates], ['yanShip', 'soloShip'], 'both chips: a teammate planned each');
   const sub = cardPlanMarks(['preciShip', 'egirShip'], plan);
   assert.equal(sub.level, 'sub');
-  assert.deepEqual(sub.mates.map((p) => p.playerId), ['p3']);
+  assert.deepEqual(['preciShip', 'egirShip'].map(sub.of), ['sub', null]);
+  assert.deepEqual([...sub.mates], ['egirShip']);
   const mateOnly = cardPlanMarks(['egirShip'], plan);
   assert.equal(mateOnly.level, null);
-  assert.deepEqual(mateOnly.mates.map((p) => p.playerId), ['p3']);
+  assert.deepEqual([...mateOnly.mates], ['egirShip']);
   assert.equal(cardPlanMarks(['kjeragShip'], plan), null);
+
+  // the two switches of 设置: my plan off keeps the teammates', the teammates' off keeps mine, both off marks nothing
+  const noMine = shopPlanMarks(pub, 'me', { mine: false });
+  assert.equal(noMine.main, null);
+  assert.equal(noMine.sub.size, 0);
+  assert.deepEqual([...noMine.mates.keys()], ['yanShip', 'soloShip', 'egirShip']);
+  assert.equal(cardPlanMarks(['yanShip'], noMine).level, null);
+  const noMates = shopPlanMarks(pub, 'me', { mates: false });
+  assert.equal(noMates.main, 'yanShip');
+  assert.equal(noMates.mates.size, 0);
+  assert.equal(cardPlanMarks(['egirShip'], noMates), null);
+  assert.equal(shopPlanMarks(pub, 'me', { mine: false, mates: false }), null);
   assert.equal(cardPlanMarks([], plan), null);
   assert.equal(cardPlanMarks(['yanShip'], null), null);
 
@@ -143,6 +158,20 @@ test('the shop marks my main and secondary bonds and the alive teammates of my c
   // nothing to mark
   assert.equal(shopPlanMarks({ players: [{ playerId: 'me', bondPlan: null }, { playerId: 'p2', bondPlan: null }] }, 'me'), null);
   assert.equal(shopPlanMarks(null, 'me'), null);
+});
+
+test('设置: the two shop-mark switches are on by default; only false turns one off', () => {
+  assert.equal(DEFAULT_SETTINGS.planMarkMine, true);
+  assert.equal(DEFAULT_SETTINGS.planMarkMates, true);
+  assert.equal(sanitizeSettings(null).planMarkMine, true, 'a profile saved before the switches');
+  assert.equal(sanitizeSettings({ bgm: 0.3 }).planMarkMates, true);
+  for (const junk of ['false', 0, null, {}, []]) {
+    assert.equal(sanitizeSettings({ planMarkMine: junk }).planMarkMine, true, JSON.stringify(junk));
+    assert.equal(sanitizeSettings({ planMarkMates: junk }).planMarkMates, true, JSON.stringify(junk));
+  }
+  const off = sanitizeSettings({ planMarkMine: false, planMarkMates: false });
+  assert.deepEqual([off.planMarkMine, off.planMarkMates], [false, false]);
+  assert.deepEqual(sanitizeSettings(JSON.parse(JSON.stringify(off))), off, 'saved and read back');
 });
 
 test('an AI\'s reserved strategy is taken until that AI picks; one reserved for the viewer never is', () => {

@@ -1942,7 +1942,7 @@ function MatchScreen() {
   // 预选盟约 (ui/bondPlan.js): changeable the whole match while alive (the own row of the team panel opens the picker); the
   // shop lights my plan's operators and shows the pool teammates' plans
   const canPlan = !solo && !spectator && alive && !!meP && bondPlanOpen(pub);
-  const shopPlan = solo ? null : shopPlanMarks(pub, myId);
+  const shopPlan = solo ? null : shopPlanMarks(pub, myId, { mine: playerSettings.planMarkMine, mates: playerSettings.planMarkMates });
 
   return html`<div class=${cx('screen', 'gm', `gm--${mode}`, pub?.playerCapacity > 4 && 'gm--expanded', drag && 'is-dragging', collapsed && 'is-collapsed', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', pen && 'is-pen', readyWhy && 'has-readywhy')}
       data-camera=${pen ? 'pen' : camKind}>

@@ -165,17 +165,23 @@
 @keyframes scard-rolling { from { opacity: .45; } to { opacity: .9; } }
 @media (prefers-reduced-motion: reduce) { .shopbar.is-rolling .scard--empty { animation: none; opacity: .7; } }
 
-/* 预选盟约 (rel34, ui/bondPlan.js cardPlanMarks): my 主盟约's operators ringed in mint, a 副盟约's more lightly (a ring of its
-   own, so it shows with 可晋升's gold and the frozen overlay), my plan's bond chips lit, the pool teammates' plans as
-   small avatars on the right edge */
-.scard.is-plan::before, .scard.is-plan2::before { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-.scard.is-plan::before { box-shadow: inset 0 0 0 2px var(--mint-400), inset 0 0 .26rem rgba(23, 249, 183, .45); }
-.scard.is-plan2::before { box-shadow: inset 0 0 0 1px rgba(78, 216, 175, .9), inset 0 0 .14rem rgba(23, 249, 183, .24); }
-.scard__bond.is-plan { color: #fff; background: rgba(23, 249, 183, .26); box-shadow: 0 0 0 1px rgba(78, 216, 175, .6); padding-right: .04rem; }
-.scard.is-plan2 .scard__bond.is-plan { background: rgba(23, 249, 183, .14); }
-.scard__mates { position: absolute; z-index: 4; right: .04rem; top: .62rem; display: flex; flex-direction: column; align-items: center; gap: .03rem; pointer-events: none; }
-.scard__mates .pavatar { --pa: .3rem; box-shadow: 0 0 0 1px var(--ice), 0 1px 3px rgba(0, 0, 0, .7); }
-.scard__mates b { font-size: .11rem; line-height: 1.3; padding: 0 .03rem; color: var(--ice); background: rgba(0, 0, 0, .7); }
+/* 预选盟约 (rel34; rel35 feedback #152 「好认且不容易混淆」, ui/bondPlan.js cardPlanMarks): on the card's own bond chips —
+   text and icon —, never its frame (可晋升's gold and the selection keep it): my 主盟约 solid mint with dark text and icon,
+   a 副盟约 mint-outlined with white text, a bond a pool teammate planned dash-outlined in ice with the 同盟成员 people icon
+   (dashed: a secondary bond of mine and a teammate's never read alike) */
+.scard__bond.is-plan-main, .scard__bond.is-plan-sub, .scard__bond.is-mate { padding: 0 .04rem 0 .02rem; font-weight: 700; }
+.scard__bond.is-plan-main { color: var(--text-on-mint); background: var(--mint-400); box-shadow: 0 0 .12rem rgba(23, 249, 183, .6); }
+.scard__bond.is-plan-main .bglyph img { filter: brightness(0); }
+.scard__bond.is-plan-main .bglyph__txt { color: var(--text-on-mint); }
+.scard__bond.is-plan-sub { color: #fff; background: rgba(23, 249, 183, .16); box-shadow: inset 0 0 0 1px var(--mint-400); }
+.scard__bond.is-plan-sub .bglyph img { filter: brightness(0) invert(1); }
+.scard__bond.is-plan-sub .bglyph__txt { color: #fff; }
+.scard__bond.is-mate:not(.is-plan-main):not(.is-plan-sub) { color: var(--ice); background: rgba(159, 212, 255, .1); outline: 1px dashed rgba(159, 212, 255, .9); outline-offset: -1px; }
+.scard__bond.is-mate:not(.is-plan-main):not(.is-plan-sub) .bglyph img { filter: brightness(0) invert(.84) sepia(.5) hue-rotate(165deg) saturate(2.4); }
+.scard__bond.is-mate:not(.is-plan-main):not(.is-plan-sub) .bglyph__txt { color: var(--ice); }
+.scard__bmate { display: inline-grid; place-items: center; margin-left: .02rem; color: var(--ice); }
+.scard__bmate .icon { width: .14rem; height: .14rem; }
+.scard__bond.is-plan-main .scard__bmate { color: #0b3a63; } /* on the mint fill */
 
 /* ---- funds card ---- */
 .funds { width: 1.18rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .08rem; padding: .06rem; border-left: 1px solid var(--line); }

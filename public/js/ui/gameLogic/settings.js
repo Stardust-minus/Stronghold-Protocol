@@ -63,8 +63,10 @@ export function uiScaleStep(uiScale, phone) {
  *  preference (never sent): off, only this player's own pieces wear a skin.
  *  deploySnap: 设置「部署时按格子吸附」 (#43), off by default: a dragged unit stands on the tile it would drop on instead of
  *  following the pointer (render/app.js moveDragVisual). A pure client preference; the drop itself is the same.
+ *  planMarkMine / planMarkMates: 设置「商店标出我的预选盟约」/「商店标出队友的预选盟约」 (rel35, feedback #152), ON by
+ *  default — the 预选盟约 marks on the shop's bond chips (ui/bondPlan.js shopPlanMarks); only `false` turns one off.
  */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, deploySnap: false, textSize: 'sm', bondTimers: false, fullscreenWakeLock: false, uiScale: 'auto', keys: DEFAULT_HOTKEYS, bgmPrep: 'official', bgmCombat: 'official' });
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, deploySnap: false, textSize: 'sm', bondTimers: false, planMarkMine: true, planMarkMates: true, fullscreenWakeLock: false, uiScale: 'auto', keys: DEFAULT_HOTKEYS, bgmPrep: 'official', bgmCombat: 'official' });
 const QUALITIES = ['high', 'medium', 'low'];
 /** The values of 设置「官方特效」 (render/vfx/tier.js OFFICIAL_FX). Display order in the dialog is low / medium / high. */
 export const OFFICIAL_FX_MODES = Object.freeze(['auto', 'off', 'lite', 'full']);
@@ -84,7 +86,7 @@ function ammoEnergyCountOf(r) {
  * Sanitize persisted settings. Retired keys `ammoCount` and `mysticEnergy` are read here and never returned.
  * @param {any} raw
  * @returns {{ bgm: number, sfx: number, voice: number, voiceLang: 'cn'|'jp'|'en'|'kr', voiceNative: boolean, voiceOverrides: Record<string, string>, muted: boolean, damageNumbers: boolean, officialDamageNumbers: boolean, ammoEnergyCount: boolean, combatMetrics: boolean, quality: 'high'|'medium'|'low', officialFx: 'auto'|'off'|'lite'|'full', otherSkins: boolean,
- *   fullscreenWakeLock: boolean, bondTimers: boolean,
+ *   fullscreenWakeLock: boolean, bondTimers: boolean, planMarkMine: boolean, planMarkMates: boolean,
  *   textSize: 'sm'|'md'|'lg'|'xl', uiScale: string, keys: Record<'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string>, bgmPrep: string, bgmCombat: string }}
  */
 export function sanitizeSettings(raw) {
@@ -102,6 +104,8 @@ export function sanitizeSettings(raw) {
     officialDamageNumbers: typeof r.officialDamageNumbers === 'boolean' ? r.officialDamageNumbers : false,
     ammoEnergyCount: ammoEnergyCountOf(r),
     bondTimers: r.bondTimers === true,
+    planMarkMine: r.planMarkMine !== false,
+    planMarkMates: r.planMarkMates !== false,
     combatMetrics: typeof r.combatMetrics === 'boolean' ? r.combatMetrics : DEFAULT_SETTINGS.combatMetrics,
     fullscreenWakeLock: typeof r.fullscreenWakeLock === 'boolean' ? r.fullscreenWakeLock : DEFAULT_SETTINGS.fullscreenWakeLock,
     quality: QUALITIES.includes(r.quality) ? r.quality : DEFAULT_SETTINGS.quality,

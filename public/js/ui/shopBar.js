@@ -27,13 +27,16 @@
 // piece (0.2.0, m.private.diy — a DIY slot the player filled, only ever in its own shop) shows the operator — name,
 // portrait, class, the bonds of its factions, the pick's skill and module — with a mint 「自选」 badge.
 // 预选盟约 (rel34, the owner: 「商店内，对于有被预选的盟约的干员，对其高亮显示」; ui/bondPlan.js shopPlanMarks /
-// cardPlanMarks, the `plan` prop): an operator card — the shop's and the 晋升奖励's — whose bonds hold my 主盟约 is ringed in
-// mint (is-plan), one with only a 副盟约 of mine more lightly (is-plan2), the bond chips of my plan are lit, and the alive
-// teammates of my chess pool whose plan holds one of its bonds show as small avatars on its right edge.
+// cardPlanMarks, the `plan` prop): the marks are on an operator card's own bond chips — the shop's and the 晋升奖励's — and
+// never on its frame, which stays 可晋升's gold and the selection's (rel35, feedback #152: the ring of rel34 was taken for a
+// pair, the teammates' avatars made the operators look unfamiliar; the owner: 「把卡的对应盟约文字&图案标记高亮，而不是边
+// 框」): my 主盟约's chip solid mint (is-plan-main), a 副盟约's mint-outlined (is-plan-sub), a bond an alive teammate of my
+// chess pool planned dash-outlined in ice with the 同盟成员 people icon (is-mate; which teammate is not shown). 设置 has a switch for
+// each (planMarkMine / planMarkMates, screens/game.js); the card keeps `data-plan` = main / sub for the tests.
 
 import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, HexBadge, TierChip, Tooltip, MicroLabel } from './components.js';
-import { Img, BondGlyph, CoinGlyph, GIcon, RichText, PlayerAvatar } from './gameComponents.js';
+import { Img, BondGlyph, CoinGlyph, GIcon, RichText } from './gameComponents.js';
 import { priceTone, mergeProgress, mergeTarget, shopBlockReason, chessLoadout, offerHeader, briefingBondTip, ownStandIn, standInLoadout, standInLabel, standInTip, standInForText, ownDiyRecord, diyGetter } from './gameLogic.js';
 import { chessPortraitUrl, itemIconUrl, profIconUrl, uiUrl, skillIconUrl, skillRecordIconUrl, moduleTypeIconUrl } from './assetUrls.js';
 import { data } from '../data.js';
@@ -106,8 +109,8 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
   const lo = si ? standInLoadout(si, LOOKUPS.getChess, data.get('backups')) : c ? chessLoadout(c, priv?.loadout, dr ? diyGetter(LOOKUPS.getChess, priv, diyData) : LOOKUPS.getChess, { ops: priv?.ops ?? null, effects: data.get('effects') }) : null;
   const tap = () => { if (onTap) onTap(idx); else if (!disabled) onBuy(idx); else onDetail(slot.id, 'chess', hint); };
   const name = `${c?.name || t('干员')}${si ? t('（{note}）', { note: standInForText(c0.name) }) : ''}`;
-  const card = html`<button type="button" class=${cx('scard', `scard--t${tier}`, frozen && 'is-frozen', disabled && 'is-disabled', willMerge && 'is-merge', armed && 'is-armed', si && 'is-standin', marks?.level === 'main' && 'is-plan', marks?.level === 'sub' && 'is-plan2')}
-      data-shop-slot=${free ? undefined : idx} aria-keyshortcuts=${free ? undefined : hotkeyLabelOf('buy')}
+  const card = html`<button type="button" class=${cx('scard', `scard--t${tier}`, frozen && 'is-frozen', disabled && 'is-disabled', willMerge && 'is-merge', armed && 'is-armed', si && 'is-standin')}
+      data-shop-slot=${free ? undefined : idx} data-plan=${marks?.level || undefined} aria-keyshortcuts=${free ? undefined : hotkeyLabelOf('buy')}
       title=${free || reason ? undefined : t('购买鼠标指向的商品 · {key}', { key: hotkeyLabelOf('buy') })}
       onClick=${tap} onContextMenu=${(e) => { e.preventDefault(); onDetail(slot.id, 'chess', hint); }}
       aria-label=${`${t('{name}，价格 {price}', { name, price: slot.price })}${armed ? (disabled ? t('，无法购买') : t('，再次点击确认')) : ''}`} aria-pressed=${onTap ? String(!!armed) : undefined}>
@@ -130,7 +133,10 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
         ${bonds.slice(0, 3).map((b) => {
           const name = data.lookup('bonds', b)?.name || b;
           const off = !!(offBonds && offBonds.has(b)); // a bond this mode never activates (gameLogic modeOffBonds)
-          return html`<span key=${b} class=${cx('scard__bond', off && 'is-off', marks?.mine.has(b) && 'is-plan')} title=${off ? briefingBondTip(name, 'off') : undefined}><${BondGlyph} bondId=${b} /><span>${name}</span></span>`;
+          const pm = marks ? marks.of(b) : null; // 预选盟约: my main / secondary bond
+          const mate = !!marks?.mates.has(b); // a pool teammate's plan holds it
+          const tip = off ? briefingBondTip(name, 'off') : [pm === 'main' && t('你的主盟约'), pm === 'sub' && t('你的副盟约'), mate && t('有队友预选了这个盟约')].filter(Boolean).join(' · ') || undefined;
+          return html`<span key=${b} class=${cx('scard__bond', off && 'is-off', pm && `is-plan-${pm}`, mate && 'is-mate')} data-plan=${pm || undefined} title=${tip}><${BondGlyph} bondId=${b} /><span>${name}</span>${mate ? html`<span class="scard__bmate" data-testid="shop-plan-mates" aria-label=${t('有队友预选了这个盟约')}><${Icon} name="users" /></span>` : null}</span>`;
         })}
       </span>
       <span class="scard__class">
@@ -139,9 +145,6 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
       </span>
     </span>
     ${willMerge ? html`<span class="scard__mergetag" title=${hint}>${t('可晋升')}</span>` : null}
-    ${marks?.mates.length ? html`<span class="scard__mates" data-testid="shop-plan-mates" title=${t('队友预选：{names}', { names: marks.mates.map((p) => p.name || t('博士')) })}>
-      ${marks.mates.slice(0, 2).map((p) => html`<${PlayerAvatar} key=${p.playerId} player=${p} size="sm" />`)}${marks.mates.length > 2 ? html`<b class="num">+${marks.mates.length - 2}</b>` : null}
-    </span>` : null}
     ${frozen ? html`<span class="scard__ice" aria-hidden="true"><${Icon} name="snow" /></span>` : null}
     ${armed ? html`<${ArmedTag} reason=${reason} free=${free} />` : null}
   </button>`;

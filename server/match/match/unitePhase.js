@@ -18,6 +18,8 @@ export class MatchUnite {
     if (this.capacityExperiment && !this.alivePlayers().length) { this.settle(null, null); return; }
     // No _applySpeedVote here (feedback #137, planned by the owner): a 联防 (both rounds of a relay) continues the
     // round's battle at the speed startCombat gave it, whoever left or went offline in between (speedVote.js header).
+    // `eligible` is no longer filled (rel35: rescue donors are every living human teammate, settle.js); it stays an
+    // empty Set so a rel34 build restoring this checkpoint, which adds the relay's helpers to it, keeps working
     if (plan.uniteRound === 1) this._uniteRelay = { rounds: [], eligible: new Set() };
     if (plan.uniteRound && !this.clientCombat) plan.battleId = `${this.battlePrefix}.${this.round}.${++this._battleSeq}.relay${plan.uniteRound}`;
     if (this.clientCombat) { this._startUniteClient(plan); return; }
@@ -126,12 +128,6 @@ export class MatchUnite {
       const survivors = res && !res.synthetic ? uniteSurvivors(plan, res) : new Map(plan.notReentered);
       if (!res || res.synthetic) for (const l of plan.leaked) {
         survivors.set(l.sourcePlayerId, (survivors.get(l.sourcePlayerId) || 0) + 1);
-      }
-      const eligible = this._revivalHelpers(plan, res);
-      for (const pid of eligible) {
-        const pp = res.perPlayer[pid];
-        // Leak records belong to the helper's half; sourcePlayerId remains the original leaker billed for LP.
-        if (pp.perfect !== false && !(pp.leaked || []).some((l) => l && l.counted !== false)) this._uniteRelay.eligible.add(pid);
       }
       this._uniteRelay.rounds.push({ plan, result: res, survivors,
         view: { round: plan.uniteRound, fieldId: field.fieldId,

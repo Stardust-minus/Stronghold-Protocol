@@ -178,7 +178,8 @@ whose render delay now follows the measured jitter (render/interp.js adaptive). 
 Deployment uses server-authoritative whole-match cluster nodes and the existing Worker pools. Room-host experimental
 settings default to disabled revival and enabled shared pools; public matching inherits its allocated room's settings.
 Optional teammate rescue prevents elimination without resetting operators or economy, costs 10 LP with the helper at
-least 11 LP, requires a leak-free unite helper, and rescues each player at most once per match. These match-level rules
+least 11 LP, accepts any living human teammate — leak or no leak, in a round with or without 联防 (rel35; until rel34 a
+leak-free unite helper only, docs/history/0.3.3.md §36.16) — and rescues each player at most once per match. These match-level rules
 are separate from upstream operator/item knock-out revival mechanics. Deployment contracts remain in
 [deploy/stardust/CLUSTER-SOP.md](../deploy/stardust/CLUSTER-SOP.md).
 

@@ -152,16 +152,17 @@ export function poolMateIds(pub, myId) {
 
 /**
  * What the shop marks: my main bond, my secondary ones, and the plans of the alive teammates in my chess pool
- * (bondId → their m.public entries). null when there is nothing to mark.
- * @param {any} pub @param {string|null} myId
+ * (bondId → their m.public entries). null when there is nothing to mark. `opts` are the two switches of 设置 (rel35,
+ * feedback #152 「可以自由设置开关吗」): `mine` false leaves my plan out, `mates` false the teammates'.
+ * @param {any} pub @param {string|null} myId @param {{ mine?: boolean, mates?: boolean }} [opts]
  * @returns {{ main: string|null, sub: Set<string>, mates: Map<string, any[]> } | null}
  */
-export function shopPlanMarks(pub, myId) {
+export function shopPlanMarks(pub, myId, { mine: showMine = true, mates: showMates = true } = {}) {
   const players = Array.isArray(pub?.players) ? pub.players : [];
-  const mine = playerPlan(players.find((p) => p?.playerId === myId));
+  const mine = showMine ? playerPlan(players.find((p) => p?.playerId === myId)) : { main: null, sub: [] };
   const pool = poolMateIds(pub, myId);
   const mates = new Map();
-  for (const p of players) {
+  for (const p of showMates ? players : []) {
     if (!p || p.playerId === myId || p.isBot || p.alive === false || (pool && !pool.has(p.playerId))) continue;
     for (const id of planIds(p)) {
       if (!mates.has(id)) mates.set(id, []);
@@ -173,19 +174,19 @@ export function shopPlanMarks(pub, myId) {
 }
 
 /**
- * One operator card's marks: 'main' when its bonds hold my main bond, else 'sub' for a secondary one, else null; the
- * card's bonds that are in my plan; the teammates (once each, in seat order of the plans) whose plan holds one of them.
+ * One operator card's marks: 'main' when its bonds hold my main bond, else 'sub' for a secondary one, else null; per
+ * bond chip `of(bondId)` 'main' / 'sub' / null; the card's bonds a pool teammate planned (`mates` — which teammate does
+ * not matter, the owner on feedback #152: 「不需要指出具体玩家」).
  * @param {string[]} bonds the card's bonds @param {ReturnType<typeof shopPlanMarks>} plan
- * @returns {{ level: 'main'|'sub'|null, mine: Set<string>, mates: any[] } | null}
+ * @returns {{ level: 'main'|'sub'|null, of: (bondId: string) => 'main'|'sub'|null, mates: Set<string> } | null}
  */
 export function cardPlanMarks(bonds, plan) {
   if (!plan || !Array.isArray(bonds) || !bonds.length) return null;
-  const mine = new Set(bonds.filter((b) => b === plan.main || plan.sub.has(b)));
-  const level = plan.main && bonds.includes(plan.main) ? 'main' : mine.size ? 'sub' : null;
-  const seen = new Set();
-  const mates = [];
-  for (const b of bonds) for (const p of plan.mates.get(b) || []) if (!seen.has(p.playerId)) { seen.add(p.playerId); mates.push(p); }
-  return level || mates.length ? { level, mine, mates } : null;
+  const of = (b) => (plan.main && b === plan.main ? 'main' : plan.sub.has(b) ? 'sub' : null);
+  const mine = bonds.map(of);
+  const level = mine.includes('main') ? 'main' : mine.includes('sub') ? 'sub' : null;
+  const mates = new Set(bonds.filter((b) => plan.mates.get(b)?.length));
+  return level || mates.size ? { level, of, mates } : null;
 }
 
 /**

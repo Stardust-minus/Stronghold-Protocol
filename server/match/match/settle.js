@@ -17,7 +17,8 @@ export class MatchSettle {
     if (this.disposed || this.ended || (this.phase !== PHASE.COMBAT && this.phase !== PHASE.UNITE)) return;
     this._freezeDamage(); // before LP/death/board cleanup and fields clearing
     const relay = this._uniteRelay?.rounds.at(-1)?.plan === plan ? this._uniteRelay : null;
-    const eligible = relay ? new Set(relay.eligible) : this._revivalHelpers(plan, uniteResult);
+    // rescue donors (rel35): every human teammate still in the match, whatever its own battle or a 联防 did
+    const eligible = this._revivalDonors();
     // Per-field results stay archived (including the earlier leaks). Helpers are unique, so merging their
     // reward/stat entries cannot overwrite another round. LP below uses only the final field's survivors.
     const combinedUnite = relay ? { ...uniteResult,

@@ -960,8 +960,9 @@ An actual second field starts only after the first natural terminal / release, w
 helpers who still satisfy genuine perfect eligibility; killed enemies are not replayed. A precomputed result is not
 released before the field's natural terminal. Field / plan / generation guards and idempotent completion prevent a
 stale or repeated handover or LP settlement. Earnings, kills and damage span
-actual participated fields; only the final source-attributed survivor count charges LP once. Optional rescue still
-requires an actual leak-free helper at LP >=11 paying 10, target LP1, once per match; no first-field rescue or charge.
+actual participated fields; only the final source-attributed survivor count charges LP once. Optional rescue (rel35)
+takes any living human teammate at LP >=11 paying 10, target LP1, once per match, whatever its fields did; no
+first-field rescue or charge.
 
 First-field UI is generic 「联防」 / 「联防阶段」; only an actual second uses 「联防2/2」 / 「接力联防第2轮」.
 Original >=8 admission with no viable reserve explicitly publishes `uniteRound: 1, uniteRounds: 1`, still fencing

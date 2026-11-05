@@ -237,7 +237,7 @@ for (const rescued of [false, true]) {
     assert.equal(m.bossPool, null, 'no boss HP sampled while the rescue window is open');
     if (rescued) {
       const donor = m.order.find((p) => m.revivalDonorEligible(p));
-      assert.ok(donor, 'a real leak-free unite helper may rescue');
+      assert.ok(donor, 'a living human teammate may rescue');
       assert.deepEqual(m.handle(donor.playerId, { t: 'g.revive', playerId: target.playerId,
         matchId: m.battlePrefix, round: 13 }), { ok: true });
       assert.equal(target.lp, 1);

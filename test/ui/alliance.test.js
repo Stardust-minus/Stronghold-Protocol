@@ -15,7 +15,7 @@ const fixture = () => ({
   players: [{ playerId: 'p1', alive: true, lp: 11, left: false }, { playerId: 'p2', alive: false, lp: 0, left: false, revived: false, pendingDeath: true }],
 });
 
-test('revival UI requires at least11 to pay10 and actual authoritative helper eligibility', () => {
+test('revival UI requires at least11 to pay10 and the authoritative donor list', () => {
   const pub = fixture();
   assert.equal(revivalReason(pub, 'p1', 'p2', true, 1000), null);
   for (const lp of [9, 10]) {
@@ -24,7 +24,7 @@ test('revival UI requires at least11 to pay10 and actual authoritative helper el
   }
   pub.players[0].lp = 11;
   pub.revival.eligible = [];
-  assert.match(revivalReason(pub, 'p1', 'p2', true, 1000), /参与联防/);
+  assert.match(revivalReason(pub, 'p1', 'p2', true, 1000), /不能提供救援/);
 });
 
 test('revival UI rejects already used, departed, alive and self targets', () => {
@@ -45,7 +45,7 @@ test('revival UI rejects already used, departed, alive and self targets', () => 
 
 test('finalized rescue UI explains the authoritative cause instead of calling every death settled', () => {
   const pub = fixture(); pub.players[1].pendingDeath = false;
-  for (const [reason, message] of [['no-helper', /无人.*参与联防/], ['donor-lp', /不足 11/],
+  for (const [reason, message] of [['no-helper', /没有可以提供救援的存活队友/], ['donor-lp', /存活队友.*不足 11/],
     ['window-expired', /15 秒.*已结束/], ['window-closed', /救援阶段已结束/], ['already-used', /次数已用完/],
     ['left', /主动退出/], ['match-ended', /模拟已结束/], ['disabled', /未开启/]]) {
     pub.players[1].revivalUnavailableReason = reason;

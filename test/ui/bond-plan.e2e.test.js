@@ -129,10 +129,11 @@ describe('预选盟约: 本局禁用 marks, 主 + 副 multi-select, the in-match
       await sleep(300);
       await b.shot('4-notice-from-a');
 
-      // B plans a bond of A's cards (a core one as its main bond, else an add-on as a secondary one): A sees B's avatar on
-      // those cards, and B's notice
+      // B plans a bond of A's cards (A's main one as its main bond when there is one) and, when the cards have one, a bond
+      // outside A's plan as a secondary one: A sees the teammate mark on those chips (no player shown, #152), and B's notice
       const bMain = aMain;
-      const bSub = bMain ? [] : cardBonds.slice(0, 1);
+      const bSub = cardBonds.filter((id) => id !== aMain && !aSub.includes(id)).slice(0, 1);
+      if (!bMain && !bSub.length) bSub.push(cardBonds[0]);
       await b.click('[data-testid="bond-plan-team"]');
       await b.page.waitForSelector('.bplan-dlg', { visible: true, timeout: 10000 });
       await b.click('[data-testid="bond-plan-clear"]', null, { optional: true, timeout: 1500 }); // (disabled: nothing planned yet)
@@ -141,10 +142,39 @@ describe('预选盟约: 本局禁用 marks, 主 + 副 multi-select, the in-match
       await b.click('[data-testid="bond-plan-ok"]');
       await b.page.waitForSelector('.bplan-dlg', { hidden: true, timeout: 10000 });
       await toastSeen(a, `${B} 更改了预选盟约`);
-      await a.page.waitForSelector(aMain ? '.scard.is-plan' : '.scard.is-plan2', { timeout: 10000 });
+      await a.page.waitForSelector(aMain ? '.scard[data-plan="main"]' : '.scard[data-plan="sub"]', { timeout: 10000 });
       await a.page.waitForSelector('[data-testid="shop-plan-mates"]', { timeout: 10000 });
+      // #152: the marks are on the bond chips, never the frame; a teammate is not shown by its avatar
+      const chips = await a.page.$$eval('.shopbar .scard__bond', (els) => els.map((e) => ({ plan: e.dataset.plan || null, mate: e.classList.contains('is-mate') })));
+      if (aMain) assert.ok(chips.some((x) => x.plan === 'main'), JSON.stringify(chips));
+      if (aSub.length) assert.ok(chips.some((x) => x.plan === 'sub'), JSON.stringify(chips));
+      assert.ok(chips.some((x) => x.mate), JSON.stringify(chips));
+      assert.equal(await a.page.$$eval('.shopbar .scard .pavatar, .scard__mates', (els) => els.length), 0);
+      const ring = await a.page.$$eval('.shopbar .scard[data-plan]', (els) => els.map((e) => getComputedStyle(e, '::before').boxShadow));
+      assert.ok(ring.every((x) => !x || x === 'none'), `no plan ring: ${ring}`);
       await sleep(300);
       await a.shot('5-shop-plan-mates-notice');
+      // 设置: each switch hides its marks at once
+      const flip = async (label) => {
+        await a.page.evaluate((l) => [...document.querySelectorAll('.set-toggle')].find((x) => x.getAttribute('aria-label') === l)?.click(), label);
+      };
+      await a.click('.gm__gear');
+      await a.page.waitForSelector('.set-toggle[aria-label="商店标出队友的预选盟约"]', { visible: true, timeout: 10000 });
+      await a.page.evaluate(() => [...document.querySelectorAll('.set-toggle')].find((x) => x.getAttribute('aria-label') === '商店标出我的预选盟约')?.scrollIntoView({ block: 'center' }));
+      await sleep(300);
+      await a.shot('6-settings-switches');
+      await flip('商店标出队友的预选盟约');
+      await a.page.waitForFunction(() => !document.querySelector('[data-testid="shop-plan-mates"]'), { timeout: 5000 });
+      assert.ok(await a.page.$('.shopbar .scard[data-plan]'), 'my plan stays marked');
+      await flip('商店标出我的预选盟约');
+      await a.page.waitForFunction(() => !document.querySelector('.shopbar .scard[data-plan], .shopbar .scard__bond[data-plan]'), { timeout: 5000 });
+      await flip('商店标出队友的预选盟约');
+      await a.page.waitForSelector('[data-testid="shop-plan-mates"]', { timeout: 5000 });
+      assert.equal(await a.page.$('.shopbar .scard[data-plan]'), null, 'mine stays off');
+      await flip('商店标出我的预选盟约');
+      await a.page.waitForSelector('.shopbar .scard[data-plan]', { timeout: 5000 });
+      await a.page.keyboard.press('Escape');
+      await a.page.waitForFunction(() => !document.querySelector('.set-toggle'), { timeout: 5000 }).catch(() => {});
       assert.equal((await a.toasts()).some((x) => x.includes(`${A} 更改了预选盟约`)), false, 'no toast of one\'s own change');
       assert.deepEqual(await planOf(a, B), { main: bMain, sub: bSub });
       assert.deepEqual(problemsOf(all), []);

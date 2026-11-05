@@ -1,4 +1,6 @@
-// Rescue cancels a deferred current SETTLE death in place. Donors need >=11 LP and spend exactly 10.
+// Rescue cancels a deferred current SETTLE death in place. Donors need >=11 LP and spend exactly 10. Since rel35 every
+// living human teammate is a donor — a leaker, a 联防 helper or neither, in a round with or without a 联防 (the owner:
+// 「队友复活移除不漏怪的要求」; until rel34 only a leak-free helper who fought on the 联防 field).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match, DELAYS } from '../../server/match/Match.js';
@@ -401,22 +403,51 @@ test('used target dies naturally next round: cleanup immediately, no second resc
   assertValid(s.m);
 });
 
-test('only a genuine helper can donate; an alive leaker and an unselected perfect teammate cannot', (t) => {
+test('rel35: any living human teammate can donate — an alive leaker and an unselected perfect teammate too', (t) => {
   const s = scenario(t, { script: (b) => b.kind === 'normal' ? { leaks: { p_0: 1, p_3: 1 } } : { survivors: { p_0: 1, p_3: 1 } }, lp: { p_3: 20 } });
   s.fight();
-  assert.deepEqual(s.m.publicView().revival.eligible, ['p_1', 'p_2']);
-  assert.deepEqual(rescue(s, 'p_3'), { error: ERR.BAD_TARGET, detail: 'revival-not-helper' });
+  assert.deepEqual(s.m.unitePlan.leakers.map((p) => p.playerId), ['p_0', 'p_3']);
+  assert.deepEqual(s.m.publicView().revival.eligible, ['p_1', 'p_2', 'p_3']);
+  assert.deepEqual(rescue(s, 'p_3'), { ok: true }, 'a teammate that leaked this round pays');
+  assert.equal(s.ps('p_3').lp, 9); assert.equal(s.ps('p_0').lp, 1);
   const other = scenario(t);
   other.fight();
   assert.equal(other.m.lastResults.get('p_3').perfect, true);
-  assert.deepEqual(rescue(other, 'p_3'), { error: ERR.BAD_TARGET, detail: 'revival-not-helper' });
+  assert.equal(other.m.unitePlan.helpers.some((p) => p.playerId === 'p_3'), false);
+  assert.deepEqual(rescue(other, 'p_3'), { ok: true }, 'a perfect teammate the 联防 did not take pays');
+});
+
+test('rel35: a round without 联防 (every seat leaked) still opens the window, and a leaking teammate pays', (t) => {
+  const s = scenario(t, { leaks: { p_0: 1, p_1: 1, p_2: 1, p_3: 1 } });
+  s.fight();
+  assert.equal(s.m.uniteResultView, null, 'no 联防 ran: settled straight from COMBAT');
+  assert.equal(s.ps('p_0').pendingDeath, true);
+  assert.equal(s.m.publicView().revival.windowOpen, true);
+  assert.deepEqual(s.m.publicView().revival.eligible, ['p_1', 'p_2', 'p_3']);
+  assert.deepEqual(rescue(s, 'p_2'), { ok: true });
+  assert.equal(s.ps('p_2').lp, 9); assert.equal(s.ps('p_0').lp, 1); assert.equal(s.ps('p_0').revived, true);
+  assertValid(s.m);
+});
+
+test('rel35: no-helper only when no other living human is left — AI teammates and a teammate out the same round do not count', (t) => {
+  const seats = [
+    { seat: 0, playerId: 'p_0', name: 'Target', connected: true },
+    { seat: 1, playerId: 'p_1', name: 'Also out', connected: true },
+    { seat: 2, playerId: 'p_2', name: 'AI', isBot: true },
+    { seat: 3, playerId: 'p_3', name: 'AI', isBot: true },
+  ];
+  const s = scenario(t, { seats, leaks: { p_0: 1, p_1: 1 }, survivors: { p_0: 1, p_1: 1 }, lp: { p_1: 1 } });
+  for (const id of ['p_0', 'p_1']) assert.deepEqual(s.m.handle(id, { t: 'g.ready', ready: true }), { ok: true });
+  assert.ok(s.sched.runUntil(() => s.ended.length || s.m.phase === PHASE.SETTLE || !s.ps('p_0').alive));
+  for (const id of ['p_0', 'p_1']) {
+    assert.equal(s.ps(id).alive, false); assert.equal(s.ps(id).pendingDeath, false);
+    assert.equal(s.ps(id).revivalUnavailableReason, 'no-helper', id);
+  }
 });
 
 for (const [label, options] of [
   ['no unite', { leaks: {}, survivors: {} }],
-  ['synthetic unite', { uniteFailure: true }],
-  ['all synthetic normal helpers', { syntheticNormal: ['p_1', 'p_2', 'p_3'] }],
-  ['all donors LP10', { lp: { p_1: 10, p_2: 10 } }],
+  ['every living teammate at LP10', { lp: { p_1: 10, p_2: 10, p_3: 10 } }],
   ['no current lethal target', { lp: { p_0: 20 } }],
   ['disabled rule', { enabled: false }],
   ['truthy nonboolean activation', { enabled: 'yes' }],
@@ -437,6 +468,21 @@ for (const [label, options] of [
   });
 }
 
+for (const [label, options] of [
+  ['synthetic unite', { uniteFailure: true }],
+  ['all synthetic normal helpers', { syntheticNormal: ['p_1', 'p_2', 'p_3'] }],
+]) {
+  test(`rel35 ${label}: the rescue window still opens for every living teammate`, (t) => {
+    const s = scenario(t, options);
+    s.fight();
+    assert.equal(s.ps('p_0').pendingDeath, true);
+    assert.equal(s.m.publicView().revival.windowOpen, true);
+    assert.deepEqual(s.m.publicView().revival.eligible, ['p_1', 'p_2', 'p_3']);
+    assert.deepEqual(rescue(s), { ok: true });
+    assertValid(s.m);
+  });
+}
+
 for (const [label, mutate] of [
   ['counted leak', (m) => m.lastResults.get('p_1').leaked.push({ counted: true })],
   ['perfect:false', (m) => { m.lastResults.get('p_1').perfect = false; }],
@@ -445,29 +491,30 @@ for (const [label, mutate] of [
   ['missing unite participant result', (_m, b) => { const result = b.result.bind(b); b.result = () => { const r = result(); r.perPlayer.p_2.leaked = r.perPlayer.p_1.leaked; delete r.perPlayer.p_1; return r; }; }],
   ['absent actual field participant', (m) => { m.fields[0].players = ['p_2']; }],
 ]) {
-  test(`${label}: helper plan alone cannot qualify a donor`, (t) => {
+  test(`rel35 ${label}: a donor no longer depends on its own battle or the 联防`, (t) => {
     const s = scenario(t, { beforeSettle: ({ m }) => mutate(m, m.fields[0].battle) });
     s.fight();
     assert.equal(s.m.publicView().revival.windowOpen, true);
-    assert.deepEqual(s.m.publicView().revival.eligible, ['p_2']);
-    assert.deepEqual(rescue(s), { error: ERR.BAD_TARGET, detail: 'revival-not-helper' });
+    assert.deepEqual(s.m.publicView().revival.eligible, ['p_1', 'p_2', 'p_3']);
+    assert.deepEqual(rescue(s), { ok: true });
   });
 }
 
-test('uncounted normal leak does not disqualify an actual helper; cancelled unite does', (t) => {
+test('an uncounted normal leak and (rel35) a cancelled 联防 both keep the rescue', (t) => {
   const s = scenario(t, { beforeSettle: ({ m }) => m.lastResults.get('p_1').leaked.push({ counted: false }) });
   s.fight();
   assert.deepEqual(rescue(s), { ok: true });
   const cancelled = scenario(t, { beforeSettle: ({ m }) => m.fields[0].battle.forceEnd('left') });
   cancelled.fight();
-  assert.equal(cancelled.m.publicView().revival.windowOpen, false);
-  assert.equal(cancelled.ps('p_0').pendingDeath, false);
+  assert.equal(cancelled.m.publicView().revival.windowOpen, true);
+  assert.equal(cancelled.ps('p_0').pendingDeath, true);
+  assert.deepEqual(rescue(cancelled), { ok: true });
 });
 
 test('normal synthetic provenance is retained, including missing per-player results', (t) => {
   const s = scenario(t, { syntheticNormal: ['p_1'], beforeSettle: ({ m }) => assert.equal(m.lastResults.get('p_1').synthetic, true) });
   s.fight();
-  assert.ok(!s.m.publicView().revival.eligible.includes('p_1'));
+  assert.ok(s.m.publicView().revival.eligible.includes('p_1'), 'rel35: a synthetic own result no longer disqualifies a donor');
   const other = scenario(t);
   other.m.startCombat();
   other.m._finishCombat((f) => f.players[0] === 'p_1' ? { perPlayer: {} } : { perPlayer: { [f.players[0]]: { leaked: [], perfect: true } } });
@@ -478,7 +525,7 @@ test('live donor departure/elimination revokes qualification; pending target dep
   const s = richPending(t);
   s.m.onLeave('p_1');
   assert.equal(rescue(s).error, ERR.NOT_IN_ROOM);
-  assert.deepEqual(s.m.publicView().revival.eligible, ['p_2']);
+  assert.deepEqual(s.m.publicView().revival.eligible, ['p_2', 'p_3']);
   s.m.onLeave('p_0');
   assert.equal(s.cleanup.count, 1);
   assert.equal(s.m.publicView().players.find((p) => p.playerId === 'p_0').left, true);
@@ -486,7 +533,7 @@ test('live donor departure/elimination revokes qualification; pending target dep
   s.ps('p_2').lp = 0;
   s.ps('p_2').eliminate(1);
   assert.equal(rescue(s, 'p_2').error, ERR.ELIMINATED);
-  assert.deepEqual(s.m.publicView().revival.eligible, []);
+  assert.deepEqual(s.m.publicView().revival.eligible, ['p_3']);
 });
 
 test('last human abandonment finalizes pending bot holdings and cancels the window', (t) => {

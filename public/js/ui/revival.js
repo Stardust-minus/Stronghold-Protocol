@@ -1,4 +1,6 @@
-// Post-unite rescue controls. The server owns room options, eligibility and the one-use limit.
+// Teammate rescue controls of the SETTLE window. The server owns room options, eligibility and the one-use limit; since
+// rel35 any living human teammate with at least 11 LP may pay, in a round with or without a 联防 (the owner:
+// 「队友复活移除不漏怪的要求」 — until rel34 only a leak-free 联防 helper could).
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
 import { html, Button, Icon, MicroLabel, Tooltip, Countdown, confirmDialog } from './components.js';
@@ -9,8 +11,8 @@ import { t, N_ } from '../../../shared/i18n.js';
 
 const UNAVAILABLE = Object.freeze({
   disabled: N_('本局未开启复活'),
-  'no-helper': N_('本轮无人满足未漏怪且实际参与联防的救援资格'),
-  'donor-lp': N_('本轮合格联防队友的生命值均不足 11，无法支付救援'),
+  'no-helper': N_('本轮没有可以提供救援的存活队友'),
+  'donor-lp': N_('本轮存活队友的生命值均不足 11，无法支付救援'),
   'window-expired': N_('本次 15 秒救援窗口已结束，死亡已结算'),
   'window-closed': N_('救援阶段已结束，死亡已结算'),
   'already-used': N_('队友本局复活次数已用完'),
@@ -30,19 +32,19 @@ export function revivalReason(pub, myId, targetId, online = true, now = serverNo
   if (target.revived) return t('本局复活次数已用完');
   if (!target.pendingDeath) return Object.hasOwn(UNAVAILABLE, target.revivalUnavailableReason)
     ? t(UNAVAILABLE[target.revivalUnavailableReason]) : t('淘汰已结算，无法再抵消死亡');
-  if (pub.phase !== PHASE.SETTLE || !rule.windowOpen || !(rule.deadline > now)) return t('等待联防结算后的救援窗口');
+  if (pub.phase !== PHASE.SETTLE || !rule.windowOpen || !(rule.deadline > now)) return t('等待结算后的救援窗口');
   if (!me?.alive || me.left || me.isBot) return t('只有存活玩家可以提供救援');
   if (!(me.lp >= 11)) return t('至少需要 11 点生命值（支付 10 点）');
-  if (!rule.eligible?.includes(myId)) return t('仅限本轮未漏怪且实际参与联防的队友');
+  if (!rule.eligible?.includes(myId)) return t('你本轮不能提供救援');
   return null;
 }
 
 export function RevivalNotice({ pub }) {
   if (!pub?.revival?.enabled || !pub.revival.windowOpen) return null;
   return html`<div class="team-rescue" role="status">
-    <strong><${Icon} name="plus" /> ${t('联防救援窗口')}</strong>
+    <strong><${Icon} name="plus" /> ${t('队友救援窗口')}</strong>
     <${Countdown} deadline=${pub.revival.deadline} size="sm" gauge=${false} label=${t('救援剩余')} />
-    <small>${t('符合资格且至少 11 生命，可支付 10 点救援')}</small>
+    <small>${t('至少 11 生命的存活队友可支付 10 点救援')}</small>
   </div>`;
 }
 

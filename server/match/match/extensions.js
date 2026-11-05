@@ -171,20 +171,21 @@ export class MatchExtensions {
     return { remote: true, fieldId: spec.fieldId, kind: spec.kind, players, spec, battle: new RemoteBattle(spec), live: true };
   }
 
-  _revivalHelpers(plan, uniteResult) {
-    const eligible = new Set();
-    if (!this.revivalEnabled || this.phase !== PHASE.UNITE || !plan || plan !== this.unitePlan
-      || !uniteResult || uniteResult.synthetic || !['cleared', 'timeout'].includes(uniteResult.reason)) return eligible;
-    const field = this.fields.find((f) => f.kind === 'unite' && !f.live);
-    if (!field) return eligible;
-    for (const ps of plan.helpers) {
-      const normal = this.lastResults.get(ps.playerId);
-      if (this.players.get(ps.playerId) !== ps || !field.players.includes(ps.playerId)
-        || !uniteResult.perPlayer?.[ps.playerId] || !normal || normal.synthetic || normal.perfect === false
-        || (normal.leaked || []).some((l) => l && l.counted !== false)) continue;
-      eligible.add(ps.playerId);
+  /**
+   * The rescue donors of this SETTLE (rel35, the owner: 「队友复活移除不漏怪的要求」): every human teammate still in the
+   * match as the round settles — a leaker, a 联防 helper or neither, in a round with or without a 联防 (an all-leak round
+   * settles straight from COMBAT). Whether one can pay is decided at the request (revivalDonorEligible: alive, not left,
+   * LP >= 11 after this round's loss). Until rel34 only the round's leak-free 联防 helpers who fought on the field
+   * qualified — and a helper is leak-free by definition (unite.js planUnite), so dropping only the leak condition would
+   * have changed nothing. The Set keeps its checkpoint shape: a rel34 build restoring a rel35 SETTLE honours the list.
+   */
+  _revivalDonors() {
+    const donors = new Set();
+    if (!this.revivalEnabled) return donors;
+    for (const ps of this.order) {
+      if (this.players.get(ps.playerId) === ps && !ps.isBot && !ps.left && ps.alive) donors.add(ps.playerId);
     }
-    return eligible;
+    return donors;
   }
 
   revivalWindowOpen() {
@@ -205,8 +206,9 @@ export class MatchExtensions {
     if (ps.revived) return 'already-used';
     if (!this.revivalEnabled) return 'disabled';
     if (this.teamLp != null || this.ended || this.disposed) return 'match-ended';
-    const helpers = this.order.filter((p) => this.players.get(p.playerId) === p && !p.isBot && !p.left && p.alive
-      && this._revival?.round === this.round && this._revival.eligible.has(p.playerId));
+    // a teammate whose LP ran out in the same settlement is no donor (still `alive` until its own death is handled)
+    const helpers = this.order.filter((p) => p !== ps && this.players.get(p.playerId) === p && !p.isBot && !p.left && p.alive
+      && !(p.lp <= 0) && this._revival?.round === this.round && this._revival.eligible.has(p.playerId));
     if (!helpers.length) return 'no-helper';
     return helpers.every((p) => Number.isFinite(p.lp) && p.lp < REVIVAL_MIN_DONOR_LP) ? 'donor-lp' : 'window-closed';
   }
