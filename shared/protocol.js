@@ -632,6 +632,10 @@ export const C2S = {
   // the host removes another human before the match (server/lobby.js kick; community report #17); playerId = the one the
   // host confirmed — a seat that changed hands meanwhile is refused
   'room.kick': { seat: (v) => isInt(v, 0, MAX_PLAYER_CAPACITY - 1), playerId: isId },
+  // 点赞 (the settlement's 同盟 page, the owner's request of 2026-11-05; server/lobby.js like): back in the room after a
+  // match, a human player of it likes another human player of it, once per pair and match — until the room's next match
+  // starts (WRONG_PHASE then). Answered by the room-wide push room.likes
+  'room.like': { playerId: isId },
   'room.start': {},
   'room.rerollSetup': { setupRevision: (v) => isInt(v, 0, 2 ** 31) },
   'room.cancelReroll': { voteId: (v) => isInt(v, 1, 2 ** 31) },
@@ -694,6 +698,11 @@ export const C2S = {
   'g.speedVote': { agree: isBool },
   'g.band': { bandId: isId },
   'g.bandSkip': {},
+  // the free strategy draft (server MatchPhases.freeDraft; m.public draft.free): a tentative choice (held, 队友已选 for the
+  // others), its cancel and its 锁定 — final; `WRONG_PHASE` outside a free draft, `ALREADY` once locked
+  'g.bandHold': { bandId: isId },
+  'g.bandCancel': {},
+  'g.bandLock': {},
   // the strategy highlighted in the draft screen (user playtest #4 item 4): a turn that runs out takes it while it is
   // free (Match.timeoutBand); absent / null clears it
   'g.bandFocus': { bandId: nullable(isId), $optional: ['bandId'] },
@@ -789,6 +798,10 @@ export const C2S = {
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'room.state', 'room.closed',
+  // room.likes { match, counts: { [playerId]: likes }, from?, to?, mine? } — the likes of the room's last match (room.like):
+  // to the whole room on each like (`from` liked `to`), and to one player with `mine` (the players it liked) after its
+  // result replay. Nothing is stored: refused while a match runs, replaced when the room's next match ends
+  'room.likes',
   // Aggregate online identities and the requester's own matchmaking ticket (never other queue members).
   // queue.state is a complete snapshot. Optional waitingCount exists only while queued: valid waiting human
   // identities, including the requester/party, in the ticket's frozen version:difficulty:required pool; a ticket of

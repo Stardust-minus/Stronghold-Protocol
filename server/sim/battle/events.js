@@ -7,7 +7,7 @@ import { EVENT_BUFFER_CAP } from '../constants.js';
 import { damageRows } from '../damageBoard.js';
 import { elementView } from '../attack.js';
 import { unitStatsEntry } from '../../../shared/protocol.js';
-import { unitInfo, snapshotUnits, ammoView, magazineView, wolfView, negView, moteView, coinView, mysticView, layerView, chargeView, feverView } from '../snapshot.js';
+import { unitInfo, snapshotUnits, ammoView, overdriveView, magazineView, wolfView, negView, moteView, coinView, mysticView, layerView, chargeView, feverView } from '../snapshot.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -79,6 +79,8 @@ export class BattleEvents {
    *         come back on: _layBody — where they fell, or their home);
    *   elem: [[id, element, fill, cooldownEnd, cooldown]] — the element gauge each unit shows (attack/element.js elementView);
    *   ammo: [[id, rounds left, rounds in the magazine]] — a running ammo skill, whole rounds (snapshot.js ammoView): the segmented bar;
+   *   overdrive: [[id, on]] — a running 过载 skill (snapshot.js overdriveView): on 1 in its second gauge — the skill bar
+   *         runs down twice, the second time red;
    *   mag: [[id, bullets, the magazine]] — a 猎手's trait bullets (snapshot.js magazineView): the column at the model's lower right;
    *   coins: [[id, balance, cap]] — a live Swire skill purse, zero included (snapshot.js coinView);
    *   wolves: [[id, 狼影 left, the talent's maximum]] — 伺夜's 狼群 (snapshot.js wolfView): the pips under the HP bar;
@@ -101,7 +103,7 @@ export class BattleEvents {
    *         dying ones in their death window included.
    *   face: [[id, ±1]] — a scripted horizontal sign (心虚设计师, mem.publishFacing): the model turns with the front
    *         cut while it stands. Display only; the nine-field tuples and the golden canon omit it.
-   * ammo / mag / coins / wolves / neg / motes / fever / energy / layers / charges / stand / standCut / face are display only: no sim
+   * ammo / overdrive / mag / coins / wolves / neg / motes / fever / energy / layers / charges / stand / standCut / face are display only: no sim
    * state reads them, and the nine-field unit tuples are unchanged. bondTimers is also display only (golden canon excludes it).
    */
   snapshot({ includeUnitStats = false } = {}) {
@@ -149,6 +151,8 @@ export class BattleEvents {
       if (v) (elem || (elem = [])).push([u.id, v[0], v[1], v[2], v[3]]);
       const am = ammoView(u);
       if (am) (ammo || (ammo = [])).push([u.id, am[0], am[1]]);
+      const od = overdriveView(u);
+      if (od !== null) (snap.overdrive || (snap.overdrive = [])).push([u.id, od]);
       const mg = magazineView(u);
       if (mg) (snap.mag || (snap.mag = [])).push([u.id, mg[0], mg[1]]);
       const wv = wolfView(u);

@@ -47,8 +47,13 @@ const latest = (c, type) => { for (let i = c.log.length - 1; i >= 0; i--) if (c.
 const TILES = [];
 for (let r = 12; r >= 9; r--) for (let c = 2; c <= 10; c++) TILES.push([r, c]);
 
+/** Co-op strategies tried in turn by a scripted human of the free draft. */
+const FREE_BANDS = ['band_bldsk', 'band_amiya', 'band_sarkazb', 'band_lisa', 'band_orchid', 'band_duyaoy'];
+
 /**
- * A scripted human: confirms the briefing, drafts a band on its turn (passing it once when not last), picks the first free
+ * A scripted human: confirms the briefing, drafts a band — in the free draft (match/phases.js freeDraft) it holds one,
+ * and once (`skipOnce`) switches to another and cancels before holding again; it then locks; in a turn-based draft on its
+ * turn (passing it once when not last) —, picks the first free
  * 机变 card, and in every prep buys what it can afford, places chess on legal tiles, clears the temp slots and readies.
  * During combat it watches a teammate's field. Stops when `until()` holds.
  */
@@ -70,6 +75,32 @@ async function driveLoop(c, { skipOnce = false, until, stats }) {
     if (pub.phase === 'INFO_CHECK' && !done.has('info')) {
       done.add('info');
       assert.equal((await c.request({ t: 'g.infoReady' })).t, 'ok');
+    } else if (pub.phase === 'BAND_DRAFT' && pub.draft?.free && pub.draft.order.includes(c.id) && !pub.draft.picks?.[c.id]) {
+      if (done.has('band')) continue;
+      done.add('band');
+      const hold = async (skip = null) => {
+        for (const bandId of FREE_BANDS) {
+          if (bandId === skip) continue;
+          const r = await c.request({ t: 'g.bandHold', bandId });
+          if (r.t === 'ok') return bandId;
+          // a teammate holds it (BAD_TARGET), or the (scaled) countdown fixed my choice meanwhile (ALREADY)
+          assert.ok(['BAD_TARGET', 'ALREADY'].includes(r.code), `bandHold: ${JSON.stringify(r)}`);
+          if (r.code === 'ALREADY') return null;
+        }
+        return null;
+      };
+      let held = await hold();
+      stats.holds++;
+      if (held && !skipped) {
+        skipped = true;
+        if (await hold(held)) stats.switches++;
+        const r = await c.request({ t: 'g.bandCancel' });
+        if (r.t === 'ok') stats.cancels++;
+        await hold();
+      }
+      const r = await c.request({ t: 'g.bandLock' });
+      if (r.t === 'ok') stats.bands++;
+      else stats.bandTimeouts++;
     } else if (pub.phase === 'BAND_DRAFT' && pub.draft && pub.draft.turn === c.id) {
       // (the skips left: with the humans first, two skips bring the order back to the first one)
       const key = `band:${pub.draft.order.join()}:${pub.draft.skipsLeft?.[c.id]}`;
@@ -173,7 +204,7 @@ test('real-time co-op over websockets with the real simulation: 2 humans + 2 AI 
   assert.equal((await a.request({ t: 'room.start' })).t, 'ok');
 
   const reached = (c) => { const p = latest(c, 'm.public'); return !!p && ((p.phase === 'PREP' && p.round >= 4) || p.phase === 'RESULT' || p.round > 4); };
-  const stats = { a: { skips: 0, skipTries: 0, bands: 0, bandTimeouts: 0, cards: 0, buys: 0, placed: 0, readies: 0, watches: [], refused: 0 }, b: { skips: 0, skipTries: 0, bands: 0, bandTimeouts: 0, cards: 0, buys: 0, placed: 0, readies: 0, watches: [], refused: 0 } };
+  const stats = { a: { skips: 0, skipTries: 0, holds: 0, switches: 0, cancels: 0, bands: 0, bandTimeouts: 0, cards: 0, buys: 0, placed: 0, readies: 0, watches: [], refused: 0 }, b: { skips: 0, skipTries: 0, holds: 0, switches: 0, cancels: 0, bands: 0, bandTimeouts: 0, cards: 0, buys: 0, placed: 0, readies: 0, watches: [], refused: 0 } };
   // snapshot of the prep → combat transitions the clients saw
   await Promise.all([
     drive(a, { skipOnce: true, until: () => reached(a), stats: stats.a }),
@@ -190,7 +221,8 @@ test('real-time co-op over websockets with the real simulation: 2 humans + 2 AI 
   assert.equal(m.dispatcher.errors, 0, 'meta handler errors');
   assert.deepEqual(errors, [], 'no server errors logged');
 
-  assert.ok(stats.a.skipTries + stats.b.skipTries >= 1, 'a human tried to pass its band-draft turn (g.bandSkip)');
+  // the free draft (two humans): a doctor switched its choice and cancelled it before locking
+  assert.ok(stats.a.cancels + stats.b.cancels >= 1, `a human cancelled its held strategy (g.bandCancel): ${JSON.stringify([stats.a, stats.b])}`);
   for (const [c, s] of [[a, stats.a], [b, stats.b]]) {
     assert.equal(s.bands + s.bandTimeouts, 1, `${c.id} drafted a band (or its turn timed out → 华法琳)`);
     assert.ok(s.buys >= 3 && s.placed >= 3 && s.readies >= 3, `${c.id} played its preps: ${JSON.stringify(s)}`);

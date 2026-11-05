@@ -191,6 +191,9 @@ export class MatchViews {
         ...(this.capacityExperiment ? { allowRepeat: true } : {}),
         // every seat picks at once (MatchPhases.concurrentDraft): `turn` is null, the countdown is the step's
         ...(d.concurrent ? { concurrent: true } : {}),
+        // a free draft (MatchPhases.freeDraft): `picks` are the locked choices, `holds` the tentative ones (playerId →
+        // bandId) — g.bandHold / g.bandCancel / g.bandLock. A page without the flow reads only `concurrent` and `picks`
+        ...(d.free ? { free: true, holds: Object.fromEntries(Object.entries(d.holds || {}).filter(([pid, id]) => typeof id === 'string' && !d.picks[pid])) } : {}),
         // room.setBotBand: the designated strategies still held for their AI seats (bandId → playerId; present only
         // when the match has a designation and repeats are not allowed)
         ...(this.botBands?.size && !this.capacityExperiment ? { reserved: this.reservedBands() } : {}),

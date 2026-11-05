@@ -48,7 +48,8 @@ export function aiDigest(m, ps, kind, pub, own, pack = null) {
   const slots = list => (list || []).map((s, slot) => s && ({ ...s, slot, ...named(s.id), ...operator(s), tier: gd.tierOf(s.id) }));
   const actions = [];
   const add = (intent, text) => actions.push({ id: `a${actions.length + 1}`, text, intent });
-  if (kind === 'band' && pub.draft?.turn === ps.playerId) {
+  // (a concurrent draft — every co-op draft since the free draft of 2026-11-05 — has no turn: every seat still deciding)
+  if (kind === 'band' && (pub.draft?.turn === ps.playerId || (pub.draft?.concurrent === true && pub.draft.order?.includes(ps.playerId) && !pub.draft.picks?.[ps.playerId]))) {
     for (const id of gd.bandIds()) if (!m.bandTaken(id, ps.playerId)) add({ t: 'g.band', bandId: id }, `band ${named(id).nameZh}`);
     if (pub.draft.skipsLeft[ps.playerId] > 0) add({ t: 'g.bandSkip' }, 'skip band turn');
   }

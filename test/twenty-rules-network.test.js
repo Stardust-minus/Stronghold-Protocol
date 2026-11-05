@@ -53,10 +53,10 @@ for (const capacity of [4, 8, 12, 16, 20]) for (const family of capacity === 4 ?
     for (const c of members) assert.equal((await c.request({ t: 'g.infoReady' })).t, 'ok');
     const band = await members[0].waitFor('m.public', m => m.phase === 'BAND_DRAFT'); assert.equal(band.draft.allowRepeat === true, repeat);
     const byId = new Map(members.map(c => [c.welcome.playerId, c])); let selections = 0;
-    // expanded rooms: every seat picks at once (no turn) — the last of the order first, then the rest in parallel
-    assert.equal(band.draft.concurrent === true, repeat);
-    if (!repeat) assert.equal((await byId.get(match.draft.order[1]).request({ t: 'g.band', bandId: 'band_bldsk' })).code, ERR.NOT_YOUR_TURN);
-    const nextBand = () => (repeat ? match.draft.order.findLast(pid => !match.draft.picks[pid]) : match.draftTurn());
+    // every seat picks at once (no turn; the free draft, match/phases.js freeDraft) — expanded rooms: the last of the order
+    // first, then the rest in parallel; a four-seat room one after another, never a strategy a teammate holds
+    assert.equal(band.draft.concurrent, true); assert.equal(band.draft.free, true);
+    const nextBand = () => match.draft.order.findLast(pid => !match.draft.picks[pid]);
     if (repeat) {
       const pid = nextBand(), c = byId.get(pid);
       assert.equal((await c.request({ t: 'g.band', bandId: 'invalid-band' })).code, ERR.BAD_TARGET);

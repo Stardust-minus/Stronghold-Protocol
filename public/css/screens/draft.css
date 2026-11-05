@@ -90,6 +90,12 @@
 .dorder__box.is-band { cursor: pointer; overflow: hidden; background: radial-gradient(circle at 50% 40%, #1f4a40, #0c1513 75%); box-shadow: inset 0 0 0 1px rgba(120, 240, 205, .25); }
 .dorder__box.is-band .bandicon { --bi: 100%; width: 100%; height: 100%; background: transparent; }
 .dorder__box.is-band:hover { box-shadow: inset 0 0 0 2px var(--mint-400); }
+/* a free draft (screens/bandDraft.js header): a choice not locked yet — the band behind a dashed gold frame, 未锁定 under it */
+.dorder__box.is-held { box-shadow: inset 0 0 0 1px rgba(255, 214, 120, .55); background: radial-gradient(circle at 50% 40%, #3a3320, #14120c 75%); }
+.dorder__box.is-held .bandicon { opacity: .72; }
+.dorder__box.is-held:hover { box-shadow: inset 0 0 0 2px #ffd678; }
+.dorder__unlocked { position: absolute; left: 0; right: 0; bottom: 0; padding: .02rem 0; background: rgba(12, 12, 10, .78); color: #ffd678;
+  font-size: min(calc(.13 * var(--t)), 11px); font-weight: 700; letter-spacing: .04em; text-align: center; line-height: 1.2; }
 .dorder__zoom { position: absolute; left: 50%; bottom: .04rem; width: .3rem; height: .3rem; transform: translateX(-50%); color: #fff; filter: drop-shadow(0 0 2px #000); }
 .dorder__check { width: .44rem; height: .44rem; display: grid; place-items: center; }
 .dorder.is-done .dorder__check { border: .03rem solid var(--mint-400); border-radius: .06rem; background: rgba(23, 249, 183, .12); color: var(--mint-400); box-shadow: 0 0 .14rem rgba(23, 249, 183, .45); }
@@ -121,7 +127,7 @@
   padding: .24rem .3rem .4rem; background: linear-gradient(180deg, rgba(18, 22, 22, .6), rgba(10, 12, 12, .3)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
   scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .3) transparent;
 }
-.dband, .dorder__box, .draft-skip, .stephead__info { border: 0; font: inherit; }
+.dband, .dorder__box, .draft-skip, .draft-lockbtn, .stephead__info { border: 0; font: inherit; }
 .dband {
   position: relative; aspect-ratio: 1; padding: 0; color: var(--text-md); background: #0e1212;
   box-shadow: 0 0 0 .03rem #30373a, inset 0 0 0 .02rem #000; transition: box-shadow var(--t-fast), transform var(--t-fast), filter var(--t-fast);
@@ -184,6 +190,7 @@
   .draft .dturn__txt b { font-size: min(calc(.28 * var(--t)), calc(14px + var(--t-step))); text-align: right; }
   .draft .dturn__txt span { font-size: min(calc(.24 * var(--t)), calc(12px + var(--t-step))); text-align: right; }
   .draft .draft-skip { white-space: nowrap; font-size: min(calc(.22 * var(--t)), calc(13px + var(--t-step) / 2)); }
+  .draft .draft-lockbtn { white-space: nowrap; font-size: min(calc(.22 * var(--t)), calc(13px + var(--t-step) / 2)); }
   /* the order box's 选择中 / Deciding under its icon (English 「Deciding」 ran 2–6 px past the box at 大 / 特大) */
   .draft .dorder__box span { max-width: 100%; letter-spacing: 0; font-size: min(calc(.18 * var(--t)), calc(10px + var(--t-step) / 2)); }
   /* the decorative STRONGHOLD PROTOCOL / COLLABORATIVE SYSTEM gives way at 大 / 特大 (it ran past its .34rem strip) */
@@ -246,6 +253,7 @@
 .draft-detail__status { display: flex; align-items: center; gap: .06rem; margin: 0; font-size: calc(.16 * var(--t)); color: var(--text-lo); }
 .draft-detail__status .icon { width: .2rem; height: .2rem; flex: none; }
 .draft-detail__status--taken { color: #ff8f80; }
+.draft-detail__status--held { color: var(--mint-400); }
 .draft-detail__btns { display: flex; gap: .1rem; }
 .draft-detail__btns .btn { flex: 1; }
 .draft-detail__btns .btn--lg { height: .92rem; font-size: calc(.32 * var(--t)); }
@@ -287,12 +295,17 @@
 .dturn__go b { white-space: nowrap; font-size: min(calc(.4 * var(--t)), .5rem); /* a larger 文字大小 wrapped it over the header on phones */ font-weight: 900; letter-spacing: .06em; color: var(--mint-400); text-shadow: 0 0 .14rem rgba(23, 249, 183, .4); }
 .dturn__finger { width: .42rem; height: .42rem; color: var(--mint-400); object-fit: contain; animation: dturn-finger 1s ease-in-out infinite; }
 @keyframes dturn-finger { 50% { transform: translateX(.05rem); } }
-.draft-skip { display: inline-flex; align-items: center; gap: .1rem; height: .44rem; padding: 0 .3rem 0 .24rem; border-radius: .22rem;
+.draft-skip, .draft-lockbtn { display: inline-flex; align-items: center; gap: .1rem; height: .44rem; padding: 0 .3rem 0 .24rem; border-radius: .22rem;
   background: rgba(70, 75, 77, .75); color: #eceeee; font-size: calc(.22 * var(--t)); font-weight: 700; transition: background var(--t-fast); }
 .draft-skip:not(:disabled):hover { background: rgba(98, 104, 106, .85); }
-.draft-skip:disabled { cursor: default; color: rgba(236, 238, 238, .45); background: rgba(50, 54, 56, .55); }
-.draft-skip .icon { width: .28rem; height: .28rem; fill: currentColor; }
-.draft-skip[aria-busy="true"] { opacity: .6; }
+.draft-skip:disabled, .draft-lockbtn:disabled { cursor: default; color: rgba(236, 238, 238, .45); background: rgba(50, 54, 56, .55); }
+.draft-skip .icon, .draft-lockbtn .icon { width: .28rem; height: .28rem; fill: currentColor; }
+.draft-skip[aria-busy="true"], .draft-lockbtn[aria-busy="true"] { opacity: .6; }
+/* a free draft's 锁定 in the header, beside my held choice: the skip button's shape in mint */
+.dturn.is-held { gap: .2rem; animation: pg-right 380ms var(--pg-ease) backwards; }
+.draft-lockbtn { color: #06110d; background: var(--mint-400); font-weight: 700; }
+.draft-lockbtn:not(:disabled):hover { background: #6ff7d2; }
+.draft-lockbtn .icon { fill: currentColor; }
 /* the header's row at every size (§35.51 review): the left part (离开, the mode capsule with 本局信息, 2/2) keeps its width,
    the right part takes the rest and the status line wraps in it, balanced, instead of running over 2/2 (English 「Choose
    Your Strategy」 at 中 – 特大 on phones — where it wraps, ≤ 520 px —, over 选择策略 in 1024–1280 px windows at 大 / 特大); the capsule grows with its
@@ -306,6 +319,7 @@
    text (cut at 特大 in a 1024×600 window) */
 .draft .stephead { height: auto; min-height: 1.3rem; }
 .draft .draft-skip { height: auto; min-height: .44rem; padding-top: 2px; padding-bottom: 2px; line-height: 1.25; }
+.draft .draft-lockbtn { height: auto; min-height: .44rem; padding-top: 2px; padding-bottom: 2px; line-height: 1.25; }
 .dturn:lang(ko), .draft-order__tip:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
 /* … and while the status shows, the step's name gives way to it in windows up to 640 px tall (1024×600), as on short
    screens, and at 大 / 特大 in any window (the 2/2 stays). §35.56: chosen by window width (up to 1440 px) it was hidden
@@ -321,7 +335,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .draft-order, .dorder, .dorder.is-cur::before, .dorder.is-flash .dorder__box, .dorder.is-flash .dorder__check, .dband, .dband.is-sel::before, .dband__taken,
-  .draft-detail, .draft-detail__body, .draft-done, .dturn.is-turn, .dturn__glass, .dturn__finger { animation: none; }
+  .draft-detail, .draft-detail__body, .draft-done, .dturn.is-turn, .dturn.is-held, .dturn__glass, .dturn__finger { animation: none; }
   .dorder.is-flash::after, .draft-done::after { display: none; }
 }
 

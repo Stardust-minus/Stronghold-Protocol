@@ -1637,6 +1637,9 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   旋转半径扩大 is up — `render/motes.js` draws that many sprites of her model's own `C_Eff_Moire_B` region, §client);
   `fever: [[id, fill, on]]` (only when non-empty; display only) = `feverView` (`unit.feverView()`, set by 丰川祥子's kit: the
   Fever gauge's share of 450 while it fills, the share of the 20 s left while Fever runs — the bar under her HP bar);
+  `overdrive: [[id, on]]` (only when non-empty; display only) = `overdriveView` (an ally's running timed skill whose kit marks
+  `overdrive: true` — 过载, ba.overdrive "技能持续拥有两段计量槽": 塔露拉 S3, 维什戴尔 S2, 号角 S3): on 0 over the first half of
+  the skill, 1 over the second; the tuple keeps the whole fraction and the client runs the SP bar down twice, the second time red;
   UnitInfo `ammoSkill` marks an ally whose skill is an ammo magazine (DESIGN §8.2).
   `layers: [[id, n]]` and `charges: [[id, stored, max]]` (each only when non-empty; display only, 0.3.0 round 46) =
   `snapshot.js` `layerView` (the sum of a unit's buffs' `shieldHits`: 泥岩's 护盾 layers) and `chargeView` (an ally skill

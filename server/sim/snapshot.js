@@ -158,6 +158,19 @@ export function ammoView(u) {
 }
 
 /**
+ * `overdriveView(u)` = 1 while a running 过载 skill is in its second gauge, 0 in its first; null for any other unit. Term
+ * ba.overdrive (gamedata_const termDescriptionDict) "技能持续拥有两段计量槽，技能进行到一半时触发额外效果"; PRTS 塔露拉 S3
+ * "触发额外效果时技能持续条变为红色": the bar runs down over the first half, then again, red, over the second (the owner's word
+ * of 2026-11-05: 「第一段技能条走完之后第二条是过载状态」). A kit marks such a timed skill `overdrive: true` (塔露拉 S3, 维什戴尔
+ * S2, 号角 S3). The tuple keeps the skill's whole fraction; the client cuts it in two (render/units.js). Display only.
+ */
+export function overdriveView(u) {
+  const sk = u.skill;
+  if (u.side !== 'ally' || !sk || !sk.active || sk.kind !== 'duration' || sk.spec?.overdrive !== true || !(sk.duration > 0)) return null;
+  return sk.timeLeft <= sk.duration / 2 + 1e-9 ? 1 : 0;
+}
+
+/**
  * `magazineView(u)` = `[bullets, the magazine]` of a 猎手 — the trait's 子弹 (`trait.ammo`, the magazine `profile.ammoMax`:
  * professions.js installHunter, 莱伊's own loop in op-ray.js), not a skill's ammo (ammoView): PRTS 分支特性信息 猎手
  * "入场时持有自身子弹上限数的子弹（竖直显示于自身模型右下）" — the column of bullets at the model's lower right

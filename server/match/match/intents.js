@@ -29,6 +29,10 @@ export class MatchIntents {
       case 'g.speedVote': return this.setSpeedVote(ps, msg.agree === true);
       case 'g.band': return this.pickBand(ps, msg.bandId);
       case 'g.bandSkip': return this.skipBand(ps);
+      // a free draft (MatchPhases.freeDraft): a tentative choice, its cancel and its 锁定
+      case 'g.bandHold': return this.holdBand(ps, msg.bandId);
+      case 'g.bandCancel': return this.cancelBand(ps);
+      case 'g.bandLock': return this.lockBand(ps);
       // the strategy highlighted in the draft screen (what a timed-out turn takes, timeoutBand)
       case 'g.bandFocus': return this.bandFocus(ps, msg.bandId ?? null);
       // the core bond the player means to build (display only; the opening phases)

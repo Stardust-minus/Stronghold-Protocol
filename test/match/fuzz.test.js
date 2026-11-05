@@ -36,7 +36,7 @@ function randomIntent(rng, m, ps) {
     case 'g.kickVote': return { t, targetId: rng.pick([...m.players.keys(), 'unknown']) };
     case 'g.kickBallot': return { t, voteId: m.kickVote?.id ?? 1 + rng.int(10), agree: rng() < 0.5 };
     case 'g.speedVote': return { t, agree: rng() < 0.5 };
-    case 'g.band': return { t, bandId: rng() < 0.8 ? rng.pick(BANDS) : rng.pick(['constructor', '__proto__', 'band_x', 'a'.repeat(64)]) };
+    case 'g.band': case 'g.bandHold': return { t, bandId: rng() < 0.8 ? rng.pick(BANDS) : rng.pick(['constructor', '__proto__', 'band_x', 'a'.repeat(64)]) };
     case 'g.buy': return { t, slot: rng.int(16) };
     case 'g.sell': case 'g.destroy': return { t, uid: uid() };
     case 'g.move': return { t, uid: uid(), to: to() };

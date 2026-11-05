@@ -1,6 +1,8 @@
 // server/match/match/phases.js — Match methods: the round flow up to the prep — INFO_CHECK (with the 自选候补 choice),
 // the strategy draft
-// (BAND_DRAFT: one countdown of BAND_TURN_SECONDS per turn, 队友已选, the highlighted strategy on a timeout, skips),
+// (BAND_DRAFT: a co-op match with two or more humans — freeDraft — has one countdown of BAND_TURN_SECONDS for every seat
+// at once, a tentative choice each can cancel or 锁定, and the step ends when every seat has locked or the countdown fixes
+// the choices; solo and a single human keep the turns: one untimed turn each, 队友已选, the highlighted strategy, skips),
 // BATTLE_CHECK and ROUND_START (the round's enemies — a normal wave or the boss pairing — planned before the players'
 // round start).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
@@ -79,7 +81,8 @@ export class MatchPhases {
     let order = this.order.map((p) => p.playerId);
     if (!this.isSolo) this.rngDraft.shuffle(order);
     order = this.humansFirst(order);
-    const concurrent = this.concurrentDraft();
+    const free = this.freeDraft();
+    const concurrent = this.concurrentDraft() || free;
     const skips = this.isSolo || concurrent ? 0 : this.gd.bandDraft.skipsPerPlayer;
     const untimed = this.soloUntimed;
     this.draft = {
@@ -87,6 +90,8 @@ export class MatchPhases {
       /** playerId → the strategy highlighted in the draft screen (g.bandFocus) */
       focus: new Map(),
       ...(concurrent ? { concurrent: true } : {}),
+      // freeDraft: `picks` are the locked (final) choices, `holds` the tentative ones (playerId → bandId)
+      ...(free ? { free: true, holds: {} } : {}),
     };
     this.setDeadline(0);
     this.startDraftTurn();
@@ -103,6 +108,19 @@ export class MatchPhases {
    * deciding (_botMayPick). The step ends as soon as nobody is left to decide.
    */
   concurrentDraft() { return !!this.capacityExperiment && !this.isSolo; }
+
+  /**
+   * The owner's strategy draft of 2026-11-05 (「改成额定倒计时，玩家可以同时自由选择策略，选择完成之后还可以取消选别的策略。
+   * 倒计时结束则固定所选择的策略」): every co-op match that is not untimed — two or more humans, or none — drafts
+   * concurrently (`draft.free`, on top of `draft.concurrent`) with ONE countdown of BAND_TURN_SECONDS for the step. A
+   * seat holds a strategy (g.bandHold; `draft.holds`), may switch it or cancel it (g.bandCancel) and 锁定 it
+   * (g.bandLock) — the lock is final (`draft.picks`); g.band locks at once (a page that predates the flow). A held
+   * strategy is 队友已选 for the others (bandTaken) unless the room allows repeats. The step ends once every seat has
+   * locked; when the countdown runs out every hold is fixed, and a human holding nothing gets timeoutBand. AI seats
+   * lock at once — with 「AI 队友最后选择」 once no human is left deciding (_botMayPick), the countdown's end included.
+   * Solo and a single human (soloUntimed) keep the turns.
+   */
+  freeDraft() { return !this.isSolo && !this.soloUntimed; }
 
   /** 「AI 队友最后选择」 in a concurrent draft: an AI seat picks once none of `deciding` is a human. */
   _botMayPick(ps, deciding) { return !this.aiPicksLast || !ps.isBot || !deciding.some((p) => p && !p.isBot); }
@@ -179,6 +197,7 @@ export class MatchPhases {
       d.done = true;
       this.cancel(this._turnTimer);
       this._turnTimer = null;
+      if (this.test && d.free) this.setDeadline(0); // (its countdown is the phase timer there)
       d.turnDeadline = 0;
       this.deadline = 0;
       this.later(0, () => this.finishBandDraft(false));
@@ -190,13 +209,17 @@ export class MatchPhases {
       const token = ++this._turnToken;
       if (!d.untimed) {
         const ms = this.bandTurnMs();
-        d.turnDeadline = this.sched.now() + ms;
-        this.deadline = d.turnDeadline;
-        this._turnTimer = this.later(ms, () => {
+        const expire = () => {
           if (this.phase !== PHASE.BAND_DRAFT || token !== this._turnToken || this.draft !== d) return;
+          if (d.free) { this._fixFreeDraft(d); return; }
           // whoever is still deciding: the highlighted strategy, else the default (timeoutBand), in draft order
           for (const pid of d.order) if (!d.picks[pid] && this.players.get(pid)) this._applyBand(this.players.get(pid), this.timeoutBand(pid));
-        });
+        };
+        d.turnDeadline = this.sched.now() + ms;
+        this.deadline = d.turnDeadline;
+        // a test match's timers can be held (g.test timers off), as a turn's are (startDraftTurn)
+        if (this.test && d.free) { this.setDeadline(ms / 1000 / (this.timerScale || 1), expire); d.turnDeadline = this.deadline; }
+        else this._turnTimer = this.later(ms, expire);
       } else {
         d.turnDeadline = 0;
         this.deadline = 0;
@@ -205,6 +228,33 @@ export class MatchPhases {
     const deciding = d.order.filter((pid) => !d.picks[pid]).map((pid) => this.players.get(pid));
     for (const ps of deciding) if (ps && ps.botControlled && this._botMayPick(ps, deciding)) this.scheduleBandBot(ps);
     this.markPublic();
+  }
+
+  /**
+   * The countdown of a free draft (freeDraft) ran out: every hold is fixed, then every human still deciding (held
+   * nothing; offline included) gets timeoutBand — its highlighted strategy while free, else the default — in draft order
+   * (the holds first, so no default takes a held strategy). The AI seats still deciding (「AI 队友最后选择」) pick next:
+   * no human is left deciding (_concurrentBandStep, through the last _applyBand).
+   * @param {any} d this.draft
+   */
+  _fixFreeDraft(d) {
+    const holds = d.holds || {};
+    for (const pid of d.order) {
+      const ps = this.players.get(pid), id = holds[pid];
+      if (ps && !d.picks[pid] && typeof id === 'string' && this.gd.bandAllowed(id) && !this.bandTaken(id, pid)) this._applyBand(ps, id);
+    }
+    for (const pid of d.order) {
+      const ps = this.players.get(pid);
+      if (ps && !ps.isBot && !d.picks[pid]) this._applyBand(ps, this.timeoutBand(pid));
+    }
+    if (!d.done) this._concurrentBandStep();
+  }
+
+  /** A free draft's hold of `ps` while it can still be locked (allowed, nobody else holds it), else null. */
+  heldBand(ps) {
+    const d = this.draft;
+    const id = d?.free && ps ? d.holds?.[ps.playerId] : null;
+    return typeof id === 'string' && this.gd.bandAllowed(id) && !this.bandTaken(id, ps.playerId) ? id : null;
   }
 
   /**
@@ -223,6 +273,9 @@ export class MatchPhases {
       if (this.phase !== PHASE.BAND_DRAFT || token !== this._turnToken || this.draft !== d) return;
       const ps = d.concurrent ? target : this.players.get(this.draftTurn());
       if (!ps || !ps.botControlled || d.picks[ps.playerId]) return;
+      // a free draft: a human under AI 托管 (or gone) locks the strategy it held
+      const held = this.heldBand(ps);
+      if (held) { this._applyBand(ps, held); return; }
       // an AI seat the host designated a strategy for (room.setBotBand) takes it — held for it, so still free
       const own = this.designatedBand(ps);
       if (own) { this._applyBand(ps, own, { dedupe: true }); return; }
@@ -252,6 +305,8 @@ export class MatchPhases {
     if (this.capacityExperiment) return false;
     const picks = this.draft?.picks || {};
     for (const [pid, id] of Object.entries(picks)) if (pid !== playerId && id === bandId) return true;
+    // a free draft: a teammate's tentative choice too (first come, first served — the owner, 2026-11-05)
+    if (this.draft?.free) for (const [pid, id] of Object.entries(this.draft.holds || {})) if (pid !== playerId && id === bandId && !picks[pid]) return true;
     for (const [pid, id] of this.botBands || []) if (pid !== playerId && id === bandId && !picks[pid]) return true;
     return false;
   }
@@ -321,13 +376,65 @@ export class MatchPhases {
     return OK;
   }
 
+  /** g.band: the final pick — a turn's; in a free draft (freeDraft) hold + 锁定 at once (a page that predates g.bandLock). */
   pickBand(ps, bandId) {
     if (this.phase !== PHASE.BAND_DRAFT || !this.draft) return fail(ERR.WRONG_PHASE);
     if (this.draft.picks[ps.playerId]) return fail(ERR.ALREADY);
     if (!this.draft.concurrent && this.draftTurn() !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
+    if (this.draft.free && !this.draft.order.includes(ps.playerId)) return fail(ERR.BAD_TARGET);
     if (typeof bandId !== 'string' || !this.gd.bandAllowed(bandId)) return fail(ERR.BAD_TARGET);
     if (this.bandTaken(bandId, ps.playerId)) return fail(ERR.BAD_TARGET, '队友已选'); // i18n-ignore: developer detail (players see ERR_TEXT)
     this._applyBand(ps, bandId);
+    return OK;
+  }
+
+  /**
+   * g.bandHold { bandId } (a free draft, freeDraft): the seat's tentative choice — a new one replaces the old (the old
+   * is free again at once); refused once locked, for a strategy a teammate holds or locked (队友已选) and outside a free
+   * draft. It is also the highlighted strategy (g.bandFocus).
+   */
+  holdBand(ps, bandId) {
+    const d = this.draft;
+    if (this.phase !== PHASE.BAND_DRAFT || !d) return fail(ERR.WRONG_PHASE);
+    if (!d.free) return fail(ERR.WRONG_PHASE, 'not a free draft');
+    if (!d.order.includes(ps.playerId)) return fail(ERR.BAD_TARGET);
+    if (d.picks[ps.playerId]) return fail(ERR.ALREADY);
+    if (typeof bandId !== 'string' || !this.gd.bandAllowed(bandId)) return fail(ERR.BAD_TARGET);
+    if (this.bandTaken(bandId, ps.playerId)) return fail(ERR.BAD_TARGET, '队友已选'); // i18n-ignore: developer detail (players see ERR_TEXT)
+    if (d.holds?.[ps.playerId] === bandId) return OK;
+    (d.holds ||= {})[ps.playerId] = bandId;
+    if (!(d.focus instanceof Map)) d.focus = new Map();
+    d.focus.set(ps.playerId, bandId);
+    this.markPublic();
+    return OK;
+  }
+
+  /** g.bandCancel (a free draft): drop the tentative choice — the strategy is free again; nothing held is no error. */
+  cancelBand(ps) {
+    const d = this.draft;
+    if (this.phase !== PHASE.BAND_DRAFT || !d) return fail(ERR.WRONG_PHASE);
+    if (!d.free) return fail(ERR.WRONG_PHASE, 'not a free draft');
+    if (d.picks[ps.playerId]) return fail(ERR.ALREADY);
+    if (d.holds && d.holds[ps.playerId] != null) {
+      delete d.holds[ps.playerId];
+      this.markPublic();
+    }
+    return OK;
+  }
+
+  /**
+   * g.bandLock (a free draft): 锁定 the tentative choice — final (draft.picks, the seat's strategy and LP); the step ends
+   * once every seat has locked (_concurrentBandStep). Refused without a hold.
+   */
+  lockBand(ps) {
+    const d = this.draft;
+    if (this.phase !== PHASE.BAND_DRAFT || !d) return fail(ERR.WRONG_PHASE);
+    if (!d.free) return fail(ERR.WRONG_PHASE, 'not a free draft');
+    if (d.picks[ps.playerId]) return fail(ERR.ALREADY);
+    const id = d.holds?.[ps.playerId];
+    if (typeof id !== 'string') return fail(ERR.BAD_TARGET, 'nothing held');
+    if (!this.gd.bandAllowed(id) || this.bandTaken(id, ps.playerId)) return fail(ERR.BAD_TARGET, '队友已选'); // i18n-ignore: developer detail (players see ERR_TEXT)
+    this._applyBand(ps, id);
     return OK;
   }
 
@@ -336,6 +443,7 @@ export class MatchPhases {
     if (!d || !ps || d.picks[ps.playerId]) return;
     let id = this.gd.bandAllowed(bandId) ? bandId : this.defaultBand(ps.playerId);
     if (dedupe && this.bandTaken(id, ps.playerId)) id = this.gd.bandIds().find((b) => !this.bandTaken(b, ps.playerId)) || id;
+    if (d.holds) delete d.holds[ps.playerId];
     d.picks[ps.playerId] = id;
     ps.bandId = id;
     ps.lp = this.gd.startLp(id);

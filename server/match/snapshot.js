@@ -499,6 +499,9 @@ function enterPhase(m, doc) {
       // the current turn — a concurrent draft's one countdown — starts over with a full clock
       d.turnDeadline = 0;
       if (d.concurrent) { d.armed = false; d.done = false; d.botQueued = new Set(); }
+      // a free draft (freeDraft) keeps its holds and locks; a checkpoint from before it (turns, or a capacity room's
+      // concurrent draft) goes on as it was taken
+      if (d.free && (!d.holds || typeof d.holds !== 'object' || Array.isArray(d.holds))) d.holds = {};
       m.setDeadline(0);
       m.startDraftTurn();
       m.markPublic();

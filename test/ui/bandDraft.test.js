@@ -4,18 +4,24 @@
 // the official default 「华法琳」 only while no teammate holds it, else the first free strategy (match/phases.js defaultBand; the
 // UI names it: bandDraft.js timeoutBand) — a timed-out turn takes the highlighted band first (g.bandFocus, match/phases.js
 // timeoutBand; user playtest #4 item 4: one countdown, BAND_TURN_SECONDS per turn, no separate step cap).
+// Since the free draft (the owner, 2026-11-05; match/phases.js freeDraft) several humans draft at once; the turns stay for
+// a single human and for a checkpoint taken before it — `turns: true` forces them here (test/match/free-draft.test.js
+// covers the free draft).
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { ERR, PHASE } from '../../shared/constants.js';
 import { makeMatch, DATA } from '../match/harness.js';
-import { teammateBands, timeoutBand, allowedBands, autoPickBand, draftClock, draftTip, draftSelection } from '../../public/js/screens/bandDraft.js';
+import { teammateBands, timeoutBand, allowedBands, autoPickBand, draftClock, draftTip, draftSelection, freeBandAction, draftInfoStatus } from '../../public/js/screens/bandDraft.js';
+import { normalizeDraft, draftMyTurn } from '../../public/js/ui/gameLogic.js';
 import { BAND_TURN_SECONDS } from '../../server/match/Match.js';
 
 const TURN_MS = BAND_TURN_SECONDS * 1000;
 
-function draftOf(o) {
-  const h = makeMatch({ mode: 'coop', ...o }).start();
+function draftOf({ turns = false, ...o }) {
+  const h = makeMatch({ mode: 'coop', ...o });
+  if (turns) h.m.freeDraft = () => false; // the turn-based draft (a single human's; a checkpoint from before the free draft)
+  h.start();
   for (const ps of h.m.players.values()) if (!ps.isBot) h.m.handle(ps.playerId, { t: 'g.infoReady' });
   h.sched.advance(1);
   assert.equal(h.m.phase, PHASE.BAND_DRAFT);
@@ -24,7 +30,7 @@ function draftOf(o) {
 
 describe('server: skip requires a successor and remaining quota', () => {
   for (const humans of [2, 3, 4]) test(`${humans} humans: the final unpicked player cannot pass to a finished player`, () => {
-    const h = draftOf({ humans, seed: 5 });
+    const h = draftOf({ turns: true, humans, seed: 5 });
     const m = h.m;
     try {
       const order = m.draft.order.slice();
@@ -45,7 +51,7 @@ describe('server: skip requires a successor and remaining quota', () => {
   });
 
   test('passing works before the final position, but a spent quota cannot be used again', () => {
-    const h = draftOf({ humans: 3, seed: 5 });
+    const h = draftOf({ turns: true, humans: 3, seed: 5 });
     const m = h.m;
     try {
       const [first, second, third] = m.draft.order;
@@ -64,7 +70,7 @@ describe('server: skip requires a successor and remaining quota', () => {
 
 describe('server: no duplicate strategies in the co-op draft', () => {
   test('a band picked by a teammate is refused with 队友已选; a free one is accepted', () => {
-    const h = draftOf({ humans: 3, seed: 5 });
+    const h = draftOf({ turns: true, humans: 3, seed: 5 });
     const m = h.m;
     const [first, second, third] = m.draft.order;
     assert.deepEqual(m.handle(first, { t: 'g.band', bandId: 'band_sarkazb' }), { ok: true });
@@ -143,7 +149,7 @@ describe('server: automatic assignments never duplicate a teammate\'s strategy',
   };
 
   test('a turn that runs out (no highlight): 华法琳 when free, else the first free strategy (sortId order)', () => {
-    const h = draftOf({ humans: 3, seed: 5 });
+    const h = draftOf({ turns: true, humans: 3, seed: 5 });
     const m = h.m;
     const [first, second, third] = m.draft.order;
     assert.deepEqual(m.handle(first, { t: 'g.band', bandId: 'band_bldsk' }), { ok: true });
@@ -161,7 +167,7 @@ describe('server: automatic assignments never duplicate a teammate\'s strategy',
   });
 
   test('a turn that runs out takes the highlighted strategy (g.bandFocus) while it is free', () => {
-    const h = draftOf({ humans: 3, seed: 5 });
+    const h = draftOf({ turns: true, humans: 3, seed: 5 });
     const m = h.m;
     const [first, second, third] = m.draft.order;
     // highlights may come before the turn; the last one counts; null clears it
@@ -180,7 +186,7 @@ describe('server: automatic assignments never duplicate a teammate\'s strategy',
     assert.equal(m.draft.picks[third], 'band_bldsk');
     distinct(m);
     m.dispose();
-    const h2 = draftOf({ humans: 2, seed: 5 });
+    const h2 = draftOf({ turns: true, humans: 2, seed: 5 });
     const [a] = h2.m.draft.order;
     assert.deepEqual(h2.m.handle(a, { t: 'g.bandFocus', bandId: 'band_amiya' }), { ok: true });
     assert.deepEqual(h2.m.handle(a, { t: 'g.bandFocus' }), { ok: true }, 'cleared');
@@ -288,7 +294,7 @@ describe('UI: one countdown and the highlighted band (user playtest #4 item 4)',
   });
 
   test('the server publishes one clock: deadline = turnDeadline, turnSeconds = the turn length; AI seats pick at once', () => {
-    const h = draftOf({ humans: 2, bots: 2, seed: 9 });
+    const h = draftOf({ humans: 2, bots: 2, seed: 9, turns: true });
     const m = h.m;
     h.sched.advance(1);
     const turn = m.draftTurn();
@@ -335,5 +341,41 @@ describe('UI: one countdown and the highlighted band (user playtest #4 item 4)',
     assert.equal(m.draftTurn(), 'p_0');
     if (m.draft.order.length - m.draft.idx > 1) assert.deepEqual(m.handle('p_0', { t: 'g.bandSkip' }), { ok: true }, 'the co-op skip stays');
     m.dispose();
+  });
+});
+
+describe('UI: the free draft (the owner, 2026-11-05; match/phases.js freeDraft)', () => {
+  test('normalizeDraft: holds only in a free draft, never a seat that locked; draftMyTurn while I have not locked', () => {
+    const raw = { order: ['a', 'b', 'c'], turn: null, picks: { a: 'band_x' }, concurrent: true, free: true, holds: { a: 'band_y', b: 'band_z', c: 7, d: '' } };
+    const d = normalizeDraft(raw);
+    assert.equal(d.free, true);
+    assert.deepEqual([...d.holds], [['b', 'band_z']], 'a locked seat and junk dropped');
+    assert.equal(draftMyTurn(d, 'b'), true, 'holding: still deciding');
+    assert.equal(draftMyTurn(d, 'a'), false, 'locked');
+    const old = normalizeDraft({ order: ['a', 'b'], turn: 'a', picks: {}, holds: { b: 'band_z' } });
+    assert.equal(old.free, undefined);
+    assert.equal(old.holds.size, 0, 'a turn-based draft has no holds');
+    assert.equal(normalizeDraft({ order: ['a'], picks: {}, free: true, holds: { a: 'band_z' } }).free, undefined, 'free only with concurrent');
+  });
+
+  test('freeBandAction: 选择 → 取消选择 / 锁定选择; 改选此策略 while holding another; 队友已选; nothing once locked or for a spectator', () => {
+    const taken = new Map([['band_t', ['b']]]);
+    assert.equal(freeBandAction({ sel: 'band_x', myHold: null, myPick: null, taken, drafting: true }), 'hold');
+    assert.equal(freeBandAction({ sel: 'band_x', myHold: 'band_x', myPick: null, taken, drafting: true }), 'held');
+    assert.equal(freeBandAction({ sel: 'band_y', myHold: 'band_x', myPick: null, taken, drafting: true }), 'switch');
+    assert.equal(freeBandAction({ sel: 'band_t', myHold: 'band_x', myPick: null, taken, drafting: true }), 'taken');
+    assert.equal(freeBandAction({ sel: 'band_t', myHold: null, myPick: 'band_x', taken, drafting: true }), 'locked');
+    assert.equal(freeBandAction({ sel: 'band_x', myHold: null, myPick: null, taken, drafting: false }), 'none', 'a spectator');
+    assert.equal(freeBandAction({ sel: null, myHold: null, myPick: null, taken, drafting: true }), 'none');
+  });
+
+  test('the tip and the 本局信息 status of a free draft', () => {
+    assert.equal(draftTip({ timed: true, turnSeconds: 50, autoName: '华法琳', free: true, concurrent: true }),
+      '所有博士同时选择；限时 50 秒，锁定前可以取消或改选；倒计时结束时仍未选择将自动选择「华法琳」');
+    assert.equal(draftTip({ timed: true, turnSeconds: 50, autoName: null, free: true, concurrent: true }),
+      '所有博士同时选择；限时 50 秒，锁定前可以取消或改选；倒计时结束时固定当前选择');
+    assert.deepEqual(draftInfoStatus({ myPick: null, myTurn: true, secs: 31.4, heldName: '阿米娅' }), { text: '已选择「阿米娅」，尚未锁定', secs: 31, tone: 'gold' });
+    assert.equal(draftInfoStatus({ myPick: null, myTurn: true, secs: 8, heldName: '阿米娅' }).tone, 'warn');
+    assert.equal(draftInfoStatus({ myPick: 'band_x', pickName: '阿米娅', myTurn: false, waiting: true, heldName: null }).tone, 'mint');
   });
 });

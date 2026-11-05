@@ -245,9 +245,11 @@ export class MatchPlatform {
     const phase = this.phase;
     const d = this.draft;
     if (phase === PHASE.BAND_DRAFT && d && !d.picks[ps.playerId]) {
-      // the departed seat passes its turn with the default band (never one a teammate holds — defaultBand)
+      // the departed seat passes its turn with the default band (never one a teammate holds — defaultBand); in a free
+      // draft (freeDraft) the strategy it held, while it can
       const turn = this.draftTurn() === ps.playerId;
-      d.picks[ps.playerId] = this.defaultBand(ps.playerId);
+      d.picks[ps.playerId] = this.heldBand(ps) || this.defaultBand(ps.playerId);
+      if (d.holds) delete d.holds[ps.playerId];
       ps.bandId = d.picks[ps.playerId];
       if (turn || d.concurrent) this.startDraftTurn();
     }

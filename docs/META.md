@@ -113,7 +113,18 @@ Any room's host can also check 「禁用层数上限」 / 「禁用单次伤害�
 `experimental.disableLayerCap` / `disableHitLimit`, absent when false ([design/match.md](design/match.md)), and pick an enemy
 HP / ATK multiplier, `experimental.enemyHpMul` / `enemyAtkMul` (feedback #47), absent at ×1.
 
-Co-op: random order (all seats, bots included), one pick per turn, ONE countdown: `BAND_TURN_SECONDS` 50 s per turn,
+Co-op with two or more humans (or none) — the free draft (`Match.freeDraft`, the owner's rule of 2026-11-05): every seat
+at once under ONE countdown, `BAND_TURN_SECONDS` 50 s for the step (`m.public.deadline` = `draft.turnDeadline`; `draft`
+also carries `concurrent`, `free` and `holds` {playerId: bandId}). A seat holds a strategy (`g.bandHold {bandId}`), may
+switch it (another hold) or cancel it (`g.bandCancel`) and locks it (`g.bandLock`; `g.band` holds and locks at once — a
+page that predates the flow) — the lock is final (`draft.picks`, the strategy and its LP). A held or locked strategy is
+队友已选 for the others (first come, first served; an expanded-capacity room allows repeats). Every seat locked ends the
+step; when the countdown runs out every hold is fixed and a human holding nothing gets the strategy it highlights
+(`g.bandFocus`) while free, else 华法琳, else the first free one, in draft order. AI seats lock at once — with 「AI 队友最后
+选择」 once no human is left deciding, the countdown's end included; a human under AI 托管 locks its hold; a departing seat
+keeps its hold, else `defaultBand`. No skip.
+The turn-based draft (a single human — untimed —, and a checkpoint taken before the free draft, which goes on as it was
+taken): random order (all seats, bots included), one pick per turn, ONE countdown: `BAND_TURN_SECONDS` 50 s per turn,
 published as `m.public.deadline` (= `draft.turnDeadline`; `draft.turnSeconds` its length) — no step cap; AI seats pick
 at once. A turn that runs out takes the strategy the player highlights in the draft screen (`g.bandFocus {bandId?}`,
 `Match.timeoutBand`) while it is allowed and no teammate holds it, else `bandDraft.timeoutBandId` 华法琳, else the first
@@ -1030,7 +1041,7 @@ the strip's grey 本局禁用 disc — bondsMeta.offBondCounts, never in the bat
 and order as the player's own `m.private bonds` minus `thresholds` / `countsHand` (the client reads those from
 bonds.json; an entry whose count holds 调和's +1 carries `harmony: 1` in both lists — the bond popup's 调和 row, DESIGN
 §21.26): a teammate watching the player shows it in the bond strip (DESIGN §20.15); `[]` once the player is
-eliminated (nobody can watch them; the result screen reads `m.result`'s own bonds), and per phase: `draft { order, turn, picks, skipsLeft, turnDeadline, turnSeconds, untimed, reserved? }` (BAND_DRAFT; `reserved` = the strategies the host designated for AI seats that they have not picked yet, room.setBotBand),
+eliminated (nobody can watch them; the result screen reads `m.result`'s own bonds), and per phase: `draft { order, turn, picks, skipsLeft, turnDeadline, turnSeconds, untimed, reserved?, concurrent?, free?, holds? }` (BAND_DRAFT; `reserved` = the strategies the host designated for AI seats that they have not picked yet, room.setBotBand; `free` / `holds` = the free draft's tentative choices, `picks` its locks),
 `sp { family, name, desc, eventId, cards:[{ idx, kind:'bounty'|'item'|'tactic', id, name, desc, tier, descRaw?, coin?,
 payout?, rounds?, enemyKey?, count?, price?, team?, tacticKind? }], order, turn, picks:{pid: idx}, taken:{idx: pid}, untimed }`
 (SP_DRAFT), `teamLp` / `bossHp {hp,max}` (Final Assault on), `overtimeAt` (最终攻势 / 隐秘核心: ms epoch when the

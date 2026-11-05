@@ -110,9 +110,9 @@ for (const [capacity, count] of [[4, 4], [8, 2], [8, 5], [12, 5], [16, 5], [20, 
     for (const seat of spec.seats) assert.equal((await f.channels.get(seat.playerId).request({ t: 'g.infoReady' })).t, 'ok');
     const observer = f.channels.get('observer');
     const band = await observer.waitFor('m.public', m => m.phase === 'BAND_DRAFT'); assert.equal(band.draft.allowRepeat === true, repeat);
-    // expanded rooms pick at once (no turn): the next seat still deciding
-    assert.equal(band.draft.concurrent === true, repeat);
-    const nextBand = () => (repeat ? match.draft.order.find(pid => !match.draft.picks[pid]) : match.draftTurn());
+    // every seat picks at once (no turn; the free draft, match/phases.js freeDraft): the next seat still deciding
+    assert.equal(band.draft.concurrent, true);
+    const nextBand = () => match.draft.order.find(pid => !match.draft.picks[pid]);
     while (nextBand()) {
       const id = nextBand(), c = f.channels.get(id);
       if (!repeat && Object.keys(match.draft.picks).length) assert.equal((await c.request({ t: 'g.band', bandId: 'band_bldsk' })).code, ERR.BAD_TARGET);

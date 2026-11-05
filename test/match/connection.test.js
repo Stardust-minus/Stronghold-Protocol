@@ -118,9 +118,11 @@ test('disconnect: the seat keeps playing; draft turns / prep auto-resolve at dea
   h.m.onDisconnect('p_1');
   assert.equal(m.publicView().players.find((p) => p.playerId === 'p_1').connected, false);
   m.handle('p_0', { t: 'g.infoReady' });
-  // p_1 never confirms: the 25 s deadline moves on; p_1 never picks: 12 s turn → 华法琳
+  // p_1 never confirms: the 25 s deadline moves on; p_1 never picks: the draft's countdown gives it the default nobody
+  // holds (p_0 took 华法琳 at once: the next free one)
   h.drive(() => m.phase === PHASE.PREP && m.round === 1);
-  assert.equal(h.ps('p_1').bandId, 'band_bldsk');
+  assert.equal(h.ps('p_0').bandId, 'band_bldsk');
+  assert.equal(h.ps('p_1').bandId, 'band_amiya');
   const sentBefore = h.sent.length;
   // p_0 readies; p_1 is auto-readied at the prep deadline
   m.handle('p_0', { t: 'g.ready', ready: true });
@@ -290,16 +292,16 @@ test('onLeave: quitting counts as elimination (copies back to the pool at once, 
 });
 
 test('onLeave: a quitter has no place in the Final Assault pairing or the boss pool; its draft turns pass on', () => {
-  // band draft: the player on turn leaves → its pick is the default band and the turn moves on
+  // band draft: a player leaves before choosing → its pick is the default band; the others draft on (the free draft)
   const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 3, seed: 5, fake: true, script: (b) => (b.kind === 'boss' ? { bossDps: 1e9 } : {}) }).start();
   const m = h.m;
   for (const id of ['p_0', 'p_1', 'p_2']) m.handle(id, { t: 'g.infoReady' });
   h.sched.advance(1);
   assert.equal(m.phase, PHASE.BAND_DRAFT);
-  const first = m.draftTurn();
+  const first = m.draft.order[0];
   m.onLeave(first);
   assert.equal(m.draft.picks[first], m.gd.bandDraft.timeoutBandId);
-  assert.notEqual(m.draftTurn(), first);
+  assert.equal(m.phase, PHASE.BAND_DRAFT, 'the others still draft');
   h.autoHumans();
   h.drive(() => m.phase === PHASE.PREP && m.round === 14);
   const alive = m.alivePlayers().map((p) => p.playerId);

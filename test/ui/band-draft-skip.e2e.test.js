@@ -108,30 +108,6 @@ describe('strategy skip eligibility (real server, normal browser operations)', {
     await host.waitForFunction(() => globalThis.__SP__.store.get().match.public?.phase === 'BAND_DRAFT');
     return clients;
   }
-  async function current(clients) {
-    const s = await state(clients[0].page);
-    for (const c of clients) if ((await state(c.page)).me === s.draft.turn) {
-      await c.page.waitForFunction(() => {
-        const s = globalThis.__SP__.store.get();
-        return s.match.public?.draft?.turn === s.me.playerId;
-      });
-      return c;
-    }
-    assert.fail('current human not found');
-  }
-  async function capture(c, name) {
-    // the button stands in the status line on the player's own turn only; off-turn it is absent (= disabled)
-    await c.page.waitForSelector('.screen.draft .stephead');
-    if (await c.page.evaluate(() => { const s = globalThis.__SP__.store.get(); return s.match.public?.draft?.turn === s.me.playerId; })) await c.page.waitForSelector(SKIP);
-    const s = await state(c.page);
-    const disabled = await c.page.evaluate((sel) => { const el = document.querySelector(sel); return !el || el.disabled; }, SKIP);
-    const toasts = await c.page.$$eval('.toast', (els) => els.map((el) => el.textContent));
-    const file = `${name}.png`;
-    await c.page.screenshot({ path: path.join(OUT, file), fullPage: true });
-    const result = { name, ...s, disabled, toasts, file, frames: c.frames.slice() };
-    observations.push(result);
-    return result;
-  }
   async function confirm(c) {
     await click(c.page, '.dband:not(.is-taken)');
     await click(c.page, '.draft-detail__btns .btn--primary', '确认选择');
@@ -146,54 +122,30 @@ describe('strategy skip eligibility (real server, normal browser operations)', {
     }
   }
 
-  for (const humans of [2, 3, 4]) test(`${humans} humans: initial/middle turns enabled, last disabled with quota left`, { timeout: 120000 }, async () => {
+  // several humans draft freely since 2026-11-05 (server/match/match/phases.js freeDraft; test/ui/band-draft-free.e2e.test.js):
+  // nobody has a turn to pass — the skip stays with a single human's untimed draft and a checkpoint from before the update
+  // (test/ui/bandDraft.test.js covers its rules on the server)
+  async function lockIn(c) {
+    await click(c.page, '.dband:not(.is-taken)');
+    await click(c.page, '[data-testid="draft-hold"]', '选择');
+    await click(c.page, '[data-testid="draft-lock"]', '锁定选择');
+    await c.page.waitForFunction(() => !!globalThis.__SP__.store.get().match.private?.bandId);
+  }
+  for (const humans of [2, 3]) test(`${humans} humans: the free draft has no skip button for anybody`, { timeout: 120000 }, async () => {
     const clients = await draft(humans);
     try {
-      for (let i = 0; i < humans; i++) {
-        const c = await current(clients);
-        const s = await capture(c, `${humans}p-position-${i + 1}`);
-        assert.equal(s.draft.skipsLeft[s.me], 1, 'no player has skipped');
-        assert.equal(s.disabled, i === humans - 1, 'skip only while another player remains');
-        if (i === humans - 1) {
-          const before = c.frames.length;
-          // A real click on the disabled button must send nothing and leave the turn unchanged.
-          await c.page.click(SKIP);
-          await new Promise((resolve) => setTimeout(resolve, 150));
-          assert.equal((await state(c.page)).draft.turn, s.me);
-          assert.equal(c.frames.length, before);
-        }
-        await confirm(c);
+      for (const [i, c] of clients.entries()) {
+        await c.page.waitForSelector('.screen.draft .stephead');
+        const s = await state(c.page);
+        assert.equal(s.draft.free, true, 'two or more humans: the free draft');
+        assert.equal(s.draft.turn, null);
+        assert.equal(await c.page.$('[data-testid="draft-skip"]'), null, 'no skip button');
+        const file = `${humans}p-free-${i + 1}.png`;
+        await c.page.screenshot({ path: path.join(OUT, file), fullPage: true });
+        observations.push({ name: `${humans}p-free-${i + 1}`, ...s, file });
       }
+      for (const c of clients) await lockIn(c);
       await clients[0].page.waitForFunction(() => globalThis.__SP__.store.get().match.public?.phase !== 'BAND_DRAFT');
-    } finally { await close(clients); }
-  });
-
-  test('spent quota stays disabled even with another unpicked player; waiting/selected players disabled', { timeout: 120000 }, async () => {
-    const clients = await draft(3);
-    try {
-      const first = await current(clients);
-      const firstId = (await state(first.page)).me;
-      const waiting = clients.find((c) => c !== first);
-      assert.equal((await capture(waiting, '3p-waiting')).disabled, true);
-      await click(first.page, SKIP, '跳过');
-      await first.page.waitForFunction((id) => globalThis.__SP__.store.get().match.public.draft.turn !== id, {}, firstId);
-      const second = await current(clients);
-      await click(second.page, SKIP, '跳过');
-      const secondId = (await state(second.page)).me;
-      await second.page.waitForFunction((id) => globalThis.__SP__.store.get().match.public.draft.turn !== id, {}, secondId);
-      await confirm(await current(clients));
-      await first.page.waitForFunction((id) => globalThis.__SP__.store.get().match.public.draft.turn === id, {}, firstId);
-      const spent = await capture(first, '3p-spent-quota-with-successor');
-      assert.equal(spent.draft.skipsLeft[firstId], 0);
-      assert.equal(spent.draft.order.filter((id) => !spent.draft.picks[id]).length, 2);
-      assert.equal(spent.disabled, true);
-      const before = first.frames.length;
-      await first.page.click(SKIP);
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      assert.equal(first.frames.length, before);
-      await confirm(first);
-      assert.equal((await capture(first, '3p-already-selected')).disabled, true);
-      await confirm(await current(clients));
     } finally { await close(clients); }
   });
 

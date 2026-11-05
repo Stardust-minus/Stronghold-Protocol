@@ -32,6 +32,13 @@
 // grid gives way to 已选定策略 and a beam runs along the picker's row. Each time a pick becomes the player's, the
 // 「请选择策略」 band sweeps across (ui/turnBanner.js, the official art; none without it).
 // After the draft screens/game.js keeps this screen on 已选定策略 for a moment (`held`, DRAFT_HOLD_MS), inert, before 协议启动！.
+// The free draft (the owner, 2026-11-05; server MatchPhases.freeDraft, m.public draft.free / holds): every co-op match
+// with two or more humans drafts at once under the step's one countdown. Tapping a strategy and 选择 holds it
+// (g.bandHold) — its card then carries my avatar and reads 已被选择 for the others —; 改选此策略 moves the hold, 取消选择 drops
+// it (g.bandCancel) and 锁定 makes it final (g.bandLock, in the detail pane or the header) — the right side turns to
+// 已选定策略. Each order row shows the doctor's hold (未锁定) or lock (✓). When the countdown ends every hold is fixed and a
+// doctor holding nothing gets the highlighted strategy while free, else the default (the tip says which). Every doctor
+// locked ends the step early.
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, useTicker, secondsLeft } from '../ui/components.js';
@@ -174,9 +181,15 @@ export function autoPickBand(sel, { bands, taken, myPick = null, defaultId = DEF
  *   selected: the auto pick is the highlighted band (not the default standing in for a band a teammate holds);
  *   concurrent: every seat picks at once (m.public draft.concurrent) — no skip, `turnSeconds` is the step's
  */
-export function draftTip({ timed, turnSeconds = null, autoName = null, selected = true, concurrent = false }) {
+export function draftTip({ timed, turnSeconds = null, autoName = null, selected = true, concurrent = false, free = false }) {
   // a concurrent draft (everybody at once, expanded rooms): no skip, one clock for the step
-  const skip = concurrent ? t('所有博士同时选择') : t('联合模拟在选择策略时可以进行一次跳过');
+  const skip = concurrent || free ? t('所有博士同时选择') : t('联合模拟在选择策略时可以进行一次跳过');
+  // a free draft (m.public draft.free): a choice can be cancelled or switched until it is locked; the countdown fixes it
+  if (free && timed) {
+    const clock = Number(turnSeconds) > 0 ? t('限时 {n} 秒', { n: Math.round(turnSeconds) }) : t('每位博士限时决策');
+    return autoName ? t('{skip}；{clock}，锁定前可以取消或改选；倒计时结束时仍未选择将自动选择「{autoName}」', { skip, clock, autoName })
+      : t('{skip}；{clock}，锁定前可以取消或改选；倒计时结束时固定当前选择', { skip, clock });
+  }
   if (!timed) return t('{skip}；本局不限时', { skip });
   const clock = Number(turnSeconds) > 0 ? t(concurrent ? '限时 {n} 秒' : '每位博士有 {n} 秒', { n: Math.round(turnSeconds) }) : t('每位博士限时决策');
   if (!autoName) return t('{skip}；{clock}', { skip, clock });
@@ -205,12 +218,29 @@ export function draftClock(pub) {
  *   waiting?: boolean }} o waiting: teammates still have to pick after my pick
  * @returns {{ text: string, secs: number|null, tone: 'mint'|'gold'|'warn'|'dim' }}
  */
-export function draftInfoStatus({ myPick = null, pickName = null, myTurn, turnName = null, secs = null, waiting = false }) {
+export function draftInfoStatus({ myPick = null, pickName = null, myTurn, turnName = null, secs = null, waiting = false, heldName = null }) {
   if (myPick) return { text: `${t('已选择「{name}」', { name: pickName || '' })}${waiting ? t('，等待其他博士') : ''}`, secs: null, tone: 'mint' };
   const s = Number.isFinite(secs) ? Math.max(0, Math.round(secs)) : null;
   const tone = s != null && s <= 10 ? 'warn' : 'gold';
+  // a free draft: my choice held, not locked yet
+  if (heldName) return { text: t('已选择「{name}」，尚未锁定', { name: heldName }), secs: s, tone };
   if (myTurn) return { text: t('轮到你决策'), secs: s, tone };
   return { text: turnName ? t('{turnName} 决策中', { turnName }) : t('等待轮到你'), secs: s, tone: s != null ? tone : 'dim' };
+}
+
+/**
+ * What the detail pane offers for the shown strategy in a free draft (m.public draft.free): 'taken' — a teammate holds
+ * or locked it (队友已选); 'held' — it is my hold (取消选择 / 锁定); 'switch' — I hold another one (改选此策略); 'hold' —
+ * nothing held yet (选择); 'locked' — my choice is final; 'none' — nothing shown or I am not drafting (a spectator).
+ * @param {{ sel: string|null, myHold: string|null, myPick: string|null, taken: Map<string, any>, drafting: boolean }} o
+ * @returns {'taken'|'held'|'switch'|'hold'|'locked'|'none'}
+ */
+export function freeBandAction({ sel, myHold = null, myPick = null, taken, drafting }) {
+  if (myPick) return 'locked';
+  if (!sel || !drafting) return 'none';
+  if (myHold === sel) return 'held';
+  if (taken instanceof Map && taken.has(sel)) return 'taken';
+  return myHold ? 'switch' : 'hold';
 }
 
 /** Nothing known yet (before the records are read, or none). */
@@ -247,9 +277,11 @@ function BandText({ band, class: cls }) {
  * @param {{ p: any, i: number, picked: string|null, cur: boolean, self: boolean, solo: boolean, art: string|null,
  *   card: any, gd: any, onPeek: (bandId: string) => void }} props
  */
-function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek }) {
+function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek, held = null, onOpen = null }) {
   const flash = useRise(!!picked, 1100);
   const pband = picked ? gd.band(picked) : null;
+  // a free draft: the doctor's choice not locked yet (my own opens its detail pane, a teammate's is peeked)
+  const hband = !picked && held ? gd.band(held) : null;
   const nc = !p.isBot && card?.bg ? card.bg : null;
   return html`<div class=${cx('dorder', cur && 'is-cur', picked && 'is-done', self && 'is-self', flash && 'is-flash')} style=${`--i:${i}`}>
     <div class=${cx('dorder__card', nc && 'has-nc')}>
@@ -259,12 +291,17 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek }) {
       <div class="dorder__text">
         <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<${MatchName} player=${p} name=${p.name || t('博士')} />${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
         <span class="dorder__state">${picked ? html`<span class="t-mint">${pband?.name || t('已选择')}</span>`
+          : hband ? html`<span class="t-gold">${t('{name} · 未锁定', { name: hband.name })}</span>`
           : cur ? html`<span class="t-gold">${t('决策中')}</span>` : html`<span class="t-dim">${t('等待中')}</span>`}</span>
         ${!solo && p.bondPlan ? html`<${BondPlanTag} bondId=${p.bondPlan} gd=${gd} class="dorder__plan" />` : null}
       </div>
     </div>
     ${picked ? html`<button type="button" class="dorder__box is-band" onClick=${() => onPeek(picked)} title=${t('查看「{name}」', { name: pband?.name || '' })}>
         <${BandIcon} bandId=${picked} size="md" /><${Icon} name="search" class="dorder__zoom" />
+      </button>`
+      : hband ? html`<button type="button" class="dorder__box is-band is-held" data-testid="draft-held" onClick=${() => (self && onOpen ? onOpen(held) : onPeek(held))}
+          title=${t('{name} · 未锁定', { name: hband.name })}>
+        <${BandIcon} bandId=${held} size="md" /><span class="dorder__unlocked">${t('未锁定')}</span>
       </button>`
       : cur ? html`<span class="dorder__box is-cur">${p.isBot ? null : html`<${Icon} name="hourglass" />`}<span>${t('决策中')}</span></span>`
       : html`<span class="dorder__box is-wait"><${Icon} name="dots" /></span>`}
@@ -310,17 +347,22 @@ export function BandDraftScreen({ held = null } = {}) {
   const draft = normalizeDraft(pub?.draft, players);
   // an expanded room's draft: every seat picks at once (server MatchPhases.concurrentDraft) — no turn, no skip
   const concurrent = !solo && draft.concurrent === true;
+  // the owner's free draft (server MatchPhases.freeDraft): everybody at once, a tentative choice to cancel, switch or 锁定
+  const free = concurrent && draft.free === true;
   const myPick = draft.picks.get(myId) || priv?.bandId || null;
+  const myHold = free && !myPick ? draft.holds.get(myId) || null : null;
   const myTurn = !myPick && draftMyTurn(draft, myId, solo);
   const inOrder = solo || draft.order.includes(myId);
   const skipsLeft = draft.skipsLeft.has(myId) ? draft.skipsLeft.get(myId) : (skipped ? 0 : 1);
   // the last doctor still to pick cannot skip (no one to pass the turn to)
   const canSkip = !solo && !concurrent && myTurn && skipsLeft > 0 && draft.order.filter((pid) => !draft.picks.has(pid)).length > 1;
   const taken = solo ? new Map() : teammateBands(draft.picks, myId, draft.allowRepeat);
+  // a free draft: a teammate's tentative choice is taken too (first come, first served)
+  if (free && draft.allowRepeat !== true) for (const [pid, bid] of draft.holds) if (pid !== myId) { if (!taken.has(bid)) taken.set(bid, []); taken.get(bid).push(pid); }
   const reserved = solo ? new Map() : reservedBands(pub?.draft, draft.picks, myId);
   for (const [bid, pid] of reserved) if (!taken.has(bid)) taken.set(bid, [pid]);
   const pickers = new Map(); // bandId → players
-  for (const [pid, bid] of [...draft.picks, ...[...reserved].map(([bid, pid]) => [pid, bid])]) {
+  for (const [pid, bid] of [...draft.picks, ...draft.holds, ...[...reserved].map(([bid, pid]) => [pid, bid])]) {
     const p = players.find((x) => x.playerId === pid);
     if (!pickers.has(bid)) pickers.set(bid, []);
     pickers.get(bid).push(p || { playerId: pid, name: '?' });
@@ -342,7 +384,7 @@ export function BandDraftScreen({ held = null } = {}) {
   const defaultId = gd.config?.bandDraft?.timeoutBandId || DEFAULT_TIMEOUT_BAND;
   const takenKey = [...taken.keys()].sort().join(',');
   useEffect(() => {
-    const next = draftSelection(sel, { bands, taken, myPick, myTurn, defaultId });
+    const next = draftSelection(sel, { bands, taken, myPick: myPick || myHold, myTurn, defaultId });
     if (next !== sel) setSel(next);
   }, [bands.length, myPick, myTurn, takenKey]);
   // "your turn" cue: the sound and the event's 请选择策略 band (ui/turnBanner.js) once its art is in — co-op and solo
@@ -380,7 +422,7 @@ export function BandDraftScreen({ held = null } = {}) {
   }, [sel, timed, myPick]);
 
   // what a timeout gives me: the highlighted band while free, else the default (never 队友已选 — match/phases.js timeoutBand)
-  const autoId = autoPickBand(sel, { bands, taken, myPick, defaultId });
+  const autoId = autoPickBand(sel, { bands, taken, myPick: myPick || myHold, defaultId });
   const autoName = (autoId && gd.band(autoId)?.name) || gd.band(defaultId)?.name || tName('华法琳');
 
   const band = sel ? gd.band(sel) : null;
@@ -389,6 +431,26 @@ export function BandDraftScreen({ held = null } = {}) {
     if (!band || busy || !myTurn || selTaken) return;
     setBusy('pick');
     await actions.band(band.bandId);
+    setBusy(null);
+  };
+  // a free draft: hold (or switch to) the shown strategy, cancel the hold, lock it
+  const action = free ? freeBandAction({ sel: band?.bandId ?? null, myHold, myPick, taken, drafting: inOrder }) : 'none';
+  const hold = async () => {
+    if (!band || busy || (action !== 'hold' && action !== 'switch')) return;
+    setBusy('hold');
+    await actions.bandHold(band.bandId);
+    setBusy(null);
+  };
+  const cancelHold = async () => {
+    if (busy || !myHold) return;
+    setBusy('cancel');
+    await actions.bandCancel();
+    setBusy(null);
+  };
+  const lock = async () => {
+    if (busy || !myHold) return;
+    setBusy('lock');
+    await actions.bandLock();
     setBusy(null);
   };
   const skip = async () => {
@@ -406,7 +468,7 @@ export function BandDraftScreen({ held = null } = {}) {
   // 本局信息: the briefing's blocks (built only while the dialog is open) and the draft's state under it
   const info = infoOpen ? matchInfoModel(pub, { bonds: gd.list('bonds'), chess: gd.chess, mode, priv, diyData: { chess: data.get('chess'), backups: data.get('backups') } }) : null;
   const infoStatus = infoOpen ? draftInfoStatus({ myPick, pickName: myPick ? gd.band(myPick)?.name : null, myTurn, turnName, secs: turnSecs,
-    waiting: !solo && !draft.done }) : null;
+    waiting: !solo && !draft.done, heldName: myHold ? gd.band(myHold)?.name || myHold : null }) : null;
 
 
   // 名片 of the order rows (screens/room.js): 名片底图 / trophies from room.state seats[].card (mine from this browser),
@@ -445,10 +507,17 @@ export function BandDraftScreen({ held = null } = {}) {
     const picked = draft.picks.get(p.playerId) || (p.playerId === myId ? myPick : p.bandId) || null;
     const cur = !picked && !allPicked && (solo || concurrent || draft.turnPid === p.playerId);
     return html`<${OrderRow} key=${p.playerId} p=${p} i=${rows.indexOf(p)} picked=${picked} cur=${cur} self=${p.playerId === myId} solo=${solo}
-      art=${artOf(p)} card=${cardOf(p)} gd=${gd} onPeek=${peekBand} />`;
+      art=${artOf(p)} card=${cardOf(p)} gd=${gd} onPeek=${peekBand} held=${picked ? null : draft.holds.get(p.playerId) || null} onOpen=${pickTile} />`;
   };
 
+  const lockedN = draft.order.filter((pid) => draft.picks.has(pid)).length;
+  const heldBand = myHold ? gd.band(myHold) : null;
   const head = allPicked ? html`<div class="dturn is-done"><span class="dturn__txt"><b>${t('策略选择完成')}</b><span>${t('正在进入模拟…')}</span></span><${Icon} name="hourglass" class="dturn__glass" /></div>`
+    : free && inOrder && myPick ? html`<div class="dturn"><span class="dturn__txt"><b>${t('已锁定策略')}</b><span>${t('等待其他博士… {n}/{total} 已锁定', { n: lockedN, total: draft.order.length })}</span></span><${Icon} name="hourglass" class="dturn__glass" /></div>`
+    : free && myHold ? html`<div class="dturn is-held" data-testid="draft-head-held"><span class="dturn__txt"><b>${t('已选择「{name}」', { name: heldBand?.name || '' })}</b><span>${t('锁定后不可更改 · {n}/{total} 已锁定', { n: lockedN, total: draft.order.length })}</span></span>
+        <button type="button" class="draft-lockbtn" data-testid="draft-lock-head" disabled=${!!busy} aria-busy=${busy === 'lock' ? 'true' : undefined} onClick=${lock} title=${t('锁定「{name}」', { name: heldBand?.name || '' })}>
+          <${Icon} name="lock" /><span>${t('锁定选择')}</span></button>
+      </div>`
     : myTurn ? html`<div class="dturn is-turn">
         <span class="dturn__go"><${Sprite} k="bandChoose/youturn_finger" class="dturn__finger" fallback=${html`<${Icon} name="chevronLeft" class="dturn__finger" />`} />
           <b>${t('请选择策略')}</b></span>
@@ -490,7 +559,7 @@ export function BandDraftScreen({ held = null } = {}) {
         </div>
         ${canPlan ? html`<${Button} variant="secondary" icon="users" block=${true} class="draft-order__plan" data-testid="bond-plan-open"
           aria-haspopup="dialog" onClick=${() => setPlanOpen(true)}>${myPlan ? t('预选盟约：{name}', { name: gd.bond(myPlan)?.name || myPlan }) : t('预选盟约')}<//>` : null}
-        ${!solo ? html`<p class="draft-order__tip" data-testid="draft-tip">${draftTip({ timed, turnSeconds: turnLen, autoName: myPick ? null : autoName, selected: open && autoId === sel, concurrent })}</p>` : null}
+        ${!solo ? html`<p class="draft-order__tip" data-testid="draft-tip">${draftTip({ timed, turnSeconds: turnLen, autoName: myPick || myHold ? null : autoName, selected: open && autoId === sel, concurrent, free })}</p>` : null}
         ${draft.allowRepeat === true ? html`<p class="draft-order__tip draft-order__tip--repeat" data-testid="draft-repeat">${t('可重复选择，每人只能选择一次')}</p>` : null}
       </aside>
       <i class="draft__link" aria-hidden="true"></i>
@@ -519,7 +588,7 @@ export function BandDraftScreen({ held = null } = {}) {
             const badged = local.badges.has(b.bandId); // (the count is the detail pane's 已通过模拟 N 次)
             return html`<button key=${b.bandId} type="button" role="option" aria-selected=${on ? 'true' : 'false'} data-band=${b.bandId}
                 aria-disabled=${isTaken ? 'true' : 'false'} title=${isReserved ? t('已指定给 AI 队友') : isTaken ? t('已被选择') : offNames.length ? bandOffLine(offNames) : b.name}
-                class=${cx('dband', on && 'is-sel', myPick === b.bandId && 'is-mine', isTaken && 'is-taken', offNames.length && 'is-off')} style=${`--n:${Math.min(i, 15)}`}
+                class=${cx('dband', on && 'is-sel', (myPick === b.bandId || myHold === b.bandId) && 'is-mine', isTaken && 'is-taken', offNames.length && 'is-off')} style=${`--n:${Math.min(i, 15)}`}
                 onClick=${() => pickTile(b.bandId)}>
               <span class="dband__frame"><${BandIcon} bandId=${b.bandId} size="lg" /></span>
               <span class="dband__name">${b.name}</span>
@@ -546,6 +615,16 @@ export function BandDraftScreen({ held = null } = {}) {
           <div class="draft-detail__actions">
             ${peek ? html`<p class="draft-detail__status"><${Icon} name="search" />${myPick === peek ? t('你选择的策略') : t('{names} 选择的策略', { names: (pickers.get(peek) || []).map((x) => x.name).join('、') || t('博士') })}</p>
               <div class="draft-detail__btns"><${Button} variant="secondary" size="lg" icon="chevronLeft" onClick=${() => setPeek(null)}>${t('返回')}<//></div>`
+            : free ? html`${action === 'taken' ? html`<p class="draft-detail__status draft-detail__status--taken"><${Icon} name="close" />${t('队友已选，请选择其他策略')}</p>`
+                : action === 'held' ? html`<p class="draft-detail__status draft-detail__status--held"><${Icon} name="check" />${t('已选择，锁定前可以取消或改选')}</p>`
+                : action === 'switch' ? html`<p class="draft-detail__status"><${Icon} name="info" />${t('当前选择「{name}」', { name: heldBand?.name || '' })}</p>`
+                : action === 'none' && !inOrder ? html`<p class="draft-detail__status"><${Icon} name="hourglass" />${t('观战中')}</p>` : null}
+              <div class="draft-detail__btns">
+                ${action === 'held' ? html`
+                  <${Button} variant="secondary" size="lg" icon="close" class="draft-cancel" data-testid="draft-cancel" disabled=${!!busy} loading=${busy === 'cancel'} onClick=${cancelHold}>${t('取消选择')}<//>
+                  <${Button} variant="primary" size="lg" icon="lock" class="draft-lock" data-testid="draft-lock" disabled=${!!busy} loading=${busy === 'lock'} onClick=${lock}>${t('锁定选择')}<//>`
+                : html`<${Button} variant="primary" size="lg" icon="check" class="draft-confirm" data-testid="draft-hold" disabled=${(action !== 'hold' && action !== 'switch') || !!busy} loading=${busy === 'hold'} onClick=${hold}>${action === 'taken' ? t('已被选择') : action === 'switch' ? t('改选此策略') : t('选择')}<//>`}
+              </div>`
             : html`${selTaken ? html`<p class="draft-detail__status draft-detail__status--taken"><${Icon} name="close" />${t('队友已选，请选择其他策略')}</p>`
                 : !myTurn ? html`<p class="draft-detail__status"><${Icon} name="hourglass" />${!inOrder ? t('观战中') : turnName ? t('{turnName} 正在决策…', { turnName }) : t('等待轮到你')}</p>` : null}
               <div class="draft-detail__btns">

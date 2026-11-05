@@ -28,7 +28,11 @@
 //   the duration, no attacks (the 怒火 fills meanwhile). Every 80 frames (PRTS:
 //   the 2.67 s is a rounding) a wave of 簇火 starts on normal_half_width rows either side of hers, each from the farthest
 //   tile up to FLAME_BACK behind her still on the map, and flies wave_speed ahead to wave_exit_distance past the map's edge.
-//   At half time it overloads: 60 frames, overload_half_width rows. A 簇火 (the client's projectile_chr_oxi_s_3_heatwave:
+//   At half time it overloads: 60 frames, overload_half_width rows (ba.overdrive "技能持续拥有两段计量槽，技能进行到一半时触发额外
+//   效果": the skill bar runs out once and its second run, in red, is the 过载 — `overdrive`, snapshot.js overdriveView; the
+//   owner's word of 2026-11-05). The waves keep their time whatever her state (PRTS 备注 "“簇火”发射间隔固定为80帧（或过载时60帧），
+//   不受塔露拉的当前状态影响"; feedback #143, planned by the owner on 2026-11-05: stunned, frozen, asleep or lifted, she rained
+//   no new 簇火 until it was over). A 簇火 (the client's projectile_chr_oxi_s_3_heatwave:
 //   not eliminatable, stops at its first hit, `_exceptFlyCharacter` 0 — air units too) that touches an enemy
 //   (projectile_range) is gone and blasts range_radius with the ATK it was created with
 //   × heatwave_atk_scale, arts, or 元素伤害 on a target in its 灼燃 burst; a later 簇火 of the same wave deals
@@ -256,7 +260,7 @@ export default {
           },
         },
         [S3]: {
-          kind: 'duration', mods: { atkPct: num(b3.atk) }, flags: { disarm: true },
+          kind: 'duration', mods: { atkPct: num(b3.atk) }, flags: { disarm: true }, overdrive: true,
           // feedback #124 (see the header): a selectable enemy anywhere on the field, not the basic strategy's enemy in range
           trigger: { rule: 'GDGLOW_SKILL_2' },
           onStart({ battle, unit }) {
@@ -267,8 +271,9 @@ export default {
             stateOf(unit).fire = { next: battle.time + FLAME_GAP, over: false, wave: 0 };
           },
           onTick({ battle, unit, skill }) {
+            // no canAct test (feedback #143, see the header): the field she channels rains on while she is controlled
             const f = stateOf(unit).fire;
-            if (!f || !unit.canAct) return;
+            if (!f) return;
             if (!f.over && skill.timeLeft <= skill.duration / 2 + 1e-9) {
               f.over = true;
               f.next = Math.min(f.next, battle.time + OVERLOAD_GAP);

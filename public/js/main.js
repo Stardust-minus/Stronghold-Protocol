@@ -44,6 +44,7 @@ import { html, UiHosts, Button, MicroLabel, closeAllDialogs, confirmDialog } fro
 import { ConnectionBanner } from './ui/connBanner.js';
 import { MatchNotice, matchNoticeText, replayingRound, MATCH_NOTICE_REFRESH_MS } from './ui/matchNotice.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
+import { applyLikes, likedToast } from './ui/likes.js';
 import { net, identity, NetError } from './net.js';
 import { createAuthProbe } from './authProbe.js';
 import './queueCancellation.js';
@@ -366,7 +367,8 @@ function wireNet() {
   });
   net.on('m.result', (msg) => {
     const res = payload(msg);
-    store.patch('match', { result: res });
+    // a settlement starts without likes (a replay's room.likes follows it)
+    store.patch('match', { result: res, likes: null });
     // 本机统计 (PR #323): every arrival, including the lobby's result replay after a reconnect / reload —
     // replays dedupe by content id inside recordResult (spectator seats' copies build no record at all)
     // (`vs`: the room's cosmetic plugins, recorded — such a match still counts as the original game: ui/stats.js)
@@ -411,6 +413,14 @@ function wireNet() {
     if (msg.kind !== 'afkRemoved') return;
     const rounds = Number.isInteger(msg.rounds) && msg.rounds > 0 ? msg.rounds : 2;
     toast(t('{name} 连续 {n} 回合没有任何操作，已被移出对局', { name: typeof msg.name === 'string' && msg.name ? msg.name : t('博士'), n: rounds }), 'info', { ttl: 6000 });
+  });
+  // 点赞 (ui/likes.js): the counts of the settlement on screen, and a toast when the like is mine
+  net.on('room.likes', (msg) => {
+    const s = store.get();
+    const likes = applyLikes(s.match.likes, msg, s.me.playerId);
+    if (likes !== s.match.likes) store.patch('match', { likes });
+    const text = likedToast(s, msg);
+    if (text) toast(text, 'success', { ttl: 3500 });
   });
   net.on('m.emote', (msg) => {
     store.set((s) => ({ emotes: [...s.emotes.slice(-(EMOTE_KEEP - 1)), { seq: ++seq, playerId: msg.playerId, id: msg.id, at: Date.now() }] }));

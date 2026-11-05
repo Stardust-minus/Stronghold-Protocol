@@ -47,7 +47,7 @@ export const OFFLINE_TAKEOVER_ROUNDS = 2;
  * anything else do not.
  */
 export const AFK_ACTIONS = new Set(['g.buy', 'g.sell', 'g.move', 'g.refresh', 'g.levelUp', 'g.freeze', 'g.equip', 'g.destroy',
-  'g.choice', 'g.reward', 'g.revive', 'g.band', 'g.bandSkip']);
+  'g.choice', 'g.reward', 'g.revive', 'g.band', 'g.bandSkip', 'g.bandHold', 'g.bandCancel', 'g.bandLock']);
 
 export const REVIVAL_COST = 10;
 export const REVIVAL_MIN_DONOR_LP = 11;

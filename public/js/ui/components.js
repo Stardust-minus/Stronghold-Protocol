@@ -69,6 +69,8 @@ export const ICONS = {
   chevrons: { d: 'M5.6 5 4.2 6.4 9.8 12l-5.6 5.6L5.6 19l7-7zm7 0-1.4 1.4 5.6 5.6-5.6 5.6 1.4 1.4 7-7z' },
   hourglass: { d: 'M6 2h12v2h-1v3.5L13.5 12l3.5 4.5V20h1v2H6v-2h1v-3.5l3.5-4.5L7 7.5V4H6zm3 2v2.8l3 3.9 3-3.9V4zm0 16h6v-2.8l-3-3.9-3 3.9z', eo: true },
   dots: { d: 'M5 10.3a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4zm7 0a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4zm7 0a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4z' },
+  // 锁定 (the strategy draft's lock of a choice, screens/bandDraft.js): a padlock
+  lock: { d: 'M12 2a5 5 0 0 0-5 5v3H5v12h14V10h-2V7a5 5 0 0 0-5-5zM9 10V7a3 3 0 0 1 6 0v3zm2 4.3h2v4.4h-2z' },
   key: { d: 'M14.5 3a6.5 6.5 0 1 1-2.6 12.5l-1.1 1.1H9v2H7v2H3v-3.6l5.5-5.5A6.5 6.5 0 0 1 14.5 3zm1.5 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4z', eo: true },
   search: { d: 'M10 3a7 7 0 0 1 5.6 11.2l5.6 5.6-1.4 1.4-5.6-5.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z', eo: true },
   info: { d: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 8v7h2v-7zm0-3v2h2V7z', eo: true },
@@ -90,6 +92,8 @@ export const ICONS = {
   // 大厅背景与音乐 (ui/lobbyMedia.js): a framed picture (ridges and a sun) and a beamed pair of notes
   image: { d: 'M3 4h18v16H3zM5 6v9.6l4-4.6 3.5 4 2.5-3 4 4.4V6zM16 7.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z', eo: true },
   music: { d: 'M18 3h2v13h-2zM8 5.4h2V18H8zM8 5.4 20 3v3L8 8.4zM14 16a3 3 0 1 1 6 0 3 3 0 1 1-6 0zM4 18a3 3 0 1 1 6 0 3 3 0 1 1-6 0z' },
+  // 点赞 (the settlement's 同盟 page, ui/likes.js): a raised thumb over its cuff
+  like: { d: 'M2 10h4v11H2zm6 0 3.6-6.6A2 2 0 0 1 15.3 5L14.4 9H20a2 2 0 0 1 2 2.3l-1.3 8A2 2 0 0 1 18.7 21H8z' },
 };
 
 /**

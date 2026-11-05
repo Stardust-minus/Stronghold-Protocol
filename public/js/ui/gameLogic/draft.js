@@ -9,12 +9,13 @@ import { t } from '../../../../shared/i18n.js';
 // ---- 机变 / band draft normalisation ----------------------------------------------------------------------
 
 /**
- * Normalise m.public.draft ({order, turn, picks, skips?}) — tolerant of index/playerId turns and
- * object/array picks.
+ * Normalise m.public.draft ({order, turn, picks, skips?, free?, holds?}) — tolerant of index/playerId turns and
+ * object/array picks. A free draft (server MatchPhases.freeDraft; `free`): `picks` are the locked choices and `holds`
+ * the tentative ones (playerId → bandId; a seat that locked is never in it).
  * @param {any} draft
  * @param {any[]} [players]
  * @returns {{ order: string[], turnPid: string|null, picks: Map<string,string>, skipsLeft: Map<string, number>, done: boolean,
- *   allowRepeat?: true, concurrent?: true }}
+ *   holds: Map<string, string>, allowRepeat?: true, concurrent?: true, free?: true }}
  */
 export function normalizeDraft(draft, players = []) {
   const ids = (Array.isArray(players) ? players : []).filter(isObj).map((p) => p.playerId);
@@ -36,9 +37,15 @@ export function normalizeDraft(draft, players = []) {
   const sk = draft?.skipsLeft ?? draft?.skips;
   if (isObj(sk)) for (const [k, v] of Object.entries(sk)) if (Number.isFinite(v)) skipsLeft.set(k, v);
   const done = order.length > 0 && order.every((pid) => picks.has(pid));
-  return { order, turnPid, picks, skipsLeft, done, ...(draft?.allowRepeat === true ? { allowRepeat: true } : {}),
+  const holds = new Map();
+  if (draft?.free === true && isObj(draft.holds)) {
+    for (const [k, v] of Object.entries(draft.holds)) if (typeof v === 'string' && v && !picks.has(k)) holds.set(k, v);
+  }
+  return { order, turnPid, picks, skipsLeft, done, holds, ...(draft?.allowRepeat === true ? { allowRepeat: true } : {}),
     // every seat picks at once (server MatchPhases.concurrentDraft): no turn, no skip
-    ...(draft?.concurrent === true ? { concurrent: true } : {}) };
+    ...(draft?.concurrent === true ? { concurrent: true } : {}),
+    // ... and holds, cancels and locks its choice (MatchPhases.freeDraft)
+    ...(draft?.free === true && draft?.concurrent === true ? { free: true } : {}) };
 }
 
 /**
