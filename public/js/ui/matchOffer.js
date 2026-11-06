@@ -6,11 +6,14 @@
 //   arrival   — the page dims and blurs behind a fine grid; a mint block snaps open sideways from the centre, split by a
 //               glitch line, and collapses into the heavy 匹配成功 headline as the arrival impact lands (OFFER_RISE_S after
 //               the cue starts, ui/offerSynth.js) with a 2 px shake; the angled plate above reads 队友已集结 · PUBLIC
-//               MATCHMAKING; the seat slots rise into one straight row in a staggered wave while particles drift in;
-//   seats     — one tall slim slot per doctor the game needs (`required`; one row on a desktop — 20 make one narrow row —,
-//               two rows on a phone for more than 8): mine carries my 名片 background and avatar (this browser's card,
-//               ui/playerCard.js), 你 and an outline; the others a dim silhouette. A slot flashes to bright mint-white with a
-//               frame highlight as an acceptance arrives (the server sends counts, never who — they light in order);
+//               MATCHMAKING; the seat cards rise into place in a staggered wave while particles drift in;
+//   seats     — one card per doctor the game needs (`required`), as big as what is left of the screen allows, 1:2 like a
+//               立绘 (the user, 2026-11-06: 「每个人的卡片应该尽量大一点，能放下配置的立绘」; offerColumns, css --sw / --sh): mine
+//               carries my 名片 background and avatar (this browser's card, ui/playerCard.js), 你 and an outline; the others a
+//               dim silhouette. A card flashes bright mint-white with a frame highlight as its doctor confirms, then shows that
+//               doctor's 名片干员 the way the room's seat card does (SeatArt: its look, its framing, its 动态立绘) and stays
+//               lit (「准备完成之前还是保持之前的样式，准备之后才会亮起并切换到立绘」). They fill in order, first confirmed first:
+//               queue.state acceptedCards says what each card shows, never who it is;
 //   countdown — big numerals under the row and a thin bar draining with the window (offerWindow), amber and pulsing for
 //               the last OFFER_URGENT_S seconds while I have not confirmed;
 //   actions   — 确认入场, wide, right under the numerals (a slow glow, a shine; it has the focus), 退出本次匹配 quieter under
@@ -22,8 +25,8 @@
 //               reason, the slots drop, kept OFFER_BROKEN_MS and closed by a reverse wipe; leaving by choice wipes out at once.
 // The sounds are ui/offerCues.js's (one store listener). Under reduced motion (device.js reducedMotion,
 // html.sp-reduced-motion) nothing moves, and only 本次匹配未成立 (its reason) is kept on screen.
-// What is shown comes from queue.state (server/matchmaking.js state(): offerId, deadline, acceptedCount, accepted, required,
-// difficulty, partySize, experimental, allocationPending, reason) through one tracker the store drives (installOfferStage,
+// What is shown comes from queue.state (server/matchmaking.js state(): offerId, deadline, acceptedCount, acceptedCards,
+// accepted, required, difficulty, partySize, experimental, allocationPending, reason) through one tracker the store drives (installOfferStage,
 // main.js), so the moments after an offer ends survive the screen change underneath. Styles: css/screens/match-offer.css.
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
@@ -33,8 +36,10 @@ import { html, Icon, Modal, Button, DifficultyIcon, AvatarFrame, useTicker } fro
 import { experimentalSummary } from './experimental.js';
 import { NameCardLayer } from './namecards.js';
 import { CardAvatarLive } from './avatarLive.js';
-import { cardAvatarUrl } from './seatArt.js';
-import { useMyCard } from './playerCard.js';
+import { cardAvatarUrl, cardContext, cardOperators, seatPortraitSource } from './seatArt.js';
+import { SeatArt } from './seatLive.js';
+import { cardArt } from './dynamicFraming.js';
+import { useMyCard, ART_SPACE } from './playerCard.js';
 import { reducedMotion } from './device.js';
 import { queueTime, offerReasonText, MATCHING_RULES, EXPERIMENTAL_RULES } from './matchmaking.js';
 import { useStore, serverNow, shallowEqual } from '../store.js';
@@ -86,15 +91,20 @@ export function offerWindow(offerId, remaining) {
 
 /**
  * The seat cards: `n` doctors, the first mine. Lit: mine once I confirmed; the others in order, as many as
- * acceptedCount holds besides me.
+ * acceptedCount holds besides me, each with what it shows (acceptedCards; absent from an older server).
  * @param {number} n required @param {number} acceptedCount @param {boolean} mine queue.accepted
- * @returns {Array<{ me: boolean, lit: boolean }>}
+ * @param {any[]} [cards] queue.acceptedCards
+ * @returns {Array<{ me: boolean, lit: boolean, card?: any }>}
  */
-export function offerSeats(n, acceptedCount, mine) {
+export function offerSeats(n, acceptedCount, mine, cards) {
   const size = Math.max(1, Math.min(64, Number.isSafeInteger(n) ? n : 1));
   const count = Math.max(0, Math.min(size, Number.isSafeInteger(acceptedCount) ? acceptedCount : 0));
   const others = Math.max(0, Math.min(size - 1, count - (mine ? 1 : 0)));
-  return Array.from({ length: size }, (_, i) => (i === 0 ? { me: true, lit: mine === true } : { me: false, lit: i <= others }));
+  return Array.from({ length: size }, (_, i) => {
+    if (i === 0) return { me: true, lit: mine === true };
+    const card = i <= others && Array.isArray(cards) ? cards[i - 1] : null;
+    return { me: false, lit: i <= others, ...(card ? { card } : {}) };
+  });
 }
 
 /**
@@ -109,13 +119,16 @@ export function offerClock(seconds, total, accepted) {
 }
 
 /**
- * The seat row's columns: one row on a desktop (20 make one narrow row); `compact` (a phone, landscape or portrait):
- * one row up to 8, two rows above (20 → 10 a row).
- * @param {number} n @param {boolean} [compact]
+ * The seat cards' columns, for the biggest cards the shape of the screen allows: wide, one row up to 8, two rows above
+ * (20 → 10 a row); `portrait` (a phone held upright, css max-aspect-ratio 3/4): 4 → 2×2, up to 16 four a row, 20 → 5×4.
+ * @param {number} n @param {boolean} [portrait]
  */
-export function offerColumns(n, compact = false) {
-  return compact && n > 8 ? Math.ceil(n / 2) : n;
+export function offerColumns(n, portrait = false) {
+  if (portrait) return n <= 4 ? 2 : n <= 16 ? 4 : 5;
+  return n <= 8 ? n : Math.ceil(n / 2);
 }
+/** The rows offerColumns makes. @param {number} n @param {boolean} [portrait] */
+export const offerRows = (n, portrait = false) => Math.ceil(n / offerColumns(n, portrait));
 
 /**
  * One step of the tracker (pure but for `m`): the last offer seen (`m.offer`) and the moment kept after it ended
@@ -224,16 +237,33 @@ function Emblem() {
   </svg>`;
 }
 
-/** One seat slot; `i` its place (the wave's offset), mine with this browser's 名片 and avatar. */
-function SeatSlot({ seat, i, me, card, face, m }) {
-  return html`<li class=${cx('mo-seat', seat.me && 'is-me', seat.lit && 'is-lit')} style=${`--i:${Math.min(i, 19)};--w:${(((i * 7) % 5) - 2)}`}
+/**
+ * One seat card; `i` its place (the wave's offset). Before its doctor confirms: mine with this browser's 名片 and avatar, the
+ * others a silhouette. Once confirmed: lit, and the doctor's 名片干员 as on the room's seat card; with no picture to show (the
+ * data still loading, a failed picture, an older server) just lit.
+ * @param {{ seat: { me: boolean, lit: boolean, card?: any }, i: number, me: any, card: any, face: any, m: any, ctx: any }} props
+ */
+function SeatSlot({ seat, i, me, card, face, m, ctx }) {
+  const [bad, setBad] = useState(null);
+  const other = seat.card ?? null;
+  const pic = useMemo(() => {
+    if (!seat.lit) return null;
+    const own = { ...ctx, m, myId: me.playerId, myCard: card?.charId, myLook: card?.look };
+    return seat.me ? seatPortraitSource({ playerId: me.playerId }, own) : other && seatPortraitSource({ seed: other.seed, card: other }, own);
+  }, [seat.lit, seat.me, other, ctx, m, me.playerId, card?.charId, card?.look]);
+  const art = pic?.src && bad !== pic.src ? pic : null;
+  return html`<li class=${cx('mo-seat', seat.me && 'is-me', seat.lit && 'is-lit', art && 'has-art')} style=${`--i:${Math.min(i, 19)};--w:${(((i * 7) % 5) - 2)}`}
       title=${seat.me ? t('你') : seat.lit ? t('已确认') : t('等待确认')} data-testid=${seat.me ? 'offer-seat-me' : null}>
-    <div class=${cx('mo-seat__body', seat.me && card?.bg && 'has-nc')}>
-      ${seat.me && card?.bg ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />` : null}
-      <span class="mo-seat__face">${seat.me
-        ? html`<${AvatarFrame} size="lg" name=${me.name} src=${face} seat=${0} self=${true}
-            live=${html`<${CardAvatarLive} m=${m} avatar=${card?.avatar} look=${card?.avatarLook || ''} />`} />`
-        : html`<${Silhouette} />`}</span>
+    <div class=${cx('mo-seat__body', !art && seat.me && card?.bg && 'has-nc')}>
+      ${art ? html`<span class="mo-seat__art" data-testid="offer-seat-art"><${SeatArt} key=${art.src} m=${m} src=${art.src} source=${art}
+            charId=${(seat.me ? card?.charId : other?.charId) || ''} look=${(seat.me ? card?.look : other?.look) || ''}
+            art=${seat.me ? card?.art || null : cardArt(other)} legacyArt=${seat.me && !!card?.art && card.artSpace !== ART_SPACE}
+            onError=${() => setBad(art.src)} /></span>`
+        : html`${seat.me && card?.bg ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />` : null}
+          <span class="mo-seat__face">${seat.me
+            ? html`<${AvatarFrame} size="lg" name=${me.name} src=${face} seat=${0} self=${true}
+                live=${html`<${CardAvatarLive} m=${m} avatar=${card?.avatar} look=${card?.avatarLook || ''} />`} />`
+            : html`<${Silhouette} />`}</span>`}
       ${seat.me ? html`<span class="mo-seat__name">${me.name || t('博士')}</span>` : null}
       <span class="mo-seat__ok" aria-hidden="true"><${Icon} name="check" /></span>
     </div>
@@ -253,7 +283,8 @@ const DUST = Array.from({ length: 26 }, (_, k) => {
  */
 function OfferScreen({ view }) {
   useTicker(250);
-  useData('assets');
+  useData('chess', 'assets');
+  const ctx = useMemo(() => cardContext(cardOperators(data.list('chess'))), [data.get('chess')]);
   const { stage, queue } = view;
   const online = useStore((s) => s.connection.status === 'online');
   const me = useStore((s) => s.me, shallowEqual);
@@ -272,7 +303,7 @@ function OfferScreen({ view }) {
   const seconds = queue?.state === 'offered' ? queueTime(queue, serverNow()) : 0;
   const total = offerWindow(queue?.offerId, seconds);
   const clock = offerClock(seconds, total, mine);
-  const seats = offerSeats(n, count, mine);
+  const seats = offerSeats(n, count, mine, queue?.acceptedCards);
   const cancelling = live && cancellation?.ticketId === queue?.ticketId && ['sending', 'recovering', 'confirming'].includes(cancellation?.status);
   const cancelFailed = live && cancellation?.ticketId === queue?.ticketId && cancellation?.status === 'failed';
   // the bar drains on the compositor: one animation over the whole window, started where this offer stands (once per
@@ -308,7 +339,7 @@ function OfferScreen({ view }) {
   const face = cardAvatarUrl(card.avatar, undefined, card.avatarLook);
   const screen = html`<div class=${cx('mo', `is-${stage}`, view.held && 'is-held', clock.urgent && live && 'is-urgent', queue?.accepted && 'is-accepted', !online && 'is-offline')}
       role="dialog" aria-modal="true" aria-label=${t('确认入场')} data-testid="match-offer" data-stage=${stage} data-player-capacity=${n} data-size=${size}
-      style=${`${drain};--mo-n:${n};--mo-cols:${offerColumns(n)};--mo-cols-c:${offerColumns(n, true)};--d-color:${d ? DIFFICULTY_COLORS[d] : 'var(--mint-400)'}`}>
+      style=${`${drain};--mo-n:${n};--mo-cols:${offerColumns(n)};--mo-rows:${offerRows(n)};--mo-cols-c:${offerColumns(n, true)};--mo-rows-c:${offerRows(n, true)};--d-color:${d ? DIFFICULTY_COLORS[d] : 'var(--mint-400)'}`}>
     <div class="mo__veil" aria-hidden="true"><i class="mo__grid"></i><i class="mo__lines"></i>
       <span class="mo__dust">${DUST.map((p, k) => html`<i key=${k} style=${`--x:${p.x}%;--y:${p.y}%;--dx:${p.dx}vw;--dy:${p.dy}vh;--dur:${p.d}s;--del:-${p.s}s;--z:${p.z}`}></i>`)}</span>
     </div>
@@ -320,7 +351,7 @@ function OfferScreen({ view }) {
         <h2 class=${cx('mo__title', stage === 'broken' && 'mo__title--long')} aria-live="assertive"><span key=${stage}>${head}</span></h2>
       </div>
       <ol class="mo__seats" aria-label=${t('{acceptedCount} / {n} 位博士已确认', { acceptedCount: count, n })}>
-        ${seats.map((s, i) => html`<${SeatSlot} key=${i} seat=${s} i=${i} me=${me} card=${card} face=${face} m=${data.get('assets')} />`)}
+        ${seats.map((s, i) => html`<${SeatSlot} key=${i} seat=${s} i=${i} me=${me} card=${card} face=${face} m=${data.get('assets')} ctx=${ctx} />`)}
       </ol>
       <p class="mo__count num" data-testid="offer-count">${t('{acceptedCount} / {n} 已确认', { acceptedCount: count, n })}</p>
       <div class="mo__timer" role="timer" aria-label=${t('剩余{remain}秒', { remain: clock.seconds })}>

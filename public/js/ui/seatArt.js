@@ -10,14 +10,7 @@ import { N_ } from '../../../shared/i18n.js';
 import { createStore, loadPref, savePref } from '../store.js';
 import { ownerSkin } from './skins.js';
 import { CARD_ROSTER } from '../../../shared/card-roster.js';
-import { isOfficialAvatar } from '../../../shared/protocol.js';
-
-/** FNV-1a of a string (the portrait pick: the same operator for a player on every client). */
-function hash32(s) {
-  let h = 0x811c9dc5;
-  for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h >>> 0;
-}
+import { isOfficialAvatar, portraitSeed as hash32 } from '../../../shared/protocol.js';
 
 /** 名片干员: the player's own pick (localStorage; sent as room.card where the server knows it). */
 export const CARD_PREF = 'room.card';
@@ -154,9 +147,12 @@ export function seatPortrait(seat, ctx) {
   return seatPortraitSource(seat, ctx)?.src ?? null;
 }
 
-/** seatPortrait with the picture's HD sources (rel30: ui/assetUrls.js portraitSourceOf), or null. */
+/**
+ * seatPortrait with the picture's HD sources (rel30: ui/assetUrls.js portraitSourceOf), or null. A seat without a player id
+ * (确认入场: queue.state acceptedCards) brings `seed`, the same number its id would give.
+ */
 export function seatPortraitSource(seat, { pool, byChar, m, myId, myCard, myLook = '' }) {
-  if (!seat || seat.playerId == null) return null;
+  if (!seat || (seat.playerId == null && seat.seed == null)) return null;
   // seats[].card is { charId, bg, trophies } (ui/playerCard.js); a bare string is the design's original form
   const pick = (seat.playerId === myId && myCard) || (typeof seat.card === 'string' ? seat.card : seat.card?.charId);
   const rec = pick && byChar ? byChar.get(pick) : null;
@@ -164,7 +160,7 @@ export function seatPortraitSource(seat, { pool, byChar, m, myId, myCard, myLook
   const look = mine ? myLook : typeof seat.card?.look === 'string' ? seat.card.look : '';
   if (rec) return (look && lookPortraitSource(m, rec.charId, look)) || chessPortraitSource(m, rec);
   if (!Array.isArray(pool) || !pool.length) return null;
-  return chessPortraitSource(m, pool[hash32(seat.playerId) % pool.length]);
+  return chessPortraitSource(m, pool[(seat.seed ?? hash32(seat.playerId)) % pool.length]);
 }
 
 /**

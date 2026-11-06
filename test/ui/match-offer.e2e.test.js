@@ -4,7 +4,7 @@
 //   desk   1920×1080 — the entrance frame by frame (every animation held at the same instants), a teammate's accept, the
 //                      last five seconds (urgent, ticking), my accept (Enter on the focused button), everyone in → 搜寻成功
 //                      kept over the room, the cues in order; behind another tab the audio stays awake for the offer;
-//   desk20 1920×1080 — a 20-seat offer: one narrow row; leaving by choice cuts away;
+//   desk20 1920×1080 — a 20-seat offer: two rows; leaving by choice cuts away;
 //   room   1280×720  — a friend room's party queue: the takeover over the room, confirmed into the game;
 //   phone  844×390   — it fits without scrolling; a teammate leaves after my accept and 本次匹配未成立 shows the reason before
 //                      搜寻中; 390×844 portrait fits too.
@@ -52,6 +52,7 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
       localStorage.setItem('sp.name', n); sessionStorage.setItem('sp.entered', '1');
       localStorage.setItem('sp.pref.room.avatar', JSON.stringify('char_003_kalts'));
       localStorage.setItem('sp.pref.room.namecard', JSON.stringify('camp:rhine'));
+      localStorage.setItem('sp.pref.room.card', JSON.stringify('char_010_chen'));
     }, name);
     await page.goto(`http://127.0.0.1:${srv.port}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && !!document.querySelector('.lobby-screen .hub-entries'), { timeout: 60000 });
@@ -161,6 +162,13 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     assert.match(await count(me), /0 \/ 4/);
     assert.deepEqual(await fits(me), []);
     assert.equal(await me.evaluate(() => document.activeElement?.dataset?.testid), 'offer-accept', 'the hero button has the focus');
+    // the cards take the screen, 1:2 like a 立绘; nobody confirmed: my 名片 and avatar, silhouettes, no picture
+    const box = await me.$eval('[data-testid="offer-seat-me"]', (el) => { const r = el.getBoundingClientRect(); return { w: r.width, h: r.height }; });
+    assert.ok(box.h >= 560 && Math.abs(box.h / box.w - 2) < 0.05, JSON.stringify(box));
+    assert.equal(await me.$$eval('[data-testid="offer-seat-art"]', (els) => els.length), 0);
+    assert.ok(await me.$('[data-testid="offer-seat-me"] .avatar'));
+    assert.equal(await me.$$eval('.mo-seat__sil', (els) => els.length), 3);
+    assert.equal((await mates[0].request({ t: 'room.card', charId: 'char_003_kalts', look: 'e1', artX: 500, artY: 300, artZoom: 180 })).t, 'ok');
     await accept(mates[0]);
     await me.waitForFunction(() => /1 \/ 4/.test(document.querySelector('[data-testid="offer-count"]')?.textContent || ''), { timeout: 10000 });
     await wait(120);
@@ -169,6 +177,15 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await shot(me, 'desk-3-teammate');
     assert.equal(await me.$$eval('.mo-seat.is-lit', (els) => els.length), 1);
     assert.deepEqual(await cues(me), ['offer:arrive', 'offer:peer']);
+    // the teammate who confirmed shows the picture it picked, framed as it framed it, on the first card after mine
+    const lit = () => me.$$eval('.mo-seat', (els) => els.map((el) => {
+      const img = el.querySelector('[data-testid="offer-seat-art"] img');
+      return { lit: el.classList.contains('is-lit'), art: !!img, sil: !!el.querySelector('.mo-seat__sil'), src: img?.getAttribute('src') || '', framed: img?.dataset.framed || '' };
+    }));
+    let cards = await lit();
+    assert.deepEqual(cards.map((c) => [c.lit, c.art, c.sil]), [[false, false, false], [true, true, false], [false, false, true], [false, false, true]]);
+    assert.match(cards[1].src, /char_003_kalts/);
+    assert.equal(cards[1].framed, 'art');
     // the last five seconds: urgent, ticking
     await me.waitForSelector('.mo.is-urgent', { timeout: ACCEPT_MS });
     await wait(1300);
@@ -178,8 +195,12 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     assert.ok(ticks >= 1 && ticks <= 3, `ticks ${ticks}`);
     await me.keyboard.press('Enter');
     await me.waitForSelector('[data-testid="offer-done"]', { timeout: 5000 });
-    await wait(450);
+    await wait(900);
     await shot(me, 'desk-5-mine');
+    cards = await lit();
+    assert.deepEqual(cards.map((c) => [c.lit, c.art]), [[true, true], [true, true], [false, false], [false, false]], 'mine too, once confirmed');
+    assert.match(cards[0].src, /char_010_chen/);
+    assert.ok(!(await me.$('[data-testid="offer-seat-me"] .avatar')), 'the avatar gave way to the picture');
     assert.equal(await me.$eval('.mo', (el) => el.classList.contains('is-urgent')), false, 'confirmed: no hurry');
     assert.equal((await cues(me)).at(-1), 'offer:mine');
     assert.match(await me.$eval('[data-testid="offer-done"]', (el) => el.textContent), /等待其他博士/);
@@ -192,6 +213,7 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await me.waitForSelector('.mo.is-found', { timeout: 10000 });
     // (in-process the moment lasts OFFER_FOUND_MS: check it first, then its frames while it is still up)
     assert.equal(await me.$$eval('.mo-seat.is-lit', (els) => els.length), 4);
+    assert.equal(await me.$$eval('[data-testid="offer-seat-art"]', (els) => els.length), 4, 'without a pick: the default portrait');
     assert.match(await me.$eval('.mo__wait', (el) => el.textContent), /正在连接游戏节点/);
     await hold(me, 1700);
     await shot(me, 'desk-7-found-connecting');
@@ -208,7 +230,7 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await me.close();
   });
 
-  test('desk20: a 20-seat offer is one narrow row; leaving by choice cuts away', async () => {
+  test('desk20: a 20-seat offer is two rows of cards; leaving by choice cuts away', async () => {
     await dropClients();
     const me = await open('二十博士', { width: 1920, height: 1080, deviceScaleFactor: 1 });
     await openMatch(me);
@@ -224,13 +246,25 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await settle(me);
     assert.equal(await me.$eval('[data-testid="match-offer"]', (el) => el.dataset.playerCapacity), '20');
     const rows = await me.$$eval('.mo-seat', (els) => new Set(els.map((el) => Math.round(el.getBoundingClientRect().top))).size);
-    assert.equal(rows, 1, 'one row');
+    assert.equal(rows, 2, 'two rows');
     assert.deepEqual(await fits(me), []);
     await shot(me, 'desk20-1-offer');
     for (const c of mates.slice(0, 7)) await accept(c);
     await me.waitForFunction(() => /7 \/ 20/.test(document.querySelector('[data-testid="offer-count"]')?.textContent || ''), { timeout: 10000 });
     await wait(900);
     await shot(me, 'desk20-2-partial');
+    assert.equal(await me.$$eval('[data-testid="offer-seat-art"]', (els) => els.length), 7);
+    assert.deepEqual(await fits(me), []);
+    // the 20 cards in every shape of screen: a small window, a phone on its side, a phone upright (no touch emulation: its
+    // change reloads the page, and the offer with it)
+    for (const [name, width, height] of [['small', 1024, 600], ['phone', 844, 390], ['portrait', 390, 844]]) {
+      await me.setViewport({ width, height, deviceScaleFactor: 1 });
+      await wait(400);
+      await shot(me, `desk20-${name}`);
+      assert.deepEqual(await fits(me), [], name);
+    }
+    await me.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+    await wait(300);
     await me.click('[data-testid="offer-cancel"]');
     await me.waitForSelector('.mo.is-leave', { timeout: 5000 });
     await wait(120);

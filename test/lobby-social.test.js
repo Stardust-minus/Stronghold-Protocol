@@ -7,7 +7,7 @@ import { startServer } from '../server/index.js';
 import { TestClient } from './helpers/wsClient.js';
 import { MATCHMAKING_VERSION, ERR, DIFFICULTIES, MAX_SPECTATORS } from '../shared/constants.js';
 import { Matchmaking, MATCHMAKING_DEFAULTS } from '../server/matchmaking.js';
-import { validateC2S } from '../shared/protocol.js';
+import { validateC2S, portraitSeed } from '../shared/protocol.js';
 
 class RecordingMatch {
   constructor(opts) { this.opts = opts; }
@@ -548,6 +548,23 @@ test('public-room replacement members must have a compatible handshake too', (t)
   assert.equal(legacy.roomCode, null);
   legacy.matchmakingVersion = MATCHMAKING_VERSION;
   assert.deepEqual(h.lobby.join(legacy, { code }), { ok: true });
+});
+
+test('queue.state lists the others who confirmed, first confirmed first, by their seat card and nothing else', (t) => {
+  const h = harness(t), players = h.group(), offers = h.offer(players);
+  const card = (i) => h.lobby.queue.state(players[i]).acceptedCards;
+  assert.deepEqual(card(0), []);
+  players[2].card = Object.freeze({ charId: 'char_003_kalts', look: 'e1', avatar: 'char_010_chen', bg: 'camp:rhine', trophies: 9, artX: 500, artY: 400, artZoom: 150 });
+  h.accept([players[2]], [offers[2]]);
+  h.accept([players[1]], [offers[1]]);
+  const seed = (i) => portraitSeed(players[i].playerId);
+  assert.deepEqual(card(0), [{ seed: seed(2), charId: 'char_003_kalts', look: 'e1', artX: 500, artY: 400, artZoom: 150 },
+    { seed: seed(1) }], 'in the order they confirmed, only what the card draws');
+  assert.deepEqual(card(1), [{ seed: seed(2), charId: 'char_003_kalts', look: 'e1', artX: 500, artY: 400, artZoom: 150 }], 'never oneself');
+  assert.deepEqual(card(2), [{ seed: seed(1) }]);
+  const sent = JSON.stringify(card(0));
+  for (const p of players) { assert.ok(!sent.includes(p.playerId)); assert.ok(!sent.includes(p.name)); }
+  assert.equal(h.lobby.queue.state(players[0]).acceptedCount, 2);
 });
 
 test('queue acceptance needs only ticket/offer identities; obsolete votes cannot change room rules', (t) => {

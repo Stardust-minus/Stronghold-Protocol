@@ -544,6 +544,16 @@ const isDir = (v) => DIRS.includes(v);
  * A field the message leaves out keeps its stored value.
  */
 export const CARD_LIMITS = Object.freeze({ idLength: 48, trophies: 1_000_000, bgZoomMax: 400 });
+/**
+ * The number a doctor without a picked 名片干员 draws its default portrait by (FNV-1a of the player id; ui/seatArt.js): the same
+ * on every client, and what queue.state acceptedCards carries instead of the id.
+ * @param {any} playerId @returns {number}
+ */
+export function portraitSeed(playerId) {
+  let h = 0x811c9dc5;
+  for (const ch of String(playerId)) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h >>> 0;
+}
 const isCardCharId = (v) => v === '' || (isStr(v, CARD_LIMITS.idLength) && /^char_[0-9a-z_]+$/.test(v));
 /** An official player avatar (display_meta_table playerAvatarData, assets.json ui['playerAvatar/<id>'], feedback #100). */
 export const isOfficialAvatar = (v) => isStr(v, CARD_LIMITS.idLength) && /^avatar_[0-9A-Za-z_]+$/.test(v);
@@ -811,6 +821,8 @@ export const S2C = [
   // fullest pool as waitingCount. `difficulty` is its first one until an offer stands, then the offered one. A ticket of
   // several room sizes adds `capacities` (a difficulty's count is then its fullest size; `required` is its smallest one
   // until an offer stands, then the offered one), one that took one kind of rules adds `rules`.
+  // While an offer stands, `acceptedCards` lists the others who confirmed, first confirmed first, by what their seat cards
+  // show and nothing else — { seed, charId?, look?, artX?, artY?, artZoom? } (server/matchmaking.js offerCard): no id, no name.
   // Excludes offered/allocation/matched identities; not compatible-party progress, online count or an ETA.
   // Lifecycle/hello snapshots are immediate; count-only changes coalesce at ~1s. Absent count means unknown.
   // presence.state { online, seq, serverNow, maintenance? } — `maintenance: true` while the limits file's switch is on

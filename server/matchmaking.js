@@ -18,6 +18,7 @@ import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/con
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, experimentalRuleChanged, sameExperimental } from '../shared/experimental.js';
 import { PLAYER_CAPACITY_VERSION, isPlayerCapacity, roomCapacity } from '../shared/playerCapacity.js';
 import { NO_PHASES } from './phaseMetrics.js';
+import { portraitSeed } from '../shared/protocol.js';
 
 // Quantity/per-network admission caps use 0 = unlimited; ticket and acceptance deadlines stay bounded.
 export const MATCHMAKING_DEFAULTS = Object.freeze({ maxEntries: 0, maxPerAddr: 0, waitMs: 600_000, acceptMs: 30_000 });
@@ -33,6 +34,16 @@ const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]
 const ruleOf = ruled => (ruled ? 'experimental' : 'standard');
 /** The bucket of a ticket without a room (the wildcards of pumpPools) that takes these rules. */
 const wildcard = rules => `*${rules.join('+')}`;
+
+/**
+ * What the others see of a doctor who confirmed an offer (queue.state acceptedCards, ui/matchOffer.js): its seat card's
+ * picture and framing (room.card, server/lobby.js setCard), or `seed` for the default portrait. Never who it is.
+ */
+function offerCard(session) {
+  const { charId, look, artX, artY, artZoom } = session.card || {};
+  return { seed: portraitSeed(session.playerId), ...(charId ? { charId } : {}), ...(look ? { look } : {}),
+    ...(artX !== undefined ? { artX, artY, artZoom } : {}) };
+}
 
 // Observe cleanup/invalid async-commit rejections without logging provider data.
 function observeThenable(value) {
@@ -123,6 +134,7 @@ export class Matchmaking {
       ...(e.party.rules.length < QUEUE_RULES.length ? { rules: [...e.party.rules] } : {}),
       ...(e.reason ? { reason: e.reason } : {}),
       ...(offer ? { offerId: offer.id, accepted: e.accepted, experimental: { ...offer.experimental }, acceptedCount: offer.entries.filter((x) => x.accepted).length,
+        acceptedCards: offer.acceptOrder.filter((x) => x !== e).map((x) => offerCard(x.session)),
         ...(offer.allocation ? { allocationPending: true } : {}) } : {}),
     };
   }
@@ -278,6 +290,7 @@ export class Matchmaking {
     }
     e.revivalVote = false; // Legacy bookkeeping only; no player vote selects room rules.
     e.accepted = true;
+    offer.acceptOrder.push(e);
     this.pushAll(offer.entries);
     if (!offer.entries.every((x) => x.accepted)) return OK;
     if (this.asyncAllocate) {
@@ -556,7 +569,7 @@ export class Matchmaking {
         const experimental = parties.find(party => party.experimental)?.experimental
           ?? (required === MAX_SEATS ? EXPERIMENTAL_DEFAULTS : experimentalOptions({ ...EXPERIMENTAL_DEFAULTS, playerCapacity: required }));
         const offer = { id: id(), experimental, required,
-          deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries };
+          deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries, acceptOrder: [] };
         this.offers.set(offer.id, offer);
         for (const party of parties) { unused.delete(party); party.required = required; }
         for (const e of entries) { e.offerId = offer.id; e.difficulty = difficulty; e.accepted = false; e.revivalVote = null; e.reason = null; }

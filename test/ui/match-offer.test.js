@@ -9,11 +9,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { offerSeats, offerClock, offerWindow, offerColumns, offerFull, offerTrack, offerView, offerSize,
+import { offerSeats, offerClock, offerWindow, offerColumns, offerRows, offerFull, offerTrack, offerView, offerSize,
   OFFER_URGENT_S, OFFER_BROKEN_MS, OFFER_FOUND_MS, OFFER_LEAVE_MS } from '../../public/js/ui/matchOffer.js';
 import { offerCueStep, offerTick, installOfferCues, OFFER_CUES } from '../../public/js/ui/offerCues.js';
 import { playOfferSynth, OFFER_SYNTHS, OFFER_RISE_S } from '../../public/js/ui/offerSynth.js';
 import { AudioManager } from '../../public/js/audio.js';
+import { seatPortraitSource, cardContext, cardOperators } from '../../public/js/ui/seatArt.js';
+import { portraitSeed } from '../../shared/protocol.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
@@ -28,6 +30,31 @@ test('the seat slots: mine first, lit once my accept is in; the others light in 
   assert.equal(offerSeats(20, 25, false).filter((s) => s.lit).length, 19, 'never more than the others');
   assert.equal(offerSeats(0, 0, false).length, 1);
   assert.equal(offerSeats(8, -3, false).filter((s) => s.lit).length, 0);
+});
+
+test('a lit card takes what its doctor shows, first confirmed first; a card not lit has none, whatever the server listed', () => {
+  const a = { seed: 1, charId: 'char_003_kalts' }, b = { seed: 2 };
+  assert.deepEqual(offerSeats(4, 2, false, [a, b]).map((s) => s.card), [undefined, a, b, undefined]);
+  assert.deepEqual(offerSeats(4, 2, true, [a]).map((s) => s.card), [undefined, a, undefined, undefined], 'mine is one of the count');
+  assert.deepEqual(offerSeats(4, 1, false, [a, b]).map((s) => s.card), [undefined, a, undefined, undefined]);
+  assert.deepEqual(offerSeats(4, 2, false).map((s) => s.lit), [false, true, true, false], 'an older server: lit, no picture');
+  assert.ok(offerSeats(4, 2, false).every((s) => !('card' in s)));
+});
+
+test('a confirmed doctor without a pick draws the same default portrait by its seed as the room draws by its id', () => {
+  const chess = [5, 6, 6, 5, 6].map((rarity, i) => ({ chessId: `c${i}`, charId: `char_00${i}_x`, name: `x${i}`, rarity, isGolden: true }));
+  const ctx = cardContext(cardOperators(chess));
+  const m = { chars: Object.fromEntries(chess.map((c) => [c.charId, { portrait: `/p/${c.charId}.png` }])) };
+  const shown = new Set();
+  for (const id of ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8']) {
+    const room = seatPortraitSource({ playerId: id }, { ...ctx, m, myId: 'me' });
+    const offer = seatPortraitSource({ seed: portraitSeed(id), card: { seed: portraitSeed(id) } }, { ...ctx, m, myId: 'me' });
+    assert.ok(room?.src);
+    assert.equal(offer.src, room.src);
+    shown.add(room.src);
+  }
+  assert.ok(shown.size > 1, 'by the player, not one for all');
+  assert.equal(seatPortraitSource({ card: {} }, { ...ctx, m }), null, 'neither an id nor a seed: nothing');
 });
 
 test('the countdown: seconds, the share left, urgent for the last five seconds before my accept', () => {
@@ -50,9 +77,11 @@ test('the window is what was left when this page first saw the offer, kept per o
   assert.equal(offerWindow('w-a', 5), 5, 'bounded: old offers are forgotten');
 });
 
-test('the seat row: one row on a desktop (20 make one narrow row), two rows on a phone past 8', () => {
-  for (const n of [4, 8, 12, 16, 20]) assert.equal(offerColumns(n), n);
-  assert.deepEqual([4, 8, 12, 16, 20].map((n) => offerColumns(n, true)), [4, 8, 6, 8, 10]);
+test('the seat cards: one row up to 8 and two above on a wide screen, more rows of wider cards upright', () => {
+  assert.deepEqual([4, 8, 12, 16, 20].map((n) => offerColumns(n)), [4, 8, 6, 8, 10]);
+  assert.deepEqual([4, 8, 12, 16, 20].map((n) => offerRows(n)), [1, 1, 2, 2, 2]);
+  assert.deepEqual([4, 8, 12, 16, 20].map((n) => offerColumns(n, true)), [2, 4, 4, 4, 5]);
+  assert.deepEqual([4, 8, 12, 16, 20].map((n) => offerRows(n, true)), [2, 2, 3, 4, 4]);
   assert.equal(offerSize({ required: 20 }), 20);
   assert.equal(offerSize({ required: 5 }), 4, 'not a player capacity: the four-seat default');
   assert.equal(offerSize(null), 4);
