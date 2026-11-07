@@ -20,6 +20,12 @@ const identifier = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$
 // The client's skin textures are premultiplied (598 model pages measured 2026-10-30: no semi-transparent pixel brighter
 // than its alpha) except these two skins', which carry straight alpha.
 const STRAIGHT_ALPHA_SKINS = new Set(['char_344_beewax_summer_11', 'char_4072_ironmn_summer_11']);
+// A 动态立绘's pages are the other way round: straight, except these 15 (all 71 measured 2026-11-06: beside a bright opaque
+// pixel, the colour of a semi-transparent one falls with its alpha only on these). Eleven of them also need
+// tools/fix-dynamic-edges.py after an import, whose output data/assets.json names.
+export const PREMULTIPLIED_DYNAMIC = new Set(['char_113_cqbw_epoque_7', 'char_1026_gvial2_summer_12', 'char_391_rosmon_epoque_17', 'char_377_gdglow_summer_12',
+  'char_2014_nian_nian_4', 'char_1013_chen2_boc_6', 'char_2015_dusk_nian_7', 'char_250_phatom_sale_4', 'char_1012_skadi2_boc_4', 'char_322_lmlee_witch_3',
+  'char_1023_ghost2_boc_6', 'char_350_surtr_summer_9', 'char_4055_bgsnow_wild_7', 'char_472_pasngr_epoque_17', 'char_1014_nearl2_epoque_17']);
 export function skinResourceFiles(skins) {
   const files = new Set();
   const walk = value => {
@@ -151,7 +157,7 @@ export async function prepareSkins({ sourceDir, fetchSources = false, catalogue 
       textureBytes += bytes.length; if (textureBytes > 64 * 1024 * 1024) throw new Error('Artwork texture budget exceeded');
       sizes.set(page, pngSize(bytes)); textureFiles.push({ path: join(assetRoot, rel, pageNames.get(page)), bytes });
     }
-    const pma = !STRAIGHT_ALPHA_SKINS.has(skin.id);
+    const pma = dynamic ? PREMULTIPLIED_DYNAMIC.has(skin.id) : !STRAIGHT_ALPHA_SKINS.has(skin.id);
     const norm = normalizeAtlas(atlas, { pageSize: p => sizes.get(p), pma, renamePage: p => pageNames.get(p) });
     const bytes = await obtain(`${skin.id}/${side}/${stem}.skel`, remote + stem + '.skel', 8 * 1024 * 1024);
     const display = normalizeSkelPaths(bytes);
