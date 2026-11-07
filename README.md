@@ -149,7 +149,7 @@ npm start          # 启动服务器：http://localhost:3000
 
 | 项目 | 要求 |
 |---|---|
-| 开服的电脑 | Windows / macOS / Linux，Node.js 24（LTS，只支持这一版本）；磁盘约 1.2–1.4 GB（素材、依赖与本地提取的贴图、场景和特效）；单进程模式内存空闲约 100 MB，每局再加几 MB；服务器模拟战斗时，CPU 和内存随 Worker 数与同时进行的对局数增加 |
+| 开服的电脑 | Windows / macOS / Linux，Node.js 24（LTS，只支持这一版本）；磁盘约 1.2–1.4 GB（素材、依赖与本地提取的贴图、场景和特效）；单进程模式内存空闲约 270 MB，每局再加几 MB；服务器模拟战斗时，CPU 和内存随 Worker 数与同时进行的对局数增加，多少人需要什么配置见 [docs/CAPACITY.md](docs/CAPACITY.md)（公开服实测） |
 | 玩家 | 支持 WebGL 的现代浏览器（Chrome / Edge / Firefox / Safari 最新版），电脑、手机或平板（横屏） |
 | 网络 | 首次进入游戏时，每位玩家要从开服的电脑下载几十 MB 素材（之后走浏览器缓存）；对局中流量很小，服务器推流战斗时会多一些。上游 0.3.0 里已有素材的玩家可以在标题画面点「导入素材包」（「下载完整素材」旁边），从素材包 zip、完整包 zip 或自己的 `public/assets` 文件夹导入，这部分美术不再从开服的电脑下载；需要 HTTPS 或 localhost（[docs/DEPLOY.md](docs/DEPLOY.md) 2.5 节）。0.3.0 的素材包 `Stronghold-Protocol-v0.3.0-assets.zip` 由上游维护者另行提供下载，不在 Releases 附件里。本 fork 打开页面直接进入大厅，没有标题画面，不显示这两个按钮 |
 
@@ -257,6 +257,7 @@ npm start          # 启动服务器：http://localhost:3000
 | [docs/LATENCY.md](docs/LATENCY.md) | 延迟探测与服务器压力显示（英文） |
 | [docs/SNAPSHOT-RATE.md](docs/SNAPSHOT-RATE.md) | 服务器快照频率与本地演算副本（英文） |
 | [docs/CONCURRENCY-ADMISSION.md](docs/CONCURRENCY-ADMISSION.md) | 连接、房间、匹配等数量上限的默认值（英文） |
+| [docs/CAPACITY.md](docs/CAPACITY.md) | 开服容量参考：同时在线人数与 CPU、内存、带宽的对应（公开服实测，含不同 CPU 的单核对比） |
 | [deploy/stardust/README.md](deploy/stardust/README.md) | 部署覆盖层：门禁、Nginx、素材分发、集群与发布工具的总览 |
 | [deploy/stardust/cluster/README.md](deploy/stardust/cluster/README.md) | 集群角色、固定源码构建与受保护的部署材料 |
 | [deploy/stardust/UPDATE-SOP.md](deploy/stardust/UPDATE-SOP.md)、[CLUSTER-SOP.md](deploy/stardust/CLUSTER-SOP.md) | 更新与集群发布流程 |
