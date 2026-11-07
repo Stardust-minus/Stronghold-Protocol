@@ -60,7 +60,8 @@ const b = new Battle({
   players: [PlayerBattleInput], // DESIGN §5.1
   spawns: [SpawnSpec], routes: [RouteSpec],
   sharedBoss,                   // { hp, maxHp, damage(playerId, amount) } or null
-  flags: { layerGainsEnabled, dpInit: 10, dpPerSec: 1, dpMax: 99 },
+  flags: { layerGainsEnabled, dpInit: 10, dpPerSec: 1, dpMax: 99, startOpCooldown: 3,
+           layerCapOff?, hitLimitOff?, enemyHpMul?, enemyAtkMul? }, // the last four: the room's experimental rules
   fieldId,                      // echoed in snapshots
   enemyOverrides,               // waves.json `overrides` ({ [enemyKey]: { stats: {…partial} } })
   // optional: data (DataSource or raw maps), content ('full'|'generic'|'none'), kits ({baseId: kitFn}),
@@ -72,7 +73,7 @@ b.snapshot();  b.drainEvents();   // every 3 ticks for watchers (§8.2 wire form
 b.snapshot({ includeUnitStats: true }); // server-run display: current effective/base stats of the listed units
 b.result();                        // BattleResult (DESIGN §5.1) — see §1.3
 b.forceEnd('forced' | 'timeout'); // 'timeout' converts remaining enemies to leaks
-b.fieldMeta();                     // { fieldId, kind, rect, stageId, units: UnitInfo[] } for m.field
+b.fieldMeta();                     // { fieldId, kind, rect, stageId, players, sides, units: UnitInfo[] } for m.field
 ```
 
 Construction creates every ally unit (not yet deployed) and installs content (kits, then domain modules). The first
@@ -1616,7 +1617,7 @@ Unknown subprofessions fall back to the profession default (test `professions.te
 
 ## 9. Wire format (snapshot.js, DESIGN §8.2)
 
-- `snapshot()` → `{ fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total, resolved, dps?, boss?, down?, elem?, ammo?, coins?, energy?, wolves?, neg?, layers?, charges?, stand?, standCut?, face? }`.
+- `snapshot()` → `{ fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total, resolved, dps?, boss?, down?, elem?, ammo?, overdrive?, mag?, coins?, energy?, wolves?, neg?, motes?, fever?, layers?, charges?, bondTimers?, stand?, standCut?, face? }`.
   `killed` counts every `counted` knock-out (§1.3) and `total` only the enemies this field scheduled (`inTotal`), so it may
   exceed it; `resolved = min(total, killedInTotal + leakedInTotal)` is the HUD capsule's numerator (DESIGN §14 顶栏胶囊).
   `sp/spMax` show remaining duration/ammo as a draining bar while a timed skill is active (ammo: `ammoLeft / ammoMax`, the
@@ -1640,11 +1641,15 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   `overdrive: [[id, on]]` (only when non-empty; display only) = `overdriveView` (an ally's running timed skill whose kit marks
   `overdrive: true` — 过载, ba.overdrive "技能持续拥有两段计量槽": 塔露拉 S3, 维什戴尔 S2, 号角 S3): on 0 over the first half of
   the skill, 1 over the second; the tuple keeps the whole fraction and the client runs the SP bar down twice, the second time red;
+  `mag: [[id, bullets, magazine]]` (only when non-empty; display only) = `magazineView` (a 猎手's trait bullets, `trait.ammo` of
+  `profile.ammoMax`, §8 — not a skill's ammo; zero is a count): the column at the model's lower right;
   UnitInfo `ammoSkill` marks an ally whose skill is an ammo magazine (DESIGN §8.2).
   `layers: [[id, n]]` and `charges: [[id, stored, max]]` (each only when non-empty; display only, 0.3.0 round 46) =
   `snapshot.js` `layerView` (the sum of a unit's buffs' `shieldHits`: 泥岩's 护盾 layers) and `chargeView` (an ally skill
   with maxCharges > 1: `skill.charges`), read by the official effects (DESIGN §33.16).
-  `fieldMeta()` lists the knocked-out operators too (a client joining mid-battle shows them; DESIGN §18.3).
+  `fieldMeta()` lists the knocked-out operators too (a client joining mid-battle shows them; DESIGN §18.3), and a deployed
+  unit out of sight (an enemy inside a DISAPPEAR segment, 凯尔希·思衡托 in flight) with `hidden: true`: the snapshots leave
+  it out until it is back, and a viewer keeps its info and draws nothing for it meanwhile.
   `fieldMeta({ includeUnitStats: true })` additionally filters the immutable first-tick panel cache to these units.
   It never regenerates detail DTOs: the first tick captures visible deployed units from their cached `_s`, later spawns
   use record values, and periodic snapshots/Worker metadata omit the panel list. Explicit diagnostic

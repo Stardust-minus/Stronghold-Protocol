@@ -13,7 +13,7 @@
 | 磁盘 | 素材约 720 MB（`public/assets`，含中文约 65 MB、日文约 85 MB、英文约 71 MB、韩文约 80 MB、本土语言约 18 MB 的干员语音）+ 依赖约 125 MB（`node_modules`；整合包只带运行依赖，约 65 MB）；可选的本地提取约 40 MB（`.venv-extract`）+ 约 330 MB（贴图、各战场官方场景和官方战斗特效，见第 6 节）。完整包解压后约 1.16 GB。 |
 | 玩家设备 | 支持 WebGL 的现代浏览器（Chrome / Edge / Firefox / Safari 最新版），电脑或手机平板（横屏）。老旧设备可在设置里调低画质或访问 `/?board=2d`。 |
 
-房间和对局只存在内存里，没有数据库和对局存档。重启服务器会结束正在进行的对局（包括断线后本可在 24 小时内回来继续的独立模拟）。自己安装或制作的插件、`plugins/config.json` 和工作台钥匙保存在磁盘上，请按需备份 `plugins/`。
+房间和对局默认只存在内存里，没有数据库。重启服务器会结束正在进行的对局（包括断线后本可在 24 小时内回来继续的独立模拟）；想在重启后接着打，见第 13 节的可选存档（Valkey）。自己安装或制作的插件、`plugins/config.json` 和工作台钥匙保存在磁盘上，请按需备份 `plugins/`。
 
 **房主帮 AI 试算布阵（可选）：**环境变量 `SP_BOT_REHEARSAL` 不设或设为 `server` 时，AI 布阵试算仍在服务器上（默认）。设为 `host` 后，当前房主的浏览器在整备阶段用同源的模块 Worker（`/js/battle/rehearsalWorker.js`，不绘图、不用 `eval`）比较 AI 队友的几种布阵，只把选中的序号发回；服务器直接采用，不再重算。房主掉线、换人、报错、答案不合法或超时（默认 3 秒）时，服务器用同一批候选自己算。整备先结束则取消试算、保留默认布阵，不延长回合。正式战斗和真人「AI 托管」不受影响。开了玩法插件的房间不走这条路：对局在内容组合自己的进程里，仍由服务器试算，避免浏览器用错数据包或绕过脚本额度。没有可用房主时也不会减少服务器负担。浏览器会多算一些，耗时取决于房主设备和局面。这个接口（任务、答案序号、超时、回退到服务器）以后可以换成本机或外部计算，当前版本不会对外发起网络请求。
 
@@ -32,13 +32,13 @@
    ```
    装完**关闭并重新打开**终端，`node -v` 应显示 v24.x（只支持 Node.js 24；winget 的 LTS 目前就是 v24.x）。没有 winget 时从 <https://nodejs.org/zh-cn/download> 和 <https://git-scm.com/download/win> 下载安装。
 2. 下载，三选一。建议放在一个固定、短、**不在 OneDrive 同步范围内**的目录，例如 `C:\Stronghold-Protocol`：
-   - **完整包（推荐）**：在仓库的 [Releases](https://github.com/sganggs/Stronghold-Protocol/releases) 页面下载最新版本的 `Stronghold-Protocol-v<版本>.zip`（约 800 MB，解压后约 1.16 GB；已含运行依赖、前端库和全部素材，包括中文、日文、英文、韩文和本土语言的干员语音和官方 3D 棋盘、各战场官方场景、官方战斗特效等本地客户端素材），解压后把里面的 `Stronghold-Protocol` 文件夹放到上述位置。不需要 Git，首次启动也不用再下载素材。素材版权归上海鹰角网络 / Yostar，仅限非商业使用，见 [NOTICE.md](../NOTICE.md)。
-   - **精简包**：同一页面的 `Stronghold-Protocol-v<版本>-lite.zip`（约 25 MB）。代码、运行依赖和前端库与完整包相同，但不带素材：美术、Spine 模型、音频（含全部干员语音）、字体、表情和「玩法说明」教程图在首次启动时由 setup 从公开镜像下载（约 720 MB，显示进度，可中断续传；镜像设置见下面的「国内镜像下载」）。官方 3D 棋盘等本地客户端素材需要用本机客户端提取，或从同一版本的完整包复制（第 6 节）。适合下载大文件不方便、或想先下一个小包的情况；放置方式同完整包。
-   - **源码**：
+   - **源码（本 fork，推荐）**：本 fork 不发布整合包，从源码运行；下面两种整合包是**上游版本**，不含本 fork 的改动。
      ```powershell
-     git clone https://github.com/sganggs/Stronghold-Protocol.git C:\Stronghold-Protocol
+     git clone https://github.com/Stardust-minus/Stronghold-Protocol.git C:\Stronghold-Protocol
      ```
-3. 双击 `C:\Stronghold-Protocol\scripts\start-windows.bat`。首次会：安装依赖（`npm ci`；整合包已含，跳过）→ 复制前端库（整合包已含，跳过）→ 下载约 550 MB 素材（完整包已含，跳过；精简包和源码在这一步下载，显示进度，中断后再次启动会续传）→ 若检测到本机的明日方舟客户端，询问是否提取官方贴图（可跳过）→ 启动服务器并打开浏览器。
+   - **上游完整包**：在上游仓库的 [Releases](https://github.com/sganggs/Stronghold-Protocol/releases) 页面下载最新版本的 `Stronghold-Protocol-v<版本>.zip`（约 800 MB，解压后约 1.16 GB；已含运行依赖、前端库和全部素材，包括中文、日文、英文、韩文和本土语言的干员语音和官方 3D 棋盘、各战场官方场景、官方战斗特效等本地客户端素材），解压后把里面的 `Stronghold-Protocol` 文件夹放到上述位置。不需要 Git，首次启动也不用再下载素材。素材版权归上海鹰角网络 / Yostar，仅限非商业使用，见 [NOTICE.md](../NOTICE.md)。
+   - **上游精简包**：同一页面的 `Stronghold-Protocol-v<版本>-lite.zip`（约 25 MB）。代码、运行依赖和前端库与完整包相同，但不带素材：美术、Spine 模型、音频（含全部干员语音）、字体、表情和「玩法说明」教程图在首次启动时由 setup 从公开镜像下载（约 720 MB，显示进度，可中断续传；镜像设置见下面的「国内镜像下载」）。官方 3D 棋盘等本地客户端素材需要用本机客户端提取，或从同一版本的完整包复制（第 6 节）。适合下载大文件不方便、或想先下一个小包的情况；放置方式同完整包。
+3. 双击 `C:\Stronghold-Protocol\scripts\start-windows.bat`。首次会：安装依赖（`npm ci`；整合包已含，跳过）→ 复制前端库（整合包已含，跳过）→ 下载约 720 MB 素材（完整包已含，跳过；精简包和源码在这一步下载，显示进度，中断后再次启动会续传）→ 若检测到本机的明日方舟客户端，询问是否提取官方贴图（可跳过）→ 启动服务器并打开浏览器。
 4. 窗口里会打印朋友可用的地址，例如 `http://192.168.1.23:3000`。用另一台设备打开它确认能进入。关闭窗口即停止服务器。
 
 等价的手动命令：`npm ci`、`node tools/setup.mjs`、`npm start`。
@@ -148,7 +148,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install-service-windows.ps1 -Re
 
 #### 用整合包安装的：更新包
 
-0.2.1 起，Releases 里每个版本除了完整包和精简包，还有更新包 `Stronghold-Protocol-v<版本>-update.zip`：只含比说明中列出的旧版本改动过的文件（程序、数据、运行依赖，以及改动过的素材），通常只有几 MB。它用来升级用 0.2.0 及以后的完整包或精简包装好的文件夹（适用的版本写在 Releases 说明里）；全新安装、0.1.x 和 GitHub「Download ZIP」源码包请用完整包或精简包，`git clone` 的用上面的 `git pull`。
+0.2.1 起，上游 Releases 里每个版本除了完整包和精简包，还有更新包 `Stronghold-Protocol-v<版本>-update.zip`：只含比说明中列出的旧版本改动过的文件（程序、数据、运行依赖，以及改动过的素材），通常只有几 MB。它用来升级用 0.2.0 及以后的完整包或精简包装好的文件夹（适用的版本写在 Releases 说明里）；全新安装、0.1.x 和 GitHub「Download ZIP」源码包请用完整包或精简包，`git clone` 的用上面的 `git pull`。
 
 ```powershell
 cd C:\Stronghold-Protocol
@@ -197,7 +197,7 @@ cloudflared tunnel --url http://localhost:3000
 2. 路由器「虚拟服务器 / 端口转发」：外部端口 3000（或任意端口）→ 内部 `主机IP:3000`，TCP。
 3. 朋友访问 `http://<你的公网 IP>:外部端口`。
 
-注意：游戏没有账号系统，知道地址的人都能进来。服务器对来自互联网的连接有按网络的数量限制（每个网络最多 64 个连接，房间 / 对局数量也有上限），但仍建议不玩时关掉转发，或优先用 Tailscale。
+注意：游戏没有账号系统，知道地址的人都能进来。服务器可以按网络限制来自互联网的连接数和房间 / 对局数，但本 fork 默认不限（第 12 节）；仍建议不玩时关掉转发，或优先用 Tailscale。
 
 ### 2.4 反向代理与 HTTPS（有域名时）
 
@@ -246,14 +246,13 @@ server {
 
 https / wss 说明：页面通过 https 打开时客户端自动连接 `wss://同一域名/ws`；http 时用 `ws://`。服务器本身只提供 http，证书由代理 / 隧道负责。代理与服务器在同一台机器或内网时，`TRUST_PROXY=auto` 会信任它的 `X-Forwarded-For` / `X-Real-IP`；代理在公网另一台机器上时设 `TRUST_PROXY=1`（同时确保游戏端口只对代理开放）。
 
-### 2.5 玩家导入已有素材（需要 HTTPS）
+### 2.5 玩家预先下载素材
 
-标题画面登录框下面并排有两个按钮：「下载完整素材」从这台服务器下载全部素材（打开窗口就开始）；「导入素材包」读取玩家自己的文件夹或 zip，用来少传重复的美术。打开导入窗口不会向服务器请求任何素材，也不会开始下载；真正开始导入时，浏览器只向服务器读取三份素材清单。
+本 fork 打开页面直接进入大厅，没有标题画面：上游 0.3.0 标题画面上的「下载完整素材」和「导入素材包」不显示，也不能导入素材包（导入的美术只对应带内容哈希的素材地址，本 fork 的部署模板用 `SP_ASSET_INDEX=0` 下发普通地址）。
 
-- 只有 **HTTPS** 或 **localhost** 能导入。浏览器只在安全上下文里提供 Service Worker 和可用的 Cache Storage。`http://局域网IP:3000` 可以正常玩游戏，也可以用「下载完整素材」，但不能导入；按钮下面和导入窗口里都会说明原因，而不是报错。
-- 玩家导入的是自己已经有的文件：维护者另外提供的素材包 `Stronghold-Protocol-v<版本>-assets.zip`（见第 7 节，不在 GitHub Releases 里），setup 得到的 `public/assets`，或完整发布包 zip。校验通过的文件存在这台浏览器里，并且按地址分开：换了域名或端口就要重新导入。整套素材包约 3.1 万个文件，桌面版 Chrome 导入约 1–2 分钟；zip 分段读取，不会整个读进内存。
-- 和服务器清单里 SHA-256 一致的文件不再向这台服务器请求。整套美术大约 1 GB（下载的约 720 MB，加本地提取的场景和官方战斗特效）；玩家第一局真正用到的通常约 20–50 MB。导入能省下的，是这些本来会从你的机器发出去的字节。哈希对不上的旧版本文件会被拒绝，仍走下载。
-- 导入不经过服务器，服务器日志里看不到这些文件。Service Worker 只回答带内容哈希的 `/assets/`、`/fonts/`、`/media/`。页面、脚本、`/data/`、`/sim/` 和 `/ws` 仍每次走网络。
+- 玩家可以在「设置 → 素材下载」把素材预先下载到浏览器，分两档：「对局素材」（不含皮肤，只含自己正在使用的配音）和「全部素材」（含全部皮肤和配音）。关闭设置后继续下载，进入对局时自动暂停，回到大厅或房间后继续；失败的文件可以重试。
+- 下载的是这台服务器素材清单里的同源地址：本机开服时字节从开服的电脑发出；本 fork 的部署模板把 `/assets/`、`/media/` 重定向到外部素材源（ModelScope 等）。
+- 只有页面的 Service Worker 带素材档案时（`/code-source.json` 的 `material`，由本 fork 的边缘节点给出，单机可用 `SP_CODE_SOURCE` 设置，见 `deploy/stardust/STUDIO-CODE-SOURCE.md`），文件才按路径保存在浏览器的 Cache Storage 里；没有档案时只靠浏览器的普通缓存，设置里会提示下载的素材可能不会保留。Service Worker 只在 **HTTPS** 或 **localhost** 页面上可用。
 
 ## 3. Docker
 
@@ -345,7 +344,7 @@ volumes:
 
 ## 6. 本地客户端素材（可选）
 
-`public/assets/local/` 和 `data/local-assets.json` 是从本机安装的《明日方舟》客户端里提取的官方素材（`tools/local-extract`，DESIGN §13）：`node tools/setup.mjs` 检测到客户端时会询问是否提取，之后可以用 `node tools/setup.mjs --local` 重新提取，或用 `--game "<安装目录或 …/StreamingAssets/AB/Windows>"` 指定客户端目录（安装目录和「Arknights Game」都可以，成功后记住解析出的资源目录）。setup 从公开镜像下载的素材不包含这部分，所以在没有客户端的电脑上（例如 Linux 服务器）用源码或精简包部署时不会有它；Releases 的完整包里已经带上了。
+`public/assets/local/` 和 `data/local-assets.json` 是从本机安装的《明日方舟》客户端里提取的官方素材（`tools/local-extract`，DESIGN §13）：`node tools/setup.mjs` 检测到客户端时会询问是否提取，之后可以用 `node tools/setup.mjs --local` 重新提取，或用 `--game "<安装目录或 …/StreamingAssets/AB/Windows>"` 指定客户端目录（安装目录和「Arknights Game」都可以，成功后记住解析出的资源目录）。setup 从公开镜像下载的素材不包含这部分，所以在没有客户端的电脑上（例如 Linux 服务器）用源码或精简包部署时不会有它；上游 Releases 的完整包里已经带上了。
 
 没有本地素材时游戏照常运行，只是下面几样换成替代样式：
 
@@ -360,7 +359,7 @@ volumes:
 
 表情（6 套 × 6 个）和「玩法说明」的 19 页教程图公开镜像也有：`node tools/setup.mjs` 会和其他素材一起下载（约 21 MB），不需要客户端；有本地素材时优先显示本地的。
 
-**没有客户端的服务器**想要上表中的官方素材：从**同一版本**的完整包（[Releases](https://github.com/sganggs/Stronghold-Protocol/releases)）里，把 `public/assets/local/` 文件夹和 `data/local-assets.json`（还有官方战斗特效的清单 `data/local-fx.json`）复制到服务器项目目录下的相同位置。服务器每次请求都会重新读取这两处，不必重启，玩家刷新页面即可。一定要用与服务器代码相同版本的完整包：各版本提取的内容和清单可能不同（例如灼热 / 炽焰源石虫的模型是 0.1.0 之后才加入的，召唤物模型是 0.2.0 加入的），混用其他版本的文件会缺图或用错图。复制后 `node tools/doctor.mjs` 会显示本地素材的条目数和「3D 棋盘可用」。分组或官方特效清单和这一版对不上时，它会提示已有多少、这一版期望多少。
+**没有客户端的服务器**想要上表中的官方素材：从**同一版本**的上游完整包（[Releases](https://github.com/sganggs/Stronghold-Protocol/releases)）里，把 `public/assets/local/` 文件夹和 `data/local-assets.json`（还有官方战斗特效的清单 `data/local-fx.json`）复制到服务器项目目录下的相同位置。服务器每次请求都会重新读取这两处，不必重启，玩家刷新页面即可。一定要用与服务器代码相同版本的完整包：各版本提取的内容和清单可能不同（例如灼热 / 炽焰源石虫的模型是 0.1.0 之后才加入的，召唤物模型是 0.2.0 加入的），混用其他版本的文件会缺图或用错图。复制后 `node tools/doctor.mjs` 会显示本地素材的条目数和「3D 棋盘可用」。分组或官方特效清单和这一版对不上时，它会提示已有多少、这一版期望多少。
 
 **分组对不上这一版提取器的**：`node tools/setup.mjs` 对照当前提取器会写出的分组（`tools/local-extract/extract.py --print-jobs` 里的 `expectedGroups`，不需要客户端）。少了分组，或清单写的条目数和分组里列出的不一致，会提示已有多少个分组、多少项，这一版期望多少个分组。缺的不是战场场景时，请用 `node tools/setup.mjs --local` 重新提取。缺的分组如果全是 `scene/`（某个战场，或共用贴图 `scene/tex`），有客户端时改为 `node tools/setup.mjs --scenes`，没有客户端时改为从同一版本的完整包复制 `public/assets/local` 和 `data/local-assets.json`：`--local` 不会下载战场场景。召唤物模型是 0.2.0 新增的提取项（`spine/token/<id>`）；只想补这一项也可以在提取用的 Python 环境里运行 `tools/local-extract/extract.py --only spine/token`（新文件写入 `public/assets/local/spine/token/`，清单里其他条目保持不变）。官方特效清单 `data/local-fx.json` 是另一步，用项目里的 `.venv-extract/bin/python`（Windows 是 `.venv-extract\Scripts\python.exe`）运行 `tools/local-extract/extract.py --only fx --fx-set used`：没有它只记一行「未提取」，不把本地美术算成失败；有了但分组、条目数或版本不对会单独警告。
 
@@ -372,7 +371,7 @@ volumes:
 
 ## 7. 打包发布（维护者）
 
-Releases 的 zip（完整包、精简包，0.2.1 起还有更新包）由 `tools/package.mjs` 生成，在**源码仓库**里运行（整合包里没有这个工具）：
+上游 Releases 的 zip（完整包、精简包，0.2.1 起还有更新包）由 `tools/package.mjs` 生成，在**源码仓库**里运行（整合包里没有这个工具）。本 fork 不发布整合包，工具保留原样：
 
 ```bash
 npm run package -- --dry-run --list   # 只检查：列出每个文件和大小，不写任何文件（精简包加 --lite）
@@ -440,8 +439,10 @@ node tools/package.mjs --assets --out <目录>   # 素材包 Stronghold-Protocol
 
 开启：环境变量 `SP_TEST_MODE=1`，或启动脚本 `scripts/start.sh --test-mode 1`（`scripts\start-windows.bat` 同样）。
 不带取值的 `--test-mode` 等同于 `--test-mode 1`。取值 `off` / `1` / `force`。`off` 会去掉继承来的变量。`1`（以及 `true` / `yes` / `on` / `local`）在明确的本机或局域网地址上生效。默认绑定 `::` / `0.0.0.0` 时，看这台机器的网卡：非内部地址都是回环、私网（含 CGNAT `100.64.0.0/10`）、链路本地或 IPv6 ULA 时，按局域网接受 `1`（[ASSUMED] 路由器上的端口转发和写明局域网地址一样，由服主自己负责）。任一公网地址，或监听地址本身是公网，则 `1` 不开启，启动脚本和服务器日志用中文说明：仅本机用 `--host 127.0.0.1`，局域网用 `--host <局域网IP>`，要在公网监听上开则用 `--test-mode force`（或 `SP_TEST_MODE=force`）。`force` 在公网监听上仍会警告。写了认不出的值（例如 `forced`）保持关闭，并在启动时警告。
-经公网反代转到本机回环的，仍按公网部署处理：进程只看自己绑定的地址和本机网卡。地址还不知道时（还没绑定）一律不开。没写这个变量就是关闭，欢迎消息里没有 `testMode`，大厅不显示「测试房间」，任何测试请求都拒绝。
+经公网反代转到本机回环的，仍按公网部署处理：进程只看自己绑定的地址和本机网卡。地址还不知道时（还没绑定）一律不开。没写这个变量就是关闭，欢迎消息里没有 `testMode`，大厅不显示「测试房间」，除下面的调控台房间外，任何测试请求都拒绝。
 服务器已经在运行时，`--test-mode` 不会改它，要先停掉再开。
+
+**调控台**（本 fork）：私人（自建）房间的房主可以在房间设置里开启「调控台」（先确认一个 5 秒的警告）。它不受 `SP_TEST_MODE` 控制，服主也没有单独的开关。开了调控台的房间不进匹配、不在房间列表里显示；对局按测试对局处理（不计战绩、成就和对局记录，没有奖励，指令同样记进 `[test-audit ROOM]` 日志），但不写下面的 `[test-input ROOM]` 重演日志。每位入座的博士都能给自己的席位下指令（调用干员、装备和召唤物，修改盟约层数，给自己的下一场作战加入敌人：每次 1–20 个，最多 20 个排队，领袖除外），每人每种指令 10 秒内最多 8 条；跳回合、跳阶段、计时、生命这类影响整局的指令只在他是这局唯一的真人时可用。
 
 谁能用：只有房主能建测试房，也只有当时的房主能下测试指令。同盟测试房可以有其他人，加入或观战前必须确认「测试」提示，最近房间入口和房间卡保留标记，指令仍只有房主能发。普通房间不能在开局前或对局中改成测试房。观战席不能发。
 
@@ -461,13 +462,13 @@ node tools/package.mjs --assets --out <目录>   # 素材包 Stronghold-Protocol
 `off` / `sandbox` / `trusted` / `trusted-force`，`off` 会去掉继承来的环境变量；服务器已经在运行时参数不生效，要先停止它）。此开关允许公网部署，要求有效 lock 和全部文件字节一致，但不要求 trusted pin，也不要求逐人同意
 （维护者 2026-10-14 确认）。房间标「脚本（沙箱）」；同一 SDK、描述符与预算已接通，不降级执行。所有玩法插件的浏览器战斗都在专用 Worker 中，卡死看门狗默认 2 秒。
 首次应用未缓存的脚本时，每个插件的注册探测默认最多 5 秒，大厅（含原版房间）可能短暂停顿；`SP_SCRIPT_PROBE_MS` 可设为 500–60000 毫秒，慢机器可提高。成功与失败都会缓存，文件或设置变了需重新探测。
-沙箱脚本服务器宿主强制子进程，忽略 `SP_MATCH_HOST=worker`；Node 22 `--permission` 只开放安装目录读取，没有写文件、
+沙箱脚本服务器宿主强制子进程，忽略 `SP_MATCH_HOST=worker`；Node 24 的 `--permission` 只开放安装目录读取，没有写文件、
 起子进程、起线程或原生扩展权限，通过 JSON IPC 收取内容，保留现有内存上限和心跳看门狗。
 
-Node 22 权限模型不是恶意代码安全边界，且不限制网络。SES/V8 逃逸后仍可能访问内网、安装目录和已打开的文件描述符；
+Node 24 的权限模型不是恶意代码安全边界，且不限制网络。SES/V8 逃逸后仍可能访问内网、安装目录和已打开的文件描述符；
 安装目录内指向外部的符号链接可能扩大可见范围，也可能被 Node 的真实路径权限检查拒绝。`node_modules` 必须实际装在安装目录里，不要链接到外部目录，否则沙箱可能无法加载 SES / Acorn。建议用低权限用户，最好部署在限制出站/内网访问、内存与 CPU 的容器中
 [ASSUMED]。不要把启用沙箱等同于可以安全运行任何来源的插件。官方说明见
-[Node 22 permissions](https://nodejs.org/docs/latest-v22.x/api/permissions.html)。
+[Node 24 permissions](https://nodejs.org/docs/latest-v24.x/api/permissions.html)。
 
 整站默认发送 CSP，覆盖主页、开发页面和 `/studio/`；importmap 用精确内容的 SHA-256 放行，页面没有 unsafe-eval。
 字体保留 Google Fonts 域名，样式允许 unsafe-inline，图片允许 data/blob，媒体允许 'self' 和 blob:（玩家在本机选的大厅视频背景和
@@ -513,7 +514,7 @@ without server mode or trusted-pin checks; it is not evidence that those files m
 Full SDK, pinning, consent and limitations:
 [PLUGINS §13](PLUGINS.md#13-scripts-p3a).
 
-Node 22 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可用）。安装根内指向外部的符号链接也会
+Node 24 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可用）。安装根内指向外部的符号链接也会
 扩大可读范围：不要在安装根中放此类链接，包括外链 node_modules、npm link 和配置/存储链接。建议使用容器或
 网络命名空间限制出站与内网访问，并设置 OS 内存/CPU 限额。父进程已对日志、启动错误、发送帧、RPC 回复等 IPC
 做形态和长度复核（DESIGN §32.11），但 Node 在复核前已解码 IPC，不能据此声称免疫内存炸弹或消息洪泛。
@@ -546,24 +547,29 @@ Node 22 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可�
 
 ## 12. 容量与调优（服务端配额）
 
-以下配额默认写死在代码里，都能用环境变量覆盖；显式传给 `startServer()` 的选项仍然优先，所以测试完全可控。
-启动时会打一行日志，写明实际生效的值：
+以下配额在本 fork 默认都不限，可以用环境变量设置；显式传给 `startServer()` 的选项仍然优先，所以测试完全可控。
+启动时会打一行日志，写明实际生效的值（不设时都是 `unlimited`）：
 
 ```
-[http] limits: rooms 1000 (16/network), matches 8/network, sockets 2000 (64/network)
+[http] limits: rooms unlimited (unlimited/network), matches unlimited/network, sockets unlimited (unlimited/network)
 ```
 
-`0` 在两类配额上含义不同：**全局配额**（`SP_MAX_ROOMS`、`SP_MAX_CONNECTIONS`）取 `0` 是全部拒绝；**按网络配额**
-（带 `_PER_ADDR` 的三个）取 `0` 才是不限制。
+每个配额取 `0` 都是不限制。按网络的配额（带 `_PER_ADDR` 的三个）只计来自互联网的客户端，本机和局域网的连接不计入。
 
 | 变量 | 默认 | 含义 |
 | --- | --- | --- |
-| `SP_MAX_ROOMS` | 1000 | 全局房间数上限（`0` = 全部拒绝）。满员后新建房间返回「服务器内部错误」 |
-| `SP_MAX_ROOMS_PER_ADDR` | 16 | 单个客户端网络同时存在的房间数（`0` = 不限） |
-| `SP_MAX_MATCHES_PER_ADDR` | 8 | 单个客户端网络同时进行的对局数（`0` = 不限） |
-| `SP_MAX_CONNECTIONS` | 2000 | 并发 WebSocket 连接数（`0` = 全部拒绝）。全局满员时新连接在升级阶段返回 **503** |
-| `SP_MAX_CONNECTIONS_PER_ADDR` | 64 | 单个客户端网络的并发连接数（`0` = 不限）。单个网络超限时在升级阶段返回 **429** |
-| `SP_MAX_ONLINE` | 0 | 同时在线的**已认证玩家**上限（`0` = 不限）。满了只拒绝新会话（玩家看到「服务器已满」），重新连回来的 token 照常放行（只限在线人数这一层，见下面「重连不会被拒」的两条前提） |
+| `SP_MAX_ROOMS` | 0（不限） | 全局房间数上限。满了以后新建房间回「房间、对局或 AI 队友数量已达上限，请先退出其他房间或稍后再试」 |
+| `SP_MAX_ROOMS_PER_ADDR` | 0（不限） | 单个客户端网络同时存在的房间数 |
+| `SP_MAX_MATCHES_PER_ADDR` | 0（不限） | 单个客户端网络同时进行的对局数 |
+| `SP_MAX_CONNECTIONS` | 0（不限） | 并发 WebSocket 连接数。全局满员时新连接在升级阶段返回 **503** |
+| `SP_MAX_CONNECTIONS_PER_ADDR` | 0（不限） | 单个客户端网络的并发连接数。单个网络超限时在升级阶段返回 **429** |
+| `SP_MAX_ONLINE` | 0（不限） | 同时在线的**已认证玩家**上限。满了只拒绝新会话（玩家看到「服务器已满」），重新连回来的 token 照常放行（只限在线人数这一层，见下面「重连不会被拒」的两条前提） |
+
+**运行中改配额**：`SP_ONLINE_LIMIT_FILE` 指向一个 JSON 文件（例如 `{"limit": 3000, "maxRoomsPerAddr": 24, "maxBotsPerAddr": 60}`），
+服务器每 5 秒检查一次修改时间，改了就重读，不用重启。`limit` 是在线人数上限；`maxRooms`、`maxRoomsPerAddr`、`maxMatchesPerAddr`、
+`maxBots`（全部房间的 AI 队友数）和 `maxBotsPerAddr` 覆盖同名配额（`0` 不限，文件没写的键保持原值）；`"maintenance": 1` 暂停创建房间、
+开始模拟和匹配，进行中的对局和房间不受影响。文件里有认不出的键或非法值时整份不用、保留之前的值，并提示一次。调低配额不会关闭已有的房间、
+对局和 AI 席位。容器里挂载文件所在的目录，不要只挂文件（编辑器保存时会换掉文件）。各配额的取舍和保留的保护见 [CONCURRENCY-ADMISSION.md](CONCURRENCY-ADMISSION.md)。
 
 几点运维提醒：
 
@@ -572,7 +578,7 @@ Node 22 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可�
   `hello` 之后才回的一帧「服务器已满」（已经带着 token 在玩的人不受影响），**房间数**上限满了是游戏内的错误回包。
 - 「按网络」的口径来自 `clientAddress()`：只有在 `TRUST_PROXY` 允许时才会信任 `CF-Connecting-IP` / `X-Real-IP` /
   `X-Forwarded-For`，否则整条 NAT / CGNAT 后面的玩家会共用一个配额 —— 家里直连、没有反代时不要打开 `TRUST_PROXY=1`。
-- 写了非法值（非整数、负数）会**告警并保持默认**，不会因为一个拼写错误把保护悄悄去掉。
+- 环境变量写了非法值（非整数、负数）会**告警并保持默认**，不会因为一个拼写错误把保护悄悄去掉。
 - 「重连不会被拒」只在**在线人数**这一层成立，另外两个前提照样生效：**连接数**上限（`SP_MAX_CONNECTIONS`）满了，
   带 token 的连接同样在升级阶段被 **503** 挡住；会话还在另一条 socket 上活着时，`noReplace`（或更旧的 `claimAt`）
   会让这个 `hello` 回「会话已在别处使用」而不是接管，拿不回原来的身份。
@@ -608,7 +614,7 @@ SP_REDIS_URL=redis://127.0.0.1:6379/0 npm start
 **会话**：在房间里（等待中、对局中或观战）的玩家身份、令牌、名字、编队设置都会保存，回来时是同一个玩家、
 同一个座位。重启时在线的玩家，重连期限（同盟 10 分钟，独立模拟 24 小时）从重启时重新计算；期限内没回来的座位
 在恢复的对局里按「离开」处理（交给 AI 规则）。不在任何房间里的访客、匹配队列、尚未开始的匹配邀请、上一局的
-结算回放不保存（排队的玩家重新排队即可）。带玩法插件的房间不保存。
+结算回放不保存（排队的玩家重新排队即可）。带玩法插件的房间不保存，测试房间和调控台房间的对局也不存档。
 
 **其他官方版本的房间**（第二期上半、第一期上半/下半）在单机服务器上的对局跑在本进程的版本子进程里（集群设
 `SP_VERSION_PLACEMENT=coordinator` 时跑在协调器上，同样如此），同样存档：
@@ -621,7 +627,7 @@ SP_REDIS_URL=redis://127.0.0.1:6379/0 npm start
 
 - 只重启协调器：对局还在原节点上跑，新协调器直接接管（不重建、不回退）。
 - 整套一起重启（发版）：协调器把每局交给一个就绪的节点，由它从存档重建（新的分配 ID），节点还没起来时最多等 2 分钟。
-- 协调器正常运行、某个 game 节点重启或失联：它上面的对局由其他节点从存档重建，不再直接关闭房间。
+- 协调器正常运行、某个 game 节点重启或失联：它上面的对局由其他节点从存档重建，不再直接关闭房间。同一局第二次随节点失联时不再分配，直接关闭房间（发版重启不算失联）：一局把节点卡死的对局不会被轮流放到每个节点上。game 节点的主线程 30 秒没有响应时，看门狗把卡住的调用栈写进日志并结束进程，由容器的重启策略拉起（`SP_MAIN_WATCHDOG_MS`：`0` 关闭，否则 5000–600000 毫秒）。
 - 其他官方版本的对局（rel26 起默认）也放到 game 节点上，跑在该节点的版本子进程里（`server/cluster/game-runtime.js`：
   每版本一个子进程，首局时启动、最后一局结束 10 分钟后停；每节点同时最多 `SP_NODE_VERSION_HOSTS` 个，默认 1，
   每个带 `SP_NODE_VERSION_COMBAT_WORKERS` 个战斗线程，默认 1；`SP_NODE_VERSION_HOSTS=0` 的节点只跑第二期下半）。

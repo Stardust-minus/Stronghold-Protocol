@@ -22,7 +22,8 @@ In this version one type loads: **`lang`**, a language for the interface (and, o
 ```
 
 A language can also be one file, `public/i18n/<code>.json`, with the same fields in its `_meta` block — that is how
-English ships. Types `assets` (art, audio, fonts) and `data` (data patches) are planned; this version lists such a pack
-as not supported and does not load it.
+English ships. The planned types `assets` (art, audio, fonts) and `data` (data patches) became the plugin classes
+`cosmetic` and `content` ([plugins/README.md](../plugins/README.md)); a pack of either type is listed as not supported
+and not loaded.
 
 The format, the rules and how later types plug in: [docs/PACKS.md](../docs/PACKS.md). Translating: [docs/I18N.md](../docs/I18N.md).

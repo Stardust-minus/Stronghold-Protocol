@@ -20,7 +20,7 @@ export function gameScreenStage({ hasResult, ended, mode, hasPublic, ready, miss
 export function GameLoadingView({ hasPublic, slow, files, retrying = false, resumed = false, onRetry, onReload }) {
   const failed = files.some((file) => file.status === 'missing');
   // A resumed session still waiting for its match: after a server restart the match is rebuilt from its checkpoint
-  // (docs/DEPLOY.md §11), which may take up to about two minutes, and refreshing the page does not speed it up.
+  // (docs/DEPLOY.md §13), which may take up to about two minutes, and refreshing the page does not speed it up.
   const restoring = resumed && !hasPublic && !failed;
   return html`<div class="screen gload">
     <${Spinner} size="lg" label=${failed ? 'DATA UNAVAILABLE' : hasPublic ? 'LOADING DATA' : restoring ? 'RESTORING MATCH' : 'ENTERING SIMULATION'} />

@@ -2,7 +2,7 @@
 
 后续显式profile/commit合同见[formal/README.md](formal/README.md)：现在Beta和Formal均可显式`--source-kind commit`，要求kind=commit、baseRevision=同一完整40hex build、独立完整manifest SHA；默认Beta TREE行为、本站路径/maps/fallback与schema不变。Formal必须`--profile formal`且独立SITE/prefix/maps/coordinator。TREE与commit身份必须分别标注，私有码检查不代表生成资源data已验收。
 
-`sourceKind=tree`表示固定未提交内容快照，不是Git commit；本页不描述某个实际发布。原`prepare-localcode-release.mjs`继续要求真实Git commit并核对Git对象，**不修改、绕过或降低它的默认语义**。新`tools/cluster-private-code.py`只处理Beta私有JS/CSS，不联网、不执行app、不切vhost、不增加管理API、不接触真实Cookie/key。
+`sourceKind=tree`表示固定未提交内容快照，不是Git commit；本页不描述某个实际发布。原`prepare-localcode-release.mjs`继续要求真实Git commit并核对Git对象，**不修改、绕过或降低它的默认语义**。`tools/cluster-private-code.py`默认只处理Beta私有JS/CSS（Formal见上；可选运行时静态与前端打包产物见下文），不联网、不执行app、不切vhost、不增加管理API、不接触真实Cookie/key。
 
 ## 身份与范围
 
@@ -52,7 +52,7 @@ SHA256SUMS
 
 ## Nginx访问与stock安全头
 
-生成include只用于Beta TLS server，要求既有`/_gate/check`、`$ark_beta_frame`、`$ark_beta_csp`及server级Origin拒绝规则。它包括：
+生成include只用于Beta TLS server，要求既有`/_gate/check`、`$ark_beta_frame`、`$ark_beta_csp`及server级Origin拒绝规则（Formal为Formal TLS server及`$ark_proto_frame`、`$ark_proto_csp`）。它包括：
 
 - 每个代码URL为精确`location =`、每次`auth_request /_gate/check`、只GET/HEAD、MIME固定、`disable_symlinks on`、`etag on`、`expires off`。
 - 已知文件缺失时，**access门禁完成之后**的static404通过`error_page 404 = @ark_beta_cluster_code`进入受保护named fallback。没有`try_files`/rewrite改URI、版本query选择器、无凭据命中或proxy cache。
@@ -81,11 +81,11 @@ include不能和旧同URL exactalias/prefix一起重复加载。安装前独立�
 默认输出不变（逐字节），只有显式`--runtime-static`时才把协调器的另外三个私有挂载也生成精确alias，使页面加载不再占用coordinator主线程：
 
 - `shared/**/*.js` → `/shared/…`，`server/sim/**/*.js` → `/sim/…`（排除Node专用`nodeData.js`，大小写不敏感），`data/**/*.json` → `/data/…`（排除Git忽略的生成索引`data/local-assets.json`，它仍由coordinator供给）。
-- 三个源根必须与manifest在该根下的条目逐一一致（未发布的`.md`等也须列出），只容忍上述生成索引；链接/额外文件/空目录同样拒绝。单文件8MiB、合计32MiB（独立于JS/CSS预算）。
+- 三个源根必须与manifest在该根下的条目逐一一致（未发布的`.md`等也须列出），只容忍上述生成索引；链接/额外文件/空目录同样拒绝。单文件8MiB、合计48MiB（独立于JS/CSS预算）。
 - 每个alias与JS/CSS相同：`auth_request`、仅GET/HEAD、`private, no-cache`（浏览器按ETag重新验证、每次仍过门禁；no-store会让每次页面加载重下全部代码）及全部stock安全头、无业务ACAO、404进入同一受保护fallback；另加`gzip on`与`gzip_types application/javascript application/json`，因为coordinator原本对这些文件gzip。新增`^~ /shared/`、`^~ /sim/`、`^~ /data/`前缀，未知/缺失路径（含`/data/local-assets.json`、`/sim/nodeData.js`、目录301）只代理到同一个coordinator；`/data.js`垫片不受影响，仍走vhost原有位置。
 - metadata仅在启用时记录`runtimeStatic:true`；`--verify`按记录值重建，显式`--runtime-static`与记录不符即拒绝。
 
-部署时（需单独授权）：先核对现用vhost没有同URL的`/shared/`、`/sim/`、`/data/`精确或前缀location（否则重复/冲突），确认目标profile与`--topology`，用`--runtime-static`生成并`--verify`，安装到同一`localcode`树，`openresty -t`后正常reload。核验：任一`/data/*.json`与`/shared/*.js`响应带`X-Ark-Code-Source: edge`、`Content-Encoding: gzip`（客户端请求时）、`Cache-Control: private, no-store`、无ACAO；`/data/local-assets.json`仍为`cluster`；coordinator `/healthz`的`phases.static.data/static.shared`计数应降到接近0。coordinator原路径保留为fallback，回滚只需换回不带`--runtime-static`的include。
+部署时（需单独授权）：先核对现用vhost没有同URL的`/shared/`、`/sim/`、`/data/`精确或前缀location（否则重复/冲突），确认目标profile与`--topology`，用`--runtime-static`生成并`--verify`，安装到同一`localcode`树，`openresty -t`后正常reload。核验：任一`/data/*.json`与`/shared/*.js`响应带`X-Ark-Code-Source: edge`、`Content-Encoding: gzip`（客户端请求时）、`Cache-Control: private, no-cache`、无ACAO；`/data/local-assets.json`仍为`cluster`；coordinator `/healthz`的`phases.static.data/static.shared`计数应降到接近0。coordinator原路径保留为fallback，回滚只需换回不带`--runtime-static`的include。
 
 ## 可选：前端打包产物（`--resource-manifest`，2026-10-16）
 
@@ -95,7 +95,7 @@ include不能和旧同URL exactalias/prefix一起重复加载。安装前独立�
 
 ## 验证入口与边界
 
-准备器回归应覆盖schema、canonical输入、链接、目录、输出库存及stock安全头表达式。隔离Nginx HTTP检查应覆盖body/SHA/MIME、单值安全头、private-no-store/no-CORS、HEAD/授权304、匿名条件请求仍401、POST405、异源403、未知/缺文件fallback及匿名缺文件不触发取代码。
+准备器回归应覆盖schema、canonical输入、链接、目录、输出库存及stock安全头表达式。隔离Nginx HTTP检查应覆盖body/SHA/MIME、单值安全头、private-no-cache/no-CORS、HEAD/授权304、匿名条件请求仍401、POST405、异源403、未知/缺文件fallback及匿名缺文件不触发取代码。
 
 fixture auth header不是真实密码/CSRF/TLS验收；本地stage及 `--verify` 不证明已安装、激活或完整资源匹配。实际输入摘要和验证结果保存在Git外的私有发布记录，见[记录边界](../releases/README.md)。
 

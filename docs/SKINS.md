@@ -5,7 +5,9 @@
 > and the plugin path below — `room.skins { skins }`, `Match.publicView().players[].skins`, `UnitInfo.skin`, the 皮肤
 > section of `ui/skinPicker.js` — is not wired in. Upstream's helpers stay for the plugin studio and Forge import
 > (`public/js/ui/skins.js`, shared/protocol.js `isSkinSelection` …). 设置「显示其他玩家的皮肤」 was ported onto the
-> catalogue skins (render/app.js `skinOf` reads `UnitInfo.skinId`).
+> catalogue skins (render/app.js `skinOf` reads `UnitInfo.skinId`). Upstream's tests of the plugin path named below
+> (`test/skins.test.js`, `test/lobby-skins.test.js`, `test/ui/skin-picker.test.js`) are not in this fork; the catalogue's
+> are `test/operator-skins-*.test.js`, `test/collab-skins.test.js` and `test/ui/seat-art*.test.js`.
 
 An operator's Spine model and its pictures can be replaced by one of its official alternative outfits (时装). This
 document is the normative reference for that feature; the art itself is **never** downloaded or written by the server —

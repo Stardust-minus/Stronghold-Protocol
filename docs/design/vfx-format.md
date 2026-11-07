@@ -183,12 +183,23 @@ types, the enum constants with their values; method bodies are native code and n
                                                  [--fx-skins <skin-catalogue.js> | off]   the used set's skins (§33.12
                                                                 Skin; default shared/skin-catalogue.js)
                                                  [--fx-skin-bundles <AB root>]   newer bundles for those skins only
+                                                 [--fx-add-only]  only the units / prefabs the current index lacks; the
+                                                                set already there stays
+                                                 [--fx-texture-format webp | png]   textures (§33.8; default webp)
+                                                 [--fx-collab exclude | only]   the collab picks (below; default exclude)
 ```
 
 A run can be staged away from the live folders: `--out <dir>/public/assets/local --manifest
 <dir>/data/local-assets.json` writes the files under `<dir>/public/assets/local/fx/` and the file list next to that
 manifest, `<dir>/data/local-fx.json` (the URLs in it stay `/assets/local/fx/…`: copying both into place promotes the
 set, and `SP_FX_ROOT=<dir> node --test test/local-extract-fx.test.js` checks it where it is).
+
+The collab picks (data/backups.json `diy.excluded`) and the summons only they own are no part of this set: a run leaves
+them out (`--fx-collab exclude`), `--fx-collab only` extracts them alone into a scratch folder, and
+`node tools/collab-assets.mjs --fx <dir>` makes that run the collab pack's — `data/local-fx-collab.json` (this file
+list's format, URLs under `/assets/collab/local/fx/`) and the files the normal set lacks. While a page's collab layer is
+on, `render/vfx/library.js` merges it in add-only: a key both sets have stays the normal set's (docs/ASSETS.md "The
+collab pack").
 
 A plain `extract.py` run (no `--only`) does not run fx. The run reads `data/chess.json`, `data/backups.json`,
 `data/enemies.json` and `data/tokens.json` for the unit list (and the enemies' talent keys), the official
@@ -563,7 +574,9 @@ renderers (its chararts' `Front` / `Back` / `Spine` MeshRenderers) sit on the De
 order 0, so an effect renderer on a lower layer, or on the Default layer with a negative order, is drawn before every
 unit — behind it (野鬃 S2's ring of lances at −3, a bubble's back half at −2; 5,637 of the used set's 34,061 enabled
 renderers) —, a positive order after them, and order 0 by distance with them. The web runtime draws the first kind in
-its pass under the units (`render/vfx/effect.js` `behindUnits`) along with the renderers lying flat on the ground,
+its pass under the units (`render/vfx/effect.js` `behindUnits`) along with the renderers lying flat on the ground — but
+not a flat plane that stands in front of the body (centred more than 0.3 tile up the board from the anchor and pulled
+towards the camera by more than 0.03: 冰冻's ice block `bingkuai`, 泥岩's shield cracks `liewen`; `effect.js coversBody`),
 and — for order 0 — the renderers of an effect authored behind its unit: a root `static_offset` node deeper in the
 board than the anchor (`pos` z > 0; 50 prefabs of the used set — auras, the `*_back` halves, a slash for a unit
 facing up) puts the effect farther from the camera than the unit's tilted body, which lies at its feet's depth, so
@@ -773,7 +786,9 @@ follow the owner / the height of the tile under it.
 (`_effects` started when this one finishes, e.g. `amgoat_skill_03_buff` → `amgoat_skill_03_buff_end`),
 **`OnFinishAnime`** / **`TriggerAnimatorWhenFinish`** (set an Animator trigger at the end), **`PauseAnotherEffect`**
 (`_effect`, `_preDelay`, `_checkUpdate`; 21 prefabs). The runtime starts an OnPlayEmitter's effects with their parent's
-placement and owner (`system.js FxHandle._start`); on a unit a chained effect keeps to its own FollowMountPoint's point,
+placement and owner (`system.js FxHandle._start`) — under a skin through the skin's `replace` too, and a
+PauseAnotherEffect `_effect` matches the default key a swapped-in effect stands for (a skin's prefabs name the default
+keys; FxHandle `swap` / `base`); on a unit a chained effect keeps to its own FollowMountPoint's point,
 else moves with the unit when its parent or its own `_holdByOwner` says so (§32.14.40: before, they all kept their
 parent's placement, and a parent without a FollowMountPoint left them where they started — 能天使 S2's
 `angle_skill_02_buff_02` and 纯烬艾雅法拉 S3's five weapon effects, each on its own Special point in the client, at her
@@ -1495,6 +1510,11 @@ index.json — version 1 and the version 2 fields (§33.12, §33.15; Phase 3c) �
   TARGET, at her skill start; the kit's 'strike' names the target) and 真言 S1 (a 自选 pick: `mantra_skill_01_hit_01`
   / `mantra_bounce_hit_01` on PROJECTILE_TRACETARGET, the shot's target): the extractor should write each action's
   `_targetType` (open).
+  A shot the kit flies itself over the map, at no unit, is a `flight` binding: the projectile's flying effect (`main`)
+  from the fx's (x, y) to (`tx`, `ty`) in `t` battle s, one per `flame`; a binding with `landing` ends the shot of that
+  `flame` and plays its own keys there (`skillfx.js _flyKit`: 塔露拉 S3's 簇火, 丰川祥子's notes, 麒麟R夜刀's and 焰狐龙梓兰's
+  dashes, 冻河's throws, 灰烬's flashbang and breach round). The projectiles such a skill's prefab names nowhere the
+  crawl reads are added to its index `projectiles` (`fx.py SKILL_EXTRA_PROJECTILES`).
 * **`[eff_cond]` state loops** (round 46, history §32.14.42; `skills.js COND_BUFFS`, `condState`, plan `cond`;
   `skillfx.js _cond`): the buffs a skill's `[eff_cond]` template creates at its ON_BUFF_TRIGGER (every 0.1 s) show a
   condition's state, and index.json lists only their keys. For the templates whose client graph COND_BUFFS transcribes

@@ -77,17 +77,36 @@ binding, safe file paths, Spine 3.8 animations, every atlas region, and complete
 Metadata declarations alone are not installed resources. Directory case aliases and camelCase basenames are preserved
 separately; the importer never lowercases or reconstructs a declared file stem.
 
-The local 2026-10-08 candidate covers all **271 official fashions within the current 209-character scope**. Existing
-127 records and all installed CN/JP/EN audio are retained. The added 144 comprise 142 distinct front/rear pairs,
-one front-only model and one explicitly unified battle model (`battleModelKind: 'unified'`), not a fabricated rear file.
-Their 286 skeleton sides were parsed and actually rendered through the current client loader and `SpineActor` in a
-local browser. This does not claim complete original-game effects, summons, animation parity, or deployment.
-New dynamic-illustration declarations still use verified static images until separately prepared; the existing eleven
-dynamic illustrations are preserved.
+`data/assets.json skins` holds **306 outfits of 195 operators** (`stats.skins`); the collab pack adds five
+(`shared/skin-catalogue.js` lists all 311). The six outfits of operators without a Back model have none either
+(`backUnavailable`); 浊心斯卡蒂「红女爵」 is one explicitly unified battle model (`battleModelKind: 'unified'`), not a
+fabricated rear file. Outfit battle pages are premultiplied (`pma: true`) except the two of `STRAIGHT_ALPHA_SKINS`.
+The 2026-10-08 import's 286 new skeleton sides were parsed and rendered through the client loader and `SpineActor` in
+a local browser. This does not claim complete original-game effects, summons, animation parity, or deployment.
+
+**Dynamic illustrations** (动态立绘): 71 outfits carry theirs as `skins[id].dynamic`, a Spine object (11 from PRTS, 60
+unpacked from the local client's `arts/dynchars` with lossless WebP pages; three use JSON skeletons). `frames.avatar` /
+`frames.portrait` are the official avatar and half-body framing in skeleton space; `background` / `foreground` are the
+optional layers behind and over it. Their pages are straight alpha except the 15 of `PREMULTIPLIED_DYNAMIC` (history
+§36.20). Eleven of those are lossy and need `python3 tools/fix-dynamic-edges.py <assets root> <out root> [skin id …]`
+after an import: it writes `<page>.edge.<ext>` and `<stem>.edge.atlas`, which the manifest names; the old files stay
+for older clients.
 
 Display skeleton copies remove only editor image/audio root paths. Their manifest `atlas` path remains authoritative:
 when it differs from the skeleton-derived filename, the client passes `spineAtlasFile` to the Pixi loader instead of
 requesting a nonexistent `.display.atlas`. Original source files and animation data remain unchanged.
+
+## HD static art
+
+Since rel30 the operator looks (精一 `_1`, 精二 `_2`) and the outfits carry their original PRTS 立绘 and, where the
+matcher found it, where the in-game 180×360 portrait sits in it (the fields: "Manifest schema" below). The registry `tools/assets/char-illustrations.json`
+(sha1-checked against the PRTS API) is committed; the pictures are git-ignored like all art.
+`tools/assets/hd-art/README.md` rebuilds pictures and registry; `node tools/prepare-operator-illustrations.mjs --assets
+<dir> [--check]` writes the fields into `data/assets.json` and `data/assets-collab.json`; `tools/fetch-assets.mjs` keeps
+them on a rebuild where the files are on disk with the registry's size (`tools/assets/illustrations.mjs`). A look
+without them keeps its 180×360 portrait. The large views (干员调配, 自选, the settlement plates, 成就统计, the in-match
+detail) draw `portraitHD`; the seat card draws the whole 立绘 of every look, scene included, so it can zoom out (rel31,
+`public/js/ui/assetUrls.js portraitSourceOf`).
 
 ## Browser public-material failover
 
@@ -96,7 +115,10 @@ requesting a nonexistent `.display.atlas`. Original source files and animation d
 its existing release-bound inventory chooses the OpenI object; the browser never constructs provider paths, parses
 redirects/signatures or holds an account token. A frontend-only change cannot force an old entrance to select OpenI.
 
-Each eligible attempt is bounded to 8 seconds. Network/CORS, HTTP errors, stalled bodies and decode/parse failures
+Each attempt has 8 s (`MATERIAL_TIMEOUT_MS`) for a first sign of life, an `<img>` (no progress events) 15 s; a load
+that keeps receiving bytes may go on until 20 s pass without one or 120 s in all. When both sources fail transiently
+(a timeout, a network error, 408/425/429/5xx — never a 404) the pair is tried again after about 2 s and 6 s; a timeout
+also suggests 设置 → 素材下载 once per session. Network/CORS, HTTP errors, stalled bodies and decode/parse failures
 are handled inside the attempt. Caller cancellation never retries; explicit OpenI requests cannot recurse. Missing
 OpenI resources retain the existing glyph/optional-art/silent-audio behavior. DOM images use `ui/materialImage.js`;
 offscreen lazy images do not start their timeout until visible. New URLs and unmounted components cannot inherit
@@ -121,21 +143,23 @@ physical-device compatibility, full-match correctness or deployment. Entrance ch
 ## Running
 
 ```bash
-npm install          # also vendors pixi / pixi-spine / preact / three (tools/vendor.mjs; three.js is fetched by
-                     # browsers only when data/local-assets.json lists the board atlas — the 3D board, DESIGN §15)
+npm install          # also vendors pixi / pixi-spine / preact / htm / three / acorn / ses (tools/vendor.mjs; pixi-spine
+                     # 4.0.6 gets two Spine 3.7 / 3.8 runtime fixes, patchPixiSpine, history §36.18; three.js is fetched
+                     # by browsers only when data/local-assets.json lists the board atlas — the 3D board, DESIGN §15)
 npm run assets       # = node tools/vendor.mjs && node tools/fetch-assets.mjs
 ```
 
 | Option | Effect |
 |---|---|
 | `--concurrency=N` | Parallel downloads (default 16). |
+| `--asset-source=direct\|mirror` | `direct` (default): raw GitHub, then jsDelivr. `mirror` (opt-in) tries the `SP_GITHUB_PROXY` prefix (default `https://gh-proxy.com/`) first. The flag wins over `SP_ASSET_SOURCE`; see [DEPLOY](DEPLOY.md#国内镜像下载). |
 | `--force` | Re-download everything. |
 | `--source-snapshot=PATH` | Verify raw upstream bytes against pinned Git trees; see "Source snapshot verification" below. |
 | `--offline` | No network. Re-runs post-processing (atlas fixes, skeleton parsing, WOFF2) on what is already on disk, then rebuilds `data/assets.json`. |
 | `--dry-run` | Print the plan (file and model counts, alias notes) and exit. |
 | `--refresh-index` | Re-download the upstream indexes: `audio_data.json`, `charword_table.json` (the 干员战斗语音 slots) and `models_data.json`. |
 | `--voice-lang=cn` | Legacy voice tree: `cn` (default), `jp`, `en` or `kr`; the compatible `audio.voiceJp` Japanese tree is also planned. |
-| `--voice-langs=cn,jp,en` | Multi-language plan (comma-separated or repeated flag); includes Chinese for compatibility and emits `audio.voiceByLang`. Installed languages survive rebuild/prune; the UI offers CN/JP/EN and `voiceJp` mirrors canonical JP. |
+| `--voice-langs=cn,jp,en` | Multi-language plan (comma-separated or repeated flag); includes Chinese for compatibility and emits `audio.voiceByLang`. Installed languages survive rebuild/prune; the UI offers CN/JP/EN/KR and `voiceJp` mirrors canonical JP. |
 | `--no-optional-voice` | Skip the English, Korean and own-language trees (`audio.voiceEn`, `audio.voiceKr`, `audio.voiceNative`, `audio.voiceNativeLangType`). A plain run plans them. |
 | `--voice-all` | Plan every official voice slot, including the prep-only lines no battle plays (干员报到 / 编入队伍 / 任命队长 — 360 files, one per operator and slot). Off by default: nothing requests them, so planning them only makes every run download more. |
 | `--prune` | Delete files under `public/assets/` that the manifest no longer references, for example after a mapping change. Without this flag they are only listed in the report. `public/assets/local/` (written by `tools/local-extract`) is never pruned. Implies `--allow-shrink`. |
@@ -238,10 +262,11 @@ How downloads are fetched:
 - Each source gets 3 attempts with exponential backoff.
 - If `raw.githubusercontent.com` fails, the jsDelivr mirror (`cdn.jsdelivr.net/gh/…`) is tried.
 - There is no mirror for the ArknightsAssets2 `voice` branch, because jsDelivr returns 404 for it.
+- With `--asset-source=mirror` the prefix proxy comes first: one attempt with an 8 s limit for the response headers; after 3 consecutive failures it is off for the rest of the run.
 - A manifest entry with fallbacks (for example an enemy icon that falls back to its base enemy's icon) only moves on to the next alternative after a **definitive 404**. When the primary fails transiently (network error, 5xx or an invalid payload after all retries), no fallback is fetched. The path is listed under `downloadErrors` in the report, and the next run retries the primary.
 - A skeleton that fails to parse is deleted and removed from the ledger, so the next online run downloads it again.
 
-The first run downloads about **548 MiB in 10,643 files** (`stats` of `data/assets.json` in 0.2.2: 574,449,900 bytes). The two 干员战斗语音 dubs are 2,674 files each, the twelve slots a battle plays for 191 operators: the Chinese one 65.6 MiB, the Japanese one 85.2 MiB (89,388,041 bytes; adding it took 107 s at about 1 MB/s from raw.githubusercontent.com). A re-run takes about 1 s. The three prep-only slots the official client uses elsewhere (干员报到 / 编入队伍 / 任命队长, 360 more files per dub, 18.4 MiB of them Chinese) are left out unless `--voice-all` is passed.
+The committed manifest's `stats` count **23,970 files, 4,342,825,472 bytes**. About 2.2 GB of that are the imported outfits (`skins/`, "Targeted skin battle preparation") and about 1.2 GB the operators' HD 立绘 ("HD static art"): a run keeps them but never downloads them. The 干员战斗语音 trees hold the twelve slots a battle plays: Chinese and Japanese 2,730 files each for 195 operators (67.3 / 87.4 MiB), English and Korean 2,548 each for 182 (70.7 / 80.4 MiB), the own-language dubs 658 for 47 (19.0 MiB). A re-run takes about 1 s. The three prep-only slots the official client uses elsewhere (干员报到 / 编入队伍 / 任命队长, 360 more files per dub, 18.4 MiB of them Chinese) are left out unless `--voice-all` is passed.
 
 Outputs:
 - `data/assets.json`: the manifest (committed).
@@ -255,23 +280,26 @@ The run exits with code 1 if any pool operator is missing its avatar, its portra
 `--strict` / `SP_ASSETS_STRICT=1` — if any leaf was dropped for having no file on disk.
 
 Upstream indexes are cached under `.cache/`. They are downloaded when missing:
-- `.cache/gamedata/excel/audio_data.json`, from `Kengxxiao/ArknightsGameData` (zh_CN).
+- `.cache/gamedata/excel/audio_data.json` and `charword_table.json` (the operators' voice slots), from `Kengxxiao/ArknightsGameData` (zh_CN).
 - `.cache/ark-models/models_data.json`, from `isHarryh/Ark-Models`.
 
 The research JSONs in `docs/research/` (03, 05, 07) define **which** ids are needed.
 
 ## Multi-language battle voices
 
-The lobby's combined language dialog and the existing title/in-game settings share the same controls. Interface
-language and operator voice language are separate browser-local preferences; they are not room settings. The voice
-selector offers Chinese (`cn`), Japanese (`jp`) and English (`en`). Missing or failed selected-language recordings
+Interface language and operator voice language are separate browser-local preferences, side by side in 设置
+(`public/js/ui/languageSettings.js`); they are not room settings. The voice selector offers Chinese (`cn`), Japanese
+(`jp`), English (`en`) and Korean (`kr`); 干员调配 and the 自选 details can choose per operator, the operator's
+own-language dub (`native`) included (`public/js/voicePrefs.js`). Missing or failed selected-language recordings
 fall back to the Chinese recording of the same battle slot, then silence. BGM, SFX, operator identity and battle timing
 are unchanged. See [VOICE-LANGUAGES.md](VOICE-LANGUAGES.md) for coverage and the targeted importer.
 
-`audio.voice` remains the Chinese compatibility map. Multi-language installs add `audio.voiceByLang` with one map
-per language; `voiceByLang.cn` equals `audio.voice`. The client requests only registered URLs, through the existing
-extensionless `/media/voice/{lang}/{charId}/{cn_nn}` alias. The `cn_` filename prefix is an event number, not a language.
-Rebuilding the general asset manifest retains other installed languages, including their references in the prune set.
+`audio.voice` remains the Chinese map. The client plays `voice`, `voiceJp`, `voiceEn`, `voiceKr` and `voiceNative`
+(`voicePrefs.js VOICE_TREES`). Multi-language installs also keep `audio.voiceByLang` ({ cn, jp, en }), this fork's
+earlier alias of the first three, read only where a tree is missing; `voiceByLang.cn` equals `audio.voice`. The client
+requests only registered URLs, through the existing extensionless `/media/voice/{lang}/{charId}/{cn_nn}` alias. The
+`cn_` filename prefix is an event number, not a language. Rebuilding the general asset manifest retains other installed
+languages, including their references in the prune set.
 
 ## What is downloaded
 
@@ -301,6 +329,9 @@ Rebuilding the general asset manifest retains other installed languages, includi
 | BGM | AA2 `voice` branch `audio/sound_beta_2/music/**` (大厅/休整期 `act1autochess`, 开战 `act13side/m_bat_kazimierz2_{1,2}` — 骑士之日 / 无畏者; the 开战 track follows the round: `_2` 无畏者 rounds 1–7, `_1` 骑士之日 from round 8) | `audio/bgm/{file}.mp3` |
 | 上半期 BGM (a player's pick only, `audio.bgm.firstHalf`, feedback #45) | AA2 `voice` `audio/sound_beta_2/music/act35side` (沙海流金 `m_bat1_act35side`, 城市觉醒 `m_bat2_act35side`: the `bgmEvent` of the 2025-11 levels) and `act1vautochess` (休整) | `audio/bgm/{file}.mp3` |
 | Organisation emblems and official player avatars (feedback #89, #100) | the local client's `spritepack/ui_camp_logo_0.ab` and `spritepack/ui_player_avatar_list_h2_0.ab` (names: `handbook_team_table`, `display_meta_table`) | `ui/campLogo/logo_*.png`, `ui/playerAvatar/avatar_*.png` |
+| Official dynamic player avatars (rel27: the eight `avatar_dyn_01`…`08`; six Spine skeletons, two frame sequences) | the local client's `arts/dynavatars_0.ab` (`tools/local-extract/extract.py --only ui/avatar_dyn`, opt-in; `tools/local-extract/avatars.py`); without them the static avatar picture stays | `local/ui/avatar_dyn/{avatarId}/avatar.json` with its skeleton, atlas and page, or `{avatarId}.webp` (listed in `data/local-assets.json`) |
+| Operator outfits (时装: avatar, portrait, 立绘, battle Spine, 71 dynamic illustrations; "Targeted skin battle preparation") | not fetched by this tool: `tools/prepare-operator-skins.mjs` (PRTS), 60 dynamic illustrations from the local client's `arts/dynchars`; a run keeps every installed outfit whose files are complete (`retainInstalledSkins`) | `skins/{skinId}/{avatar,portrait,illustration,portrait_hd}.png`, `skins/{skinId}/{front,back,dynamic}/…` |
+| HD static 立绘 of every operator look (rel30, "HD static art") | not fetched by this tool: the PRTS 立绘 through `tools/assets/hd-art/`, written into the manifest by `tools/prepare-operator-illustrations.mjs`; a run keeps the fields whose files are on disk | `char/illustration/{charId}_{1,2}.png`, `char/portrait_hd/{charId}_{1,2}.png` |
 | SFX (UI, battle, per unit) | AA2 `voice` `audio/sound_beta_2/**`, mapped from `audio_data.json` banks | `audio/sfx/{same sub-path}.mp3` |
 | 干员战斗语音 | AA2 `voice` `audio/sound_beta_2/voice_cn/{charId}/cn_nn.mp3` (Chinese, `audio.voice`), `voice/{charId}/cn_nn.mp3` (Japanese, `audio.voiceJp`), `voice_en/` (English, `audio.voiceEn`), `voice_kr/` (Korean, `audio.voiceKr`) and `voice_custom/<wordkey lowercase>/` (the operator's own-language dub, `audio.voiceNative`: charword `voiceLangDict` entries whose `voiceLangTypeDict` `groupType` is `CUSTOM` — Italian, Russian, Spanish, Chinese dialect, German, French; the first such dub when there are several). Same file names. `--voice-lang=jp|en|kr` fills `audio.voice` from `voice/`, `voice_en/`, `voice_kr/` instead. `--no-optional-voice` skips the three extra trees. | `audio/voice/cn/{charId}/{cn_nn}.mp3`, `audio/voice/jp/…`, `audio/voice/en/…`, `audio/voice/kr/…`, `audio/voice/native/<wordkey>/{cn_nn}.mp3` |
 | Fonts: Bender Regular and Light, Novecento Wide | TimWangZi/The-font-of-Arknights | `public/fonts/*.{otf,ttf,woff2}`, `public/fonts/fonts.css` |
@@ -433,7 +464,7 @@ one-facing models, the `enemy_9016_acstmr` icon and escaped-stage shared boards)
 as newly missing assets. Full illustrations and alternate outfits remain optional cosmetic-plugin art for every
 version; base/E2 avatars and half-body portraits are mandatory where the data selects them.
 
-- **Operators:** the pool, hidden chess, backups and DIY picks of all installed official versions, keyed by charId (`tools/assets/versions.mjs`). The current union has 229 operators (210 in today’s data and 19 earlier-only), all with Front models and 225 with Back models. Three bards and 安洁莉娜 use one facing. The plan supplies base/E2 avatars and half-body portraits, default battle Spine, every skill icon and skill sound, and sub-profession icons. Extra identities use the established `patternOperator` URL patterns.
+- **Operators:** the pool, hidden chess, backups and DIY picks of all installed official versions, keyed by charId (`tools/assets/versions.mjs`). The current union has 232 operators (213 in today’s data and 19 earlier-only), all with Front models and 228 with Back models. Three bards and 安洁莉娜 use one facing. The plan supplies base/E2 avatars and half-body portraits, default battle Spine, every skill icon and skill sound, and sub-profession icons. Extra identities use the established `patternOperator` URL patterns.
 - **Tokens:** the union of each version’s `tokens.json` and backup/DIY summons. The manifest has 58 `token_*` entries; char/enemy-backed summons resolve through those identity tables. Pictures and available default models come from the normal plan, supplemented by the official local-client overlay ("Token models from the local client"). Five effect/marker tokens have no separate Spine and keep that documented presentation.
 - **Enemies:** 258 manifest identities: the existing 252 plus six earlier-only enemies. 心烛 remains without an entry. The set is the union of:
   - the 07 enemy list;
@@ -445,7 +476,7 @@ version; base/E2 avatars and half-body portraits are mandatory where the data se
   - enemy units spawned by operator kits (research 03 skills/talents). For example, 隐德来希's default S3 summons 心烛 `enemy_5601_entlec` through the talent key `take_extra_enemy_key`. 心烛 has no icon and no Spine in any dump, so it has no manifest entry: it is reported as a miss, and the client must draw a glyph.
 - **Extra tokens:** any `token_*` key of an installed version’s `tokens.json` that research does not list gets the default avatar and Spine locations.
   - The non-token summons in that file (`enemy_9012_acloon` 炎佑, `char_605_cmedic`, `char_613_acmedc`) are found under `enemies` and `chars`.
-- **Skill icons:** every skill index of every planned operator (the default one first; DESIGN §16 loadouts, the 自选 picks' three skills): 557 icons across the four versions.
+- **Skill icons:** every skill index of every planned operator (the default one first; DESIGN §16 loadouts, the 自选 picks' three skills): 566 icons across the four versions.
 - **UI:**
   - every group from `07-assets.json → autochessUi`: rarity, elite and chess-level sprites, the shop panel and cards, HUD, bond board, equip slot, round dialog, band choose, settlement, prepare backdrop;
   - `arts` (rarity stars, elite icons, the camp logos of pool nations, the loading illustrations used by the act2 modes, battle common sprites, act2 entry backdrops and season logo, item rarity frames);
@@ -501,15 +532,16 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   generator: 'tools/fetch-assets.mjs',
   stats: { files, bytes, chars, charsWithBack, enemies, enemiesWithSpine, tokens, tokensWithSpine,
            spineModels, bonds, items, bands, skills, modules, ui, sfxUnits, voiceChars, voiceJpChars,
-           voiceEnChars, voiceKrChars, voiceNativeChars },
-           // voiceEnChars / voiceKrChars / voiceNativeChars count the extra dubs; 0 until those trees are fetched
+           voiceEnChars, voiceKrChars, voiceNativeChars, skins? },
+           // voiceEnChars / voiceKrChars / voiceNativeChars count the extra dubs; 0 until those trees are fetched;
+           // skins: the installed outfits (top-level `skins` below)
   chars:   { [charId]: { avatar, avatarE2?, portrait, portraitE2?, illust?, spine: { front: Spine, back?: Spine },
                          skins?: { [skinId]: { name, group?, avatar?, avatarE2?, portrait?, portraitE2?, illust?,
                                                spine?: { front: Spine, back?: Spine } } } } },
                          // illust: the full illustration (立绘) a detail view shows; skins: one record per appearance,
                          // keyed by the installation's own skin id (char_4058_pepe@sightseer#2; a cosmetic plugin writes
-                         // the same map, docs/PLUGINS.md §9). Neither is emitted today: the committed manifest has no
-                         // such picture and no per-skin art, so a plugin's write and not a build fills them
+                         // the same map, docs/PLUGINS.md §9). A build emits neither: the official outfits are the
+                         // top-level `skins` below and the 立绘 is `illustration`; only a plugin's write fills them
                          // HD static art (rel30, tools/assets/hd-art/README.md): illustration / illustrationE2 (the PRTS
                          // 立绘), illustrationSize(E2) [W, H], portraitBox(E2) [x, y, w, h] fractions (the in-game portrait's
                          // area, 1:2), portraitHD(E2) (that area at native resolution), portraitHDSize(E2) and portraitScene(E2) — portraitHD only
@@ -602,7 +634,13 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   // swing p_atk_silver_n, community report of 2026-10-06); one that numbers its default mode takes those banks (`attack.0`,
   // `attack.0.1` …, START before ON) before any other number, so a shallower skill bank never wins (弑君者's S3 `attack.3`
   // smoke impact was her normal one until 0.3.2, DESIGN §35.38); enemies and tokens take the first attack-like bank
-  fonts: { css: '/fonts/fonts.css', faces: { [name]: { family, weight, woff2?, original } } }
+  fonts: { css: '/fonts/fonts.css', faces: { [name]: { family, weight, woff2?, original } } },
+  skins: { [skinId]: { charId, name, brand, avatar, portrait, illustration, illustrationSize?, portraitBox?, portraitHD?,
+                       portraitHDSize?, portraitScene?, spine: { front: Spine, back?: Spine }, backUnavailable?: true,
+                       battleModelKind?: 'unified', dynamicDeclared: boolean,
+                       dynamic?: Spine & { frames: { avatar, portrait }, background?, foreground? } } }
+           // the official outfits ("Targeted skin battle preparation"), keyed by their shared/skin-catalogue.js id:
+           // written by tools/prepare-operator-skins.mjs, kept by fetch-assets while their files are complete
 }
 ```
 
@@ -619,8 +657,9 @@ remake anti-spam rules are specified in [design/client.md](design/client.md#skil
 ```js
 {
   skel, atlas, textures: [url],       // load with PIXI.Assets.load(skel); atlas/png sit next to it
-  pma: boolean,                       // true only for the fetched Ark-Models enemies; false for the extracted models,
-                                      // whose straight pages carry no `pma` field
+  pma: boolean,                       // true for the fetched Ark-Models enemies, the outfits' battle models (all but
+                                      // two) and 15 dynamic illustrations; false for the other models and the
+                                      // extracted ones, whose straight pages carry no `pma` field
   anims: Roles,                       // resolved roles, below
   animations: { [name]: seconds },    // every animation with its duration
   events: [name],                     // e.g. ['OnAttack', 'OnStart']
@@ -896,9 +935,10 @@ warning (docs/EXPERIMENTAL-MULTIPLAYER.md), so they never ship with the normal p
   manifests name is always copied). `tools/fetch-assets.mjs` plans the normal pack without the collab operators
   (`presentationUnion(…, { collab: false })`); the coverage audit (`tools/assets/coverage.mjs`) reads the normal manifest
   with the pack laid over it.
-- **Release**: the normal material profile is built from `public/assets/` without `collab/`; the collab pack is
-  `public/assets/collab/` alone, published and checked as its own profile (deploy/stardust/MATERIAL-SOURCES.md
-  "联动素材包"), and `data/assets-collab.json` ships with the data.
+- **Release**: the normal material profile is built from `public/assets/` without `collab/`. The collab pack is never
+  uploaded to ModelScope or OpenI and has no material profile: `/assets/collab/` is served only from the entry host's
+  local directory, checked with `node tools/collab-assets.mjs --check` (deploy/stardust/MATERIAL-SOURCES.md "联动素材包"),
+  and `data/assets-collab.json` ships with the data.
 - **Summons**: 艾拉's 雷鸣地雷 (`token_10033_ela_grzmot`, a device on its tile) has the local client's model, which no dump
   carries: exported like the TOKEN_SPINES (`extract.py export_token_spines`, metadata by `tools/assets/spine.mjs
   localSpineMeta`) into a scratch folder and given to the pack as a plain `tokens[id].spine` (its own
@@ -924,24 +964,33 @@ warning (docs/EXPERIMENTAL-MULTIPLAYER.md), so they never ship with the normal p
 
 ## Player-initiated predownload
 
-The title screen's **下载完整素材** button (`public/js/ui/assetDownload.js`, queue in
-`public/js/assetDownload.js`) downloads every unique art/font URL in the server's current `assets.json` and optional
-`local-assets.json`, including Spine skeletons, atlases, pages, scene files, and audio. Audio uses the same `/media/`
-URLs as playback. Four concurrent requests consume complete response bodies without decoding them or retaining
-all files in memory. This warms the existing browser HTTP cache and works over HTTP as well as HTTPS; it does not
-require a service worker. Freshness and eviction remain under the browser's control, so completion is not persisted
-as a permanent/offline guarantee. A later check reads current manifests and uses ordinary HTTP cache validation.
+设置 → **素材下载** (`public/js/ui/assetSection.js`, queue in `public/js/assetDownload.js`; this fork has no title
+screen, so upstream's 下载完整素材 button `public/js/ui/assetDownload.js` is not mounted) downloads the unique art/font
+URLs in the server's current `assets.json` and optional `local-assets.json` / `local-fx.json`, including Spine
+skeletons, atlases, pages, scene files, and audio — models and images first. Two tiers (`selectAssetTier`):
+**对局素材** leaves out the outfits (`/assets/skins/`, each fetched when worn) and the dubs this player does not hear
+(the Chinese lines, the selected dub and, with 本土语言 on, the own-language lines stay); **全部素材** takes everything.
+The sizes shown (`ASSET_TIER_GB`: about 0.8 / 2.6 GB) are the 0.3.0 material set's. Audio uses the same `/media/`
+URLs as playback. Four concurrent requests consume complete response bodies without decoding them or retaining all
+files in memory. The queue goes on while the settings are closed, pauses itself when a match starts and goes on in the
+lobby or a room.
 
-The dialog shows successful file count, progress, and bytes read (including cache hits). Closing it or leaving the
-title screen pauses and aborts pending requests. Resume keeps completed files for this page; retry requests only
-unfinished files. Network errors/timeouts/5xx/408/429 receive at most two retries; a 404, HTML fallback, empty body,
-or partial response is never counted as successful. A missing optional local manifest is disclosed, while a failed
-base manifest or any listed missing file prevents successful completion. Server owners still install missing art
-with setup; this button only transfers files already supplied by the server.
+Where the page's service worker runs with the material profile ("Fork runtime art cache" below), the files are kept by
+path in Cache Storage and later loads come from the browser; otherwise the section warns that they may not be kept,
+and the download only warms the browser HTTP cache. Freshness and eviction remain under the browser's control, so
+completion is not persisted as a permanent/offline guarantee; 重新检查 reads the current manifests again with
+ordinary HTTP cache validation.
+
+The section shows the file count, progress, bytes read (including cache hits) and a warning when the browser's free
+space looks too small for the tier. Pausing keeps completed files for this page; retry requests only unfinished files.
+Network errors/timeouts (60 s)/5xx/408/429 receive at most two retries; a 404, HTML fallback, empty body, or partial
+response is never counted as successful. A missing optional local manifest is skipped, while a failed base manifest or
+any listed missing file prevents successful completion. Server owners still install missing art with setup; this only
+transfers files already supplied by the server.
 
 ## Importing a local asset pack
 
-The title screen's **导入素材包** button (`public/js/ui/assetImport.js`), beside 下载完整素材, opens its own dialog. Opening it requests nothing from the server and never starts the download queue; the manifests are read once an import starts. It imports art the player already has: the example asset pack `node tools/package.mjs --assets` writes (one folder holding `public/assets/…`, `public/fonts/…` and a `README.txt`; the maintainer offers it for download outside the GitHub release), a setup `public/assets` folder, or a published full zip whose paths contain `public/assets/`. The page reads a zip's central directory in the browser, and a picked or dropped zip File slice by slice, so a whole pack (some 700 MB) is never held in memory at once. Method 0 (stored) is copied. Method 8 is inflated with `DecompressionStream('deflate-raw')`. Any other method, and an encrypted entry, is counted and skipped. Nothing is uploaded.
+This fork does not offer it: upstream's title-screen **导入素材包** button (`public/js/ui/assetImport.js`) is not mounted, because imported art answers only the content-hashed asset URLs (a server with `SP_ASSET_INDEX=0` serves plain ones). The import code (`public/js/assetPack.js`, `public/sw.js`) and 设置 → 素材存储 → 清理旧版本素材 remain and work as follows. Opening the dialog requests nothing from the server and never starts the download queue; the manifests are read once an import starts. It imports art the player already has: the example asset pack `node tools/package.mjs --assets` writes (one folder holding `public/assets/…`, `public/fonts/…` and a `README.txt`; the maintainer offers it for download outside the GitHub release), a setup `public/assets` folder, or a published full zip whose paths contain `public/assets/`. The page reads a zip's central directory in the browser, and a picked or dropped zip File slice by slice, so a whole pack (some 700 MB) is never held in memory at once. Method 0 (stored) is copied. Method 8 is inflated with `DecompressionStream('deflate-raw')`. Any other method, and an encrypted entry, is counted and skipped. Nothing is uploaded.
 
 Verification uses the served manifests (`GET /data/assets.json`, and `GET /data/local-assets.json` and `GET /data/local-fx.json` when the server has them). A hashed URL maps back to a plain `assets/…` or `fonts/…` path. A file is stored only when the first 16 hex digits of its SHA-256 equal the hash in that URL. A Spine model is accepted only as a whole group, with the same model hash the server uses: SHA-256 of the members' file hashes joined by newlines (skeleton, atlas, then pages — the default `<skel>.png` when the manifest lists no textures). A mismatch, or a file the manifest does not list, is not stored. A path with no hash segment cannot be checked, so it is not imported; the download queue can still fetch it.
 

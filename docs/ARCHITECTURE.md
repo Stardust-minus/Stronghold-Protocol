@@ -17,7 +17,7 @@ AI strategy selection is documented in [BOT_STRATEGIES](BOT_STRATEGIES.md): `bot
 the five hooks, `botStrategies.js` registers legacy/external/ioleta/adaptive/ioleta-adaptive, and `botIoletaPolicy.js` holds opt-in procurement heuristics.
 
 ```
- browser (public/)                               one Node process (server/index.js, Node ≥ 22)
+ browser (public/)                               one Node process (server/index.js, Node 24)
  ┌──────────────────────────────────────┐        ┌─────────────────────────────────────────────────────┐
  │ screens/, ui/   Preact + htm         │─ HTTP ▶│ server/http/  static files: / /data/ /shared/       │
  │ render/         PixiJS, pixi-spine,  │        │               /sim/ /media/, GET /healthz           │
@@ -31,8 +31,13 @@ the five hooks, `botStrategies.js` registers legacy/external/ioleta/adaptive/iol
 - **The server** is one Node process: plain `node:http` plus `ws`, no framework (`server/index.js` wires
   `server/http/`). It serves the static client, the generated data and the sim's source files, and runs every room and
   match in memory — rounds, shop, economy, bots, validation. Plugin authoring writes folders and locks to disk; the studio key persists too. Gameplay content sets use separate match children (§3).
-- **The browser** loads native ES modules with no bundler and no build step; the libraries are vendored into
-  `public/vendor/` by `tools/vendor.mjs` on `npm install`.
+  Two opt-in layers keep that model: with `SP_REDIS_URL` the lobby and its matches are checkpointed to a Valkey store
+  and resume after a restart (`server/persist/`, DEPLOY.md §13), and `server/cluster/` splits the server into a
+  coordinator (the global lobby), game nodes (each holds whole matches) and ingresses (`deploy/stardust/CLUSTER-SOP.md`).
+- **The browser** loads native ES modules with no build step by default; with `SP_CLIENT=build` the server serves the
+  Vite bundle of the UI layer instead (`/js` and `/css` built into public/build/ by `npm run build`, `vite.config.js`), while `/sim/`,
+  `/shared/` and `/data/` stay native modules and files either way. The libraries are vendored into `public/vendor/` by
+  `tools/vendor.mjs` on `npm install`.
 - **The battle simulation** (`server/sim/`) is pure ESM without any Node API, served read-only at `/sim/`. Both sides
   run it from the same JSON battle description (`server/sim/spec.js`, the BattleSpec): each player's browser simulates
   its own battle (`public/js/battle/runner.js`) and reports progress and the result; the server checks the result
@@ -57,14 +62,15 @@ Every frame is JSON text, `{ t, rid?, …fields }`.
 
 | direction | messages | handled in |
 |---|---|---|
-| client → server | `hello` (name, reconnect token) → `welcome`; `ping` → `pong` | `server/net.js` |
-| | `room.*`: create, join, ready, difficulty, AI seats, kick, start, the 干员调配 loadout, 干员持有 ownership, 自选编队 picks, spectating | `server/lobby.js` |
+| client → server | `hello` (name, reconnect token) → `welcome`; `ping` → `pong`; `state.resync` (the state-delta baselines) | `server/net.js`, `server/stateTransport.js` |
+| | `room.*`: create, join, ready, difficulty, AI seats, kick, start, the 干员调配 loadout, 干员持有 ownership, 自选编队 picks, spectating, the room settings, likes | `server/lobby.js` |
+| | `queue.*`: the public matchmaking queue (join, accept, cancel) | `server/lobby.js` → `server/matchmaking.js` |
 | | `g.*`: match intents — buy, refresh, freeze, level up, sell, move, equip, Arts, rewards, 机变 choices, ready, emotes, watching, pause … | `server/match/match/intents.js` → `server/match/player/` |
 | | `b.progress`, `b.result`: the battle reports of the authoritative browser | `server/match/match/reports.js` |
 | | `b.rehearsalResult`: the host's choice of AI layout (only with `SP_BOT_REHEARSAL=host`) | `server/match/match/rehearsal.js` |
-| server → client | `room.state`, `room.closed` | `server/lobby.js` |
-| | `m.public` (what every player sees), `m.private` (one player's shop, hand, funds …), `m.field`, `m.toast`, `m.ticker`, `m.emote`, `m.unitStats`, `m.result` | `server/match/match/views.js`, `server/match/player/views.js` |
-| | `b.start` (a BattleSpec), `b.pool` (the shared leader HP), `b.end`; `b.snap` / `b.ev` only in the server-run mode | `server/match/match/clientCombat.js` |
+| server → client | `room.state`, `room.closed`, `room.likes`; `presence.state`, `queue.state` | `server/lobby.js`, `server/matchmaking.js` |
+| | `m.public` (what every player sees), `m.private` (one player's shop, hand, funds …), `m.field`, `m.toast`, `m.ticker`, `m.emote`, `m.unitStats`, `m.result`; `m.state` carries `m.public` / `m.private` as deltas to a socket whose `hello` asked for them | `server/match/match/views.js`, `server/match/player/views.js`, `server/stateTransport.js` |
+| | `b.start` (a BattleSpec), `b.pool` (the shared leader HP), `b.end`; `b.snap` / `b.ev` only in the server-run mode, `b.sync` / `b.ext` for its local display replicas | `server/match/match/clientCombat.js`, `server/match/combat/runner.js` |
 | | `b.rehearsal`, `b.rehearsalCancel`: ask the host to test AI layouts or stop that task | `server/match/match/rehearsal.js` |
 
 - A request that carries `rid` is answered with `ok` or `error` echoing it. `server/net.js` rate-limits each socket,
@@ -83,7 +89,7 @@ methods in a folder, installed on the prototype in a fixed order (a method name 
 `server/sim/Battle.js` with `server/sim/battle/`, `server/match/Match.js` with `server/match/match/`, and
 `server/match/PlayerState.js` with `server/match/player/`. Two client modules became barrels that re-export a folder,
 so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogic/`) and `public/js/render/fx.js`
-(`public/js/render/fx/`). DESIGN §2 lists every file.
+(`public/js/render/fx/`). DESIGN §2 sketches the layout; the tables below map it.
 
 ### Server and shared code
 
@@ -102,24 +108,27 @@ so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogi
 | `server/studio/` (gameplay authoring) | `gameData.js` reads official data and bundled template files; `authoring.js` validates/revises wizard drafts; `dslExamples.js` supplies examples; `trialOptions.js` lists scenarios; `trialScenario.js` builds BattleSpecs; `trial.js` owns jobs; `trialChild.js` builds content sets; `trialRunner.js` simulates in a disposable child; `trialDraft.js` confines draft writes and cleanup |
 | `server/studio/console.js`, `shared/studio/scenario.js` | standalone test console: keyed validation and match-equivalent BattleSpec building; versioned bounded scenario JSON shared with the browser; no rooms or server battle jobs |
 | `server/match/host/` | where a room with gameplay plugins plays (P1c, DESIGN §32.6): `index.js` one child process — or worker thread, `SP_MATCH_HOST=worker` — per content set, the watchdog and the limits; `childHost.js` adds permission-limited JSON-IPC children for sandbox scripts; `entry.js` inside it checks the set's bytes against `cs`, installs the data and only then imports `Match.js`; `ipc.js` validates and bounds child messages in the parent; `proxy.js` is the lobby's `room.match` for such a match (Promise answers, the room's messages in order) |
+| `server/cluster/` | the opt-in cluster (`start.mjs`; `deploy/stardust/CLUSTER-SOP.md`): `coordinator.js` with `lobby.js` (the global lobby and membership), `directory.js` (room assignments) and `platform.js` (one node per whole match); `game-node.js`, `game-host.js`, `game-runtime.js` (a node's matches, Workers and version hosts; `watchdog.js` logs the stack of a node whose main thread stalls and kills it, so it restarts); `ingress.js` and `link*.js` (the browsers' sockets, relayed); `rpc.js`, `tickets.js`, `receipts.js` |
+| `server/persist/` | the optional checkpoints (`SP_REDIS_URL`, DEPLOY.md §13): `persister.js` saves and restores the lobby (`lobbyState.js`) and the matches, `node.js` a game node's, `store.js` / `valkey.js` the store |
+| `server/` (the rest) | `stateTransport.js` (the state-delta transport, `shared/stateDelta.js`), `wsCompression.js` (`SP_WS_COMPRESSION`), `matchmaking.js` (the public queue), `aiTakeover.js` (a spectator takes over an AI seat), `onlineLimit.js` (online / room caps and the maintenance switch, re-read from a file), `ownerFile.js` (the 服主 mark), `testMode.js`, `healthMetrics.js` / `phaseMetrics.js` and `server/health/` (`/healthz` performance, the event-loop log) |
 | `server/packs.js` | the content-pack API of 0.2.0 (PACKS.md), a compatibility export of `server/plugins/registry.js` |
 | `server/update.js` | the update package on the player's machine (DEPLOY.md §1.5): before the server starts, an extracted `UPDATE.json` is finished — the install verified against `MANIFEST.json`, the files the new version dropped deleted, or the start refused when the install is another version; doctor's `MANIFEST.json` check |
 | `server/ai/transport.js` | Operator-enabled external AI HTTP(S) / stdio IO; match policy and seat observations live in `server/match/externalAI.js` ([API](EXTERNAL_AI.md)). Development-only; omitted from release packages (§35.66) |
 | `server/match/Match.js` | one match: the phase machine, timers, the round loop, co-op, the views; its methods are in `server/match/match/` (`phases.js`, `prep.js`, `combat.js`, `clientCombat.js`, `rehearsal.js`, `reports.js`, `unitePhase.js`, `bossRounds.js`, `settle.js`, `views.js`, `intents.js` …) |
 | `server/match/PlayerState.js` | one player's shop, hand, board, items, bonds and LP, and every prep intent; its methods are in `server/match/player/` (`economy.js`, `acquire.js`, `placement.js`, `items.js`, `pieces.js`, `prep.js`, `round.js`, `diy.js`, `views.js` …) |
 | `server/match/` (the rest) | `pool.js` (the shared chess pool), `board.js` (placement), `bondsMeta.js`, `effectsMeta.js` and `builtinMeta.js` (prep-phase effects), `layerForecast.js` (预计叠层: the own prep-end layer gains, a recording preview), `choices.js` (机变), `waves.js`, `unite.js` (联防), `finalAssault.js`, `results.js`, `bot.js` (AI players and AI 托管), `fields.js` (the battles of a combat phase), `scheduler.js`, `gamedata.js` |
-
+| `server/match/combat/` | the fixed combat Worker pool (`SP_COMBAT_WORKERS`, default 0 = off; `deploy/stardust/WORKERS.md`): a server-run combat phase runs whole in one Worker (`pool.js`, `worker.js`, `engine.js`), `runner.js` is its main-thread adapter (views, results, the local-replica frames); `trial.js` / `rehearsal.js` the bots' rehearsals there |
 | `server/sim/Battle.js` | one battle field; its methods are in `server/sim/battle/` (`lifecycle.js`, `spawns.js`, `deploy.js`, `blocking.js`, `combat.js`, `status.js`, `summons.js`, `displacement.js`, `events.js` …) |
 | `server/sim/` (the rest) | `skills.js`, `ai.js`, `attack.js` (the explicit settlement API), `attack/` (hit, ordered injury effects, transfers, health, element, heal and helpers), `buffs.js`, `targeting.js`, `grid.js` (pathing), `units.js`, `professions.js`, `snapshot.js`, `spec.js` (the BattleSpec), `rehearsal.js` (tests AI layouts and picks the best, shared with the browser), `simdata.js` (data records → engine defs), `nodeData.js` (the Node-only data loader, never served) |
 | `server/sim/content/` | everything game-specific, installed into a battle by `server/sim/content/index.js` |
-| `server/sim/content/kits/` | the operator kits: `ops/` holds one file per chess (`<chessId>-<codename>.js`, 129), per 补位 stand-in (`standin-<codename>.js`, 9) and per 自选 operator (`op-<codename>.js`, 72); `shared/` the helpers several kits use; `index.js` the registry; `README.md` the guide |
+| `server/sim/content/kits/` | the operator kits: `ops/` holds one file per chess (`<chessId>-<codename>.js`, 129), per 补位 stand-in (`standin-<codename>.js`, 9), per 自选 operator (`op-<codename>.js`, 82) and per 第一期 shop operator without a tier kit (`ver-<codename>.js`, 19; `ver-diy.js` the borrowed 自选 kits); `shared/` the helpers several kits use; `index.js` the registry; `README.md` the guide |
 | `server/sim/content/enemies/` | the enemy kits by special type (`invisible.js`, `times.js`, `element.js`, `dot.js`, `reflection.js`, `fly.js`, `special.js`) and `leaders.js`; `server/sim/content/enemies.js` dispatches them, `server/sim/content/bosses.js` scripts the leaders |
 | `server/sim/content/garrisons/`, `items/`, `bands/` | 特质, equipment and strategies: `battle.js` is the battle side, `meta.js` the prep side (`registerMeta`, META §2) |
 | `server/sim/content/bonds/` | the 23 bonds: `core.js` the 8 core bonds (both sides), `server/sim/content/bonds/addon/` the 15 add-on bonds (`battle.js`, `meta.js`) |
 | `server/sim/content/` (the rest) | `tokens.js` (summons), `devices.js` (terrain and stage devices), `generic.js` (the kit built from a skill's data when a chess has none), `choices.js` (机变 cards in battle), `traitMods.js` (the module trait line the engine applies to every operator: 「攻击范围内存在N名及以上敌人时攻击速度+X」) |
 | `server/sim/content/dsl/`, `server/sim/content/extensions.js`, `server/match/dslMeta.js` | the declarative compiler/validator/vocabulary/bounds; script registration and budgets; prep DSL hooks (PLUGINS.md §12–§13) |
 | `shared/plugins/` (data and author APIs) | `patch.js`, `records.js`, `recordsSchema.js`, `skillSpec.js`, `validate.js`, `dataUtils.js` compose and check data; `limits.js`, `officialBounds.js`, `steps.js`, `textNumber.js`, `textPatterns.js` share work bounds; `scriptCheck.js` checks portable entry syntax; `ui.js` the read-only frame protocol; `catalog.js` validates catalogue entries; `surface.js` anchors the generated API table |
-| `shared/` | imported by the server and the browser: `protocol.js`, `constants.js`, `i18n.js`, `i18nData.js` and `i18nPacks.js` (languages), `packs.js` (the language-pack index), `shared/plugins/` (`sandbox.js` the per-plugin SES loader and verified descriptor adapter; `scriptLoad.js` shared verification and native source routes; `sdk.js` the common registration facade; `manifest.js` the plugin manifest, `identity.js` the content hash, `visual.js` a cosmetic plugin's asset overlay and the visual hash, `order.js` a set's load order, `errors.js` the error catalogue: every `PLUGIN_*` code in plain words), `sha256.js` (SHA-256 in plain JavaScript), `standIn.js` (补位), `diy.js` (自选编队), `highGround.js`, `loadoutRecord.js` |
+| `shared/` | imported by the server and the browser: `protocol.js`, `constants.js`, `stateDelta.js`, `versions.js` (the official versions), `experimental.js` and `poolPlan.js` (a room's experimental rules, its card pools), `i18n.js`, `i18nData.js` and `i18nPacks.js` (languages), `packs.js` (the language-pack index), `shared/plugins/` (`sandbox.js` the per-plugin SES loader and verified descriptor adapter; `scriptLoad.js` shared verification and native source routes; `sdk.js` the common registration facade; `manifest.js` the plugin manifest, `identity.js` the content hash, `visual.js` a cosmetic plugin's asset overlay and the visual hash, `order.js` a set's load order, `errors.js` the error catalogue: every `PLUGIN_*` code in plain words), `sha256.js` (SHA-256 in plain JavaScript), `standIn.js` (补位), `diy.js` (自选编队), `highGround.js`, `loadoutRecord.js` |
 
 ### Client (`public/`)
 
@@ -130,8 +139,8 @@ so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogi
 | `public/js/screens/sweep.js` | the lobby's S.W.E.E.P. report: bonds, strategies, leaders and the enemy codex; waits for both its files and the selected version's checked content set, with retry after a version check fails (§35.112); `css/screens/sweep.css` keeps content and Modal veils visible independently of animation playback (§35.113) |
 | `public/js/content.js` | the room's cosmetic plugins and the player's own (PLUGINS.md §9): fetched, checked against `room.state.content.vs` and laid over the art manifest (`public/js/cosmetics.js` cosmetic layers — small; `shared/plugins/visual.js` loads with the first set —, data.js's view of `assets`); the plugin catalogue; the room's 插件 tag is `public/js/ui/pluginTag.js`, its panel `public/js/ui/pluginPanel.js` (loaded when it opens) |
 | `public/js/battle/` | `runner.js` (the local battle clock and reports), `simHost.js` (C4: vanilla InPageSimHost, every gameplay set WorkerSimHost), `simWorker.js` / `simWorkerRuntime.js` (pure Worker engine, no JSON fetch), `simLoader.js` (shared data loader), `rehearsal.js` / `rehearsalWorker.js` (same-origin module Worker: test AI layouts when `SP_BOT_REHEARSAL=host`), `observe.js` (who may watch which field) |
-| `public/js/screens/` | `lobby.js`, `room.js`, `loadout.js` (干员调配), `cultivation.js` (its 潜能 / 练度 controls), `ownership.js` (干员持有), `diy.js` (自选编队), `briefing.js`, `bandDraft.js`, `game.js` with `public/js/screens/game/`, `result.js` |
-| `public/js/ui/` | the HUD components (`hud.js`, `shopBar.js`, `detailPanel.js`, `bondStrip.js`, `teamPanel.js` …); `public/js/ui/gameLogic/` the pure in-match logic, unit-tested in Node |
+| `public/js/screens/` | `lobby.js`, `room.js`, `loadout.js` (干员调配), `cultivation.js` (its 潜能 / 练度 controls), `ownership.js` (干员持有), `diy.js` (自选编队), `briefing.js`, `bandDraft.js`, `game.js` with `public/js/screens/game/`, `result.js`, `settle.js` (the settlement pages), `stats.js` (统计数据) |
+| `public/js/ui/` | the HUD components (`hud.js`, `shopBar.js`, `detailPanel.js`, `bondStrip.js`, `teamPanel.js` …), the room's dialogs (`roomSettings.js`, `roomList.js`, `matchOffer.js` 确认入场), `prediction.js` (the client-side prediction of prep intents, `public/js/ui/gameLogic/predict.js`), `dynamicStage.js` (one WebGL context for every 动态立绘); `public/js/ui/gameLogic/` the pure in-match logic, unit-tested in Node |
 | `public/js/render/` | the field view: `app.js` with `public/js/render/app/`, `units.js` and `spine.js` (models), `tiles.js`, `projection.js`, `interp.js`, `pick.js`, `drag.js`, `public/js/render/fx/` (effects; `kinds.js` maps the fx kinds), `public/js/render/vfx/` (the official battle effects from the local client: a Unity ParticleSystem interpreter, GLSL shader ports, the WebGL2 pass, the event wiring and the skills' plans and their runtime, `skills.js` / `skillfx.js`, the 驭械术士's floating units, `funnels.js` / `funnelfx.js`; DESIGN §9), `public/js/render/board3d/` (the official 3D board) |
 | `public/css/`, `public/i18n/<code>.json` | the styles; the UI strings of each language pack (English ships) |
 | `public/studio/` | the plugin studio's page (`/studio/`, local network only): `index.html`, `studio.css`; `public/studio/js/main.js` the shell, `api.js` keyed requests, `create.js` / `picker.js` creation, `slots.js` / `info.js` / `issues.js` editing and findings, `labels.js` display names |
@@ -143,11 +152,11 @@ so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogi
 
 | path | what |
 |---|---|
-| `data/*.json` | generated by `tools/build-data.mjs` and committed — never edited by hand (DATA.md); `data/backups.json` holds the 补位 and 自选 data, `data/i18n/<code>.json` the game texts of a language pack (English), `data/assets.json` the art manifest |
+| `data/*.json` | generated by `tools/build-data.mjs` and committed — never edited by hand (DATA.md), but for the two kept by hand (`data/tuning.json`, `data/announcements.json`); a few come from other tools (`data/assets.json`, `data/assets-collab.json`, `data/emotes.json`); `data/backups.json` holds the 补位 and 自选 data, `data/i18n/<code>.json` the game texts of a language pack (English), `data/assets.json` the art manifest |
 | `packs/` | content packs installed as folders, `packs/<id>/pack.json` + files (PACKS.md); empty in the repository but for its readme |
 | `plugins/` | a server's plugins, `plugins/<id>/plugin.json` + files (PLUGINS.md); git-ignored but for its readme, its guide for AI agents (`plugins/AGENTS.md`) and the templates (`plugins/_template/cosmetic/`, `plugins/_template/content/`, `plugins/_template/script/`, `plugins/_template/ui/`) |
 | `schemas/` | JSON Schemas of manifests, asset overlays, compact records, DSL, UI messages and community catalogues (PLUGINS.md §15), for editors and AI agents |
-| `tools/` | `build-data.mjs`, `build-i18n.mjs`, `i18n.mjs` (UI strings, language packs), `packs.mjs` (content packs), `plugin.mjs` (plugins: list, check, pack, new, test, errors, surface, import-forge, install, catalog), `setup.mjs` / `fetch-assets.mjs` / `tools/assets/` (art and audio), `tools/local-extract/` (art from a local game client), `vendor.mjs`, `golden.mjs`, `check-imports.mjs`, `package.mjs` / `package-update.mjs` (the release zips, the update package, the example asset pack), `doctor.mjs`; sweeps: `matchrun.mjs`, `simrun.mjs`, `botbench.mjs`, `balance.mjs` |
+| `tools/` | `build-data.mjs`, `build-card-roster.mjs` (`shared/card-roster.js`), `build-i18n.mjs`, `i18n.mjs` (UI strings, language packs), `packs.mjs` (content packs), `plugin.mjs` (plugins: list, check, pack, new, test, errors, surface, import-forge, install, catalog), `setup.mjs` / `fetch-assets.mjs` / `tools/assets/` / `collab-assets.mjs` (art and audio, the collab pack), `tools/local-extract/` (art from a local game client), `vendor.mjs`, `golden.mjs`, `check-imports.mjs`, `package.mjs` / `package-update.mjs` (the release zips, the update package, the example asset pack), `doctor.mjs`; sweeps: `matchrun.mjs`, `simrun.mjs`, `botbench.mjs`, `balance.mjs` |
 | `test/` | `node:test` suites by area: `test/content/` (kits, enemies, bonds, items), `test/sim/` (the engine), `test/match/` (match engine, bots), `test/ui/`, `test/render/`, `test/golden/` (the stored digests), `test/plugins/` and `test/studio/` (the plugin system, the studio), `test/helpers/` (`battleHarness.js`; `designDocs.js`, the design document in § order for the doc tests), `test/e2e/` (browser and bot runs) |
 | `types/` | JSDoc typedefs of the type-checked slice (`types/README.md`) |
 | `docs/` | the documents; `docs/DESIGN.md` the index of the design document, `docs/design/` its current rules, `docs/history/` its per-release revisions; `docs/research/` the research on the official mode |
@@ -275,7 +284,7 @@ threads; work is submitted as a task (a function name plus its arguments) and co
   submits the same candidates the local run would simulate to `server/workers/simulation.js`, which builds each
   candidate Battle lazily from a serialized BattleSpec with the original cap and adaptive limits and returns the winning index. The pool decides where the
   CPU is spent, never what is compared. A room's simulation tick, snapshot encoding and the state writes are *not* in
-  the pool yet — they arrive as separate changes.
+  this pool: a server-run combat phase has its own fixed combat Worker pool (`server/match/combat/`, §3).
 - **Every refusal is a fallback, not an error.** An absent, busy or broken pool, `POOL_FULL` or a failed task resumes the same candidates on the main thread; ending a prep cancels pending work; a busy pool costs latency, never a different
   layout. Gameplay-plugin and non-default-version rooms never receive this default-data pool; their own match host rehearses locally.
 - **A dead thread is replaced, not isolated.** A worker that exits abnormally or overruns its timeout is terminated

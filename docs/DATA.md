@@ -1,6 +1,7 @@
 # DATA.md — generated game data (`data/*.json`)
 
-All files in `data/` except `data/assets.json` and `data/i18n/` are produced by **`node tools/build-data.mjs`** (task F1) from the
+All files in `data/` except `data/assets.json`, `data/assets-collab.json`, `data/emotes.json`, `data/tuning.json`,
+`data/announcements.json` and `data/i18n/` are produced by **`node tools/build-data.mjs`** (task F1) from the
 official zh_CN client data ([Kengxxiao/ArknightsGameData](https://github.com/Kengxxiao/ArknightsGameData)) joined
 with `docs/research/*.json`. Do not edit them by hand — change the build script and rebuild.
 `data/i18n/en.json` (the official English texts of these files by record id and field) is written by
@@ -8,6 +9,11 @@ with `docs/research/*.json`. Do not edit them by hand — change the build scrip
 fails while it is stale).
 `data/assets.json` is written by `tools/fetch-assets.mjs`, which keeps the current file rather than drop entries whose
 downloads failed on this machine unless `--allow-shrink` (or `--prune`) is passed (docs/ASSETS.md, DESIGN §21.25).
+`data/assets-collab.json` (the collab operators' art pack) is written by `tools/collab-assets.mjs` (docs/ASSETS.md "The
+collab pack"), `data/emotes.json` by `tools/build-emotes.mjs`; `data/tuning.json` (overrides on `config.json`,
+docs/META.md §3.1) and `data/announcements.json` (the lobby notices) are hand-maintained. `shared/card-roster.js` (every
+operator a display card can show) is generated from the data of every version by `node tools/build-card-roster.mjs` —
+rerun it after a build that changes the roster (`test/card-roster.test.js` fails while it is stale).
 
 ```
 node tools/build-data.mjs              # build (downloads missing official files into .cache/gamedata/)
@@ -32,7 +38,7 @@ Unknown options or a missing option value are errors (exit code 2); `--refresh` 
   Integrity errors (see §17) make the exit code 1 **and leave the previous output untouched** (unless `--force`);
   warnings never do. Each output file is written atomically (temp file + rename).
 - **Determinism.** Same inputs ⇒ byte-identical outputs (stable key order, no timestamps, no randomness).
-- **Size.** ≈5.8 MB for the 15 built files (limit 6 MB; `chess.json` ≈1.88 MB with the loadout choices, `backups.json` ≈2.06 MB), compact JSON (no indentation).
+- **Size.** ≈6.03 MB (5.75 MiB) for the 15 built files (limit 6 MiB = 6 × 1024 × 1024 bytes; `chess.json` ≈1.88 MB with the loadout choices, `backups.json` ≈2.28 MB), compact JSON (no indentation).
 - **Plugin compositions (0.3.0).** Generated files stay official and unchanged. P1b applies patches and compact records to immutable in-memory copies (PLUGINS.md §10); `shared/plugins/validate.js` checks their references without the official quantity assertions. New modes inherit an official base; mode-level economy, DP, timers and other global keys override those defaults. Plugin translations retain the existing i18n overlay format and receive source hashes (`_h`) from the final merged records. A content selection's `cs` also includes the sha256 of each served `i18n/<lang>.json`; the vanilla P0 hash still excludes `data/i18n/`.
 - **Derived paths.** `stages.json groundPaths*` come from `server/sim/groundPaths.js`, using the sim's own `server/sim/grid.js` pathing: a change there
   needs a rebuild (the offline-rebuild test catches a stale `data/`).
@@ -348,7 +354,7 @@ full-rank build from the others; the build fails unless `atRank` rebuilds every 
 | `bandId`, `sortId`, `name`, `iconId` | `"band_bldsk"`, `1`, `"华法琳"`, `"icon_bldsk"` | |
 | `modeTypeList` | `["LOCAL","SINGLE","MULTI"]` | |
 | `totalHp` | `28` | starting LP (20–45) |
-| `effectId`, `effectName`, `desc`, `descRaw` | `"aceffect_band_21"`, `"重点监护"`, `"【重点监护】开始作战时…"` | |
+| `effectId`, `effectName`, `desc`, `descRaw` | `"aceffect_band_21"`, `"重点监护"`, `"【重点监护】开始作战时…"` | official text, except where the owner changed the rule: `tools/build-data.mjs BAND_TEXT_EDITS` rewrites the band's and its effects.json record's `desc` / `descRaw` (潘格尼尼 【定制铳械】 "每累计花费55资金，…", the owner's decision of 2026-11-04; an edit that matches no text warns) |
 | `buffs[]`, `params` | `[{"key":"prep_finish_char_bond_add_layer","bb":{"layer":2},"bbStr":{}}]` | |
 | `victorCount`, `rewardModulus`, `unlockDesc` | `3`, `1`, `null` | |
 | `bondIds` | `["lateranoShip"]` (潘格尼尼) / `[]` | the bonds the strategy is built around (`shared/bandBonds.js`: the bond names in <…> of its text — the official note "在<X>部分干员缺席时体验可能不完整" among them — and the bond ids / bond pools of its blackboards, `pool` → choices.json `pools[pool].bond`); 9 bands are tied. The bot never picks, and the strategy draft marks 本局禁用, a band whose bond the mode switches off (DESIGN §21.26) |
@@ -614,7 +620,7 @@ Glyph legend (`rows`):
 
 `chess 266 (112 visible; 283 selectable skills over the visible chess, 185 module choices over 129 goldens; 74 PRESET / 55 NORMAL / 4 DIY base chess)`, `bonds 23`, `garrisons 249 (43 effect keys)`, `items 115`, `bands 40`, `effects 361`,
 `enemies 249`, `factions 67 entries`, `waves 38`, `stages 13 (11 battle fields + 2 escaped; 8 active)`, `bosses 10`, `tokens 22`, `choice events 109`,
-`bounty cards 129`, `tactic cards 43`, `backups: 90 units (17 stand-ins, 73 owned-6★ picks; 262 forms), 38 自选 summons, 4 DIY slots, 15 / 9 prototype picks (tier 5 / 6), 73 owned-6★ picks (7 collab operators excluded)`, potential (§2.3): `256 chess records, 219 forms / variants with potDown; 442 + 401 + 19 chained talent entries (chess, backups, tokens)`.
+`bounty cards 129`, `tactic cards 43`, `backups: 99 units (17 stand-ins, 75 owned-6★ picks, 7 collab picks; 289 forms), 39 自选 summons, 4 DIY slots, 15 / 9 prototype picks (tier 5 / 6), 75 owned-6★ picks (7 collab operators outside the pool)`, potential (§2.3): `256 chess records, 255 forms / variants with potDown; 442 + 453 + 19 chained talent entries (chess, backups, tokens)`.
 
 ## 17. Integrity guarantees (checked by the builder and `test/data.test.js`)
 
@@ -634,7 +640,7 @@ carry the bond; items/bands/bonds reference existing effects; wave spawn keys an
 `enemies.json`, route indices exist; every mode round has a template (or boss templates) present in `waves.json`;
 stages are 19 × 21 with known glyphs and contiguous helper paths; bosses/factions/tokens/choice pools resolve; token
 variants carry `sources`; enemies have `maxHp`/`bat` > 0, `aspd`/`moveSpeed`/`lpr` ≥ 0 and `rangeRadius` ≥ 0 (0 for
-MELEE); no non-finite numbers; total size < 6 MB. `test/data.test.js` additionally re-derives every chess/enemy stat
+MELEE); no non-finite numbers; total size < 6 MiB. `test/data.test.js` additionally re-derives every chess/enemy stat
 from the raw official tables (incl. the float32 `attrPower`) and rebuilds offline to prove `data/` is not stale (both
 skipped without the cache); faction entries carry no `k` copies and share one movement class; every device's
 `active` = `!hidden`; the helper lanes of act1 m02 / m04 / act2 m02 are the official ones (research 08 §3.2).
@@ -654,7 +660,9 @@ official stand-in (原型干员); played since 0.2.0: the player marks operators
 prototype. Built by `tools/build-data.mjs buildBackups`; `shared/standIn.js` composes it into chess-shaped records,
 `shared/diy.js` adds the 自选 rules on top. The sim fields both (docs/SIM.md §12). Played since 0.2.0: the player fills
 the four slots on the 自选编队 tab (`room.diy { picks }`, docs/PLAYING.md §3; shared/protocol.js checkDiyPicks keeps the
-legal picks), the match takes the picks the seat had at its start (`PlayerState.diy`), and each slotted piece is sold in
+legal picks), the match takes the picks the seat had at its start (`PlayerState.diy`; a tier may hold four
+candidates — its slots plus the 候补 keys `diyBench_<tier>_<n>`, shared/diy.js `DIY_BENCH_SIZE` — of which the player
+picks the slots' operators in the briefing: `g.diyChoose`, `resolveDiySlots`), and each slotted piece is sold in
 that player's shop only — its own stock (the tier's pool copies, 8 / 5 [ASSUMED], twice that in co-op like the shared
 pool — DESIGN §32.14.31). The ordinary shop draws it from the 调度中心 level `shopLevel`; the promotion reward draws 自选
 of the reward tier, one shop level earlier (DESIGN §30.23).
@@ -670,13 +678,13 @@ server/match/player/diy.js, docs/META.md §3). The rules in the data (activity_t
   even their elite form has none) and the row's potential (`potRank` 0 on all 55) — moot: the 17 原型干员 have no
   potential ranks, and a stand-in takes neither the player's potential nor the 自持有 练度 (0.2.2).
 
-`units[charId]` — first the 17 stand-ins, then the 73 owned-6★ 自选 picks (`diy.ownedPool`); no unit for a PRESET or DIY
+`units[charId]` — first the 17 stand-ins, then the 75 owned-6★ 自选 picks (`diy.ownedPool`) and the 7 collab picks (`diy.excluded`); no unit for a PRESET or DIY
 chess:
 
 | Field | Example (`char_611_acnipe`) | Meaning |
 |---|---|---|
 | `charId`, `name`, `appellation`, `rarity`, `profession`, `subProfessionId`, `subProfessionName`, `position`, `nationId`, `isNotObtainable` | `"char_611_acnipe"`, `"Stormeye"`, `"Stormeye"`, `6`, `"SNIPER"`, `"fastshot"`, `"速射手"`, `"RANGED"`, `null`, `true` | as on a chess record (`isNotObtainable` false for the owned picks) |
-| `assets` | `{"avatar":"char_611_acnipe","avatarGolden":"char_611_acnipe","portrait":"char_611_acnipe_1","portraitGolden":"char_611_acnipe_1","spine":"char_611_acnipe","subProfIcon":"sub_fastshot_icon"}` | art ids (URLs in `data/assets.json`, which carries all 89 — the owned picks since 0.2.0, ASSETS.md); the elite form takes the E2 art when it exists — of the stand-ins only 领主·Sharp has it, every owned pick does |
+| `assets` | `{"avatar":"char_611_acnipe","avatarGolden":"char_611_acnipe","portrait":"char_611_acnipe_1","portraitGolden":"char_611_acnipe_1","spine":"char_611_acnipe","subProfIcon":"sub_fastshot_icon"}` | art ids (URLs in `data/assets.json`, which carries the 92 stand-ins and owned picks — the owned picks since 0.2.0, ASSETS.md; the 7 collab picks' are in `data/assets-collab.json`, ASSETS.md "The collab pack"); the elite form takes the E2 art when it exists — of the stand-ins only 领主·Sharp has it, every owned or collab pick does |
 | `moduleNames` | `{"uniequip_001_acnipe":{"name":"Stormeye证章","typeName":"ORIGINAL"},"uniequip_002_acnipe":{"name":"Stormeye证章","typeName":"MAR-X"}}` | every module of the character (a composed record names its module on the normal form too) |
 | `standsIn[]` | `["chess_char_3_21_a","chess_char_4_02_a","chess_char_5_18_a","chess_char_5_22_a","chess_char_6_01_a","chess_char_6_05_a"]` | the NORMAL base chess it replaces (`[]` for an owned pick) |
 | `forms[statusKey]` | keys `"2/1/4/0"`, `"2/60/7/1"`, `"2/60/7/3"` | the character at every status it fights at — of the chess it stands in for and of the DIY slots it may fill (`statusKey(status)` = `phase/level/skillLevel/equipLevel`): 3 forms per 6★ (an owned pick: exactly the three DIY slot statuses — E2 Lv1 skill rank 4 without a module, E2 Lv60 rank 7 with every module at stage 1 and at stage 3), 2 per 4★ |
@@ -684,7 +692,7 @@ chess:
 A **form** holds the operator fields of a chess record with **nothing selected**: `status`; `stats`, `trait`, `talents`
 **without** a module, at full potential as on a chess (`potDown` / chained talents for the lower ones, §2.3); `immunities`, `rangeId`, `rangeGrid`, `dmgType`, `attackKind`, `projectile`, `canHitFly`,
 `targetPriority`; `placeOnRanged` (present only when that Chinese trait contains 「可以放置于远程位」 — 温蒂's forms — or a compact MELEE plugin form sets `true` [ASSUMED]; the composed 自选 record copies it, GitHub #676); `skills[]` — every skill unlocked at the status, at its skill level, `trigger` resolved per skill, `passiveRange` when that skill's Chinese text is its own range (GitHub #700), no
-`isDefault`; `displayTokens` / `tokens` (summons — none of the 17 stand-ins has one; 27 of the owned picks do, their
+`isDefault`; `displayTokens` / `tokens` (summons — none of the 17 stand-ins has one; 27 of the owned picks and 艾拉 do, their
 records in `tokens` below); at `equipLevel > 0` `modules[]` (§2.2 shape without `isDefault`). `buildUnitForm` uses buildChess's helpers and rules, and the build fails when `buildUnitForm` +
 `composeUnitRecord` do not give back every PRESET chess field for field (each is its own backup), so a later change to
 buildChess that the stand-ins would miss stops the build. The chess trigger deviations (§2.2, DESIGN §21.29) name chess
@@ -735,11 +743,11 @@ operator (自选)").
 | `slots[slotId]` | `{"tier":5,"goldenId":"chess_char_5_diy1_b","shopLevel":5,"requirement":"TIER_6"}` | the four DIY chess `chess_char_5_diy1/2_a`, `chess_char_6_diy1/2_a` (chess.json: price 4, sell 1, `diyRequirement`, empty `bonds` / `garrisonIds`); `shopLevel` = the 调度中心 level whose `shopLevelDisplayDataDict.charChessDiySlotIdList` lists the slot |
 | `prototypes[tier]` | `{"5":[…15],"6":[…9]}` | the legal prototype picks: the nine 6★ at both tiers, at tier 5 also the six 4★ that are not 先锋 / 特种 ("第5阶可额外从6名四星原型干员（先锋、特种职业除外）中选取"; `DIY_EXTRA_PROTOTYPES`). A prototype may fill a tier-5 and a tier-6 slot ("原型干员可于5、6阶之间重复选取") |
 | `locked[tier][charId]` | `{"skillIndex":2,"uniEquipId":"uniequip_002_acguad","from":["chess_char_5_06_a","chess_char_5_13_a"]}` | the skill and module a prototype carries in a slot of that tier — "技能携带规则与系统补位时一致" (PRTS 卫戍协议), read as [ASSUMED] (the owner's decision of 2026-10-05) the selection of its 补位 rows at that tier (`from`): the eight 6★ elites S3 with their own module, 领主·Sharp S1, the reserves S3 without a module; 预备干员-医疗 has no tier-5 row: S3 by analogy (`from` `[]`, `DIY_PROTOTYPE_FALLBACK_SKILL`) |
-| `ownedPool[]` | 73 charIds | the owned 6★ a player may slot: obtainable, rarity = the requirement, and no chess names it — hidden chess included ("不可甄选加入已在名单中的固定干员"); each at most once per roster ("玩家已拥有干员不可重复选取"). Not the collab operators (`excluded`) |
-| `excluded[]` | `["char_456_ash","char_1029_yato2","char_1048_orchd2","char_4123_ela","char_4141_marcil","char_4182_oblvns","char_4217_makoto"]` | the 7 obtainable 6★ outside the pool that come from a 联动寻访 — a collab team in `mainPower` / `subPower` (`DIY_EXCLUDED_TEAMS`: rainbow, action4, mujica, sees, laios — 灰烬, 麒麟R夜刀, 艾拉, 玛露西尔, 丰川祥子, 结城理) or a collab series in `displayNumber` (`DIY_EXCLUDED_NUMBER_PREFIXES` MH / RS / AM / PS / DD — also 焰狐龙梓兰 MH05, whose team reserve6 names no collab): left out of the data and the pool by the owner's decision of 2026-10-05 (copyright); the excel does not exclude them |
-| `operators[charId]` | `{"name":"煌","rarity":6,"profession":"WARRIOR","subProfessionId":"centurion","obtainable":true,"powers":["rhodes","elite","yan","victoria"],"bonds":["yanShip","victoriaShip"]}` | every pick (owned pool + prototypes): `powers` = the `nationId` / `groupId` / `teamId` of `mainPower` and of every `subPower` (隐藏势力); `bonds` = the core bonds whose `powerIdList` meets them — one or several — else `economy.fallbackBondId` 协防干员 ("甄选加入的干员会根据其实际阵营所属分配核心盟约，若没有可匹配的则改为分配协防干员盟约"); every prototype gets `["emptyShip"]` |
+| `ownedPool[]` | 75 charIds | the owned 6★ a player may slot: obtainable, rarity = the requirement, and no chess names it — hidden chess included ("不可甄选加入已在名单中的固定干员"); each at most once per roster ("玩家已拥有干员不可重复选取"). Not the collab operators (`excluded`) |
+| `excluded[]` | `["char_456_ash","char_1029_yato2","char_1048_orchd2","char_4123_ela","char_4141_marcil","char_4182_oblvns","char_4217_makoto"]` | the 7 obtainable 6★ outside the pool that come from a 联动寻访 — a collab team in `mainPower` / `subPower` (`DIY_EXCLUDED_TEAMS`: rainbow, action4, mujica, sees, laios — 灰烬, 麒麟R夜刀, 艾拉, 玛露西尔, 丰川祥子, 结城理) or a collab series in `displayNumber` (`DIY_EXCLUDED_NUMBER_PREFIXES` MH / RS / AM / PS / DD — also 焰狐龙梓兰 MH05, whose team reserve6 names no collab): left out of the pool by the owner's decision of 2026-10-05 (copyright); the excel does not exclude them. They are built like the owned picks (units, forms, summons, `operators`) and offered only in a room whose host turns on 联动干员 (the owner's decision of 2026-11-02: `shared/diy.js` `diyPool` / `validateDiyPicks` with `collab`, shared/experimental.js `isCollabRoom`) |
+| `operators[charId]` | `{"name":"煌","rarity":6,"profession":"WARRIOR","subProfessionId":"centurion","obtainable":true,"powers":["rhodes","elite","yan","victoria"],"bonds":["yanShip","victoriaShip"]}` | every pick (owned pool, collab picks, prototypes): `powers` = the `nationId` / `groupId` / `teamId` of `mainPower` and of every `subPower` (隐藏势力); `bonds` = the core bonds whose `powerIdList` meets them — one or several — else `economy.fallbackBondId` 协防干员 ("甄选加入的干员会根据其实际阵营所属分配核心盟约，若没有可匹配的则改为分配协防干员盟约"), then the bonds `tools/build-data.mjs DIY_EXTRA_BONDS` adds (a deliberate deviation, the owner's decisions of 2026-11-02: 定位 bonds for 冻河, 国度 and 塔露拉, one per collab pick); every prototype gets `["emptyShip"]`. `DIY_TALENT_NOTES` appends a line of this game's rule to the first talent's text of every form (塔露拉) |
 
-`tokens[tokenId]` — the summons of the owned picks (38 tokens of 27 operators): a tokens.json record (§14: name, text,
+`tokens[tokenId]` — the summons of the owned and collab picks (39 tokens of 28 operators): a tokens.json record (§14: name, text,
 `placeable`, `ownerRange`, `abnormal`, `assets`) whose `variants` are keyed by the owner FORM `<charId>@<statusKey>`
 (`owners` = those keys; shared/diy.js `diyTokenOwner`) instead of a chess id — a DIY piece is a slot, and two players may
 fill one slot with different operators. A variant is the token at the owner's status for its first skill and no module,
@@ -791,7 +799,7 @@ the three earlier versions, named by period as the maintainer named them (2026-1
 sub-versions V1_1 / V1_2 and V2_1 / V2_2. (PRTS's 「第一期」 is the 2024 卫戍协议, `act1vautochess`, which is not done.)
 A bare 上半 / 下半 here and in code comments keeps the official activity sense (上半 = 第一期 / `act1autochess`, 下半 =
 第二期 / `act2autochess`); a period's halves are always written with the period (第一期上半 …) or as V1_1 … V2_2.
-**M2 core and kits are in** (DESIGN §35.22.7–§35.22.9): golden and botbench load a selected version, and a version room plays that version's rules and kits. **M1 serves enabled versions** (DESIGN §35.23; "Serving the versions (M1)" below): `server/http/static.js` serves `data/versions/<slug>/` only when the server enables that version. Nothing set enables all four, so those files are served (§35.23.11); a version the server does not enable, and a server narrowed to 第二期下半 alone, still answer 404. `data/versions/` is tracked, so the release zips and Docker carry it (48 files, 15.0 MB on disk, about 1.3 MB zipped). The default version is unchanged — `data/*.json`, `data/i18n/`, the golden corpus, the `cs` formula and a default room's `room.state` are pinned: `test/data.test.js` and `test/golden.test.js` guard the data and the goldens, `test/versions-default-guard.test.js` (G2–G4) the `cs` inputs, the formula, the default room and the welcome's versions list. Its file hashes (G1) were the M0 merge check and were deleted when M1 started (DESIGN §35.22.2, §35.23).
+**M2 core and kits are in** (DESIGN §35.22.7–§35.22.9): golden and botbench load a selected version, and a version room plays that version's rules and kits. **M1 serves enabled versions** (DESIGN §35.23; "Serving the versions (M1)" below): `server/http/static.js` serves `data/versions/<slug>/` only when the server enables that version. Nothing set enables all four, so those files are served (§35.23.11); a version the server does not enable, and a server narrowed to 第二期下半 alone, still answer 404. `data/versions/` is tracked, so the release zips and Docker carry it (48 files, 16.6 MB on disk, about 1.4 MB zipped). The default version is unchanged — `data/*.json`, `data/i18n/`, the golden corpus, the `cs` formula and a default room's `room.state` are pinned: `test/data.test.js` and `test/golden.test.js` guard the data and the goldens, `test/versions-default-guard.test.js` (G2–G4) the `cs` inputs, the formula, the default room and the welcome's versions list. Its file hashes (G1) were the M0 merge check and were deleted when M1 started (DESIGN §35.22.2, §35.23).
 
 **M2 research and rules:** `docs/research/versions/<slug>/02-bonds.json` and `04-items.json` use each snapshot's own
 text. First-season `01-core-data.json` supplies the 11-18 blackboard multipliers and preserves 300-second solo prep;
@@ -991,12 +999,12 @@ there):
 
 | | chess (visible non-DIY, hidden, DIY) | bonds | bands | items | effects | garrisons | enemies | waves | stages | bosses | tokens | bytes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `act2autochess` | 266 (112, 17, 4) | 23 | 40 | 115 | 361 | 249 | 249 | 38 | 13 | 10 | 22 | 5.81 MB |
-| `act2autochess@V2_1` | 240 (115, 1, 4) | 23 | 36 | 115 | 361 | 229 | 249 | 38 | 13 | 10 | 21 | 5.40 MB |
-| `act1autochess` | 200 (95, 1, 4) | 18 | 30 | 89 | 281 | 174 | 197 | 36 | 9 | 9 | 12 | 4.85 MB |
-| `act1autochess@V1_1` | 200 (95, 1, 4) | 18 | 20 | 89 | 281 | 170 | 197 | 36 | 9 | 9 | 12 | 4.76 MB |
+| `act2autochess` | 266 (112, 17, 4) | 23 | 40 | 115 | 361 | 249 | 249 | 38 | 13 | 10 | 22 | 6.03 MB |
+| `act2autochess@V2_1` | 240 (115, 1, 4) | 23 | 36 | 115 | 361 | 229 | 249 | 38 | 13 | 10 | 21 | 5.84 MB |
+| `act1autochess` | 200 (95, 1, 4) | 18 | 30 | 89 | 281 | 174 | 197 | 36 | 9 | 9 | 12 | 5.37 MB |
+| `act1autochess@V1_1` | 200 (95, 1, 4) | 18 | 20 | 89 | 281 | 170 | 197 | 36 | 9 | 9 | 12 | 5.35 MB |
 
-`stages` counts the battle fields plus the 2 escaped levels' maps (default: 11 + 2, §16; 上半: 7 + 2). The 6 MB limit
+`stages` counts the battle fields plus the 2 escaped levels' maps (default: 11 + 2, §16; 上半: 7 + 2). The 6 MiB limit
 applies per version (the 15 built files). V2_1 also differs from today's data under the same ids, and
 the data carries each difference (no code change; DESIGN §35.22.5, pinned by `test/data-versions.test.js`): 节日气球
 `enemy_10040_cnvbln` does not count in the total (no LP for its leak) and 圆仔 `enemy_2085_skzjxd` / `_2` is NORMAL (today
@@ -1007,12 +1015,13 @@ have 3 checkpoints, not today's 19-checkpoint loops (04-14); 13 elite records la
 battle_equip has only its rank-0 candidate; today ×1.25 from 潜能 5, the base talent's value); the
 自选 operators' powers and bonds are the 03-14 character_table's, so 鸿雪 and 真言 are 盟约·辅助干员 (`emptyShip`), not 萨尔贡
 (`sargonShip`), and seven more 自选 operators have one power fewer; the 9 自选 operators released after 03-14 (予愿安洁莉娜,
-怒潮凛冬, 凯尔希·思衡托, 维伊, 可露希尔, 谬因, 机械师, 克莱门莎, 珊比) are absent, so `diy.ownedPool` holds 67 against 75, 冻河, 国度 and 塔露拉 being the default's own (its
-4 V2_1-only picks 银灰, 空弦, 卡涅利安 and 伺夜 are pending, and the kitted gate drops them) and `diy.excluded` 5 against 7
-(焰狐龙梓兰 and 结城理 came later); and a few texts differ (skills, talents, enemy abilities, one bounty card).
+怒潮凛冬, 凯尔希·思衡托, 维伊, 可露希尔, 谬因, 机械师, 克莱门莎, 珊比), 冻河, 国度, 塔露拉 and the collab 焰狐龙梓兰 and 结城理 are
+the default's records (`lateOperators` above), so `diy.ownedPool` holds 79 — the default's 75 and its 4 V2_1-only picks
+银灰, 空弦, 卡涅利安 and 伺夜 (their kits: `ops/ver-diy.js`) — and `diy.excluded` the same 7; and a few texts differ (skills,
+talents, enemy abilities, one bounty card).
 
-V2_1's warnings: the research name annotation dropped from 战场#01 (as the default) and `DIY_EXCLUDED_TEAMS` team `sees` with no owned-6★ pick (as in 上半). The 上半 builds' remaining warnings: research falling back to
-下半 (6 files, [ASSUMED]); `DIY_EXCLUDED_TEAMS` team `sees` has no owned-6★ pick; two `STATIC_BODIES` enemies (`hummbd`,
+V2_1's warning: the research name annotation dropped from 战场#01 (as the default). The 上半 builds' remaining warnings: research falling back to
+下半 (6 files, [ASSUMED]); two `STATIC_BODIES` enemies (`hummbd`,
 `cnvbln`) absent from the 上半 modes; the 6 上半-only enemies whose model `data/assets.json` lacks (墨浪 `enemy_1201_sfzhi`,
 `enemy_1249_lysdb`, `enemy_1254_lypa`, `enemy_1275_dwlock`, `enemy_1373_ltnhor_2`, `enemy_1376_ltndru`: no `attackAnim`,
 one warning each, DESIGN §35.22.5); the research name annotation dropped from 战场#01; the 野鬃 / 灰毫 / 远牙 pool
@@ -1085,5 +1094,8 @@ non-default version is enabled.
 **Match hosts**: the rooms of a non-default version start their matches in `server/match/host/` with `kind: 'version'` —
 one child process per version `cs`, at most `maxHosts`, counted apart from the plugin hosts (docs/design/match.md). The
 host checks every data file's sha256 against the version's hash input, installs the data with `setData` and the version's
-bounds snapshot, and refuses a match whose `opts.version` is not its data's version. A test journal of such a match carries
+bounds snapshot, and refuses a match whose `opts.version` is not its data's version. On the cluster these hosts run on the
+game nodes (`server/cluster/game-runtime.js`; `SP_VERSION_PLACEMENT=coordinator` keeps them on the coordinator), and
+with checkpoints on, a version match is saved as `cp:V.<room>.<matchNo>.<seed>` and rebuilt in its version's host
+(docs/DEPLOY.md §13). A test journal of such a match carries
 `init.options.version` and replays in a process whose data singleton is that version's (`server/match/testReplay.js`).

@@ -124,7 +124,7 @@ Piece = { uid, kind:'chess'|'item'|'token', id /* chessId (golden id if elite) |
           meta: { round?: { r, n: { key: count } } } }   // per-piece counters of the current round, module-prefixed keys (拉普兰德's first refresh, §21.1)
 ```
 
-Intent handlers (validate → mutate → recompute bonds → push private view): `buy(slot)`, `refresh()`, `freeze()`, `levelUp()`, `sell(uid)`, `move(uid, to)`, `equip(itemUid, targetUid, replaceUid?)`, `useArt(itemUid, row, col)`, `destroy(uid)`, `pickReward(idx)`, `pickChoice(idx)`, `setReady(bool)`. Every handler rejects when the phase forbids it (only PREP allows board/shop mutations; SP_DRAFT allows `pickChoice` only; reward pick allowed in PREP). Invalid intents return `error` with a code from `shared/constants.js → ERR` — the server never throws on bad input.
+Intent handlers (validate → mutate → recompute bonds → push private view): `buy(slot)`, `refresh()`, `freeze()`, `levelUp()`, `sell(uid)`, `move(uid, to)`, `equip(itemUid, targetUid, replaceUid?)`, `useArt(itemUid, row, col)`, `destroy(uid)`, `pickReward(idx)`, `setReady(bool)`; the 机变 picks are the match's (`g.choice`: `pickCard(ps, idx)` in SP_DRAFT, `pickPersonalChoice(ps, idx, choiceId)` for a PREP personal choice). Every handler rejects when the phase forbids it (only PREP allows board/shop mutations; SP_DRAFT allows the 机变 pick only; reward pick allowed in PREP). Invalid intents return `error` with a code from `shared/constants.js → ERR` — the server never throws on bad input.
 
 在所有官方版本的未就绪 PREP，干员手牌↔场上互换复用原有两个位置；休整区满或部署数达到上限均不阻止
 合法互换，两个方向相同。手牌内、场上内互换同理；地形／召唤物合法性仍逐个检查。真正新增部署仍检查

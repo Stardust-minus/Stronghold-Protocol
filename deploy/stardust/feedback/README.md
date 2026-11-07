@@ -103,9 +103,11 @@ API 响应 `Cache-Control: no-store`；页面带 `Content-Security-Policy`（`de
 location 里只要写了任何 `proxy_set_header`，server 级的就不再继承，需要的头都要在这里写全。
 
 站点模板 `deploy/stardust/nginx/ark-proto.conf` 已带好这两个 location（`/feedback` 301 到 `/feedback/`；
-`client_max_body_size 32k`；每 IP 10 r/s；`X-Real-IP`、`X-Ark-Session` 由 nginx 设置；不转发 Cookie）。缓存 map 给带
-`?v=` 的 `/feedback/assets/` 长缓存，页面和 API 是 `private, no-store`；CSP 用服务自己下发的。
-未登录时打开 `/feedback/` 会跳到登录页（`$ark_proto_html` 里有 `/feedback/`）；门禁登录后仍回到游戏首页。
+`client_max_body_size 32k`；每 IP 10 r/s；`X-Real-IP`、`X-Ark-Session` 由 nginx 设置；不转发 Cookie）。服务自己的
+`Cache-Control` 被 server 级 `proxy_hide_header` 去掉，改用缓存 map：`/feedback/assets/` 为 `private, max-age=86400`
+（页面以 `?v=` 内容哈希引用这些文件），页面和 API 是 `private, no-store`；CSP 用服务自己下发的。
+未登录时打开 `/feedback/` 会跳到登录页（`$ark_proto_html` 里有 `/feedback/`）；门禁登录后回到 `/feedback/`（auth 的
+`safeNext` 只额外认可 `/feedback/`、`/monitor/` 和公开仪表盘这几个边缘页面，其他目标仍回游戏首页）。
 
 ## 运行
 

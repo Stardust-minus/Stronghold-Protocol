@@ -25,11 +25,11 @@ Out of scope v1: matchmaking queue, training/tutorial, DIY (甄选) slots (the 4
 
 ## 1. Tech stack
 
-- **Node.js 24** (the only supported version; CI: 24), ESM (`"type": "module"`), single dependency `ws@8`. No bundler, no TypeScript. JSDoc types where helpful.
+- **Node.js 24** (the only supported version; CI: 24), ESM (`"type": "module"`). The server's one framework-level dependency is `ws@8`; `ses` and `acorn` serve the plugin script sandbox, the rest are the browser libraries below. No TypeScript sources: JSDoc types where helpful, checked on a slice by `npm run typecheck`. No bundler is needed: the UI layer (`/js`, `/css`) may be bundled by Vite (`npm run build`, served with `SP_CLIENT=build`), `/sim`, `/shared` and `/data` always stay native modules and files.
 - **Server-authoritative simulation.** Clients send *intents*; the server validates, mutates state and pushes state/snapshots.
-- **Client:** static files, native ES modules. Vendored libs in `public/vendor/`: `pixi.min.js` (PixiJS **7.4.2** UMD, global `PIXI`), `pixi-spine.js` (**4.0.6** UMD, `PIXI.spine`), `preact.module.js` + `hooks.module.js` + `htm.module.js` (Preact 10 + htm, no build step). No CDN at runtime (LAN play must work offline).
+- **Client:** static files, native ES modules. Vendored libs in `public/vendor/`: `pixi.min.js` (PixiJS **7.4.2** UMD, global `PIXI`), `pixi-spine.js` (**4.0.6** UMD, `PIXI.spine`; `tools/vendor.mjs` patches two bugs of its Spine 3.7 / 3.8 runtimes, §36.18), `preact.module.js` + `hooks.module.js` + `htm.module.js` (Preact 10 + htm, no build step), `three.module.js` + `three.core.js` (three.js, the 3D board), `ses.umd.js` and `acorn.mjs` (the plugin script sandbox and its parser). No CDN at runtime (LAN play must work offline).
 - **Shared code** in `shared/` is imported by both server and browser (pure ESM, no Node APIs).
-- Tests: `npm test` (`node --test` over `test/**/*.test.js`). Browser E2E: `puppeteer-core` driving the system Chrome (dev dependency, optional; puppeteer-core 25 is ESM-only and needs Node ≥ 22.12, so the suites load it with `await import`).
+- Tests: `npm test` (`tools/test-run.mjs`: `node --test` over `test/**/*.test.js`). Browser E2E: `puppeteer-core` driving the system Chrome (dev dependency, optional; puppeteer-core 25 is ESM-only and needs Node ≥ 22.12, so the suites load it with `await import`).
 
 Run: `npm install && npm run assets && npm start` → `http://localhost:3000`. Friends on LAN use `http://<host-ip>:3000`. Internet play: a tunnel (e.g. `cloudflared tunnel --url http://localhost:3000`) or any Node host (Dockerfile provided).
 
@@ -42,6 +42,7 @@ server/
   index.js                 process entry: startServer() wires server/http/ (plain node:http + ws); boots when run directly
   http/
     config.js              ROOT, served dirs, env (PORT, HOST, TRUST_PROXY, DEBUG), options handed to net.js / lobby.js
+    csp.js                 Content-Security-Policy: the site importmap hashes, the simulation Worker's own policy
     websocket.js           session wiring (SessionRegistry → Lobby → Network), WebSocket upgrade at /ws (64 KB frames,
                            permessage-deflate with SP_WS_COMPRESSION=on)
     static.js              mounts / → public, /data/, /shared/, /sim/ (.js only), the /data.js browser stand-in, path guards,
@@ -79,6 +80,13 @@ server/
     finalAssault.js        R14/R15 pairing, merged LP, shared boss HP pool, overtime drain
     results.js             settlement stats, titles (评语)
     bot.js                 AI player (plays prep phases; also auto-play for disconnected humans)
+    host/                  the match hosts: a child process (or worker thread) per gameplay-plugin content set or official version
+    combat/                the fixed combat Worker pool of server-run combat (SP_COMBAT_WORKERS)
+  plugins/                 the plugin system: registry, content identity, visual / content sets, installs (docs/PLUGINS.md)
+  studio/                  the plugin studio (/studio/, local network only)
+  workers/                 the opt-in worker-thread pool (SP_WORKERS): bot layout rehearsals
+  persist/                 the optional match checkpoints in a Valkey store (SP_REDIS_URL)
+  cluster/                 the opt-in cluster: coordinator, game nodes, ingresses
   sim/
     Battle.js              one field simulation (normal / unite / boss); public API §5 — the class: constructor + method install
     battle/                Battle's methods by concern (players, lifecycle, hooks, spawns, deploy, blocking, status, combat,
@@ -114,8 +122,11 @@ server/
 shared/
   constants.js             enums, phases, areas, error codes, UI-relevant constants
   protocol.js              message catalogue + validators (§8)
-  format.js                rich-text description → HTML/plain; number formatting
-  rules.js                 pure helpers shared by UI & server (e.g. price display, sell value, bond tier from count)
+  i18n.js                  translation (t, wire messages) for the browser and Node; i18nData.js, i18nPacks.js, packs.js
+  versions.js              the official versions (§35.22)
+  diy.js, standIn.js       自选编队 and 补位 records; loadoutRecord.js, potential.js the loadouts
+  stateDelta.js            the state-delta transport of m.public / m.private
+  plugins/                 the plugin manifest, content hash, sandbox and data checks shared by server and browser
 data/                      generated by tools/build-data.mjs — committed; see docs/DATA.md
 public/
   index.html               single page; loads /js/main.js as module
@@ -127,13 +138,15 @@ public/
     data.js                fetches /data/*.json, same indexes as server/data.js
     audio.js               BGM/SFX manager (Web Audio), volume settings
     assets.js              asset URLs, image cache, Spine loader with LRU + fallback
-    screens/               lobby.js, room.js, briefing.js, bandDraft.js, game.js (entry; game/*.js plates, marks, early events), result.js
-    ui/                    hud.js, bondStrip.js, bondPopup.js, shopBar.js, teamPanel.js, detailPanel.js,
-                           tooltip.js, choiceOverlay.js, rewardOverlay.js, ticker.js, emotes.js, settings.js, toasts.js,
+    screens/               lobby.js, room.js, loadout.js, diy.js, briefing.js, bandDraft.js, game.js (entry; game/*.js plates, marks,
+                           early events), result.js, settle.js, stats.js, sweep.js
+    ui/                    hud.js, bondStrip.js (with the bond popup), shopBar.js, teamPanel.js, detailPanel.js,
+                           components.js (tooltips, shared widgets), richText.js (rich-text descriptions), choiceOverlay.js,
+                           rewardOverlay.js, ticker.js, emotes.js, settings.js, toasts.js,
                            gameLogic.js (barrel; gameLogic/*.js placement, bonds, phases, shop, loadout)
     render/                app.js (field view; app/*.js helpers), projection.js, tiles.js, units.js, spine.js, fx.js (effects; fx/*.js), interp.js, drag.js, pick.js, promote.js (API §9);
                            vfx/*.js (the official battle effects from the local client: interpreter, WebGL2 renderer, wiring; §9, §33)
-  vendor/                  pixi, pixi-spine, preact, hooks, htm (copied from node_modules by tools/vendor.mjs)
+  vendor/                  pixi, pixi-spine, preact, hooks, htm, three, ses, acorn (copied from node_modules by tools/vendor.mjs)
   assets/                  downloaded art/audio (git-ignored), see docs/ASSETS.md
   fonts/                   self-hosted fonts
 tools/
@@ -143,7 +156,7 @@ tools/
 test/                      node:test suites; test/e2e/ browser + bot tests
 docs/                      DESIGN.md (the index of this document: the rules in design/, the per-release revisions in
                            history/), ARCHITECTURE.md, DATA.md, SIM.md, META.md, I18N.md, ASSETS.md, BALANCE.md,
-                           DEPLOY.md, PLAYING.md, WINDOWS.md, research/
+                           DEPLOY.md, PLAYING.md, WINDOWS.md, PLUGINS.md and the plugin guides, research/
                            (the wire protocol is normative in shared/protocol.js itself)
 LICENSE                    GPL-3.0-or-later (the project's code); NOTICE.md: scope, non-commercial game assets, the Spine
                            Runtimes linking permission; THIRD-PARTY-NOTICES.md: libraries, fonts, data sources

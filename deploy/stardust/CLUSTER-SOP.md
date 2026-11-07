@@ -11,7 +11,7 @@
 - 高频 `m.field/b.snap/b.ev/m.damage` 等从所属节点直接到入口，沿用压缩白名单和背压，不绕协调器 MainThread。协调器和 ingress 的 combat/trial 为 0。
 - 固定 `cluster-deploy.py` core bundle 为一个 coordinator + 固定数量 game，每 game 默认 8 combat + 2 trial（`--combat-workers 1..8`、`--trial-workers 0..2`，全部 game 相同）：Formal 为 16 或 32（`--game-nodes 32`），Beta 固定 16。Formal edge bundle 支持每入口 1–8 个 ingress，Beta 保留 1–2 个，配置覆盖全部 game 节点。无 WG 的同机组合栈见 [cluster/LOCAL-STACK.md](cluster/LOCAL-STACK.md)。逻辑分组不是匹配分区；这些是模板约束，不是运行数量或容量证明。
 
-不恢复 rolling/drain/多版本更新网关，不引入跨版本内存迁移。可选的对局存档（Valkey，`SP_REDIS_URL`；组合栈 `--valkey`，见 [cluster/LOCAL-STACK.md](cluster/LOCAL-STACK.md)）不是迁移：新版本只读取同格式版本的存档，按[断点续玩](../../docs/DEPLOY.md#11-断点续玩重启后接着打可选valkey)从上一个安全点重建对局，格式不符即丢弃该局。运行主机按部署者策略只保留必要镜像、宿主管理/恢复工具、runtime、密钥挂载与守卫；开发 checkout、导出、测试工具、文档和证据留开发/管理环境。必要宿主程序不能误删为开发源码。
+不恢复 rolling/drain/多版本更新网关，不引入跨版本内存迁移。可选的对局存档（Valkey，`SP_REDIS_URL`；组合栈 `--valkey`，见 [cluster/LOCAL-STACK.md](cluster/LOCAL-STACK.md)）不是迁移：新版本只读取同格式版本的存档，按[断点续玩](../../docs/DEPLOY.md#13-断点续玩重启后接着打可选valkey)从上一个安全点重建对局，格式不符即丢弃该局。运行主机按部署者策略只保留必要镜像、宿主管理/恢复工具、runtime、密钥挂载与守卫；开发 checkout、导出、测试工具、文档和证据留开发/管理环境。必要宿主程序不能误删为开发源码。
 
 ## 分配、观战与重连合同
 

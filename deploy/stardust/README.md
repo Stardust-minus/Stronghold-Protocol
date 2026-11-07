@@ -32,6 +32,7 @@
 | `tools/cluster-source-export.py`、`tools/cluster-generated-assets.py` | 逐 Git blob 导出及独立 generated renderer resource 清单 |
 | `tools/cluster-deploy.py`、`tools/cluster-host-manager.py` | 新受保护 bundle、角色准入、生命周期及精确租约管理 |
 | `tools/cluster-local-stack.py`、[cluster/LOCAL-STACK.md](cluster/LOCAL-STACK.md) | 应急同机（无 WG）core+本地 ingress 组合栈生成、切换与回滚 |
+| `tools/cluster-private-code.py`、[cluster/PRIVATE-CODE.md](cluster/PRIVATE-CODE.md) | 集群私有 JS/CSS 的精确 alias include（可选运行时静态 `/shared`、`/sim`、`/data` 与前端打包产物）；Formal 见 [cluster/formal/README.md](cluster/formal/README.md) |
 | [WORKERS.md](WORKERS.md)、[WS-COMPRESSION.md](WS-COMPRESSION.md) | Worker 健康/故障策略与受控 WS 压缩 |
 | [MAIN-THREAD-PRIORITY.md](MAIN-THREAD-PRIORITY.md) | 宿主 Main-only 优先级、固定镜像/源码白名单与停用合同 |
 | `tools/main-thread-priority.py`、`systemd/ark-main-thread-priority.service` | 普通调度/reset-on-fork 与 Docker 启动事件保护 |
@@ -39,6 +40,7 @@
 | [releases/README.md](releases/README.md) | 私有发布记录存放规则，不提供站点运行快照 |
 | [feedback/](feedback/README.md) | 公开反馈板 `/feedback`：玩家提交 Bug/建议，服主（服主密钥）回复并改状态；Node 自带 SQLite |
 | [monitoring/](monitoring/README.md)、`nginx/edge-metrics-*.conf` | 边缘机 Prometheus + Grafana，`/monitor` 只公开一个只读公开面板；入口请求计数 |
+| [geo/](geo/README.md) | Formal vhost 只放行中国大陆 IP：每日生成并推送白名单，OpenResty Lua 热加载 |
 
 ## 本地准备与固定构建
 

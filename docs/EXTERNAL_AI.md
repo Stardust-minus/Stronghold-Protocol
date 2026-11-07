@@ -40,6 +40,9 @@ Configuration is validated before server startup; an invalid configuration fails
 Seat selection applies to AI teammates, opponent seats in modes that use them, and humans under AI takeover.
 Unselected seats use `legacy`. INFO_CHECK acknowledgement and combat simulation remain engine-owned; decision
 points are band turns, common card turns, prep (including personal choices/rewards), and plugin offer windows.
+A strategy draft that every seat makes at once (a co-op match with two or more humans since rel33, history §36.10,
+and the expanded-capacity rooms) gives each seat one band decision without skips: its `g.band` holds and locks the
+strategy at once. The browser's `g.bandHold` / `g.bandCancel` / `g.bandLock` are not part of this API.
 
 Example HTTP service (two terminals, POSIX shell):
 
@@ -122,7 +125,7 @@ internal to the adapter: network clients still cannot call `handle` for a bot.
 
 | Decision | Allowed action kinds | Completion |
 |---|---|---|
-| `band` | `g.band`, `g.bandSkip`, `g.bandFocus` | Accepted band or skip ending this turn |
+| `band` | `g.band`, `g.bandSkip`, `g.bandFocus` | Accepted band or skip ending this turn (a concurrent draft: the accepted band) |
 | `card` | `g.choice` | Accepted common draft pick |
 | `offer` | `g.offer`, `g.offerRefresh` | Accepted pick in this window |
 | `prep` | `g.buy`, `g.sell`, `g.move`, `g.refresh`, `g.freeze`, `g.levelUp`, `g.equip`, `g.unequip`, `g.art`, `g.destroy`, `g.reward`, `g.choice`, `g.ready`, `g.offer`, `g.offerRefresh` | Accepted `g.ready { ready:true }` |

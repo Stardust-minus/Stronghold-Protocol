@@ -10,7 +10,7 @@ Formal 固定 profile 支持每物理入口 1–8 个独立 Node ingress，Beta 
 
 ## 实例与部署
 
-生成器 `cluster-deploy.py` 默认 `ingress_instances=1`／CLI 不加参数时保留原单实例格式。Formal edge 可显式选择 `--ingress-instances 2..8`，Beta edge 仅接受 1 或 2；core 的 ingress 参数固定为 1，仍是十七个计算／协调角色。默认双实例输出及 Beta 合同保持兼容。
+生成器 `cluster-deploy.py` 默认 `ingress_instances=1`／CLI 不加参数时保留原单实例格式。Formal edge 可显式选择 `--ingress-instances 2..8`，Beta edge 仅接受 1 或 2；core 的 ingress 参数固定为 1，仍是十七个（Formal `--game-nodes 32` 时三十三个）计算／协调角色。默认双实例输出及 Beta 合同保持兼容。
 
 下表仅为字段示例，不是可直接执行的profile值；实际绑定由生成器固定，不能用文档占位符绕过policy校验。
 

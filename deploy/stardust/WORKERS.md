@@ -2,7 +2,7 @@
 
 ## 范围和配置
 
-运行时仍是 Node 原生 HTTP/WebSocket、一个房间管理进程，也不改变浏览器协议；唯一的外部存储是可选的对局存档 Valkey（`SP_REDIS_URL`，见 [docs/DEPLOY.md §11](../../docs/DEPLOY.md#11-断点续玩重启后接着打可选valkey)），不设就没有。`SP_COMBAT=server` 下，普通战斗、联防、最终决战及隐藏核心的实时演算可移入 `worker_threads`。
+运行时仍是 Node 原生 HTTP/WebSocket、一个房间管理进程，也不改变浏览器协议；唯一的外部存储是可选的对局存档 Valkey（`SP_REDIS_URL`，见 [docs/DEPLOY.md §13](../../docs/DEPLOY.md#13-断点续玩重启后接着打可选valkey)），不设就没有。`SP_COMBAT=server` 下，普通战斗、联防、最终决战及隐藏核心的实时演算可移入 `worker_threads`。
 
 配置示例（不是部署状态或容量结论）：
 

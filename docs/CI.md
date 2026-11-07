@@ -1,10 +1,10 @@
 # CI（持续集成）
 
-分片只分配测试文件，不减少全量测试集合。#835 和 #836 一起落地；`.github/workflows/ci.yml` 的配置为：
+分片只分配测试文件，不减少全量测试集合。分片由 #835 和 #836 一起落地；`.github/workflows/ci.yml` 现在的配置为：
 
-- `test (os, node, shard)`：Ubuntu / Windows × Node 22 × 片 0–3，共 8 个任务。每个任务做 setup 检查、自己一片的测试和服务器冒烟测试，超时 20 分钟。
-- `node24`：Ubuntu / Node 24，只跑 `npm run test:guards`（分片、工作流接线、测试运行器），超时 15 分钟。维护者 #833 接受此范围，不代表 Node 24 全量套件已验证。
-- `tooling`：Ubuntu / Node 22 跑 lint、导入边界和类型检查；lint 警告不失败。
+- `test (os, node, shard)`：Ubuntu × Node 24 × 片 0–3，共 4 个任务（Windows 任务自 2026-10-13 起每次推送都失败，维护者 2026-10-15 决定只留 Ubuntu；Node 24 是唯一支持的版本）。每个任务完整克隆（`fetch-depth: 0`，发布测试要读历史版本的文件），做 setup 检查、自己一片的测试和服务器冒烟测试，超时 20 分钟。
+- `node24`：Ubuntu / Node 24，只跑 `npm run test:guards`（分片、工作流接线、测试运行器），超时 15 分钟。
+- `tooling`：Ubuntu / Node 24 跑 lint、导入边界和类型检查；lint 警告不失败。
 - `golden`：独立 Ubuntu / Node 22，全量 `npm run golden`，有差异则失败，绝不更新期望。
 
 本机 `npm run ci`（`node tools/ci.mjs`）依次复跑 setup、全量测试、冒烟、CI 守卫、lint、导入边界和类型检查。
@@ -32,7 +32,7 @@ SHARD=2 npm test
 
 ## 权重来源与更新
 
-采用 #836 的表，不使用 #835 的旧表。来源是作者评论所报的 CI run **39617468541**：`fullmatch-coop.test.js` 中位数 **235132 ms**，Windows 片 0 墙钟 **397 s**。本轮未独立复核 GitHub run；这些是计权出处，不是本机重新测出的性能结论。文件耗时相加是估计工作量，因文件并行而不等于任务墙钟；不要拿本机耗时替换 CI 权重。
+采用 #836 的表，不使用 #835 的旧表。来源是作者评论所报的 CI run **39617468541**（当时的矩阵还有 Windows 和 Node 22）：`fullmatch-coop.test.js` 中位数 **235132 ms**，Windows 片 0 墙钟 **397 s**。本轮未独立复核 GitHub run；这些是计权出处，不是本机重新测出的性能结论。文件耗时相加是估计工作量，因文件并行而不等于任务墙钟；不要拿本机耗时替换 CI 权重。
 
 新增文件通常无需重新计权；某文件明显变慢后，从可归属到文件的 CI 报告更新：
 

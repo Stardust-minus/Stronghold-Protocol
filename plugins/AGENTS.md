@@ -8,7 +8,7 @@ people read [docs/PLUGIN-GUIDE.md](../docs/PLUGIN-GUIDE.md).
 ## The loop
 
 1. **Start from a template** — never from a blank file:
-   `node tools/plugin.mjs new <art|spine|voice|audio|numbers|operator|dsl|meta|mode|ui|script> <id> --target <official name or id> --name "<name>"`
+   `node tools/plugin.mjs new <art|spine|voice|audio|numbers|operator|dsl|meta|mode|ui|script|bond|item|trait|offers|rules|theme|notices|fx|skins> <id> --target <official name or id> --name "<name>"`
    (`node tools/plugin.mjs new` lists the templates). The default `dsl` template contains one compact caster and one prep income file; `/studio/` edits its DSL through structured controls. The id is the folder name: `^[a-z0-9][a-z0-9-]{1,31}$`.
 2. **Write against the schema.** `plugins/<id>/plugin.json` starts with `"$schema": "../../schemas/plugin.schema.json"`;
    the asset overlay (`"assets"`) is `schemas/overlay.schema.json`. A manifest the schema accepts is one the checker finds
@@ -56,7 +56,7 @@ plugin's state with `check.issues` (the same coded issues as `check --json`).
 
 Start from `plugins/_template/script/`, copied to `plugins/script-demo/`. Rename every script_demo record namespace
 with the folder id. Entry modules export synchronous `setup(sp)` and may import only `sp:sdk@1`; use the documented helpers (the SDK is experimental)
-listed in [PLUGINS §13](../docs/PLUGINS.md#13-scripts-p3a), SIM §5–7 for hooks/kits and META §2 for prep handlers.
+listed in [PLUGINS §13](../docs/PLUGINS.md#13-scripts-p3), SIM §5–7 for hooks/kits and META §2 for prep handlers.
 Declare sim.code/meta.code for the APIs used, and overrides for any official kit replaced. Keep state per battle;
 use seeded battle.rng, deterministic sp.math and battle timers. Do not claim portability scanning is a sandbox.
 

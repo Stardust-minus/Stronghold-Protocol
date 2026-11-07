@@ -38,15 +38,16 @@ const b = new Battle({
   spawns: [ SpawnSpec ],            // enemy schedule for this field
   routes: [ RouteSpec ],            // from the wave template, resolved to this field
   sharedBoss: SharedBossPool | null,// { hp, maxHp, damage(playerId, amount) } for boss rounds
-  flags: { layerGainsEnabled: bool, dpInit: 10, dpPerSec: 1, dpMax: 99 },
+  flags: { layerGainsEnabled: bool, dpInit: 10, dpPerSec: 1, dpMax: 99, startOpCooldown: 3,
+           layerCapOff?, hitLimitOff?, enemyHpMul?, enemyAtkMul? }, // the last four: a room's experimental rules (§6)
 })
 b.step()                 // advance exactly one TICK
 b.finished               // true when: all enemies dead & no spawns pending, or time limit reached, or all players' LP pools say stop (boss: match decides via b.forceEnd())
 b.forceEnd(reason)
 b.time                   // game seconds elapsed
 b.result()               // BattleResult (below), valid once finished
-b.snapshot()             // compact full snapshot (§8.4) of this field
-b.drainEvents()          // array of client-facing events since last drain (§8.4)
+b.snapshot()             // compact full snapshot (§8.2) of this field
+b.drainEvents()          // array of client-facing events since last drain (§8.2)
 b.on(event, fn, { priority=0, owner } ) / b.off(...)   // hook bus (§5.4)
 ```
 
@@ -64,7 +65,7 @@ b.on(event, fn, { priority=0, owner } ) / b.off(...)   // hook bus (§5.4)
   lpForBoss?: number }
 ```
 
-`SpawnSpec`: `{ time, enemyKey, routeIndex, count=1, interval=0, mods: { hpMul, atkMul, defMul, speedMul }, sourcePlayerId?, bounty?: { coins, ownerPlayerId } , tag?: 'escort'|'boss'|'bounty' }`
+`SpawnSpec`: `{ time, enemyKey, routeIndex, count=1, interval=0, mods: { hpMul, atkMul, defMul, resMul, speedMul }, sourcePlayerId?, bounty?: { coins, ownerPlayerId } , tag?: 'escort'|'boss'|'bounty' }`
 
 `BattleResult`:
 ```js

@@ -191,7 +191,8 @@ Every server names the content its rooms play with a hash, **`cs`** (`shared/plu
 ```
 cs = sha256(canonical({ v: 1, app, sim, data, plugins, settings, i18n?, rules? }))
   sim       sha256(canonical([[path, sha256], …])) of every served /sim/**.js (not nodeData.js), /shared/**.js and /data.js
-  data      { <name>: sha256 } of every data/<name>.json the match or the sim reads (not assets, local-assets, emotes, i18n/)
+  data      { <name>: sha256 } of every top-level data/<name>.json but the presentation-only ones (PRESENTATION_DATA of
+            server/plugins/identity.js: assets, local-assets, local-fx, emotes, assets-collab, local-fx-collab)
   plugins   [{ id, version, files }] in load order — [] for the vanilla content
   settings  { <id>: { <key>: value } } — {} for the vanilla content
   i18n      omitted for vanilla and cosmetic-only selections, so this P0 formula stays bit-identical. A content
@@ -210,7 +211,9 @@ and the second line of a diagnostic report (`content: vanilla cs=<64 hex>`, with
 with cosmetic plugins; a room with gameplay plugins will read `MODDED cs=… plugins=id@version(hash)…`).
 
 `GET /cs/<first 16 hex digits>/index.json` answers the content set's manifest — every code file's hash, every data
-file's URL (`/data/<file>?v=<8 hex>`), hash and size — cached for good; any other `cs` is 404. `GET /plugins/index.json`
+file's URL (`/data/<file>?v=<8 hex>`), hash and size — cached for good. An enabled official version other than the default (DESIGN §35.23,
+`server/versions.js`) has a manifest of its own at its `cs`: its data at `/data/versions/<slug>/…`, plus `version` and
+`bounds` (`/cs/<cs16>/bounds/official.json`). Any other `cs` is 404. `GET /plugins/index.json`
 (never cached) is the catalogue: `{ version, app, api, content: { vanilla }, plugins: [entry …] }`, every plugin and
 pack found by class and id, with its `status` (`loaded` / `disabled` / `planned` / `unsupported`), `unofficial`, its manifest's
 public fields, size and file count — never a path on the server; a loaded cosmetic plugin that writes art adds `vs` (the visual set of
@@ -244,12 +247,14 @@ node tools/plugin.mjs check [<dir|id> …] [--strict] the folders of plugins/ (o
 node tools/plugin.mjs pack <dir|id> … [--zip]      write plugin.lock.json (every file's SHA-256 and size, each Spine model's
           [--out <file|dir>]                       clip data), then check the folder; --zip writes the folder as a zip
                                                    (default plugins/_dist/<id>-<version>.zip)
-node tools/plugin.mjs new <template> <id>          a new plugin folder from a template (art, spine, voice, audio, numbers, operator, dsl, meta, mode, ui, script, theme, notices, fx, skins)
+node tools/plugin.mjs new <template> <id>          a new plugin folder from a template (art, spine, voice, audio, numbers, operator, dsl, meta, mode, ui, script, bond, item, trait, offers, rules, theme, notices, fx, skins)
           [--target <名字|id>] [--name …] [--dir …] optional target found by its official name; --options <json-file> for wizard options
 node tools/plugin.mjs errors [--markdown] [--write] the error catalogue; --write keeps the symptom tables of the documents
 node tools/plugin.mjs import-forge <dir|zip>       a Forge workshop pack → the plugins it can become (§16);
           [--out <dir>] [--id <id>] [--dry-run]     --dry-run writes nothing; --json prints the report only;
-          [--json] [--no-scripts]                   --no-scripts writes no script plugin for its kits/
+          [--json] [--no-scripts]                   --no-scripts writes no script plugin for its kits/;
+          [--offline] [--refresh-index]             the official tables of operators outside the roster
+          [--asset-source=direct|mirror]            (§16): --offline (--no-network) never downloads them
 ```
 
 Additional commands:
@@ -340,7 +345,8 @@ record did not have (`illust`); a new operator is an `assets.add`. `theme` is th
 on this player's page only.
 
 **立绘 and the skins of one operator.** `illust` is the full illustration (立绘), the picture a detail view shows. The
-committed `data/assets.json` of this version carries no `illust` and no `skins` yet, so a plugin that writes one adds that field to the
+committed `data/assets.json` of this version carries no `chars[].illust` and no `chars[].skins` yet (its top-level
+`skins` is this fork's built-in 干员外观, OPERATOR-SKINS.md), so a plugin that writes one adds that field to the
 entry (as any other field of an entry the installation has, it takes `assets.override`). An operator's record may also
 carry several appearances under `skins`, one per key — the key `chars[<charId>].skins` is written under, and it is this
 installation's own skin id where its manifest has one (e.g. `char_003_kalts@boc#6`), else a name the plugin introduces;
@@ -363,7 +369,7 @@ its name, its series, the picture a picker would show, the wearing of one — is
 the overlay's own rule: the reader resolves every key into a path of the installation's manifest, so a key of the wrong
 shape is `PLUGIN_ASSET_KEY` (§15), as an entry key of the wrong shape is. The player picker
 (`public/js/ui/skins.js availableSkins`, docs/SKINS.md) lists a skin once this overlay is composed onto the manifest,
-and the player wears that id with `room.skins`. The studio still does not list skins (it finds an operator, an enemy,
+and upstream's player wears that id with `room.skins` (not in this fork, see below). The studio still does not list skins (it finds an operator, an enemy,
 an interface picture … by its official name, `server/studio/targets.js`, not a skin), so a skin key is copied from the
 installation's own catalogue or written in the stem form.
 
@@ -379,9 +385,15 @@ installation's own catalogue or written in the stem form.
 
 One level down, a reference keeps the rule above: `{ "ref": "<entry key>" }` inside a skin reads the same field of that
 entry's own skin of the same key (`chars[<entry key>].skins[<that key>]`), and a whole-skin reference the skin itself.
-As the opening of this section says, the committed `data/assets.json` has no `skins`, so a skin's reference addresses a
+As the opening of this section says, the committed `data/assets.json` has no `chars[].skins`, so a skin's reference addresses a
 path the installation's manifest does not carry yet and is `PLUGIN_REF` — it means something only once the installation's
 manifest has `skins` of its own; in this version only the fields of an operator's own record can be referenced.
+
+**This fork (Stardust):** the game does not wear plugin skins. Its 干员外观 are the built-in catalogue (`shared/skins.js`,
+`room.skins { choices }`, `UnitInfo.skinId`, the top-level `skins` of `data/assets.json`; OPERATOR-SKINS.md), and
+`public/js/assets.js` `spineEntry`, `avatarUrl` and `portraitUrl` take that catalogue's `opts.skinId` (there is no
+`illustUrl`). The plugin path below, picture-only outfits included, is upstream's; its helpers (`public/js/ui/skins.js`,
+`public/js/ui/pluginSkinPicker.js`) stay for the studio's preview and Forge import (SKINS.md).
 
 **Wearing a skin — docs/SKINS.md.** The overlay above is what a *server's owner* installs and what a player switches on
 for themself (`scope: ["personal"]`, 设置 → 外观插件); **no room and no host is involved**, and this version has no
@@ -390,8 +402,7 @@ rewrite the shared `data/assets.json`). What a player then picks is a `{ [charId
 **operator** — the container the key is written under — sent as `room.skins` (accepted in any phase: an appearance
 changes nothing a battle does, so it never enters `cs`) and published to teammates in `Match.publicView().players[]`,
 which is how a co-op partner's piece draws your skin, and, while the room waits, in `room.state.seats[].skins` (the
-名片干员 seat cards; SKINS.md). `public/js/assets.js` resolves it (`spineEntry`, `avatarUrl`,
-`portraitUrl`, `illustUrl` take `opts.skin`) and falls back to the operator's own model and pictures for a skin (or a
+名片干员 seat cards; SKINS.md). Upstream's `public/js/assets.js` resolves it and falls back to the operator's own model and pictures for a skin (or a
 skin's layer) that is not there, so a plugin that replaces only a model still draws a face. 设置「显示其他玩家的皮肤」
 (default on) is a pure client preference: off, this browser draws every OTHER seat's piece on the operator's own model and pictures
 while keeping its own player's — their screen keeps showing their skin.
@@ -933,6 +944,7 @@ normalised by the manifest's declared settings (§3) and are part of `cs`. Refus
 | `PLUGIN_DEPENDENCY` / `PLUGIN_CONFLICT` | a requirement is missing, or two plugins conflict |
 | `PLUGIN_INCOMPATIBLE` | a gameplay plugin made for other game versions or another plugin API (a cosmetic one is only a warning, §9) |
 | `PLUGIN_BUSY` | one content set more than the server runs at once (`limits.maxSets`, default 4 [ASSUMED]) |
+| `VERSION_VOTE` / `VERSION_UNSUPPORTED` | a version proposal is open, or a gameplay plugin in a room of another official version (above) |
 
 A change of the content set (or of the mode) un-readies the other players, like a difficulty change. Switching
 everything off brings back the vanilla shape of `room.state.content` exactly.
@@ -1347,7 +1359,7 @@ is a client intent) on change and then at most once a second, and `state.room` (
 room's plugin ids, never the join code). `welcome` may add `version` (`PROTOCOL_VERSION`), `lang`, `plugins` and the
 scalar prefs already stored for that plugin. A plugin that only reads `t === 'welcome'` keeps working. The plugin may
 ask for a slot, a height, a short notice, and a few namespaced storage keys (`sp.plugin.<id>.`, proxied by the host
-page). It cannot send a match intent: a message whose type is `hello`, `ping`, `room.*`, `g.*` or `b.*`, or that
+page). It cannot send a match intent: a message whose type is `hello`, `ping`, `room.*`, `queue.*` (this fork's matchmaking), `g.*` or `b.*`, or that
 carries one, is rejected. The host never turns a plugin message into a client→server message. Nothing in these feeds
 lets the frame reach the parent page.
 
@@ -1653,7 +1665,8 @@ enemies of owner one; use custom groups for the actual leaks. Bounties also belo
 the number of boards in this isolated field. Other fields, team LP, real-time overtime, acquisition effects, economy,
 cross-round state, arbitrary stat edits, movable devices, Arts items and plugin content sets are outside this console.
 The UI names its unsupported parts and prep-only tactics. A full match is not this page: the host test room
-(DESIGN §34.8, `SP_TEST_MODE` / `--test-mode`) is a separate lobby room. This sandbox does not create one.
+(DESIGN §34.8, `SP_TEST_MODE` / `--test-mode`) is a separate lobby room, and so, in this fork, is a private room whose
+host switched on 调控台 in the room settings (`shared/experimental.js` isConsoleRoom). This sandbox does not create one.
 
 The run starts paused. Editing recompiles and resets; one tick / one second means 1 / 30 fixed sim ticks, up to the
 cap or the normal battle end. Empty custom waves stay open until the cap. Speed 0.25×–8× affects tick scheduling only;

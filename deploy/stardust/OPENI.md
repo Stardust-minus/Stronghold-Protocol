@@ -4,7 +4,7 @@
 
 只镜像公开 **assets美术、模型、Spine和音频**。vendor、fonts/CSS、PRTS库继续使用同版本静态回退源；HTML、业务JS/data、WS和认证不因此公开。解析器只取签名并返回小型302，正文由provider直接发送。
 
-公开GET的选择与短缓存由宿主Nginx/Lua完成：[access.lua](material-lb/access.lua)、[header.lua](material-lb/header.lua)及离线[prepare-material-lb.py](tools/prepare-material-lb.py)/[test-prepare-material-lb.py](tools/test-prepare-material-lb.py)。它们不是上传器、自动激活器或通用环境变量切源功能。分流合同见[MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)。
+公开GET的选择与公开缓存由宿主Nginx/Lua完成：[access.lua](material-lb/access.lua)、[header.lua](material-lb/header.lua)及离线[prepare-material-lb.py](tools/prepare-material-lb.py)/[test-prepare-material-lb.py](tools/test-prepare-material-lb.py)。它们不是上传器、自动激活器或通用环境变量切源功能。分流合同见[MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)。
 
 清单、镜像及fallback必须绑定同一批准release；实际数据集、mirror prefix、revision、宿主清单挂载及验收结果保存在Git外的私有记录，见[记录边界](releases/README.md)。本页不声明某环境已经安装或验收。
 
@@ -43,7 +43,7 @@ MP3 远端名映射为 `media/<stem>`，不带扩展名；所有对应的 `/asse
 - API 并发、排队、超时、重试及 429 退避有界；未知路径不请求平台。签名必须是指定 OBS 主机、指定对象路径和允许的查询字段。
 - 解析失败/队列满时，由解析器 302 到同版本同版本静态回退源。解析器宕机、连接/响应超时或 5xx 时，由 Nginx named location 做同样回退。
 - HEAD 使用同版本静态回退源回退，因为 OpenI 的 GET 签名不允许 HEAD；不要把一次 HEAD 403 当作 OBS GET 文件损坏。
-- 解析器原生302始终no-store；只有已知公开素材可由配套Lua收窄为短缓存：稳定 pinned ModelScope/同版本静态回退源跳转 `public, max-age=60`，OpenI签名跳转 `max-age <= min(60, Expires-now-30)`；剩余期限不足、未知/重复查询字段或不匹配目标均 no-store。仅额外接受固定 `sp_request=cors|display`，不能放宽任意查询。OPTIONS/公开错误保持 no-store，named故障回退保留保守 private,no-store，认证/业务未变。OBS正文长期缓存与跨签名永久复用仍是两回事。
+- 解析器原生302始终no-store；只有已知公开素材可由配套Lua改为公开缓存：同版本静态回退源跳转 `public, max-age=60`，未签名profile的稳定 pinned ModelScope 跳转 `public, max-age=86400`（签名profile见[MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)），OpenI签名跳转 `max-age <= min(60, Expires-now-30)`；剩余期限不足、未知/重复查询字段或不匹配目标均 no-store。仅额外接受固定 `sp_request=cors|display`，不能放宽任意查询。OPTIONS/公开错误保持 no-store，named故障回退保留保守 private,no-store，认证/业务未变。OBS正文长期缓存与跨签名永久复用仍是两回事。
 - 健康计数包括命中、冷请求、实际 `apiRequests`、刷新、失败、回退、排队和缓存项；没有 URL 或凭据。Docker bridge 请求 `/healthz` 返回 404，使用容器内部回环检查。
 
 ## 部署和验收
@@ -60,6 +60,6 @@ MP3 远端名映射为 `media/<stem>`，不带扩展名；所有对应的 `/asse
 
 ## 多源与验证边界
 
-公开材料消费者限额为150000 aliases／64MiB输入，OpenI最多五个明确审核、固定且去重的mirror目录（保持旧单／双／三／四mirror兼容，拒绝第六个）；新增供给为已有两目录之外的固定0.2.3增量目录、0.2.5战场场景增量目录（维护者2026-10-12决定开第四个目录）和0.3.0素材增量目录（2026-10-16随0.3.0官方特效/配音/场景开第五个目录，alias上限同时从100000提到150000），不授权自动发现或扩容。ModelScope现有上限仍为八个明确批准的prefix。唯一批准的素材例外为 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 的OpenI-only供给；不通过改名重传或旧pin绕过provider限制，也不泛化其他例外。
+公开材料消费者限额为150000 aliases／64MiB输入，OpenI最多五个明确审核、固定且去重的mirror目录（保持旧单／双／三／四mirror兼容，拒绝第六个）；新增供给为已有两目录之外的固定0.2.3增量目录、0.2.5战场场景增量目录（维护者2026-10-12决定开第四个目录）和0.3.0素材增量目录（2026-10-16随0.3.0官方特效/配音/场景开第五个目录，alias上限同时从100000提到150000），不授权自动发现或扩容。ModelScope上限为九个明确批准的prefix（rel22 增加第九个）。唯一批准的素材例外为 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 的OpenI-only供给；不通过改名重传或旧pin绕过provider限制，也不泛化其他例外。
 
-不能把ModelScope CDN `auth_key` 的签发时间当OpenI `Expires`，或套用固定TTL。本站只302到稳定、40hex revision-pinned的ModelScope resolve入口，不保存或自行解释临时CDN链接。metadata库存核验、远端正文抽样、完整正文重下载和浏览器验收须分别记录；这些不自动构成密码输入、玩法或容量验收，也不能保证任意下游CDN错误自动回退。
+不能把ModelScope CDN `auth_key` 的签发时间当OpenI `Expires`，或套用固定TTL。未签名profile只302到稳定、40hex revision-pinned的ModelScope resolve入口，不保存或自行解释临时CDN链接；签名profile的CDN签名地址见[MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)。metadata库存核验、远端正文抽样、完整正文重下载和浏览器验收须分别记录；这些不自动构成密码输入、玩法或容量验收，也不能保证任意下游CDN错误自动回退。

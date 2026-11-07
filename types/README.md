@@ -5,7 +5,7 @@
 The first slice is the closed set that already typechecks:
 
 - `shared/` except `shared/protocol.js` and `shared/bandBonds.js` (their JSDoc does not match the code yet; see below)
-- `server/sim/rng.js`, `server/sim/dir.js`, `server/sim/constants.js` (the last imports `GEO` from shared)
+- `server/sim/rng.js`, `server/sim/detmath.js`, `server/sim/dir.js`, `server/sim/constants.js` (the last imports `GEO` from shared)
 - `types/` — JSDoc for `Unit`, `DamageInfo`, the snapshot tuples, and the protocol message envelope
 
 `strict` is off. `tsc` does not read `jsconfig.json` on its own; the script passes `-p`.

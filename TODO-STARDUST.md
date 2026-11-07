@@ -17,11 +17,12 @@ These items are independent scopes, not instructions to automatically resume arc
 
 ### Multiplayer and recovery
 
-- [x] Configurable4/8/12/16/20-player rooms, capacity compatibility and same-capacity/difficulty/rules party matching. Parties remain indivisible; cancellation preserves the original friend room.
+- [x] Configurable 4/8/12/16/20-player rooms, capacity compatibility and same-capacity/difficulty/rules party matching. Parties remain indivisible; cancellation preserves the original friend room. A lone ticket may wait in several difficulties, sizes and rule sets; rooms of eight seats or more can be listed publicly.
 - [x] In target20 co-op, ordinary stock belongs to fixed four-seat groups; deaths/leaves do not regroup them. Independent/custom inventory precedence remains.
-- [x] Target20 strategy and six-option special selections allow repeats across players, once per player, while retaining authoritative turns/deadlines. Ordinary-mode contracts stay unchanged.
-- [x] One frozen population-scaled unite budget, capped at300 game seconds, shared by actual eligible rounds; charge actual natural-release duration without double LP settlement or future-result consumption.
-- [x] Rescue preserves existing state and eligibility; it does not reset a player's operators, equipment or economy.
+- [x] In every expanded capacity (8–20), strategy and six-option special selections allow repeats across players, once per player, on one authoritative deadline. Four-seat rooms keep unique picks; with two or more humans their strategy pick is simultaneous too (first come, first served).
+- [x] Unite rounds use the round's battle time limit and a relay's second round the same limit again (the fixed 300-game-second budget was removed on 2026-11-01); one final LP settlement, no future-result consumption.
+- [x] Rescue (by any living human teammate since 2026-11-06) preserves existing state; it does not reset a player's operators, equipment or economy.
+- [x] Optional Valkey/Redis match checkpoints (`SP_REDIS_URL`, [docs/DEPLOY.md](docs/DEPLOY.md) §13): safe-point saves resume rooms and matches after a server or game-node restart; an incompatible checkpoint is dropped.
 - [x] One coordinator/global matching pool, whole-match game nodes and independent ingress processes; raw game transport goes directly to ingress, with generation and observer privacy fences.
 - [x] Dual-ingress deployment generation and scoped, fail-closed lifecycle management. This describes the implementation, not a claim about any live topology or load capacity.
 
@@ -32,6 +33,7 @@ These items are independent scopes, not instructions to automatically resume arc
 - [x] Independent UI and CN/JP/EN voice preferences shared by lobby and in-game settings; missing/failed voice falls back to CN. See [voice languages](docs/VOICE-LANGUAGES.md).
 - [x] Optional intro off by default while retaining login assembly, success and entry transitions; reduced motion and gate security remain.
 - [x] Lobby announcements and feedback UI; matched-version content updates rather than an unauthenticated hot-update API.
+- [x] The four official versions (第一期上半 to 第二期下半) in version rooms, including the later 6★ 自选 operators; client-side prediction of prep intents with the server as the only authority.
 
 ### Execution and release tooling
 

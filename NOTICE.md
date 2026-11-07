@@ -38,6 +38,8 @@ Copyright (C) 2026 Stronghold-Protocol contributors
 
 这些内容**不在 GPL-3.0 授权范围内**，本项目也无权就它们向任何人授予任何权利。
 
+联动干员（房间的实验性「联动干员」开关，素材在单独的联动素材包里）的形象、语音与模型，版权属于各自的权利方，同样不受 GPL 约束；开启和使用联动干员的版权风险由玩家自行承担。
+
 官方战斗特效（0.3.0「官方特效」）：特效的粒子系统、网格、贴图和动画从《明日方舟》官方客户端本地提取（`tools/local-extract`，完整包附带一份），同样属于上面所说、不受 GPL 约束的内容；播放它们的着色器（`public/js/render/vfx/glsl.js`）是本项目按官方客户端着色器的计算自己重写的 GLSL 代码，仓库里不含官方着色器源码。
 
 ## 3. 仅限非商业用途
@@ -70,5 +72,6 @@ art, models, audio and data — including everything under `public/assets/` in t
 Yostar and their licensors, are **not** covered by the GPL, and may be used for study and personal non-commercial
 purposes only: no selling, paid distribution, paid hosting, ads, donations or any other monetisation. Rights holders
 can request removal through a GitHub issue and the content will be taken down. No warranty of any kind.
+The collab operators' art, voices and models (the experimental 联动干员 room switch) belong to their own rights holders.
 The English UI strings were seeded from GitHub PR #70 by @YuriRestia (credited, released with the project under
 GPL-3.0-or-later); the English game texts (`data/i18n/en.json`) are official EN client data like `data/*.json`.

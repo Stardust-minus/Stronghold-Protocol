@@ -6,7 +6,7 @@
 
 ## 固定部署 profile
 
-CLI只接受固定 `prod|beta|core|local`，不能指定任意容器、地址、端口或Worker数。配置缺省仍`prod`，旧调用兼容；systemd三个单元均明确`--profile`并要求与root配置一致，初始错配在获取锁或调度操作前拒绝，运行中reload也不能跨profile。
+CLI只接受固定 `prod|beta|core|local|local-hz`，不能指定任意容器、地址、端口或Worker数。配置缺省仍`prod`，旧调用兼容；systemd四个单元（prod/beta/core/local）均明确`--profile`并要求与root配置一致，初始错配在获取锁或调度操作前拒绝，运行中reload也不能跨profile。
 
 各profile的容器身份、Worker数、精确绑定集合、锁、事件过滤及health门槛由工具固定，不从现场猜测。部署前必须核对所选profile与配套批准配置；额外、重复或通配绑定均拒绝。详细要求见[BETA-SOP.md](BETA-SOP.md)。manager托管生命周期时不能同时启用持锁的独立priority watcher。所有profile仍只有Main=-20、其他线程0；模板和boot hook不代表已安装。
 
@@ -15,6 +15,8 @@ CLI只接受固定 `prod|beta|core|local`，不能指定任意容器、地址、
 `local` 对应 Formal 单机本地栈（`cluster-local-stack.py`，Compose project `ark-cluster-formal-local`，32-game 3+1 core bundle、16 ingress）：工具固定 49 个目标——`coordinator`（3000→127.0.0.1:35400、3001→35410，无 Worker）、`ingress`/`ingress-02`..`ingress-16`（3000→35451..35466，无 Worker）、`game-01`..`game-32`（3000→35411..35442，WorkerThread 恰为 3 combat + 1 trial）。每个目标仍是同一事务：只改 Node MainThread，先 reset-on-fork 再 nice=-20，其他线程 nice0；容器身份、批准镜像对、安全与资源基线照旧逐个核对，发布绑定须与上述集合完全一致（无额外、重复或非 loopback）。拓扑或端口改变时工具拒绝，需要随之更新工具，不从现场推测。
 
 就绪门槛不用 HTTP：game 与 ingress 不提供 `/healthz`，负载下 loopback 发布端口也会卡住；以该角色的确切 WorkerThread 数为准（Worker 补位期间暂不就绪，按 startup 期限等待）。`--check` 与单次应用逐个访问全部 49 个目标、一个拒绝不影响其他目标，最后输出 `targets-summary`（有拒绝退出1，未配置退出2）；`--watch` 订阅整个 project 的 start 事件并把容器 ID 映射回固定目标，非目标容器跳过。锁 `/run/ark-local-main-thread-priority.lock`，单元 `systemd/ark-local-main-thread-priority.service`，宿主目录 `/opt/ark-cluster-formal/main-priority/`，配置样例 `main-thread-priority.local.example.json`（白名单为空即拒绝）。安装与启用同样需要单独授权。
+
+`local-hz` 与 `local` 的 49 个目标、Worker 数和锁完全相同，唯一差别是发布绑定必须恰为工具固定的 WG 地址而不是 loopback；配置的 `profile` 须同为 `local-hz`，仓库没有为它单独提供单元或配置样例。
 
 ## 为什么不改 Node 启动命令
 

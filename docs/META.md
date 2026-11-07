@@ -10,8 +10,10 @@ server/match/
   Match.js         state machine, timers, round loop, co-op orchestration, views (the lobby⇄match interface is at the top)
                    — the class: constructor + method install
   match/           Match's methods by concern: platform, infra, messaging, views, watch, intents, pause, phases,
-                   spDraft (机变), prep, combat, clientCombat, reports, unitePhase (联防), bossRounds (Final Assault /
-                   Hidden Core), settle; common.js (FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS, re-exported by Match.js)
+                   spDraft (机变), prep, combat, clientCombat, localReplica, rehearsal, reports, unitePhase (联防),
+                   bossRounds (Final Assault / Hidden Core), settle; the remake's setupVote (重刷本局), kickVote (投票移出),
+                   speedVote (战斗 2 倍速), extensions (card-pool groups, Worker transport, damage ledger, 队友复活), offers
+                   (plugin windows), testCommands (g.test); common.js (FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS, re-exported by Match.js)
   PlayerState.js   per-player economy / shop / hand / board / items / bonds / LP + every prep intent handler — the class:
                    constructor + method install
   player/          PlayerState's methods by concern: basics, pieces, acquire (gains, merges), economy (funds, layers,
@@ -730,7 +732,7 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   (`economy.poolCopiesOverrides`); co-op ordinary stock is twice that (`coopPoolMultiplier: 2`), while DIY stays private.
   A normal piece holds 1 copy, an elite 3; displays never reserve copies. Granted / promoted elites and Mimic copies
   may overdraw stock but retain their full occupation; raw signed `left + held = cap`, available stock is never negative.
-  Selling, temp resolution and elimination return exactly what a piece holds. Fork `poolForPlayer` / grouped pools
+  Selling, temp resolution and elimination return exactly what a piece holds. Fork `Match.poolFor` / grouped pools
   remain: capacity-20 rooms use fixed seat-order chunks of four; other expanded rooms keep their existing small-room
   scaling / balanced groups, frozen at match start. `disableSharedPool` selects independent chess stock; gifts draw
   from the recipient's pool. 手动指定卡池编组 (`experimental.poolPlan`, feedback #49, any co-op room): the plan's seat
@@ -1056,6 +1058,9 @@ Originally admitted >=8 UNITE plans also expose
 capacities; existing `sp.picks` retains every confirmed picker while `taken` identifies the first.
 `players[].status`: INFO_CHECK ready/deciding · drafts ready (picked) / deciding (their turn) / acting (waiting) ·
 PREP ready/acting · COMBAT/boss combat/done · UNITE helping/done · others done · `left` / `dead` override.
+`revival { enabled, cost, minDonorLp, windowOpen, deadline, matchId, round, eligible }` (always; `enabled` false without
+the room's 队友复活) and `players[].revived` / `pendingDeath` / `revivalUnavailableReason` carry the SETTLE rescue window
+(`g.revive`, [design/network.md](design/network.md) §8.2, DESIGN §36.16).
 
 `m.private` = DESIGN §8.3 exactly (sent per player whenever it changed). `nextEnemies` = the current round's wave
 (+ the player's bounty enemies, tag `bounty`; boss rounds: the player's boss field, tag `boss` — the leader's entry with its

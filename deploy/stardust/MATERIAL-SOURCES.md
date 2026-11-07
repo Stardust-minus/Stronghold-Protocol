@@ -4,7 +4,7 @@
 
 ## 离线工具的安全合同
 - `prepare-material-lb.py` 输出固定小型 `access.lua`／`header.lua` 和 `routes.json`／`header-data.json`（`--signed-ttl` 时另加 `mssign.lua`、`sign.lua`、`sign-location.conf`），以及供 nginx master 预加载库存的 `preload.lua`（见[下文](#master-预加载preloadlua)）；**不再把全量库存编译为 Lua 表**。大型 Lua 表可能触发 LuaJIT 常量上限，`nginx -t` 不能证明运行时filter可执行。必须用实际全量尺寸执行 JSON 解码、缓存和 HTTP filter。
-- 默认单前缀、无例外及原 60/40 行为保留；新版本要同时指定 release、40hex revision、primary prefix；公开材料消费者上限为150000 aliases／64MiB输入（0.3.0官方特效与韩语/本土语言配音使库存约13万alias），OpenI最多五个明确审核、固定且去重的mirror目录，保持单／双／三／四目录兼容并拒绝第六个；已有两目录之外只增加固定0.2.3增量目录、0.2.5战场场景增量目录和0.3.0素材增量目录，不提供自动发现或任意host/root/path。ModelScope现有上限仍为八个明确批准的prefix。多前缀以重复 `--modelscope-allowed-prefix` 明示，清单 `prefixes` 必须同序、去重且 primary 在首位；所有 URL 均绑定同一个 revision 和固定公开 repo/origin。
+- 默认单前缀、无例外及原 60/40 行为保留；新版本要同时指定 release、40hex revision、primary prefix；公开材料消费者上限为150000 aliases／64MiB输入（0.3.0官方特效与韩语/本土语言配音使库存约13万alias），OpenI最多五个明确审核、固定且去重的mirror目录，保持单／双／三／四目录兼容并拒绝第六个；已有两目录之外只增加固定0.2.3增量目录、0.2.5战场场景增量目录和0.3.0素材增量目录，不提供自动发现或任意host/root/path。ModelScope上限为九个明确批准的prefix（rel22 增加第九个）。多前缀以重复 `--modelscope-allowed-prefix` 明示，清单 `prefixes` 必须同序、去重且 primary 在首位；所有 URL 均绑定同一个 revision 和固定公开 repo/origin。
 - `--openi-only-path` 仅允许 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 这一精确批准的素材例外，且必须与 MS 清单 `openiOnlyPaths` 一致、存在于 OI 库存。MS alias 集合必须正好为 OI 集合减该例外；普通条目的 bytes／SHA／MIME 逐项一致。未知根字段、额外缺项、其他例外或未认可前缀均拒绝。
 - 例外在 routes 中保留为 `false`，只允许该已明示路径直接进入 OI；未知路径的 `nil` 仍拒绝。例外的 header entry 不包含 ModelScope target，因此伪造 MS Location 不能得到公开缓存。JSON 每个 worker 只读取／解码一次（装了 `preload.lua` 则由 master 每次启动／reload 做一次），错误数据也缓存为拒绝，避免重复解析大文件。
 - `uploadVerified=true` 仍要求真实 assigned 远端库存证据，不是执行上传命令成功；复用固定 pin 的完整 metadata 审计与全量正文重下载须分别表述。镜像数量限制、私有门禁、签名寿命、CORS、HEAD／OPTIONS／回退合同没有放宽。
@@ -16,8 +16,8 @@
 联动干员（2026-11-02）的立绘、语音、模型只放在 `public/assets/collab/` 下，清单是 `data/assets-collab.json`（[docs/ASSETS.md](../../docs/ASSETS.md#the-collab-pack)）。发布时：
 
 1. 发布前在仓库里运行 `node tools/collab-assets.mjs --check`：清单没有包外 URL、文件齐全、`data/assets.json` 不含联动干员、普通官方特效索引不含联动干员；联动官方特效在 `assets/collab/local/fx/`，清单 `data/local-fx-collab.json` 与 `data/local-fx.json` 一样是本机文件（不进 Git），随联动包一起发布。
-2. 普通素材 profile 的库存与上传排除 `assets/collab/**`；联动包单独成一个 profile（单独的数据集前缀与 revision），按本文其余规则准备、核验和切换，与普通 profile 分别授权。
-3. 边缘需要把 `/assets/collab/` 前缀路由到联动 profile：这一路由要在 material-lb 的准备工具里另行支持（这次没有改 material-lb）；在那之前该前缀只由本机静态目录供给，不进普通 profile 的库存。`/data/assets-collab.json` 随游戏数据发布。
+2. 普通素材 profile 的库存与上传排除 `assets/collab/**`。联动包不上传 ModelScope 或 OpenI，也不建 material profile：`/assets/collab/` 只由入口本机的静态目录供给（入口 vhost 须为该前缀单独设本机 location；它不进任何 material-lb 库存），与普通素材分别授权、发布。
+3. `/data/assets-collab.json` 随游戏数据发布。
 4. 联动包只在房主开启联动干员的房间里被请求，流量与普通 profile 分开计。
 
 ## 同字节材料与镜像 pin
@@ -41,15 +41,17 @@
 
 ## 重定向、CORS与缓存契约
 
-ModelScope分支为：原公开请求URL → 本站302至稳定的 `/datasets/<APPROVED_DATASET>/resolve/<40hex-revision>/<immutable-file>` → provider302至其签名CDN → 正文。正文不穿过入口宿主；serving配置和前端不持有账户Token。
+未签名profile的ModelScope分支为：原公开请求URL → 本站302至稳定的 `/datasets/<APPROVED_DATASET>/resolve/<40hex-revision>/<immutable-file>` → provider302至其签名CDN → 正文；签名profile（`--signed-ttl`）由入口先解析，浏览器只跟随一次302直达CDN（见下文「ModelScope 签名重定向」）。正文不穿过入口宿主；前端不持有账户Token，签名profile所需的ModelScope登录只在入口受保护的include里。
 
-`auth_key` 前导epoch是签发时间，**未证明provider TTL，也不能当OpenI Expires使用**。本站不保存、自行续签或解释临时ModelScope CDN URL；只短缓存稳定pinned下载入口的302，后续跳转由provider控制。provider重定向链的ACAO/ACAC、Vary和最终CDN的公开CORS须单独检查，不能由稳定入口推断。浏览器credentials保持omit/same-origin，不改include，不因素材分流放宽CSP。
+`auth_key` 前导epoch是签发时间，**未证明provider TTL，也不能当OpenI Expires使用**。未签名profile不保存、自行续签或解释临时ModelScope CDN URL，只缓存稳定pinned下载入口的302，后续跳转由provider控制；签名profile的CDN地址只存在入口共享内存，寿命以 `auth_key` 的签发时间加实测下限 `--signed-ttl` 计算（见下文）。provider重定向链的ACAO/ACAC、Vary和最终CDN的公开CORS须单独检查，不能由稳定入口推断。浏览器credentials保持omit/same-origin，不改include，不因素材分流放宽CSP。
 
 Lua仅用于公开 `/assets/`、`/media/` locations：
 
 | 响应 | 本站缓存策略 |
 |---|---|
-| 已知、精确匹配的稳定ModelScope或同版本静态回退源302 | `public, max-age=60` |
+| 已知、精确匹配的稳定ModelScope 302（未签名profile，固定revision） | `public, max-age=86400` |
+| 已知ModelScope CDN签名302（签名profile） | `public, max-age` 至多600，且在签名到期前至少60秒结束；不足1秒则no-store |
+| 已知、精确匹配的同版本静态回退源302 | `public, max-age=60` |
 | 已知OpenI签名302 | `public, max-age <= min(60, Expires-now-30)`，不足1秒则no-store |
 | 不匹配目标、未知/重复query、不足签名期限、公开错误、OPTIONS | `no-store` |
 | 现有named upstream-error fallback | 保留保守 `private, no-store`，不为命中率放宽 |

@@ -22,7 +22,7 @@ role guard优先级-20、bootstrap优先级-30；各profile只管自己的接口
 
 ## 独立安装合同
 
-只向Formal的全新root目录投放；**不替换在线Beta tools、不重启Beta或旧WG**。所有工具来自同一已核对源revision/完整SHA256，root-owned、不可group/world写。`python3 -I`依赖同目录显式importlib加载；必须投放全部六个文件，不能漏共享module。
+只向Formal的全新root目录投放；**不替换在线Beta tools、不重启Beta或旧WG**。所有工具来自同一已核对源revision/完整SHA256，root-owned、不可group/world写。`python3 -I`依赖同目录显式importlib加载；必须投放全部六个文件，不能漏共享module。无WG同机组合栈另需同目录的`cluster-local-stack.py`（它加载同目录的`cluster-deploy.py`，见[LOCAL-STACK.md](../LOCAL-STACK.md)）。
 
 ```text
 /opt/ark-cluster-formal/tools/

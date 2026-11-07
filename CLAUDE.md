@@ -14,7 +14,7 @@ Read [AGENTS.md](AGENTS.md) for the upstream document index and verification gui
 
 ## Implementation and verification
 
-- Node ESM with native HTTP and `ws`; Preact/htm and native CSS on the client, PixiJS/Spine for rendering. Vite bundles only the UI layer (`/js`, `/css` → `public/build/`, `npm run build`, owner's decision of 2026-10-16); `/sim`, `/shared` and `/data` stay native, unbundled modules and files. Do not introduce an unrelated framework or a database — the exceptions are the optional Valkey (Redis-compatible) store of the match checkpoints (`SP_REDIS_URL`, docs/DEPLOY.md §11, owner's decision of 2026-10-16) and the feedback board's posts in Node's built-in `node:sqlite` (`deploy/stardust/feedback/`, owner's decision of 2026-10-16).
+- Node ESM with native HTTP and `ws`; Preact/htm and native CSS on the client, PixiJS/Spine for rendering. Vite bundles only the UI layer (`/js`, `/css` → `public/build/`, `npm run build`, owner's decision of 2026-10-16); `/sim`, `/shared` and `/data` stay native, unbundled modules and files. Do not introduce an unrelated framework or a database — the exceptions are the optional Valkey (Redis-compatible) store of the match checkpoints (`SP_REDIS_URL`, docs/DEPLOY.md §13, owner's decision of 2026-10-16) and the feedback board's posts in Node's built-in `node:sqlite` (`deploy/stardust/feedback/`, owner's decision of 2026-10-16).
 - Match existing style, comment density and module boundaries. Preserve the synchronous/virtual simulation path alongside Worker execution.
 - Use the lockfile. `npm ci` provisions dependencies and client vendor; game art/fonts are provisioned separately. `node deploy/stardust/tools/prepare-auth-assets.mjs` generates ignored login dependencies from installed/local inputs.
 - `npm test` is the baseline. Host Python tests and opt-in native/browser checks have separate coverage; report pass, fail, skip and cancellation accurately.
@@ -26,7 +26,7 @@ Read [AGENTS.md](AGENTS.md) for the upstream document index and verification gui
 
 - Preserve server authority, room/session/actor generations, privacy and observer fences. Shared Boss HP/LP/end authority must not be split across independent Workers.
 - Skins are display-only; they must not replace character/skill/audio identity or alter stats, timings or RNG. Operator presets exclude identity, credentials, room rules and battle snapshots; legacy single-section imports keep their scope.
-- Rescue cancels the pending death without resetting operators, equipment, economy or other state. An eligible leak-free unite helper must have LP >=11, pays10, and the target returns at LP1 at most once per match.
+- Rescue (the opt-in 队友复活 rule) cancels the pending death without resetting operators, equipment, economy or other state. Any living human teammate still in the match may rescue, leaks and 联防 aside (owner's decision of 2026-11-06): the rescuer must have LP >= 11 and pays 10; the target returns at LP 1, at most once per match.
 - Only the optional intro defaults off. Keep login assembly, success and entry transitions, password/CSRF checks, explicit skip and reduced-motion behavior.
 - Do not restore rolling updates, whole-page prerender or per-frame Worker IPC as an incidental cleanup.
 
@@ -34,7 +34,7 @@ Read [AGENTS.md](AGENTS.md) for the upstream document index and verification gui
 
 - Read `deploy/stardust/README.md`, `UPDATE-SOP.md` and `CLUSTER-SOP.md` before release work. If present, read the ignored `.claude/LOCAL-OPERATIONS.md` and the current local handoff before touching an actual environment; private state is not publication material or renewed permission.
 - Source commit, image identity, generated-resource inventory, host-tool revision, record commit and actual runtime generation are separate identities. Pair game/private code/material/font/vendor releases and rollbacks.
-- Rooms, sessions and matches live in memory. Without `SP_REDIS_URL`, recreating game roles ends them; with it, safe-point checkpoints resume them after a restart (docs/DEPLOY.md §11), and an incompatible checkpoint is dropped. Switching back to an old image cannot recover them. Do not restart the game to update unrelated auth/static files.
+- Rooms, sessions and matches live in memory. Without `SP_REDIS_URL`, recreating game roles ends them; with it, safe-point checkpoints resume them after a restart (docs/DEPLOY.md §13), and an incompatible checkpoint is dropped. Switching back to an old image cannot recover them. Do not restart the game to update unrelated auth/static files.
 - Production changes, bounded management access/renewal, provider writes and DNS/WG operations need explicit current authorization. Production hosts receive only required runtime images, host tools, configuration and opaque keys, not a checkout, tests or release documentation.
 - No production load tests, Inspector, heapdump or injected busy work. Only remove inventoried project-owned objects; do not touch other sites, databases, certificates or shared network rules.
 - Main-only nice=-20 uses ordinary scheduling with reset-on-fork; every other thread stays0. Do not `nice` the entire Node process or grant container `CAP_SYS_NICE`.

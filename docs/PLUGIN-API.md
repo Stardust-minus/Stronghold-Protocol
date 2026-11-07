@@ -1,6 +1,6 @@
 # Plugin API v1–v2
 
-The frozen surface of plugin API v1. A plugin names the level it was written for in `api` (`plugin.json`). This build accepts a level from `PLUGIN_API.min` through `PLUGIN_API.current` (`shared/constants.js`). A plugin outside that range is refused and is not loaded.
+The frozen surface of plugin API v1 and its level-2 additions (`offers`, 0.3.1). A plugin names the level it was written for in `api` (`plugin.json`). This build accepts a level from `PLUGIN_API.min` through `PLUGIN_API.current` (`shared/constants.js`). A plugin outside that range is refused and is not loaded.
 
 ## Version policy
 
@@ -601,7 +601,7 @@ replacement. No route or frozen plugin grammar member is added; the stable surfa
 
 ## Host feeds for a read-only panel (0.3.1)
 
-`ui.message.host.result` and `ui.message.host.net` are host-to-frame snapshots. `welcome` may also carry `version`, `lang`, `plugins`, `cs` and `prefs`. `state` may also carry `room`. A frame still posts only the plugin message names. `validateHostMessage` refuses a payload whose tree contains a match intent (`g.*`, `b.*`, `room.*`, `hello`, `ping`). These feeds do not become a client-to-server intent. The Forge receiver checks `event.source === parent` before queuing or applying any message. These are optional fields of existing stable welcome/state messages; no message name is added.
+`ui.message.host.result` and `ui.message.host.net` are host-to-frame snapshots. `welcome` may also carry `version`, `lang`, `plugins`, `cs` and `prefs`. `state` may also carry `room`. A frame still posts only the plugin message names. `validateHostMessage` refuses a payload whose tree contains a match intent (`g.*`, `b.*`, `room.*`, `queue.*`, `hello`, `ping`). These feeds do not become a client-to-server intent. The Forge receiver checks `event.source === parent` before queuing or applying any message. These are optional fields of existing stable welcome/state messages; no message name is added.
 
 **`result`.** `{ v: 1, t: 'result', result }`. `result` is the settle object the result screen already shows, or `null`. Kept player stats: `dmgDealt`, `bossDamage`, `kills`, `leaks`, `lpLost`, `merges`, `itemsEquipped`, `activatedLayers`, `refreshes`, `perfectRounds`, `gold` (exact finite numbers). Kept player fields: `playerId`, `seat`, `name`, `isBot`, `left`, `alive`, `victory`, `roundsPassed`, `creditedKills`, `eliminatedRound`, `lp`, `bandId`, `stats`, and `title`, `trophies`, `reward` when present. Kept match fields: `victory`, `roundsPassed`, `hiddenReached`, `hiddenCleared`, `reason`, `teamLp`, `modeId`, `difficulty`, `stageId`, `bossId`, `durationMs`. At most 8 players. Lineup, diy, seed and the hidden-boss id stay off this message. The host posts it when a live frame is ready and again when the result changes. The studio preview does not receive it.
 

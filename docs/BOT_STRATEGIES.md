@@ -102,8 +102,9 @@ The environment accepts registered IDs only. `startServer()` validates it before
 connections. An unknown ID prevents startup with an error naming `SP_BOT_STRATEGY`, the rejected value and available
 IDs, plus a reminder to unset the variable to use the original bot. Match construction also validates its selection.
 One match's selection does not change another match. The same strategy also handles humans under AI takeover.
-Strategy selection does not grant an AI seat priority in the band draft: the existing seat order and the room's
-existing AI-last option still apply. `legacy` is always registered. On a development checkout, operator-enabled
+Strategy selection does not grant an AI seat priority in the band draft: the match's draft rules still apply — seat
+turns for solo and a single human, otherwise the concurrent free draft (every seat at once, AI seats locking at once) —
+and so does the room's 「AI 队友最后选择」 option. `legacy` is always registered. On a development checkout, operator-enabled
 `external` is registered too; it inherits all legacy hooks for fallback and requires transport configuration before
 startup. A release package does not register it (§35.66).
 The three opt-in local strategies are also registered. External fallback remains legacy; advisor plans apply only while external owns the match.

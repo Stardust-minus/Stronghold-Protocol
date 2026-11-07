@@ -36,9 +36,9 @@ and fast subset.
 
 ## Stardust fork baseline
 
-The active Stardust runtime intentionally keeps its existing Boss pool rule: co-op scales by living participant seats / 4, solo by 0.25. This differs from upstream 0.2.0's living-seat / solo-1 default and is tested separately in the match and native Worker suites.
+The fork's leader pool follows upstream's per-player rule again (since 2026-10-12): co-op is bloodPoint × the players alive when the fight starts (at most four), solo × 1. Only an opt-in room of more than four seats goes past four (`server/match/finalAssault.js bossPoolHp`); no scenario of the corpus has such a room; `test/match/experimental-player-capacity.test.js` covers it. `tools/golden.mjs` still supplies the official Boss configuration explicitly, so a change of the live config never moves a digest.
 
-The current six-family corpus is the unchanged upstream 0.2.2 reference: all 283 stored scenarios retain the official digests. `tools/golden.mjs` explicitly supplies the official Boss configuration for this comparison; it does not silently change the live fork configuration. Never regenerate these JSON files to hide a fork/default mismatch. The earlier 0.1.4 fork-adapted corpus is historical, not the baseline or regeneration policy for 0.2.2.
+The root corpus (the six families, 291 scenarios) is upstream 0.3.3's 288 plus this fork's intended gameplay changes, each regenerated with `npm run golden:update` in the commit that made it (2026-11-02 to 11-05: the 自选 kits of 塔露拉, 冻河 and 国度 grew `diy` by 3 scenarios — its battles are batches of 12 pieces, so the new forms also shift later batches — and with the fork's rule and kit changes 26 existing scenarios moved; the other 262 keep upstream's digests). The historical-version corpora were regenerated when the later 6★ 自选 operators joined those versions (rel26). Never regenerate these JSON files to hide a fork/default mismatch.
 
 The virtual-time goldens do not replace native Worker/trial, ordered-event/10Hz transport or human-revival tests.
 

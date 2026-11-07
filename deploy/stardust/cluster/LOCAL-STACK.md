@@ -53,7 +53,7 @@ python3 -I /opt/ark-cluster-formal/tools/cluster-local-stack.py --profile formal
 
 ### 可选：对局存档 Valkey（`--valkey`，默认关闭）
 
-开启后重启（发版、只重启 coordinator、某个 game 重启）时进行中的对局可以接着打，行为见 [docs/DEPLOY.md §11](../../../docs/DEPLOY.md#11-断点续玩重启后接着打可选valkey)。
+开启后重启（发版、只重启 coordinator、某个 game 重启）时进行中的对局可以接着打，行为见 [docs/DEPLOY.md §13](../../../docs/DEPLOY.md#13-断点续玩重启后接着打可选valkey)。
 
 ```sh
 python3 -I /opt/ark-cluster-formal/tools/cluster-local-stack.py --profile formal \
@@ -65,9 +65,13 @@ python3 -I /opt/ark-cluster-formal/tools/cluster-local-stack.py --profile formal
 - 只在新组合栈目录生成一个新的随机密码：`valkey/valkey.conf`（含 `requirepass`，只挂进 `valkey`）和 `valkey.pass`（root:1000 0440，只读挂进 coordinator 与全部 game 的 `/run/store/valkey.pass`；不放在 `/run/secrets` 下，因为 coordinator 把整个 keys 目录只读挂在那里，嵌套挂载点建不出来，rel17 首次切换因此失败）；密码不进 compose.json、环境变量、argv 或 summary。
 - coordinator 与每个 game 增加 `SP_REDIS_URL=redis://<core_ip(5)>:6379/0`、`SP_REDIS_PASSWORD_FILE`、`SP_REDIS_PREFIX=<profile>:` 和 `depends_on: [valkey]`（停止时先停角色、让它们写完最后一次存档，启动时先起存储）；ingress 不连存储。`stack-summary.json` 增加 `checkpointStore`（服务、镜像、地址、内存上限、前缀，无秘密），容器数加 1。
 - 不加该选项时输出逐字节不变。主线程优先级工具（`main-thread-priority.py --profile local`）按固定目标清单核对，开启前要确认它不把多出的 `valkey` 容器当作未知目标拒绝（它不是 Node 角色，不调优先级）。
-- 启动顺序：`depends_on: [valkey]` 只保证先起容器，不等它可用；主机重启时 Docker 按 `restart: unless-stopped` 同时拉起全部容器，根本不看 `depends_on`。所以由代码兜底：coordinator 启动读存档时等 Valkey 最多 60 秒（连不上、超时、`LOADING`），期间不监听，game 读存档遇到同样情况回 `NOT_READY` 由 coordinator 重试（[docs/DEPLOY.md §11](../../../docs/DEPLOY.md#11-断点续玩重启后接着打可选valkey)）。带这一修复的镜像起，换栈脚本不必再手动先起 `valkey` 等 Ready（rel18 及更早的镜像仍需要）。
+- 启动顺序：`depends_on: [valkey]` 只保证先起容器，不等它可用；主机重启时 Docker 按 `restart: unless-stopped` 同时拉起全部容器，根本不看 `depends_on`。所以由代码兜底：coordinator 启动读存档时等 Valkey 最多 60 秒（连不上、超时、`LOADING`），期间不监听，game 读存档遇到同样情况回 `NOT_READY` 由 coordinator 重试（[docs/DEPLOY.md §13](../../../docs/DEPLOY.md#13-断点续玩重启后接着打可选valkey)）。带这一修复的镜像起，换栈脚本不必再手动先起 `valkey` 等 Ready（rel18 及更早的镜像仍需要）。
 - 不给 `valkey` 加 healthcheck + `depends_on: condition: service_healthy`：它管不到主机重启（同上），却会让存储不健康（AOF 损坏、配置错误、加载超过等待期）时 `docker compose up` 拒绝启动 coordinator 与全部 game，把「存储坏了只是不存档」变成「存储坏了游戏起不来」；改 `valkey` 服务定义还会让下次换栈重建存储容器。
 - `cluster-deploy.py` 没有 Valkey 选项，也不加：core bundle 的 compose 服务必须与 `host-policy.json` 的 targets 一一对应，`cluster-host-manager.py` 按固定安全基线逐个核对并按租约管理（存储不是 Node 角色，没有 runtime 和租约），本工具也要求 core bundle 恰好是 coordinator + game。存储只属于组合栈（bridge 内、不发布、每栈一个前缀），用本工具的 `--valkey`；WG/受管拓扑要存档需另行设计存储的生命周期与租约规则。
+
+### 在线上限与服主文件（`--online-limit-dir <目录>`）
+
+把宿主机目录只读挂到 coordinator 的 `/run/limits`，并给它设 `SP_ONLINE_LIMIT_FILE=/run/limits/online-limit.json`（在线上限与房间/AI 配额，`server/onlineLimit.js`）和 `SP_OWNER_FILE=/run/limits/owner.json`（服主文件，`server/ownerFile.js`）；两个文件都可以不存在（不限 / 无服主），运行中改文件即生效。挂目录而不是文件，编辑器或 `mv` 换掉文件后仍然有效。目录须已存在、在仓库外且属于本 profile 的路径、无符号链接、属主为运行工具的用户且不可 group/world 写；game 与 ingress 不挂。`stack-summary.json` 记 `onlineLimitDir`。不加时输出不变。
 
 ### 服务器开关（`--server-env KEY=VALUE`，可重复）
 

@@ -97,7 +97,7 @@ Enemy skill clips (§35.19, §35.48): a sim ['cast', id, slot] swaps the unit's 
 (`anims.skills[slot]`, `UnitView.setSkillSlot`), which the SKILL anim code right after plays. A slot marked `strike` is an
 attack-class skill the sim casts inside one of its attacks (its `before` hook, no skill window: 杰斯顿·威廉姆斯, “碎铳之簧”):
 the 'atk' of that tick plays the slot's clip in place of the attack clip (`UnitView.onCast` within `STRIKE_WINDOW`; the
-wind-up look-ahead `app.js onUpcoming` passes a cast of the attack's tick to `windUp`; `SpineActor.castStrike`), the next
+wind-up look-ahead `app/windup.js onUpcoming` passes a cast of the attack's tick to `windUp`; `SpineActor.castStrike`), the next
 plain attack its attack clip again. A form's clip set without a `skill` role (锏's second form) keeps the slot clips.
 
 An attack-turn cast (§35.57) instead sends `['cast', id, slot, dur, clip]`, with no accompanying 'atk'. `clip` is the
@@ -112,6 +112,12 @@ width, and at heights ≤ 640 px; 小 / 中 retain it in taller windows. The gui
 (≤ 520 px tall), the briefing's step name may wrap, its header grows, and the 机变 timing line sits below its title.
 Korean card text wraps between words; Japanese follows strict line breaking. [ASSUMED] font caps and the briefing
 reroll banner's bottom margin follow the measured header / footer geometry (history §35.56).
+The two opening screens fit common desktop viewports without scrolling (§36.12): 确认本局信息 is two columns (enemies
+over the core bonds; the additional bonds with their legend over the banned operators), its dock (重刷本局, 自选上场) sits
+in the footer row, and only a column that still overflows scrolls inside itself; the strategy wall measures its box
+and takes the largest tile (.9–1.9rem) and column count that hold every strategy (`ui/fitGrid.js fitTiles` →
+`--dcols` / `--dtile`; below .9rem it scrolls), the order rows likewise (`fitRowHeight` → `--drh`, .96–1.26rem; 8+
+seat lists still scroll). Without ResizeObserver the fixed sizes stay.
 
 Picture-only outfits (B6, §35.4): per the maintainer's 2026-10-18 option A, a `skins` record with pictures and no
 Spine is wearable, labelled 「仅更换头像与立绘」. Owner-specific cards / panels / results read that seat's choice;
@@ -163,7 +169,7 @@ history and the open points: DESIGN §32.14.25.
   A shader of no ported family (GrabPass distortion, RGB split, blur, toon, matcap, outline, …) draws with the basic or
   dissolve program by its name and is logged once (`materials.js fallbackLog`).
 - **Wiring** (`wiring.js FxWiring`, from index.json §33.12). An attack: its cast rows on the attacker — the
-  ON_CAST_START ones when the attack's wind-up starts its Spine clip (`app.js onUpcoming` → `castStart`, as far into the
+  ON_CAST_START ones when the attack's wind-up starts its Spine clip (`app/windup.js onUpcoming` → `castStart`, as far into the
   effect as the clip started), the ON_SPELL_ON ones at the 'atk' event; a NONE row's first slot, a directional row's
   slot for the facing, `hookEffectAfterFirstAttack` / `onlyOnce` by the unit's attack count; a looping row, and a
   looping prefab on a one-shot row, stops at the cast's end: the clip's end at its own speed, else after 0.6 s —, its
@@ -213,7 +219,7 @@ history and the open points: DESIGN §32.14.25.
   the skill is on its attacks use the plan's mode (`modeName`; the old `S<n>` rule without a plan): a skill with an
   attack ability of its own replaces the mode's rows with its own for an attack of its kind (a heal, a shot, a blow — 斩业星熊
   S2's shield throw is no melee blow) — cast and range on the owner (ON_CAST_START rows with
-  the wind-up: `app.js onUpcoming` sees a ['skill', id, 1] queued before the 'atk'), `aim` on the target, its hit
+  the wind-up: `app/windup.js onUpcoming` sees a ['skill', id, 1] queued before the 'atk'), `aim` on the target, its hit
   groups on the target (the k-th HP 'dmg' — or 'heal' — on it in that frame plays group k; an element gauge fill is
   no hit), its own projectile for a ranged one —, else its `each` rows join the mode's; the buffs of its attacks loop
   on their targets for the blackboard's duration (a status loop of the same key takes over); `trigger` plays on the
@@ -337,6 +343,20 @@ a new session or a queued player. The separate 观战 button remains available a
 key works after start. Spectating remains read-only and uses canonical room state, including a source-party alias
 that public matching maps to this one current match. New prompt / hint text is translated in every shipped pack.
 
+确认入场 (a public matching offer, `queue.state` `offered`; §36.14, §36.19) is a full-screen takeover over whatever is up
+(`ui/matchOffer.js` `OfferTakeover` on `main.js`'s App, `css/screens/match-offer.css`, z-index 77: above the screens and
+the connection notices, below dialogs and toasts); `ui/matchmaking.js` `QueueFlow` keeps only a 搜寻成功 placeholder.
+One 1:2 card per required seat, as large as the screen leaves (`offerColumns` / `offerRows`: wide screens one row up to
+8, two rows above; upright 2×2, 4×2, 4×3, 4×4, 5×4). Before its doctor confirms, my card shows my 名片 background and
+avatar (`ui/playerCard.js`) and the others a silhouette; a confirmation flashes the card, which then draws that
+doctor's 名片干员 the way the room's seat card does (`ui/seatLive.js` `SeatArt`; the others' from `queue.state`
+`acceptedCards`, first confirmed first) or stays just lit without a picture. The countdown runs from what this page
+first saw of the offer and turns amber for the last `OFFER_URGENT_S` (5) s while unconfirmed; the all-confirmed screen
+stays `OFFER_FOUND_MS` (0.8 s) over the room, a broken offer `OFFER_BROKEN_MS` (1.7 s) (`installOfferStage` follows the
+store, not the screen below); reduced motion moves nothing and keeps only the broken notice. The cues are synthesized
+(`ui/offerCues.js`, one listener installed in `main.js`; `ui/offerSynth.js` through `audio.synth`, the SFX channel and
+its volume), and `audio.keepAwake('offer')` keeps them audible on a hidden tab while an offer stands (SFX only).
+
 Reconnects (2026-10-13, the owner's report of reconnects that ended on a spectator seat): a `ROOM_STARTED` code whose
 seat another, closed page of this browser played resumes that seat (`ui/resumeMatch.js resumeLocalMatch`, the
 恢复本机对局 flow) before any offer to watch. A new page's shared token refused with `SESSION_IN_USE` is asked for
@@ -412,9 +432,9 @@ not measurements of the official client.
 
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 
-A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one — or, since rel34, around a bond of the match's drawn set D — carries a 本局禁用 tag and note in the strategy draft and stays selectable (bands.json `bondIds`, §21.26, `gameLogic matchOffBonds`, §36.11).
+A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one, or around a bond of the match's drawn set D, carries a red 「X盟约禁用」 tag on its dimmed card in the strategy draft and the detail's note 本局禁用【X】盟约，此策略效果可能无法发挥, and stays selectable (bands.json `bondIds`, §21.26, `gameLogic matchOffBonds` / `bandOffBonds`, §36.11).
 
-预选盟约 (`ui/bondPlan.js`, §36.11): a 主盟约 (a core bond) and up to three 副盟约 (any bond with a member), shown on the draft's order rows and the team panel (the main glyph first); the picker marks 本局禁用 on the static and the drawn bonds and is opened from the draft (预选盟约) or, the whole match while alive, from the viewer's own team-panel row. The shop and promotion-reward cards ring my main plan's operators (strong) and my secondary ones (light) and show the avatars of the pool teammates whose plan holds one of the card's bonds; a change after the draft toasts on the others' screens (`m.notice bondPlan`).
+预选盟约 (`ui/bondPlan.js`, §36.11): a 主盟约 (a core bond) and up to four 副盟约 (`BOND_PLAN_SUB_MAX`; any bond with a member), shown on the draft's order rows and the team panel (the main glyph first); the picker marks 盟约禁用 on the static (不会激活) and the drawn bonds (N 名干员无法出现) and is opened from the draft (预选盟约) or, the whole match while alive, from the viewer's own team-panel row. The shop and promotion-reward cards mark the plans on the card's own bond chips, never on its frame (§36.17; `bondPlan.js shopPlanMarks` / `cardPlanMarks`, `ui/shopBar.js`): my 主盟约 solid mint, a 副盟约 mint-outlined, a bond an alive pool teammate planned dash-outlined in ice with the people icon (which teammate is not shown; `poolGroups` decide the pool, nobody with the shared pool off). 设置「商店标出我的预选盟约」/「商店标出队友的预选盟约」 (`planMarkMine` / `planMarkMates`, on by default, kept with the settings) switch each kind off. A change after the draft toasts on the others' screens (`m.notice bondPlan`).
 
 The strategy draft enables skip only on the viewer's turn, with quota left and another unpicked player to pass to.
 The free draft (two or more humans, `m.public.draft.free`; `screens/bandDraft.js` header) has no turn and no skip: 选择
@@ -524,7 +544,7 @@ Target: a **real 3D board layer** rendered with three.js (vendored ESM, no CDN) 
 - One camera model drives both layers: `public/js/render/projection.js` keeps its public API (`worldToScreen`, `screenToWorld`/tile picking, presets, transitions) but derives it from a three.js `PerspectiveCamera` initialised from the official configBlackBoard framing, so Spine units, FX, drag/drop and hit-testing stay aligned with the 3D board.
 - Must degrade gracefully: when local-client art or WebGL2 features are missing, fall back to the current 2D atlas board; keep 60 fps (static geometry merged into few draw calls; textures mipmapped; DPR-aware).
 - Implemented (`public/js/render/board3d/*`, `render/app.js`): three.js is downloaded only when the local-art manifest lists the board atlas; the built 3D area, the drawn 2D rows and the lit rect follow `viewKind(kind, {rect})` (the field the camera actually shows: a 'prep' camera on rows ≤ 6 = `bossPrep`); the background plane is extended with mirrored copies and the clear colour matches the fog (no visible edge at any aspect); battle crates live in their own group (survive scene rebuilds) and follow the board mode (`switchableBox`: 3D mesh ⇄ 2D box on a mode switch or a lost WebGL context); quality 'low' drops shadows; `?board=2d|3d` overrides. The direction wheel's range stripes sit between the board canvas and the unit canvas.
-- Done: Final Assault / Hidden Core prep takes place on your own half of the boss field (research 09 §1.2): pieces shown at boss-field positions (row − 7; right-hand player mirrored col → 20 − col, RIGHT ↔ LEFT), drop targets and wheel directions mapped back to board coordinates (`prepCamera` → `bossPrep` in public/js/ui/gameLogic.js; covered by the playtest2 browser tests). A scout of such a board (`m.field` prep of a boss round) comes in boss-field coordinates with the player's `side` and is framed the same way, the leader standing at its spawn (0.2.0, community report item 55). Both players of a pair are shown together, as in the battle (0.2.0, community report item 51): the partner's board stands on the other half (`m.private.bossMate` units, already in boss-field coordinates: mirrored on the right half, RIGHT ↔ LEFT; read-only `m:<uid>` views of `render/app.js syncMates`), the whole boss field is lit, a scout carries both halves (`mate`), and the team panel frames the pair's avatars in the official green (`ui/battle bg_team_border` tinted, a plain ring without the local art; `gameLogic teamFrameIds`) from the round's start through the fight.
+- Done: Final Assault / Hidden Core prep takes place on your own half of the boss field (research 09 §1.2): pieces shown at boss-field positions (row − 7; right-hand player mirrored col → 20 − col, RIGHT ↔ LEFT), drop targets and wheel directions mapped back to board coordinates (`prepCamera` → `bossPrep` in public/js/ui/gameLogic.js; covered by the playtest2 browser tests). A scout of such a board (`m.field` prep of a boss round) comes in boss-field coordinates with the player's `side` and is framed the same way, the leader standing at its spawn (0.2.0, community report item 55). Both players of a pair are shown together, as in the battle (0.2.0, community report item 51): the partner's board stands on the other half (`m.private.bossMate` units, already in boss-field coordinates: mirrored on the right half, RIGHT ↔ LEFT; read-only `m:<uid>` views of `render/app.js syncReadOnlyPrepUnits`), the whole boss field is lit, a scout carries both halves (`mate`), and the team panel frames the pair's avatars in the official green (`ui/battle bg_team_border` tinted, a plain ring without the local art; `gameLogic teamFrameIds`) from the round's start through the fight.
 
 ---
 
