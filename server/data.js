@@ -108,6 +108,62 @@ export function getData({ dir = DATA_DIR, log = console } = {}) {
   return singleton;
 }
 
+const DATA_JSON = new WeakMap();
+/** How long a dataset's JSON string is kept after its last use: pools that start together share one. */
+const DATA_JSON_KEEP_MS = 30_000;
+/**
+ * The game data as one JSON string, for a Worker's workerData. A Worker rebuilds its copy with JSON.parse
+ * (parseWorkerData) instead of receiving the object graph through structured clone: V8's ValueDeserializer gives every
+ * array HOLEY elements where JSON.parse — the main thread's loadData — gives packed ones, and the sim's loads then go
+ * megamorphic. Measured 2026-11-08 (combatbench): the same battles took ~25 % more CPU in a Worker on cloned data than
+ * on parsed data; parsing a clone again inside the Worker recovered under half of it. The data is plain JSON (loadData,
+ * checked by plainJson), so the round trip is exact. Stringifying takes ~40 ms; the string (~16 MiB, two-byte: the
+ * data has CJK text) is kept DATA_JSON_KEEP_MS after its last use, so a process's pools share it at startup and hold
+ * nothing afterwards.
+ * @param {object} data
+ * @returns {string}
+ */
+export function workerDataJson(data) {
+  if (!data || typeof data !== 'object') throw new TypeError('full game data required');
+  let entry = DATA_JSON.get(data);
+  if (!entry) { entry = { json: JSON.stringify(data, plainJson), timer: null }; DATA_JSON.set(data, entry); }
+  clearTimeout(entry.timer);
+  entry.timer = setTimeout(() => DATA_JSON.delete(data), DATA_JSON_KEEP_MS);
+  entry.timer.unref?.();
+  return entry.json;
+}
+
+/**
+ * JSON.stringify replacer that refuses what JSON would silently change: a function, symbol, bigint or undefined value,
+ * a non-finite number or −0, an object that is not a plain object or array (Map, Set, Date, class instances). Structured
+ * clone threw on some of these (a function) and kept others (undefined, NaN, Map); data that is not plain JSON fails
+ * the pool's startup instead of reaching a Worker changed.
+ */
+function plainJson(key, value) {
+  // `this[key]` is the value before any toJSON (a Date arrives here already a string)
+  const raw = this[key];
+  if (!Object.is(raw, value)) throw new TypeError(`game data is not plain JSON: toJSON at "${key}"`);
+  switch (typeof value) {
+    case 'number':
+      if (!Number.isFinite(value) || Object.is(value, -0)) throw new TypeError(`game data is not plain JSON: ${value} at "${key}"`);
+      return value;
+    case 'object': {
+      if (value === null || Array.isArray(value)) return value;
+      const proto = Object.getPrototypeOf(value);
+      if (proto !== Object.prototype && proto !== null) throw new TypeError(`game data is not plain JSON: ${proto?.constructor?.name ?? 'object'} at "${key}"`);
+      return value;
+    }
+    case 'string': case 'boolean': return value;
+    default: throw new TypeError(`game data is not plain JSON: ${typeof value} at "${key}"`);
+  }
+}
+
+/** A Worker's own game data from workerDataJson's string. @param {string} json */
+export function parseWorkerData(json) {
+  if (typeof json !== 'string') throw new TypeError('game data JSON required');
+  return JSON.parse(json);
+}
+
 /** Worker bootstrap: install transferred full data before importing simulation/content modules. */
 export function initializeData(data) {
   if (!data || typeof data !== 'object') throw new TypeError('full game data required');

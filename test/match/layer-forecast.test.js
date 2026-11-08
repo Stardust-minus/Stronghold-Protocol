@@ -169,3 +169,28 @@ test('预计叠层: the detached game-data view is made once per match, not for 
     assert.equal([...m.dispatcher._forecastData.values()][0], view);
   } finally { m.dispose(); }
 });
+
+test('预计叠层: ctx.data of the detached view copies a data file when it is read, not the whole dataset', () => {
+  const { m, ps } = setup();
+  const clone = globalThis.structuredClone;
+  const copied = [];
+  try {
+    give(m, ps, 'chess_char_1_06_a', 'board', [9, 4]);
+    ps.recompute();
+    m.dispatcher.forecastLayers(ps);
+    const raw = [...m.dispatcher._forecastData.values()][0].raw;
+    globalThis.structuredClone = (v, o) => { if (v && typeof v === 'object') copied.push(v); return clone(v, o); };
+    const bonds = raw.bonds;
+    assert.deepEqual(bonds, m.gd.raw.bonds, 'the same records');
+    assert.notEqual(bonds, m.gd.raw.bonds, 'but detached from the match data');
+    assert.equal(raw.bonds, bonds, 'kept for the match');
+    assert.ok(!copied.includes(m.gd.raw), 'reading one file does not copy the dataset');
+    assert.ok(copied.length <= 1, 'one file copied at most (none when an earlier forecast read it)');
+    assert.deepEqual(Object.keys(raw), Object.keys(m.gd.raw));
+    assert.ok('chess' in raw && Object.hasOwn(raw, 'chess'));
+    assert.equal(typeof raw.toString, 'function', 'Object.prototype stays reachable, as on the copy it replaces');
+    assert.equal(raw.noSuchFile, undefined);
+    raw.bonds = null;
+    assert.equal(raw.bonds, bonds, 'writes are ignored');
+  } finally { globalThis.structuredClone = clone; m.dispose(); }
+});

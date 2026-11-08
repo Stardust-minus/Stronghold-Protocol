@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Worker } from 'node:worker_threads';
 import { RoomWorkerPool, createRoomWorkerPool } from '../server/workers/roomPool.js';
+import { workerDataJson } from '../server/data.js';
 import { buildBattleSpec, createBattleFromSpec } from '../server/sim/spec.js';
 import { DataSource } from '../server/sim/simdata.js';
 import { HeadlessJob } from '../server/match/fields.js';
@@ -154,7 +155,7 @@ test('a whole battle run in the pool matches the main thread byte for byte', asy
 });
 
 test('the simulation worker loads with the real module graph (a wrong export name fails here)', async () => {
-  const worker = new Worker(new URL('../server/workers/simulation.js', import.meta.url), { workerData: { data: DATA } });
+  const worker = new Worker(new URL('../server/workers/simulation.js', import.meta.url), { workerData: { dataJson: workerDataJson(DATA) } });
   try {
     const reply = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('the worker never answered')), 20000);

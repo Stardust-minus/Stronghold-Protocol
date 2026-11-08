@@ -36,10 +36,34 @@ function dataView(gd) {
       if (typeof key !== 'string' || key === 'constructor' || key.startsWith('_')) return undefined;
       if (!cache.has(key)) {
         const value = lookup[key];
-        cache.set(key, typeof value === 'function' ? (...args) => structuredClone(value.apply(lookup, args)) : structuredClone(value));
+        cache.set(key, typeof value === 'function' ? (...args) => structuredClone(value.apply(lookup, args))
+          : key === 'raw' && value && typeof value === 'object' ? detachedFiles(value) : structuredClone(value));
       }
       return cache.get(key);
     },
+    set: () => true,
+    defineProperty: () => false,
+    deleteProperty: () => false,
+    setPrototypeOf: () => false,
+  });
+}
+
+/**
+ * The raw data (ctx.data) of a preview as a lazily detached view: each top-level file is copied on its first read and
+ * kept, instead of the whole dataset at once. Forecast handlers read one or two files (bonds/addon/meta.js reads
+ * `bonds`); the full copy was ~18 MiB of the main thread per match, kept for the match's life with the forecast view
+ * (EffectDispatcher._forecastData; 2026-11-08 heap snapshot of held matches). Writes are ignored like dataView's.
+ * @param {Record<string, unknown>} raw
+ */
+function detachedFiles(raw) {
+  const files = new Map();
+  const own = (key) => typeof key === 'string' && Object.hasOwn(raw, key);
+  const read = (key) => { if (!files.has(key)) files.set(key, structuredClone(raw[key])); return files.get(key); };
+  return new Proxy({}, {
+    get: (target, key, receiver) => (own(key) ? read(key) : Reflect.get(target, key, receiver)),
+    has: (target, key) => own(key) || Reflect.has(target, key),
+    ownKeys: () => Object.keys(raw),
+    getOwnPropertyDescriptor: (_target, key) => (own(key) ? { value: read(key), writable: true, enumerable: true, configurable: true } : undefined),
     set: () => true,
     defineProperty: () => false,
     deleteProperty: () => false,

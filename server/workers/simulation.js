@@ -1,14 +1,16 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { setData } from '../data.js';
+import { parseWorkerData, setData } from '../data.js';
 import { memorySample } from './memory.js';
 
 // Content imports getData() too: never read a different on-disk version when this thread starts later.
-setData(workerData.data);
+// The pool's JSON string (data.js workerDataJson), dropped once parsed.
+const data = setData(parseWorkerData(workerData.dataJson));
+workerData.dataJson = null;
 const [{ DataSource }, { createBattleFromSpec }, { HeadlessJob }, { RehearsalRun }] = await Promise.all([
   import('../sim/simdata.js'), import('../sim/spec.js'),
   import('../match/fields.js'), import('../sim/rehearsal.js'),
 ]);
-const ds = new DataSource(workerData.data, null);
+const ds = new DataSource(data, null);
 const quiet = { info() {}, warn() {}, error() {}, debug() {} };
 
 parentPort.on('message', ({ id, type, payload, cancel }) => {

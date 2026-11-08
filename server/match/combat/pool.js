@@ -2,7 +2,7 @@
 // One wire request per worker bounds MessagePort backlog; queued client requests are bounded globally.
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
-import { deepFreeze, getData } from '../../data.js';
+import { deepFreeze, getData, workerDataJson } from '../../data.js';
 import { snapshotTrialInput, MAX_TRIAL_TICKS } from './trial.js';
 
 const WORKER_URL = new URL('./worker.js', import.meta.url);
@@ -93,9 +93,10 @@ export class CombatWorkerPool {
     slot.epoch++;
     const epoch = slot.epoch;
     try {
-      // Full data crosses the boundary only here, once per worker lifetime, never once per phase/command.
+      // Full data crosses the boundary only here, once per worker lifetime, never once per phase/command — as one JSON
+      // string the Worker parses (data.js workerDataJson: packed arrays, no structured-clone copy left behind).
       const worker = new Worker(WORKER_URL, {
-        workerData: { epoch, data: this.data, maxSessions: this.maxSessions, role: this.role, ...(this.bounds ? { bounds: this.bounds } : {}) },
+        workerData: { epoch, dataJson: workerDataJson(this.data), maxSessions: this.maxSessions, role: this.role, ...(this.bounds ? { bounds: this.bounds } : {}) },
         // Test runners/CLI eval can expose process-only flags (Node24 even includes V8 defaults).
         // These plain ESM workers need no loader/preload/inspection flags from the host entrypoint.
         execArgv: [],

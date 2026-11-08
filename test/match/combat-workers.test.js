@@ -1225,3 +1225,15 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
   assert.ok(workers.every((w) => w.threadId === -1), 'close awaited worker termination');
   assert.deepEqual(logs.errors, [], 'clean server shutdown is not logged as a worker failure');
 });
+
+test('worker game data travels as one JSON string per dataset, an exact round trip', async () => {
+  const { getData, workerDataJson, parseWorkerData } = await import('../../server/data.js');
+  const data = getData();
+  const json = workerDataJson(data);
+  assert.equal(workerDataJson(data), json, 'pools starting together share one string');
+  assert.deepStrictEqual(parseWorkerData(json), data, 'loadData output is plain JSON, so nothing is lost');
+  // what JSON would silently change is refused instead (structured clone kept or threw on these)
+  for (const bad of [{ a: undefined }, { a: NaN }, { a: -0 }, { a: new Array(2) }, { a: new Map() }, { a: new Date(0) }, { a() {} }, { a: 1n }]) {
+    assert.throws(() => workerDataJson(bad), TypeError, `refused: ${Object.prototype.toString.call(bad.a)}`);
+  }
+});

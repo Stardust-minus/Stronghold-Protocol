@@ -88,12 +88,16 @@ test('shipped announcement data validates; optional board is mounted from the lo
 test('the notices: the 0.3.1 sync (2026-10-18) over this update (skin effects, card looks, kick and reroll votes, the layer forecast, the fixes, the feedback board and status page) over a 0.3.0 recap (official effects, voices, 8–20 seats choosing at once, restart recovery, credits to the original and to xinhai-ai, the access rule); the introduction is retained with the credit and a first-visit guide', () => {
   const entries = parseAnnouncements(JSON.parse(source('../../data/announcements.json')));
   assert.equal(entries.length, 14);
-  // 2026-11-07 (rel37, pushed without a server release): the 15 premultiplied 动态立绘 (the dashes on 归溟幽灵鲨's face, the owner's report); older notices condensed again
-  assert.equal(entries[0].title, '版本更新：修复动态立绘脸上的虚线');
-  assert.equal(entries[0].date, '2026-11-07');
+  // 2026-11-08 (rel37): the farewell before the 17:00 close — the official 卫戍协议：规程, the open-source repository, the last two
+  // server optimizations (combat CPU, memory per match) and docs/CAPACITY.md as a reference; the older notices condensed again
+  // (never deleted, the pinned phrases kept; 10-06 untouched). The close banner is Jinan's own copy, not the repository's.
+  assert.equal(entries[0].title, '停服公告：感谢一路同行，我们休赛期见');
+  assert.equal(entries[0].date, '2026-11-08');
   const rel37 = entries[0].paragraphs.join('\n');
-  for (const phrase of ['15 套动态立绘', '虚线', '归溟幽灵鲨']) assert.ok(rel37.includes(phrase), phrase);
-  assert.doesNotMatch(rel37, /ModelScope|OpenI|签名|nginx|Worker|pixi|spine|\/feedback|#1[0-9]|alpha/i);
+  for (const phrase of ['17:00（北京时间）停服', '「卫戍协议：规程」', '休赛期见', 'github.com/Stardust-minus/Stronghold-Protocol', '20%', '2 MB 以内',
+    'docs/CAPACITY.md', '高并发']) assert.ok(rel37.includes(phrase), phrase);
+  assert.equal(entries[0].banner, undefined, 'the repository carries no close banner');
+  assert.doesNotMatch(rel37, /ModelScope|OpenI|签名|nginx|Worker|\/feedback/i);
   // 2026-11-06 (rel35): the planned feedback — the shop's plan marks on the bond chips with a switch each (#152), 贾维 keeping its
   // refresh progress once the round's 2 are given (#151), the pixi-spine pose fix (锏, #148) — and the wider teammate rescue (the
   // owner: 「队友复活移除不漏怪的要求」); older notices condensed again (never deleted, the pinned phrases kept; 10-06 untouched)
