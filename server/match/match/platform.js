@@ -143,7 +143,9 @@ export class MatchPlatform {
       // (setupVote.js, kickVote.js).
       this._dropSetupVoter(playerId);
       this._kickVoteMemberGone(playerId);
-      // a paused solo battle resumes (the server takes the field over; nobody is left to resume it)
+      // the last human online gone: the match holds until one comes back (offlineHold.js) — a solo pause on goes with it
+      this._updateOfflineHold();
+      // otherwise a paused solo battle resumes (the server takes the field over; nobody is left to resume it)
       this._resume();
       if (this.clientCombat) this._authorityLost(ps, 'disconnect');
       // a rehearsal this host was running falls back to the server (DESIGN §14; a no-op without tasks)
@@ -159,6 +161,8 @@ export class MatchPlatform {
       const was = ps.connected;
       ps.connected = true;
       ps.offlineRounds = 0;
+      // a match held for its offline humans moves on — before the resync, so it shows the shifted clocks
+      this._updateOfflineHold();
       // a new socket (or a reloaded page, whose rids start over): no intent of it has been handled yet
       ps.intentAck = 0;
       // 掉线由 AI 接管: back in the match, the player plays the seat again (an AI 托管 of its own choice stays on)
@@ -229,6 +233,8 @@ export class MatchPlatform {
         return;
       }
       this._quit(ps);
+      // the humans who stay may all be offline (offlineHold.js)
+      this._updateOfflineHold();
     });
   }
 
@@ -367,10 +373,10 @@ export class MatchPlatform {
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } }
     this._stopClientCombat();
     this._cancelRehearsal();
+    this._endOfflineHold();
     // a plugin interaction window's own deadline timer (MatchOffers); the tracked timers below cover the rest
     if (typeof this.offersDispose === 'function') { try { this.offersDispose(); } catch { /* ignore */ } }
-    for (const h of this._timers) { try { this.sched.clearTimeout(h); } catch { /* ignore */ } }
-    this._timers.clear();
+    this._clearTimers();
     if (this._pubTimer) { try { this.sched.clearTimeout(this._pubTimer); } catch { /* ignore */ } this._pubTimer = null; }
     if (this.ownsScheduler) this.sched.dispose();
   }

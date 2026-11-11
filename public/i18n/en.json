@@ -466,6 +466,7 @@
   "返回同盟": "Back to Alliance",
   "暂停中": "Paused",
   "作战已暂停，计时与敌人行动均已停止": "Battle paused; the timer and enemy actions have stopped",
+  "所有玩家都已离线，对局暂停中；有玩家重新连接后继续": "Every player is offline: the match is paused and goes on when one of them reconnects",
   "放弃模拟": "Abandon Simulation",
   "继续作战": "Resume Battle",
   "正在载入模拟数据…": "Loading simulation data...",

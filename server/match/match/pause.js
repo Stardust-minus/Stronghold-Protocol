@@ -35,8 +35,17 @@ export class MatchPause {
     return OK;
   }
 
-  /** End a solo pause: every clock and deadline moves on by the paused time (no-op when not paused). */
+  /**
+   * End a solo pause: every clock and deadline moves on by the paused time (no-op when not paused). While the match is
+   * held because every human is offline (offlineHold.js) only the hold's release resumes it.
+   */
   _resume() {
+    if (this._offline) return;
+    this._unpause();
+  }
+
+  /** The resume itself (_resume, the offline hold's release). */
+  _unpause() {
     if (!this.paused) return;
     const d = Math.max(0, this.sched.now() - this._pausedAt);
     this.paused = false;
@@ -63,7 +72,7 @@ export class MatchPause {
 
   /** The battle phase is over: drop the pause without shifting anything (its timers are gone). */
   _clearPause() {
-    if (!this.paused) return;
+    if (!this.paused || this._offline) return;
     this.pausedMs += Math.max(0, this.sched.now() - this._pausedAt);
     this.paused = false;
     this._pausedAt = 0;

@@ -112,6 +112,8 @@ export function makeMatch(o = {}) {
     // still has no kitted key.
     ...(o.kitted !== undefined ? { kitted: o.kitted } : {}),
     ...(o.rules !== undefined ? { rules: o.rules } : {}),
+    // the offline hold (match/offlineHold.js): omitted unless a test sets it (default: SP_OFFLINE_HOLD_MINUTES / data)
+    ...(o.offlineHoldMs !== undefined ? { offlineHoldMs: o.offlineHoldMs } : {}),
   });
   const m = h.m;
   if (m.clientCombat && o.clients !== false) {

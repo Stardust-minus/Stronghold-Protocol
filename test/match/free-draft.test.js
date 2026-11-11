@@ -217,7 +217,8 @@ test('a departing doctor keeps the strategy it held (else the default); AI æ‰˜ç®
 /** A fresh match built from a checkpoint (the platform's restore path). */
 function restored(doc, o = {}) {
   const json = JSON.parse(JSON.stringify(doc));
-  const r = makeMatch({ mode: 'coop', seats: json.seats, seed: json.seed, ...o });
+  // nobody rejoins: the offline hold off, the restored draft plays on by its countdowns (the hold: offline-hold.test.js)
+  const r = makeMatch({ mode: 'coop', seats: json.seats, seed: json.seed, offlineHoldMs: 0, ...o });
   assert.equal(restoreMatch(r.m, json, { createRngFromState, log: { warn: () => {} } }), true);
   return r;
 }

@@ -145,6 +145,8 @@ export class MatchSettle {
     if (this.ended || this.disposed) return;
     this._freezeDamage();
     this.offersDispose();
+    // a match held for its offline humans (offlineHold.js) ends unpaused: its timers go with it below
+    if (this._offline) { this._endOfflineHold(); this._clearPause(); }
     this.ended = true;
     for (const ps of this.order) this._cancelBotPrep(ps);
     this._finalizePendingDeaths();
@@ -153,8 +155,7 @@ export class MatchSettle {
     this._stopClientCombat();
     this.cancel(this._phaseTimer);
     this.cancel(this._turnTimer);
-    for (const h of this._timers) { try { this.sched.clearTimeout(h); } catch { /* ignore */ } }
-    this._timers.clear();
+    this._clearTimers();
     this.phase = PHASE.RESULT;
     this.deadline = 0;
     for (const f of this.fields) f.live = false;

@@ -97,6 +97,10 @@ function fuzzOne(seed, { fake, rules }, context = {}) {
       m.onLeave(pid);
     } else if (r < 0.96) {
       h.sched.advance(rng.int(3000));
+    } else if (m._offline) {
+      // held for its offline humans (match/offlineHold.js): its one timer is the clear, minutes away — running "the next
+      // callbacks" would jump straight to it; a short time jump like the branch above instead (the clear: offline-hold.test.js)
+      h.sched.advance(rng.int(3000));
     } else {
       for (let k = 0; k < 20; k++) if (!h.sched.runNext()) break;
     }

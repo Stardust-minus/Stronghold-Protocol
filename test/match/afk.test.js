@@ -143,7 +143,8 @@ test('an accepted substantive intent resets the count; refused ones do not', () 
 });
 
 test('a seat under AI 托管 is never idle (offline too); neither is a disconnected human — it keeps its seat', () => {
-  const h = makeMatch({ mode: 'coop', humans: 2, bots: 1, seed: 43, fake: true, afkRemoveRounds: 2 }).start();
+  // both humans are offline for rounds below: the offline hold (test/match/offline-hold.test.js) is off so the match runs
+  const h = makeMatch({ mode: 'coop', humans: 2, bots: 1, seed: 43, fake: true, afkRemoveRounds: 2, offlineHoldMs: 0 }).start();
   const m = h.m, p0 = h.ps('p_0'), p1 = h.ps('p_1');
   // p_0 drops at once and plays the whole match under AI 托管
   m.onDisconnect('p_0');

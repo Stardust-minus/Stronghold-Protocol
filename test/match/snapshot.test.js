@@ -16,8 +16,10 @@ const twenty = { revivalEnabled: true, disableSharedPool: false, playerCapacity:
 /** A fresh match built from a checkpoint (the platform's restore path), the checkpoint applied. */
 function restored(doc, o = {}) {
   const json = JSON.parse(JSON.stringify(doc));
+  // nobody rejoins these restored matches and they must play on like the original: the offline hold off
+  // (a restored match nobody comes back to holds: test/match/offline-hold.test.js)
   const r = makeMatch({ mode: o.mode ?? 'coop', difficulty: o.difficulty ?? 'NORMAL', seats: json.seats, seed: json.seed,
-    matchNo: o.matchNo, experimental: o.experimental });
+    matchNo: o.matchNo, experimental: o.experimental, offlineHoldMs: 0 });
   assert.equal(restoreMatch(r.m, json, { createRngFromState, log: { warn: (...a) => r.logs.warn.push(a.join(' ')) }, replay: o.replay }), true);
   return r;
 }

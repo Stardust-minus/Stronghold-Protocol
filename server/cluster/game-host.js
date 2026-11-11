@@ -6,6 +6,7 @@
 // Promises (handle, setLoadout, the reroll requests: `_invoke` passes them on, the caller awaits them), whose frames
 // arrive later on the host's channel and whose restore is applied there (`restoring`). The actor contract is the same.
 import { Match, AFK_REMOVE_ROUNDS } from '../match/Match.js';
+import { parseOfflineHoldMinutes } from '../match/match/common.js';
 import { C2S, LOADOUT_LIMITS, OWNERSHIP_LIMITS, DIY_LIMITS, isNotOwnedList, isDiyPicks } from '../../shared/protocol.js';
 import { experimentalOptions, isExperimental } from '../../shared/experimental.js';
 import { SKIN_LIMITS, isSkinChoices } from '../../shared/skins.js';
@@ -210,6 +211,8 @@ export class GameHost {
     if (!integer(prepareMs, 1, 300_000)) throw new RangeError('invalid prepareMs');
     if (!integer(retiredMs, 60_000, 300_000)) throw new RangeError('invalid retirement fence');
     if (!integer(afkRemoveRounds, 0, 100)) throw new RangeError('invalid afkRemoveRounds');
+    // each Match reads SP_OFFLINE_HOLD_MINUTES (the offline hold, match/offlineHold.js): a bad value stops the node here
+    parseOfflineHoldMinutes(process.env.SP_OFFLINE_HOLD_MINUTES);
     this.data = data;
     this.combatPool = combatPool;
     this.trialPool = trialPool;

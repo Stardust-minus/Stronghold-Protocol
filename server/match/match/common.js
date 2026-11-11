@@ -42,6 +42,32 @@ export const AFK_REMOVE_ROUNDS = 2;
  */
 export const OFFLINE_TAKEOVER_ROUNDS = 2;
 /**
+ * The offline hold (the owner's rule of 2026-11-11, match/offlineHold.js): a match whose human seats are all offline
+ * stands still until one of them comes back, and ends 'abandoned' when nobody has come back for this many minutes — a
+ * co-op match by default after the plain reconnect window (net.js NET_DEFAULTS.reconnectWindowMs, 10 min: the
+ * sessions of a match nobody is online in last that long, Lobby.refreshMatchWindows), a solo run after its own window
+ * (data singleReconnectTime, 24 h). Env SP_OFFLINE_HOLD_MINUTES: the co-op figure, an integer 1–1440; 0 = no hold (the
+ * seats play on under the offline rules as before).
+ */
+export const OFFLINE_HOLD_MINUTES = 10;
+/**
+ * The match's own clear comes a tenth of offlineHoldMs later, at most this long (offlineHold.js offlineGraceMs): the
+ * platform's session expiry (same length) departs the players first, as it always did; the match's timer is the backstop
+ * where no session is left to expire.
+ */
+export const OFFLINE_HOLD_GRACE_MS = 60_000;
+/** Solo fallback when the data has no singleReconnectTime (server/lobby.js SOLO_RECONNECT_FALLBACK_SEC). */
+export const OFFLINE_HOLD_SOLO_FALLBACK_SEC = 86_400;
+
+/** SP_OFFLINE_HOLD_MINUTES → minutes (0 = off); unset → OFFLINE_HOLD_MINUTES; anything else throws. @param {unknown} value */
+export function parseOfflineHoldMinutes(value) {
+  if (value === undefined || value === null || value === '') return OFFLINE_HOLD_MINUTES;
+  const text = String(value).trim();
+  const n = /^\d{1,4}$/.test(text) ? Number(text) : NaN;
+  if (Number.isInteger(n) && n >= 0 && n <= 1440) return n;
+  throw new RangeError('SP_OFFLINE_HOLD_MINUTES must be an integer 0–1440 (0 = no offline hold)');
+}
+/**
  * A timed PREP ends this long after its published deadline (m.public.deadline is unchanged): an intent a player made
  * just before the countdown ran out still counts when the last mile delayed it — the browser shows it at once (rel26
  * prediction), and refusing it as WRONG_PHASE rolled the board back when the battle started. Match option

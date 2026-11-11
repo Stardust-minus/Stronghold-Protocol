@@ -91,9 +91,13 @@ export const MATCH_FIELDS = Object.freeze({
     // 0.3.2: the official version (a hosted match's: its match host checkpoints it, server/persist/persister.js), the bot
     // strategy, the room's simulation pool, the external AI
     'version', 'bot', 'simPool', 'externalAI',
+    // the offline hold's length (match/offlineHold.js; options / env / data)
+    'offlineHoldMs',
   ]),
   transient: Object.freeze([
-    '_rehearsalTasks', 'paused', '_pausedAt', '_bossPubTimer', '_bossPubAt', '_bossClockOn', '_damageDirty', '_damageTimer',
+    '_rehearsalTasks', 'paused', '_pausedAt',
+    // the offline hold (match/offlineHold.js): a restored match starts unheld, then holds at once if nobody is back
+    '_offline', '_offlineAt', '_offlineTimer', '_timersSuspended', 'offlineHeldMs', 'offlineCleared', '_bossPubTimer', '_bossPubAt', '_bossClockOn', '_damageDirty', '_damageTimer',
     '_damageAt', '_damageSampleAt', '_damageSent', '_progressTimer', '_bossClock', '_lastPoolAt', '_poolTimer', '_lastPoolKey',
     'pacer', 'overtimeAt', '_timers', '_phaseTimer', '_infoAdvanceTimer', 'setupVote', '_lastSetupVoteAt', '_turnTimer',
     '_pubDirty', '_pubTimer', '_lastPubAt', '_lastPubJson', '_privDirty', '_prepEndQueued', 'fields', 'runner', 'watchers',
@@ -146,7 +150,9 @@ export const PLAYER_FIELDS = Object.freeze({
  * @param {import('./Match.js').Match} m
  */
 export function canSnapshot(m) {
-  if (!m || m.disposed || m.ended || m.paused) return false;
+  // a solo pause only ever holds a battle (never a checkpoint phase); the offline hold (match/offlineHold.js) may hold
+  // any phase and is checkpointed as of its start — a stack stopped meanwhile comes back where its players left it
+  if (!m || m.disposed || m.ended || (m.paused && !m._offline)) return false;
   if (!m.sched || typeof m.sched.now !== 'function' || !(m.players instanceof Map) || !Array.isArray(m.poolGroups)) return false;
   if (!SNAPSHOT_PHASES.includes(m.phase)) return false;
   if (m.fields?.length || m.runner || m.pacer || m.bossPool || m.teamLp) return false;
@@ -308,13 +314,15 @@ export function snapshotMatch(m) {
 /** @param {import('./Match.js').Match} m */
 function buildSnapshot(m) {
   const now = m.sched.now();
+  // a match held for its offline humans stands still since the hold began: its clocks are read as of that instant
+  const clock = m._offline ? m._offlineAt : now;
   const doc = {
     v: SNAPSHOT_VERSION, phase: m.phase, round: m.round, seed: m.seed, battlePrefix: m.battlePrefix, savedAt: now,
     mode: m.mode, difficulty: m.difficulty, modeId: m.modeId, experimental: { ...m.experimental }, aiPicksLast: m.aiPicksLast,
     seats: matchSeats(m), spectators: [...m.spectators.keys()],
     // the phase clock travels as *remaining* time: the match is frozen while the server is down
-    deadlineRemainingMs: m.deadline > 0 ? Math.max(0, Math.round(m.deadline - now)) : 0,
-    startedAtAgoMs: Math.max(0, Math.round(now - (Number(m.startedAt) || now))),
+    deadlineRemainingMs: m.deadline > 0 ? Math.max(0, Math.round(m.deadline - clock)) : 0,
+    startedAtAgoMs: Math.max(0, Math.round(clock - (Number(m.startedAt) || clock))),
     battleSeq: m._battleSeq | 0,
     match: {}, players: [],
     // every chess-pool group's remaining copies (caps and tiers are data-derived), every equipment group's debt
@@ -330,7 +338,7 @@ function buildSnapshot(m) {
   for (const ps of m.order) {
     const p = { playerId: ps.playerId, ready: !!ps.ready, loadout: { ...ps.loadout }, ops: { ...ps.ops }, skins: { ...ps.skins },
       // an absolute time travels as its age (a test's virtual clock, or a host whose clock moved, restarts elsewhere)
-      lastEmoteAgoMs: Number.isFinite(ps.lastEmoteAt) ? Math.max(0, now - ps.lastEmoteAt) : null,
+      lastEmoteAgoMs: Number.isFinite(ps.lastEmoteAt) ? Math.max(0, clock - ps.lastEmoteAt) : null,
       diyStock: Object.fromEntries([...ps.diyStock.entries].map(([id, e]) => [id, e.left])), f: {} };
     for (const k of PLAYER_FIELDS.saved) p.f[k] = encodeValue(ps[k]);
     doc.players.push(p);
@@ -419,9 +427,10 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
   });
 
   // transient plumbing: nothing of the interrupted run's timers, views or battles
-  for (const h of [...m._timers]) m.cancel(h);
-  m._timers.clear();
+  m._clearTimers();
+  m._timersSuspended = false;
   Object.assign(m, {
+    _offline: false, _offlineAt: 0, _offlineTimer: null,
     paused: false, _pausedAt: 0, overtimeAt: 0, deadline: 0, setupVote: null, kickVote: null, _phaseTimer: null, _infoAdvanceTimer: null,
     _turnTimer: null, _pubTimer: null, _pubDirty: false, _lastPubAt: -Infinity, _lastPubJson: '', _prepEndQueued: false,
     _turnToken: 0, _progressTimer: null, _bossPubTimer: null, _bossClock: null, _bossClockOn: false, _poolTimer: null,
@@ -472,6 +481,8 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
   }
   enterPhase(m, doc);
   m.replayRound = replay === true && m.phase === PHASE.PREP ? m.round : 0;
+  // every human seat is offline after a restore: held until the first one binds (offlineHold.js)
+  m._updateOfflineHold();
   return true;
 }
 

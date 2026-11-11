@@ -21,23 +21,70 @@ export class MatchInfra {
     this.log.error?.(`[match ${this.roomCode}] ${msg}`, e && e.stack ? String(e.stack).split('\n').slice(1, 4).join(' | ') : '');
   }
 
-  /** Schedule a guarded callback (tracked for dispose). */
+  /**
+   * Schedule a guarded callback (tracked for dispose). Returns the match's own handle, not the scheduler's: while every
+   * human is offline the match holds (match/offlineHold.js) and its timers are suspended and later re-armed with the
+   * time they had left — a caller keeps its handle across that, and cancel() always reaches the timer armed now.
+   */
   later(ms, fn) {
     if (this.disposed) return null;
-    let h = null;
-    h = this.sched.setTimeout(() => {
-      this._timers.delete(h);
+    const delay = Math.max(0, Number(ms) || 0);
+    const t = { h: null, run: null, due: 0, left: 0 };
+    t.run = () => {
+      t.h = null;
+      this._timers.delete(t);
       if (this.disposed) return;
       this.guard(fn);
-    }, ms);
-    if (h) this._timers.add(h);
-    return h;
+    };
+    if (this._timersSuspended) t.left = delay;
+    else {
+      t.due = this.sched.now() + delay;
+      t.h = this.sched.setTimeout(t.run, delay);
+      if (!t.h) return null;
+    }
+    this._timers.add(t);
+    return t;
   }
 
-  cancel(h) {
-    if (!h) return;
-    this.sched.clearTimeout(h);
-    this._timers.delete(h);
+  cancel(t) {
+    if (!t) return;
+    if (t.h) this.sched.clearTimeout(t.h);
+    t.h = null;
+    this._timers.delete(t);
+  }
+
+  /** Cancel every tracked timer and the offline hold's own (finish, dispose, restore). */
+  _clearTimers() {
+    for (const t of this._timers) { try { if (t.h) this.sched.clearTimeout(t.h); } catch { /* ignore */ } t.h = null; }
+    this._timers.clear();
+    this._timersSuspended = false;
+    if (this._offlineTimer) { try { this.sched.clearTimeout(this._offlineTimer); } catch { /* ignore */ } this._offlineTimer = null; }
+  }
+
+  /** Stop every tracked timer, keeping the time each had left (the offline hold); later() arms none meanwhile. */
+  _suspendTimers() {
+    if (this._timersSuspended) return;
+    this._timersSuspended = true;
+    const now = this.sched.now();
+    for (const t of this._timers) {
+      if (!t.h) continue;
+      this.sched.clearTimeout(t.h);
+      t.h = null;
+      t.left = Math.max(0, t.due - now);
+    }
+  }
+
+  /** Re-arm the suspended timers with the time they had left. */
+  _resumeTimers() {
+    if (!this._timersSuspended) return;
+    this._timersSuspended = false;
+    const now = this.sched.now();
+    for (const t of [...this._timers]) {
+      if (t.h) continue;
+      t.due = now + t.left;
+      t.h = this.sched.setTimeout(t.run, t.left);
+      if (!t.h) this._timers.delete(t);
+    }
   }
 
   scaled(ms) { return Math.max(0, Math.round(ms * this.timerScale)); }

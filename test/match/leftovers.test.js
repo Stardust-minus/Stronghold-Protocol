@@ -198,17 +198,23 @@ test('solo pause: the field clock, the result deadline and the HUD countdown sta
   m.dispose();
 });
 
-test('solo pause: a disconnect resumes (the server takes the field over); the battle phase ending clears the pause', () => {
+test('solo pause: a disconnect hands it to the offline hold (the server takes the field over, frozen until the player is back); the battle phase ending clears the pause', () => {
   const h = makeMatch({ mode: 'solo', difficulty: 'FUNNY', humans: 1, seed: 5153, fake: true, clientCombat: true, clients: false, instant: false }).start();
   const m = h.m;
   assert.ok(h.drive(() => m.phase === PHASE.COMBAT));
   assert.deepEqual(m.handle('p_0', { t: 'g.pause', on: true }), { ok: true });
   h.sched.advance(5000);
   m.onDisconnect('p_0');
-  assert.equal(m.paused, false);
   assert.equal(m.fields[0].mode, 'server');
-  assert.equal(pub(h).paused, false);
+  // the offline hold (match/offlineHold.js, the owner's rule of 2026-11-11): the run waits for its player
+  assert.equal(m.paused, true);
+  assert.equal(pub(h).paused, true);
+  assert.equal(pub(h).offlineHold, true);
+  h.sched.advance(60_000);
+  assert.equal(m.phase, PHASE.COMBAT, 'nothing ran while the player was away');
   m.onReconnect('p_0');
+  assert.equal(m.paused, false, 'back: the battle runs on (the player may pause again)');
+  assert.equal(pub(h).paused, false);
   h.run(() => m.phase === PHASE.PREP);
   assert.equal(m.errorCount, 0);
   m.dispose();

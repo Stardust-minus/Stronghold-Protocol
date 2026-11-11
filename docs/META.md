@@ -221,7 +221,8 @@ A `choice:<effectId>` registry handler overrides the default application (§2.4)
   (normal / 联防: re-simulated from t = 0) or, on a boss field, to the partner's replica (DESIGN §14). 掉线由 AI 接管
   (owner, 2026-10-14): a seat still offline as its 2nd prep in a row ends (`OFFLINE_TAKEOVER_ROUNDS`, `_checkOffline`)
   gets AI 托管 from the next phase on (ticker to everyone); `onReconnect` turns that AI 托管 off again (a ticker, a toast
-  to the player) — one the player chose itself stays; untimed matches just wait. While the AI plays such a seat, the
+  to the player) — one the player chose itself stays; untimed matches just wait; with every human offline the match holds
+  instead (§1.3b). While the AI plays such a seat, the
   connected humans may vote it out in SP_DRAFT / PREP (投票移出, `match/kickVote.js`, §32.14.45): a passed vote
   removes it like the `onLeave` below (`m.removed {reason:'kicked'}`, then `room.closed {reason:'kicked'}` on its resume). The session stays resumable for the
   rest of the match while another player of it is online (lobby.js `refreshMatchWindows`), else for 10 min (net.js
@@ -246,8 +247,22 @@ A `choice:<effectId>` registry handler overrides the default application (§2.4)
 while a battle runs (COMBAT / 最终攻势 / 隐秘核心 with a live field, not while the Final Assault is ending); `on: false`
 always. While paused (`m.public.paused`) the field clocks, the authority deadlines / release timers, the boss clock
 (overtime drain, silence watchdog) and the server pacers stand still; `_resume()` shifts `deadline`, `overtimeAt`, the
-fields' `startAt` / `lastProgressAt` and the boss start by the paused time and re-arms the timers. A disconnect or
-`onLeave` resumes; the battle phase ending clears it (`pausedMs` totals the paused time).
+fields' `startAt` / `lastProgressAt` and the boss start by the paused time and re-arms the timers. `onLeave` resumes; a
+disconnect hands it to the offline hold (§1.3b); the battle phase ending clears it (`pausedMs` totals the paused time).
+
+### 1.3b Offline hold
+The owner's rule of 2026-11-11 (`server/match/match/offlineHold.js`): when no human seat that has not departed is
+connected (spectator seats do not count), the match holds — every tracked timer (`Match.later`: phase deadlines, draft
+turns, AI preps and rehearsal slices, votes, plugin windows) is suspended with the time it had left and the battles
+freeze as in §1.3a (`m.public.paused`, `m.public.offlineHold: true`) — so no prep ends, no battle runs and no
+`OFFLINE_TAKEOVER_ROUNDS` round is counted. The first human back (`onReconnect`) releases it before its resync: the
+timers run on with what they had left, `deadline` / `overtimeAt` / the boss start / the client fields' clocks / the
+draft and 机变 turn deadlines / plugin windows move on by the hold (`offlineHeldMs` totals it). Nobody back within
+`offlineHoldMs` — co-op `SP_OFFLINE_HOLD_MINUTES` (default 10 min, the plain reconnect window), solo the data's
+`singleReconnectTime` (24 h); `0` = no hold — and the session expiry departs the players as before (the last departure
+ends the match `'abandoned'`); a match no session expires ends itself `'abandoned'` a tenth of the hold later, at most
+1 min (`offlineCleared`, `OFFLINE_HOLD_GRACE_MS`). A restored match (every seat
+offline) holds at once. A bad `SP_OFFLINE_HOLD_MINUTES` stops the server / the cluster role at startup.
 
 ### 1.4 Watching fields
 Client-side combat (the default, DESIGN §14 Spectating; `Match._watchClient`): `g.watch` answers with the field's

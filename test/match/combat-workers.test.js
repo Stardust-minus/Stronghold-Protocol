@@ -510,7 +510,7 @@ test('workers: a pre-pause in-flight terminal response applies no frame or settl
   assert.deepEqual(h.logs.errors, []);
 });
 
-test('workers: pause before initialization, then disconnect resumes the held reply without catch-up', { timeout: 10_000 }, async (t) => {
+test('workers: pause before initialization, then disconnect hands it to the offline hold; the return resumes the held reply without catch-up', { timeout: 10_000 }, async (t) => {
   const pool = new ControlledPool();
   const h = fixture(t, { pool, humans: 1, mode: 'solo', speed: 2 });
   const { m } = h;
@@ -523,8 +523,19 @@ test('workers: pause before initialization, then disconnect resumes the held rep
   assert.equal(combatFrames(h).length, 0);
   await delay(100);
   m.onDisconnect('p_0');
+  // the offline hold (match/offlineHold.js): the run waits for its player, the held reply stays held
+  assert.equal(m.paused, true);
+  assert.ok(runner.held);
+  await delay(50);
+  m.onReconnect('p_0');
   assert.equal(m.paused, false);
   assert.equal(runner.held, null);
+  // the return resyncs its watched field first (a Worker state turn), then the clock runs on
+  for (;;) {
+    await until(() => pool.queue.length > 0, 'a request after the return');
+    if (pool.queue[0].op === 'advance') break;
+    await pool.deliver(pool.queue[0]);
+  }
   const advance = await pool.next('advance');
   assert.ok(advance.s.commands.at(-1).payload.ticks <= 3, 'paused wall time is not simulated on resume');
   assert.equal(pool.maxInflight, 1);

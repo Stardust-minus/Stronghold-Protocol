@@ -82,8 +82,9 @@ for (const capacity of [8, 12, 16, 20]) for (const reason of ['none', 'left', 'd
 });
 
 function natural(t, { capacity = 20, count = capacity, clientCombat = false, headless = false, base = 40, firstTime = 0.2, secondTime = 0.2, firstLeft = 1 } = {}) {
+  // headless: nobody connected, the server runs every field — the offline hold off (with it the match would wait)
   const h = makeMatch({ humans: count, experimental: rules(capacity), fake: true, instant: false, clientCombat,
-    clients: !headless, captureFrames: false, seed: 9017,
+    clients: !headless, captureFrames: false, seed: 9017, ...(headless ? { offlineHoldMs: 0 } : {}),
     script: b => b.kind === 'normal' ? { duration: 0.2, leaks: { p_0: 1 } }
       : { duration: b.fieldId === 'u' ? firstTime : secondTime, survivors: { p_0: b.fieldId === 'u' ? firstLeft : 1 } } }).start();
   const m = h.m; t.after(() => m.dispose()); h.toPrep(1);

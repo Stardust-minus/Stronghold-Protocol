@@ -316,7 +316,8 @@ test('Final Assault: leaks and leader LP effects from b.progress drain the team 
 });
 
 test('Final Assault: the authority leaves → its partner\'s replica takes over; nobody left → the server paces the field (credits only new damage)', () => {
-  const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, seed: 9110, fake: true, clientCombat: true, instant: false,
+  // nobody connected and the battle still runs: the offline hold off (SP_OFFLINE_HOLD_MINUTES=0; with it the match waits)
+  const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, seed: 9110, fake: true, clientCombat: true, instant: false, offlineHoldMs: 0,
     script: (b) => (b.kind === 'boss' ? { bossDps: 2000 } : { duration: 2 }) }).start();
   const m = h.m;
   h.autoHumans();
@@ -700,7 +701,8 @@ test('Final Assault: a \'cleared\' b.result whose report does NOT cover the pool
 });
 
 test('Final Assault run on the server (nobody connected at its start): a human who reconnects gets b.pool with the field\'s own damage acknowledged', () => {
-  const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, seed: 9110, fake: true, clientCombat: true, instant: false,
+  // nobody connected at the Final Assault's start: the offline hold off (SP_OFFLINE_HOLD_MINUTES=0; with it the match waits)
+  const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, seed: 9110, fake: true, clientCombat: true, instant: false, offlineHoldMs: 0,
     script: (b) => (b.kind === 'boss' ? { bossDps: 3000 } : { duration: 2 }) }).start();
   const m = h.m;
   h.autoHumans();

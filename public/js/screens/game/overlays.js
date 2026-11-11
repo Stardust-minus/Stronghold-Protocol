@@ -17,8 +17,11 @@ export function MatchEnded() {
   </div>`;
 }
 
-/** Solo pause (m.public.paused): the field dims under the 暂停中 plate; 继续作战 resumes (g.pause off). */
-export function PausedOverlay({ canResume, busy, onResume, onExit }) {
+/**
+ * Solo pause (m.public.paused): the field dims under the 暂停中 plate; 继续作战 resumes (g.pause off). `offline`: the
+ * offline hold (m.public.offlineHold, server/match/match/offlineHold.js) — every player is offline, a spectator waits.
+ */
+export function PausedOverlay({ canResume, busy, onResume, onExit, offline = false }) {
   const plate = localAsset('ui/battle', 'matte_pause');
   return html`<div class="pauseov" role="dialog" aria-label=${t('暂停中')} data-testid="paused">
     <div class="pauseov__box">
@@ -26,10 +29,10 @@ export function PausedOverlay({ canResume, busy, onResume, onExit }) {
         <span class="pauseov__micro">PAUSED</span>
         <h2>${t('暂停中')}</h2>
       </div>
-      <p class="pauseov__note">${t('作战已暂停，计时与敌人行动均已停止')}</p>
+      <p class="pauseov__note">${offline ? t('所有玩家都已离线，对局暂停中；有玩家重新连接后继续') : t('作战已暂停，计时与敌人行动均已停止')}</p>
       <div class="pauseov__btns">
         ${onExit ? html`<${Button} variant="secondary" size="lg" icon="exit" onClick=${onExit}>${t('放弃模拟')}<//>` : null}
-        ${canResume ? html`<${Button} variant="primary" size="lg" icon="play" loading=${busy} onClick=${onResume} data-autofocus>${t('继续作战')}<//>` : null}
+        ${canResume && !offline ? html`<${Button} variant="primary" size="lg" icon="play" loading=${busy} onClick=${onResume} data-autofocus>${t('继续作战')}<//>` : null}
       </div>
     </div>
   </div>`;

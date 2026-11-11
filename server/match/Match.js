@@ -155,6 +155,9 @@
 // published as m.public.deadline — AI seats pick at once and a turn that runs out takes the highlighted strategy
 // (g.bandFocus → timeoutBand); g.unitStats answers m.unitStats: the stats the board's units start their next battle with.
 //   opts.afkRemoveRounds  integer ≥ 0 (default AFK_REMOVE_ROUNDS = 2; 0 = off): the AFK rule — see the leave policy below
+//   opts.offlineHoldMs ms ≥ 0: how long a match whose humans are all offline stays held before it ends 'abandoned' (the
+//                     offline hold, see the leave policy below); default co-op SP_OFFLINE_HOLD_MINUTES (10 min), solo the
+//                     data's singleReconnectTime (24 h); 0 = no hold
 //   opts.experimental locked room revivalEnabled / disableSharedPool / optional disableDuckLord / disableLayerCap /
 //                     disableHitLimit, false by default / optional enemyHpMul / enemyAtkMul, 1 by default
 //   opts.snapshotHz   20 | 10 | 5, server snapshots only
@@ -203,6 +206,12 @@
 //     player's, and reconnecting turns that AI 托管 off again (a ticker, and a toast to the player) — one the player
 //     turned on itself stays (MatchPlatform._checkOffline, onReconnect). Untimed matches (soloUntimed) just wait. The
 //     lobby keeps such a session resumable while another player of the match is online (server/lobby.js).
+//   * every human offline (the offline hold, the owner's rule of 2026-11-11, match/offlineHold.js): once no human seat that
+//     has not departed is connected (spectator seats do not count), the match holds — every timer suspended with the time
+//     it had left, the battles frozen like the solo pause (m.public.paused) — and the first one back releases it: every
+//     clock and deadline moves on by the hold, nothing ran meanwhile (no AI takeover round, no deadline, no battle).
+//     Nobody back within offlineHoldMs: the platform's session expiry departs them (the last departure ends it
+//     'abandoned'); a match no session expires ends itself 'abandoned' a tenth of the hold later, at most 1 min.
 //   * departed human (onLeave): 中途退出 counts as elimination (research 00-INDEX §3, 01 §9, 06 §7 / §10.3) — every
 //     copy the seat holds returns to the shared pool at once, the seat leaves the round loop, the Final Assault
 //     pairing and the boss pool; its own running normal battle is force-ended. The seat shows status 'left'. When no
@@ -232,6 +241,7 @@
 //   watch.js         spectator seats, g.watch, who is shown which field, resend on reconnect, prep-scout pushes
 //   intents.js       the g.* / b.* router, emotes, AI 托管, g.unitStats, g.bondPlan
 //   pause.js         the solo pause
+//   offlineHold.js   the offline hold: every human offline → everything stands still; cleared after offlineHoldMs
 //   phases.js        INFO_CHECK, BAND_DRAFT (the strategy draft), BATTLE_CHECK, ROUND_START
 //   setupVote.js     the INFO_CHECK opening reroll vote (重刷本局) and its transactional setup replacement
 //   kickVote.js      投票移出: the vote to remove a teammate under the offline takeover
@@ -278,6 +288,7 @@ import { MatchViews } from './match/views.js';
 import { MatchWatch } from './match/watch.js';
 import { MatchIntents } from './match/intents.js';
 import { MatchPause } from './match/pause.js';
+import { MatchOfflineHold } from './match/offlineHold.js';
 import { MatchPhases } from './match/phases.js';
 import { MatchSetupVote } from './match/setupVote.js';
 import { MatchKickVote } from './match/kickVote.js';
@@ -292,7 +303,7 @@ import { MatchReports } from './match/reports.js';
 import { MatchUnite } from './match/unitePhase.js';
 import { MatchBoss } from './match/bossRounds.js';
 import { MatchSettle } from './match/settle.js';
-import { AFK_REMOVE_ROUNDS, PREP_INTENT_GRACE_MS } from './match/common.js';
+import { AFK_REMOVE_ROUNDS, PREP_INTENT_GRACE_MS, OFFLINE_HOLD_SOLO_FALLBACK_SEC, parseOfflineHoldMinutes } from './match/common.js';
 import { installTestTrace } from './testTrace.js';
 import { MatchTestCommands } from './match/testCommands.js';
 import { MatchOffers } from './match/offers.js';
@@ -314,6 +325,18 @@ export function parseVerify(v) {
 /** Default of the bot rehearsal delegation: off — SP_BOT_REHEARSAL=host offers it to the room's host (DESIGN §14). */
 const envBotRehearsal = () => String(env('SP_BOT_REHEARSAL') || '').trim().toLowerCase() === 'host';
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
+/**
+ * opts.offlineHoldMs, else a solo run's own reconnect window (data singleReconnectTime, as Lobby.soloResumeWindowMs), else
+ * SP_OFFLINE_HOLD_MINUTES (common.js OFFLINE_HOLD_MINUTES; server startup refuses a bad value first).
+ */
+function offlineHoldMsFor(opts, solo, data) {
+  if (Number.isFinite(opts.offlineHoldMs) && opts.offlineHoldMs >= 0) return Math.floor(opts.offlineHoldMs);
+  if (solo) {
+    const sec = data?.config?.constants?.singleReconnectTime;
+    return (typeof sec === 'number' && Number.isFinite(sec) && sec > 0 ? sec : OFFLINE_HOLD_SOLO_FALLBACK_SEC) * 1000;
+  }
+  return parseOfflineHoldMinutes(env('SP_OFFLINE_HOLD_MINUTES')) * 60_000;
+}
 
 const dsCache = new WeakMap();
 function dataSourceFor(data) {
@@ -474,6 +497,16 @@ export class Match {
     this._pausedAt = 0;
     /** real ms spent paused this match (diagnostics) */
     this.pausedMs = 0;
+    /** the offline hold (match/offlineHold.js): ms a match whose humans are all offline waits before it ends; 0 = never held */
+    this.offlineHoldMs = offlineHoldMsFor(opts, this.isSolo, this.data);
+    /** held for its offline humans since _offlineAt; _offlineTimer clears it at offlineHoldMs; _timersSuspended: infra.js */
+    this._offline = false;
+    this._offlineAt = 0;
+    this._offlineTimer = null;
+    this._timersSuspended = false;
+    /** ms held so far, and whether the hold ended the match (diagnostics) */
+    this.offlineHeldMs = 0;
+    this.offlineCleared = false;
     /** boss rounds (client-side combat): the throttled m.public refresh (_bossPublic) */
     this._bossPubTimer = null;
     this._bossPubAt = -Infinity;
@@ -700,7 +733,7 @@ export class Match {
 }
 
 // the method modules, in this order (a name defined twice is an error, never a silent override)
-for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchKickVote, MatchSpeedVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchLocalReplica, MatchRehearsal, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchExtensions, MatchTestCommands, MatchOffers]) {
+for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchOfflineHold, MatchPhases, MatchSetupVote, MatchKickVote, MatchSpeedVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchLocalReplica, MatchRehearsal, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchExtensions, MatchTestCommands, MatchOffers]) {
   for (const key of Reflect.ownKeys(part.prototype)) {
     if (key === 'constructor') continue;
     if (Object.prototype.hasOwnProperty.call(Match.prototype, key)) throw new Error(`Match.${String(key)} is defined twice`);

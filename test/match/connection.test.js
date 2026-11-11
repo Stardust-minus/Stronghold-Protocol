@@ -241,16 +241,19 @@ test('掉线由 AI 接管: offline at 2 prep ends in a row → AI 托管 from th
   m.dispose();
 });
 
-test('掉线由 AI 接管: an untimed match (a single human) waits for its player instead', () => {
+test('掉线由 AI 接管: an untimed match (a single human) waits for its player instead — held, then cleared (the offline hold)', () => {
   const h = makeMatch({ mode: 'coop', humans: 1, bots: 1, seed: 66, fake: true }).start();
   const m = h.m;
   h.toPrep(1);
   assert.ok(m.soloUntimed);
   m.onDisconnect('p_0');
-  h.sched.advance(30 * 60_000);
+  assert.equal(m._offline, true, 'its only human is offline: held (match/offlineHold.js)');
+  h.sched.advance(9 * 60_000);
   assert.equal(m.phase, PHASE.PREP);
   assert.equal(m.round, 1);
   assert.equal(h.ps('p_0').autoplay, false);
+  h.sched.advance(2 * 60_000);
+  assert.equal(h.ended?.reason, 'abandoned', 'nobody back within the 10 min hold (+ 1 min grace): cleared');
   m.dispose();
 });
 

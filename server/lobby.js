@@ -55,8 +55,11 @@
 //     Co-op (掉线由 AI 接管, the owner's rule of 2026-10-14): a player who drops out of a running match stays resumable
 //     the same way while another player of the match is online — the match hands the seat to the AI after
 //     OFFLINE_TAKEOVER_ROUNDS and back on the player's return; once no player of the match is online, every dropped
-//     one gets the plain window again from that moment, so a match nobody is left in still ends 'abandoned'
-//     (refreshMatchWindows).
+//     one gets the plain window again from that moment (or the offline hold's offlineHoldMs when longer), so a match
+//     nobody is left in still ends 'abandoned' (refreshMatchWindows). Meanwhile the match holds (the offline hold, the
+//     owner's rule of 2026-11-11, server/match/match/offlineHold.js): nothing advances until a player is back, and the
+//     sessions' expiry departs the players as before; the match ends 'abandoned' itself shortly after offlineHoldMs
+//     (SP_OFFLINE_HOLD_MINUTES, 10 min) only where no session expires it (a restored match nobody comes back to).
 //     A repeated hello on a live connection is a full resync: room.state goes to the requester only
 //     (broadcast only when the seat visibly changed, e.g. a rename in LOBBY); the heavy part (match.onReconnect,
 //     or the result replay below) runs at most once per `resyncMinGapMs` per session — extra requests inside
@@ -268,6 +271,7 @@ import { encode, isErrCode, sendEncodedMany, sendMessage, sendRaw, sendSession, 
 import { isCompressibleType } from './wsCompression.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch, AFK_REMOVE_ROUNDS } from './match/Match.js';
+import { parseOfflineHoldMinutes } from './match/match/common.js';
 import { GameData } from './match/gamedata.js';
 import { Matchmaking } from './matchmaking.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
@@ -294,6 +298,7 @@ export const LOBBY_DEFAULTS = Object.freeze({
   maxBotsPerAddr: 0,      // AI seats in the rooms charged to one client network (0 = unlimited)
   resyncMinGapMs: 1000,   // heavy resyncs (match state / result replay) per session at most this often on repeated hellos
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
+  offlineHoldMs: null,    // a co-op match whose humans are all offline holds this long, then ends (null = SP_OFFLINE_HOLD_MINUTES, 10 min; 0 = no hold)
   matchmaking: null,           // queue admission/deadline options; defaults live in matchmaking.js
   afkRemoveRounds: AFK_REMOVE_ROUNDS, // the match removes a human idle this many rounds in a row (Match opts; 0 = off)
   versionVoteMs: 60_000,  // an open version vote is cancelled after this long (header "Official versions") [ASSUMED]
@@ -708,6 +713,13 @@ export class Lobby {
       delete options.testHost;
     }
     this.opts = { ...LOBBY_DEFAULTS, ...options };
+    // the offline hold (server/match/match/offlineHold.js): a bad SP_OFFLINE_HOLD_MINUTES stops the server here. Only a hold
+    // set explicitly (the option, the env) stretches the sessions of a match nobody is online in beyond the plain window
+    // (refreshMatchWindows); the default equals that window anyway
+    const envHold = process.env.SP_OFFLINE_HOLD_MINUTES;
+    const explicitHold = Number.isFinite(this.opts.offlineHoldMs) && this.opts.offlineHoldMs >= 0;
+    this.offlineHoldMs = explicitHold ? Math.floor(this.opts.offlineHoldMs) : parseOfflineHoldMinutes(envHold) * 60_000;
+    this.offlineHoldWindowMs = explicitHold || (envHold != null && envHold !== '') ? this.offlineHoldMs : 0;
     this.limits = limits;
     // A fixed alliance key (--room-code / roomCode): every room this process creates uses it. server/index.js parses
     // the argument once at startup; a test passes it directly. Nothing is read from the environment or persisted.
@@ -1215,8 +1227,12 @@ export class Lobby {
         session.resumeWindowMs = this.soloResumeWindowMs(room);
         session.matchHeld = true;
       } else if (session.matchHeld) {
-        session.resumeWindowMs = now - session.disconnectedAt + this.registry.reconnectWindowMs;
+        // the match holds meanwhile (the offline hold): resumable as long as it waits, at least the plain window
+        session.resumeWindowMs = now - session.disconnectedAt + Math.max(this.registry.reconnectWindowMs, this.offlineHoldWindowMs);
         session.matchHeld = false;
+      } else if (this.offlineHoldWindowMs > this.registry.reconnectWindowMs && session.resumeWindowMs == null) {
+        // a longer offline hold (SP_OFFLINE_HOLD_MINUTES > 10): a seat that dropped with nobody online waits as long
+        session.resumeWindowMs = this.offlineHoldWindowMs;
       }
     }
   }
@@ -2793,6 +2809,10 @@ export class Lobby {
         trialPool: this.trialPool,
         snapshotHz: this.opts.snapshotHz,
         afkRemoveRounds: this.opts.afkRemoveRounds,
+        // the offline hold: a match reads SP_OFFLINE_HOLD_MINUTES / its data itself; only an explicit lobby option is
+        // handed on (a default match's opts keep their keys)
+        ...(room.mode !== 'solo' && this.opts.offlineHoldMs != null ? { offlineHoldMs: this.offlineHoldMs } : {}),
+        ...(room.mode === 'solo' && this.opts.soloReconnectWindowMs != null ? { offlineHoldMs: this.soloResumeWindowMs(room) } : {}),
         log: this.log,
         now: this.now,
         // the server's own simulation pool (server/workers/roomPool.js) for bot rehearsals, when the operator started
