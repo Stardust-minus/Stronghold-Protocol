@@ -75,6 +75,8 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     SP_CLIENT=build \
     SP_PLUGIN_RESOURCES=/app/plugin-resources
+# The main isolate's young generation, bounded like the Workers' (server/workerHeap.js): see deploy/stardust/cluster/Dockerfile.cluster.
+ENV NODE_OPTIONS=--max-semi-space-size=8
 WORKDIR /app
 COPY --from=deps /app/package.json ./package.json
 COPY --from=deps /app/node_modules ./node_modules

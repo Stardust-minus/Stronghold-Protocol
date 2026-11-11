@@ -9,6 +9,7 @@ import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { performance } from 'node:perf_hooks';
 import { workerDataJson } from '../data.js';
+import { workerResourceLimits } from '../workerHeap.js';
 
 /** The thread count the default (no SP_WORKERS) would pick — kept for callers that want to report it without starting a pool. */
 export function defaultWorkerCount(cpus = availableParallelism()) {
@@ -123,7 +124,7 @@ export class SimulationPool {
   }
 
   _spawn() {
-    const worker = new Worker(this.workerUrl, { workerData: { dataJson: workerDataJson(this.data) } });
+    const worker = new Worker(this.workerUrl, { workerData: { dataJson: workerDataJson(this.data) }, resourceLimits: workerResourceLimits() });
     const slot = { worker, task: null, retired: false };
     this.slots.add(slot);
     worker.on('message', (msg) => {

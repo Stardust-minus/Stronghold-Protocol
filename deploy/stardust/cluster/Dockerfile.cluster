@@ -16,6 +16,11 @@ RUN test -n "${SOURCE_REVISION}" && test -n "${SOURCE_MANIFEST_SHA256}" && test 
 # SP_ASSET_INDEX=0: the art is redirected to the material sources by plain path, so manifests carry no content hashes.
 # SP_CLIENT=build: the coordinator's / is the Vite bundle's page (public/build/, exported prebuilt — UPDATE-SOP.md).
 ENV NODE_ENV=production SP_COMBAT=server SP_VERIFY=off SP_SNAPSHOT_HZ=10 SP_ASSET_INDEX=0 SP_CLIENT=build
+# Every Node process of this image (coordinator, game, ingress) bounds its main isolate's young generation; the game's
+# Workers get theirs from server/workerHeap.js. V8 otherwise keeps a young generation as large as a busy moment grew it:
+# measured 2026-11-11 (27 live matches in one game process) main heap 203 → 91 MiB held, the process with its Workers
+# 1010 → 535 MiB RSS, CPU within the run-to-run spread.
+ENV NODE_OPTIONS=--max-semi-space-size=8
 WORKDIR /app
 COPY app/ /app/
 RUN test -s public/build/index.html && ls public/build/assets/*.js >/dev/null \

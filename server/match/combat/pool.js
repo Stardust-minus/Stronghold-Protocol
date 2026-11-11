@@ -4,6 +4,7 @@ import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
 import { deepFreeze, getData, workerDataJson } from '../../data.js';
 import { snapshotTrialInput, MAX_TRIAL_TICKS } from './trial.js';
+import { workerResourceLimits } from '../../workerHeap.js';
 
 const WORKER_URL = new URL('./worker.js', import.meta.url);
 const OPS = new Set(['advance', 'state', 'forceField', 'forceAll']);
@@ -100,6 +101,8 @@ export class CombatWorkerPool {
         // Test runners/CLI eval can expose process-only flags (Node24 even includes V8 defaults).
         // These plain ESM workers need no loader/preload/inspection flags from the host entrypoint.
         execArgv: [],
+        // a bounded young generation (server/workerHeap.js): V8 otherwise keeps what a busy battle grew it to
+        resourceLimits: workerResourceLimits(),
       });
       slot.worker = worker;
       slot.termination = null;

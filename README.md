@@ -166,6 +166,7 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_COMBAT` | `client` | `client`：各玩家浏览器模拟自己的战斗（服务器负载极低）；`server`：由服务器模拟并推流 |
 | `SP_COMBAT_WORKERS` | `0` | `SP_COMBAT=server` 时的战斗 Worker 数（0–32）；`0` 在主线程同步模拟 |
 | `SP_TRIAL_WORKERS` | `1` | AI 试算 Worker 数（0–2）；需要有战斗 Worker，并且设置了本变量或 `SP_COMBAT=server` |
+| `SP_WORKER_YOUNG_MB` | `24` | 每个战斗、试算、仿真 Worker 的 V8 新生代上限（MiB，3–256）；`0` = 交给 V8 自己定（Node 24 默认最多 192 MiB，空闲时也不归还）。主线程的对应设置是 `NODE_OPTIONS=--max-semi-space-size=8`（Docker 镜像已带） |
 | `SP_LOCAL_REPLICA` | 开 | 服务器模拟时让浏览器本地演算自己的战场并接受校验；设为 `0` 时改为全部推流 |
 | `SP_SNAPSHOT_HZ` | `20` | 服务器战斗快照频率：`20` / `10` / `5` |
 | `SP_WS_COMPRESSION` | `off` | `on` 时对战斗流启用 WebSocket 压缩 |

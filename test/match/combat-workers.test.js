@@ -1227,11 +1227,15 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
 });
 
 test('worker game data travels as one JSON string per dataset, an exact round trip', async () => {
-  const { getData, workerDataJson, parseWorkerData } = await import('../../server/data.js');
+  const { getData, workerDataJson, parseWorkerData, WORKER_OMITTED_FILES } = await import('../../server/data.js');
   const data = getData();
   const json = workerDataJson(data);
   assert.equal(workerDataJson(data), json, 'pools starting together share one string');
-  assert.deepStrictEqual(parseWorkerData(json), data, 'loadData output is plain JSON, so nothing is lost');
+  const omitted = Object.keys(data).filter((k) => WORKER_OMITTED_FILES.includes(k));
+  assert.ok(omitted.includes('assets'), 'the art manifest is one of the files left out');
+  const expected = Object.fromEntries(Object.entries(data).filter(([k]) => !WORKER_OMITTED_FILES.includes(k)));
+  assert.deepStrictEqual(parseWorkerData(json), expected, 'loadData output is plain JSON, so nothing else is lost');
+  assert.deepEqual(Object.keys(parseWorkerData(json)), Object.keys(expected), 'every other data file, in order');
   // what JSON would silently change is refused instead (structured clone kept or threw on these)
   for (const bad of [{ a: undefined }, { a: NaN }, { a: -0 }, { a: new Array(2) }, { a: new Map() }, { a: new Date(0) }, { a() {} }, { a: 1n }]) {
     assert.throws(() => workerDataJson(bad), TypeError, `refused: ${Object.prototype.toString.call(bad.a)}`);

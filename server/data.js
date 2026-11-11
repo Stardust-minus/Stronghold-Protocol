@@ -108,6 +108,14 @@ export function getData({ dir = DATA_DIR, log = console } = {}) {
   return singleton;
 }
 
+/**
+ * Top-level data files a Worker never reads, left out of workerDataJson: the art manifests (assets, assets-collab), the
+ * announcements and the emote catalog belong to the browser and the lobby. No module of server/sim, server/match,
+ * server/workers or shared reads them (a non-default version's directory has no assets.json at all: VERSION_DATA_FILES),
+ * and every one is a whole file, never a field of a record the sim uses. Measured 2026-11-11: a Worker isolate's parsed
+ * data 17 → 10.5 MiB of heap, the shared startup string ~16 → ~9 MiB.
+ */
+export const WORKER_OMITTED_FILES = Object.freeze(['assets', 'assets-collab', 'announcements', 'emotes']);
 const DATA_JSON = new WeakMap();
 /** How long a dataset's JSON string is kept after its last use: pools that start together share one. */
 const DATA_JSON_KEEP_MS = 30_000;
@@ -119,14 +127,19 @@ const DATA_JSON_KEEP_MS = 30_000;
  * on parsed data; parsing a clone again inside the Worker recovered under half of it. The data is plain JSON (loadData,
  * checked by plainJson), so the round trip is exact. Stringifying takes ~40 ms; the string (~16 MiB, two-byte: the
  * data has CJK text) is kept DATA_JSON_KEEP_MS after its last use, so a process's pools share it at startup and hold
- * nothing afterwards.
+ * nothing afterwards. The files of WORKER_OMITTED_FILES are left out.
  * @param {object} data
  * @returns {string}
  */
 export function workerDataJson(data) {
   if (!data || typeof data !== 'object') throw new TypeError('full game data required');
   let entry = DATA_JSON.get(data);
-  if (!entry) { entry = { json: JSON.stringify(data, plainJson), timer: null }; DATA_JSON.set(data, entry); }
+  if (!entry) {
+    const kept = {};
+    for (const key of Object.keys(data)) if (!WORKER_OMITTED_FILES.includes(key)) kept[key] = data[key];
+    entry = { json: JSON.stringify(kept, plainJson), timer: null };
+    DATA_JSON.set(data, entry);
+  }
   clearTimeout(entry.timer);
   entry.timer = setTimeout(() => DATA_JSON.delete(data), DATA_JSON_KEEP_MS);
   entry.timer.unref?.();

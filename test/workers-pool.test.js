@@ -8,7 +8,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { SimulationPool, createSimulationPool, workerSettings } from '../server/workers/pool.js';
 
 const fixture = new URL('./fixtures/pool-worker.mjs', import.meta.url);
-const fixturePool = (opts = {}) => new SimulationPool({ size: 1, workerUrl: fixture, ...opts });
+// The fixture ignores the game data, but a pool always sends one (data.js workerDataJson refuses none).
+const fixturePool = (opts = {}) => new SimulationPool({ size: 1, workerUrl: fixture, data: {}, ...opts });
 async function until(pred) {
   const deadline = Date.now() + 10000;
   while (!pred()) {
