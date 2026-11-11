@@ -129,6 +129,7 @@ test('network-quality board: public-dashboard-compatible, known series only (rec
   assert.match(read('README.md'), /DASHBOARD_UID=sp-netq/, 'README says how to publish it');
   const nginx = fs.readFileSync(new URL('../../nginx/ark-proto.conf', import.meta.url), 'utf8');
   assert.match(nginx, /location = \/monitor\/net \{ include \S+\/monitor-net-entry\.conf; \}/, '/monitor/net leads to it');
+  assert.match(nginx, /location = \/monitor\/net\/ \{ include \S+\/monitor-net-entry\.conf; \}/, '/monitor/net/ (trailing slash) too');
   assert.match(netqBoard.panels[0].options.content, /\(\/monitor\/\)/, 'it links the status board');
   assert.match(dashboard.panels.find((p) => p.type === 'text').options.content, /\(\/monitor\/net\)/, 'the status board links it');
   assert.equal(netqBoard.editable, false);
