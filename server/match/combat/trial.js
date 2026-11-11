@@ -1,13 +1,29 @@
-// Pure bot rehearsal, not a combat phase: no match hooks, settlement, frames or shared boss authority.
+// Pure bot rehearsal, not a combat phase: no match hooks, settlement, frames or shared boss authority. A Final Assault /
+// Hidden Core candidate (kind boss / hidden) brings its pool as data (`boss: { poolHp, poolMax }`) and fights a fresh
+// private SharedBossPool, as the inline rehearsal does (server/match/bot.js bossCandidateOpts: a new pool per candidate).
 import { Battle } from '../../sim/Battle.js';
 import { deepFreeze } from '../../data.js';
 import { combatData } from './data.js';
 import { DeadBattle } from '../fields.js';
+import { SharedBossPool } from '../finalAssault.js';
 
 export const MAX_TRIAL_TICKS = 32;
 export const TRIAL_SLICE_MS = 4;
 const QUIET = Object.freeze({ error() {}, warn() {}, info() {} });
 const invalid = (message) => Object.assign(new TypeError(message), { code: 'BAD_TRIAL_INPUT' });
+const bossLike = (candidate) => candidate.kind === 'boss' || candidate.kind === 'hidden';
+const poolValue = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
+
+/**
+ * Whether scored candidate record `a` ({ leaks, boss, score }) beats `b`: server/sim/rehearsal.js RehearsalScore's order,
+ * so a Worker rehearsal picks what the inline one picks — fewer counted leaks, then more leader damage (a boss / hidden
+ * field; a normal one records 0), then the higher score (−1000 per leak + kills − 0.01 × position: the earlier
+ * candidate). The best score therefore need not grow: a later candidate with more leader damage can win on fewer kills.
+ */
+export function beatsCandidate(a, b) {
+  return a.leaks < b.leaks || (a.leaks === b.leaks && a.boss > b.boss)
+    || (a.leaks === b.leaks && a.boss === b.boss && a.score > b.score);
+}
 
 function assertDataOnly(value, path = 'trial', ancestors = new Set()) {
   if (value == null || ['string', 'number', 'boolean', 'undefined'].includes(typeof value)) return;
@@ -37,10 +53,12 @@ function validateTrialInput(input) {
   for (const candidate of input.candidates) {
     if (!candidate || typeof candidate !== 'object') throw invalid('invalid trial candidate');
     if (candidate.content != null && !['full', 'generic', 'none'].includes(candidate.content)) throw invalid('unknown trial content mode');
-    if (!candidate || (candidate.kind != null && candidate.kind !== 'normal') || candidate.sharedBoss != null ||
+    if (!candidate || (candidate.kind != null && candidate.kind !== 'normal' && !bossLike(candidate)) || candidate.sharedBoss != null ||
         candidate.data != null || candidate.logger != null || candidate.extraContent != null || candidate.stage != null) {
-      throw invalid('trial requires normal, data-only Battle options with stageId and no shared authority');
+      throw invalid('trial requires normal / boss / hidden, data-only Battle options with stageId and no shared authority');
     }
+    if (bossLike(candidate) && !(candidate.boss && typeof candidate.boss === 'object' && poolValue(candidate.boss.poolHp)
+        && poolValue(candidate.boss.poolMax))) throw invalid('a boss / hidden trial candidate needs boss { poolHp, poolMax }');
     if (!Array.isArray(candidate.players) || !candidate.players.some((p) => p?.playerId === input.playerId)) throw invalid('trial player missing');
   }
 }
@@ -96,6 +114,7 @@ export class TrialEngine {
     this.bestIndex = 0;
     this.bestScore = -Infinity;
     this.bestLeaks = Infinity;
+    this.bestBoss = -Infinity;
     this.completed = [];
     this.done = false;
     this.disposed = false;
@@ -104,7 +123,7 @@ export class TrialEngine {
   state({ stream = this.summary } = {}) {
     if (this.disposed) throw new Error('trial engine disposed');
     const state = { done: this.done, candidateIndex: this.index, ticks: this.totalTicks,
-      bestIndex: this.bestIndex, bestScore: this.bestScore, bestLeaks: this.bestLeaks };
+      bestIndex: this.bestIndex, bestScore: this.bestScore, bestLeaks: this.bestLeaks, bestBoss: this.bestBoss };
     if (stream) return { ...state, summary: this.summary, sliceCount: this.sliceCount,
       candidates: this.completed.map((c, i) => ({ ...c, synthetic: this.synthetic[i],
         result: this.done && !this.summary ? structuredClone(c.result) : null })) };
@@ -130,7 +149,9 @@ export class TrialEngine {
         // Lazy construction bounds initialization too: never build all candidates in one wire turn.
         this.candidateError = null;
         try {
-          this.battle = new this.BattleClass({ ...this.input.candidates[this.index], data: this.data, logger: this.log });
+          const candidate = this.input.candidates[this.index];
+          this.battle = new this.BattleClass({ ...candidate,
+            ...(bossLike(candidate) ? { sharedBoss: new SharedBossPool(candidate.boss.poolHp) } : {}), data: this.data, logger: this.log });
         } catch (e) {
           // Match.newBattle's same stand-in: synthetic candidates cannot score, but later candidates still run.
           this.battle = new DeadBattle(this.input.candidates[this.index]);
@@ -156,7 +177,7 @@ export class TrialEngine {
         failed = true;
         this.candidateError = String(e?.message ?? e);
       }
-      const record = { index: this.index, ticks: this.ticks, duration: this.battle.time, beaten, leaks: null, score: null, result: null, error: this.candidateError };
+      const record = { index: this.index, ticks: this.ticks, duration: this.battle.time, beaten, leaks: null, boss: null, score: null, result: null, error: this.candidateError };
       let synthetic = null;
       if (!beaten && !failed) try {
         if (!this.battle.finished) this.battle.forceEnd('timeout');
@@ -167,10 +188,12 @@ export class TrialEngine {
         record.duration = this.battle.time;
         if (pp) {
           record.leaks = (pp.leaked || []).filter((l) => l && l.counted !== false).length;
+          record.boss = Math.max(0, Number(pp.bossDamage) || 0);
           record.score = -record.leaks * 1000 + (pp.killed || 0) - this.index * 0.01;
-          if (record.score > this.bestScore) {
+          if (beatsCandidate(record, { leaks: this.bestLeaks, boss: this.bestBoss, score: this.bestScore })) {
             this.bestScore = record.score;
             this.bestLeaks = record.leaks;
+            this.bestBoss = record.boss;
             this.bestIndex = this.index;
           }
         }

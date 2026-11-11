@@ -6,9 +6,9 @@ import { TrialEngine } from '../../server/match/combat/trial.js';
 import { DATA, phase } from './combat-fixtures.js';
 
 const progress = (bestIndex = 0, done = false) => ({ bestIndex, done, ticks: done ? 32 : 0,
-  candidateIndex: done ? 2 : 0, bestScore: done ? 1 : -Infinity, bestLeaks: done ? 0 : Infinity,
+  candidateIndex: done ? 2 : 0, bestScore: done ? 1 : -Infinity, bestLeaks: done ? 0 : Infinity, bestBoss: done ? 0 : -Infinity,
   candidates: done ? [0, 1].map((index) => ({ index, ticks: 16, duration: 16 / 30, beaten: false, score: index,
-    leaks: 0, result: {}, error: null })) : [] });
+    leaks: 0, boss: 0, result: {}, error: null })) : [] });
 function fixture(ready = Promise.resolve(progress()), advance = async () => progress(1, true)) {
   const calls = { creates: 0, advances: 0, closes: 0 };
   const pool = { createTrial(input) {
@@ -66,14 +66,16 @@ function deferred() {
   return { promise, resolve, reject };
 }
 const streamedProgress = (ticks = 0, sliceCount = 0, records = []) => {
-  let bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity;
-  for (const c of records) if (c.score !== null && c.score > bestScore) {
-    bestIndex = c.index; bestScore = c.score; bestLeaks = c.leaks;
+  // the inline rehearsal's order (RehearsalScore): fewer leaks, then more leader damage, then the score
+  let bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity, bestBoss = -Infinity;
+  for (const c of records) if (c.score !== null && (c.leaks < bestLeaks || (c.leaks === bestLeaks && c.boss > bestBoss)
+    || (c.leaks === bestLeaks && c.boss === bestBoss && c.score > bestScore))) {
+    bestIndex = c.index; bestScore = c.score; bestLeaks = c.leaks; bestBoss = c.boss;
   }
   return { summary: true, ticks, sliceCount, candidateIndex: records.length, done: records.length === 2,
-    bestIndex, bestScore, bestLeaks, candidates: records };
+    bestIndex, bestScore, bestLeaks, bestBoss, candidates: records };
 };
-const record = (index, ticks = 80) => ({ index, ticks, duration: ticks / 30, beaten: false, leaks: 0,
+const record = (index, ticks = 80) => ({ index, ticks, duration: ticks / 30, beaten: false, leaks: 0, boss: 0,
   score: index, error: null, result: null, synthetic: false });
 function streamedFixture({ close, input } = {}) {
   const ready = deferred(), done = deferred();
@@ -129,6 +131,9 @@ for (const [name, mutate] of [
   ['incomplete final', (p) => { p.done = false; }],
   ['winner index', (p) => { p.bestIndex = 0; }],
   ['winner score', (p) => { p.bestScore = 9; }],
+  ['winner leader damage', (p) => { p.bestBoss = 5; }],
+  ['missing leader damage', (p) => { p.candidates[0].boss = null; }],
+  ['winner beaten on leader damage', (p) => { p.candidates[0].boss = 7; }],
   ['synthetic score', (p) => { p.candidates[0].synthetic = true; }],
   ['missing synthetic flag', (p) => { delete p.candidates[0].synthetic; }],
   ['beaten score', (p) => { p.candidates[0].beaten = true; }],

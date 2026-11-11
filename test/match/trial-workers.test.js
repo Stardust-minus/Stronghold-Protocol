@@ -26,14 +26,16 @@ function input() {
   return { playerId: 'p0', candidates: [clone(candidate), clone(candidate)], cap: 270 };
 }
 
-// Independent copy of ORIGINAL bot.run semantics: one-shot real Battles, cap and pruning every 64 ticks.
-// Compare full internal results, not a digest or merely winner-vs-winner with the same new TrialEngine.
+// Independent copy of ORIGINAL bot.run semantics: one-shot real Battles, cap and pruning every 64 ticks, ranked as the
+// inline rehearsal ranks (server/sim/rehearsal.js RehearsalScore: fewer counted leaks, then more leader damage — 0 on a
+// normal field —, then the score). Compare full internal results, not a digest or merely winner-vs-winner with the same
+// new TrialEngine.
 function original(input, { onBattle = null } = {}) {
   const battles = input.candidates.map((c) => {
     try { return new Battle({ ...clone(c), data: combatData(DATA), logger: QUIET }); }
     catch { return new DeadBattle(c); }
   });
-  let bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity, totalTicks = 0;
+  let bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity, bestBoss = -Infinity, totalTicks = 0;
   const candidates = [];
   for (let index = 0; index < battles.length; index++) {
     const battle = battles[index];
@@ -47,7 +49,7 @@ function original(input, { onBattle = null } = {}) {
         if (leaks > bestLeaks) { beaten = true; break; }
       }
     }
-    const record = { index, ticks, duration: battle.time, beaten, leaks: null, score: null, result: null, error: null };
+    const record = { index, ticks, duration: battle.time, beaten, leaks: null, boss: null, score: null, result: null, error: null };
     if (!beaten) {
       if (!battle.finished) battle.forceEnd('timeout');
       record.result = clone(battle.result());
@@ -55,13 +57,17 @@ function original(input, { onBattle = null } = {}) {
       const pp = !record.result.synthetic && record.result.perPlayer?.[input.playerId];
       if (pp) {
         record.leaks = (pp.leaked || []).filter((l) => l && l.counted !== false).length;
+        record.boss = Math.max(0, Number(pp.bossDamage) || 0);
         record.score = -record.leaks * 1000 + (pp.killed || 0) - index * 0.01;
-        if (record.score > bestScore) { bestIndex = index; bestScore = record.score; bestLeaks = record.leaks; }
+        if (record.leaks < bestLeaks || (record.leaks === bestLeaks && record.boss > bestBoss)
+          || (record.leaks === bestLeaks && record.boss === bestBoss && record.score > bestScore)) {
+          bestIndex = index; bestScore = record.score; bestLeaks = record.leaks; bestBoss = record.boss;
+        }
       }
     }
     candidates.push(record);
   }
-  return { done: true, candidateIndex: battles.length, ticks: totalTicks, bestIndex, bestScore, bestLeaks, candidates };
+  return { done: true, candidateIndex: battles.length, ticks: totalTicks, bestIndex, bestScore, bestLeaks, bestBoss, candidates };
 }
 async function evaluate(t, data) {
   const pool = await realPool(t);
@@ -148,7 +154,7 @@ test('summary trial advanceSlice emits no DTO and retains exact original scoring
   assert.equal(out.sliceCount, slices);
   assert.equal(out.summary, true);
   assert.deepEqual(out.candidates, expected.candidates.map((c) => ({ ...c, result: null, synthetic: c.result ? !!c.result.synthetic : null })));
-  for (const key of ['bestIndex', 'bestScore', 'bestLeaks', 'ticks', 'candidateIndex', 'done']) assert.equal(out[key], expected[key]);
+  for (const key of ['bestIndex', 'bestScore', 'bestLeaks', 'bestBoss', 'ticks', 'candidateIndex', 'done']) assert.equal(out[key], expected[key]);
   assert.ok(summary.completed.every((c) => c.result === null));
   assert.equal(out.candidates[0].synthetic, true);
   assert.equal(out.candidates[0].score, null);

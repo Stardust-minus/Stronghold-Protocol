@@ -100,7 +100,7 @@ import { HOVER_KEYS } from '../sim/content/enemies.js';
 import { attackRangeGrid, loadoutRecord, resolveRecordLoadout } from '../../shared/loadoutRecord.js';
 import { canUseWorkerRehearsal, createWorkerRehearsal } from './combat/rehearsal.js';
 import { snapshotTrialInput } from './combat/trial.js';
-import { morphSlotPolicy, ruleOption } from '../../shared/plugins/rules.js';
+import { morphBattleOpt, morphSlotPolicy, ruleOption } from '../../shared/plugins/rules.js';
 
 /** The enemy HP multiplier of the match's round (a by-round plan, feedback #118; a bare match-like object: its single one). */
 const roundHpMul = (m) => (typeof m.enemyHpMulAt === 'function' ? m.enemyHpMulAt() : (m.enemyHpMul ?? 1));
@@ -1420,6 +1420,19 @@ function candidateOpts(m, ps, byUid, plan) {
 }
 
 /**
+ * A rehearsal candidate as a trial Worker's data-only input (server/match/combat/trial.js): the options Match.newBattle
+ * builds the inline candidate from — the room's content mode, then the candidate's own options, then the room rules'
+ * battle option (morphBattleOpt) — without the live objects. A boss / hidden candidate leaves its SharedBossPool here;
+ * the Worker builds a fresh one from `boss.poolHp` (bossCandidateOpts made this one from the same number).
+ * @param {object} opts candidateOpts / bossCandidateOpts
+ * @returns {object}
+ */
+export function trialCandidate(m, opts) {
+  const { sharedBoss: _pool, ...rest } = opts;
+  return { content: m.battleContent, ...rest, ...morphBattleOpt(m.rules) };
+}
+
+/**
  * Rehearsal job: the candidate layouts of one prep, the best of them and the server's own run over them. `inputs`
  * are the candidates' preview battle options (candidateOpts). `prebuilt`, when given, is the Battle of each input
  * already constructed — the default path builds them in the generator, exactly when 0.3.0 did, so a rehearsal that
@@ -1516,17 +1529,19 @@ export function* createRehearsalSteps(m, ps, chosen, plans, { delegate = false, 
   const offThread = delegate || pooled;
   // Only Match's scheduled prep driver enters this synchronous context (and never for a rehearsal it offers to the
   // host's browser). Public one-shot helpers remain inline. The dedicated rehearsal workers get each candidate's preview
-  // input frozen here (snapshotTrialInput), the same inputs a delegated or inline rehearsal simulates: a wave's fixed
-  // cap only — a boss field's cap and the adaptive budget (`limits`) stay with the local job.
-  const trialCap = rehearsalCap(m.wave?.timeLimit);
-  let remote = !offThread && !boss && !limits && m._workerBotPrepOwner === ps && canUseWorkerRehearsal(m);
+  // input frozen here (snapshotTrialInput, trialCandidate), the same inputs a delegated or inline rehearsal simulates,
+  // with the same tick cap: a wave's fixed one, a boss / hidden field's countdown (faRehearsalTicks). A Final Assault
+  // candidate goes too (its pool as data, a fresh one per candidate in the Worker as here); only the adaptive budget
+  // (`limits`) stays with the local job.
+  const trialCap = boss ? cap : rehearsalCap(m.wave?.timeLimit);
+  let remote = !offThread && !limits && m._workerBotPrepOwner === ps && canUseWorkerRehearsal(m);
   for (const plan of cands) {
     try {
       const opts = boss ? bossCandidateOpts(m, ps, byUid, plan) : candidateOpts(m, ps, byUid, plan);
       if (!opts) break;
       inputs.push(opts);
       if (remote) {
-        try { candidates.push(snapshotTrialInput({ playerId: ps.playerId, candidates: [{ ...opts, content: m.battleContent }], cap: trialCap }).candidates[0]); }
+        try { candidates.push(snapshotTrialInput({ playerId: ps.playerId, candidates: [trialCandidate(m, opts)], cap: trialCap }).candidates[0]); }
         catch (e) {
           // Refuse executable/uncloneable inputs on the wire, but do not silently shrink the search: every candidate
           // so far is built here and the rest follow inline.

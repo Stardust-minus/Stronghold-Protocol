@@ -285,7 +285,12 @@ enemy replacements, teammate effects and in-battle layer gains. A Final Assault 
 `startRound` already planned, an independent seed `deriveSeed(0xA11CE, fa:round:seat)` (not the match seed and not the
 live fight's seed), a fresh boss pool per candidate, the teammate's currently deployed board, and the visible
 countdown on the combat clock (`bossLevelTime` real seconds × `combatTimeScale`, 240 game seconds when the data
-says 120; §35.64). Counted leaks still rank first; leader damage breaks a leak tie (#315). Each candidate uses an independent copy of the current
+says 120; §35.64). Counted leaks still rank first; leader damage breaks a leak tie (#315). With a dedicated trial pool
+(`SP_COMBAT=server`, `SP_TRIAL_WORKERS`) a boss / hidden rehearsal runs there like a normal one, off the match's main
+thread (2026-11-11; before, only normal rounds left it): the candidate's pool travels as data (`boss: { poolHp, poolMax }`,
+`bot.js trialCandidate`), the Worker builds the fresh pool, and `combat/trial.js beatsCandidate` ranks with the same
+leaks → leader damage → score order, so the pick, the ticks and every candidate battle equal the inline rehearsal's
+(`test/match/boss-rehearsal-workers.test.js`). Each candidate uses an independent copy of the current
 meta RNG. Candidate boards and events are detached; preview contexts expose copied reads and no-op state writers,
 including contexts reached through teammates/player. A separate dispatcher owns the preview script budget and drops
 preview errors; no live script quota, diagnostics or settlement is affected. Actual starts retain the original RNG

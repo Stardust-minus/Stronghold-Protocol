@@ -1,6 +1,6 @@
 // A rehearsal owns frozen trial inputs, never the player's board, pool, money or random stream.
 import { Battle } from '../../sim/Battle.js';
-import { TrialEngine, MAX_TRIAL_TICKS, assembleTrialInput } from './trial.js';
+import { TrialEngine, MAX_TRIAL_TICKS, assembleTrialInput, beatsCandidate } from './trial.js';
 
 export function canUseWorkerRehearsal(match) {
   const pool = match.trialPool;
@@ -57,13 +57,15 @@ function createLegacyRehearsal(pool, { playerId, chosen, plans, candidates, cap 
         if (!c || c.index !== i || typeof c.beaten !== 'boolean' || !Number.isInteger(c.ticks) || c.ticks < 0 || c.ticks > cap ||
             !Number.isFinite(c.duration) || c.duration < 0 || !(c.score === null || Number.isFinite(c.score)) ||
             !(c.leaks === null || (Number.isInteger(c.leaks) && c.leaks >= 0)) ||
+            !(c.boss === null || (Number.isFinite(c.boss) && c.boss >= 0)) || (c.score !== null && c.boss === null) ||
             !(c.result === null || typeof c.result === 'object') || !(c.error == null || typeof c.error === 'string')) invalid();
       }
       const best = p.candidates[p.bestIndex];
+      // the inline rehearsal's order (trial.js beatsCandidate): fewer leaks, then leader damage, then score
       if (p.bestScore === -Infinity) {
         if (p.bestIndex !== 0 || p.bestLeaks !== Infinity || p.candidates.some((c) => c.score !== null)) invalid();
       } else if (!best || best.score !== p.bestScore || best.leaks !== p.bestLeaks ||
-          p.candidates.some((c) => c.score !== null && c.score > p.bestScore)) invalid();
+          p.candidates.some((c) => c.score !== null && beatsCandidate(c, best))) invalid();
     }
     lastTicks = p.ticks;
   };
@@ -120,7 +122,7 @@ function createStreamedRehearsal(pool, { playerId, chosen, plans, candidates, ca
   let closing = null, cleanupAcknowledged = false;
   let lastTicks = 0, lastSlices = 0, lastCandidates = [];
   const invalid = () => { throw new TypeError('invalid rehearsal winner/progress'); };
-  const candidateFields = (c) => [c.index, c.ticks, c.duration, c.beaten, c.leaks, c.score, c.error, c.synthetic];
+  const candidateFields = (c) => [c.index, c.ticks, c.duration, c.beaten, c.leaks, c.boss, c.score, c.error, c.synthetic];
   const validate = (p) => {
     if (!p || p.summary !== true || typeof p.done !== 'boolean' ||
         !Number.isInteger(p.candidateIndex) || p.candidateIndex < lastCandidates.length || p.candidateIndex > candidates.length ||
@@ -129,29 +131,32 @@ function createStreamedRehearsal(pool, { playerId, chosen, plans, candidates, ca
         p.ticks - lastTicks > MAX_TRIAL_TICKS * (p.sliceCount - lastSlices) || p.ticks > cap * candidates.length ||
         !Array.isArray(p.candidates) || p.candidates.length !== p.candidateIndex ||
         !Number.isInteger(p.bestIndex) || p.bestIndex < 0 || p.bestIndex >= plans.length) invalid();
-    let completedTicks = 0, bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity;
+    let completedTicks = 0, bestIndex = 0, best = { leaks: Infinity, boss: -Infinity, score: -Infinity };
     const records = [];
     for (let i = 0; i < p.candidates.length; i++) {
       const c = p.candidates[i];
       if (!c || c.index !== i || typeof c.beaten !== 'boolean' || !Number.isSafeInteger(c.ticks) || c.ticks < 0 || c.ticks > cap ||
           !Number.isFinite(c.duration) || c.duration < 0 || !(c.score === null || Number.isFinite(c.score)) ||
           !(c.leaks === null || (Number.isSafeInteger(c.leaks) && c.leaks >= 0)) || c.result !== null ||
+          !(c.boss === null || (Number.isFinite(c.boss) && c.boss >= 0)) ||
           !(c.error == null || typeof c.error === 'string') || !(c.synthetic === null || typeof c.synthetic === 'boolean') ||
-          (c.score !== null && (c.beaten || c.synthetic !== false || c.leaks === null))) invalid();
+          (c.score !== null && (c.beaten || c.synthetic !== false || c.leaks === null || c.boss === null))) invalid();
       const fields = JSON.stringify(candidateFields(c));
       if (i < lastCandidates.length && fields !== lastCandidates[i]) invalid();
       records.push(fields);
       completedTicks += c.ticks;
-      if (c.score !== null && c.score > bestScore) { bestIndex = i; bestScore = c.score; bestLeaks = c.leaks; }
+      // the inline rehearsal's order (trial.js beatsCandidate): fewer leaks, then leader damage, then score
+      if (c.score !== null && beatsCandidate(c, best)) { bestIndex = i; best = c; }
     }
     // Completed records are immutable prefixes; only the currently running candidate can account for extra ticks.
     if (p.ticks < completedTicks || p.ticks > completedTicks + (p.done ? 0 : cap) ||
-        p.bestIndex !== bestIndex || p.bestScore !== bestScore || p.bestLeaks !== bestLeaks) invalid();
+        p.bestIndex !== bestIndex || p.bestScore !== best.score || p.bestLeaks !== best.leaks || p.bestBoss !== best.boss) invalid();
     lastTicks = p.ticks; lastSlices = p.sliceCount; lastCandidates = records;
   };
   const validateReady = (p) => {
     if (!p || p.summary !== true || p.ticks !== 0 || p.sliceCount !== 0 || p.candidateIndex !== 0 || p.done !== false ||
-        p.bestIndex !== 0 || p.bestScore !== -Infinity || p.bestLeaks !== Infinity || !Array.isArray(p.candidates) || p.candidates.length) invalid();
+        p.bestIndex !== 0 || p.bestScore !== -Infinity || p.bestLeaks !== Infinity || p.bestBoss !== -Infinity ||
+        !Array.isArray(p.candidates) || p.candidates.length) invalid();
   };
   const release = (cancel = false) => {
     if (cancel) cancelled = true;
