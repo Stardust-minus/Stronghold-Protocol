@@ -1,6 +1,8 @@
 // WebSocket client for the game server (DESIGN §8).
 //
 // - One socket at ws(s)://<host>/ws, JSON text frames `{ t, ...payload }`.
+// - The default socket is a lane socket (public/js/lanes.js): one logical WebSocket carried by DEFAULT_LANES real ones
+//   when the server accepts lanes, a plain WebSocket otherwise; everything below sees one socket either way.
 // - Auto-reconnect with exponential backoff + jitter; a heartbeat (`ping`) measures latency and
 //   detects dead sockets (a ping left unanswered — no inbound frame at all — for DEAD_AFTER_MS ⇒
 //   close ⇒ reconnect). Measured from the oldest unanswered ping, not from the last inbound frame,
@@ -38,6 +40,7 @@ import { normalizeClusterLoad } from '../../shared/cluster-load.js';
 import { N_ } from '../../shared/i18n.js';
 import { StateReceiver, STATE_DELTA_VERSION } from '../../shared/stateDelta.js';
 import { ownerKey } from './ownerKey.js';
+import { laneWebSocket } from './lanes.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
@@ -1114,5 +1117,13 @@ export function createIdentity(deps = {}) {
 /** Browser identity singleton (main.js awaits `identity.init()` before connecting). */
 export const identity = createIdentity({ onYield: () => net.reconnectNow(net.helloName || net.name) });
 
+/** WebSockets per connection (lanes, public/js/lanes.js): localStorage `sp.lanes` '1' … '3' overrides it; 1 is one plain socket. */
+export const DEFAULT_LANES = 2;
+export function lanesWanted(storage = globalThis.localStorage) {
+  try { const v = storage?.getItem('sp.lanes'); if (typeof v === 'string' && /^[1-3]$/.test(v)) return Number(v); } catch { /* storage blocked */ }
+  return DEFAULT_LANES;
+}
+
 /** Browser connection singleton (created lazily-safe: nothing touches the network until connect()). */
-export const net = new Net({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim() });
+export const net = new Net({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim(),
+  WebSocket: typeof globalThis.WebSocket === 'function' ? laneWebSocket({ lanes: lanesWanted() }) : null });

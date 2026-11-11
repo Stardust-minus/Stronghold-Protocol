@@ -76,6 +76,8 @@ export function healthReport({ startedAt, network, registry, lobby, content = nu
     performance: getHealthMetrics?.()?.snapshot() ?? PERFORMANCE_UNAVAILABLE,
     // since start: backpressure (net.js netCounters) and the m.state transport (stateTransport.js)
     net: { ...netCounters, stateDelta: { ...stateDeltaStats } },
+    // since start: the browsers' network-quality reports per ISP × device × lanes (server/netQuality.js)
+    netq: network.netQuality?.snapshot?.() ?? null,
   };
   if (trusted && Object.keys(trusted).length) report.plugins = trusted;
   // checkpoints (SP_REDIS_URL, server/persist/): writes, failures, restores since start — absent when off

@@ -588,6 +588,28 @@ Node 24 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可�
   前者管理未开局房间中的断线成员，后者管理对局重连；不能用其中一个期限推断另一个期限或整个房间的销毁时间。
   排查「明明没人了还开不出房」时，先看房间是否仍存在、是否正在等待断线成员。
 
+### 多连接（lanes）
+
+浏览器默认用 **2 条** WebSocket 承载同一个连接，每帧在每条上各发一份，先到的算数（docs/design/network.md「Lanes」）。玩家到入口这一段丢包时，只有所有连接都卡住才会卡顿。服务器端不用配置，默认开启；`SP_WS_LANES=0`（集群 ingress 配置写 `"lanes": false`）则一律退回单连接。浏览器里 `localStorage['sp.lanes']` 可设 `'1'`–`'3'`。
+
+- **配额**：`SP_MAX_CONNECTIONS` / `SP_MAX_CONNECTIONS_PER_ADDR` 按玩家的那一个逻辑连接计数，附加的连接不计入。前面的 Nginx 是逐条连接计数的。
+- **Nginx 前置时要做两件事**，否则附加连接会落到别的 ingress 进程上被拒，页面拒 3 次后只用单连接（功能不受影响）：
+  1. 同一组的连接必须进同一个 ingress：从 `Sec-WebSocket-Protocol` 里取出组 ID 做哈希，代替 `least_conn`：
+
+     ```nginx
+     map $http_sec_websocket_protocol $ark_ws_route {
+         "~sp\.lanes1\.([A-Za-z0-9_-]{22})\." $1;
+         default $request_id;
+     }
+     upstream ark_cluster_formal_ingress_ws {
+         hash $ark_ws_route;
+         server …;
+     }
+     ```
+  2. 每个 IP 的 WebSocket 上限（`limit_conn ark_proto_ws_ip`）按连接数放大（2 条时 64 → 128），否则同一出口 IP 后能玩的人数会减半。每会话 8 条的上限够用。
+- **网络质量监测**：页面每分钟上报一次本页测到的心跳往返、多连接副本晚到、连接替换和掉线时间（docs/LATENCY.md「Network quality reports」）。服务器按运营商和省份汇总，在 `/healthz` 的 `netq` 里给出。按运营商和省份分要设 `SP_ISP_FILE`，指向 `node tools/isp-table.mjs --out <文件>` 生成的表（约 600 KB，每月更新一次即可）；不设时全部算作「未识别」。不保存任何玩家、会话或 IP。
+- **成本**：对局下行字节数和连接数按条数翻倍（2 条时每人多约 5 kbit/s），每条多一份 TLS 状态、一条 Nginx 上游连接和 ingress 上的一个压缩上下文（约 144 KiB）。附加连接在第一条建好后随机等 0.5–3 秒再建，发版后集体重连时握手不会一下翻倍。
+
 ## 13. 断点续玩：重启后接着打（可选，Valkey）
 
 默认所有房间、会话和对局只在内存里，重启服务器会让进行中的对局全部结束。设置 `SP_REDIS_URL`

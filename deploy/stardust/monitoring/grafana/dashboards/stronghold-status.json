@@ -46,7 +46,7 @@
       "transparent": true,
       "options": {
         "mode": "markdown",
-        "content": "**这是什么**：卫戍协议服务器的实时状况，游戏服务器数据每 10 秒、入口机器数据每 15 秒采集一次，本页每分钟自动刷新，曲线为约 2 分钟的平均值，时间按你的本地时区显示。\n\n**在线玩家**是此刻连着大厅的玩家；**房间内真人**是还占着房间座位的真人（包括短暂掉线、等待重连的玩家）。页面只有服务器整体数字，不含任何个人信息。",
+        "content": "**这是什么**：卫戍协议服务器的实时状况，游戏服务器数据每 10 秒、入口机器数据每 15 秒采集一次，本页每分钟自动刷新，曲线为约 2 分钟的平均值，时间按你的本地时区显示。\n\n**在线玩家**是此刻连着大厅的玩家；**房间内真人**是还占着房间座位的真人（包括短暂掉线、等待重连的玩家）。页面只有服务器整体数字，不含任何个人信息。\n\n各运营商、各省玩家的网络质量见 [/monitor/net](/monitor/net)。",
         "code": {
           "language": "plaintext",
           "showLineNumbers": false,
@@ -1664,7 +1664,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "edge:network_transmit_bits:rate2m{device=\"ens3\"}",
+          "expr": "sum(edge:network_transmit_bits:rate2m{device!~\"ark-.*\"})",
           "legendFormat": "出口",
           "range": true,
           "instant": false
@@ -1675,7 +1675,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "edge:network_receive_bits:rate2m{device=\"ens3\"}",
+          "expr": "sum(edge:network_receive_bits:rate2m{device!~\"ark-.*\"})",
           "legendFormat": "入口",
           "range": true,
           "instant": false

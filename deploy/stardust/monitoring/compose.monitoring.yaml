@@ -54,7 +54,11 @@ services:
       - --collector.stat
       - --collector.time
       - --collector.uname
-      - --collector.netdev.device-include=^(ens3|ark-hz0)$$
+      # every interface but loopback and Docker's: the public NIC under whatever name the machine gives it, and ark-hz0
+      - --collector.netdev.device-exclude=^(lo|docker[0-9]*|br-.*|veth.*)$$
+      # TCP segments sent / resent and timeouts: the entry's retransmission ratio (mostly the players' last mile)
+      - --collector.netstat
+      - --collector.netstat.fields=^(Tcp_(OutSegs|RetransSegs|CurrEstab)|TcpExt_(TCPTimeouts|TCPLossProbes|TCPLostRetransmit|TCPSynRetrans))$$
       - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|snap|var/lib/docker|var/lib/containerd)($$|/)
       - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|tmpfs|nfs4?|cifs|smb3|fuse\..*)$$
     volumes:

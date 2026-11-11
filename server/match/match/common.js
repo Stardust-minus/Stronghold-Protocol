@@ -42,6 +42,13 @@ export const AFK_REMOVE_ROUNDS = 2;
  */
 export const OFFLINE_TAKEOVER_ROUNDS = 2;
 /**
+ * A timed PREP ends this long after its published deadline (m.public.deadline is unchanged): an intent a player made
+ * just before the countdown ran out still counts when the last mile delayed it — the browser shows it at once (rel26
+ * prediction), and refusing it as WRONG_PHASE rolled the board back when the battle started. Match option
+ * `prepGraceMs` (0 … 5000) overrides it.
+ */
+export const PREP_INTENT_GRACE_MS = 1500;
+/**
  * The intents that count as playing for that rule — accepted ones only. g.ready, g.infoReady, g.emote, g.watch,
  * g.unitStats, g.pause, g.art, g.bandFocus, g.autoplay, g.rerollVote, g.kickVote, g.kickBallot, g.speedVote, the battle reports and
  * anything else do not.

@@ -173,6 +173,8 @@
 //   opts.BattleClass   Battle implementation (default server/sim/Battle.js; tests inject test/match/fakeBattle.js)
 //   opts.battleContent 'full' | 'generic' | 'none' (sim content mode, default 'full')
 //   opts.timerScale    multiplier on every real-time phase timer (default 1)
+//   opts.prepGraceMs   0 … 5000 (default PREP_INTENT_GRACE_MS = 1500): a timed PREP ends this long after its published
+//                      deadline, so an intent made just before the countdown ran out still arrives in time
 //   opts.combatSpeed   game seconds per real second while battles run in real time (default 2, the forced 2×)
 //   opts.botRehearsal  candidate layouts a bot simulates per prep before placing (default 3, 0 = heuristic only;
 //                      a whole battle per candidate: ~20–300 ms of CPU each, see server/match/bot.js createRehearsal)
@@ -290,13 +292,13 @@ import { MatchReports } from './match/reports.js';
 import { MatchUnite } from './match/unitePhase.js';
 import { MatchBoss } from './match/bossRounds.js';
 import { MatchSettle } from './match/settle.js';
-import { AFK_REMOVE_ROUNDS } from './match/common.js';
+import { AFK_REMOVE_ROUNDS, PREP_INTENT_GRACE_MS } from './match/common.js';
 import { installTestTrace } from './testTrace.js';
 import { MatchTestCommands } from './match/testCommands.js';
 import { MatchOffers } from './match/offers.js';
 import { createExternalAI } from './llmGate.js';
 
-export { FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS, REVIVAL_UNAVAILABLE_REASONS, AFK_REMOVE_ROUNDS, OFFLINE_TAKEOVER_ROUNDS } from './match/common.js';
+export { FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS, REVIVAL_UNAVAILABLE_REASONS, AFK_REMOVE_ROUNDS, OFFLINE_TAKEOVER_ROUNDS, PREP_INTENT_GRACE_MS } from './match/common.js';
 
 const BOT_REHEARSAL_DEFAULT = 3;
 /** Wall-clock ms of bot layout rehearsal per scheduler callback (real time; virtual time runs it in one go). */
@@ -385,6 +387,8 @@ export class Match {
     this.BattleClass = typeof opts.BattleClass === 'function' ? opts.BattleClass : Battle;
     this.battleContent = opts.battleContent || 'full';
     this.timerScale = Number.isFinite(opts.timerScale) && opts.timerScale >= 0 ? opts.timerScale : 1;
+    /** a timed PREP ends this long after its published deadline (PREP_INTENT_GRACE_MS) */
+    this.prepGraceMs = Number.isInteger(opts.prepGraceMs) && opts.prepGraceMs >= 0 ? Math.min(opts.prepGraceMs, 5000) : PREP_INTENT_GRACE_MS;
     /** the battles' normal game speed; `gameSpeed` is the current battle's (speedVote.js sets it when a battle starts) */
     this.baseGameSpeed = Number.isFinite(opts.combatSpeed) && opts.combatSpeed > 0 ? Math.min(opts.combatSpeed, MAX_GAME_SPEED) : GAME_SPEED;
     this.gameSpeed = this.baseGameSpeed;

@@ -26,7 +26,7 @@ export class MatchPrep {
     }
     // solo / single-human matches: untimed (soloUntimed); co-op: the round's prepTime
     const secs = this.soloUntimed ? null : this.gd.prepTime(this.round);
-    this.setDeadline(secs, () => this.prepDeadline());
+    this.armPrepDeadline(secs);
     let i = 0;
     for (const ps of alive) if (ps.botControlled) this.scheduleBotPrep(ps, i++);
     this.markPublic();
@@ -236,6 +236,11 @@ export class MatchPrep {
       this._prepEndQueued = false;
       if (this.phase === PHASE.PREP && this.round === round && allReady()) this.endPrep();
     });
+  }
+
+  /** The PREP countdown: `secs` published, the phase ends prepGraceMs later (PREP_INTENT_GRACE_MS). */
+  armPrepDeadline(secs) {
+    this.setDeadline(secs, () => this.prepDeadline(), { graceMs: this.prepGraceMs });
   }
 
   prepDeadline() {

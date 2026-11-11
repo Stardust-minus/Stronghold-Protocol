@@ -80,7 +80,7 @@ export const MATCH_FIELDS = Object.freeze({
   derived: Object.freeze([
     'opts', 'roomCode', 'mode', 'difficulty', 'modeId', 'seed', 'log', 'sendFn', 'broadcastFn', 'onEndFn', 'data', 'cs', 'vs',
     'requireCs', 'gd', 'isSolo', 'aiPicksLast', 'afkRemoveRounds', 'ownsScheduler', 'sched', 'registry', 'dispatcher',
-    'BattleClass', 'battleContent', 'timerScale', 'baseGameSpeed', 'snapshotHz', 'localReplica', 'botRehearsal', 'botSliceMs',
+    'BattleClass', 'battleContent', 'timerScale', 'prepGraceMs', 'baseGameSpeed', 'snapshotHz', 'localReplica', 'botRehearsal', 'botSliceMs',
     'botRehearsalDelegate', 'botRehearsalDelegateMs', 'hostId', 'ds', 'clientCombat', 'verifyMode', 'combatPool', 'trialPool',
     'headlessSliceMs', 'battlePrefix', 'experimental', 'revivalEnabled', 'disableSharedPool', 'poolPlan', 'playerCapacity',
     'capacityExperiment', 'twentyPlayerMode', 'disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'uniteHumansFirst', 'enemyHpMul', 'enemyAtkMul', 'players', 'order', 'spectators', 'botBands', 'stage', 'pool',
@@ -531,7 +531,7 @@ function enterPhase(m, doc) {
       // Ready — its prep was complete when the checkpoint was taken)
       for (const ps of m.alivePlayers()) if (!ps.botControlled) ps.ready = false;
       const secs = m.soloUntimed ? null : Math.max(MIN_RECOVER_PREP_SEC, Math.round(remaining / 1000));
-      m.setDeadline(secs, () => m.prepDeadline());
+      m.armPrepDeadline(secs);
       let i = 0;
       for (const ps of m.alivePlayers()) if (ps.botControlled && !ps.ready) m.scheduleBotPrep(ps, i++);
       m.markPublic();

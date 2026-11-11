@@ -53,11 +53,79 @@ Buying, selling, deploying / withdrawing / moving an operator, refreshing, freez
 - A piece bought by prediction carries a negative placeholder uid. An intent naming it (deployed, sold, equipped before the purchase is acknowledged) is shown at once but sent only when the real uid is known (the new copy in the slot the prediction used). Intents leave in the order they were made, so everything made after such an intent waits too.
 - A server without `ack` (rel25 and older) leaves the prediction off; `localStorage['sp.noPredict'] = '1'` switches it off in a browser.
 
+## Lanes: one connection over several WebSockets (2026-11-11)
+
+At 10–20 % loss on a player's last mile (the evening peak), one TCP connection stalls the whole stream for a
+retransmission timeout every few seconds. The browser now carries its connection over 2 WebSockets by default and
+takes whichever copy of a frame comes first (docs/design/network.md, Lanes; DEPLOY §12 多连接 for nginx).
+
+Measured with `tools/lanebench.mjs` over `tools/lanebench-netns.sh`: two network namespaces on one host joined by a
+veth pair, netem 20 ms each way (RTT 40 ms) and the loss in both directions; the server namespace has the entry's TCP
+settings (BBR, thin-stream linear timeouts, notsent_lowat 16 KiB, retries2 8), the clients' Linux defaults (CUBIC).
+12 clients per lane count ran at the same time over the same path, 180 s per row; server → client 5 frames/s
+(150 / 600 / 2500 B), client → server 2/s. One-way delay in ms (20 ms is the path's own).
+
+| Loss | Lanes | p99 | p99.9 | max | late > 1 s | gaps > 1 s per player-min | up p99 | up max |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 10 % random | 1 | 517 | 1327 | 2406 | 0.26 % | 0.33 | 515 | 1367 |
+| | 2 | 259 | 326 | 546 | 0 | 0 | 269 | 560 |
+| | 3 | 40 | 261 | 508 | 0 | 0 | 21 | 288 |
+| 20 % random | 1 | 2693 | 11943 | 13738 | 3.8 % | 2.9 | 1259 | 8542 |
+| | 2 | 459 | 814 | 1316 | 0.06 % | 0.11 | 341 | 844 |
+| | 3 | 260 | 468 | 800 | 0 | 0 | 274 | 1818 |
+| 15 % in bursts¹ | 1 | 858 | 2343 | 4100 | 0.76 % | 1.0 | 614 | 3684 |
+| | 2 | 460 | 689 | 1227 | 0.02 % | 0.08 | 392 | 915 |
+| | 3 | 313 | 568 | 2512 | 0.07 % | 0.03 | 295 | 1912 |
+
+¹ netem Gilbert–Elliott `gemodel 5% 25% 90% 0%`: bursts of 4 packets on average, 15 % overall.
+
+- No run lost a connection with 2 or 3 lanes, and no bundle closed for a gap. The single-lane upstream varies a lot
+  between runs (20 %: p99 0.9–16 s, max 3–34 s): a client TCP whose resends are lost backs off 1, 2, 4 … s.
+- Before joins replayed (shared/lanes.js, Joining replays) the upstream max at 20 % was 5.8 s with 2 lanes and 19 s
+  with 3: frames sent before the join opened waited for the first lane's backoff.
+- The entry's route tweak `rto_min 50ms quickack 1` (measured before join replay, downstream p99 / p99.9) halves the
+  tail again: 20 % random 1 lane 2052 / 5956 → 764 / 3052, 2 lanes 460 / 1249 → 217 / 462, 3 lanes 260 / 492 → 131 /
+  243; bursts 1 lane 950 / 2528 → 432 / 1106, 2 lanes 512 / 1375 → 213 / 425, 3 lanes 322 / 542 → 160 / 261. Two
+  lanes with it are about three without it.
+- A single host, a fixed RTT and Linux clients: phones and Windows have other TCP stacks, and real loss is neither
+  this random nor this regular. The comparison between lane counts is the result, not the absolute numbers.
+
+## Network quality reports (2026-11-11)
+
+To decide on lines and lane counts from real players instead of a lab path, every page reports once a minute what it
+measured (C→S `net.q`, `shared/netQuality.js`, `public/js/netQuality.js`): application ping round trips (visible page
+only), how much later the second / third lane copy of each server frame came than the first (the delay one connection
+alone would have added), lanes lost / replaced as stalled / refused, reconnects and offline time. It is never answered.
+
+- The server (`server/netQuality.js`) takes at most one report per socket per 30 s after hello, classifies the client
+  address once against `SP_ISP_FILE` (`tools/isp-table.mjs`: 中国电信 / 联通 / 移动 / 教育网 / other in China from
+  gaoyifan/china-operator-ip, provinces from metowolf/iplist) and drops it. It sums per ISP × device × lane count and,
+  separately, per province × ISP; `/healthz` `netq` carries the sums since start. No address, session, name or city is
+  kept, and the label sets are fixed (36 and at most 192 groups).
+- The monitoring collector exports them as `sp_netq_*` counters (buckets with `le` in ms); the public dashboard
+  `stronghold-netq.json` (uid `sp-netq`, `/monitor/net`) shows them per ISP, per lane count and per province next to
+  the entry's TCP retransmission ratio (node-exporter netstat). A province (× ISP) averaging under 3 reporting pages
+  over the hour is not shown, so no cell stands for one player.
+- Limits: the copy delay is relative to the first copy, so it underestimates a single connection when both copies are
+  late (a join's first seconds) and needs lanes — a single-lane page reports round trips and reconnects only. Provinces
+  are IPv4 only and partial (an IPv6 player, or an address in no list, is `xx`), and a mobile network's addresses often
+  locate to the provincial capital or the operator's gateway. City level is not collected: inaccurate for mobile
+  networks, too many series, and one or two players per city and ISP would make a minute series personal.
+
+## PREP intent grace (2026-11-11)
+
+A timed PREP ends `PREP_INTENT_GRACE_MS` (1500 ms; Match option `prepGraceMs`, 0 … 5000) after its published deadline;
+`m.public.deadline` and the countdown are unchanged. An intent sent just before the countdown ran out was refused as
+WRONG_PHASE when the last mile delayed it, and the rel26 prediction then rolled the board back when the battle
+started; within the grace it counts. Restored checkpoints re-arm the same way (`armPrepDeadline`).
+
 ## Local regression checks
 
 ```sh
 node --test test/client-latency.test.js test/client-static.test.js test/server-load.test.js test/ui/server-load.test.js test/health-metrics.test.js
 node --test test/ui/prediction.test.js
+node --test test/ws-lanes.test.js test/match/prep-grace.test.js
+SP_E2E=1 CHROME_PATH=… node --test test/ui/lanes.e2e.test.js
 ```
 
 The tests cover independent epoch/elapsed clocks, matched replies, duplicates, old replies, lifecycle expiry, retained real high samples, reconnect/visibility resets, bounded pending probes, pressure boundaries and actual browser-style WebSocket transport; `test/ui/prediction.test.js` covers the prediction, its reconciliation, the server's `ack` and parity with the real `PlayerState`. Local UI/browser verification is separate from unit assertions; neither implies production deployment.

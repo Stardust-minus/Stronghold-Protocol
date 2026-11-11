@@ -106,9 +106,10 @@ export async function loadClusterConfig(file) {
     const ingresses = await Promise.all(config.ingresses.map(async ({ ingressId, keyFile }) => ({ ingressId, key: await protectedFile(keyFile, 32, 32) })));
     return { ...config, nodes, ingresses };
   }
-  if (!exact(config, ['role', 'host', 'port', 'coordinatorUrl', 'nodes', 'origins'], ['wsCompression', 'trustProxy', 'link'])
+  if (!exact(config, ['role', 'host', 'port', 'coordinatorUrl', 'nodes', 'origins'], ['wsCompression', 'trustProxy', 'link', 'lanes'])
     || !upstream(config.coordinatorUrl) || config.wsCompression !== undefined && !['on', 'off'].includes(config.wsCompression)
     || config.trustProxy !== undefined && !['auto', true, false].includes(config.trustProxy)
+    || config.lanes !== undefined && typeof config.lanes !== 'boolean'
     || !Array.isArray(config.origins) || !config.origins.length) fail('INVALID_CONFIG');
   for (const origin of config.origins) {
     try { const url = new URL(origin); if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin) fail('INVALID_CONFIG'); }

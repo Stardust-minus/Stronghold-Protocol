@@ -29,6 +29,43 @@ a gap or a malformed patch makes it reconnect, which restarts both ends from ful
 deflate context like the frames it carries. `/healthz` `net.stateDelta` (a cluster role: its `net` log line) counts
 full and delta frames and bytes; `net.snapDropped` / `net.backpressureClosed` count the backpressure rules below.
 
+**Lanes (fork, 2026-11-11; `shared/lanes.js`, `server/wsLanes.js`, `public/js/lanes.js`).** A WebSocket is one TCP
+connection, and TCP hands nothing on behind a lost segment until it is resent — at the 10–20 % loss of a player's last
+mile in the evening peak the whole stream stalls for a retransmission timeout every few seconds. The browser therefore
+carries its one socket over up to 3 WebSockets ("lanes", 2 by default; localStorage `sp.lanes` = '1' … '3', '1' is one
+plain socket) and sends every frame on each of them; the receiver takes the first copy. A frame is late only when it is
+late on every lane.
+- Negotiation is the subprotocol list `[sp.plain, sp.lanes1.<bundle>.<lane>.<new|join.<seq>>]` (bundle: 128 random bits,
+  base64url). A server with lanes selects the lane token; any other server selects the first offer (the `ws` default),
+  and the page has one plain WebSocket as before. `SP_WS_LANES=0` / ingress config `lanes: false` never selects lanes.
+- The `new` lane opens a LaneBundle, the ws-like socket `Network` (single process) or the ingress peer (cluster) handles
+  exactly as a WebSocket; `join` lanes attach to it. Frames on a lane are `<seq>|<payload>` with one seq per logical
+  frame and direction, the same on every lane; `LaneMerger` delivers each seq once, in order, and holds a frame whose
+  predecessor an older lane may still bring. Nothing above the lanes changes: the m.state delta chain, rids, the
+  "a sent request is never resent" rule and the prediction ack stay as they are.
+- Joins replay. A frame sent while one lane was open (the first seconds, or after a lane died) is on that lane alone,
+  and a TCP connection young enough to have a 1 s initial RTO doubles it per lost resend — everything behind it waited
+  up to 19 s in a measurement at 20 % loss although the other lanes had opened. A join therefore names the browser's
+  delivered seq (`join.<seq>`); the server answers on the new lane with `0|{"ack":<its delivered seq>}` and the frames
+  after the browser's seq it kept, then the new ones; the browser sends on the join only after that ack, starting with
+  its kept frames after the server's seq. Both sides keep the last 10 s / 128 KiB they sent (`ReplayLog`); seq 0 is
+  that control frame only. A join to a full bundle replaces the lane heard from longest ago (one the browser gave up
+  as stalled before its close reached the server).
+- A lane dies alone: the browser replaces one that closed (1006, or the server's lane refusal 4003) after a backoff,
+  and one that has not caught up with the delivered stream for 8 s; the server terminates one whose queue is 1 MB
+  behind the best lane's or that answered nothing for a heartbeat interval while another is open. `bufferedAmount` is
+  the best lane's, so the backpressure rules above judge the connection by the lane that works. The logical socket
+  closes when the server closes it (every lane gets the code), when its last lane is gone, or when no open lane can
+  bring a missing seq (4004 `LANE_GAP`, both ends) — then net.js reconnects as after any close.
+- Joins start 0.5–3 s after the first lane (a release's reconnect burst stays near its single-socket size). Every lane
+  of a bundle must reach the same process: nginx hashes the bundle id out of `Sec-WebSocket-Protocol` (DEPLOY §12,
+  多连接); a join routed elsewhere is refused, and after 3 refusals the page keeps the lanes it has.
+- Measurement: lane sockets time the later copies of every frame against the first (`laneMetrics`), and the page
+  reports that, its ping round trips, lane events and reconnects once a minute as C→S `net.q` (never answered;
+  docs/LATENCY.md, Network quality reports).
+- Cost: downstream game bytes ×lanes (≈ +5 kbit/s per player at 2), one more TLS connection and nginx upstream per
+  lane, one deflate context per lane on the ingress. Measured under netem: docs/LATENCY.md, Lanes.
+
 ### 8.1 Session & lobby
 C→S: `hello {name, token?, version}` · `room.create {mode:'solo'|'coop', difficulty?, test?:true}` (no difficulty: 标准, server/lobby.js `DEFAULT_DIFFICULTY`) · `room.join {code, testAck?:true}` · `room.leave` · `room.ready {ready}` · `room.setDifficulty {difficulty}` (host) · `room.setPlugins {plugins:[{id, settings?}]}` (host, before the match — the room's cosmetic and gameplay plugins, §8.4; un-readies the other humans like a difficulty change) · `room.setMode {modeId}` (host, before the match: an official mode of the room's type sets the difficulty, a mode the room's content set adds becomes its mode, §8.4) · `room.contentReady {cs, ok?}` (a member's page loaded and checked the room's content set — or not, `ok: false`; §8.4) · `room.setAiPicksLast {on}` (host, co-op, before the match — `ROOM_STARTED` during it, `BAD_TARGET` in a solo room; un-readies the other humans like a difficulty change; the match takes it as `opts.aiPicksLast`: humans draft before AI seats, off by default, no extra random draw) · `room.setBotBand {seat, bandId}` (host, co-op, before the match: the strategy the AI seat takes in the strategy draft, `null` / absent = it picks by itself; `ROOM_STARTED` during the match, `QUEUED` while the party is queued, `BAD_TARGET` in a solo room, for a seat without an AI, a strategy the room's mode does not offer (the match's own GameData check) or one already designated to another AI seat; un-readies the other humans like a difficulty change; kept on the AI seat across the room's matches, gone with the seat, dropped when a difficulty / experimental change no longer offers it; the match takes it as that seat's `seats[].band` — §6.1 BAND_DRAFT) · `room.addBot` / `room.removeBot {seat}` (host) · `room.kick {seat, playerId}` (host, before the match: another human leaves the room and gets `room.closed {reason:'kicked'}`; may join again; `playerId` = the player the host confirmed, a seat that changed hands meanwhile → `BAD_TARGET`) · `room.start` (host) · `room.loadout {entries, ops?}` (§16: any time in the lobby / room and during INFO_CHECK, then `WRONG_PHASE`; heavy rate-limit bucket; the match exposes it as `m.private.loadout`; `ops` — 0.2.2 — the per-operator 潜能 / 练度 `{ [charId]: { potential?: 1–6, cultivate?: 0–3 } }` of the 干员调配 roster and the 自选 owned pool, ≤ 256, checked strictly with the entries, `m.private.ops`; absent = none set: every operator 潜能 6, 精英2 Lv.60) · `room.ownership {notOwned}` (0.2.0 补位, the 干员持有 tab: the base chess ids marked as not owned — ≤ 160 ids, kept leniently: anything but a droppable NORMAL chess is dropped; stored on the session and the seat, a match takes the seat's list when it starts and never changes it — during a match `ROOM_STARTED` 'stored for the next match'; heavy bucket; the match exposes it as `m.private.standIns`) · `room.diy {picks}` (0.2.0 自选编队: `{ [slotBaseId]: { charId, skillIndex?, uniEquipId? } | null }` for the four DIY slots — ≤ 8 entries, kept leniently: shared/protocol.js `checkDiyPicks` drops an illegal pick (an operator without a kit, another tier's prototype, a prototype off its locked skill, a module of another game mode (集成战略 / 生息演算), an owned operator's second slot, the same operator twice in a tier, an unknown slot), only malformed picks are `BAD_MSG`; stored on the session and the seat like the not-owned list, a match takes the seat's picks when it starts — during a match `ROOM_STARTED` 'stored for the next match'; heavy bucket; the match exposes them as `m.private.diy`) · `ping {c}`
 S→C: `welcome {playerId, token, name, serverNow}` · `room.state {code, hostId, mode, difficulty, aiPicksLast, seats:[{seat, playerId, name, isBot, ready, connected, band (AI seats only: bandId | null)}|null ×4]}` · `room.closed {reason}` · `pong {c, s}` · `error {rid?, code, msg}` · `ok {rid}`

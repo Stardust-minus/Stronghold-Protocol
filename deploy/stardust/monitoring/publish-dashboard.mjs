@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: GPL-3.0-or-later
-// deploy/stardust/monitoring/publish-dashboard.mjs — make sure the provisioned status dashboard (uid sp-status) has an
+// deploy/stardust/monitoring/publish-dashboard.mjs — make sure a provisioned dashboard (uid sp-status by default; sp-netq
+// for the network-quality one, DASHBOARD_UID) has an
 // enabled Grafana public dashboard: share public, time selection on, annotations off. Idempotent: creates it once,
 // corrects drifted settings, and otherwise changes nothing (the access token stays the same).
 //

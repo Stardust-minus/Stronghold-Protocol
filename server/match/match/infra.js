@@ -45,8 +45,9 @@ export class MatchInfra {
   /**
    * Set the phase deadline (seconds; null/0 ⇒ untimed) and its timeout callback. `silent`: the timer runs but no
    * deadline is published (m.public.deadline 0 ⇒ no countdown) — the fixed presentation steps of a solo match.
+   * `graceMs`: the callback runs this much (scaled) after the published deadline (PREP, PREP_INTENT_GRACE_MS).
    */
-  setDeadline(seconds, fn, { silent = false } = {}) {
+  setDeadline(seconds, fn, { silent = false, graceMs = 0 } = {}) {
     this.cancel(this._phaseTimer);
     this._phaseTimer = null;
     if (this.test === true) { this._testHeld = null; this._testArmed = null; }
@@ -67,8 +68,9 @@ export class MatchInfra {
       return;
     }
     const ms = this.scaled(seconds * 1000);
+    const grace = !silent && Number.isFinite(graceMs) && graceMs > 0 ? this.scaled(graceMs) : 0;
     this.deadline = silent ? 0 : this.sched.now() + ms;
-    this._phaseTimer = this.later(ms, () => { this._phaseTimer = null; if (this.test === true) { this._testArmed = null; this._testHeld = null; } fn(); });
+    this._phaseTimer = this.later(ms + grace, () => { this._phaseTimer = null; if (this.test === true) { this._testArmed = null; this._testHeld = null; } fn(); });
     if (this.test === true) this._testArmed = { seconds, fn, silent: !!silent };
   }
 

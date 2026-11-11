@@ -1,0 +1,3125 @@
+{
+  "uid": "sp-netq",
+  "title": "卫戍协议 · 网络质量",
+  "description": "卫戍协议玩家网络质量的公开统计（按运营商、省份、连接数），以及入口服务器的 TCP 重传。",
+  "tags": [
+    "stronghold"
+  ],
+  "timezone": "browser",
+  "weekStart": "",
+  "editable": false,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "refresh": "1m",
+  "schemaVersion": 41,
+  "version": 1,
+  "fiscalYearStartMonth": 0,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "1m",
+      "5m",
+      "15m"
+    ]
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "transparent": true,
+      "options": {
+        "mode": "markdown",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "**这是什么**：每个在线页面每分钟上报一次自己测到的网络状况——心跳往返时间、多连接时同一帧几份副本的先后、重连和掉线时间。服务器只按 **运营商**、**省份**、设备和连接数汇总成数字，不保存任何玩家、会话或 IP。运营商和省份按 IP 地址库判断，IPv6 和库里查不到的地址算作「未识别」；手机网络的 IP 常被定位到省会或运营商网关所在地。\n\n**单条连接晚到**：同一帧的第二份副本比第一份晚到多少，也就是只用一条连接时这帧会多卡多久。比例按 15 分钟、重连与掉线按 1 小时平均；按省份的数据是过去 1 小时，平均不到 3 个页面的省份 / 运营商不显示。服务器整体状况见 [/monitor/](/monitor/)。"
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "玩家上报 · 按运营商",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "在报告的页面",
+      "description": "过去 15 分钟平均有多少个在线页面在上报。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "sum by (isp) (sp:netq_pages:rate15m)",
+          "legendFormat": "{{isp}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "电信"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "联通"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cm"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "移动"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "教育网"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "other"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "国内其他"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "心跳往返 p50",
+      "description": "应用层心跳的往返时间中位数（只计页面在前台时）。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (isp, le) (sp:netq_rtt_bucket:rate15m))",
+          "legendFormat": "{{isp}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "电信"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "联通"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cm"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "移动"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "教育网"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "other"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "国内其他"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "心跳往返 p90",
+      "description": "应用层心跳往返时间的 90 分位。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "histogram_quantile(0.9, sum by (isp, le) (sp:netq_rtt_bucket:rate15m))",
+          "legendFormat": "{{isp}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "电信"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "联通"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cm"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "移动"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "教育网"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "other"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "国内其他"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "单条连接晚到 >300 ms",
+      "description": "只用一条连接时，帧晚到 300 ms 以上的比例（由多连接页面测得）。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "1 - sum by (isp) (sp:netq_copy_late_bucket:rate15m{le=\"300\"}) / clamp_min(sum by (isp) (sp:netq_copy_late_bucket:rate15m{le=\"+Inf\"}), 1e-9)",
+          "legendFormat": "{{isp}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "电信"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "联通"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cm"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "移动"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "教育网"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "other"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "国内其他"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "单条连接晚到 >1 s",
+      "description": "只用一条连接时，帧晚到 1 秒以上的比例。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "1 - sum by (isp) (sp:netq_copy_late_bucket:rate15m{le=\"1000\"}) / clamp_min(sum by (isp) (sp:netq_copy_late_bucket:rate15m{le=\"+Inf\"}), 1e-9)",
+          "legendFormat": "{{isp}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "电信"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "联通"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cm"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "移动"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "教育网"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "other"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "国内其他"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "每人每小时重连",
+      "description": "页面在前台时从在线掉到重连中的次数，按在线时长折算成每人每小时。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "sp:netq_reconnects:rate1h / clamp_min(sp:netq_online_seconds:rate1h, 1e-9) * 3600",
+          "legendFormat": "{{isp}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "电信"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "联通"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cm"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "移动"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "教育网"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "other"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "国内其他"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "掉线时间占比",
+      "description": "前台页面不在线（断开到重新连上）的时间占比。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "sp:netq_offline_seconds:rate1h / clamp_min(sp:netq_online_seconds:rate1h + sp:netq_offline_seconds:rate1h, 1e-9)",
+          "legendFormat": "{{isp}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "电信"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "联通"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cm"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "移动"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "教育网"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "other"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "国内其他"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "多连接",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "各连接数的页面",
+      "description": "按每页连接数（1 = 单连接）分的在线页面数。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "sum by (lanes) (sp:netq_pages:rate15m)",
+          "legendFormat": "{{lanes}} 条",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "晚到 >300 ms · 按连接数",
+      "description": "单条连接晚到 300 ms 以上的比例，按页面的连接数分。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "1 - sum by (lanes) (sp:netq_copy_late_bucket:rate15m{le=\"300\"}) / clamp_min(sum by (lanes) (sp:netq_copy_late_bucket:rate15m{le=\"+Inf\"}), 1e-9)",
+          "legendFormat": "{{lanes}} 条",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "连接替换（每小时）",
+      "description": "多连接页面里，连接断开、卡住被替换、加入被拒的次数（每小时）。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "sp:netq_lane_events:rate1h * 3600",
+          "legendFormat": "{{event}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lost"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "断开"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stalled"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "卡住被替换"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "refused"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "加入被拒"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "入口",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "入口 TCP 重传率",
+      "description": "入口服务器重传的 TCP 段占发出段的比例（node-exporter netstat），主要反映玩家到入口这一段的下行丢包。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 39
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "edge:tcp_retrans:ratio5m",
+          "legendFormat": "重传率",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "入口重传超时",
+      "description": "入口服务器每秒的 TCP 重传超时次数（等到超时才重发，玩家会明显卡顿）。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 39
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "edge:tcp_timeouts:rate5m",
+          "legendFormat": "超时 / 秒",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "按省份（过去 1 小时）",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "panels": []
+    },
+    {
+      "id": 18,
+      "type": "bargauge",
+      "title": "各省在报告的页面",
+      "description": "过去 1 小时平均有多少在线页面在上报，按省份；平均不到 3 个页面的省份不显示。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "sort_desc(sum by (province) (sp:netq_province_online_seconds:rate1h) >= 3)",
+          "legendFormat": "{{province}}",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "11"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "北京"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "12"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "天津"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "13"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "河北"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "14"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "山西"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "15"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "内蒙古"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "21"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "辽宁"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "22"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "吉林"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "23"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "黑龙江"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "31"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "上海"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "32"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "江苏"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "33"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "浙江"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "34"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "安徽"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "35"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "福建"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "36"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "江西"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "37"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "山东"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "41"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "河南"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "42"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "湖北"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "43"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "湖南"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "44"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "广东"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "45"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "广西"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "46"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "海南"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "50"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "重庆"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "51"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "四川"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "52"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "贵州"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "53"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "云南"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "54"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "西藏"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "61"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "陕西"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "62"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "甘肃"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "63"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "青海"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "64"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "宁夏"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "65"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "新疆"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "xx"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "sizing": "auto",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "maxVizHeight": 300,
+        "namePlacement": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": "bargauge",
+      "title": "各省心跳往返 p90",
+      "description": "过去 1 小时的心跳往返 90 分位，按省份；平均不到 3 个页面的省份不显示。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "sort_desc((histogram_quantile(0.9, sum by (province, le) (sp:netq_province_rtt_bucket:rate1h))) and on (province) (sum by (province) (sp:netq_province_online_seconds:rate1h) >= 3))",
+          "legendFormat": "{{province}}",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "11"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "北京"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "12"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "天津"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "13"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "河北"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "14"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "山西"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "15"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "内蒙古"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "21"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "辽宁"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "22"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "吉林"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "23"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "黑龙江"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "31"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "上海"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "32"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "江苏"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "33"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "浙江"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "34"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "安徽"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "35"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "福建"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "36"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "江西"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "37"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "山东"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "41"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "河南"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "42"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "湖北"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "43"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "湖南"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "44"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "广东"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "45"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "广西"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "46"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "海南"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "50"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "重庆"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "51"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "四川"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "52"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "贵州"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "53"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "云南"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "54"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "西藏"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "61"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "陕西"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "62"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "甘肃"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "63"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "青海"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "64"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "宁夏"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "65"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "新疆"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "xx"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "未识别"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "sizing": "auto",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "maxVizHeight": 300,
+        "namePlacement": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": "table",
+      "title": "省份 × 运营商",
+      "description": "过去 1 小时，按省份和运营商；平均不到 3 个页面的格子不显示。点表头排序。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sp-prometheus"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "(sp:netq_province_online_seconds:rate1h) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "format": "table",
+          "range": false,
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "(histogram_quantile(0.5, sp:netq_province_rtt_bucket:rate1h)) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "format": "table",
+          "range": false,
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "(histogram_quantile(0.9, sp:netq_province_rtt_bucket:rate1h)) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "format": "table",
+          "range": false,
+          "instant": true
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "(1 - sum without (le) (sp:netq_province_copy_late_bucket:rate1h{le=\"300\"}) / clamp_min(sum without (le) (sp:netq_province_copy_late_bucket:rate1h{le=\"+Inf\"}), 1e-9)) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "format": "table",
+          "range": false,
+          "instant": true
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "(sp:netq_province_reconnects:rate1h / clamp_min(sp:netq_province_online_seconds:rate1h, 1e-9) * 3600) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "format": "table",
+          "range": false,
+          "instant": true
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sp-prometheus"
+          },
+          "expr": "(sp:netq_province_offline_seconds:rate1h / clamp_min(sp:netq_province_online_seconds:rate1h + sp:netq_province_offline_seconds:rate1h, 1e-9)) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "format": "table",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "province": "省份",
+              "isp": "运营商",
+              "Value #A": "在报告的页面",
+              "Value #B": "RTT p50",
+              "Value #C": "RTT p90",
+              "Value #D": "单条连接晚到>300ms",
+              "Value #E": "每人每小时重连",
+              "Value #F": "掉线时间占比"
+            },
+            "indexByName": {
+              "province": 0,
+              "isp": 1
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "省份"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "11": {
+                        "text": "北京",
+                        "index": 0
+                      },
+                      "12": {
+                        "text": "天津",
+                        "index": 1
+                      },
+                      "13": {
+                        "text": "河北",
+                        "index": 2
+                      },
+                      "14": {
+                        "text": "山西",
+                        "index": 3
+                      },
+                      "15": {
+                        "text": "内蒙古",
+                        "index": 4
+                      },
+                      "21": {
+                        "text": "辽宁",
+                        "index": 5
+                      },
+                      "22": {
+                        "text": "吉林",
+                        "index": 6
+                      },
+                      "23": {
+                        "text": "黑龙江",
+                        "index": 7
+                      },
+                      "31": {
+                        "text": "上海",
+                        "index": 8
+                      },
+                      "32": {
+                        "text": "江苏",
+                        "index": 9
+                      },
+                      "33": {
+                        "text": "浙江",
+                        "index": 10
+                      },
+                      "34": {
+                        "text": "安徽",
+                        "index": 11
+                      },
+                      "35": {
+                        "text": "福建",
+                        "index": 12
+                      },
+                      "36": {
+                        "text": "江西",
+                        "index": 13
+                      },
+                      "37": {
+                        "text": "山东",
+                        "index": 14
+                      },
+                      "41": {
+                        "text": "河南",
+                        "index": 15
+                      },
+                      "42": {
+                        "text": "湖北",
+                        "index": 16
+                      },
+                      "43": {
+                        "text": "湖南",
+                        "index": 17
+                      },
+                      "44": {
+                        "text": "广东",
+                        "index": 18
+                      },
+                      "45": {
+                        "text": "广西",
+                        "index": 19
+                      },
+                      "46": {
+                        "text": "海南",
+                        "index": 20
+                      },
+                      "50": {
+                        "text": "重庆",
+                        "index": 21
+                      },
+                      "51": {
+                        "text": "四川",
+                        "index": 22
+                      },
+                      "52": {
+                        "text": "贵州",
+                        "index": 23
+                      },
+                      "53": {
+                        "text": "云南",
+                        "index": 24
+                      },
+                      "54": {
+                        "text": "西藏",
+                        "index": 25
+                      },
+                      "61": {
+                        "text": "陕西",
+                        "index": 26
+                      },
+                      "62": {
+                        "text": "甘肃",
+                        "index": 27
+                      },
+                      "63": {
+                        "text": "青海",
+                        "index": 28
+                      },
+                      "64": {
+                        "text": "宁夏",
+                        "index": 29
+                      },
+                      "65": {
+                        "text": "新疆",
+                        "index": 30
+                      },
+                      "xx": {
+                        "text": "未识别",
+                        "index": 31
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "运营商"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ct": {
+                        "text": "电信",
+                        "index": 0
+                      },
+                      "cu": {
+                        "text": "联通",
+                        "index": 1
+                      },
+                      "cm": {
+                        "text": "移动",
+                        "index": 2
+                      },
+                      "edu": {
+                        "text": "教育网",
+                        "index": 3
+                      },
+                      "other": {
+                        "text": "国内其他",
+                        "index": 4
+                      },
+                      "unknown": {
+                        "text": "未识别",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "在报告的页面"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RTT p50"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RTT p90"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "单条连接晚到>300ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "每人每小时重连"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "掉线时间占比"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "RTT p90",
+            "desc": true
+          }
+        ]
+      }
+    }
+  ]
+}

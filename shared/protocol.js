@@ -15,6 +15,7 @@ import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE
 import { isContentHash } from './plugins/identity.js';
 import { isPluginId } from './plugins/manifest.js';
 import { isTestCommand } from './testMode.js';
+import { NETQ_SCHEMA } from './netQuality.js';
 import { PLUGIN_OFFER_SLOTS } from './plugins/limits.js';
 
 // ---- tiny validators -------------------------------------------------------
@@ -588,6 +589,8 @@ export const C2S = {
     $optional: ['token', 'version', 'matchmakingVersion', 'playerCapacityVersion', 'noReplace', 'claimAt', 'owner', 'stateDelta', 'delta'] },
   // full: this ping wants the whole cluster load summary in its pong (server/net.js CLUSTER_LOAD_EVERY_MS)
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v), full: isBool, $optional: ['full'] },
+  // the page's network-quality report of the last minute (shared/netQuality.js); never answered
+  'net.q': NETQ_SCHEMA,
   // test: only the literal true (DESIGN §34.8). Omit it for a normal room — `false` is a bad field, so a
   // string cannot sneak in as "not a test". The server still refuses it unless SP_TEST_MODE is on.
   // difficulty: may be left out — the room starts at the server's default (server/lobby.js DEFAULT_DIFFICULTY) and the

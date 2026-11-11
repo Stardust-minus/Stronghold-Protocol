@@ -15,7 +15,7 @@ Prometheus 与 collector 不对外。不同之处：本服务器没有 `/metrics
 | 服务 | 镜像（固定版本） | 监听 | 作用 |
 |---|---|---|---|
 | collector | 本目录 `collector/` 构建，`node:24.22.0-alpine3.24` | 127.0.0.1:9108 | 每 10 秒（超时 5 秒）拉取 `MONITOR_HEALTHZ_URL`，转成 `sp_*` 指标 |
-| node-exporter | `prom/node-exporter:v1.12.1` | 127.0.0.1:9100 | 入口机 CPU / 内存 / 负载 / 网卡（只保留 `ens3` 与 WireGuard `ark-hz0`）/ 文件系统 |
+| node-exporter | `prom/node-exporter:v1.12.1` | 127.0.0.1:9100 | 入口机 CPU / 内存 / 负载 / 网卡（除 lo 和 Docker 的虚拟网卡外都采，公网网卡不论叫什么名字）/ TCP 发送与重传段数、重传超时 / 文件系统 |
 | prometheus | `prom/prometheus:v3.15.0` | 127.0.0.1:9090 | 采集 15 秒（collector 10 秒），保留 **30 天 / 5 GB**，预计算面板用的 recording rules |
 | grafana | `grafana/grafana:13.2.4` | 127.0.0.1:3160（子路径 `/monitor/`） | 中文深色仪表盘「卫戍协议 · 服务器状态」（uid `sp-status`） |
 | （外部）OpenResty 指标 | — | 127.0.0.1:9145 | `ark_edge_*`，由站点 Nginx 配置提供（`deploy/stardust/nginx/edge-metrics-*.conf`） |
@@ -136,8 +136,14 @@ recording rules（`prometheus/rules.yml`，面板只读这些和少量 gauge，�
   （含公开仪表盘 token）在 `ark-monitor_grafana-data`。**不要运行 `down -v`**。升级镜像前备份这两个卷。
 - 修改面板：编辑 `grafana/dashboards/stronghold-status.json`，Grafana 每 60 秒重新读取；界面上的改动不会保存。
 - 修改规则或采集配置后重启 Prometheus（未开启 lifecycle API）：`docker compose ... restart prometheus`。
-- 入口机网卡名不是 `ens3` 时，同时改 `compose.monitoring.yaml` 的 `--collector.netdev.device-include` 和面板里的
-  `device="ens3"`。
+- 网卡不再按名字固定：node-exporter 只排除 lo 和 Docker 的虚拟网卡，带宽面板汇总隧道 `ark-*` 以外的网卡，换机器、
+  网卡名变了不用改配置。
+- 第二个面板 `grafana/dashboards/stronghold-netq.json`（uid `sp-netq`，「卫戍协议 · 网络质量」）也公开，入口是
+  `/monitor/net`。内容是玩家每分钟上报的网络质量（按运营商、省份、设备、连接数，docs/LATENCY.md「Network quality
+  reports」）和入口 TCP 重传率；过去 1 小时平均不到 3 个页面的省份 / 运营商不显示。按运营商和省份分需要协调器设
+  `SP_ISP_FILE`（docs/DEPLOY.md「多连接」）。发布：同样运行 `publish-dashboard.mjs`，加 `DASHBOARD_UID=sp-netq`，把输出的
+  `public_path` 写成站点目录下的 `monitor-net-entry.conf`（`return 302 <public_path>;`，与 `monitor-entry.conf` 同格式），
+  再重载 Nginx——这个文件不存在时 `nginx -t` 会失败。
 
 ## 6. 验证
 

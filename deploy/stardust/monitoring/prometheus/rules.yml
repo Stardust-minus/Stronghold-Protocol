@@ -24,13 +24,49 @@ groups:
         expr: 1 - avg(rate(node_cpu_seconds_total{job="node",mode="idle"}[2m]))
       - record: edge:memory_usage:ratio
         expr: 1 - sum(node_memory_MemAvailable_bytes{job="node"}) / sum(node_memory_MemTotal_bytes{job="node"})
-      # bits per second by interface (node-exporter keeps ens3 = public NIC and ark-hz0 = WireGuard tunnel)
+      # bits per second by interface (node-exporter keeps the public NIC, whatever its name, and ark-hz0 = WireGuard tunnel)
       - record: edge:network_transmit_bits:rate2m
         expr: sum by (device) (rate(node_network_transmit_bytes_total{job="node"}[2m])) * 8
       - record: edge:network_receive_bits:rate2m
         expr: sum by (device) (rate(node_network_receive_bytes_total{job="node"}[2m])) * 8
+      # TCP segments the entry resent per segment sent, and retransmission timeouts per second (node-exporter netstat)
+      - record: edge:tcp_retrans:ratio5m
+        expr: sum(rate(node_netstat_Tcp_RetransSegs{job="node"}[5m])) / clamp_min(sum(rate(node_netstat_Tcp_OutSegs{job="node"}[5m])), 1e-9)
+      - record: edge:tcp_timeouts:rate5m
+        expr: sum(rate(node_netstat_TcpExt_TCPTimeouts{job="node"}[5m]))
       - record: edge:requests:rate2m
         expr: sum by (route) (rate(ark_edge_requests_total{job="nginx"}[2m]))
       # share of responses with a 5xx status; 0 while there are requests but no 5xx series yet
       - record: edge:requests_5xx:ratio2m
         expr: (sum(rate(ark_edge_requests_total{job="nginx",status="5xx"}[2m])) or on() vector(0)) / clamp_min(sum(rate(ark_edge_requests_total{job="nginx"}[2m])), 1e-9)
+
+  # The browsers' network-quality reports (collector sp_netq_*; docs/LATENCY.md, Network quality reports), for the
+  # internal dashboard grafana/dashboards/stronghold-netq.json. Buckets keep `le` (ms) for histogram_quantile().
+  - name: sp_netq
+    rules:
+      - record: sp:netq_rtt_bucket:rate15m
+        expr: sum by (isp, le) (rate(sp_netq_rtt_le_total{job="collector"}[15m]))
+      - record: sp:netq_copy_late_bucket:rate15m
+        expr: sum by (isp, lanes, le) (rate(sp_netq_copy_late_le_total{job="collector"}[15m]))
+      # online seconds reported per second = pages reporting
+      - record: sp:netq_pages:rate15m
+        expr: sum by (isp, device, lanes) (rate(sp_netq_seconds_total{job="collector"}[15m]))
+      - record: sp:netq_online_seconds:rate1h
+        expr: sum by (isp) (rate(sp_netq_seconds_total{job="collector"}[1h]))
+      - record: sp:netq_reconnects:rate1h
+        expr: sum by (isp) (rate(sp_netq_reconnects_total{job="collector"}[1h]))
+      - record: sp:netq_offline_seconds:rate1h
+        expr: sum by (isp) (rate(sp_netq_offline_seconds_total{job="collector"}[1h]))
+      - record: sp:netq_lane_events:rate1h
+        expr: sum by (event) (rate(sp_netq_lane_events_total{job="collector"}[1h]))
+      # per province (GB/T 2260 code) × ISP over an hour: provinces have few players a minute
+      - record: sp:netq_province_rtt_bucket:rate1h
+        expr: sum by (province, isp, le) (rate(sp_netq_province_rtt_le_total{job="collector"}[1h]))
+      - record: sp:netq_province_copy_late_bucket:rate1h
+        expr: sum by (province, isp, le) (rate(sp_netq_province_copy_late_le_total{job="collector"}[1h]))
+      - record: sp:netq_province_online_seconds:rate1h
+        expr: sum by (province, isp) (rate(sp_netq_province_seconds_total{job="collector"}[1h]))
+      - record: sp:netq_province_reconnects:rate1h
+        expr: sum by (province, isp) (rate(sp_netq_province_reconnects_total{job="collector"}[1h]))
+      - record: sp:netq_province_offline_seconds:rate1h
+        expr: sum by (province, isp) (rate(sp_netq_province_offline_seconds_total{job="collector"}[1h]))

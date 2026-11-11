@@ -77,6 +77,9 @@ export function makeMatch(o = {}) {
     BattleClass: o.fake ? FakeBattle : undefined,
     battleContent: o.battleContent,
     timerScale: o.timerScale,
+    // the PREP intent grace (Match opts.prepGraceMs) is off unless a test asks for it: the suites advance the clock to
+    // the published deadline and expect the phase to end there (test/match/prep-grace.test.js covers it)
+    prepGraceMs: o.prepGraceMs ?? 0,
     // bot layout rehearsal (extra simulated battles per bot prep) is off unless a test asks for it: it multiplies the
     // simulation work of full-match suites; test/match/bot.test.js covers it
     botRehearsal: o.botRehearsal ?? 0,

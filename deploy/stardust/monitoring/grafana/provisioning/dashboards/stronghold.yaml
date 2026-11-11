@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# The status dashboard (uid sp-status) from /etc/grafana/dashboards (read-only mount of ../../dashboards). UI edits are
+# The status dashboard (uid sp-status, /monitor/) and the network-quality one (uid sp-netq, /monitor/net), both published, from
+# /etc/grafana/dashboards (read-only mount of ../../dashboards). UI edits are
 # not saved back; change the JSON file and restart or wait for the next scan.
 apiVersion: 1
 providers:

@@ -117,6 +117,36 @@ const FLAGS = [
   ['sp_store_connected', 'The checkpoint store client is connected.', 'persistence.store.connected', 'boolean', true],
 ];
 
+/**
+ * The browsers' network-quality reports (/healthz `netq`, server/netQuality.js; shared/netQuality.js — the edges and
+ * label values are copied here because the collector image holds only this directory, and test/collector.test.mjs
+ * keeps them equal). Every group is one ISP × device × lane count; a group with any other label value is skipped, and
+ * so is the whole section when the server's bucket edges differ. Buckets are exported cumulatively with an `le` label
+ * (milliseconds), as counters: histogram_quantile() reads their rates.
+ */
+export const NETQ = Object.freeze({
+  isps: ['ct', 'cu', 'cm', 'edu', 'other', 'unknown'], devices: ['mobile', 'desktop'], lanes: [1, 2, 3],
+  provinces: ['11', '12', '13', '14', '15', '21', '22', '23', '31', '32', '33', '34', '35', '36', '37', '41', '42', '43', '44', '45',
+    '46', '50', '51', '52', '53', '54', '61', '62', '63', '64', '65', 'xx'],
+  rttEdgesMs: [50, 100, 200, 400, 800, 1600], lateEdgesMs: [50, 100, 300, 1000],
+});
+const NETQ_METRICS = {
+  sp_netq_reports_total: 'Network-quality reports from browsers (one a minute per online page).',
+  sp_netq_seconds_total: 'Online seconds the network-quality reports cover.',
+  sp_netq_rtt_le_total: 'Application ping round trips at or below `le` milliseconds (cumulative buckets).',
+  sp_netq_copy_late_le_total: 'Later lane copies of server frames that came at most `le` ms after the first copy (cumulative).',
+  sp_netq_lane_events_total: 'Lane WebSockets lost, replaced as stalled or refused, as the browsers reported.',
+  sp_netq_reconnects_total: 'Times a visible page went from online to reconnecting.',
+  sp_netq_offline_seconds_total: 'Seconds visible pages spent not online after having been online.',
+  sp_netq_province_seconds_total: 'Online seconds the network-quality reports cover, per province (GB/T 2260 code) and ISP.',
+  sp_netq_province_rtt_le_total: 'Application ping round trips at or below `le` ms, per province and ISP (cumulative).',
+  sp_netq_province_copy_late_le_total: 'Later lane copies at most `le` ms after the first copy, per province and ISP (cumulative).',
+  sp_netq_province_reconnects_total: 'Times a visible page went from online to reconnecting, per province and ISP.',
+  sp_netq_province_offline_seconds_total: 'Seconds visible pages spent not online, per province and ISP.',
+};
+const sameEdges = (a, b) => Array.isArray(a) && a.length === b.length && a.every((v, i) => v === b[i]);
+const countsOf = (v, n) => Array.isArray(v) && v.length === n && v.every((x) => finite(x) && x >= 0);
+
 /** The HTTP traffic classes of shared/assetPaths.js TRAFFIC_CATEGORIES (`total` is derivable and left out). */
 function trafficPaths(field) {
   return Object.fromEntries(['assets', 'audio', 'code', 'data', 'other'].map((c) => [c, `traffic.http.${c}.${field}`]));
@@ -149,7 +179,7 @@ export function safeLabelValue(value, pattern = /^[0-9A-Za-z][0-9A-Za-z._+-]{0,6
 
 /** Every metric name the collector can export (for the dashboard / rules checks). */
 export function exportedMetricNames() {
-  return [...Object.keys(META), ...SCALARS.map((s) => s[0]), ...FAMILIES.map((f) => f[0]), ...FLAGS.map((f) => f[0])];
+  return [...Object.keys(META), ...SCALARS.map((s) => s[0]), ...FAMILIES.map((f) => f[0]), ...FLAGS.map((f) => f[0]), ...Object.keys(NETQ_METRICS)];
 }
 
 /**
@@ -193,6 +223,36 @@ export function renderMetrics(state, nowMs = Date.now(), { staleAfterMs = 35_000
       for (const [value, path] of Object.entries(paths)) {
         const v = pathValue(m, path);
         if (finite(v)) emit(name, type, help, v * scale, { [label]: value });
+      }
+    }
+    const q = m.netq;
+    if (q && Array.isArray(q.groups) && sameEdges(q.rttEdgesMs, NETQ.rttEdgesMs) && sameEdges(q.lateEdgesMs, NETQ.lateEdgesMs)) {
+      const netq = (name, value, labels) => emit(name, C, NETQ_METRICS[name], value, labels);
+      const buckets = (name, counts, edges, labels) => {
+        let acc = 0;
+        counts.forEach((n, i) => { acc += n; netq(name, acc, { ...labels, le: i < edges.length ? String(edges[i]) : '+Inf' }); });
+      };
+      for (const g of q.groups) {
+        if (!g || !NETQ.isps.includes(g.isp) || !NETQ.devices.includes(g.device) || !NETQ.lanes.includes(g.lanes)) continue;
+        if (!countsOf(g.rtt, NETQ.rttEdgesMs.length + 1) || !countsOf(g.late, NETQ.lateEdgesMs.length + 1)) continue;
+        const labels = { isp: g.isp, device: g.device, lanes: String(g.lanes) };
+        netq('sp_netq_reports_total', g.reports, labels);
+        netq('sp_netq_seconds_total', g.seconds, labels);
+        buckets('sp_netq_rtt_le_total', g.rtt, NETQ.rttEdgesMs, labels);
+        buckets('sp_netq_copy_late_le_total', g.late, NETQ.lateEdgesMs, labels);
+        for (const event of ['lost', 'stalled', 'refused']) netq('sp_netq_lane_events_total', g[event], { ...labels, event });
+        netq('sp_netq_reconnects_total', g.reconnects, labels);
+        if (finite(g.offlineMs)) netq('sp_netq_offline_seconds_total', g.offlineMs / 1000, labels);
+      }
+      for (const p of Array.isArray(q.provinces) ? q.provinces : []) {
+        if (!p || !NETQ.provinces.includes(p.province) || !NETQ.isps.includes(p.isp)) continue;
+        if (!countsOf(p.rtt, NETQ.rttEdgesMs.length + 1) || !countsOf(p.late, NETQ.lateEdgesMs.length + 1)) continue;
+        const labels = { province: p.province, isp: p.isp };
+        netq('sp_netq_province_seconds_total', p.seconds, labels);
+        buckets('sp_netq_province_rtt_le_total', p.rtt, NETQ.rttEdgesMs, labels);
+        buckets('sp_netq_province_copy_late_le_total', p.late, NETQ.lateEdgesMs, labels);
+        netq('sp_netq_province_reconnects_total', p.reconnects, labels);
+        if (finite(p.offlineMs)) netq('sp_netq_province_offline_seconds_total', p.offlineMs / 1000, labels);
       }
     }
   }

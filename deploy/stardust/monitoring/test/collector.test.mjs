@@ -6,7 +6,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
-import { renderMetrics, escapeLabel, safeLabelValue, exportedMetricNames, FAILURE_REASONS } from '../collector/metrics.mjs';
+import { renderMetrics, escapeLabel, safeLabelValue, exportedMetricNames, FAILURE_REASONS, NETQ } from '../collector/metrics.mjs';
+import { NETQ_ISPS, NETQ_DEVICES, NETQ_LANES, NETQ_PROVINCES, NETQ_RTT_EDGES_MS, NETQ_LATE_EDGES_MS } from '../../../../shared/netQuality.js';
 import { createCollector, fetchHealthz, parseConfig, startServer, validateHealthzUrl, PollError, MAX_BYTES } from '../collector/index.mjs';
 
 const sample = JSON.parse(fs.readFileSync(new URL('./fixtures/healthz-sample.json', import.meta.url), 'utf8'));
@@ -284,4 +285,38 @@ test('configuration: one http(s) /healthz URL without credentials; sane interval
   assert.throws(() => parseConfig({ ...base, MONITOR_TIMEOUT_MS: '10000' }));
   assert.throws(() => parseConfig({ ...base, MONITOR_INTERVAL_MS: '50' }));
   assert.throws(() => parseConfig({ ...base, MONITOR_LISTEN: 'localhost' }));
+});
+
+test('netq: the collector copy of the report definitions equals shared/netQuality.js', () => {
+  assert.deepEqual(NETQ, { isps: [...NETQ_ISPS], devices: [...NETQ_DEVICES], lanes: [...NETQ_LANES], provinces: [...NETQ_PROVINCES],
+    rttEdgesMs: [...NETQ_RTT_EDGES_MS], lateEdgesMs: [...NETQ_LATE_EDGES_MS] });
+});
+
+test('netq: groups become cumulative le buckets and counters with fixed labels; foreign labels or edges are skipped', () => {
+  const group = { isp: 'cm', device: 'mobile', lanes: 2, reports: 4, seconds: 240, rtt: [5, 3, 2, 1, 0, 0, 1],
+    late: [90, 4, 3, 2, 1], copies: 100, lost: 1, stalled: 2, refused: 0, reconnects: 1, offlineMs: 2500 };
+  const netq = { reports: 5, rttEdgesMs: NETQ.rttEdgesMs, lateEdgesMs: NETQ.lateEdgesMs,
+    groups: [group, { ...group, isp: 'evil"isp' }, { ...group, lanes: 7 }, { ...group, isp: 'ct', rtt: [1] }] };
+  const m = parse(renderMetrics(fresh({ ...sample, netq }), NOW));
+  const labels = { isp: 'cm', device: 'mobile', lanes: '2' };
+  assert.equal(m.one('sp_netq_reports_total', labels), 4);
+  assert.equal(m.one('sp_netq_seconds_total', labels), 240);
+  assert.deepEqual(['50', '100', '200', '400', '800', '1600', '+Inf'].map((le) => m.one('sp_netq_rtt_le_total', { ...labels, le })), [5, 8, 10, 11, 11, 11, 12]);
+  assert.deepEqual(['50', '100', '300', '1000', '+Inf'].map((le) => m.one('sp_netq_copy_late_le_total', { ...labels, le })), [90, 94, 97, 99, 100]);
+  assert.equal(m.one('sp_netq_lane_events_total', { ...labels, event: 'stalled' }), 2);
+  assert.equal(m.one('sp_netq_reconnects_total', labels), 1);
+  assert.equal(m.one('sp_netq_offline_seconds_total', labels), 2.5);
+  assert.equal(m.get('sp_netq_reports_total').length, 1, 'only the well-formed group');
+  for (const name of Object.keys({ sp_netq_reports_total: 1, sp_netq_rtt_le_total: 1 })) assert.ok(exportedMetricNames().includes(name));
+  const prov = { province: '44', isp: 'ct', reports: 3, seconds: 180, rtt: [1, 1, 1, 1, 1, 1, 1], late: [5, 0, 0, 1, 0], reconnects: 2, offlineMs: 1000 };
+  const withProv = parse(renderMetrics(fresh({ ...sample, netq: { ...netq, provinces: [prov, { ...prov, province: '71' }, { ...prov, isp: 'x' }] } }), NOW));
+  const pl = { province: '44', isp: 'ct' };
+  assert.equal(withProv.one('sp_netq_province_seconds_total', pl), 180);
+  assert.equal(withProv.one('sp_netq_province_rtt_le_total', { ...pl, le: '+Inf' }), 7);
+  assert.equal(withProv.one('sp_netq_province_copy_late_le_total', { ...pl, le: '300' }), 5);
+  assert.equal(withProv.one('sp_netq_province_reconnects_total', pl), 2);
+  assert.equal(withProv.one('sp_netq_province_offline_seconds_total', pl), 1);
+  assert.equal(withProv.get('sp_netq_province_seconds_total').length, 1, 'only mainland province codes and known ISPs');
+  const other = parse(renderMetrics(fresh({ ...sample, netq: { ...netq, rttEdgesMs: [10, 20] } }), NOW));
+  assert.equal(other.get('sp_netq_reports_total').length, 0, 'different bucket edges: nothing exported');
 });

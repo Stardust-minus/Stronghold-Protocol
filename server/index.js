@@ -256,7 +256,7 @@ export async function startServer(opts = {}) {
   const server = http.createServer(createRequestHandler({ serveStatic, csp: process.env.SP_CSP === 'off' ? null : siteCsp(publicDir), health, log,
     trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
   server.on('clientError', answerClientError);
-  const wss = attachWebSocket(server, { network, log, wsCompression, traffic });
+  const wss = attachWebSocket(server, { network, log, wsCompression, traffic, lanes: opts.wsLanes ?? process.env.SP_WS_LANES !== '0' });
 
   // The address actually bound. The default may fall back to IPv4; the returned host and url follow that.
   let boundHost;

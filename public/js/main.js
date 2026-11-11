@@ -46,7 +46,8 @@ import { MatchNotice, matchNoticeText, replayingRound, MATCH_NOTICE_REFRESH_MS }
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { applyLikes, likedToast } from './ui/likes.js';
 import { planNoticeText } from './ui/bondPlan.js';
-import { net, identity, NetError } from './net.js';
+import { net, identity, NetError, lanesWanted } from './net.js';
+import { startNetQuality } from './netQuality.js';
 import { createAuthProbe } from './authProbe.js';
 import './queueCancellation.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
@@ -588,6 +589,8 @@ async function boot() {
   }));
 
   wireNet();
+  // the minute-by-minute network-quality report (public/js/netQuality.js, docs/LATENCY.md)
+  startNetQuality({ net, lanes: lanesWanted() });
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   // the loadout / 干员持有 / 自选 settings by operator, shown for the data on screen (DESIGN §35.23; a v1 store migrates)
   installSettingsViews();

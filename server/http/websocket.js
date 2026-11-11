@@ -6,9 +6,13 @@
 //     (server/wsCompression.js: the bounded preset and the per-type allowlist) → Network.handleConnection. Refused at
 //     the upgrade: any other path 404; per-network socket limit for internet clients (maxConnectionsPerAddr, see net.js
 //     clientAddress; local/LAN peers are exempt) 429; server full (maxConnections) or shutting down 503.
+//   * lanes (server/wsLanes.js, shared/lanes.js): a browser that offers the lane subprotocol gets one logical socket
+//     carried by up to 3 WebSockets; Network sees that logical socket. `lanes: false` (SP_WS_LANES=0) never selects it.
 
 import { WebSocketServer } from 'ws';
 import { Network, SessionRegistry, NET_DEFAULTS } from '../net.js';
+import { createLaneHub } from '../wsLanes.js';
+import { createNetQuality, loadIspTable } from '../netQuality.js';
 import { Lobby } from '../lobby.js';
 import { splitUrl } from './common.js';
 import { netOptionsFrom, lobbyOptionsFrom } from './config.js';
@@ -49,7 +53,10 @@ export function createSessionStack(opts, { data, log, combatPool = null, trialPo
   const lobby = createLobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, combatPool, trialPool, options: lobbyOptions,
     limits: onlineLimit, content, plugins, hosts, versions, versionHosts, simPool, ...metrics });
   // The owner file (server/ownerFile.js): the 服主 key every hello may carry and the owner's reserved names.
-  const network = new Network({ registry, handler: lobby, log, options: netOptions, getLoadState, getLoadDetails, getClusterLoad: opts.getClusterLoad, onlineLimit, ownerFile, ...metrics });
+  // the browsers' network-quality reports (server/netQuality.js) per ISP of SP_ISP_FILE (tools/isp-table.mjs)
+  const ispFile = opts.netQuality ? null : loadIspTable(opts.ispFile ?? process.env.SP_ISP_FILE, log);
+  const netQuality = opts.netQuality ?? createNetQuality({ classify: ispFile.classify, province: ispFile.province });
+  const network = new Network({ registry, handler: lobby, log, options: netOptions, getLoadState, getLoadDetails, getClusterLoad: opts.getClusterLoad, onlineLimit, ownerFile, netQuality, ...metrics });
   // The caps in effect, printed once when the stack is built, so the deploy log states the configuration the server is
   // actually running with (0 is no cap here). `log` is the quiet-aware logger, so a test server stays silent.
   log.info(`[http] limits: rooms ${uncapped(lobby.opts.maxRooms)} (${uncapped(lobby.opts.maxRoomsPerAddr)}/network), `
@@ -82,14 +89,19 @@ function meterSocket(ws, req, traffic) {
 /**
  * Serve the WebSocket endpoint /ws on `server` (its 'upgrade' event).
  * @param {import('node:http').Server} server
- * @param {{ network: Network, log: object, wsCompression?: false | object,
+ * @param {{ network: Network, log: object, wsCompression?: false | object, lanes?: boolean,
  *   traffic?: ReturnType<typeof import('./traffic.js').createTrafficCounter> }} deps
- *   wsCompression: the resolved permessage-deflate options (wsCompression.js resolveWsCompression), false: none
+ *   wsCompression: the resolved permessage-deflate options (wsCompression.js resolveWsCompression), false: none;
+ *   lanes: accept the lane subprotocol (default true)
  * @returns {WebSocketServer}
  */
-export function attachWebSocket(server, { network, log, wsCompression = false, traffic = null }) {
-  const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: wsCompression, clientTracking: false });
-  wss.on('connection', (ws, req) => {
+export function attachWebSocket(server, { network, log, wsCompression = false, traffic = null, lanes = true }) {
+  const hub = createLaneHub({ enabled: lanes !== false });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: wsCompression, clientTracking: false,
+    handleProtocols: hub.handleProtocols });
+  wss.on('connection', (lane, req) => {
+    const ws = hub.adopt(lane);
+    if (!ws) return; // a lane joined (or was refused by) its logical socket
     if (traffic) meterSocket(ws, req, traffic);
     network.handleConnection(ws, req);
   });

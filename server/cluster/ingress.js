@@ -3,6 +3,9 @@
 // Opt-in `link` ({ url, ingressId, key, count }): lobby control rides one or two
 // authenticated multiplexed links to the coordinator (link-client.js) instead of
 // one coordinator WebSocket per browser; everything else below is unchanged.
+// Lanes (server/wsLanes.js): a browser that offers the lane subprotocol is one peer carried by up to 3 WebSockets;
+// the peer's `client` is that logical socket. Every lane of a bundle must reach this process (nginx hashes the bundle
+// id); a lane routed elsewhere is refused and the browser keeps the lanes it has. `lanes: false` never selects them.
 import http from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createLinkClient } from './link-client.js';
@@ -10,6 +13,7 @@ import { NET_DEFAULTS, TokenBucket, clientAddress, encode, sendRaw, errorMsg, CL
 import { C2S, validateC2S } from '../../shared/protocol.js';
 import { ERR } from '../../shared/constants.js';
 import { isCompressibleType, resolveWsCompression } from '../wsCompression.js';
+import { createLaneHub } from '../wsLanes.js';
 
 const safeId = v => typeof v === 'string' && v.length > 0 && v.length <= 128 && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const typeOf = raw => /^\s*\{\s*"t"\s*:\s*"([A-Za-z0-9_.-]{1,64})"/.exec(raw.slice(0, 256))?.[1] ?? null;
@@ -30,7 +34,7 @@ function targetUrl(value, path) {
 
 export async function startIngress({ host = '127.0.0.1', port = 0, coordinatorUrl, nodes, origins,
   wsCompression = 'on', trustProxy = 'auto', now = Date.now, heartbeatMs = NET_DEFAULTS.heartbeatMs,
-  connectMs = 5000, replacementGraceMs = 2000, shutdownMs = 1000, link = null } = {}) {
+  connectMs = 5000, replacementGraceMs = 2000, shutdownMs = 1000, link = null, lanes = true } = {}) {
   if (typeof host !== 'string' || !host || !Number.isInteger(port) || port < 0 || port > 65535 || typeof now !== 'function'
     || !Array.isArray(nodes) || !Array.isArray(origins) || !origins.length) throw new TypeError('invalid ingress');
   for (const n of [heartbeatMs, connectMs, replacementGraceMs, shutdownMs]) if (!Number.isSafeInteger(n) || n < 1 || n > 300_000) throw new RangeError('invalid ingress deadline');
@@ -47,7 +51,9 @@ export async function startIngress({ host = '127.0.0.1', port = 0, coordinatorUr
     gameUrls.set(node.nodeId, targetUrl(node.url, '/_cluster/game'));
   }
   const linkClient = link === null ? null : createLinkClient({ url: link.url, ingressId: link.ingressId, key: link.key, count: link.count ?? 1, connectMs, now });
-  const wss = new WebSocketServer({ noServer: true, clientTracking: true, maxPayload: 64 * 1024, perMessageDeflate: resolveWsCompression(wsCompression) });
+  const laneHub = createLaneHub({ enabled: lanes !== false });
+  const wss = new WebSocketServer({ noServer: true, clientTracking: true, maxPayload: 64 * 1024, perMessageDeflate: resolveWsCompression(wsCompression),
+    handleProtocols: laneHub.handleProtocols });
   const peers = new Set(), sockets = new Set();
   let stopped = false, heartbeatTimer, closePromise;
   const server = http.createServer((req, res) => {
@@ -205,7 +211,9 @@ export async function startIngress({ host = '127.0.0.1', port = 0, coordinatorUr
     } else closePeer(peer, 1011, 'INVALID_ROUTE');
   }
 
-  wss.on('connection', (client, req) => {
+  wss.on('connection', (lane, req) => {
+    const client = laneHub.adopt(lane);
+    if (!client) return; // a lane joined (or was refused by) its peer's logical socket
     let at;
     try { at = clock(); } catch { client.on('error', () => {}); client.close(1011, 'CLOCK_UNAVAILABLE'); return; }
     const peer = { client, control: null, controlReady: false, controlPending: [], controlBytes: 0, playerId: null,

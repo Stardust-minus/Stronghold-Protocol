@@ -11,6 +11,8 @@ import { exportedMetricNames } from '../collector/metrics.mjs';
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const exists = (path) => fs.existsSync(new URL(`../${path}`, import.meta.url));
 const dashboard = JSON.parse(read('grafana/dashboards/stronghold-status.json'));
+/** The network-quality board (uid sp-netq), published like the status board and reached at /monitor/net. */
+const netqBoard = JSON.parse(read('grafana/dashboards/stronghold-netq.json'));
 const rulesText = read('prometheus/rules.yml');
 const promText = read('prometheus/prometheus.yml');
 const compose = read('compose.monitoring.yaml');
@@ -19,7 +21,8 @@ const ini = read('grafana/grafana.ini');
 /** The metrics of the OpenResty Lua exporter (nginx edge-metrics-http.conf) and the node-exporter ones the rules use. */
 const NGINX = ['ark_edge_requests_total', 'ark_edge_bytes_sent_total', 'ark_edge_connections'];
 const NODE = ['node_cpu_seconds_total', 'node_memory_MemAvailable_bytes', 'node_memory_MemTotal_bytes',
-  'node_network_transmit_bytes_total', 'node_network_receive_bytes_total'];
+  'node_network_transmit_bytes_total', 'node_network_receive_bytes_total',
+  'node_netstat_Tcp_RetransSegs', 'node_netstat_Tcp_OutSegs', 'node_netstat_TcpExt_TCPTimeouts'];
 const COLLECTOR = exportedMetricNames();
 const JOBS = ['collector', 'node', 'nginx', 'prometheus'];
 
@@ -116,8 +119,53 @@ test('recording rules: unique names, known inputs, used by the dashboard', () =>
     // rate() drops the name: two counters selected together collide ("vector cannot contain metrics with the same labelset")
     assert.doesNotMatch(expr, /__name__/, `${record}: one counter per rate()`);
   }
-  const used = new Set(dataPanels.flatMap((p) => targets(p).flatMap((t) => metricNames(t.expr))));
-  for (const name of names) assert.ok(used.has(name), `${name} is used by the dashboard`);
+  const used = new Set([...dataPanels, ...netqBoard.panels].flatMap((p) => targets(p).flatMap((t) => metricNames(t.expr))));
+  for (const name of names) assert.ok(used.has(name), `${name} is used by a dashboard`);
+});
+
+test('network-quality board: public-dashboard-compatible, known series only (recording rules), thin cells hidden, no address', () => {
+  assert.equal(netqBoard.uid, 'sp-netq');
+  assert.notEqual(netqBoard.uid, dashboard.uid);
+  assert.match(read('README.md'), /DASHBOARD_UID=sp-netq/, 'README says how to publish it');
+  const nginx = fs.readFileSync(new URL('../../nginx/ark-proto.conf', import.meta.url), 'utf8');
+  assert.match(nginx, /location = \/monitor\/net \{ include \S+\/monitor-net-entry\.conf; \}/, '/monitor/net leads to it');
+  assert.match(netqBoard.panels[0].options.content, /\(\/monitor\/\)/, 'it links the status board');
+  assert.match(dashboard.panels.find((p) => p.type === 'text').options.content, /\(\/monitor\/net\)/, 'the status board links it');
+  assert.equal(netqBoard.editable, false);
+  assert.deepEqual(netqBoard.templating, { list: [] });
+  const ids = netqBoard.panels.map((p) => p.id);
+  assert.equal(new Set(ids).size, ids.length, 'unique panel ids');
+  const known = new Set([...COLLECTOR, ...rules.map((r) => r.record)]);
+  const recorded = new Set(rules.map((r) => r.record));
+  const data = netqBoard.panels.filter((p) => p.type !== 'row' && p.type !== 'text');
+  assert.ok(data.length >= 10);
+  assert.ok(data.some((p) => p.type === 'table' && p.title === '省份 × 运营商'), 'the province × ISP table');
+  for (const p of data.filter((x) => /province/.test(JSON.stringify(x.targets)))) {
+    for (const t of targets(p)) assert.match(t.expr, /sp:netq_province_online_seconds:rate1h\) >= 3|sp:netq_province_online_seconds:rate1h >= 3/, `${p.title}: cells under 3 pages hidden`);
+  }
+  for (const p of data) {
+    assert.ok(['timeseries', 'bargauge', 'table'].includes(p.type), p.title);
+    for (const t of targets(p)) assert.equal(t.instant, p.type !== 'timeseries', `${p.title}: tables and bars are instant queries`);
+    assert.equal(p.datasource?.uid, 'sp-prometheus');
+    assert.ok(p.fieldConfig.defaults.unit, `${p.title}: unit set`);
+    assert.ok(p.gridPos.x >= 0 && p.gridPos.x + p.gridPos.w <= 24, `${p.title}: inside 24 columns`);
+    for (const t of targets(p)) {
+      for (const name of metricNames(t.expr)) {
+        assert.ok(known.has(name), `${p.title}: unknown metric ${name}`);
+        assert.ok(recorded.has(name), `${p.title}: ${name} is read through a recording rule`);
+      }
+      assert.doesNotMatch(t.expr, /\brate\(|\[\d+[smhd]\]/, `${p.title}: no range functions`);
+    }
+  }
+  const text = JSON.stringify(netqBoard);
+  assert.doesNotMatch(text, /\b\d{1,3}(?:\.\d{1,3}){3}\b/, 'no IPv4 address');
+  assert.doesNotMatch(text, /hanabi|stardust|matce|isomer|\.cn\b|\/root\/|\/www\/|10\.253\.|hz0|35400/i, 'no host, path or tunnel name');
+  // the node-exporter series those panels read are collected, and the NIC is not pinned to one machine's name
+  assert.match(compose, /--collector\.netstat\n/);
+  assert.match(compose, /--collector\.netstat\.fields=\^\(Tcp_\(OutSegs\|RetransSegs/);
+  assert.match(compose, /--collector\.netdev\.device-exclude=/);
+  assert.doesNotMatch(compose, /device-include=\^\(ens3/);
+  assert.doesNotMatch(JSON.stringify(dashboard), /device=\\"ens3\\"/, 'the bandwidth panel is not tied to ens3');
 });
 
 test('prometheus.yml: fixed loopback targets, fixed instance names, the rules file, no address labels', () => {

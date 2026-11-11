@@ -54,6 +54,7 @@ import { isCompressibleType } from './wsCompression.js';
 import { negotiateStateDelta, prepareStateFrame, resetStateDelta } from './stateTransport.js';
 import { moderateName } from '../shared/names.js';
 import { NO_PHASES } from './phaseMetrics.js';
+import { NETQ_MIN_GAP_MS } from '../shared/netQuality.js';
 import { serverFullDetail } from './onlineLimit.js';
 import { NAME_RESERVED } from './ownerFile.js';
 export { sanitizeName } from '../shared/names.js';
@@ -663,8 +664,10 @@ export class Network {
    * }} opts
    */
   constructor({ registry, handler, log = noopLog, now = Date.now, getLoadState = null, getLoadDetails = null, getClusterLoad = null, options = {},
-    metrics = NO_PHASES, onlineLimit = null, ownerFile = null }) {
+    metrics = NO_PHASES, onlineLimit = null, ownerFile = null, netQuality = null }) {
     this.registry = registry;
+    /** server/netQuality.js: the browsers' net.q reports (at most one per socket per NETQ_MIN_GAP_MS, after hello) */
+    this.netQuality = netQuality;
     this.handler = handler;
     this.log = log;
     this.now = now;
@@ -781,6 +784,13 @@ export class Network {
     const reason = validateC2S(msg);
     if (reason) { this.reply(conn, errorMsg(ERR.BAD_MSG, rid, reason)); return; }
 
+    if (msg.t === 'net.q') {
+      if (this.netQuality && conn.session && !(now - (conn.netqAt ?? -Infinity) < NETQ_MIN_GAP_MS)) {
+        conn.netqAt = now;
+        try { this.netQuality.record(conn.ip, msg); } catch (e) { this.log.debug?.('[netq] report dropped', e?.message); }
+      }
+      return; // never answered
+    }
     if (msg.t === 'ping') {
       const pong = { t: 'pong', c: msg.c, s: now };
       if (this.getLoadState) {
