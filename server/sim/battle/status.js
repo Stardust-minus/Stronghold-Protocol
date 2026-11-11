@@ -99,11 +99,12 @@ export class BattleStatus {
         const u = units[i];
         if (!u.alive || u.removed) continue;
         if (u.buffs.length) {
+          // the snapshot is the first `m` slots (slots past them may still hold an earlier unit's buffs: never read; a
+          // `length` write per buffed unit per tick was a V8 runtime call — profiled 2026-11-11)
           const src = u.buffs;
           let m = 0;
           for (let j = 0; j < src.length; j++) arr[m++] = src[j];
-          arr.length = m;
-          for (let k = 0; k < arr.length; k++) {
+          for (let k = 0; k < m; k++) {
             const b = arr[k];
             if (!u.alive) break;
             if (u.buffs.indexOf(b) < 0) continue;

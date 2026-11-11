@@ -21,6 +21,58 @@ const NO_MUL = Object.freeze({ atk: 1, def: 1, hp: 1 });
 /** Aggregates can overflow (huge stacked *Mul mods → Infinity) — fall back to `d` so no stat is ever non-finite. */
 const fin = (v, d) => (Number.isFinite(v) ? v : d);
 
+/**
+ * What _recalc reads, in order, besides the previous stats: the base stats, the 练度 multipliers, the move-speed floor and,
+ * per buff, all aggregateMods reads of it. `recalcInputs` lists their values; a recalculation that finds them as the
+ * previous one left them keeps that one's stats — the same object, which no code changes or compares (the isFlying cache
+ * is reset as a fresh object would reset it). Buffs refreshed every tick by auras dirty their units every tick: in a
+ * 4-player HARD bot match (2026-11-11) three recalculations in four changed nothing (492 084 of 650 628). The values are
+ * compared when the recalculation runs, by Object.is — never inferred from the marks — so a buff field changed in place
+ * without a mark (a shield's absorbed points, attack/effects.js) counts exactly as the full recalculation counts it.
+ */
+const BASE_INPUTS = Object.freeze(['maxHp', 'atk', 'def', 'res', 'aspd', 'bat', 'blockCnt', 'moveSpeed', 'massLevel', 'tauntLevel',
+  'spRecovery', 'hpRecoveryPerSec']);
+const MODS_END = Object.freeze({}), FLAGS_END = Object.freeze({});   // list separators no key or value can equal
+
+/** @param {Unit} u @returns {any[]} */
+function recalcInputs(u) {
+  const out = [];
+  const b = u.base;
+  for (let j = 0; j < BASE_INPUTS.length; j++) out.push(b[BASE_INPUTS[j]]);
+  out.push(u.cultMul, u.mem.moveSpeedFloor, u.buffs.length);
+  for (const bf of u.buffs) {
+    out.push(bf.stacks, bf.shield, bf.persist, bf.duration);
+    const m = bf.mods;
+    if (m) for (const k in m) out.push(k, m[k]);
+    out.push(MODS_END);
+    const f = bf.flags;
+    if (f) for (const k in f) out.push(k, !!f[k]);
+    out.push(FLAGS_END);
+  }
+  return out;
+}
+
+/** Whether recalcInputs(u) would give `prev` again (without building it). @param {Unit} u @param {any[]} prev */
+function sameRecalcInputs(u, prev) {
+  let i = 0;
+  const b = u.base;
+  for (let j = 0; j < BASE_INPUTS.length; j++) if (!Object.is(b[BASE_INPUTS[j]], prev[i++])) return false;
+  if (u.cultMul !== prev[i++] || !Object.is(u.mem.moveSpeedFloor, prev[i++])) return false;
+  const buffs = u.buffs;
+  if (buffs.length !== prev[i++]) return false;
+  for (let j = 0; j < buffs.length; j++) {
+    const bf = buffs[j];
+    if (!Object.is(bf.stacks, prev[i++]) || !Object.is(bf.shield, prev[i++]) || bf.persist !== prev[i++] || !Object.is(bf.duration, prev[i++])) return false;
+    const m = bf.mods;
+    if (m) for (const k in m) if (prev[i++] !== k || !Object.is(m[k], prev[i++])) return false;
+    if (prev[i++] !== MODS_END) return false;
+    const f = bf.flags;
+    if (f) for (const k in f) if (prev[i++] !== k || !!f[k] !== prev[i++]) return false;
+    if (prev[i++] !== FLAGS_END) return false;
+  }
+  return i === prev.length;
+}
+
 export class Unit {
   /**
    * @param {object} init
@@ -60,6 +112,7 @@ export class Unit {
     this.buffs = [];
     this._dirty = true;
     this._s = null;
+    this._recalcIn = null;   // the inputs of `_s` (recalcInputs), set by _recalc
     // cached isFlying (the hot loops ask it per candidate blocker / target): valid while the aggregated stats object
     // (flags) and `motion` are the ones it was computed from
     this._flyS = null;
@@ -173,6 +226,12 @@ export class Unit {
   get atk() { return this.s.atk; }
 
   _recalc() {
+    // nothing it reads changed since the previous recalculation: its stats stand (recalcInputs)
+    if (this._s && this._recalcIn && sameRecalcInputs(this, this._recalcIn)) {
+      this._flyS = null;
+      this._dirty = false;
+      return;
+    }
     const prevMax = this._s ? this._s.maxHp : this.base.maxHp;
     const { add, mul, flags, shield, permRangeExtend } = aggregateMods(this.buffs);
     const a = (k) => add[k] ?? 0;
@@ -234,6 +293,7 @@ export class Unit {
     // so a 'rate' event has to go out — set here instead of comparing every unit's stats on every tick
     if (!this._s || Math.abs(this._s.interval - s.interval) > 1e-9) this._rateDirty = true;
     this._s = s;
+    this._recalcIn = recalcInputs(this);
     this._flyS = null; // drop the cached answer's reference to the previous stats object
     this._dirty = false;
     if (this.alive && prevMax > 0 && Math.abs(prevMax - maxHp) > 1e-9) {

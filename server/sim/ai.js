@@ -95,12 +95,15 @@ export function updateAlly(b, u, dt) {
   if (!u.canAct || !u.profile) return;
   // a rangeExtend change (buff added / expired) rebuilds the range — also for units that never attack (auras)
   if (b.rangeChanged(u)) b._refreshRange(u);
+  // Still cooling down: nothing below runs. Checked before the profile because effectiveProfile copies it while a skill
+  // overrides the attack — every tick of every such unit otherwise — and the checks it used to precede (noAttack,
+  // noAttackUnlessSkill, disarm) only return too; the unit's stats are current here (canAct and rangeChanged read them).
+  if (u.atkCd > 0) return;
   const sk = u.skill;
   let prof = effectiveProfile(u);
   if (prof.noAttack) return;
   if (prof.noAttackUnlessSkill && !(sk && sk.active)) return;
   if (u.s.flags.disarm) return;
-  if (u.atkCd > 0) return;
   // (a 秘术师's `canAttack` is its own target rule: false = no valid target — 深靛's bound enemies, 维伊's marked ones)
   if (prof.canAttack && !prof.canAttack(b, u)) { if (prof.storeEnergy) { u.trait.hadTarget = false; storeEnergy(b, u, prof); } return; }
   let targets = acquireTargets(b, u, prof);

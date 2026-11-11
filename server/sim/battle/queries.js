@@ -18,10 +18,10 @@ export class BattleQueries {
    */
   _buildEnemyIndex() {
     const eb = this._eb, et = this._et, ebUsed = this._ebUsed, etUsed = this._etUsed;
-    for (const k of ebUsed) eb[k].length = 0;
-    ebUsed.length = 0;
-    for (const k of etUsed) et[k].length = 0;
-    etUsed.length = 0;
+    // emptied with pop: a `length = 0` per used bucket per tick was a V8 runtime call each (half of this method's own
+    // time, profiled 2026-11-11); the buckets stay the same arrays
+    while (ebUsed.length) { const b = eb[ebUsed.pop()]; while (b.length) b.pop(); }
+    while (etUsed.length) { const b = et[etUsed.pop()]; while (b.length) b.pop(); }
     const rho = ENEMY_COLLIDER_RADIUS, rho2 = rho * rho;
     for (const e of this.enemies) {
       if (!e.alive || e.hidden) continue;

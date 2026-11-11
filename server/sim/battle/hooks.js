@@ -65,13 +65,15 @@ export class BattleHooks {
     }
     const d = this._emitDepth++;
     // The hooks are iterated over a snapshot (a handler may add / remove hooks): one buffer per nesting level, reused
-    // across emits — this runs several times a tick, so a fresh `slice()` per call was pure garbage.
+    // across emits — this runs several times a tick, so a fresh `slice()` per call was pure garbage. The buffer is empty
+    // between emits; it is filled by appending and emptied with pop — writing `arr.length` (to size it, then to empty
+    // it) cost more than the copy itself, a runtime call in V8 each time (profiled 2026-11-11).
     const arr = (this._emitBufs ?? (this._emitBufs = []))[d] ?? (this._emitBufs[d] = []);
-    arr.length = list.length;
-    for (let i = 0; i < list.length; i++) arr[i] = list[i];
+    const n = list.length;
+    for (let i = 0; i < n; i++) arr[i] = list[i];
     this._frameCtx[d] = ctx;
     try {
-      for (let i = 0; i < arr.length; i++) {
+      for (let i = 0; i < n; i++) {
         const h = arr[i];
         if (h.removed) continue;
         this._frameName[d] = name;
@@ -82,7 +84,7 @@ export class BattleHooks {
       }
     } finally {
       this._emitDepth--;
-      arr.length = 0; // drop the snapshot's references: a hook removed after this emit must not stay reachable
+      while (arr.length) arr.pop(); // a hook removed after this emit must not stay reachable
     }
     return ctx;
   }
@@ -138,8 +140,7 @@ export class BattleHooks {
     // plus `slice` allocated two arrays per tick.
     const bufs = this._dueBufs ?? (this._dueBufs = []);
     const depth = this._runDepth ?? 0;
-    const due = bufs[depth] ?? (bufs[depth] = []);
-    due.length = 0;
+    const due = bufs[depth] ?? (bufs[depth] = []);   // always empty here: the `finally` below empties it
     this._runDepth = depth + 1;
     try {
       let cancelled = 0;
@@ -172,7 +173,8 @@ export class BattleHooks {
       this._compactDue();
     } finally {
       this._runDepth = depth;
-      due.length = 0; // a fired timer must not stay reachable through the scratch buffer
+      // a fired timer must not stay reachable through the scratch buffer (pop: a `length` write is a runtime call in V8)
+      while (due.length) due.pop();
     }
   }
 
