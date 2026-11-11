@@ -193,7 +193,9 @@ test('boss specs cross the real pool, preserve the cap and obey adaptive tick li
     assert.ok(got.stats.totalTicks <= (limits?.tickBudget || 2 * cap));
   }
   const threadId = pool.stats().memory[0].threadId;
-  const pending = pool.submit('rehearsal', { specs: [spec], playerId: 'p_0', cap: 1e9 });
+  // 32 uncapped candidates (each a 108000-tick fight, about 17 ms on a Worker in 2026-11; one alone finished inside the
+  // 20 ms once the sim got faster): the job is still running when the cancel lands
+  const pending = pool.submit('rehearsal', { specs: Array.from({ length: 32 }, () => spec), playerId: 'p_0', cap: 1e9 });
   const rejected = assert.rejects(pending.promise, { code: 'TASK_CANCELLED' });
   await delay(20);
   pending.cancel();

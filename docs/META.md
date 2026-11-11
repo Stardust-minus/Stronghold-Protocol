@@ -443,7 +443,8 @@ An unset or empty `SP_BOT_STRATEGY` uses the original bot when no explicit optio
 selection before data loading or listening; an invalid ID prevents startup with a diagnostic naming the variable,
 rejected value, available IDs and how to unset it to restore the default.
 The test input journal stores the resolved `botStrategy` ID. Replay uses the recorded ID (older records: `legacy`),
-never the replay host's environment, and preserves `testSlice` counts for prep generators and rehearsal jobs.
+never the replay host's environment, and preserves `testSlice` counts for prep generators and rehearsal jobs. The
+offline hold's `offlineHoldMs` is recorded and replayed likewise (older records: no hold).
 Band draft order is unchanged; selecting an AI implementation grants no seat priority.
 
 Band/common-card/private-bounty picks and both sliced prep stages use the selected object. Prep retains its existing

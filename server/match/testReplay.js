@@ -30,7 +30,9 @@ export function replayTestMatch(data, entries, { send = () => {}, broadcast = ()
   };
   // journal:false — replaying must not log again, and must not wrap timers a second time.
   // Old journals predate selectable bots. Neither old nor new recordings read the replay host's environment.
-  const m = new Match({ ...init.options, botStrategy: init.options.botStrategy ?? 'legacy', journal: false,
+  // Journals before 2026-11-11 predate the offline hold: they replay without one (offlineHoldMs 0).
+  const m = new Match({ ...init.options, botStrategy: init.options.botStrategy ?? 'legacy',
+    offlineHoldMs: init.options.offlineHoldMs ?? 0, journal: false,
     externalReplay: true, data, scheduler, send, broadcast, onEnd, registry, BattleClass });
   for (const e of entries.slice(1)) {
     if (!Number.isFinite(e.at) || e.at < now) throw new TypeError('invalid journal time');

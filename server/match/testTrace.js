@@ -83,6 +83,8 @@ export function installTestTrace(m, opts) {
     botStrategy: m.bot.id,
     botRehearsal: m.botRehearsal, botRehearsalDelegate: m.botRehearsalDelegate,
     botRehearsalDelegateMs: m.botRehearsalDelegateMs,
+    // the offline hold's length decides when an all-offline match clears; the replay must not read its host's env
+    offlineHoldMs: m.offlineHoldMs,
   });
   // Finite slice budgets must replay with the same bounded/unbounded split. Infinity is omitted:
   // JSON would turn it into null, and a virtual scheduler already defaults to unbounded.

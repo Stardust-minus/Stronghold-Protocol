@@ -212,6 +212,8 @@ the environment selection before loading data or accepting connections; an unkno
 diagnostic naming the variable, rejected value, available IDs and how to restore the default.
 Test input journals record the resolved strategy ID; replays use it explicitly, defaulting older records to `legacy`
 independently of the replay host's environment. Prep generators and rehearsal jobs retain journalled slice counts.
+The offline hold's `offlineHoldMs` is journalled the same way (not the replay host's `SP_OFFLINE_HOLD_MINUTES`;
+records before 2026-11-11: no hold).
 The selected implementation does not change draft order or give any AI seat priority.
 
 The selected implementation handles band/card drafts, personal bounty choices, sliced prep begin/end and benchmark

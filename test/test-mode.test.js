@@ -978,7 +978,8 @@ for (const botRehearsal of [0, 1]) test(`sliced bot prep and a server-run battle
       { playerId: 'p_0', seat: 0, name: 'P', connected: true },
       { playerId: 'ai_0', seat: 1, name: 'AI', isBot: true, connected: true },
     ],
-    data: DATA, scheduler, clientCombat: true, botRehearsal, botSliceMs: 8, headlessSliceMs: 8,
+    // offlineHoldMs 0: the drop below leaves no human online; without a hold the server plays that field (what this covers)
+    data: DATA, scheduler, clientCombat: true, botRehearsal, botSliceMs: 8, headlessSliceMs: 8, offlineHoldMs: 0,
     BattleClass: FakeBattle, send() {}, broadcast() {}, onEnd() {},
     log: { info(line) {
       if (typeof line === 'string' && line.startsWith('[test-input ')) entries.push(JSON.parse(line.slice(line.indexOf(']') + 2)));
@@ -1001,6 +1002,7 @@ for (const botRehearsal of [0, 1]) test(`sliced bot prep and a server-run battle
     return !!pred();
   };
   m.start();
+  assert.equal(decodeTestTrace(entries)[0].options.offlineHoldMs, 0, 'the journal carries the hold');
   assert.ok(pump(() => m.phase === 'PREP'), `prep ${m.phase}`);
   const ai = m.players.get('ai_0');
   assert.ok(pump(() => entries.some((e) => e.kind === 'timer' && e.steps > 0) && !ai.ready), 'bot prep did not slice');
@@ -1036,5 +1038,55 @@ for (const botRehearsal of [0, 1]) test(`sliced bot prep and a server-run battle
   assert.deepEqual(copy.players.get('ai_0').privateView(), m.players.get('ai_0').privateView());
   assert.deepEqual(copy.testLog, m.testLog);
   assert.equal(copy.phase, m.phase);
+  assert.equal(copy.errorCount, 0);
+});
+
+test('a test journal carries the offline hold: its replay clears an all-offline match as recorded, whatever its own SP_OFFLINE_HOLD_MINUTES', (t) => {
+  FakeBattle.reset();
+  FakeBattle.script = () => ({ duration: 1 });
+  const scheduler = new VirtualScheduler({ instantCombat: false });
+  const entries = [];
+  const m = new Match({
+    mode: 'coop', difficulty: 'NORMAL', test: true, hostId: 'p_0', seed: 833, offlineHoldMs: 60_000,
+    seats: [
+      { playerId: 'p_0', seat: 0, name: 'P', connected: true },
+      { playerId: 'ai_0', seat: 1, name: 'AI', isBot: true, connected: true },
+    ],
+    data: DATA, scheduler, clientCombat: true, BattleClass: FakeBattle, send() {}, broadcast() {}, onEnd() {},
+    log: { info(line) {
+      if (typeof line === 'string' && line.startsWith('[test-input ')) entries.push(JSON.parse(line.slice(line.indexOf(']') + 2)));
+    }, warn() {}, error() {} },
+  });
+  t.after(() => { FakeBattle.reset(); m.dispose(); });
+  const pump = (pred, max = 250000) => {
+    for (let i = 0; i < max; i++) {
+      if (pred()) return true;
+      const ps = m.players.get('p_0');
+      if (ps && !ps.left && ps.connected) {
+        if (m.phase === 'INFO_CHECK' && !ps.infoReady) m.handle('p_0', { t: 'g.infoReady' });
+        else if (m.phase === 'BAND_DRAFT' && m.draftTurn() === 'p_0') m.handle('p_0', { t: 'g.band', bandId: 'band_bldsk' });
+      }
+      if (!scheduler.runNext()) return !!pred();
+    }
+    return !!pred();
+  };
+  m.start();
+  assert.ok(pump(() => m.phase === 'PREP'), `prep ${m.phase}`);
+  m.onDisconnect('p_0');
+  assert.ok(pump(() => m.phase === 'RESULT'), `cleared ${m.phase}`);
+  assert.equal(decodeTestTrace(entries)[0].options.offlineHoldMs, 60_000);
+  const before = process.env.SP_OFFLINE_HOLD_MINUTES;
+  process.env.SP_OFFLINE_HOLD_MINUTES = '0';
+  let copy;
+  try {
+    copy = replayTestMatch(DATA, entries, { BattleClass: FakeBattle });
+  } finally {
+    if (before === undefined) delete process.env.SP_OFFLINE_HOLD_MINUTES;
+    else process.env.SP_OFFLINE_HOLD_MINUTES = before;
+  }
+  t.after(() => copy.dispose());
+  assert.equal(copy.offlineHoldMs, 60_000);
+  assert.equal(copy.phase, 'RESULT');
+  assert.deepEqual(copy.publicView(), m.publicView());
   assert.equal(copy.errorCount, 0);
 });

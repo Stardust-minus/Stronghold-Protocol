@@ -84,7 +84,7 @@ export class BattleHooks {
       }
     } finally {
       this._emitDepth--;
-      while (arr.length) arr.pop(); // a hook removed after this emit must not stay reachable
+      while (arr.length) arr.pop(); // loop-cap: arr.length; a hook removed after this emit must not stay reachable
     }
     return ctx;
   }
@@ -174,7 +174,7 @@ export class BattleHooks {
     } finally {
       this._runDepth = depth;
       // a fired timer must not stay reachable through the scratch buffer (pop: a `length` write is a runtime call in V8)
-      while (due.length) due.pop();
+      while (due.length) due.pop(); // loop-cap: due.length
     }
   }
 
