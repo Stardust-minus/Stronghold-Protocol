@@ -41,6 +41,11 @@ export class InPageSimHost {
     const r = s.compactResult(this.battle.result());
     return typeof s.fitResult === 'function' ? s.fitResult(r, options) : r;
   }
+  /** The canonical JSON of the finished battle's result (shadow verification: the replica's end hash), or null. */
+  resultJson() {
+    const s = this.sim?.spec;
+    return this.battle?.finished && typeof s?.resultCanonicalJson === 'function' ? s.resultCanonicalJson(this.battle.result()) : null;
+  }
   unitStats(id) {
     const u = this.battle?.unitById?.(id);
     return u ? unitStatsEntry(u, u._s || null) : null;

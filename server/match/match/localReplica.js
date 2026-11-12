@@ -11,6 +11,8 @@
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated).
 
 import { OK } from './common.js';
+import { normalizeSimClient } from '../verify/hub.js';
+import { isResultHash } from '../../../shared/resultHash.js';
 
 /** Field kinds a player's browser may run locally: their battles depend on nothing outside their spec. */
 export const LOCAL_KINDS = new Set(['normal', 'unite']);
@@ -19,12 +21,20 @@ export const POOL_KINDS = new Set(['boss', 'hidden']);
 
 export class MatchLocalReplica {
   /**
-   * g.sim { local?, battleId?, stream?, tick? }: `local` — whether this browser runs its own fields from now on (sent when
-   * it has the sim loaded, again after a reconnect); `battleId` + `stream` — its replica of that battle diverged (`tick`:
-   * the first digest that differed) or cannot keep up: stream that field to it instead.
+   * g.sim { local?, battleId?, stream?, tick?, rh?, client? }: `local` — whether this browser runs its own fields from now
+   * on (sent when it has the sim loaded, again after a reconnect); `battleId` + `stream` — its replica of that battle
+   * diverged (`tick`: the first digest that differed) or cannot keep up: stream that field to it instead. Shadow
+   * verification (shadowVerify.js): `client` — what the page says about itself (engine, system, device class, front-end
+   * build, its device id, whether it verifies for other matches); `battleId` + `rh` — the result hash its replica of that
+   * battle ended with (only a seat that ran that replica is heard). Neither changes anything of the match.
    */
   setLocalSim(ps, msg) {
     if (ps.spectator || ps.isBot) return OK;
+    if (msg.client && typeof msg.client === 'object') ps.simClient = normalizeSimClient(msg.client);
+    if (typeof msg.battleId === 'string' && isResultHash(msg.rh) && this.verifyHub) {
+      const f = this._shadowField(msg.battleId);
+      if (f && f.localRuns && f.localRuns.has(ps.playerId)) this.verifyHub.ownerDigest(this, ps, f, msg.rh);
+    }
     if (typeof msg.local === 'boolean') {
       ps.localSim = msg.local;
       if (!msg.local) {
@@ -79,6 +89,7 @@ export class MatchLocalReplica {
       f.battleId = seq.length + 1 + String(f.fieldId).length <= 64 ? `${seq}.${f.fieldId}` : seq;
     }
     this.localViews.set(ps.playerId, { field: f });
+    if (!f.localRuns?.has(ps.playerId)) this.verifyHub?.noteReplica(ps.simClient, 'started');
     (f.localRuns || (f.localRuns = new Set())).add(ps.playerId);
     if (!f.startedAt) f.startedAt = this.sched.now();
     return this.sendTo(ps.playerId, {
@@ -94,7 +105,9 @@ export class MatchLocalReplica {
     f.localRuns?.delete(ps.playerId);
     if (!f.streamOnly) f.streamOnly = new Set();
     f.streamOnly.add(ps.playerId);
-    this.localStats[reason === 'off' ? 'off' : reason === 'requested' ? 'requested' : 'diverged']++;
+    const outcome = reason === 'off' ? 'off' : reason === 'requested' ? 'requested' : 'diverged';
+    this.localStats[outcome]++;
+    this.verifyHub?.noteReplica(ps.simClient, outcome);
     this.log.info?.(`[match ${this.roomCode}] seat ${ps.seat} ${f.fieldId}: local replica → stream (${reason})`);
     this.sendTo(ps.playerId, { t: 'b.end', battleId: f.battleId, fieldId: f.fieldId, reason: 'stream' });
     if (this.watchers.get(ps.playerId) === f.fieldId && ps.connected) this._sendField(ps.playerId, f.fieldId);

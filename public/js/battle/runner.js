@@ -106,6 +106,8 @@ import { data as gameData } from '../data.js';
 import { InPageSimHost, WorkerSimHost } from './simHost.js';
 import { trackCombat, combineCombat } from './metrics.js';
 import { t } from '../../../shared/i18n.js';
+import { resultHashOf } from '../../../shared/resultHash.js';
+import { simClientInfo } from './clientInfo.js';
 export { loadBrowserSim, SIM_DATA_FILES } from './simLoader.js';
 
 const TICK = 1 / 30;
@@ -690,7 +692,8 @@ export function createBattleRunner(deps) {
     ensureSim(typeof room?.version === 'string' ? room.content?.cs ?? null : null).then((sim) => {
       if (declaredFor !== id || localOff) return;
       if (!sim || !sim.sync || typeof sim.sync.stateHash !== 'function') { localOff = true; return; }
-      askSim({ local: true }).then((ok) => { if (!ok && declaredFor === id) declaredFor = null; });
+      // with what this page says about itself (shadow verification, battle/clientInfo.js)
+      askSim({ local: true, client: simClientInfo() }).then((ok) => { if (!ok && declaredFor === id) declaredFor = null; });
     }, () => { localOff = true; });
   }
 
@@ -799,10 +802,22 @@ export function createBattleRunner(deps) {
     try { net.send('b.progress', msg); } catch { /* offline */ }
   }
 
+  /**
+   * Shadow verification (DESIGN §14): a local display replica that ran to its end without diverging tells the server the
+   * result hash it ended with (g.sim { battleId, rh }); the server compares it with its own and changes nothing.
+   */
+  function reportReplicaHash(e) {
+    if (!e.replica || e.dropped || !net || typeof e.host?.resultJson !== 'function') return;
+    const json = (() => { try { return e.host.resultJson(); } catch { return null; } })();
+    if (typeof json !== 'string') return;
+    resultHashOf(json).then((rh) => { if (!e.dropped) askSim({ battleId: e.battleId, rh }); }, () => {});
+  }
+
   function finished(e) {
     if (e.done) return;
     e.done = true;
     noteLeaks(e);
+    reportReplicaHash(e);
     if (e.authoritative && !e.resultSent && net) {
       progress(e, true);
       e.resultSent = true;

@@ -374,6 +374,7 @@ export class MatchPlatform {
     this._stopClientCombat();
     this._cancelRehearsal();
     this._endOfflineHold();
+    this.verifyHub?.unregister(this);
     // a plugin interaction window's own deadline timer (MatchOffers); the tracked timers below cover the rest
     if (typeof this.offersDispose === 'function') { try { this.offersDispose(); } catch { /* ignore */ } }
     this._clearTimers();

@@ -16,6 +16,7 @@ import { DATA_SHIM_JS } from '../http/static.js';
 import { createHealthMetrics, serverLoadState, publicLoadDetails } from '../healthMetrics.js';
 import { parseCombatWorkers, parseTrialWorkers } from '../index.js';
 import { startGameNode } from './game-node.js';
+import { processVerifyHub } from '../match/verify/hub.js';
 import { createRpcAuthenticator, createRpcClient } from './rpc.js';
 import { sendEndReceipt, sendMemberRemoved } from './receipts.js';
 import { storeConfig, createCheckpointStore } from '../persist/store.js';
@@ -58,6 +59,8 @@ export async function startGameRuntime({ combatWorkers = 8, trialWorkers = 2, co
   const combatCount = parseCombatWorkers(combatWorkers), trialCount = combatCount ? parseTrialWorkers(trialWorkers) : 0;
   const gameData = data ?? getData({ log });
   let combatPool, trialPool, node, events, closing, checkpoints = null, versions = null, versionHosts = null;
+  // shadow verification settings (server/match/verify/config.js): a bad value refuses to start
+  const verifyHub = processVerifyHub();
   const metrics = createHealthMetrics({ log });
   // match checkpoints (SP_REDIS_URL; server/persist/node.js): off unless a store is configured
   const store = persistStore || createCheckpointStore(storeConfig(), { log });
@@ -87,7 +90,8 @@ export async function startGameRuntime({ combatWorkers = 8, trialWorkers = 2, co
         return events ? sendMemberRemoved({ client: events, nodeGeneration: options.generation, removal }) : undefined;
       },
       restoreSource: store ? (checkpointId, assignmentId) => checkpoints ? checkpoints.load(checkpointId, assignmentId) : null : null,
-      getCheckpointStats: store ? () => checkpoints?.snapshot() ?? null : null });
+      getCheckpointStats: store ? () => checkpoints?.snapshot() ?? null : null,
+      getVerifyStats: () => verifyHub?.snapshot() ?? null });
     if (store) checkpoints = new NodeCheckpoints({ store, gameHost: node.gameHost, nodeId: options.nodeId, log,
       saveMs: persistSaveMs ?? (Number(process.env.SP_PERSIST_SAVE_MS) || undefined) }).start();
     metrics.start();

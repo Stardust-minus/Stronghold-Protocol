@@ -166,6 +166,8 @@
 //                     ones with the Worker's pool record, b.ext) as a b.start display replica checked by b.sync digests,
 //                     instead of streaming it (localReplica.js; DESIGN §14)
 //   opts.clientCombat  default true (env SP_COMBAT=server → false: the legacy server-run + snapshot streaming mode)
+//   opts.verifyHub     shadow verification (shadowVerify.js, verify/hub.js): default this process's hub (none in a match
+//                     host Worker or a replay); null = none
 //   opts.verify        'off' | 'sample' | 'all' (env SP_VERIFY, default 'off'): re-simulate accepted client results
 //                      ('sample': ~1 in 8, in later slices, mismatches logged; 'all': before accepting — the
 //                      server's result wins on a mismatch)
@@ -253,6 +255,8 @@
 //                    deadlines and releases, server runs, field completion
 //   localReplica.js  server-run combat: local display replicas of the field a seat is shown (g.sim, b.start, b.sync, b.ext,
 //                    stream fallback)
+//   shadowVerify.js  shadow verification: a server-run field's start / Worker result to the process hub (verify/hub.js),
+//                    g.verifyResult of a seat that verified another match's battle (DESIGN §14)
 //   rehearsal.js     the bot layout rehearsal delegated to the current host's browser: the b.rehearsal task, its answer,
 //                    its timeout and the server takeover (DESIGN §14)
 //   reports.js       b.progress / b.result (validation, held boss results), SP_VERIFY
@@ -298,6 +302,8 @@ import { MatchPrep } from './match/prep.js';
 import { MatchCombat } from './match/combat.js';
 import { MatchClientCombat } from './match/clientCombat.js';
 import { MatchLocalReplica } from './match/localReplica.js';
+import { MatchShadowVerify } from './match/shadowVerify.js';
+import { processVerifyHub } from './verify/hub.js';
 import { MatchRehearsal, REHEARSAL_ANSWER_MS } from './match/rehearsal.js';
 import { MatchReports } from './match/reports.js';
 import { MatchUnite } from './match/unitePhase.js';
@@ -694,6 +700,13 @@ export class Match {
     /** local replicas switched back to the stream, by reason (diagnostics) */
     this.localStats = { diverged: 0, requested: 0, off: 0 };
     /**
+     * Shadow verification (shadowVerify.js, verify/hub.js; DESIGN §14): this process's hub (opts.verifyHub: tests; null:
+     * none — a replay never reports), and what it noted about this match (`unranked`: phase 1 records only)
+     */
+    this.verifyHub = opts.verifyHub !== undefined ? opts.verifyHub : opts.externalReplay ? null : processVerifyHub();
+    this.verifyHub?.register(this);
+    this.shadowFlags = null;
+    /**
      * Watch preference (community report of 2026-10-06, item 56; the idea of PR #189): viewer playerId → the player it
      * last chose to watch with a manual g.watch. Every phase reset starts an eliminated human or a spectator seat on that
      * player again (its prep board, its battle field) — else the first player still in — instead of its own empty board.
@@ -733,7 +746,7 @@ export class Match {
 }
 
 // the method modules, in this order (a name defined twice is an error, never a silent override)
-for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchOfflineHold, MatchPhases, MatchSetupVote, MatchKickVote, MatchSpeedVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchLocalReplica, MatchRehearsal, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchExtensions, MatchTestCommands, MatchOffers]) {
+for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchOfflineHold, MatchPhases, MatchSetupVote, MatchKickVote, MatchSpeedVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchLocalReplica, MatchShadowVerify, MatchRehearsal, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchExtensions, MatchTestCommands, MatchOffers]) {
   for (const key of Reflect.ownKeys(part.prototype)) {
     if (key === 'constructor') continue;
     if (Object.prototype.hasOwnProperty.call(Match.prototype, key)) throw new Error(`Match.${String(key)} is defined twice`);

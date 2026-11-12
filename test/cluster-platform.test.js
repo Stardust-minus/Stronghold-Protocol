@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { RemoteGamePlatform } from '../server/cluster/platform.js';
 import { createTicketAuthority } from '../server/cluster/tickets.js';
 import { AllocationError } from '../server/cluster/directory.js';
+import { VerifyHub, mergeVerifyStats } from '../server/match/verify/hub.js';
 
 const spec = (roomCode = 'ABCD', extra = {}) => ({ roomCode, build: 'test-build', protocol: 1, seed: 1, matchNo: 1, mode: 'coop',
   difficulty: 'NORMAL', modeId: 'mode_multi_normal', revivalEnabled: false, snapshotHz: 10, spectators: [],
@@ -280,3 +281,24 @@ test('without an encoded sender the terminal frame is the same message object, a
   assert.equal(f.platform.deliverEnd(staged.assignmentId, { lastPublic: null, results: new Map([['ABCD-p1', JSON.stringify(result)]]) }, ['ABCD-p1']), true);
   assert.deepEqual(f.frames, [{ sessionId: 'ABCD-p1', frame: { t: 'cluster.terminal', assignmentId: staged.assignmentId, sessionId: 'ABCD-p1', lastPublic: null, result } }]);
 });
+
+test('shadow verification: each node\'s status `verify` is kept for the coordinator\'s /healthz, summed; a malformed one is dropped', async t => {
+  const f = await fixture(t);
+  assert.deepEqual(f.platform.verifyStats(), [], 'nodes that report none');
+  const hub = new VerifyHub({ config: { verify: true } });
+  hub.noteFieldCpu('unite', { ms: 100, ticks: 900 });
+  const snap = hub.snapshot();
+  for (const p of f.peers) {
+    const call = p.client.call;
+    p.client.call = async (op, payload) => {
+      const value = await call(op, payload);
+      return op === 'status' && !payload.assignmentId ? { ...value, verify: p.nodeId === 'game-a' ? snap : ['not', 'a', 'snapshot'] } : value;
+    };
+  }
+  await f.platform.refresh();
+  assert.equal(f.platform.verifyStats().length, 1);
+  const merged = mergeVerifyStats([snap, ...f.platform.verifyStats()]);
+  assert.equal(merged.fields.unite.ms, 200);
+  assert.equal(merged.fields.unite.fields, 2);
+});
+

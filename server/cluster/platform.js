@@ -106,6 +106,9 @@ export class RemoteGamePlatform {
     return true;
   }
 
+  /** The last shadow statistics each answering node reported (/healthz `verify`, summed: verify/hub.js mergeVerifyStats). */
+  verifyStats() { return [...this.nodes.values()].map((n) => n.verify).filter(Boolean); }
+
   async refresh() {
     if (this.closed) throw new AllocationError('PLATFORM_CLOSED');
     await Promise.all([...this.nodes.values()].map(async node => {
@@ -122,6 +125,8 @@ export class RemoteGamePlatform {
         this.directory.heartbeat(node.nodeId, { generation: status.generation, ready: status.ready, matches: status.counts.matches,
           versions: status.versions, versionHosts: status.versionHosts, versionHostLimit: status.versionHostLimit });
         this.cacheLoad(node, status);
+        // its shadow statistics (server/match/verify/hub.js snapshot), for the coordinator's /healthz `verify`
+        node.verify = status.verify && typeof status.verify === 'object' && !Array.isArray(status.verify) ? status.verify : null;
         if (previous !== null && previous !== status.generation) {
           // A new process: every actor of the old generation is gone, and so are its pending releases.
           node.orphans.clear();

@@ -5,6 +5,7 @@
 // (link-server.js): each carries all browser sessions of one ingress instead of one WebSocket per browser.
 import http from 'node:http';
 import { startServer } from '../index.js';
+import { processVerifyHub, mergeVerifyStats } from '../match/verify/hub.js';
 import { sendEncodedParts, sendSession, sendSessionEncoded } from '../net.js';
 import { isCompressibleType } from '../wsCompression.js';
 import { createLinkServer } from './link-server.js';
@@ -66,6 +67,8 @@ export async function startCoordinator({ nodes, build, protocol = PROTOCOL_VERSI
     app = await startServer({ ...options, host: options.host ?? '127.0.0.1', combatWorkers: 0, trialWorkers: 0,
       snapshotHz: options.snapshotHz ?? 10, wsCompression: 'off', allowAsyncHandlers: true, phaseMetrics: phases,
       getClusterLoad: () => platform.publicLoad(),
+      // shadow statistics / verification: the game nodes' (and this process's own matches', if any) summed
+      getVerifyStats: () => mergeVerifyStats([processVerifyHub()?.snapshot(), ...platform.verifyStats()]),
       // versionPlacement: where another official version's match runs (ClusterLobby; SP_VERSION_PLACEMENT otherwise)
       lobbyFactory: params => new ClusterLobby({ ...params, platform, ...(options.versionPlacement ? { versionPlacement: options.versionPlacement } : {}) }) });
     sink = createReceiptSink({ platform, lobby: app.lobby, offThreadBytes: receiptWorker ? RECEIPT_OFF_THREAD_BYTES : 0, metrics: phases });

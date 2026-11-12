@@ -50,7 +50,7 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
   protocol = PROTOCOL_VERSION, data, combatPool, trialPool, MatchClass, onEnd, onRemoved, afkRemoveRounds, now = Date.now, log = noopLog,
   prepareMs = 15_000, bindTimeoutMs = 5000, heartbeatMs = NET_DEFAULTS.heartbeatMs, sweepMs = 1000,
   shutdownMs = 1000, publicationMs = 20_000, ticketsAuthority, ticketIssuer = 'stronghold-cluster', ticketTtlMs = 30_000,
-  futureSkewMs = 0, getLoadState, getLoadDetails, publicSlot = null, streamMarkers = false, restoreSource = null, getCheckpointStats = null,
+  futureSkewMs = 0, getLoadState, getLoadDetails, publicSlot = null, streamMarkers = false, restoreSource = null, getCheckpointStats = null, getVerifyStats = null,
   versionHosts = null, versions = null, hostedRestoreMs = HOSTED_RESTORE_MS } = {}) {
   if (![nodeId, generation, build].every(id) || typeof host !== 'string' || !host || !int(port, 0, 65535)
     || !int(protocol, 1, Number.MAX_SAFE_INTEGER) || typeof now !== 'function') throw new TypeError('invalid game node');
@@ -265,6 +265,8 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
         publicSlot, ...cachedLoad(), health: { combat: poolHealth(combatPool), trial: poolHealth(trialPool) }, ...versionStatus() };
       // the node's checkpoint counters (server/persist/node.js), when it keeps checkpoints
       if (typeof getCheckpointStats === 'function') { try { value.checkpoints = getCheckpointStats(); } catch { value.checkpoints = null; } }
+      // shadow statistics / verification of this node's matches (server/match/verify/hub.js), summed by the coordinator
+      if (typeof getVerifyStats === 'function') { try { value.verify = getVerifyStats(); } catch { value.verify = null; } }
       if (payload.assignmentId !== undefined) {
         checkAssignment(payload);
         const assignment = gameHost.get(payload.assignmentId);

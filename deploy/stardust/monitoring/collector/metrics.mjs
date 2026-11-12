@@ -18,6 +18,28 @@
 const G = 'gauge';
 const C = 'counter';
 
+/**
+ * Shadow verification (/healthz `verify`, server/match/verify/hub.js): the vocabularies and histogram edges are copied
+ * here (the collector image holds only this directory; test/collector.test.mjs keeps them equal to the hub's). A row
+ * with any other label value is skipped, and the histograms when the edges differ.
+ */
+export const VERIFY = Object.freeze({
+  engines: ['blink', 'gecko', 'webkit', 'other'], oses: ['ios', 'android', 'windows', 'mac', 'linux', 'other'],
+  devices: ['mobile', 'desktop'], roles: ['verifier', 'owner', 'replica'],
+  kinds: ['normal_human', 'normal_ai', 'unite', 'boss', 'hidden'],
+  edgesMs: [250, 500, 1000, 2000, 5000, 10000, 20000, 60000],
+});
+function shadowKinds(field) {
+  return Object.fromEntries(VERIFY.kinds.map((k) => [k, `verify.fields.${k}.${field}`]));
+}
+const VERIFY_ROWS = {
+  sp_verify_client_results_total: 'Result hashes compared with the server\'s, per browser engine / system / device class and role.',
+  sp_shadow_replicas_total: 'Local display replicas per browser engine / system / device class: started, completed, diverged, '
+    + 'asked for the stream, switched off.',
+  sp_verify_latency_ms_le_total: 'Verifier answers at most `le` ms after the battle was handed over (cumulative).',
+  sp_verify_device_ms_le_total: 'Verifier runs that took the page at most `le` ms (cumulative).',
+};
+
 /** [name, type, help, JSON path, scale] — one unlabelled sample each. */
 const SCALARS = [
   ['sp_uptime_seconds', G, 'Seconds since the coordinator process started.', 'uptimeSec'],
@@ -68,6 +90,10 @@ const SCALARS = [
   ['sp_store_connect_failures_total', C, 'Store connection attempts that failed.', 'persistence.store.connectFailures'],
   ['sp_ws_connections_total', C, 'WebSocket connections opened (traffic counter).', 'traffic.ws.connections'],
   ['sp_ws_open', G, 'WebSocket connections open now (traffic counter).', 'traffic.ws.open'],
+  ['sp_verify_in_flight', G, 'Shadow verifications waiting now for the verifier or the server result.', 'verify.jobs.inFlight'],
+  ['sp_verify_ledger_records', G, 'Wrong results of certified pages in the last 7 days (reputation ledger; recorded only).', 'verify.ledger.records'],
+  ['sp_verify_unranked_matches_total', C, 'Matches flagged as counting for no one (a player at 4 wrong results; recorded only).',
+    'verify.ledger.unrankedMatches'],
 ];
 
 /** [name, type, help, label, { label value: JSON path }, scale] — fixed label values only. */
@@ -107,6 +133,20 @@ const FAMILIES = [
   ['sp_ws_payload_bytes_total', C, 'WebSocket message payload bytes (before compression).', 'direction', {
     out: 'traffic.ws.payloadOut', in: 'traffic.ws.payloadIn' }],
   ['sp_ws_messages_total', C, 'WebSocket messages.', 'direction', { out: 'traffic.ws.messagesOut', in: 'traffic.ws.messagesIn' }],
+  ['sp_verify_jobs_total', C, 'Shadow verifications: handed to a verifier (offered), then by outcome.', 'outcome', {
+    offered: 'verify.jobs.offered', agree: 'verify.jobs.agree', mismatch: 'verify.jobs.mismatch', timeout: 'verify.jobs.timeout',
+    error: 'verify.jobs.error', aborted: 'verify.jobs.aborted', late: 'verify.jobs.late' }],
+  ['sp_verify_skipped_total', C, 'Human normal / 联防 fields not handed to a verifier, by reason.', 'reason', {
+    rate: 'verify.jobs.skipped.rate', capacity: 'verify.jobs.skipped.capacity', no_candidate: 'verify.jobs.skipped.noCandidate',
+    no_owner: 'verify.jobs.skipped.noOwner', content: 'verify.jobs.skipped.content', send: 'verify.jobs.skipped.send' }],
+  ['sp_verify_ledger_accounts', G, 'Accounts in the reputation ledger by level (wrong results in 7 days; recorded only).', 'level', {
+    1: 'verify.ledger.level1', 2: 'verify.ledger.level2', 3: 'verify.ledger.level3', 4: 'verify.ledger.level4' }],
+  ['sp_verify_network_checks_total', C, 'Verifier searches by whether the owner\'s network was known (same-network exclusion).', 'result', {
+    checked: 'verify.ip.checked', unavailable: 'verify.ip.unavailable' }],
+  ['sp_shadow_field_cpu_seconds_total', C, 'Combat Worker step time of finished server-run fields, by field kind.', 'kind',
+    shadowKinds('ms'), 1e-3],
+  ['sp_shadow_fields_total', C, 'Finished server-run fields, by kind.', 'kind', shadowKinds('fields')],
+  ['sp_shadow_field_ticks_total', C, 'Ticks of finished server-run fields, by kind.', 'kind', shadowKinds('ticks')],
 ];
 
 /** [name, help, JSON path, expected type, value meaning 1] — 1 / 0 when the field has the expected type, absent otherwise. */
@@ -115,6 +155,7 @@ const FLAGS = [
   ['sp_performance_ready', 'The performance window is a measurement (status ready).', 'performance.status', 'string', 'ready'],
   ['sp_persistence_enabled', 'Match checkpoints are on (SP_REDIS_URL).', 'persistence.enabled', 'boolean', true],
   ['sp_store_connected', 'The checkpoint store client is connected.', 'persistence.store.connected', 'boolean', true],
+  ['sp_verify_enabled', 'Shadow verification (SP_SHADOW_VERIFY=1) runs on at least one game process.', 'verify.verify', 'boolean', true],
 ];
 
 /**
@@ -179,7 +220,8 @@ export function safeLabelValue(value, pattern = /^[0-9A-Za-z][0-9A-Za-z._+-]{0,6
 
 /** Every metric name the collector can export (for the dashboard / rules checks). */
 export function exportedMetricNames() {
-  return [...Object.keys(META), ...SCALARS.map((s) => s[0]), ...FAMILIES.map((f) => f[0]), ...FLAGS.map((f) => f[0]), ...Object.keys(NETQ_METRICS)];
+  return [...Object.keys(META), ...SCALARS.map((s) => s[0]), ...FAMILIES.map((f) => f[0]), ...FLAGS.map((f) => f[0]), ...Object.keys(NETQ_METRICS),
+    ...Object.keys(VERIFY_ROWS)];
 }
 
 /**
@@ -253,6 +295,30 @@ export function renderMetrics(state, nowMs = Date.now(), { staleAfterMs = 35_000
         buckets('sp_netq_province_copy_late_le_total', p.late, NETQ.lateEdgesMs, labels);
         netq('sp_netq_province_reconnects_total', p.reconnects, labels);
         if (finite(p.offlineMs)) netq('sp_netq_province_offline_seconds_total', p.offlineMs / 1000, labels);
+      }
+    }
+    const v = m.verify;
+    if (v && typeof v === 'object') {
+      const row = (name, value, labels) => emit(name, C, VERIFY_ROWS[name], value, labels);
+      const known = (r) => r && VERIFY.engines.includes(r.eng) && VERIFY.oses.includes(r.os) && VERIFY.devices.includes(r.dev);
+      for (const r of Array.isArray(v.clients) ? v.clients : []) {
+        if (!known(r) || !VERIFY.roles.includes(r.role)) continue;
+        for (const outcome of ['agree', 'mismatch', 'timeout', 'error']) {
+          row('sp_verify_client_results_total', r[outcome], { eng: r.eng, os: r.os, dev: r.dev, role: r.role, outcome });
+        }
+      }
+      for (const r of Array.isArray(v.replicas) ? v.replicas : []) {
+        if (!known(r)) continue;
+        for (const outcome of ['started', 'completed', 'diverged', 'requested', 'off']) {
+          row('sp_shadow_replicas_total', r[outcome], { eng: r.eng, os: r.os, dev: r.dev, outcome });
+        }
+      }
+      if (sameEdges(v.edgesMs, VERIFY.edgesMs)) {
+        for (const [name, counts] of [['sp_verify_latency_ms_le_total', v.latency], ['sp_verify_device_ms_le_total', v.deviceMs]]) {
+          if (!countsOf(counts, VERIFY.edgesMs.length + 1)) continue;
+          let acc = 0;
+          counts.forEach((n, i) => { acc += n; row(name, acc, { le: i < VERIFY.edgesMs.length ? String(VERIFY.edgesMs[i]) : '+Inf' }); });
+        }
       }
     }
   }

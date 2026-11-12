@@ -430,30 +430,45 @@ export function creditedKillsOf(player) {
 }
 
 /**
+ * The canonical JSON of a battle result: what decides its effect on the match (kills, leaks with their mods and 联防
+ * billing, layer gains, coins, damage, the units' end state) in a fixed order — resultDigest hashes it, and the
+ * consensus checks (server/match/verify/) take its SHA-256 (shared/resultHash.js). `rename` ({ [playerId]: name },
+ * optional) writes every player id of the result through that map: a verifier runs a spec whose player ids were
+ * replaced by pseudonyms (server/match/verify/pseudonym.js), and the server renames its own result the same way to
+ * compare. Without `rename` the string is exactly resultDigest's of before.
+ * @param {object} result @param {Record<string, string> | null} [rename] @returns {string}
+ */
+export function resultCanonicalJson(result, rename = null) {
+  const res = result && typeof result === 'object' ? result : {};
+  const per = res.perPlayer && typeof res.perPlayer === 'object' ? res.perPlayer : {};
+  const name = rename ? (pid) => (typeof pid === 'string' && Object.hasOwn(rename, pid) ? rename[pid] : pid) : (pid) => pid;
+  const byName = new Map(Object.keys(per).map((pid) => [name(pid), pid]));
+  const players = [...byName.keys()].sort().map((shown) => {
+    const pid = byName.get(shown);
+    const p = per[pid] || {};
+    const lg = p.layerGains && typeof p.layerGains === 'object' ? p.layerGains : {};
+    return [
+      shown,
+      p.killed | 0, p.total | 0, !!p.perfect, r4(p.coins),
+      Object.keys(lg).sort().map((k) => [k, r4(lg[k])]),
+      // mods included: a leak re-enters the 联防 with them (round multipliers, bounty id); `uniteRuntime` too — it decides
+      // whether the 联防 bills the leak, so a client must not be able to report it differently from the re-simulation
+      (Array.isArray(p.leaked) ? p.leaked : []).map((l) => `${l && l.enemyKey}|${l && l.counted === false ? 0 : 1}|${l && l.uniteRuntime ? 'x' : ''}|${name((l && l.sourcePlayerId) || '')}|${modsKey(l && l.mods)}`).sort(),
+      Math.round(Number(p.damageDealt) || 0), Math.round(Number(p.bossDamage) || 0),
+      (Array.isArray(p.unitsEnd) ? p.unitsEnd : []).map((u) => [u && u.uid, r4(u && u.hpPct), r4(u && u.sp), !!(u && u.alive)]),
+    ];
+  });
+  return JSON.stringify([res.reason ?? null, r4(res.time), res.killed | 0, res.total | 0, players]);
+}
+
+/**
  * Canonical summary of a BattleResult (everything the match consumes): used to compare a client's result with the
  * server's re-simulation (SP_VERIFY) and by the determinism tests. Returns `{ json, hash }`. The statistics-only
  * `creditedKills` (PR #509) is left out: the match never reads it for an outcome, so it must not split a client's and the
  * server's digests (a report without it falls back to the capped unitStats).
  */
 export function resultDigest(result) {
-  const res = result && typeof result === 'object' ? result : {};
-  const per = res.perPlayer && typeof res.perPlayer === 'object' ? res.perPlayer : {};
-  const players = Object.keys(per).sort().map((pid) => {
-    const p = per[pid] || {};
-    const lg = p.layerGains && typeof p.layerGains === 'object' ? p.layerGains : {};
-    return [
-      pid,
-      p.killed | 0, p.total | 0, !!p.perfect, r4(p.coins),
-      Object.keys(lg).sort().map((k) => [k, r4(lg[k])]),
-      // mods included: a leak re-enters the 联防 with them (round multipliers, bounty id)
-      // mods included: a leak re-enters the 联防 with them (round multipliers, bounty id); `uniteRuntime` too — it decides
-      // whether the 联防 bills the leak, so a client must not be able to report it differently from the re-simulation
-      (Array.isArray(p.leaked) ? p.leaked : []).map((l) => `${l && l.enemyKey}|${l && l.counted === false ? 0 : 1}|${l && l.uniteRuntime ? 'x' : ''}|${(l && l.sourcePlayerId) || ''}|${modsKey(l && l.mods)}`).sort(),
-      Math.round(Number(p.damageDealt) || 0), Math.round(Number(p.bossDamage) || 0),
-      (Array.isArray(p.unitsEnd) ? p.unitsEnd : []).map((u) => [u && u.uid, r4(u && u.hpPct), r4(u && u.sp), !!(u && u.alive)]),
-    ];
-  });
-  const json = JSON.stringify([res.reason ?? null, r4(res.time), res.killed | 0, res.total | 0, players]);
+  const json = resultCanonicalJson(result);
   let h = 2166136261;
   for (let i = 0; i < json.length; i++) { h ^= json.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   return { json, hash: h.toString(16).padStart(8, '0') };

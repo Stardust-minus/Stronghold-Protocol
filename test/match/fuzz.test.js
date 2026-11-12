@@ -59,6 +59,9 @@ function randomIntent(rng, m, ps) {
     case 'g.watch': return { t, fieldId: rng.pick(['n:p_0', 'n:p_1', 'n:ai_0', 'u', 'b1', 'b2', 'zz', '']) };
     case 'g.autoplay': return { t, on: rng() < 0.05 };
     case 'g.pause': return { t, on: rng() < 0.5 };
+    // shadow verification (match/shadowVerify.js): answers to verifications nobody handed out — the hub ignores them
+    case 'g.verifyResult': return rng() < 0.5 ? { t, vid: rng.pick(['sv0', 'svx', 'a'.repeat(64)]), rh: 'f'.repeat(64), ticks: rng.int(5000), ms: rng.int(5000) }
+      : { t, vid: 'sv1', error: true };
     // the plugin interaction windows (PLUGIN API v2, docs/PLUGINS.md §10b): random ids and slots — no window of a
     // vanilla match is ever open, so every one of them is a refusal, which is exactly what the fuzz run checks
     case 'g.offer': case 'g.offerRefresh': return { t, pluginId: 'demo', seq: rng.int(1000), offerId: rng.pick(['early-pick', 'x', 'a'.repeat(64)]), idx: rng.int(6) };

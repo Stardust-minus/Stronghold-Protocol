@@ -93,6 +93,8 @@ export const MATCH_FIELDS = Object.freeze({
     'version', 'bot', 'simPool', 'externalAI',
     // the offline hold's length (match/offlineHold.js; options / env / data)
     'offlineHoldMs',
+    // shadow verification (match/shadowVerify.js): the process's hub, from the options
+    'verifyHub',
   ]),
   transient: Object.freeze([
     '_rehearsalTasks', 'paused', '_pausedAt',
@@ -112,6 +114,8 @@ export const MATCH_FIELDS = Object.freeze({
     'offerWin', '_offerTimers', '_offerResume', '_offerResumeTimer',
     // how the bot rehearsals offered to simPool ended
     'rehearsalPoolStats',
+    // shadow verification (match/shadowVerify.js, verify/hub.js): recorded only, never checkpointed
+    'shadowFlags', '_shadowRecent',
   ]),
 });
 
@@ -140,6 +144,8 @@ export const PLAYER_FIELDS = Object.freeze({
     'intentAck',
     // the 预选盟约 notice cooldown (g.bondPlan): a restored match starts without one
     '_planAt',
+    // what the page said about itself for shadow verification (g.sim client): a reconnecting page says it again
+    'simClient',
   ]),
 });
 

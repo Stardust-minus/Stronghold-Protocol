@@ -546,6 +546,39 @@ bad value or an end it already stepped past sends it to the stream like a digest
 digest and result equal for any reply chunking; a replica fed no record drifts. Determinism across engines rests on `server/sim/detmath.js`; Chrome 148,
 Firefox 157 and Node's browser loader reproduced every digest of 480 real specs (4 full matches + golden scenarios).
 
+**Shadow verification (server-run combat; the battle-result consensus study's phases 0 and 1, the owner's decisions of
+2026-11-11; `server/match/verify/`, `server/match/match/shadowVerify.js`).** The Worker battle stays the only authority:
+everything below is counted and compared, never applied. *Phase 0* (always): per field kind (a human's normal field, an
+AI's, 联防, boss, hidden) the step time its battle took on the combat Worker (`fields.js FieldRunner` times each step,
+`combat/engine.js` reports it with the result as `stepMs`), and per browser engine / system / device class what became
+of local display replicas — started, diverged, asked for the stream, switched off, and whether the result hash a
+finished replica reports equals the server's. A page tells the server about itself with the replica declaration:
+`g.sim { local: true, client: { eng, os, dev, build, id, verify } }` (`battle/clientInfo.js`: fixed vocabularies
+blink|gecko|webkit|other, ios|android|windows|mac|linux|other, mobile|desktop; `build` the front-end build its build
+guard recorded; `id` a random id of its own in localStorage `sp.devId`; `verify` false when opted out — localStorage
+`sp.verify = '0'` or `sp.localSim = '0'` —, without a module Worker, on a stale page or a weak device: under 4 cores or
+4 GB). A replica that ran to its end without diverging sends `g.sim { battleId, rh }`: the SHA-256 (`shared/resultHash.js`)
+of the canonical JSON of its result (`sim/spec.js resultCanonicalJson`: what `resultDigest` hashed, which stays the
+32-bit FNV for diagnostics); only a seat that ran that replica is heard. *Phase 1* (`SP_SHADOW_VERIFY=1`): when a
+human's normal / 联防 field starts, the process's hub (`verify/hub.js`, one per game process) may hand its spec to
+ONE seat of another official match of the same version on that process — connected, `verify`, the owner's build, not
+the owner's device, not the owner's network (/24, /64 — where the process has client addresses; a cluster game node
+has not and counts it), not busy (one at a time), at most `SP_SHADOW_VERIFY_PER_ROUND` per round of its own match, not
+resting (10 min after a timeout or a late answer), and *certified*: its own replicas agreed with the server before (its
+sim is the server's sim, and it has played a round). The owner must be certified too. The pick is `crypto.randomInt` at
+battle start. S→C `b.verify { vid, spec, deadline, cap }`: the spec pseudonymized (`verify/pseudonym.js`: every player
+id — also inside other strings such as the field id — becomes `vaa`, `vab`, … in the ids' code-unit order, the battle id
+becomes `vid`), `cap` the server's hard cap in ticks. The page runs it in a module Worker (`battle/verify.js`,
+`battle/verifyWorker.js`, on the page's own official data) and answers C→S `g.verifyResult { vid, rh, ticks, ms }` or
+`{ vid, error: true }`; the hub compares `rh` with the SHA-256 of the server's own result renamed the same way, when
+both are in. A browser hashes with `crypto.subtle` (a secure context) or `shared/sha256.js` (a LAN page), the server
+with `node:crypto` — the same digest (tests: Node, and a real Chrome). Mismatches of certified seats go to the
+reputation ledger (`verify/ledger.js`): proven wrong results with the account (player id), the device id and the time;
+a person's count is the last 7 days' records naming their account or their device; at 3 the rules would stop accepting
+their results, at 4 their match would be flagged `shadowFlags.unranked` — in phase 1 all of it is recorded and logged
+only. `/healthz` `verify` carries the counters (a coordinator: its nodes' summed, from the node `status` RPC);
+the monitoring collector exports them as `sp_shadow_*` / `sp_verify_*`. Settings: README (`SP_SHADOW_VERIFY*`).
+
 **Why:** like the official client, each player's browser simulates its own battle locally and uploads the result. The server no longer paces battles in real time nor streams `b.snap`/`b.ev` for combat, so a low-power host (e.g. a Windows mini PC) is enough, and combat rendering has no network jitter. Measured (4 human seats, HARD, real sim, in-process): server CPU per combat round ≈ 170–360 ms → ≈ 1 ms; server→client traffic ≈ 2–3.3 MB → ≈ 0.25 MB per round. Browser cost ≈ 0.05–0.1 ms per tick (≈ 3–6 ms per real second at 2×) on the main thread (no worker needed).
 
 **Modes (upstream / legacy client path).** `Match` option `clientCombat` (constructor default **on**; env `SP_COMBAT=server` → server-run + streaming, the active Stardust configuration above). `m.public.combatMode` = `'client' | 'server'` tells the UI which one runs.

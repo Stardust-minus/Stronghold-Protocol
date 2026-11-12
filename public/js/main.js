@@ -74,6 +74,7 @@ import { LoadoutHost } from './screens/loadout.js';
 import { StatsHost, useStatsOpen } from './screens/stats.js';
 import { CoveredVersionVote } from './ui/versionVote.js';
 import { installRehearsal } from './battle/rehearsal.js';
+import { installVerify } from './battle/verify.js';
 import { recordResult, recordQuit, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync, installPlayerCardSync, installSettingsViews, loadoutStore } from './ui/loadoutSync.js';
 import { startBuildGuard } from './ui/buildGuard.js';
@@ -608,6 +609,8 @@ async function boot() {
   // browser that cannot run one answers `error` and the server rehearses itself. Nothing happens while the server
   // does not delegate. A gameplay-plugin room is never offered (the server keeps that rehearsal).
   rehearsal = installRehearsal({ net });
+  // shadow verification (battle/verify.js): battles of other matches the server hands this page, in a Worker
+  installVerify({ net });
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   // a cosmetic plugin's sound that will not load falls back like its art (content.js, DESIGN §32 P1a)

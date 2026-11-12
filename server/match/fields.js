@@ -208,6 +208,8 @@ export class FieldRunner {
       const b = f.battle;
       // the pool other fields changed since this field's previous step (CombatEngine: local display replicas, b.ext)
       if (this.beforeStep) this.beforeStep(f);
+      // the field's own step time (shadow statistics: CPU by field kind, server/match/verify/hub.js)
+      const t0 = perfNow();
       try {
         b.step();
       } catch (e) {
@@ -215,6 +217,7 @@ export class FieldRunner {
         this.m.reportError(`field ${f.fieldId} step`, e);
         this._forceField(f, 'timeout');
       }
+      f.stepMs = (f.stepMs || 0) + (perfNow() - t0);
       // before this tick's snapshot reads anything lazily (local display replica digests, syncHash.js)
       if (this.afterStep) this.afterStep(f);
       if (b.finished) { f.live = false; this.m.markPublic(); }

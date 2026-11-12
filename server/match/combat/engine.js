@@ -32,7 +32,7 @@ class EngineRunner extends FieldRunner {
 
 export class CombatEngine {
   constructor({ specs, boss = null, wireFrames = false, coalesceFrames = false, damageBoard = false, snapshotHz = 20, gameSpeed = GAME_SPEED,
-    metaOnDemand = false, terminalOnce = false },
+    metaOnDemand = false, terminalOnce = false, stepTimes = false },
     { data, log = QUIET, BattleClass, now = () => performance.now(), cloneOutput = true } = {}) {
     if (!Array.isArray(specs) || specs.length > MAX_PLAYER_CAPACITY) throw new TypeError(`specs must contain at most ${MAX_PLAYER_CAPACITY} fields`);
     // A leader phase remains ONE worker / ONE SharedBossPool, with at most ten pair fields.
@@ -57,6 +57,9 @@ export class CombatEngine {
     // shared Boss pool (its final view can no longer change) sends its terminal frame/result once, not every reply.
     this.metaOnDemand = metaOnDemand === true;
     this.terminalOnce = terminalOnce === true;
+    // with each field's result its step time on this Worker (shadow statistics; WorkerFieldRunner opts in — a timing,
+    // so a DTO compared across runs leaves it out)
+    this.stepTimes = stepTimes === true;
     this.metaFields = new Set();
     this.stateOutput = false;
     // A Worker posts each reply synchronously (postMessage copies it then); inline callers keep their isolated copy.
@@ -317,6 +320,8 @@ export class CombatEngine {
         killed: Number(b.killed) || 0, total: Number(b.total) || 0,
         resolved: Number.isFinite(b.resolved) ? Math.max(0, Math.min(Number(b.total) || 0, Math.trunc(b.resolved))) : null,
         progress, left, layerGains: battleLayerGains(b), errors: this.diagnostics.get(f.fieldId), ...(result ? { result } : {}),
+        // with the result: the field's step time on this Worker (shadow statistics, server/match/verify/hub.js)
+        ...(result && this.stepTimes ? { stepMs: Math.round((f.stepMs || 0) * 1000) / 1000 } : {}),
         ...(this.damageBoard && sendResult ? { damageRows: f.damageRows } : {}),
       };
     });

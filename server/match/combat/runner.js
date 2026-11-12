@@ -121,10 +121,12 @@ export class WorkerFieldRunner {
       this.inflight = true;
       this.session = this.m.combatPool.create({ specs: this.fields.map((f) => f.spec), boss: this.boss,
         wireFrames: true, coalesceFrames: true, damageBoard: true, snapshotHz: this.m.snapshotHz, gameSpeed: this.m.gameSpeed,
-        metaOnDemand: true, terminalOnce: true }, {
+        metaOnDemand: true, terminalOnce: true, stepTimes: true }, {
         onFailure: (e) => this._fail(e),
       });
       this.session.ready.then((out) => this._receive(out, true), (e) => this._fail(e));
+      // shadow verification (match/shadowVerify.js): a verifier of another match may run these specs too
+      for (const f of this.fields) this.m._shadowStart?.(f);
       // Real-time phases share the pool's one pacing tick (same INTERVAL_MS cadence): every phase's command of a tick
       // reaches its Worker in one wire turn. Custom/test schedulers keep their own interval.
       if (this.m.sched instanceof RealScheduler && typeof this.m.combatPool.pace === 'function') {
@@ -251,6 +253,8 @@ export class WorkerFieldRunner {
       f.live = view.live;
       f.battle.update(view);
       this.m._syncNormalLayers?.(f, f.battle.layerGains);
+      // shadow verification (match/shadowVerify.js): the authoritative result, once, with the field's Worker step time
+      if (view.result && !f.shadowSeen) this.m._shadowResult?.(f, view.result, view.stepMs);
     }
     // Local display replicas compare these digests with their own (DESIGN §14 "Local display replicas").
     for (const sync of out.syncs || []) {

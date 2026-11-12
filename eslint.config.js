@@ -9,6 +9,7 @@
 
 import js from '@eslint/js';
 import globals from 'globals';
+import { simClosure } from './tools/simClosure.mjs';
 
 const unused = ['warn', {
   varsIgnorePattern: '^_',
@@ -89,8 +90,9 @@ export default [
   },
   {
     // The sim runs in every player's browser and on the server, and must give the same bits everywhere. ECMA-262
-    // leaves these Math functions (and **) implementation-approximated: engines differ in the last bits.
-    files: ['server/sim/**/*.js'],
+    // leaves these Math functions (and **) implementation-approximated: engines differ in the last bits. Not only
+    // server/sim/: every module a browser loads to simulate (tools/simClosure.mjs — shared/ modules the sim imports).
+    files: ['server/sim/**/*.js', ...simClosure().filter((f) => !f.startsWith('server/sim/'))],
     rules: {
       'no-restricted-properties': ['error', ...APPROXIMATED_MATH.map((property) => ({
         object: 'Math', property, message: 'implementation-approximated (engines differ in the last bits): use server/sim/detmath.js',

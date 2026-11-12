@@ -23,7 +23,16 @@ const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= 
 const isStr = (v, max = 64) => typeof v === 'string' && v.length <= max;
 const isBool = (v) => typeof v === 'boolean';
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_\-.:]+$/.test(v);
-const isUid = (v) => isInt(v, 1, 2 ** 31);
+/** A 64-hex-digit SHA-256 (shared/resultHash.js). */
+const isHash64 = (v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+const SIM_CLIENT_KEYS = new Set(['eng', 'os', 'dev', 'build', 'id', 'verify']);
+/** g.sim `client`: { eng, os, dev, build?, id?, verify } — fixed vocabularies, so a label set stays finite */
+const isSimClient = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).every((k) => SIM_CLIENT_KEYS.has(k))
+  && ['blink', 'gecko', 'webkit', 'other'].includes(v.eng) && ['ios', 'android', 'windows', 'mac', 'linux', 'other'].includes(v.os)
+  && (v.dev === 'mobile' || v.dev === 'desktop') && typeof v.verify === 'boolean'
+  && (v.build === undefined || v.build === null || (typeof v.build === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(v.build)))
+  && (v.id === undefined || v.id === null || (typeof v.id === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(v.id)));
+const isUid = (v) => isInt(v, 1, 0x80000000);
 const isNum = (v, lo = -Infinity, hi = Infinity) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const isPlain = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
 const optional = (check) => (v) => v === undefined || check(v);
@@ -650,13 +659,13 @@ export const C2S = {
   // starts (WRONG_PHASE then). Answered by the room-wide push room.likes
   'room.like': { playerId: isId },
   'room.start': {},
-  'room.rerollSetup': { setupRevision: (v) => isInt(v, 0, 2 ** 31) },
-  'room.cancelReroll': { voteId: (v) => isInt(v, 1, 2 ** 31) },
+  'room.rerollSetup': { setupRevision: (v) => isInt(v, 0, 0x80000000) },
+  'room.cancelReroll': { voteId: (v) => isInt(v, 1, 0x80000000) },
   // official versions (DESIGN §35.23, M1; before the match): the host proposes the room's version; the seated humans vote
   // like 重刷 (unanimous, a decline cancels, a lone human switches at once); room.state.version / versionVote
   'room.proposeVersion': { version: isVersionId },
-  'room.versionVote': { voteId: (v) => isInt(v, 1, 2 ** 31), agree: isBool },
-  'room.cancelVersionVote': { voteId: (v) => isInt(v, 1, 2 ** 31) },
+  'room.versionVote': { voteId: (v) => isInt(v, 1, 0x80000000), agree: isBool },
+  'room.cancelVersionVote': { voteId: (v) => isInt(v, 1, 0x80000000) },
   // operator loadout (DESIGN §16): stored per session/seat; accepted until the match leaves INFO_CHECK — `ops` (0.2.2):
   // the per-operator 潜能 / 练度 (absent = none set: every operator at 潜能 6, 精英2 Lv.60)
   'room.loadout': { entries: isLoadoutEntries, ops: isLoadoutOps, $optional: ['ops'] },
@@ -697,15 +706,15 @@ export const C2S = {
   'room.contentReady': { cs: isContentHash, ok: isBool, $optional: ['ok'] },
 
   // match
-  'g.infoReady': { setupRevision: (v) => isInt(v, 0, 2 ** 31), $optional: ['setupRevision'] },
+  'g.infoReady': { setupRevision: (v) => isInt(v, 0, 0x80000000), $optional: ['setupRevision'] },
   // 自选候补 (feedback #114, shared/diy.js resolveDiySlots): in the briefing (INFO_CHECK) the candidates of one tier of the
   // player's preset that fill its slots — exactly min(slots, candidates) distinct charIds of m.private diyChoice
   'g.diyChoose': { tier: (v) => isInt(v, 1, 9), charIds: (v) => isList(v, 4, isId) },
-  'g.rerollVote': { voteId: (v) => isInt(v, 1, 2 ** 31), agree: isBool },
+  'g.rerollVote': { voteId: (v) => isInt(v, 1, 0x80000000), agree: isBool },
   // 投票移出 (server/match/match/kickVote.js): propose removing an offline teammate under AI takeover (SP_DRAFT / PREP),
   // and answer the open vote (m.public kickVote.id); the proposer's agree:false withdraws it
   'g.kickVote': { targetId: isId },
-  'g.kickBallot': { voteId: (v) => isInt(v, 1, 2 ** 31), agree: isBool },
+  'g.kickBallot': { voteId: (v) => isInt(v, 1, 0x80000000), agree: isBool },
   // 战斗 2 倍速 (server/match/match/speedVote.js): this seat's standing vote; m.public speedVote is the count. Takes effect
   // when a battle starts, never during one
   'g.speedVote': { agree: isBool },
@@ -759,13 +768,24 @@ export const C2S = {
   // the b.start spec instead of being streamed them (sent once it has the sim loaded, and after a reconnect);
   // `battleId` + `stream: true` — its replica of that battle diverged from a b.sync digest (`tick`) or cannot keep up:
   // the server streams that field to it from then on
+  // shadow verification (DESIGN §14 "Shadow verification"; nothing of it changes the match): `client` — what the page
+  // says about itself (engine / system / device class, its front-end build, a random device id of its own, whether it
+  // verifies battles of other matches); `battleId` + `rh` — the result hash (shared/resultHash.js) its replica of that
+  // battle ended with
   'g.sim': {
-    local: isBool, battleId: isId, stream: (v) => v === true, tick: (v) => isInt(v, 0, 1e7),
-    $optional: ['local', 'battleId', 'stream', 'tick'],
+    local: isBool, battleId: isId, stream: (v) => v === true, tick: (v) => isInt(v, 0, 1e7), rh: isHash64, client: isSimClient,
+    $optional: ['local', 'battleId', 'stream', 'tick', 'rh', 'client'],
+  },
+  // shadow verification: this page ran the b.verify { vid, spec, deadline } a match of another room handed it, in a Worker —
+  // the result hash of its run (`ticks`, `ms`: how long it took), or `error: true` (it could not run it). The server
+  // compares it with its own result and changes nothing.
+  'g.verifyResult': {
+    vid: isId, rh: isHash64, ticks: (v) => isInt(v, 0, 1e7), ms: (v) => isNum(v, 0, 1e7), error: (v) => v === true,
+    $optional: ['rh', 'ticks', 'ms', 'error'],
   },
   // the stats the own board's units start their next battle with (user playtest #4 item 7; prep phases): answered by
   // the push m.unitStats { seq, round, units: [unitStatsEntry] }; `seq` is echoed so the client keeps the newest answer
-  'g.unitStats': { seq: (v) => isInt(v, 0, 2 ** 31), $optional: ['seq'] },
+  'g.unitStats': { seq: (v) => isInt(v, 0, 0x80000000), $optional: ['seq'] },
   'g.leave': {},
   // host test commands (DESIGN §34.8 phase 2). The server applies them only in a test match. `args` is checked
   // again by shared/testMode.js parseTestArgs (ids, bounds). Unknown keys inside args fail there, not here.
@@ -872,6 +892,10 @@ export const S2C = [
   // b.rehearsalCancel { taskId } — the server dropped that task (it timed out, the host changed, the prep ended):
   // the executor drops it too, and only a running simulation (the Worker) is really stopped
   'b.rehearsal', 'b.rehearsalCancel',
+  // shadow verification (DESIGN §14 "Shadow verification"): b.verify { vid, spec, deadline } — a battle of ANOTHER match
+  // on this server (its spec pseudonymized: no player id of that match, the battle id is `vid`): run it off the page's
+  // main thread within `deadline` ms and answer g.verifyResult; nothing is shown
+  'b.verify',
   // server-run combat streaming (legacy / SP_COMBAT=server only)
   'b.snap', 'b.ev',
   // Low-frequency absolute field scores: b.damage { fieldId, kind, round, gt, owners } (same owner rows as m.damage).
@@ -887,7 +911,7 @@ export function validateC2S(msg) {
   if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return 'not an object';
   const spec = typeof msg.t === 'string' && Object.hasOwn(C2S, msg.t) ? C2S[msg.t] : null;
   if (!spec) return `unknown type ${String(msg.t).slice(0, 32)}`;
-  if (msg.rid != null && !isInt(msg.rid, 0, 2 ** 31)) return 'bad rid';
+  if (msg.rid != null && !isInt(msg.rid, 0, 0x80000000)) return 'bad rid';
   const optional = spec.$optional || [];
   for (const [k, check] of Object.entries(spec)) {
     if (k === '$optional') continue;

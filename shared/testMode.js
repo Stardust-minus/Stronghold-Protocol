@@ -163,7 +163,7 @@ export function parseTestArgs(cmd, args) {
     case 'token': {
       const r = exact(args, ['id', 'ownerUid']);
       if (r.error) return r;
-      if (!isId(r.args.id) || !isInt(r.args.ownerUid, 1, 2 ** 31)) return { error: 'BAD_TARGET' };
+      if (!isId(r.args.id) || !isInt(r.args.ownerUid, 1, 0x80000000)) return { error: 'BAD_TARGET' };
       return { args: { id: r.args.id, ownerUid: r.args.ownerUid } };
     }
     case 'lp':

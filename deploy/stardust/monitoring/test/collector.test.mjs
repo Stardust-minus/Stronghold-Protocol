@@ -6,7 +6,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
-import { renderMetrics, escapeLabel, safeLabelValue, exportedMetricNames, FAILURE_REASONS, NETQ } from '../collector/metrics.mjs';
+import { renderMetrics, escapeLabel, safeLabelValue, exportedMetricNames, FAILURE_REASONS, NETQ, VERIFY } from '../collector/metrics.mjs';
+import { CLIENT_ENGINES, CLIENT_OSES, CLIENT_DEVICES, CLIENT_ROLES, FIELD_KINDS, VERIFY_EDGES_MS, VerifyHub } from '../../../../server/match/verify/hub.js';
 import { NETQ_ISPS, NETQ_DEVICES, NETQ_LANES, NETQ_PROVINCES, NETQ_RTT_EDGES_MS, NETQ_LATE_EDGES_MS } from '../../../../shared/netQuality.js';
 import { createCollector, fetchHealthz, parseConfig, startServer, validateHealthzUrl, PollError, MAX_BYTES } from '../collector/index.mjs';
 
@@ -319,4 +320,36 @@ test('netq: groups become cumulative le buckets and counters with fixed labels; 
   assert.equal(withProv.get('sp_netq_province_seconds_total').length, 1, 'only mainland province codes and known ISPs');
   const other = parse(renderMetrics(fresh({ ...sample, netq: { ...netq, rttEdgesMs: [10, 20] } }), NOW));
   assert.equal(other.get('sp_netq_reports_total').length, 0, 'different bucket edges: nothing exported');
+});
+
+test('verify: the collector copy of the shadow verification vocabularies equals server/match/verify/hub.js', () => {
+  assert.deepEqual(VERIFY, { engines: [...CLIENT_ENGINES], oses: [...CLIENT_OSES], devices: [...CLIENT_DEVICES], roles: [...CLIENT_ROLES],
+    kinds: [...FIELD_KINDS], edgesMs: [...VERIFY_EDGES_MS] });
+});
+
+test('verify: counters, rows with fixed labels and cumulative buckets; foreign labels or edges are skipped', () => {
+  const hub = new VerifyHub({ config: { verify: true } });
+  hub.noteFieldCpu('boss', { ms: 2500, ticks: 3000 });
+  hub.noteReplica({ eng: 'webkit', os: 'ios', dev: 'mobile' }, 'diverged');
+  const verify = hub.snapshot();
+  Object.assign(verify.jobs, { offered: 9, agree: 6, mismatch: 1 });
+  verify.jobs.skipped.noCandidate = 3;
+  verify.latency = [1, 2, 0, 0, 0, 0, 0, 0, 4];
+  verify.clients = [{ eng: 'blink', os: 'android', dev: 'mobile', role: 'verifier', agree: 6, mismatch: 1, timeout: 2, error: 0 },
+    { eng: 'evil"', os: 'android', dev: 'mobile', role: 'verifier', agree: 1, mismatch: 0, timeout: 0, error: 0 }];
+  const m = parse(renderMetrics(fresh({ ...sample, verify }), NOW));
+  assert.equal(m.one('sp_verify_enabled'), 1);
+  assert.equal(m.one('sp_verify_jobs_total', { outcome: 'offered' }), 9);
+  assert.equal(m.one('sp_verify_skipped_total', { reason: 'no_candidate' }), 3);
+  assert.equal(m.one('sp_shadow_field_cpu_seconds_total', { kind: 'boss' }), 2.5);
+  assert.equal(m.one('sp_shadow_field_ticks_total', { kind: 'boss' }), 3000);
+  assert.equal(m.one('sp_shadow_replicas_total', { eng: 'webkit', os: 'ios', dev: 'mobile', outcome: 'diverged' }), 1);
+  assert.equal(m.one('sp_verify_client_results_total', { eng: 'blink', os: 'android', dev: 'mobile', role: 'verifier', outcome: 'timeout' }), 2);
+  assert.equal(m.get('sp_verify_client_results_total').length, 4, 'only the well-formed row (four outcomes)');
+  assert.deepEqual(['250', '500', '+Inf'].map((le) => m.one('sp_verify_latency_ms_le_total', { le })), [1, 3, 7]);
+  for (const name of ['sp_verify_jobs_total', 'sp_verify_client_results_total', 'sp_shadow_replicas_total', 'sp_verify_latency_ms_le_total']) {
+    assert.ok(exportedMetricNames().includes(name), name);
+  }
+  const other = parse(renderMetrics(fresh({ ...sample, verify: { ...verify, edgesMs: [1, 2] } }), NOW));
+  assert.equal(other.get('sp_verify_latency_ms_le_total').length, 0, 'different bucket edges: no histogram');
 });

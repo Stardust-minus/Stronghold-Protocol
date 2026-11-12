@@ -21,6 +21,15 @@
 //
 // Kept dependency-free and injectable (fetch / reload / inMatch / timers) so test/ui/buildGuard.test.js can drive it.
 
+/**
+ * The build this page runs as the first successful check recorded it (null before it, or without a running guard), and
+ * whether a newer one was confirmed since: shadow verification (battle/clientInfo.js) tells the server its build, and a
+ * stale page verifies no one.
+ */
+let pageBuildTag = null, pageBuildStale = false;
+export const pageBuild = () => pageBuildTag;
+export const pageStale = () => pageBuildStale;
+
 /** How often a page re-asks the server for its build tag. */
 export const BUILD_CHECK_MS = 60_000;
 /** Give up on a `/client-build` that does not answer: a request left hanging must not stop the guard from ever checking again. */
@@ -106,7 +115,7 @@ export function startBuildGuard(o = {}) {
     finally { pending = false; }
     if (stopped) return { status: 'stopped', build: null };
     if (r.status === 'unknown') { candidate = null; seen = 0; return r; }   // review: a failed check never reloads
-    if (r.status === 'first') { known = r.build; return r; }
+    if (r.status === 'first') { known = r.build; pageBuildTag = r.build; return r; }
     if (r.status === 'current') { candidate = null; seen = 0; return r; }
     // a different build: only BUILD_CONFIRMATIONS checks in a row with the SAME tag count (a deploy that is still
     // copying files exposes a tag that keeps moving, and must not ping-pong the page)
@@ -114,6 +123,7 @@ export function startBuildGuard(o = {}) {
     if (seen < BUILD_CONFIRMATIONS) return { status: 'new', build: r.build };
     const first = !stale;
     stale = true;
+    pageBuildStale = true;
     const waiting = inMatch();
     if (first) { try { o.onStale?.({ build: r.build, known, waiting }); } catch { /* ignore */ } }
     if (!waiting) reloadNow();

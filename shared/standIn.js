@@ -38,7 +38,50 @@ export function unitForm(backups, charId, status) {
   return (forms && Object.prototype.hasOwnProperty.call(forms, statusKey(status)) && forms[statusKey(status)]) || null;
 }
 
-const byNatural = (a, b) => String(a).localeCompare(String(b), 'en', { numeric: true });
+/** The rank of a character class in naturalCompare: punctuation and symbols, then digits, then letters (ASCII). */
+const charRank = (c) => (c >= 48 && c <= 57 ? 1 : (c >= 65 && c <= 90) || (c >= 97 && c <= 122) ? 2 : 0);
+const lower = (c) => (c >= 65 && c <= 90 ? c + 32 : c);
+
+/**
+ * Natural order of two ids without the host's collation (the sim runs in every browser and must sort the same
+ * everywhere — `localeCompare` reads the engine's ICU data): digit runs compare as numbers (leading zeros broken
+ * by length), other characters punctuation < digits < letters, letters case-insensitively and then by code unit.
+ * On the ids the data has (summon ids: `[0-9_a-z]`) this is the order `localeCompare(…, 'en', { numeric: true })` gave
+ * (test/standin-sort.test.js checks every token list of the data).
+ * @param {unknown} a @param {unknown} b @returns {number}
+ */
+export function naturalCompare(a, b) {
+  const x = String(a), y = String(b);
+  let i = 0, j = 0, tie = 0;
+  while (i < x.length && j < y.length) { // loop-cap: both indexes only grow, bounded by the lengths
+    const cx = x.charCodeAt(i), cy = y.charCodeAt(j);
+    if (charRank(cx) === 1 && charRank(cy) === 1) {
+      let ei = i, ej = j;
+      while (ei < x.length && charRank(x.charCodeAt(ei)) === 1) ei++; // loop-cap: bounded by x.length
+      while (ej < y.length && charRank(y.charCodeAt(ej)) === 1) ej++; // loop-cap: bounded by y.length
+      let si = i, sj = j;
+      while (si < ei - 1 && x.charCodeAt(si) === 48) si++; // loop-cap: bounded by the run
+      while (sj < ej - 1 && y.charCodeAt(sj) === 48) sj++; // loop-cap: bounded by the run
+      if (ei - si !== ej - sj) return ei - si - (ej - sj);
+      for (let k = 0; k < ei - si; k++) {
+        const d = x.charCodeAt(si + k) - y.charCodeAt(sj + k);
+        if (d) return d;
+      }
+      if (!tie) tie = (ei - i) - (ej - j);
+      i = ei; j = ej;
+      continue;
+    }
+    const r = charRank(cx) - charRank(cy);
+    if (r) return r;
+    const d = lower(cx) - lower(cy);
+    if (d) return d;
+    if (!tie) tie = cx - cy;
+    i++; j++;
+  }
+  return (x.length - i) - (y.length - j) || tie;
+}
+
+const byNatural = naturalCompare;
 
 /**
  * A chess record fielded with the character of `unit` at `form`, with the selected skill and module (a new object).

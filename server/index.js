@@ -50,6 +50,7 @@ import { createOnlineLimit } from './onlineLimit.js';
 import { createOwnerFile } from './ownerFile.js';
 import { parseSnapshotHz } from './match/fields.js';
 import { createPersistence } from './persist/index.js';
+import { processVerifyHub } from './match/verify/hub.js';
 
 export {
   ROOT, WS_MAX_PAYLOAD, DATA_SHIM_JS, MIME, COMPRESSIBLE, BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag,
@@ -124,6 +125,8 @@ export async function startServer(opts = {}) {
   const { port, host } = listenAddress(opts);
   const wsCompression = resolveWsCompression(opts.wsCompression ?? process.env.SP_WS_COMPRESSION ?? 'off');
   const snapshotHz = parseSnapshotHz(opts.snapshotHz ?? process.env.SP_SNAPSHOT_HZ);
+  // shadow verification settings (server/match/verify/config.js): a bad value refuses to start
+  const verifyHub = processVerifyHub();
   const combatWorkers = parseCombatWorkers(opts.combatWorkers ?? process.env.SP_COMBAT_WORKERS);
   const trialSetting = opts.trialWorkers ?? process.env.SP_TRIAL_WORKERS;
   const requestedTrials = parseTrialWorkers(trialSetting);
@@ -252,7 +255,10 @@ export async function startServer(opts = {}) {
   const traffic = createTrafficCounter();
   const health = { startedAt, network, registry, lobby, content, browserBuild, combatPool, trialPool, trialStartupFailed,
     getHealthMetrics: () => healthMetrics, traffic, assetIndex, views, trusted: trustedRuntime?.health, versions, versionHosts,
-    persistence: persistence ? () => persistence.snapshot() : null };
+    persistence: persistence ? () => persistence.snapshot() : null,
+    getVerifyStats: opts.getVerifyStats ?? (() => verifyHub?.snapshot() ?? null) };
+  // the "same network" exclusion of shadow verification: this process has the client addresses (a coordinator's matches)
+  verifyHub?.setAddressResolver((playerId) => registry.byPlayerId?.get(playerId)?.addr ?? null);
   const server = http.createServer(createRequestHandler({ serveStatic, csp: process.env.SP_CSP === 'off' ? null : siteCsp(publicDir), health, log,
     trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
   server.on('clientError', answerClientError);

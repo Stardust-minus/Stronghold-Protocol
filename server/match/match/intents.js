@@ -66,6 +66,8 @@ export class MatchIntents {
       case 'g.pause': return this.setPause(ps, !!msg.on);
       // server-run combat: this browser runs its own fields locally / its replica wants the stream (localReplica.js)
       case 'g.sim': return this.setLocalSim(ps, msg);
+      // shadow verification (shadowVerify.js): this seat's page verified a battle of another match on this process
+      case 'g.verifyResult': return this.verifyResult(ps, msg);
       // the stats the board's units start their next battle with (the detail card in prep, user playtest #4 item 7)
       case 'g.unitStats': return this.unitStats(ps, msg.seq ?? null);
       case 'g.leave': this.onLeave(ps.playerId); return OK;

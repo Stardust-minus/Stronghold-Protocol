@@ -4,10 +4,11 @@
 // within 1 ulp against exact BigInt references, and no sim file calls an implementation-approximated Math function.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
-import { join, dirname, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hypot, powi, sin, cos, atan2 } from '../../server/sim/detmath.js';
+import { simClosure } from '../../tools/simClosure.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -126,18 +127,33 @@ test('sin, cos and atan2 stay within 2 ulp of the engine and keep their symmetri
   }
 });
 
-test('the sim never calls an implementation-approximated Math function', () => {
+/** The code of a module without its comments (a doc comment may name Math.sin). */
+const codeOf = (rel) => readFileSync(join(ROOT, rel), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+
+test('the sim never calls an implementation-approximated Math function (its whole import closure, shared/ too)', () => {
   const APPROX = /\bMath\s*\.\s*(acos|acosh|asin|asinh|atan|atanh|atan2|cbrt|cos|cosh|exp|expm1|hypot|log|log1p|log10|log2|pow|sin|sinh|tan|tanh)\b/;
-  const files = [];
-  const walk = (dir) => { for (const e of readdirSync(dir, { withFileTypes: true })) { const p = join(dir, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.js')) files.push(p); } };
-  walk(join(ROOT, 'server/sim'));
-  assert.ok(files.length > 50);
+  const files = simClosure(ROOT);
+  assert.ok(files.length > 300 && files.some((f) => f.startsWith('shared/')), `closure of ${files.length} modules`);
   const bad = [];
-  for (const f of files) {
-    const rel = relative(ROOT, f).replaceAll('\\', '/');
+  for (const rel of files) {
     if (rel === 'server/sim/detmath.js') continue;
-    const code = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+    const code = codeOf(rel);
     if (APPROX.test(code)) bad.push(`${rel}: ${code.match(APPROX)[0]}`);
   }
   assert.deepEqual(bad, [], 'use server/sim/detmath.js');
+});
+
+test('the sim closure reads no clock, no Math.random, no locale collation and no ** (results equal on every engine)', () => {
+  // Intl in shared/i18n.js formats text only (plural rules, display names), never a battle value
+  const RULES = [
+    [/\bMath\s*\.\s*random\b/, 'Math.random'], [/\bDate\s*\.\s*now\b|\bnew\s+Date\b/, 'Date'],
+    [/\bperformance\s*\.\s*now\b/, 'performance.now'], [/\blocaleCompare\b/, 'localeCompare'],
+    [/\bIntl\s*\./, 'Intl', new Set(['shared/i18n.js'])], [/[\w)\]]\s*\*\*\s*[\w(]/, '**'],
+  ];
+  const bad = [];
+  for (const rel of simClosure(ROOT)) {
+    const code = codeOf(rel).replace(/(['"`])(?:\\.|(?!\1)[^\\\n])*\1/g, '""');
+    for (const [re, what, allowed] of RULES) if (!(allowed && allowed.has(rel)) && re.test(code)) bad.push(`${rel}: ${what}`);
+  }
+  assert.deepEqual(bad, []);
 });
