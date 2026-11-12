@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>决策回放</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;margin:16px;color:#1f2328;background:#fff;font-size:13px}
+h1{font-size:18px;margin:0 0 8px}select,button{font:inherit;padding:3px 8px;margin:2px}
+.nav button.on{background:#2f6fdd;color:#fff;border-color:#2f6fdd}.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+.col{border:1px solid #d0d7de;border-radius:6px;padding:8px 10px;min-width:0}.col h3{margin:0 0 6px;font-size:14px}
+.kv span{margin-right:12px}.sec{margin:6px 0}.sec b{display:inline-block;min-width:48px;color:#59636e;font-weight:600}
+.chip{display:inline-block;border:1px solid #d0d7de;border-radius:4px;padding:0 5px;margin:1px 2px;white-space:nowrap}
+.sold{text-decoration:line-through;color:#8c959f}.gold{color:#b08800}.act{border-left:3px solid #d0d7de;padding:3px 8px;margin:5px 0}
+.act .c{font-weight:600}.bar{display:flex;align-items:center;gap:6px;font-size:12px}.bar i{display:inline-block;height:8px;background:#9ab8ef}
+.bar.ch i{background:#2f6fdd}.dim{color:#8c959f}.out{background:#f6f8fa;border-radius:6px;padding:6px 10px;margin-top:10px}
+details summary{cursor:pointer;color:#59636e}.ok{color:#1a7f37}.bad{color:#cf222e}
+@media (prefers-color-scheme: dark){body{background:#0d1117;color:#e6edf3}.col,.chip{border-color:#30363d}.out{background:#161b22}}
+</style></head><body>
+<h1>决策回放 <span class="dim">· 策略（贪心）与规则版 legacy 同种子对照</span></h1>
+<div><select id="pick"></select> <span id="info" class="dim"></span></div>
+<div class="nav" id="nav"></div>
+<div id="view"></div>
+<script>
+'use strict';
+const MODE = c => { const [m, d] = c.split(':'); return (m === 'solo' ? '单人' : '同盟 ' + (m.slice(4) || 4) + ' 人') + ' · ' + ({FUNNY:'娱乐',NORMAL:'普通',HARD:'困难',ABYSS:'终极'}[d] || d); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let doc = null, rounds = [], cur = 0;
+async function main() {
+  const idx = await (await fetch('index.json', {cache: 'no-store'})).json();
+  const sel = document.getElementById('pick');
+  idx.sort((a, b) => (b.time || 0) - (a.time || 0));
+  for (const x of idx) {
+    const o = document.createElement('option'); o.value = x.file;
+    o.textContent = `${x.label} · ${MODE(x.config)} · 种子 ${x.seed} · 策略${x.policy.win ? '胜' : '负'}(存活 ${x.policy.survival}) / legacy${x.legacy.win ? '胜' : '负'}(存活 ${x.legacy.survival})`;
+    sel.appendChild(o);
+  }
+  sel.onchange = () => load(sel.value);
+  const want = new URLSearchParams(location.search).get('m');
+  if (want) sel.value = want;
+  if (sel.value) load(sel.value);
+}
+async function load(file) {
+  doc = await (await fetch(file, {cache: 'no-store'})).json();
+  const byR = new Map();
+  for (const d of doc.policy.decisions) { if (!byR.has(d.s.r)) byR.set(d.s.r, {p: [], l: []}); byR.get(d.s.r).p.push(d); }
+  for (const e of doc.legacy.preps) { if (!byR.has(e.r)) byR.set(e.r, {p: [], l: []}); byR.get(e.r).l.push(e); }
+  rounds = [...byR.keys()].sort((a, b) => a - b).map(r => ({r, ...byR.get(r)}));
+  const P = doc.policy.result, L = doc.legacy.result;
+  document.getElementById('info').innerHTML = `${esc(doc.label)} · rehearsal ${doc.rehearsal}${doc.bossRehearsal != null ? '，首领回合 ' + doc.bossRehearsal : ''}`
+    + ` · 策略：${P.win ? '<span class="ok">胜</span>' : '负'}，存活 ${P.survival}，fa ${(+P.fa).toFixed(3)}`
+    + ` · legacy：${L.win ? '<span class="ok">胜</span>' : '负'}，存活 ${L.survival}，fa ${(+L.fa).toFixed(3)}`
+    + (doc.reproduced ? '' : ' · <span class="bad">回放未复现评估结果</span>');
+  cur = 0; render();
+}
+const nm = (names, i) => names[i] ?? '?';
+function state(s, names) {
+  if (!s) return '<div class="dim">（无记录）</div>';
+  const bonds = s.bonds.map(b => `<span class="chip" title="人数 ${b[1]}，层数 ${b[4]}">${esc(nm(names, b[0]))} ${b[2]}/${b[3]}${b[4] ? ' · ' + b[4] + '层' : ''}</span>`).join('') || '<span class="dim">无</span>';
+  const shop = s.shop.map((x, i) => x ? `<span class="chip ${x[3] ? 'sold' : ''}" title="${i + 1} 号格">${esc(nm(names, x[0]))}${x[5] ? '（物品）' : ''} ${x[1]}阶 <span class="gold">${x[2]}</span>${x[4] ? ' ❄' : ''}</span>` : '').join('');
+  const piece = x => x ? `<span class="chip">${x[4] === 1 ? '◆' : ''}${esc(nm(names, x[0]))}${x[2] ? '★' : ''} ${x[1] || ''}${x[3] ? ' +' + x[3] : ''}</span>` : '';
+  const hand = s.owned.slice(0, 10).map(piece).join(''), temp = s.owned.slice(10, 15).map(piece).join(''), board = s.owned.slice(15).map(piece).join('');
+  return `<div class="kv"><span>LP <b>${s.lp}</b></span><span>金币 <b class="gold">${s.g}</b></span><span>商店 ${s.lv} 级</span></div>`
+    + `<div class="sec"><b>盟约</b>${bonds}</div><div class="sec"><b>商店</b>${shop || '<span class="dim">无</span>'}</div>`
+    + `<div class="sec"><b>场上</b>${board || '<span class="dim">无</span>'}</div><div class="sec"><b>整备区</b>${hand || '<span class="dim">空</span>'}</div>`
+    + (temp ? `<div class="sec"><b>临时</b>${temp}</div>` : '');
+}
+function outcome(list, i, getS, res) {
+  const s0 = getS(list[i]); if (!s0) return '';
+  const next = list.slice(i + 1).map(getS).find(Boolean);
+  if (!next) return `结局：${res.win ? '<span class="ok">胜</span>' : '负'}，存活至第 ${res.survival} 回合，LP ${res.lp}，首领血池 ${(+res.fa * 100).toFixed(1)}%`;
+  const d = k => next.st[k] - s0.st[k];
+  return `本回合：漏怪 ${d(2)}，扣 LP ${d(4)}，击杀 ${d(1)}${d(3) ? '，首领伤害 ' + d(3) : ''}，回合后 LP ${next.lp}`;
+}
+function render() {
+  const nav = document.getElementById('nav');
+  nav.innerHTML = rounds.map((x, i) => `<button class="${i === cur ? 'on' : ''}" data-i="${i}">${x.r}</button>`).join('')
+    + ' <span class="dim">（←/→ 切换回合）</span>';
+  nav.querySelectorAll('button').forEach(b => b.onclick = () => { cur = +b.dataset.i; render(); });
+  const R = rounds[cur]; if (!R) { document.getElementById('view').innerHTML = ''; return; }
+  const pn = doc.policy.names, ln = doc.legacy.names;
+  const pol = R.p.map(d => {
+    const bars = d.top.map(([a, p]) => `<div class="bar ${a === d.a ? 'ch' : ''}"><i style="width:${Math.max(2, p * 160)}px"></i>${(p * 100).toFixed(1)}% ${esc(d.labels[a] || a)}</div>`).join('');
+    const legal = Object.values(d.labels);
+    return `<div class="act"><div><span class="c">${esc(d.labels[d.a] || d.a)}</span> <span class="dim">· 金币 ${d.s.g} · 价值 ${d.v.toFixed(3)}</span></div>${bars}`
+      + `<details><summary>合法动作 ${legal.length} 个</summary>${legal.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</details></div>`;
+  }).join('') || '<div class="dim">本回合策略没有决策（已淘汰或由 legacy 决定）</div>';
+  const leg = R.l.map(e => `<div class="act">${e.k ? '<span class="dim">机变：</span>' : ''}${e.acts.length ? e.acts.map(esc).join(' → ') : '<span class="dim">无动作</span>'}</div>`).join('') || '<div class="dim">本回合 legacy 没有记录（已淘汰）</div>';
+  const pi = rounds.flatMap(x => x.p.length ? [x.p[0]] : [null]), li = rounds.flatMap(x => x.l.length ? [x.l[0]] : [null]);
+  document.getElementById('view').innerHTML = `<div class="cols">`
+    + `<div class="col"><h3>策略 · 第 ${R.r} 回合</h3>${state(R.p[0]?.s, pn)}<h3 style="margin-top:8px">决策</h3>${pol}<div class="out">${outcome(pi, cur, x => x && x.s, doc.policy.result)}</div></div>`
+    + `<div class="col"><h3>规则版 legacy · 第 ${R.r} 回合</h3>${state(R.l[0]?.before, ln)}<h3 style="margin-top:8px">动作</h3>${leg}<div class="out">${outcome(li, cur, x => x && x.before, doc.legacy.result)}</div></div>`
+    + `</div>`;
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' && cur < rounds.length - 1) { cur++; render(); }
+  if (e.key === 'ArrowLeft' && cur > 0) { cur--; render(); }
+});
+main().catch(e => { document.getElementById('view').textContent = '加载失败：' + e; });
+</script></body></html>
