@@ -327,6 +327,8 @@ node tools/perfbench.mjs --cpu 1,4,6 --profile             # 真实战斗的帧�
 | `docs/` | 文档与调研 |
 | `test/` | `node:test` 测试 |
 
+AI 座位的强化学习环境与训练器（原 `tools/rl/`）已移到独立仓库 [Stardust-minus/Stronghold-RL](https://github.com/Stardust-minus/Stronghold-RL)。
+
 ## 许可证
 
 - **代码**：本项目自己编写的代码以 **GPL-3.0-or-later** 发布，全文见 [LICENSE](LICENSE)；另附一条 GPL 第 7 条的附加许可，允许与 pixi-spine 中的 Spine Runtimes 组合分发（见 [NOTICE.md](NOTICE.md)）。本 fork 的改动同样以 GPL-3.0-or-later 发布。

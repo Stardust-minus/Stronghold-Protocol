@@ -417,7 +417,7 @@ function mainCoreBond(m, p) {
  */
 export function bondPlan(m, ps, owned = ownedBonds(m, ps)) {
   const livingBands = m.alivePlayers().filter((p) => p !== ps).flatMap((p) => m.gd.bandBondIds(p.bandId)).sort().join();
-  // ps._envPlanBonds: RL-environment human proxies only (tools/rl env.mjs, never set by the server): their announced plan
+  // ps._envPlanBonds: RL-environment human proxies only (env.mjs of github.com/Stardust-minus/Stronghold-RL, never set by the server): their announced plan
   const planMain = (advisorPlan(m, ps)?.bonds || ps._envPlanBonds || []).slice().sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))
     .map((b) => b.id).find((id) => m.gd.bond(id)?.isCore && !m.gd.modeInactiveBonds.has(id)) ?? null;
   const key = `${m.round}|${ps.shop.level}|${[...owned.counts.entries()].map(([k, v]) => k + v).join()}|${livingBands}|${planMain}`;
