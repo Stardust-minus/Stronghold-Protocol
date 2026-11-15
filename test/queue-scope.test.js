@@ -92,11 +92,12 @@ test('a ticket of several sizes counts in each pool once and names them; its cou
   assert.equal(Object.hasOwn(f.state(c), 'capacities'), false, 'one size is `required` alone');
   assert.deepEqual(f.state(b).capacities, MULTI);
   assert.equal(f.state(b).required, 8);
+  // (the pool key names the official version after the protocol one: one pool per version, test/queue-versions.test.js)
   const { counts } = f.queue.waitingPopulation();
-  assert.equal(counts.get(`${MATCHMAKING_VERSION}:NORMAL:4`), 1);
-  assert.equal(counts.get(`${MATCHMAKING_VERSION}:NORMAL:8`), 2);
-  assert.equal(counts.get(`${MATCHMAKING_VERSION}:NORMAL:12`), 3);
-  assert.equal(counts.get(`${MATCHMAKING_VERSION}:HARD:8`), 1);
+  assert.equal(counts.get(`${MATCHMAKING_VERSION}:act2autochess:NORMAL:4`), 1);
+  assert.equal(counts.get(`${MATCHMAKING_VERSION}:act2autochess:NORMAL:8`), 2);
+  assert.equal(counts.get(`${MATCHMAKING_VERSION}:act2autochess:NORMAL:12`), 3);
+  assert.equal(counts.get(`${MATCHMAKING_VERSION}:act2autochess:HARD:8`), 1);
 });
 
 test('eight lone tickets make an eight-seat room of ordinary rules: the offer, the room and the match agree', t => {

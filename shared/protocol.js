@@ -642,14 +642,18 @@ export const C2S = {
   // capacities, rules (a lone player only too, BAD_MSG for a party, whose room owns both): the room sizes it waits for and
   // the rules it takes — 'standard' a game with every rule unchanged, 'experimental' one a party changed; absent = four
   // seats, both rules, as an older page's ticket.
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, experimental: () => false,
+  // version (this fork, one pool per official version): the version a lone player's ticket plays — the lobby's; absent =
+  // act2autochess (an older page). A party plays its room's version (a different one: BAD_MSG).
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, experimental: () => false, version: isVersionId,
     difficulties: (v) => Array.isArray(v) && v.length >= 1 && v.length <= DIFFICULTIES.length && new Set(v).size === v.length && v.every((d) => DIFFICULTIES.includes(d)),
     capacities: (v) => Array.isArray(v) && v.length >= 1 && v.length <= PLAYER_CAPACITIES.length && new Set(v).size === v.length && v.every(isPlayerCapacity),
     rules: (v) => Array.isArray(v) && v.length >= 1 && v.length <= 2 && new Set(v).size === v.length && v.every((r) => r === 'standard' || r === 'experimental'),
-    $optional: ['party', 'experimental', 'difficulties', 'capacities', 'rules'] },
+    $optional: ['party', 'experimental', 'difficulties', 'capacities', 'rules', 'version'] },
   'queue.cancel': { ticketId: isId },
   // Older clients may send a boolean vote, but it has no authority over room-owned rules.
-  'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool, experimental: () => false, $optional: ['revivalVote', 'experimental'] },
+  // cs (this fork): in another version's pool, the content cs of that version's data the page checked — the confirm
+  // counts only then (CONTENT_NOT_READY), unless the party room's seat already reported it ready
+  'queue.accept': { ticketId: isId, offerId: isId, revivalVote: isBool, experimental: () => false, cs: isContentHash, $optional: ['revivalVote', 'experimental', 'cs'] },
   'room.setDifficulty': { difficulty: (v) => DIFFICULTIES.includes(v) },
   // the co-op room option 「AI 队友最后选择」 (GitHub #338, on by default; host, before the match): the strategy and 机变 drafts order every
   // human seat before every AI seat (server/match/match/phases.js humansFirst); room.state.aiPicksLast
@@ -869,7 +873,8 @@ export const S2C = [
   'room.likes',
   // Aggregate online identities and the requester's own matchmaking ticket (never other queue members).
   // queue.state is a complete snapshot. Optional waitingCount exists only while queued: valid waiting human
-  // identities, including the requester/party, in the ticket's frozen version:difficulty:required pool; a ticket of
+  // identities, including the requester/party, in the ticket's frozen protocol version:official version:difficulty:required
+  // pool (`version`, the official one, only when it is not act2autochess — this fork's pool per version); a ticket of
   // several difficulties (feedback #87: `difficulties`, in its order, and `waitingCounts`, one per difficulty) gets its
   // fullest pool as waitingCount. `difficulty` is its first one until an offer stands, then the offered one. A ticket of
   // several room sizes adds `capacities` (a difficulty's count is then its fullest size; `required` is its smallest one

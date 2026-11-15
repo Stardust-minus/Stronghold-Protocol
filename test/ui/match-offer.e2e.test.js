@@ -5,7 +5,10 @@
 //                      last five seconds (urgent, ticking), my accept (Enter on the focused button), everyone in → 搜寻成功
 //                      kept over the room, the cues in order; behind another tab the audio stays awake for the offer;
 //   desk20 1920×1080 — a 20-seat offer: two rows; leaving by choice cuts away;
-//   room   1280×720  — a friend room's party queue: the takeover over the room, confirmed into the game;
+//   room   1280×720  — a friend room's party queue (a 规程 room, the default: its pool is 规程's): the takeover over the
+//                      room, confirmed into the game;
+// Matchmaking keeps one pool per official version (this fork): the page queues in its lobby version's (规程, the server's
+// default), so the scripted teammates join that version's pool and confirm with its data's cs (from their welcome).
 //   phone  844×390   — it fits without scrolling; a teammate leaves after my accept and 本次匹配未成立 shows the reason before
 //                      搜寻中; 390×844 portrait fits too.
 //
@@ -19,7 +22,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MATCHMAKING_VERSION } from '../../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../../shared/playerCapacity.js';
-import { DEFAULT_VERSION } from '../../shared/versions.js';
 import { TestClient } from '../helpers/wsClient.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -96,16 +98,19 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
   };
   /** The earlier tests' lone tickets leave the queue (a failed test must not hand its leftovers to the next one). */
   const dropClients = async () => { for (const c of clients.splice(0)) c.ws.terminate(); await wait(300); };
-  const lone = async (name, difficulty, capacities = [4]) => {
+  /** a scripted lone ticket in the pool of `version` (the page's ticket's: queue.state `version`, absent = 第二期下半) */
+  const lone = async (name, difficulty, capacities = [4], version = undefined) => {
     const c = await TestClient.connect(`ws://127.0.0.1:${srv.port}/ws`, { timeout: 15000 });
     clients.push(c);
-    await c.hello(name, undefined, { matchmakingVersion: MATCHMAKING_VERSION, playerCapacityVersion: PLAYER_CAPACITY_VERSION });
-    assert.equal((await c.request({ t: 'queue.join', difficulty, capacities, rules: ['standard'] })).t, 'ok');
+    const welcome = await c.hello(name, undefined, { matchmakingVersion: MATCHMAKING_VERSION, playerCapacityVersion: PLAYER_CAPACITY_VERSION });
+    // the confirm in another version's pool names that version's data (what a page checked before 确认入场)
+    c.poolCs = version ? welcome.versions?.find((v) => v.id === version)?.cs : undefined;
+    assert.equal((await c.request({ t: 'queue.join', difficulty, capacities, rules: ['standard'], ...(version ? { version } : {}) })).t, 'ok');
     return c;
   };
   const accept = async (c) => {
     const s = await c.waitFor('queue.state', (m) => m.state === 'offered');
-    assert.equal((await c.request({ t: 'queue.accept', ticketId: s.ticketId, offerId: s.offerId })).t, 'ok');
+    assert.equal((await c.request({ t: 'queue.accept', ticketId: s.ticketId, offerId: s.offerId, ...(c.poolCs ? { cs: c.poolCs } : {}) })).t, 'ok');
   };
   const count = (page) => page.$eval('[data-testid="offer-count"]', (el) => el.textContent);
   /** Every part of the takeover inside the viewport; the stage no taller than the screen. */
@@ -126,6 +131,9 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await dropClients();
     const me = await open('确认博士', { width: 1920, height: 1080, deviceScaleFactor: 1 });
     await openMatch(me);
+    // the pool is the lobby version's, named on the sheet
+    assert.match(await me.$eval('[data-testid="match-version"]', (el) => el.textContent), /规程/);
+    await me.waitForFunction(() => !document.querySelector('.proto-start').disabled, { timeout: 30000 });
     await me.click('.proto-start');
     await me.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'queued', { timeout: 15000 });
     const q = await me.evaluate(() => globalThis.__SP__.store.get().queue);
@@ -138,7 +146,8 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await wait(300);
     const ctxBefore = await me.evaluate(() => globalThis.__SP__.audio.ctx?.state ?? 'none');
     const mates = [];
-    for (let i = 0; i < 3; i++) mates.push(await lone(`队友${i}`, q.difficulty));
+    assert.equal(q.version, 'act3autochess@V3_1', 'the lobby version\'s pool');
+    for (let i = 0; i < 3; i++) mates.push(await lone(`队友${i}`, q.difficulty, [4], q.version));
     await me.waitForSelector('[data-testid="match-offer"]', { timeout: 20000 });
     await hold(me, 0);
     await wait(200);
@@ -160,6 +169,7 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await settle(me);
     await shot(me, 'desk-1-offer');
     assert.equal(await me.$eval('[data-testid="match-offer"]', (el) => el.dataset.playerCapacity), '4');
+    assert.match(await me.$eval('[data-testid="offer-version"]', (el) => el.textContent), /规程/);
     assert.match(await count(me), /0 \/ 4/);
     assert.deepEqual(await fits(me), []);
     assert.equal(await me.evaluate(() => document.activeElement?.dataset?.testid), 'offer-accept', 'the hero button has the focus');
@@ -242,7 +252,7 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await me.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'queued', { timeout: 15000 });
     const q = await me.evaluate(() => globalThis.__SP__.store.get().queue);
     const mates = [];
-    for (let i = 0; i < 19; i++) mates.push(await lone(`二十队${i}`, q.difficulty, [20]));
+    for (let i = 0; i < 19; i++) mates.push(await lone(`二十队${i}`, q.difficulty, [20], q.version));
     await me.waitForSelector('[data-testid="match-offer"]', { visible: true, timeout: 20000 });
     await settle(me);
     assert.equal(await me.$eval('[data-testid="match-offer"]', (el) => el.dataset.playerCapacity), '20');
@@ -277,16 +287,23 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
   test('room: a friend room\'s party queue shows the takeover over the room and confirms into the game', async () => {
     await dropClients();
     const me = await open('房间博士', { width: 1280, height: 720, deviceScaleFactor: 1 });
-    // (险境: its own pools, whatever an earlier test left in the standard ones). A room of 第二期下半, the version
-    // matchmaking plays (server/lobby.js: a matchmade Room is of DEFAULT_VERSION): since the 0.4.0 merge a new room is
-    // 规程 (LOBBY_DEFAULT_VERSION), and queue.join { party } from a room of another version answers BAD_TARGET — what
-    // matchmaking plays under the 规程 default is still the owner's to decide
-    await me.evaluate((version) => globalThis.__SP__.net.request('room.create', { mode: 'coop', difficulty: 'NORMAL', version }), DEFAULT_VERSION);
+    // (险境: its own pools, whatever an earlier test left in the standard ones). A room of the server's default version,
+    // 规程 (LOBBY_DEFAULT_VERSION): the party waits in 规程's pool once its page reported the room's data ready
+    await me.evaluate(() => globalThis.__SP__.net.request('room.create', { mode: 'coop', difficulty: 'NORMAL' }));
     await me.waitForSelector('.room-screen', { visible: true, timeout: 15000 });
-    await me.evaluate(() => globalThis.__SP__.net.request('queue.join', { difficulty: 'NORMAL', party: true }));
+    await me.waitForFunction(() => {
+      const s = globalThis.__SP__.store.get();
+      return s.room?.version === 'act3autochess@V3_1' && s.room.seats.find((x) => x?.playerId === s.me.playerId)?.content === 'ready';
+    }, { timeout: 60000 });
+    await me.waitForFunction(() => !document.querySelector('[data-testid="party-queue"]')?.disabled, { timeout: 15000 });
+    await me.click('[data-testid="party-queue"]');
     await me.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'queued', { timeout: 15000 });
+    const version = await me.evaluate(() => globalThis.__SP__.store.get().queue.version);
+    assert.equal(version, 'act3autochess@V3_1', 'the room version\'s pool');
+    const tags = await me.$$eval('.mf-tag', (els) => els.map((el) => el.textContent.trim()));
+    assert.ok(tags.some((x) => /规程/.test(x)), JSON.stringify(tags));
     const mates = [];
-    for (let i = 0; i < 3; i++) mates.push(await lone(`房队${i}`, 'NORMAL'));
+    for (let i = 0; i < 3; i++) mates.push(await lone(`房队${i}`, 'NORMAL', [4], version));
     await me.waitForSelector('[data-testid="match-offer"]', { visible: true, timeout: 20000 });
     assert.ok(await me.$('.room-screen'), 'over the room');
     await settle(me);
@@ -299,6 +316,8 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await shot(me, 'room-2-mine');
     for (const c of mates.slice(1)) await accept(c);
     await me.waitForFunction(() => !!globalThis.__SP__.store.get().match || globalThis.__SP__.store.get().room?.source === 'matchmaking', { timeout: 30000 });
+    const matched = await me.evaluate(() => { const r = globalThis.__SP__.store.get().room; return { version: r?.version, source: r?.source }; });
+    assert.deepEqual(matched, { version: 'act3autochess@V3_1', source: 'matchmaking' });
     await me.close();
   });
 
@@ -310,7 +329,7 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await me.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'queued', { timeout: 15000 });
     const q = await me.evaluate(() => globalThis.__SP__.store.get().queue);
     const mates = [];
-    for (let i = 0; i < 3; i++) mates.push(await lone(`手机队${i}`, q.difficulty));
+    for (let i = 0; i < 3; i++) mates.push(await lone(`手机队${i}`, q.difficulty, [4], q.version));
     await me.waitForSelector('[data-testid="match-offer"]', { visible: true, timeout: 20000 });
     await settle(me);
     await shot(me, 'phone-1-offer');
@@ -342,7 +361,7 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await shot(me, 'phone-4-searching-again');
     // a fresh offer in portrait, at rest
     await me.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
-    for (let i = 0; i < 2; i++) mates.push(await lone(`竖屏队${i}`, q.difficulty));
+    for (let i = 0; i < 2; i++) mates.push(await lone(`竖屏队${i}`, q.difficulty, [4], q.version));
     await me.waitForSelector('[data-testid="match-offer"]', { visible: true, timeout: 20000 });
     await settle(me);
     await shot(me, 'portrait-2-offer');

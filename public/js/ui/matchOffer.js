@@ -18,7 +18,12 @@
 //               the last OFFER_URGENT_S seconds while I have not confirmed;
 //   actions   — 确认入场, wide, right under the numerals (a slow glow, a shine; it has the focus), 退出本次匹配 quieter under
 //               it (重试取消 after a failed cancellation); once I confirmed: 剩余 N 秒 · 等待其他博士;
-//   info      — the chip line at the bottom: difficulty, seats (不自动补 AI), the friend party, the rules summary, 完整规则;
+//   info      — the chip line at the bottom: the pool's version (while the server offers versions), difficulty, seats
+//               (不自动补 AI), the friend party, the rules summary, 完整规则;
+//   data      — an offer in another version's pool (queue.state `version`; this fork, one pool per version): 确认入场 waits
+//               until this page holds that version's data checked (正在载入版本数据… / 版本数据校验失败 · 重试; content.js
+//               loads the offer's version outside a room) and the confirm names its cs (matchmaking.js acceptRequest), so
+//               the matched room starts with every page ready;
 //   found     — everyone in (allocationPending, or the count full): the slots flash in sequence, 搜寻成功！ slams in, a
 //               line-art emblem draws itself while 全员已确认，正在连接游戏节点; kept OFFER_FOUND_MS over the room once matched;
 //   broken    — the offer fell apart (the ticket waits again, or I am out with the server's reason): 本次匹配未成立 and the
@@ -41,7 +46,9 @@ import { SeatArt } from './seatLive.js';
 import { cardArt } from './dynamicFraming.js';
 import { useMyCard, ART_SPACE } from './playerCard.js';
 import { reducedMotion } from './device.js';
-import { queueTime, offerReasonText, MATCHING_RULES, EXPERIMENTAL_RULES } from './matchmaking.js';
+import { queueTime, offerReasonText, queueVersion, acceptRequest, MATCHING_RULES, EXPERIMENTAL_RULES } from './matchmaking.js';
+import { contentSet, retryContentSet } from '../content.js';
+import { versionContentStatus, versionLabel } from '../versions.js';
 import { useStore, serverNow, shallowEqual } from '../store.js';
 import { data, useData } from '../data.js';
 import { net } from '../net.js';
@@ -290,6 +297,10 @@ function OfferScreen({ view }) {
   const me = useStore((s) => s.me, shallowEqual);
   const cancellation = useStore((s) => s.ui.queueCancel);
   const card = useMyCard();
+  // the pool's version: its name on the chip line (a server with versions) and its data before 确认入场 (the header)
+  const versioned = useStore((s) => Array.isArray(s.versions));
+  const version = queueVersion(queue);
+  const versionData = useStore((c) => versionContentStatus(c, version), Object.is, contentSet);
   const [busy, setBusy] = useState(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const inFlight = useRef(false);
@@ -310,15 +321,15 @@ function OfferScreen({ view }) {
   // offer, so the quarter-second re-renders never restart it)
   const drain = useMemo(() => `--mo-total:${total}s;--mo-start:${-(total - Math.max(0, Number(seconds) || 0))}s`, [queue?.offerId]);
   // the hero button has the focus while it is there: Enter / Space confirm
-  useEffect(() => { if (live && !queue?.accepted) go.current?.querySelector?.('button')?.focus?.({ preventScroll: true }); }, [live, queue?.accepted]);
+  useEffect(() => { if (live && !queue?.accepted) go.current?.querySelector?.('button')?.focus?.({ preventScroll: true }); }, [live, queue?.accepted, versionData]);
   const d = DIFFICULTIES.includes(queue?.difficulty) ? queue.difficulty : null;
   const act = async (kind) => {
-    if (!live || !online || inFlight.current || cancelling || !queue?.ticketId || (kind === 'accept' && (queue.accepted || clock.seconds === 0))) return;
+    if (!live || !online || inFlight.current || cancelling || !queue?.ticketId || (kind === 'accept' && (queue.accepted || clock.seconds === 0 || versionData !== 'ready'))) return;
     if (kind === 'cancel') { queueCancellation.cancel(queue.ticketId); return; }
     inFlight.current = true;
     setBusy(kind);
     try {
-      await net.request('queue.accept', { ticketId: queue.ticketId, offerId: queue.offerId });
+      await net.request('queue.accept', acceptRequest(queue));
     } catch (err) { toastError(err); } finally {
       inFlight.current = false;
       if (mounted.current) setBusy(null);
@@ -333,7 +344,8 @@ function OfferScreen({ view }) {
     : stage === 'broken' ? reason || t('本次匹配未成立')
     : queue?.accepted ? t('剩余 {seconds} 秒 · 等待其他博士', { seconds: clock.seconds }) : null;
   const note = !live ? null : cancelling ? t('正在确认取消，等待服务器同步…') : !online ? t('连接中断，重连后同步匹配状态')
-    : queue?.accepted ? null : t('请在 {seconds} 秒内确认入场', { seconds: clock.seconds });
+    : queue?.accepted ? null : versionData === 'loading' ? t('正在载入版本数据…') : versionData === 'failed' ? t('版本数据校验失败')
+    : t('请在 {seconds} 秒内确认入场', { seconds: clock.seconds });
   const rules = [t('{n} 名真人按相同人数模式和难度匹配，不自动补 AI；好友小队保持整队。', { n }), t(MATCHING_RULES), t(EXPERIMENTAL_RULES)];
   const size = n <= 4 ? 's' : n <= 8 ? 'm' : 'l';
   const face = cardAvatarUrl(card.avatar, undefined, card.avatarLook);
@@ -362,7 +374,9 @@ function OfferScreen({ view }) {
       </div>
       <div class="mo__act">
         ${live && !queue?.accepted ? html`<span class="mo__go-wrap" ref=${go}><${Button} variant="primary" size="lg" class="mo__go" data-testid="offer-accept"
-            disabled=${!online || !!busy || cancelling || clock.seconds === 0} loading=${busy === 'accept'} onClick=${() => act('accept')}>${t('确认入场')}<//></span>` : null}
+            disabled=${!online || !!busy || cancelling || clock.seconds === 0 || versionData !== 'ready'} loading=${busy === 'accept' || (live && versionData === 'loading')}
+            onClick=${() => act('accept')}>${t('确认入场')}<//></span>` : null}
+        ${live && !queue?.accepted && versionData === 'failed' ? html`<${Button} variant="secondary" size="sm" data-testid="offer-retry" onClick=${retryContentSet}>${t('重试')}<//>` : null}
         ${wait ? html`<p class=${cx('mo__wait', stage === 'broken' && 'is-bad')} role="status" data-testid=${queue?.accepted && live ? 'offer-done' : stage === 'broken' ? 'offer-reason' : null}>
           ${live && queue?.accepted ? html`<${Icon} name="check" />` : null}${wait}</p>` : null}
         ${note ? html`<p class="mo__note" role="status">${note}</p>` : null}
@@ -372,6 +386,7 @@ function OfferScreen({ view }) {
           onClick=${() => act('cancel')}>${cancelFailed ? t('重试取消') : t('退出本次匹配')}<//>` : null}
       </div>
       <p class="mo__chips">
+        ${versioned ? html`<span class="mo-chip" data-testid="offer-version"><${Icon} name="book" />${versionLabel(version)}</span>` : null}
         ${d ? html`<span class="mo-chip mo-chip--diff"><${DifficultyIcon} difficulty=${d} />${t(DIFFICULTY_NAMES[d])}</span>` : null}
         <span class="mo-chip">${t('{n} 名真人 · 不自动补 AI', { n })}</span>
         ${queue?.partySize > 1 ? html`<span class="mo-chip">${t('{n} 人好友小队', { n: queue.partySize })}</span>` : null}

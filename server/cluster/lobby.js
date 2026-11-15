@@ -2,7 +2,7 @@
 // the assigned node. RemoteGamePlatform owns private ingress routing/credentials.
 import { randomBytes, randomInt } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { Lobby, Room } from '../lobby.js';
+import { Lobby } from '../lobby.js';
 import { encode, isErrCode, sendSession } from '../net.js';
 import { rebindSession, remoteAiTakeover, welcomeAgain } from '../aiTakeover.js';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, MATCHMAKING_VERSION, modeIdFor } from '../../shared/constants.js';
@@ -225,6 +225,9 @@ export class ClusterLobby extends Lobby {
     this.clusterClosed = false;
     this.inspectStart = false;
     this.queue.asyncAllocate = (sessions, difficulty, context) => this.prepareMatchmadeRoom(sessions, difficulty, context);
+    // an offer of another official version that this process's version hosts run (versionPlacement 'coordinator'): the
+    // Lobby's synchronous allocation, as start() keeps such a room's start local (server/matchmaking.js syncAllocation)
+    this.queue.syncAllocation = (version) => !this.placesRemotely({ version });
     /** remote matches placed again after a restart (restoreRemoteMatch; /healthz persistence.remote) */
     this.restoreStats = { pending: 0, adopted: 0, rebuilt: 0, failed: 0 };
     /** checkpoints are kept (server/persist/persister.js sets it): a lost node's matches are rebuilt (recoverRemote) */
@@ -239,6 +242,9 @@ export class ClusterLobby extends Lobby {
   placesRemotely(room) {
     return (room?.version ?? DEFAULT_VERSION) === DEFAULT_VERSION || this.versionPlacement === 'node';
   }
+
+  /** Another official version's matches run on the game nodes (versionPlacement 'node'), else in this process's hosts. */
+  versionHostable(id) { return id === DEFAULT_VERSION || this.placesRemotely({ version: id }) || super.versionHostable(id); }
 
   createMatch(opts) {
     const plan = this.preparedByRoom.get(opts.roomCode);
@@ -343,17 +349,19 @@ export class ClusterLobby extends Lobby {
       if ((perAddr > 0 && this.countRooms(room => this.roomCharges(room, key)) - released >= perAddr)
         || (maxMatches > 0 && this.countRooms(room => !!room.match && this.matchCharges(room, key)) >= maxMatches)) invalid(ERR.RATE);
     }
-    return { oldRooms, spectators, keys, experimental: experimentalOptions(offer.experimental) };
+    // the pool's official version (Lobby header "Matchmaking per version")
+    return { oldRooms, spectators, keys, experimental: experimentalOptions(offer.experimental), version: offer.versionId };
   }
 
   async prepareMatchmadeRoom(sessions, difficulty, context) {
     const initial = this.collectMatchmade(sessions, difficulty, context), code = this.genCode();
     if (!code) invalid(ERR.INTERNAL);
-    const room = new Room(code, 'coop', difficulty, this.now());
+    // another version's room: its base content, every seat's content ready (Lobby.matchmadeRoom / matchmadeSeat)
+    const room = this.matchmadeRoom(code, difficulty, initial.version);
     room.source = 'matchmaking'; room.experimental = initial.experimental;
     room.ownerKeys = initial.keys; room.ownerKey = sessions[0].limitKey || null; room.hostId = sessions[0].playerId;
     room.spectators = initial.spectators.map(s => ({ ...s }));
-    room.seats = sessions.map((s, i) => ({ ...this.humanSeat(i, s), ready: true, revivalVote: this.queue.entries.get(s.playerId).revivalVote }));
+    room.seats = sessions.map((s, i) => this.matchmadeSeat(room, i, s, this.queue.entries.get(s.playerId).revivalVote));
     const stamps = new Map([...initial.oldRooms].map(old => [old, roomStamp(old)]));
     const entries = sessions.map(s => this.queue.entries.get(s.playerId));
     const tickets = entries.map(e => e.ticketId);
@@ -362,13 +370,13 @@ export class ClusterLobby extends Lobby {
       try {
         if (this.clusterClosed || this.rooms.has(code) || this.spectatorAliases.has(code)) return false;
         const current = this.collectMatchmade(sessions, difficulty, context);
-        if (!sameSet(current.oldRooms, initial.oldRooms) || !sameSet(current.keys, initial.keys)
+        if (!sameSet(current.oldRooms, initial.oldRooms) || !sameSet(current.keys, initial.keys) || current.version !== initial.version
           || !isDeepStrictEqual(current.spectators, initial.spectators) || !sameExperimental(current.experimental, initial.experimental)) return false;
         for (const [old, stamp] of stamps) if (this.rooms.get(old.code) !== old || old.match || !isDeepStrictEqual(roomStamp(old), stamp)) return false;
         if (!sessions.every((s, i) => this.queue.entries.get(s.playerId) === entries[i] && entries[i].ticketId === tickets[i])) return false;
-        const live = new Room(code, 'coop', difficulty, room.createdAt);
+        const live = this.matchmadeRoom(code, difficulty, current.version, room.createdAt);
         live.hostId = room.hostId; live.experimental = current.experimental; live.spectators = current.spectators.map(s => ({ ...s }));
-        live.seats = sessions.map((s, i) => ({ ...this.humanSeat(i, s), ready: true, revivalVote: entries[i].revivalVote }));
+        live.seats = sessions.map((s, i) => this.matchmadeSeat(live, i, s, entries[i].revivalVote));
         return isDeepStrictEqual(matchDTO(live, plan.dto.seed, this.opts.snapshotHz), plan.dto);
       } catch { return false; }
     };

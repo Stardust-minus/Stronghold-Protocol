@@ -9,7 +9,9 @@
 // key with 复制 / 链接. Bottom: 实验性选项 (left, as in the earlier room; marked when an option is changed), the status
 // line, the difficulty | ⚙ pill (the host picks the difficulty in 选择模拟协议 over the room; ⚙ and 实验性选项 open the
 // one dialog of the room's options, ui/roomSettings.js, on 同盟 and on 规则), 组队匹配 (host: the whole party joins the public
-// queue — queue.join { party: true }; everybody sees the queue, ui/matchmaking.js QueueFlow) and 开始模拟 (host) or 准备就绪.
+// queue — queue.join { party: true }, in the pool of the room's version (this fork, one pool per version; a room with
+// gameplay plugins, a version the server cannot queue, or a seat still loading the version's data cannot: partyQueueReason);
+// everybody sees the queue, ui/matchmaking.js QueueFlow) and 开始模拟 (host) or 准备就绪.
 // Motion (css tr-*): the room comes up from black card by card and fades out when left; a doctor turning 已就绪 flashes
 // green; 选择模拟协议 stays mounted while it fades out (ui/transitions.js).
 //
@@ -59,7 +61,7 @@ import { LoadoutButton } from './loadout.js';
 import { PluginTag, VersionTag, isModdedRoom } from '../ui/pluginTag.js';
 import { VersionVote, versionVoteOf } from '../ui/versionVote.js';
 import { VersionPicker } from '../ui/versionPicker.js';
-import { DEFAULT_VERSION, ladderModes, lobbyVersion, needsContent, offeredDifficulties, roomVersion, seasonOf, serverDefaultVersion, soloTimedOf, soloTimeMsgid, versionLabel } from '../versions.js';
+import { DEFAULT_VERSION, ladderModes, lobbyVersion, needsContent, offeredDifficulties, roomVersion, seasonOf, serverDefaultVersion, soloTimedOf, soloTimeMsgid, versionLabel, versionQueueable } from '../versions.js';
 import { hasScriptConsent, rememberScriptConsent, pageVersion } from '../content.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
@@ -143,17 +145,25 @@ export function roomFacts(room, myId) {
   };
 }
 
-/** Client hint only; the server independently validates every party member before queuing. */
-export function partyQueueReason(room, myId, online = true) {
+/**
+ * Client hint only; the server independently validates every party member before queuing. `versions`: the store's
+ * welcome.versions (omitted: the version is not checked) — the party waits in its room's version's pool.
+ */
+export function partyQueueReason(room, myId, online = true, versions = undefined) {
   if (!online) return t('连接中断，请稍候重试');
   if (room?.mode !== 'coop' || room.inMatch) return t('仅等待中的好友同盟可组队匹配');
   if (room.hostId !== myId) return t('由同盟创建者发起组队匹配');
   if (isCollabRoom(room.experimental)) return t('开启联动干员的同盟不能组队匹配');
   if (isConsoleRoom(room.experimental)) return t('开启调控台的同盟不能组队匹配');
+  if (isModdedRoom(room)) return t('使用玩法插件的同盟不能组队匹配');
+  const version = roomVersion(room);
+  if (versions !== undefined && !versionQueueable({ versions }, version)) return t('「{version}」暂不开放组队匹配', { version: versionLabel(version) });
   const seats = room.seats?.filter(Boolean) || [];
   if (seats.some(s => s.isBot)) return t('请先移除 AI 队友，公开匹配仅限真人');
   if (!seats.length || seats.some(s => s.connected === false)) return t('请等待所有队友连接后再匹配');
   if (seats.some(s => s.playerId !== room.hostId && !s.ready)) return t('仍有博士未准备就绪');
+  // a version room's matched game starts with every page holding the version's data (server: CONTENT_NOT_READY)
+  if (needsContent(room) && seats.some(s => s.content !== 'ready')) return t('仍有博士未载入「{version}」的数据', { version: versionLabel(version) });
   return null;
 }
 
@@ -546,7 +556,7 @@ export function RoomScreen() {
     if (!ready) audio.sfx('back', { volume: 0.8 });
   });
   const start = () => run('start', () => net.request('room.start', {}));
-  const queueReason = partyQueueReason(room, me.playerId, online);
+  const queueReason = partyQueueReason(room, me.playerId, online, versions);
   const joinQueue = () => run('queue', () => net.request('queue.join', { difficulty: room.difficulty, party: true }));
   const addBot = () => run('add', () => net.request('room.addBot', {}));
   const removeBot = (seat) => run(`rm${seat}`, () => net.request('room.removeBot', { seat }));
@@ -751,7 +761,8 @@ export function RoomScreen() {
         </div>
       </div>
       <div class="rs-foot__right">
-        ${coop && facts.isHost && !queued ? html`<${Tooltip} text=${queueReason ? t(queueReason) : t('整队寻找相同人数模式和难度的真人，确认后自动开局')}>
+        ${coop && facts.isHost && !queued ? html`<${Tooltip} text=${queueReason ? t(queueReason) : Array.isArray(versions)
+            ? t('整队寻找「{version}」中相同人数模式和难度的真人，确认后自动开局', { version: versionLabel(curVersion) }) : t('整队寻找相同人数模式和难度的真人，确认后自动开局')}>
             <button type="button" class="rs-search" data-testid="party-queue" disabled=${!!queueReason || !!busy} onClick=${joinQueue}>
               <${Icon} name="search" />${t('组队匹配')}${busy === 'queue' ? html`<${Spinner} size="sm" />` : null}</button>
           <//>` : null}

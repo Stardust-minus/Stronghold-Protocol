@@ -115,8 +115,8 @@ The destination room's normal code retains its existing post-match lobby behavio
 observer-role and remote-owner fences remain authoritative.
 
 Fork queue feedback candidate (2026-10-11): `queue.state` may include optional `waitingCount` only in
-`queued` state. It counts valid waiting session identities in the ticket-frozen matchmaking version/difficulty/
-required-capacity bucket, including the requesting party. Offered/allocation/matched identities are excluded.
+`queued` state. It counts valid waiting session identities in the ticket-frozen matchmaking version/official version/
+difficulty/required-capacity bucket, including the requesting party. Offered/allocation/matched identities are excluded.
 It is not natural-person deduplication, compatible-party population, a filled-seat progress bar or ETA; the
 count can exceed the target size. Count-only complete snapshots are coalesced/change-only around one second;
 lifecycle and hello synchronization remain immediate. Delayed work resolves the current ticket/state before
@@ -157,6 +157,27 @@ a plan `disableSharedPool` is false. Absent, a room keeps its old key and shape.
 like any rule, so a change resets the other doctors' ready; a change of `playerCapacity` must send a plan of the new
 length. A party queues under its plan's key: it merges only with parties of the same layout, solos fill it. `m.public.poolGroups`
 now also comes in a four-seat room with a plan.
+**One pool per official version (the owner, 2026-11-15: 「大厅可以选择匹配不同版本的，组队匹配就进入对应版本匹配池」):** the
+official version is the first axis of a ticket's pools after `MATCHMAKING_VERSION` (`server/matchmaking.js` poolKey
+`<protocol>:<version>:<difficulty>:<required>`), so tickets of two versions never meet and every offer is made in its
+pool's version (`offer.versionId`). `queue.join { version? }`: a lone player's ticket plays the lobby's version (the page
+sends it whenever `welcome.versions` exists; absent = `act2autochess`, an older page); a party plays its room's
+(`version`, if named, must be it: `BAD_MSG`). Refused `VERSION_UNKNOWN` (not enabled — `SP_VERSIONS` narrowed it),
+`VERSION_UNSUPPORTED` (no co-op rooms, its data failed to load, no match host here runs it) and `BAD_TARGET` 'not a mode
+of this version' for a difficulty it lacks (第一期 / 第二期上半: no 终极; 规程's co-op has the four, one official mode
+each). A room with gameplay plugins never queues (`BAD_TARGET`); a version room's party queues once every seat reported
+the room's content ready (`CONTENT_NOT_READY`); while it waits `room.proposeVersion` and `room.setMode` answer `QUEUED` (as
+`room.setDifficulty`), and a room that changes its version or gains gameplay plugins loses its ticket ('unavailable').
+`queue.state` adds `version` (queued, offered and matched) only when it is not `act2autochess`, so a default snapshot keeps
+its shape. In another version's pool `queue.accept { cs? }` counts once the page holds that version's data — `cs` the
+version's content cs, or the party room's seat content `'ready'` — else `CONTENT_NOT_READY` and the ticket stays
+unconfirmed; the matched room is that version's (`room.version`, its base content, every seat content `'ready'`, a
+laddered room mode's official mode) and starts at once like a version room's `room.start`: in this process's version host,
+on a game node in the cluster (`versionPlacement` 'node'; with 'coordinator' the offer takes the synchronous allocation,
+`syncAllocation`, into this process's version host). A 第二期下半 matched room is byte-identical to before (no content).
+`welcome.versions[].queue: false` marks a listed version nothing can queue in (no co-op rooms or no match host); a game
+node that cannot place a version shows only as `allocation_failed` (as for 第二期下半 without nodes). `MATCHMAKING_VERSION`
+did not change: the new fields are optional both ways.
 
 **公开同盟 (feedback #30, 2026-11-01):** `room.setListed { listed }` — the host of a private co-op room of
 `ROOM_LIST_MIN_CAPACITY` (8) seats or more, not a test or plugin room; off by default, `room.state.listed` only while on,
@@ -435,6 +456,8 @@ server's default.
   one is not `act2autochess`; a version whose data failed to load at run time is left out of later welcomes (when it
   was the server's default, `default` moves to `act2autochess`, else to the first version left — the version a
   `room.create` without `version` then gets);
+- matchmaking (one pool per version, §"One pool per official version" above): C→S `queue.join { …, version? }` and
+  `queue.accept { …, cs? }`; S→C `queue.state.version?`; `welcome.versions[].queue?: false`;
 - C→S `room.create { mode, difficulty?, test?, version?, soloUnlimited? }` — `version` omitted: the server's default.
   `soloUnlimited: true` is stored only for a solo room of a version whose `rules.soloTimed` is true; a co-op room or a
   version whose solo is not timed ignores the key (it is not an error). Refused

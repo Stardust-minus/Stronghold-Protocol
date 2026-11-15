@@ -4,7 +4,9 @@
 //   * VersionSwitch — the chip at the lobby's top right (screens/lobby.js, before 恢复本机对局): only when the server
 //     enables other versions (welcome.versions); the version the lobby shows (this browser's choice) and, while the page
 //     loads or checks its data, how far it is (载入中 n%) or that it failed (校验失败 · 重试). A server that enables one
-//     version only, not 第二期下半, shows it as a plain tag (nothing to choose). A tap opens the picker.
+//     version only, not 第二期下半, shows it as a plain tag (nothing to choose). A tap opens the picker — not while this
+//     page's ticket waits in 多人匹配 (this fork, one pool per version: the ticket keeps the version it queued in, so a tap
+//     says 请先取消多人匹配，再切换版本).
 //   * VersionPicker — the project's Modal: one row per version the server enables (its name, the official period it
 //     replicates, the badges 当前 / 服务器默认, and 预览 on every version but 第二期下半 with what is still an estimate after
 //     M2 [ASSUMED]: bounty draws, some numbers, and six enemies' attack wind-ups. In a language other than Simplified
@@ -20,6 +22,7 @@ import { html, Button, Icon, Modal, Spinner } from './components.js';
 import { useStore } from '../store.js';
 import { contentSet, retryContentSet } from '../content.js';
 import { DEFAULT_VERSION, VERSION_PERIODS, lobbyVersion, periodLine, serverDefaultVersion, setLobbyVersion, versionLabel } from '../versions.js';
+import { toast } from './toasts.js';
 import { getLang, t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -103,6 +106,8 @@ export function VersionSwitch() {
   const current = useStore(lobbyVersion);
   const serverDefault = useStore(serverDefaultVersion);
   const c = useStore((s) => s, Object.is, contentSet);
+  // a queued or offered ticket keeps its pool's version (the header)
+  const queued = useStore((s) => s.queue?.state === 'queued' || s.queue?.state === 'offered');
   const [open, setOpen] = useState(false);
   if (!Array.isArray(versions) || !versions.length) return null;
   const load = versionLoadText(c, current);
@@ -116,12 +121,14 @@ export function VersionSwitch() {
   }
   return html`<span class="verchip-wrap">
     <button type="button" class=${cx('verchip', current !== DEFAULT_VERSION && 'is-other', failed && 'is-failed')} data-testid="version-switch" data-version=${current}
-        aria-busy=${loading ? 'true' : 'false'} onClick=${() => setOpen(true)} title=${t('切换大厅版本（只影响本机）')} aria-haspopup="dialog">
+        aria-busy=${loading ? 'true' : 'false'} aria-disabled=${queued ? 'true' : undefined}
+        onClick=${() => (queued ? toast(t('请先取消多人匹配，再切换版本'), 'warn') : setOpen(true))}
+        title=${queued ? t('请先取消多人匹配，再切换版本') : t('切换大厅版本（只影响本机）')} aria-haspopup="dialog">
       <${Icon} name="book" /><span class="verchip__k">${t('版本')}</span><span class="verchip__label">${versionLabel(current)}</span>
       ${loading ? html`<${Spinner} size="sm" />` : null}${load ? html`<small class="verchip__state">${load}</small>` : null}
     </button>
     ${failed ? html`<button type="button" class="verchip__retry" data-testid="version-retry" onClick=${retryContentSet}>${t('重试')}</button>` : null}
     ${open ? html`<${VersionPicker} mode="lobby" versions=${versions} current=${current} serverDefault=${serverDefault}
-      onPick=${(id) => { setLobbyVersion(id); setOpen(false); }} onClose=${() => setOpen(false)} />` : null}
+      onPick=${(id) => { if (!queued) setLobbyVersion(id); setOpen(false); }} onClose=${() => setOpen(false)} />` : null}
   </span>`;
 }

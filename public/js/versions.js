@@ -40,9 +40,10 @@ export function storedLobbyVersion() {
 
 /**
  * welcome.versions as the page keeps it (protocol §2): entries of registry ids only, each `{ id, cs, family, label,
- * roomModes, default? }`, in the order the server sent (registry order); null without the key or when nothing is left.
+ * roomModes, default?, queue? }`, in the order the server sent (registry order); null without the key or when nothing is
+ * left. `queue: false`: 多人匹配 / 组队匹配 cannot wait in that version's pool on this server (versionQueueable).
  * @param {unknown} list
- * @returns {Array<{ id: string, cs: string, family: string, label: string, roomModes: string[], default?: true }> | null}
+ * @returns {Array<{ id: string, cs: string, family: string, label: string, roomModes: string[], default?: true, queue?: false }> | null}
  */
 export function sanitizeVersions(list) {
   if (!Array.isArray(list)) return null;
@@ -53,7 +54,8 @@ export function sanitizeVersions(list) {
     seen.add(e.id);
     const reg = versionById(e.id);
     const roomModes = Array.isArray(e.roomModes) ? e.roomModes.filter((m) => m === 'solo' || m === 'coop') : [...reg.roomModes];
-    out.push({ id: e.id, cs: e.cs, family: reg.family, label: reg.label, roomModes, ...(e.default === true ? { default: true } : {}) });
+    out.push({ id: e.id, cs: e.cs, family: reg.family, label: reg.label, roomModes, ...(e.default === true ? { default: true } : {}),
+      ...(e.queue === false ? { queue: false } : {}) });
   }
   return out.length ? out : null;
 }
@@ -159,6 +161,17 @@ export function versionLabel(id) {
 
 /** The welcome entry of a version (its cs), or null. @param {any} s @param {string} id */
 export const welcomeVersion = (s, id) => (Array.isArray(s?.versions) ? s.versions.find((e) => e.id === id) || null : null);
+
+/**
+ * Can 多人匹配 / 组队匹配 wait in this version's pool here (this fork, one pool per version)? False for a version the
+ * welcome marks `queue: false` or does not list (SP_VERSIONS narrowed it away); 第二期下半 on a server without
+ * welcome.versions. @param {any} s @param {string} id
+ */
+export function versionQueueable(s, id) {
+  if (!Array.isArray(s?.versions)) return id === DEFAULT_VERSION;
+  const entry = welcomeVersion(s, id);
+  return !!entry && entry.queue !== false;
+}
 
 /**
  * The official period of each version (docs/DATA.md "Official versions (M0)"): the official half it is, its

@@ -394,6 +394,14 @@ stays `OFFER_FOUND_MS` (0.8 s) over the room, a broken offer `OFFER_BROKEN_MS` (
 store, not the screen below); reduced motion moves nothing and keeps only the broken notice. The cues are synthesized
 (`ui/offerCues.js`, one listener installed in `main.js`; `ui/offerSynth.js` through `audio.synth`, the SFX channel and
 its volume), and `audio.keepAwake('offer')` keeps them audible on a hidden tab while an offer stands (SFX only).
+One pool per official version (this fork, 2026-11-15; design/network.md): 多人匹配 queues in the lobby version's pool
+(`queue.join` `version` whenever `welcome.versions` exists), 组队匹配 in the room's (`partyQueueReason` also names a room with
+gameplay plugins, a version marked `queue: false` and a seat still loading the version's data). The searching screens tag
+the pool's version (`QueueFlow`'s 版本 tag, the hub's line, `offer-version` on the takeover's chip line). While a ticket
+waits the lobby's VersionSwitch is locked (请先取消多人匹配，再切换版本): the ticket keeps the version it queued in and
+the page keeps its data. Outside a room an offer makes `content.js` want the offer's version (`offerVersion`); 确认入场
+waits for that data (正在载入版本数据… / 版本数据校验失败 + 重试) and `queue.accept` carries its `cs`
+(`ui/matchmaking.js acceptRequest`), so the matched version room starts with every page ready.
 
 Reconnects (2026-10-13, the owner's report of reconnects that ended on a spectator seat): a `ROOM_STARTED` code whose
 seat another, closed page of this browser played resumes that seat (`ui/resumeMatch.js resumeLocalMatch`, the
@@ -929,7 +937,10 @@ Simplified Chinese that its game texts are Chinese for now). The title shows a n
 选择模拟协议 lists `offeredDifficulties(config, roomMode)` of the version shown (its config's modes) and selects
 `fallbackDifficulty` (the server's rule: the highest offered below, else the lowest) when the remembered difficulty is
 not offered — `sp.pref.lobby.difficulty` changes only on a pick; the cards wait (spinner, disabled) while the version
-loads, and when its set failed it says 版本数据校验失败 with 重试 (`retryContentSet`; the chip's 重试 is under the modal). `room.create` carries `version` only when welcome.versions exists, and `soloUnlimited: true` only when the
+loads, and when its set failed it says 版本数据校验失败 with 重试 (`retryContentSet`; the chip's 重试 is under the modal).
+多人匹配's 选择模拟协议 does the same with the version's co-op difficulties (remembered picks it lacks are left out of the
+ticket), names the pool (`match-version` chip) and, for a version marked `queue: false`, keeps the start button off with
+「{version}」暂不开放多人匹配. `room.create` carries `version` only when welcome.versions exists, and `soloUnlimited: true` only when the
 version's solo is timed and this browser's 「不限时」 pref (`sp.pref.lobby.soloUnlimited`, default off) is on. For that
 version the dialog shows the switch, and the 独立模拟 card states the 300 s / 150 s rule or 不限时 (while the version's
 data is not on screen the card states no time rule). A version whose solo is already untimed keeps 「休整期与机变阶段不限时」

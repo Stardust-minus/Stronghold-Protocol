@@ -264,6 +264,18 @@
 //     version room's match then drops that loadout's skill / module choices and that 干员持有 list whole, while 潜能 /
 //     练度 and 自选 (keyed by charId) are checked again against the version's data (seatSettings); a setting checked for
 //     another content keeps only the ids whose operator (charId) is the same in both data sets.
+//   * Matchmaking per version (this fork, the owner 2026-11-15: 「大厅可以选择匹配不同版本的，组队匹配就进入对应版本匹配池」;
+//     server/matchmaking.js header): queue.join { version? } of a lone player waits in that version's pools (absent:
+//     第二期下半, an older page), a party in its room's (a `version` it names must be that one: BAD_MSG). Refused
+//     VERSION_UNKNOWN (not enabled) or VERSION_UNSUPPORTED (no co-op rooms, its data failed to load, nothing here runs
+//     its matches — queueVersionRefusal; welcome.versions marks a version that cannot be queued `queue: false`), and
+//     BAD_TARGET for a difficulty the version lacks. A room with gameplay plugins never queues (BAD_TARGET); a version
+//     room's party queues once every seat's page reported the room's content ready (CONTENT_NOT_READY), and while it
+//     waits room.proposeVersion / room.setMode answer QUEUED. queue.accept { cs? } in another version's pool counts once
+//     the page holds that version's data (matchmakingReady: `cs` the version's content cs, or the party room's seat
+//     content 'ready'; CONTENT_NOT_READY otherwise), so the matched room (matchmadeRoom: that version, its base
+//     content, every seat's content 'ready') starts at once like a version room's start: in this process's version
+//     host, on a game node's in the cluster (ClusterLobby).
 
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover, afterReconcile } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
@@ -783,8 +795,9 @@ export class Lobby {
     this.queue = new Matchmaking({
       now, options: this.opts.matchmaking || {}, send: sendSession, metrics,
       available: (s, entry) => this.matchmakingAvailable(s, entry),
-      members: (s, difficulty, party) => this.matchmakingMembers(s, difficulty, party),
+      members: (s, difficulty, party, ask) => this.matchmakingMembers(s, difficulty, party, ask),
       allocate: (sessions, difficulty) => this.allocateMatchmadeRoom(sessions, difficulty),
+      ready: (s, entry, cs) => this.matchmakingReady(s, entry, cs),
       paused: () => this.maintenance(),
     });
     /** stops following the limits file's maintenance switch (server/onlineLimit.js onMaintenance) */
@@ -1151,10 +1164,8 @@ export class Lobby {
       case 'room.setExperimental': return this.setExperimental(session, msg);
       case 'room.setListed': return this.setListed(session, msg);
       case 'room.list': return this.roomList();
-      case 'queue.join':
-        // matchmaking plays the default version: a party of another version's room cannot queue as it is
-        if (msg.party === true && (this.roomOf(session)?.version ?? DEFAULT_VERSION) !== DEFAULT_VERSION) return fail(ERR.BAD_TARGET, 'matchmaking plays the default version');
-        return this.queue.join(session, msg);
+      // one pool per official version (header "Matchmaking per version"): matchmakingMembers checks it
+      case 'queue.join': return this.queue.join(session, msg);
       case 'queue.cancel': return this.queue.cancel(session, msg);
       case 'queue.accept': return this.queue.accept(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
@@ -1871,6 +1882,8 @@ export class Lobby {
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.match) return fail(ERR.ROOM_STARTED);
+    // the party's ticket holds the room's mode, as room.setDifficulty (header "Matchmaking per version")
+    if (this.roomQueued(room)) return fail(ERR.QUEUED);
     if (room.versionVote) return fail(ERR.VERSION_VOTE);
     // a laddered room (规程's solo): any official mode of the version's room mode; the room's difficulty follows it
     // (极速模拟's FAST counts as 标准 FUNNY for the difficulty-keyed parts of the room)
@@ -1981,6 +1994,36 @@ export class Lobby {
    */
   versionAvailable(id) { return id === DEFAULT_VERSION || typeof this.versions?.available !== 'function' || this.versions.available(id); }
 
+  /**
+   * Does something here run the matches of the enabled version `id` (startMatch): 第二期下半 this process, another version
+   * its version hosts — or a test's own MatchClass. The cluster adds its game nodes (ClusterLobby).
+   * @param {string} id
+   */
+  versionHostable(id) { return id === DEFAULT_VERSION || !!this.versionHosts || this.MatchClass !== DefaultMatch; }
+
+  /**
+   * Can tickets wait in the pools of `version` at `difficulties` (header "Matchmaking per version")? null, else the
+   * refusal: VERSION_UNKNOWN — not enabled —, VERSION_UNSUPPORTED — no co-op rooms, its data failed to load (this loads
+   * it, as room.create does), no match host —, BAD_TARGET — a difficulty the version lacks (第一期 / 第二期上半: no 终极).
+   * @param {string} version @param {readonly string[]} difficulties
+   */
+  queueVersionRefusal(version, difficulties) {
+    if (!this.versionEnabled(version)) return fail(ERR.VERSION_UNKNOWN);
+    const offered = this.offered(version, 'coop');
+    if (!offered.length) return fail(ERR.VERSION_UNSUPPORTED, `${version} has no coop rooms`);
+    if (!this.versionAvailable(version)) return fail(ERR.VERSION_UNSUPPORTED, 'the data of this version is not available');
+    if (!this.versionHostable(version)) return fail(ERR.VERSION_UNSUPPORTED, 'no match host for this version');
+    if (difficulties.some((d) => !offered.includes(d))) return fail(ERR.BAD_TARGET, 'not a mode of this version');
+    return null;
+  }
+
+  /**
+   * welcome.versions' `queue: false` (header "Matchmaking per version"): a listed version whose pools a ticket cannot
+   * join — no co-op rooms, no match host. Cheap: its data is not loaded for this (a failed load leaves the list anyway).
+   * @param {string} id
+   */
+  versionQueueable(id) { return this.offered(id, 'coop').length > 0 && this.versionHostable(id); }
+
   /** A room's content base for a version: the vanilla content for 第二期下半, else the version's own. @param {string} v */
   baseContent(v) {
     if (v === DEFAULT_VERSION || !this.versions) return this.vanilla;
@@ -2049,6 +2092,8 @@ export class Lobby {
     if (room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.match) return fail(ERR.ROOM_STARTED);
+    // the party waits in its room's version's pool (header "Matchmaking per version")
+    if (this.roomQueued(room)) return fail(ERR.QUEUED);
     if (!this.versionEnabled(version)) return fail(ERR.VERSION_UNKNOWN);
     if (!this.offered(version, room.mode).length) return fail(ERR.VERSION_UNSUPPORTED, `${version} has no ${room.mode} rooms`);
     if (version === room.version) return fail(ERR.ALREADY);
@@ -2356,26 +2401,41 @@ export class Lobby {
 
   roomQueued(room) { return room.activeHumans().some((seat) => this.queue.entries.has(seat.playerId)); }
 
-  matchmakingMembers(session, difficulty, party) {
+  /**
+   * Who a queue.join enters (server/matchmaking.js `members`) and the official version of its pools (header
+   * "Matchmaking per version"): a lone player alone, in the version it asked for (absent: 第二期下半); a party, its room's
+   * humans in its room's version. `ask`: the join's `version` and every difficulty the ticket waits in.
+   */
+  matchmakingMembers(session, difficulty, party, { version: asked, difficulties = [difficulty] } = {}) {
     const room = this.roomOf(session);
     if (room?.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
     if (!party) {
       if (room) return fail(ERR.WRONG_PHASE, 'leave your room before solo matchmaking');
-      return { sessions: [session], roomCode: null, leaderId: session.playerId };
+      const version = asked ?? DEFAULT_VERSION;
+      const refused = this.queueVersionRefusal(version, difficulties);
+      if (refused) return refused;
+      return { sessions: [session], roomCode: null, leaderId: session.playerId, version };
     }
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.mode !== 'coop' || room.match) return fail(ERR.WRONG_PHASE, 'party matchmaking requires a waiting cooperative room');
     if (!room.validCapacity() || !this.capacityClients(room)) return fail(ERR.BAD_MSG, 'all room members must support its capacity');
     if (difficulty !== room.difficulty) return fail(ERR.BAD_MSG, 'party difficulty must match the room');
+    // the room's version is the party's pool; a matchmade room plays the version's own content, never a plugin's
+    if (asked !== undefined && asked !== room.version) return fail(ERR.BAD_MSG, 'a party queues in its room\'s version');
+    if (room.modded) return fail(ERR.BAD_TARGET, 'a room with gameplay plugins cannot enter matchmaking');
+    const refused = this.queueVersionRefusal(room.version, [room.difficulty]);
+    if (refused) return refused;
     if (room.seats.some((seat) => seat?.isBot)) return fail(ERR.BAD_MSG, 'public matchmaking has no AI players');
     if (isCollabRoom(room.experimental)) return fail(ERR.BAD_MSG, 'a room with collabOps on cannot enter matchmaking');
     // a test match's commands and a 调控台 room's (header) never reach a matchmade room
     if (room.test || isConsoleRoom(room.experimental)) return fail(ERR.BAD_MSG, 'a test or console room cannot enter matchmaking');
     if (room.activeHumans().some(seat => !seat.connected || (seat.playerId !== room.hostId && seat.ready !== true))) return fail(ERR.NOT_READY);
+    // a version room: every page holds the version's data already (its matchmade room starts with it)
+    if (room.needsContent && room.activeHumans().some((seat) => seat.content !== 'ready')) return fail(ERR.CONTENT_NOT_READY);
     const sessions = room.activeHumans().map((seat) => this.registry.byId(seat.playerId));
     if (!sessions.length || sessions.some((s) => !this.isOnline(s))) return fail(ERR.NOT_READY, 'all party members must be online');
-    return { sessions, roomCode: room.code, leaderId: room.hostId, experimental: room.experimental };
+    return { sessions, roomCode: room.code, leaderId: room.hostId, experimental: room.experimental, version: room.version };
   }
 
   matchmakingAvailable(session, entry) {
@@ -2388,10 +2448,51 @@ export class Lobby {
       || room.activeHumans().some(seat => !seat.connected || (seat.playerId !== room.hostId && seat.ready !== true))
       || room.hostId !== party.leaderId || room.difficulty !== entry.difficulty
       || !sameExperimental(room.experimental, party.experimental)
+      || room.version !== party.versionId || room.modded
+      || (room.needsContent && room.activeHumans().some((seat) => seat.content !== 'ready'))
       || room.seats.some((seat) => seat?.isBot)) return false;
     const humans = room.activeHumans();
     return humans.length === party.entries.length && party.entries.every((member) =>
       humans.some((seat) => seat.playerId === member.session.playerId) && this.isOnline(member.session));
+  }
+
+  /**
+   * May `session`'s queue.accept count (server/matchmaking.js `ready`; header "Matchmaking per version")? Always in a
+   * 第二期下半 pool; in another version's once its page holds that version's data: `cs` the version's content cs (the
+   * page's checked set), or — a party's member — its seat in the party room reported the room's content (that version's
+   * base) ready.
+   * @param {import('./net.js').Session} session @param {any} entry @param {unknown} cs
+   */
+  matchmakingReady(session, entry, cs) {
+    const version = entry?.party?.versionId ?? DEFAULT_VERSION;
+    if (version === DEFAULT_VERSION) return true;
+    const want = this.baseContent(version)?.cs;
+    if (!want) return false;
+    if (cs === want) return true;
+    const room = entry.party.roomCode ? this.roomOf(session) : null;
+    const seat = room && room.code === entry.party.roomCode ? room.seatOf(session.playerId) : null;
+    return !!seat && room.content?.cs === want && seat.content === 'ready';
+  }
+
+  /**
+   * The waiting Room of a matchmade game (allocateMatchmadeRoom; the cluster's prepareMatchmadeRoom and its re-check):
+   * co-op at the offer's difficulty in the pool's official version — another version's room with that version's base
+   * content and, for a laddered room mode, its official mode (header "Matchmaking per version"); a 第二期下半 room as
+   * before (no content).
+   * @param {string} code @param {string} difficulty @param {string} [version] @param {number} [createdAt]
+   */
+  matchmadeRoom(code, difficulty, version = DEFAULT_VERSION, createdAt = this.now()) {
+    const room = new Room(code, 'coop', difficulty, createdAt, EXPERIMENTAL_DEFAULTS, version);
+    if (version !== DEFAULT_VERSION) {
+      room.content = this.baseContent(version);
+      if (this.laddered(version, 'coop')) room.modeId = this.ladderMode(version, 'coop', difficulty, null);
+    }
+    return room;
+  }
+
+  /** A matchmade room's seat: ready, and in another version's room its content ready (matchmakingReady said so). */
+  matchmadeSeat(room, i, session, revivalVote) {
+    return { ...this.humanSeat(i, session), ready: true, revivalVote, ...(room.needsContent ? { content: 'ready' } : {}) };
   }
 
   roomCharges(room, key) { return room.ownerKey === key || !!room.ownerKeys?.has(key); }
@@ -2510,7 +2611,7 @@ export class Lobby {
     }
     const code = this.genCode();
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
-    const room = new Room(code, 'coop', difficulty, this.now());
+    const room = this.matchmadeRoom(code, difficulty, offer.versionId);
     room.source = 'matchmaking';
     room.experimental = experimentalOptions(offer.experimental);
     room.ownerKeys = keys;
@@ -2518,9 +2619,7 @@ export class Lobby {
     room.hostId = sessions[0].playerId;
     // Spectators follow the intact parties as observers, never seats/voters or charged participant networks.
     room.spectators = spectators.map((s) => ({ ...s }));
-    room.seats = sessions.map((s, i) => ({
-      ...this.humanSeat(i, s), ready: true, revivalVote: this.queue.entries.get(s.playerId).revivalVote,
-    }));
+    room.seats = sessions.map((s, i) => this.matchmadeSeat(room, i, s, this.queue.entries.get(s.playerId).revivalVote));
     const result = this.startMatch(room, room.ownerKey, keys, { deferPublish: true });
     if (result.error) return result;
     // No await: quota validation, construction, successful start and membership commit share one turn.
@@ -2810,7 +2909,11 @@ export class Lobby {
     // the official versions (header "Official versions"): only when the server offers more than 第二期下半, so a
     // welcome from a server narrowed to that version alone stays without `versions`
     let versions = null;
-    try { versions = this.versions?.welcome?.() || null; } catch (e) { this.log.error('[lobby] the versions list failed', e); }
+    try {
+      const list = this.versions?.welcome?.() || null;
+      // a version 多人匹配 cannot queue in (header "Matchmaking per version"); every other entry stays as it was
+      versions = list && list.map((e) => (this.versionQueueable(e.id) ? e : { ...e, queue: false }));
+    } catch (e) { this.log.error('[lobby] the versions list failed', e); }
     if (versions) info.versions = versions;
     // Omitted when the switch is off, so a welcome from a normal server stays identical.
     if (this.testEnabled === true) info.testMode = true;

@@ -2,7 +2,8 @@
 // A host of an eight-seat room lists it from 同盟设置, a second room of an older version is listed too; another doctor sees both
 // under 选择同盟方式 → 公开同盟 (also on a phone, in Japanese) and joins by pressing the row. In 选择模拟协议 of 多人匹配 two
 // difficulties are picked; the queue shows both with their counts, three doctors of one difficulty fill it, the offer stands
-// at that difficulty and the room starts there.
+// at that difficulty and the room starts there — in the pool of the lobby version (规程, the default; this fork's pool per
+// version), so the others queue in it and confirm with its data.
 //
 //   SP_E2E=1 node --test test/ui/room-list.e2e.test.js
 //
@@ -55,6 +56,21 @@ describe('公开同盟 and several difficulties (real server, headless Chrome)',
     return page;
   }
   const shot = (page, name) => page.screenshot({ path: path.join(OUT, `room-list-${name}.png`) });
+  /**
+   * The page confirms its offer as 确认入场 does (ui/matchmaking.js acceptRequest): in another version's pool (this fork,
+   * one pool per version) once its data is checked, naming that data's cs.
+   */
+  const acceptInPage = async (page) => {
+    await page.waitForFunction(() => {
+      const v = globalThis.__SP__.store.get().queue?.version, c = globalThis.__SP_CONTENT__?.state?.();
+      return !v || (c?.kind === 'version' && c.version === v && c.status === 'ready');
+    }, { timeout: 60000 });
+    return page.evaluate(() => {
+      const { ticketId, offerId, version } = globalThis.__SP__.store.get().queue;
+      const c = globalThis.__SP_CONTENT__.state();
+      return globalThis.__SP__.net.request('queue.accept', { ticketId, offerId, ...(version ? { cs: c.cs } : {}) }).then((r) => r.t);
+    });
+  };
   const net = (page, t, fields) => page.evaluate((a, b) => globalThis.__SP__.net.request(a, b).then((r) => ({ t: r.t, rooms: r.rooms })), t, fields);
   const settle = (page) => page.waitForFunction(() => !document.getAnimations()
     .some((a) => /^(tr|ps)-/.test(String(a.animationName)) && a.playState === 'running' && a.effect?.getTiming().iterations !== Infinity), { timeout: 15000 });
@@ -155,24 +171,19 @@ describe('公开同盟 and several difficulties (real server, headless Chrome)',
     assert.equal(q.difficulties.length, 2);
     await me.waitForSelector('.mf-search', { visible: true, timeout: 15000 });
     await settle(me);
-    assert.equal(await me.$$eval('.mf-tag', (els) => els.length), 5, 'mode, both difficulties, capacity, rules');
+    assert.equal(await me.$$eval('.mf-tag', (els) => els.length), 6, 'mode, version, both difficulties, capacity, rules');
     await shot(me, 'queued');
     const target = q.difficulties[1];
 
     const others = [];
     for (const name of ['同难度一', '同难度二', '同难度三']) others.push(await open(name, { w: 800, h: 600 }));
-    for (const page of others) await net(page, 'queue.join', { difficulty: target });
+    for (const page of others) await net(page, 'queue.join', { difficulty: target, version: q.version });
     await me.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'offered', { timeout: 20000 });
     assert.equal(await me.evaluate(() => globalThis.__SP__.store.get().queue.difficulty), target);
     await settle(me);
     await shot(me, 'offered');
     await Promise.all([me, ...others].map((page) => page.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'offered', { timeout: 20000 })));
-    for (const page of [me, ...others]) {
-      await page.evaluate(() => {
-        const { ticketId, offerId } = globalThis.__SP__.store.get().queue;
-        return globalThis.__SP__.net.request('queue.accept', { ticketId, offerId }).then((r) => r.t);
-      });
-    }
+    for (const page of [me, ...others]) assert.equal(await acceptInPage(page), 'ok');
     await me.waitForFunction(() => !!globalThis.__SP__.store.get().room, { timeout: 30000 });
     assert.equal(await me.evaluate(() => globalThis.__SP__.store.get().room.difficulty), target);
     assert.deepEqual(errors, []);

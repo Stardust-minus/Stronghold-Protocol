@@ -48,6 +48,9 @@
 //     exactly as for a content set — never from the lobby). The set on screen stays until the next one is checked (going
 //     from one version to another never shows 第二期下半 in between); gameplay compositions also retain their version.
 //     The last two checked version sets are kept, so a lobby ⇄ room round trip checks nothing twice.
+//     An offer of 多人匹配 / 组队匹配 outside a room (queue.state `offered`, this fork's pool per version) wants the
+//     offer's version instead (offerVersion), so 确认入场 (ui/matchOffer.js) never waits on another version the page
+//     shows meanwhile (a 统计数据 replay); in the lobby that is the lobby's version anyway (the switch is locked while queued).
 //     A version set that fails is said once per set (a toast) and told to the room ({ ok: false }).
 //   * 联动干员 (shared/collabAssets.js, docs/ASSETS.md "The collab pack"): in a room whose host turned it on
 //     (room.state.experimental.collabOps) the page fetches /data/assets-collab.json — once per page, and only then —,
@@ -76,6 +79,16 @@ import { DEFAULT_VERSION, versionById, versionSlug } from '../../shared/versions
 import { shownVersion, welcomeVersion } from './versions.js';
 import { isCollabRoom } from '../../shared/experimental.js';
 import { COLLAB_MANIFEST_URL, collabManifestProblems } from '../../shared/collabAssets.js';
+
+/**
+ * The version of the offer this page's ticket has outside a room (queue.state `offered`, `version` absent = 第二期下半),
+ * else null (header "Official versions"). @param {any} s the app store's state
+ */
+export function offerVersion(s) {
+  const q = s?.queue;
+  if (s?.room || q?.state !== 'offered') return null;
+  return typeof q.version === 'string' && versionById(q.version) ? q.version : DEFAULT_VERSION;
+}
 
 /** The localStorage preference (`sp.pref.<key>`) of the personal cosmetic plugins: their ids. */
 export const PERSONAL_PREF = 'cosmetics';
@@ -690,7 +703,7 @@ export function installContentSet({ store = appStore, data = dataStore, net = ap
    * content does not name the room's version yet (keep what is there) — or null: the server's files.
    */
   const versionWanted = (s) => {
-    const version = shownVersion(s);
+    const version = offerVersion(s) ?? shownVersion(s);
     if (!version || version === DEFAULT_VERSION || !versionById(version)) return null;
     const c = s?.room?.content;
     if (s?.room) return { version, cs: c && c.version === version && isContentHash(c.cs) ? c.cs : null };

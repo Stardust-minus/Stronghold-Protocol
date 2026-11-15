@@ -13,12 +13,21 @@
 // room's party has its room's: 'standard' a game whose rules are all unchanged, 'experimental' one whose rules a party
 // changed (experimentalRuleChanged). Only a party brings changed rules: lone tickets alone only make a standard game.
 // A ticket asking nothing (an older page) takes both rules at four seats, as before.
+// One pool per official version (this fork, the owner 2026-11-15: 「大厅可以选择匹配不同版本的，组队匹配就进入对应版本匹配池」):
+// party.versionId is the version a ticket plays — a lone ticket's `version` (the lobby's version; absent = 第二期下半, an
+// older page), a party's its room's (the lobby's `members` answers it) — and the first axis of its pools after the
+// matchmaking protocol version: tickets of two versions never meet, and an offer (offer.versionId) is made in its pool's
+// version. Another version than 第二期下半 needs every page to hold that version's data before the match: `ready(session,
+// entry, cs)` (the lobby's) says whether queue.accept may count, else CONTENT_NOT_READY and the ticket stays unconfirmed.
+// `syncAllocation(versionId)`: an offer of that version takes the synchronous allocate even when asyncAllocate is set
+// (the cluster's coordinator fallback for another version, SP_VERSION_PLACEMENT=coordinator).
 import { randomBytes } from 'node:crypto';
 import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, experimentalRuleChanged, sameExperimental } from '../shared/experimental.js';
 import { PLAYER_CAPACITY_VERSION, isPlayerCapacity, roomCapacity } from '../shared/playerCapacity.js';
 import { NO_PHASES } from './phaseMetrics.js';
 import { portraitSeed } from '../shared/protocol.js';
+import { DEFAULT_VERSION } from '../shared/versions.js';
 
 // Quantity/per-network admission caps use 0 = unlimited; ticket and acceptance deadlines stay bounded.
 export const MATCHMAKING_DEFAULTS = Object.freeze({ maxEntries: 0, maxPerAddr: 0, waitMs: 600_000, acceptMs: 30_000 });
@@ -54,10 +63,16 @@ function observeThenable(value) {
 
 export class Matchmaking {
   constructor({ now = Date.now, send, available, members, allocate, asyncAllocate = null, allocationMs = 6000,
-    options = {}, timers = { setTimeout, clearTimeout }, metrics = NO_PHASES, paused = () => false }) {
+    options = {}, timers = { setTimeout, clearTimeout }, metrics = NO_PHASES, paused = () => false, ready = () => true, syncAllocation = null }) {
     if (asyncAllocate !== null && typeof asyncAllocate !== 'function') throw new TypeError('invalid matchmaking asyncAllocate');
     if (typeof paused !== 'function') throw new TypeError('invalid matchmaking paused');
+    if (typeof ready !== 'function') throw new TypeError('invalid matchmaking ready');
+    if (syncAllocation !== null && typeof syncAllocation !== 'function') throw new TypeError('invalid matchmaking syncAllocation');
     this.paused = paused;
+    /** may this member's acceptance count: its page holds the data of the ticket's version (header) */
+    this.ready = ready;
+    /** does an offer of this version take the synchronous allocate (header)? null: never */
+    this.syncAllocation = syncAllocation;
     if (!Number.isSafeInteger(allocationMs) || allocationMs < 1 || allocationMs > 8000) throw new TypeError('invalid matchmaking allocationMs');
     this.asyncAllocate = asyncAllocate;
     this.allocationMs = allocationMs;
@@ -90,7 +105,7 @@ export class Matchmaking {
     return { partyId: party.id, partySize: party.entries.length, partyLeaderId: party.leaderId, partyRoomCode: party.roomCode };
   }
 
-  poolKey(e, difficulty = e.difficulty, required = e.party.required) { return `${e.version}:${difficulty}:${required}`; }
+  poolKey(e, difficulty = e.difficulty, required = e.party.required) { return `${e.version}:${e.party.versionId}:${difficulty}:${required}`; }
 
   /** The waiting count of each difficulty of `e`'s ticket, in the ticket's order: its fullest pool of that difficulty. */
   waitingBy(e, counts) {
@@ -127,6 +142,8 @@ export class Matchmaking {
     return {
       t: 'queue.state', state: offer ? 'offered' : 'queued', ticketId: e.ticketId,
       difficulty: e.difficulty, required: e.party.required, joinedAt: e.joinedAt,
+      // the pool's official version (header), only when it is not 第二期下半: a default ticket's snapshot keeps its shape
+      ...(e.party.versionId !== DEFAULT_VERSION ? { version: e.party.versionId } : {}),
       deadline: offer ? offer.deadline : e.expiresAt, ...this.partyState(e.party),
       ...(waiting ? { waitingCount: Math.max(...waiting) } : {}),
       ...(several ? { difficulties: [...e.party.difficulties], ...(waiting ? { waitingCounts: waiting } : {}) } : {}),
@@ -189,14 +206,15 @@ export class Matchmaking {
     timer?.unref?.();
   }
 
-  join(session, { difficulty, difficulties, capacities, rules, party = false }) {
+  join(session, { difficulty, difficulties, capacities, rules, version, party = false }) {
     this.refresh(session);
     if (this.closed) return fail(ERR.WRONG_PHASE, 'matchmaking is closed');
     if (this.paused()) return fail(ERR.MAINTENANCE);
     if (!DIFFICULTIES.includes(difficulty) || typeof party !== 'boolean'
       || (difficulties !== undefined && (!Array.isArray(difficulties) || difficulties.some((d) => !DIFFICULTIES.includes(d))))
       || (capacities !== undefined && (!Array.isArray(capacities) || !capacities.length || !capacities.every(isPlayerCapacity)))
-      || (rules !== undefined && (!Array.isArray(rules) || !rules.length || rules.some((r) => !QUEUE_RULES.includes(r))))) return fail(ERR.BAD_MSG, 'invalid matchmaking request');
+      || (rules !== undefined && (!Array.isArray(rules) || !rules.length || rules.some((r) => !QUEUE_RULES.includes(r))))
+      || (version !== undefined && typeof version !== 'string')) return fail(ERR.BAD_MSG, 'invalid matchmaking request');
     if (session.matchmakingVersion !== MATCHMAKING_VERSION) return fail(ERR.BAD_MSG, 'matchmaking version required; refresh the page');
     /** the pools of this ticket: `difficulty` first, then the others in the order asked */
     const wanted = [...new Set([difficulty, ...(difficulties || [])])];
@@ -206,6 +224,10 @@ export class Matchmaking {
     const previous = this.entries.get(session.playerId);
     if (previous) {
       if (!sameList(previous.party.difficulties, wanted)) return fail(ERR.QUEUED, 'cancel before changing difficulty');
+      // the version: a lone ticket's asked one (absent: 第二期下半), a party's its room's unless it names one
+      if ((version ?? (previous.party.roomCode ? previous.party.versionId : DEFAULT_VERSION)) !== previous.party.versionId) {
+        return fail(ERR.QUEUED, 'cancel before changing the version');
+      }
       if (!sameList(previous.party.capacities, sizes || [previous.party.required]) || !sameList(previous.party.rules, rules ? taken : previous.party.rules)) {
         return fail(ERR.QUEUED, 'cancel before changing the scope');
       }
@@ -213,8 +235,10 @@ export class Matchmaking {
       if (!previous.offerId) { this.pump(); this.arm(); }
       return OK;
     }
-    const group = this.members(session, difficulty, party);
+    const group = this.members(session, difficulty, party, { version, difficulties: wanted });
     if (!group || group.error) return group || fail(ERR.INTERNAL, 'could not inspect party');
+    /** the official version of the ticket's pools (header): the lobby's answer, else the asked one */
+    const versionId = typeof group.version === 'string' ? group.version : version ?? DEFAULT_VERSION;
     if (wanted.length > 1 && (party || group.roomCode)) return fail(ERR.BAD_MSG, 'a party queues at its room\'s difficulty');
     if ((capacities !== undefined || rules !== undefined) && (party || group.roomCode)) return fail(ERR.BAD_MSG, 'a party queues with its room\'s size and rules');
     let experimental = null;
@@ -243,7 +267,7 @@ export class Matchmaking {
       if ([...counts.values()].some((count) => count > this.opts.maxPerAddr)) return fail(ERR.RATE, 'too many queued players from your network');
     }
     const now = this.now();
-    const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId,
+    const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId, versionId,
       experimental, required, capacities: pools, rules: taken, difficulties: wanted, sequence: ++this.sequence, entries: [] };
     unit.entries = sessions.map((member) => ({
       session: member, key: member.limitKey, ticketId: id(), difficulty, version: member.matchmakingVersion, party: unit,
@@ -267,7 +291,7 @@ export class Matchmaking {
     return OK;
   }
 
-  accept(session, { ticketId, offerId, revivalVote }) {
+  accept(session, { ticketId, offerId, revivalVote, cs }) {
     if (revivalVote !== undefined && typeof revivalVote !== 'boolean') return fail(ERR.BAD_MSG, 'invalid obsolete vote');
     this.refresh(session);
     if (this.closed) return fail(ERR.WRONG_PHASE, 'matchmaking is closed');
@@ -288,12 +312,14 @@ export class Matchmaking {
       this.push(e);
       return OK;
     }
+    // another version: the page confirms once it holds that version's data (header); the ticket stays unconfirmed
+    if (!this.ready(session, e, cs)) return fail(ERR.CONTENT_NOT_READY, 'load the data of the match\'s version first');
     e.revivalVote = false; // Legacy bookkeeping only; no player vote selects room rules.
     e.accepted = true;
     offer.acceptOrder.push(e);
     this.pushAll(offer.entries);
     if (!offer.entries.every((x) => x.accepted)) return OK;
-    if (this.asyncAllocate) {
+    if (this.asyncAllocate && !this.syncAllocation?.(offer.versionId)) {
       this.prepareAllocation(offer);
       return OK; // Acknowledges acceptance only; allocation is not yet committed.
     }
@@ -314,6 +340,7 @@ export class Matchmaking {
       this.parties.delete(member.party.id);
       member.session.matchmakingResult = {
         ticketId: member.ticketId, offerId: offer.id, difficulty: member.difficulty, required: offer.required, code: result.code,
+        ...(offer.versionId !== DEFAULT_VERSION ? { version: offer.versionId } : {}),
         experimental: { ...offer.experimental }, ...this.partyState(member.party),
       };
     }
@@ -335,7 +362,7 @@ export class Matchmaking {
     if (offer.allocation || this.offers.get(offer.id) !== offer || this.closed) return;
     const allocation = {
       controller: new AbortController(), offerId: offer.id, experimental: offer.experimental, required: offer.required,
-      cancelled: false, cleaned: false, completed: false, result: null,
+      versionId: offer.versionId, cancelled: false, cleaned: false, completed: false, result: null,
       entries: offer.entries.map((entry) => ({ entry, session: entry.session, playerId: entry.session.playerId,
         ticketId: entry.ticketId, version: entry.version, party: entry.party, difficulty: entry.difficulty,
         expiresAt: entry.expiresAt, sequence: entry.sequence, revivalVote: entry.revivalVote, experimental: entry.party.experimental })),
@@ -361,7 +388,7 @@ export class Matchmaking {
       if (this.closed || allocation.cancelled || allocation.controller.signal.aborted || offer.allocation !== allocation
         || this.offers.get(allocation.offerId) !== offer || offer.id !== allocation.offerId
         || offer.entries.length !== allocation.entries.length || offer.experimental !== allocation.experimental
-        || offer.required !== allocation.required || offer.entries.length !== offer.required
+        || offer.required !== allocation.required || offer.versionId !== allocation.versionId || offer.entries.length !== offer.required
         || roomCapacity('coop', offer.experimental) !== offer.required) return false;
       const now = this.now();
       if (offer.deadline !== allocation.deadline || now >= allocation.deadline) return false;
@@ -371,7 +398,7 @@ export class Matchmaking {
           && e.session.playerId === saved.playerId && e.ticketId === saved.ticketId && e.version === saved.version
           && e.offerId === allocation.offerId && e.party === saved.party && this.parties.get(e.party.id) === e.party
           && e.difficulty === saved.difficulty && e.expiresAt === saved.expiresAt && e.sequence === saved.sequence
-          && e.party.required === allocation.required && e.party.experimental === saved.experimental
+          && e.party.required === allocation.required && e.party.versionId === allocation.versionId && e.party.experimental === saved.experimental
           && (!e.party.experimental || sameExperimental(e.party.experimental, offer.experimental))
           && (allocation.required <= MAX_SEATS || e.session.playerCapacityVersion === PLAYER_CAPACITY_VERSION)
           && e.accepted === true && e.revivalVote === saved.revivalVote && e.expiresAt > now
@@ -422,6 +449,7 @@ export class Matchmaking {
       this.parties.delete(member.party.id);
       member.session.matchmakingResult = {
         ticketId: member.ticketId, offerId: offer.id, difficulty: member.difficulty, required: offer.required, code: result.code,
+        ...(offer.versionId !== DEFAULT_VERSION ? { version: offer.versionId } : {}),
         experimental: { ...offer.experimental }, ...this.partyState(member.party),
       };
     }
@@ -492,12 +520,12 @@ export class Matchmaking {
       if (e.offerId) continue;
       for (const difficulty of party.difficulties) for (const required of party.capacities) {
         const key = this.poolKey(e, difficulty, required);
-        if (!pools.has(key)) pools.set(key, { difficulty, required, parties: [] });
+        if (!pools.has(key)) pools.set(key, { difficulty, required, versionId: party.versionId, parties: [] });
         pools.get(key).parties.push(party);
       }
     }
     // The largest rooms first: a ticket that also takes a small room fills a large one that is waiting for it.
-    for (const { difficulty, required, parties: listed } of [...pools.values()].sort((a, b) => b.required - a.required)) {
+    for (const { difficulty, required, versionId, parties: listed } of [...pools.values()].sort((a, b) => b.required - a.required)) {
       // A ticket of several pools that an earlier pool of this pass took is gone from the others.
       const pool = listed.filter((party) => !party.entries[0].offerId);
       pool.sort((a, b) => a.sequence - b.sequence);
@@ -568,7 +596,7 @@ export class Matchmaking {
         // Lone tickets make an ordinary game of the pool's size.
         const experimental = parties.find(party => party.experimental)?.experimental
           ?? (required === MAX_SEATS ? EXPERIMENTAL_DEFAULTS : experimentalOptions({ ...EXPERIMENTAL_DEFAULTS, playerCapacity: required }));
-        const offer = { id: id(), experimental, required,
+        const offer = { id: id(), experimental, required, versionId,
           deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries, acceptOrder: [] };
         this.offers.set(offer.id, offer);
         for (const party of parties) { unused.delete(party); party.required = required; }

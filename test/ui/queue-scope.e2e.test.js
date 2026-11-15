@@ -20,6 +20,22 @@ const CHROME = process.env.CHROME_PATH || '/usr/bin/google-chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
 const MULTI = [8, 12, 16, 20];
 
+/**
+ * The page confirms its offer as 确认入场 does (ui/matchmaking.js acceptRequest): in another version's pool (this fork,
+ * one pool per version) once its data is checked, naming that data's cs.
+ */
+const acceptInPage = async (page) => {
+  await page.waitForFunction(() => {
+    const v = globalThis.__SP__.store.get().queue?.version, c = globalThis.__SP_CONTENT__?.state?.();
+    return !v || (c?.kind === 'version' && c.version === v && c.status === 'ready');
+  }, { timeout: 60000 });
+  return page.evaluate(() => {
+    const { ticketId, offerId, version } = globalThis.__SP__.store.get().queue;
+    const c = globalThis.__SP_CONTENT__.state();
+    return globalThis.__SP__.net.request('queue.accept', { ticketId, offerId, ...(version ? { cs: c.cs } : {}) }).then((r) => r.t);
+  });
+};
+
 describe('多人匹配 scope (real server, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv, browser, base;
   const errors = [], clients = [];
@@ -97,13 +113,15 @@ describe('多人匹配 scope (real server, headless Chrome)', { skip: !ENABLED &
     await me.click('.proto-start');
     await me.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'queued', { timeout: 15000 });
     const q = await me.evaluate(() => globalThis.__SP__.store.get().queue);
+    // the pool of the lobby's version (规程, the server's default; this fork's pool per version)
+    assert.equal(q.version, 'act3autochess@V3_1');
     assert.deepEqual(q.capacities, MULTI);
     assert.deepEqual(q.rules, ['standard']);
     assert.equal(q.required, 8);
     await me.waitForSelector('.mf-search', { visible: true, timeout: 15000 });
     await settle(me);
     const tags = await me.$$eval('.mf-tag', (els) => els.map((el) => el.textContent.trim()));
-    assert.ok(tags.includes('多人同盟') && tags.includes('标准规则'), JSON.stringify(tags));
+    assert.ok(tags.includes('多人同盟') && tags.includes('标准规则') && tags.some((x) => /规程/.test(x)), JSON.stringify(tags));
     assert.equal(tags.some((x) => /4 人/.test(x)), false, JSON.stringify(tags));
     await shot(me, 'searching');
     await me.evaluate(() => document.querySelector('.proto-back').click());
@@ -115,8 +133,9 @@ describe('多人匹配 scope (real server, headless Chrome)', { skip: !ENABLED &
     for (let i = 0; i < 7; i++) {
       const c = await TestClient.connect(`ws://127.0.0.1:${srv.port}/ws`, { timeout: 15000 });
       clients.push(c);
-      await c.hello(`单人${i}`, undefined, { matchmakingVersion: MATCHMAKING_VERSION, playerCapacityVersion: PLAYER_CAPACITY_VERSION });
-      assert.equal((await c.request({ t: 'queue.join', difficulty: q.difficulty, capacities: MULTI, rules: ['standard'] })).t, 'ok');
+      const welcome = await c.hello(`单人${i}`, undefined, { matchmakingVersion: MATCHMAKING_VERSION, playerCapacityVersion: PLAYER_CAPACITY_VERSION });
+      c.poolCs = welcome.versions?.find((v) => v.id === q.version)?.cs;
+      assert.equal((await c.request({ t: 'queue.join', difficulty: q.difficulty, capacities: MULTI, rules: ['standard'], version: q.version })).t, 'ok');
     }
     await me.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'offered', { timeout: 20000 });
     const offer = await me.evaluate(() => globalThis.__SP__.store.get().queue);
@@ -128,17 +147,15 @@ describe('多人匹配 scope (real server, headless Chrome)', { skip: !ENABLED &
     await shot(me, 'offered');
     for (const c of clients) {
       const state = await c.waitFor('queue.state', (m) => m.state === 'offered');
-      assert.equal((await c.request({ t: 'queue.accept', ticketId: state.ticketId, offerId: state.offerId })).t, 'ok');
+      assert.equal((await c.request({ t: 'queue.accept', ticketId: state.ticketId, offerId: state.offerId, cs: c.poolCs })).t, 'ok');
     }
-    await me.evaluate(() => {
-      const { ticketId, offerId } = globalThis.__SP__.store.get().queue;
-      return globalThis.__SP__.net.request('queue.accept', { ticketId, offerId }).then((r) => r.t);
-    });
+    assert.equal(await acceptInPage(me), 'ok');
     await me.waitForFunction(() => !!globalThis.__SP__.store.get().room, { timeout: 30000 });
     const room = await me.evaluate(() => { const r = globalThis.__SP__.store.get().room; return { seats: r.seats.filter(Boolean).length, experimental: r.experimental, source: r.source }; });
     assert.equal(room.seats, 8);
     assert.equal(room.experimental.playerCapacity, 8);
     assert.equal(room.source, 'matchmaking');
+    assert.equal(await me.evaluate(() => globalThis.__SP__.store.get().room.version), 'act3autochess@V3_1', 'a 规程 version room');
     assert.deepEqual(errors, []);
   });
 });

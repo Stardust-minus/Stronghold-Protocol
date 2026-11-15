@@ -17,7 +17,12 @@
 // version other than 第二期下半, 选择模拟协议 offers the difficulties of the version shown (its config's modes: 第一期 and
 // 第二期上半 have no 终极; the remembered difficulty, when it is not offered, shows as the server's fallback — the highest
 // offered below it — and stays remembered until the player picks one; the cards wait while the version loads), and
-// 创建同盟 / 独立模拟 create the room in that version (room.create `version`). 多人匹配 stays on 第二期下半.
+// 创建同盟 / 独立模拟 create the room in that version (room.create `version`). 多人匹配 waits in that version's pool (this
+// fork, the owner 2026-11-15: one pool per version — queue.join `version`): 选择模拟协议 lists the version's co-op
+// difficulties, names the pool (the version chip, data-testid match-version) and waits for its data like the cards above;
+// a version the server cannot queue (welcome.versions `queue: false`) leaves the start button off with
+// 「{version}」暂不开放多人匹配. The search names the version (QueueFlow's tag, the hub's line); the version chip is locked while
+// a ticket waits (ui/versionPicker.js), so the ticket and the lobby show the same version.
 // 规程·序列Ⅰ (upstream 0.4.0, the lobby's default version there — shared/versions.js LOBBY_DEFAULT_VERSION): the title reads
 // 卫戍协议·规程, and 独立模拟's 选择模拟协议 picks one of its laddered official modes — 极速模拟 or 规程等级 1–20 (LadderList,
 // versions.js ladderModes; room.create `modeId`, remembered as `lobby.ladderMode`) — instead of the four difficulties.
@@ -50,7 +55,7 @@ import { ServerStatusModal } from '../ui/serverStatus.js';
 import { SiteBoards } from '../ui/siteBoards.js';
 import { VersionSwitch } from '../ui/versionPicker.js';
 import { contentSet, retryContentSet } from '../content.js';
-import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, ladderModes, ladderPick, seasonOf, soloTimedOf, versionLabel, REGULATION_SEASON } from '../versions.js';
+import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, ladderModes, ladderPick, seasonOf, soloTimedOf, versionLabel, versionQueueable, REGULATION_SEASON } from '../versions.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { openStats } from './stats.js';
@@ -69,7 +74,7 @@ import { useLeave } from '../ui/transitions.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, getConfig, getMode, getStage, useData, localAsset } from '../data.js';
-import { EXPERIMENTAL_RULES, MATCH_SCOPE_DEFAULT, QueueFlow, matchScope, matchScopeRequest, multiSeats, queueActive, queueDifficulties, queueScope, toggleMatchScope } from '../ui/matchmaking.js';
+import { EXPERIMENTAL_RULES, MATCH_SCOPE_DEFAULT, QueueFlow, matchScope, matchScopeRequest, multiSeats, queueActive, queueDifficulties, queueScope, queueVersion, toggleMatchScope } from '../ui/matchmaking.js';
 import { RoomListDialog } from '../ui/roomList.js';
 import { queueCancellation } from '../queueCancellation.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
@@ -605,7 +610,7 @@ function ProtocolArt({ d, regArt = false }) {
  */
 function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, onClose, online, maint, busy, queue, onCreate, onQueue, chained = false,
   difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, picks = null, onPick = null, scope = null, onScope = null,
-  ladder = null, modeId = null, onMode = null, season = null, look = false }) {
+  ladder = null, modeId = null, onMode = null, season = null, look = false, pool = null }) {
   const [leaving, leave] = useLeave(onClose);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
@@ -640,7 +645,10 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
     </div>`;
   }
   const label = maint ? t('维护中 · 暂停开局') : match ? t('开始多人匹配') : roomMode === 'solo' ? t('开始模拟') : t('创建同盟');
+  // 多人匹配's pool (the header): `pool` { label, off } while the server offers versions
+  const closed = match && pool?.off === true;
   const hint = !online ? t('正在连接服务器…') : maint ? t('服务器即将维护，暂停开启新的模拟')
+    : closed ? t('「{version}」暂不开放多人匹配', { version: pool.label })
     : match ? matchHint(scope)
     : roomMode === 'solo' ? t('独自调配阵容，按自己的节奏开始模拟') : t('创建后可邀请好友或添加 AI 队友');
   const working = busy === 'create' || busy === 'queue';
@@ -672,7 +680,8 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
         </div>
         <div class=${`proto-foot${match ? ' proto-foot--match' : ''}`}>
           ${match && scope ? html`<${MatchScope} scope=${scope} onToggle=${onScope} disabled=${working} />` : null}
-          ${match ? html`<div class="proto-opts"><span class="proto-mode-chip"><${Icon} name="search" />${t('多人匹配')}</span><${MatchRules} /></div>` : null}
+          ${match ? html`<div class="proto-opts"><span class="proto-mode-chip"><${Icon} name="search" />${t('多人匹配')}</span>${pool ? html`<span class="proto-mode-chip" data-testid="match-version"
+            title=${t('只和选择同一版本的博士匹配；匹配中不能切换版本')}><${Icon} name="book" />${pool.label}</span>` : null}<${MatchRules} /></div>` : null}
           ${soloTime ? html`<label class="create-box__test" data-testid="solo-unlimited">
             <input type="checkbox" role="switch" checked=${soloTime.on} onChange=${(e) => soloTime.onToggle(e.target.checked)} />
             <span>${t('不限时')}</span>
@@ -681,7 +690,7 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
           ${match && picks ? html`<p class="proto-hint" data-testid="match-picks">${scope && !scope.rules.includes('standard') ? t('只加入改过规则的小队：没有这样的小队时会一直等待')
             : picks.length > 1 ? t('已选 {k} 个难度，任一难度集齐即开局', { k: picks.length }) : t('可多选难度，任一难度集齐即开局')}</p>` : null}
           <p class="proto-hint">${hint}</p>
-          <button type="button" class="proto-start" disabled=${!online || maint || working || loading} onClick=${match ? onQueue : onCreate}>
+          <button type="button" class="proto-start" disabled=${!online || maint || working || loading || closed} onClick=${match ? onQueue : onCreate}>
             <span class="proto-start__mark" aria-hidden="true"><span class="proto-start__rook"><i>[</i><${Icon} name="rook" /><i>]</i></span><small>STRONGHOLD<br />PROTOCOL</small></span>
             <span class="proto-start__label">${working ? html`<${Spinner} size="sm" />` : null}${label}</span>
             <span class="proto-start__deco" aria-hidden="true"></span>
@@ -973,8 +982,10 @@ export function LobbyScreen() {
     // a laddered version's solo (规程): the official mode picked in 选择模拟协议 (server/lobby.js ladderMode)
     ...(roomMode === 'solo' && shownMode ? { modeId: shownMode } : {}),
   }));
-  // 多人匹配 waits in every picked difficulty (feedback #87); the picture shows the one pressed last, and it is the first
-  const picks = matchPicks.length ? matchPicks : [difficulty];
+  // 多人匹配 waits in every picked difficulty (feedback #87) the lobby version's co-op offers (the header: its pool); the
+  // picture shows the one pressed last, and it is the first
+  const offeredPicks = matchPicks.filter((d) => coop.includes(d));
+  const picks = offeredPicks.length ? offeredPicks : [shownCoop];
   const matchFocus = picks.includes(difficulty) ? difficulty : picks[picks.length - 1];
   const pressPick = (x) => {
     const next = toggleMatchPick(picks, x);
@@ -988,7 +999,14 @@ export function LobbyScreen() {
     setMatchRange(next);
     savePref('lobby.matchScope', next);
   };
-  const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty: matchFocus, ...(picks.length > 1 ? { difficulties: picks } : {}), ...matchScopeRequest(matchRange) }));
+  // the pool of the lobby's version (welcome.versions present: protocol `version`; without it 第二期下半's, as before)
+  const pool = versions ? { label: versionLabel(version), off: !versionQueueable({ versions }, version) } : null;
+  const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty: matchFocus, ...(picks.length > 1 ? { difficulties: picks } : {}),
+    ...matchScopeRequest(matchRange), ...(versions ? { version } : {}) }).catch((err) => {
+    // a version this server cannot queue right now (its data, its match host): say which, not the room's wording
+    if (err?.code === ERR.VERSION_UNSUPPORTED || err?.code === ERR.VERSION_UNKNOWN) { toast(t('「{version}」暂不开放多人匹配', { version: versionLabel(version) }), 'warn'); return; }
+    throw err;
+  }));
   // an offer while the hub shows: 选择模拟协议 comes up with 确认入场 (the 30-second window must not go unseen)
   useEffect(() => { if (queue?.state === 'offered' && sheet !== 'match') { setAllyOpen(false); setSheetChained(false); setSheet('match'); } }, [queue?.state]);
   const join = (c = code) => {
@@ -1082,7 +1100,7 @@ export function LobbyScreen() {
         ${queued && sheet !== 'match' ? html`<div class="matchmaking-hud brackets hub-searching" role="status">
             <div class="matchmaking-hud__info">
               <${Spinner} size="sm" />
-              <span class="matchmaking-hud__text">${queue.state === 'offered' ? t('队友已集结，请确认入场') : t('正在匹配同盟')} · ${[(queueDifficulties(queue) || [queue.difficulty]).map((x) => t(DIFFICULTY_NAMES[x] || '')).join(' / '), queueScope(queue)?.seats, queueScope(queue)?.rules].filter(Boolean).join(' · ')}</span>
+              <span class="matchmaking-hud__text">${queue.state === 'offered' ? t('队友已集结，请确认入场') : t('正在匹配同盟')} · ${[versions ? versionLabel(queueVersion(queue)) : null, (queueDifficulties(queue) || [queue.difficulty]).map((x) => t(DIFFICULTY_NAMES[x] || '')).join(' / '), queueScope(queue)?.seats, queueScope(queue)?.rules].filter(Boolean).join(' · ')}</span>
             </div>
             <${Button} variant="secondary" size="md" onClick=${openMatch}>${t('查看')}<//>
             <${Button} variant="danger" size="md" loading=${cancelling?.ticketId === queue.ticketId && cancelling?.status !== 'idle' && cancelling?.status !== 'failed'}
@@ -1101,7 +1119,7 @@ export function LobbyScreen() {
     ${sheet ? html`<${ProtocolSelect} card=${sheetCard} purpose=${sheet === 'match' ? 'match' : 'create'} difficulty=${sheet === 'match' ? matchFocus : shownSolo}
       picks=${sheet === 'match' ? picks : null} onPick=${pressPick} scope=${sheet === 'match' ? matchRange : null} onScope=${pressScope}
       onDifficulty=${pickDifficulty} onClose=${() => setSheet(null)} online=${online} maint=${maint} busy=${busy} queue=${queue}
-      difficulties=${sheet === 'match' ? DIFFICULTIES : solo} loading=${sheet !== 'match' && versionLoading} failed=${sheet !== 'match' && versionFailed}
+      difficulties=${sheet === 'match' ? coop : solo} loading=${versionLoading} failed=${versionFailed} pool=${sheet === 'match' ? pool : null}
       soloTime=${sheet !== 'match' && soloTimed === true ? { on: soloFree, onToggle: setSoloFreePref } : null}
       ladder=${sheet === 'match' ? null : ladder} modeId=${sheet === 'match' ? null : shownMode} onMode=${pickMode} season=${sheet === 'match' ? null : season} look=${look}
       onCreate=${() => create('solo')} onQueue=${queueMatch} chained=${sheetChained} />` : null}

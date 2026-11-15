@@ -1,4 +1,7 @@
 // Public queue remains separate from solo and invite rooms; all assignments come from the server.
+// One pool per official version (this fork, the owner 2026-11-15; server/matchmaking.js): queue.state `version` names a
+// ticket's (absent: 第二期下半); the searching screens tag it while the server offers versions (welcome.versions), and
+// queue.accept in another version's pool carries the cs of that version's data this page checked (acceptRequest).
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
@@ -10,9 +13,26 @@ import { net } from '../net.js';
 import { queueCancellation } from '../queueCancellation.js';
 import { toastError } from './toasts.js';
 import { ExperimentalSummary } from './experimental.js';
+import { contentSet } from '../content.js';
+import { DEFAULT_VERSION, versionById, versionLabel } from '../versions.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 export const queueActive = (q) => q?.state === 'queued' || q?.state === 'offered';
+
+/** The official version of a ticket's pool (queue.state `version`; absent = 第二期下半). @param {any} q */
+export const queueVersion = (q) => (typeof q?.version === 'string' && versionById(q.version) ? q.version : DEFAULT_VERSION);
+
+/**
+ * What queue.accept carries: the ticket and its offer, and in another version's pool the cs of that version's data this
+ * page holds checked (content.js contentSet `kind: 'version'`) — the server counts the confirm only then. Without it (the
+ * set still loading) the request goes out bare, and the server answers CONTENT_NOT_READY unless the party room's seat
+ * reported the data ready. @param {any} q @param {any} [c] the contentSet state
+ */
+export function acceptRequest(q, c = contentSet.get()) {
+  const v = queueVersion(q);
+  const cs = v !== DEFAULT_VERSION && c?.kind === 'version' && c.version === v && c.status === 'ready' && typeof c.cs === 'string' ? c.cs : null;
+  return { ticketId: q.ticketId, offerId: q.offerId, ...(cs ? { cs } : {}) };
+}
 
 export function queueCapacity(queue, experimental) {
   return isPlayerCapacity(queue?.required) ? queue.required
@@ -136,10 +156,7 @@ export function MatchmakingPanel({ queue, difficulty, experimental, online, onJo
     inFlight.current = true;
     setBusy(kind);
     try {
-      const fields = { ticketId: queue.ticketId };
-      if (kind === 'accept') {
-        fields.offerId = queue.offerId;
-      }
+      const fields = kind === 'accept' ? acceptRequest(queue) : { ticketId: queue.ticketId };
       await net.request(`queue.${kind}`, fields);
     } catch (err) { toastError(err); } finally {
       inFlight.current = false;
@@ -202,6 +219,8 @@ export function MatchmakingPanel({ queue, difficulty, experimental, online, onJo
 export function QueueFlow({ queue, difficulty, experimental, online, party = false, class: cls = '' }) {
   useTicker(1000);
   const cancellation = useStore((s) => s.ui.queueCancel);
+  // the pool's version is tagged while this server offers versions (welcome.versions)
+  const versioned = useStore((s) => Array.isArray(s.versions));
   if (!queueActive(queue)) return null;
   const capacity = queueCapacity(queue, experimental);
   if (queue.state === 'offered' && queue.allocationPending === true) {
@@ -227,6 +246,7 @@ export function QueueFlow({ queue, difficulty, experimental, online, party = fal
   return html`<${SearchPanel} class=${cls} elapsed=${queueTime(queue, serverNow())} stopping=${cancelling || !online}
     onStop=${() => queueCancellation.cancel(queue.ticketId)} note=${note}
     tags=${[{ key: 'mode', label: party ? t('组队匹配') : t('多人匹配'), icon: html`<${Icon} name="search" />` },
+      ...(versioned ? [{ key: 'version', label: versionLabel(queueVersion(queue)), icon: html`<${Icon} name="book" />` }] : []),
       ...(several ? several.map((x, i) => diffTag(x, population == null || !Number.isSafeInteger(queue.waitingCounts?.[i]) ? t(DIFFICULTY_NAMES[x]) : `${t(DIFFICULTY_NAMES[x])} ${queue.waitingCounts[i]}`))
         : [diffTag(d, t(DIFFICULTY_NAMES[d]))]),
       { key: 'cap', label: scope?.seats || t('{n} 人模式', { n: capacity }), icon: html`<${Icon} name="users" />` },

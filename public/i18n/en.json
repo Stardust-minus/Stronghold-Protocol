@@ -3830,5 +3830,11 @@
   "商店标出我的预选盟约": "Mark my bond plan in the shop",
   "商店和晋升奖励的干员卡上，你的主盟约显示为绿底，副盟约显示为绿框。": "On the operator cards of the shop and the promotion reward, your main alliance shows on a green fill, a secondary one in a green outline.",
   "商店标出队友的预选盟约": "Mark teammates' bond plans in the shop",
-  "共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。": "An alliance planned by a teammate who shares your chess pool shows on operator cards in a dashed blue outline with the alliance members icon."
+  "共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。": "An alliance planned by a teammate who shares your chess pool shows on operator cards in a dashed blue outline with the alliance members icon.",
+  "请先取消多人匹配，再切换版本": "Cancel public matchmaking before switching the version",
+  "「{version}」暂不开放多人匹配": "Public matchmaking is not available for “{version}” right now",
+  "只和选择同一版本的博士匹配；匹配中不能切换版本": "You are matched only with Doctors who picked the same version; the version cannot be switched while matching",
+  "使用玩法插件的同盟不能组队匹配": "An alliance with gameplay plugins cannot queue as a party",
+  "「{version}」暂不开放组队匹配": "Party matchmaking is not available for “{version}” right now",
+  "整队寻找「{version}」中相同人数模式和难度的真人，确认后自动开局": "Match your whole party with human players of “{version}” in the same player-count mode and difficulty; start automatically after confirmation"
 }
