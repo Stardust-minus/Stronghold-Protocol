@@ -51,8 +51,8 @@ test('battle status names only its owner and ignores injected internal metadata'
 });
 
 test('site names cover the exact thirty-two slots in order without changing wire labels or adding a notice', () => {
-  const names = ['罗德岛', '企鹅物流', '莱茵生命', '黑钢国际', '喀兰贸易', '龙门近卫局', '卡西米尔', '乌萨斯',
-    '炎', '拉特兰', '萨尔贡', '哥伦比亚', '叙拉古', '萨米', '伊比利亚', '巴别塔',
+  const names = ['罗德岛', '企鹅物流', '莱茵生命', '黑钢国际', '喀兰贸易', '龙门', '卡西米尔', '乌萨斯',
+    '炎', '拉特兰', '萨尔贡', '哥伦比亚', '叙拉古', '萨米', '伊比利亚', '卡兹戴尔',
     '维多利亚', '雷姆必拓', '东', '谢拉格', '阿戈尔', '莱塔尼亚', '玻利瓦尔', '米诺斯',
     '乌萨斯学生自治团', '深海猎人', '红松骑士团', '格拉斯哥帮', '汐斯塔', '鲤氏侦探事务所', '塔拉', 'S.W.E.E.P.'];
   const cluster = { scope: 'cluster', nodes: names.map((_, index) => node(index + 1)) };
