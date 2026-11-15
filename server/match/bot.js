@@ -697,7 +697,7 @@ function pagerKeeps(m, ps, p) {
 const FOCUS_PRIOR = { sargonShip: 7, kjeragShip: 5, lateranoShip: 0.8, victoriaShip: 0.6, kazimierzShip: -1.2, egirShip: -3, siracusaShip: -3.4, yanShip: -6 };
 
 /**
- * ps._envPlanBonds: RL-environment human proxies only (tools/rl env.mjs, never set by the server): their announced plan's
+ * ps._envPlanBonds: RL-environment human proxies only (env.mjs of github.com/Stardust-minus/Stronghold-RL, never set by the server): their announced plan's
  * main core bond, after an advisor plan's (planMain) and before the opening strategy's (bandMain).
  */
 function envPlanMain(m, ps) {
