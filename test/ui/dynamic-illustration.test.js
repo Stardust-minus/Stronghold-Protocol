@@ -172,10 +172,10 @@ test('名片: a skin card animates its skin\'s 动态立绘; never a collab one,
 });
 
 const assets = JSON.parse(readFileSync(new URL('../../data/assets.json', import.meta.url), 'utf8'));
-test('data: every skin with an official 动态立绘 ships it (71: 11 from PRTS, 60 from the client in rel26), complete', () => {
+test('data: every skin with an official 动态立绘 ships it (72: 11 from PRTS, 60 from the client in rel26, 1 from the client in 0.4.0), complete', () => {
   const recs = Object.entries(assets.skins);
   const declared = recs.filter(([, r]) => r.dynamicDeclared), shipped = recs.filter(([, r]) => r.dynamic);
-  assert.equal(shipped.length, 71);
+  assert.equal(shipped.length, 72);
   assert.deepEqual(declared.map(([id]) => id).sort(), shipped.map(([id]) => id).sort(), 'nothing declared and missing (动态立绘待补 no more)');
   for (const [id, r] of shipped) {
     const d = r.dynamic;

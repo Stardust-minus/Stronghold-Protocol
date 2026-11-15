@@ -11,7 +11,7 @@ const dynamic = Object.entries(assets.skins).filter(([, skin]) => skin.dynamic);
 const EDGE = new Set([...readFileSync(new URL('../tools/fix-dynamic-edges.py', import.meta.url), 'utf8').matchAll(/'(char_\w+)': 'dyn_illust_/g)].map((m) => m[1]));
 
 test('exactly the measured 动态立绘 are premultiplied, every other one stays straight', () => {
-  assert.equal(dynamic.length, 71);
+  assert.equal(dynamic.length, 72);
   assert.equal(PREMULTIPLIED_DYNAMIC.size, 15);
   assert.deepEqual(dynamic.filter(([, skin]) => skin.dynamic.pma === true).map(([id]) => id).sort(), [...PREMULTIPLIED_DYNAMIC].sort());
   for (const [id, skin] of dynamic) assert.equal(typeof skin.dynamic.pma, 'boolean', id);

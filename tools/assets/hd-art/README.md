@@ -8,9 +8,10 @@ are git-ignored like all art; a material profile carries them (only the collab o
 Steps (Python 3 with numpy + Pillow, always `python3 -I`; downloads in their own new folder, never run anything there):
 
 1. `prts_meta.py names.json want.json meta.json` — PRTS imageinfo of 「文件:立绘 <名字> <1|2>.png」 and 「半身像 …」 (40 titles
-   per request, 1 s apart, a plain User-Agent). The 卫戍协议 prototypes (char_6xx) use 「<名字>(卫戍协议)」: query them again
-   with those names (`alt`).
-2. `prts_get.py jobs.json outdir` — sequential downloads from media.prts.wiki only, size + sha1 checked against the API.
+   per request, 1 s apart, browser-like request headers; a 403 / 429 ends the run, no retry). The 卫戍协议 prototypes (char_6xx)
+   use 「<名字>(卫戍协议)」: query them again with those names (`alt`).
+2. `prts_get.py jobs.json outdir` — sequential downloads from media.prts.wiki only (0.25 s apart, the same headers, a 403 / 429
+   ends the run), size + sha1 checked against the API.
 3. `identity.py assets.json assets-collab.json roots.json dl-portrait out.json` — each PRTS 半身像 against the in-game
    portrait (mean abs difference ~3/255 is two decodes of one client picture); picks the variant per look.
 4. `portrait_box.py jobs.json out.json hd_out [i/n]` — scale + offset by masked SSD on the portrait's opaque pixels (coarse

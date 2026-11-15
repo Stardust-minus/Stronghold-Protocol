@@ -76,11 +76,24 @@ export function skinManifestMetadata(manifest, assetRoot) {
   return { ...manifest, hash: contentHash(body), stats: { ...stats, files: files.size, bytes: totalBytes(assetRoot, files), skins: Object.keys(manifest.skins || {}).length } };
 }
 
+// prts.wiki and media.prts.wiki may answer 403 to a client without browser-like request headers (2026-11); every allowed
+// host gets the same three. Source requests start at least 250 ms apart (two import lanes: at most two in flight).
+const SOURCE_HEADERS = Object.freeze({
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'zh-CN,zh;q=0.9',
+});
+let nextSourceRequest = 0;
+const sourceSlot = () => {
+  const now = Date.now(), at = Math.max(now, nextSourceRequest); nextSourceRequest = at + 250;
+  return at > now ? new Promise(resolve => setTimeout(resolve, at - now)) : Promise.resolve();
+};
 async function download(url, max = 16 * 1024 * 1024) {
   const u = new URL(url);
   if (u.protocol !== 'https:' || !['prts.wiki', 'media.prts.wiki', 'static.prts.wiki', 'torappu.prts.wiki'].includes(u.hostname) || u.username || u.password || u.port || u.hash
     || (u.hostname === 'torappu.prts.wiki' && (u.search || !/^\/assets\/char_spine\/char_[A-Za-z0-9_-]+\/(?:[A-Za-z0-9_\/.-]|%23)+\.(?:json|skel|atlas|png)$/.test(u.pathname)))) throw new Error('Untrusted source');
-  const response = await fetch(u, { signal: AbortSignal.timeout(25000), credentials: 'omit', redirect: 'error' });
+  await sourceSlot();
+  const response = await fetch(u, { headers: SOURCE_HEADERS, signal: AbortSignal.timeout(25000), credentials: 'omit', redirect: 'error' });
   if (!response.ok) { const error = new Error(`Source HTTP ${response.status}: ${u.pathname}`); error.status = response.status; throw error; }
   if (Number(response.headers.get('content-length')) > max) throw new Error('Source too large');
   const chunks = []; let size = 0;

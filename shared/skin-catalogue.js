@@ -2799,5 +2799,356 @@ export const SKIN_CATALOGUE = Object.freeze([
     "officialId": "char_4162_cathy@kitchen#5",
     "wikiIndex": 1,
     "charName": "凯瑟琳" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_1027_greyy2_breaker_1",
+    "charId": "char_1027_greyy2",
+    "name": N_("生化沉溺"),
+    "brand": N_("破格视界"),
+    "officialId": "char_1027_greyy2@breaker#1",
+    "wikiIndex": 2,
+    "charName": "承曦格雷伊" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_1027_greyy2_snow_5",
+    "charId": "char_1027_greyy2",
+    "name": N_("演出后的王子"),
+    "brand": N_("冰原信使"),
+    "officialId": "char_1027_greyy2@snow#5",
+    "wikiIndex": 1,
+    "charName": "承曦格雷伊" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_1027_greyy2_wild_12",
+    "charId": "char_1027_greyy2",
+    "name": N_("千尺俯瞰"),
+    "brand": N_("生命之地"),
+    "officialId": "char_1027_greyy2@wild#12",
+    "wikiIndex": 3,
+    "charName": "承曦格雷伊" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_1036_fang2_snow_8",
+    "charId": "char_1036_fang2",
+    "name": N_("纯净乐段"),
+    "brand": N_("冰原信使"),
+    "officialId": "char_1036_fang2@snow#8",
+    "wikiIndex": 1,
+    "charName": "历阵锐枪芬" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_1037_amiya3_sale_13",
+    "charId": "char_1037_amiya3",
+    "name": N_("寰宇独奏"),
+    "brand": N_("忒斯特收藏"),
+    "officialId": "char_1037_amiya3@sale#13",
+    "wikiIndex": 1,
+    "charName": "阿米娅(医疗)" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_129_bluep_iteration_2",
+    "charId": "char_129_bluep",
+    "name": N_("哀律西昂夜曲"),
+    "brand": N_("命途迭代"),
+    "officialId": "char_129_bluep@iteration#2",
+    "wikiIndex": 2,
+    "charName": "蓝毒" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_129_bluep_marthe_3",
+    "charId": "char_129_bluep",
+    "name": N_("浅滩律动"),
+    "brand": N_("玛尔特"),
+    "officialId": "char_129_bluep@marthe#3",
+    "wikiIndex": 1,
+    "charName": "蓝毒" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_185_frncat_marthe_12",
+    "charId": "char_185_frncat",
+    "name": N_("补水时间"),
+    "brand": N_("玛尔特"),
+    "officialId": "char_185_frncat@marthe#12",
+    "wikiIndex": 2,
+    "charName": "慕斯" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_185_frncat_wild_7",
+    "charId": "char_185_frncat",
+    "name": N_("营地炊烟"),
+    "brand": N_("生命之地"),
+    "officialId": "char_185_frncat@wild#7",
+    "wikiIndex": 1,
+    "charName": "慕斯" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_193_frostl_boc_4",
+    "charId": "char_193_frostl",
+    "name": N_("破冰"),
+    "brand": N_("斗争血脉"),
+    "officialId": "char_193_frostl@boc#4",
+    "wikiIndex": 1,
+    "charName": "霜叶" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_194_leto_sightseer_4",
+    "charId": "char_194_leto",
+    "name": N_("来日欢歌"),
+    "brand": N_("错位巡礼"),
+    "officialId": "char_194_leto@sightseer#4",
+    "wikiIndex": 1,
+    "charName": "烈夏" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_195_glassb_kitchen_1",
+    "charId": "char_195_glassb",
+    "name": N_("书味"),
+    "brand": N_("罗德厨房"),
+    "officialId": "char_195_glassb@kitchen#1",
+    "wikiIndex": 1,
+    "charName": "真理" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_219_meteo_summer_22",
+    "charId": "char_219_meteo",
+    "name": N_("夏卉 FA240"),
+    "brand": N_("珊瑚海岸"),
+    "officialId": "char_219_meteo@summer#22",
+    "wikiIndex": 2,
+    "charName": "陨星" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_219_meteo_sweep_1",
+    "charId": "char_219_meteo",
+    "name": N_("石墨"),
+    "brand": N_("雷神开拓者"),
+    "officialId": "char_219_meteo@sweep#1",
+    "wikiIndex": 1,
+    "charName": "陨星" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_274_astesi_epoque_23",
+    "charId": "char_274_astesi",
+    "name": N_("奇工妙想"),
+    "brand": N_("时代"),
+    "officialId": "char_274_astesi@epoque#23",
+    "wikiIndex": 3,
+    "charName": "星极" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_274_astesi_epoque_5",
+    "charId": "char_274_astesi",
+    "name": N_("寻耀"),
+    "brand": N_("时代"),
+    "officialId": "char_274_astesi@epoque#5",
+    "wikiIndex": 1,
+    "charName": "星极" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_274_astesi_shining_1",
+    "charId": "char_274_astesi",
+    "name": N_("殿堂上的游禽"),
+    "brand": N_("闪耀阶梯"),
+    "officialId": "char_274_astesi@shining#1",
+    "wikiIndex": 2,
+    "charName": "星极" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_325_bison_yun_7",
+    "charId": "char_325_bison",
+    "name": N_("凌云意"),
+    "brand": N_("0011/韵系列"),
+    "officialId": "char_325_bison@yun#7",
+    "wikiIndex": 1,
+    "charName": "拜松" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_328_cammou_summer_22",
+    "charId": "char_328_cammou",
+    "name": N_("悠然假日 HD59"),
+    "brand": N_("珊瑚海岸"),
+    "officialId": "char_328_cammou@summer#22",
+    "wikiIndex": 2,
+    "charName": "卡达" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_328_cammou_witch_2",
+    "charId": "char_328_cammou",
+    "name": N_("安息处的怪盗"),
+    "brand": N_("巫异盛宴 "),
+    "officialId": "char_328_cammou@witch#2",
+    "wikiIndex": 1,
+    "charName": "卡达" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_333_sidero_summer_6",
+    "charId": "char_333_sidero",
+    "name": N_("轻风 LB03"),
+    "brand": N_("珊瑚海岸"),
+    "officialId": "char_333_sidero@summer#6",
+    "wikiIndex": 1,
+    "charName": "铸铁" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_346_aosta_game_2",
+    "charId": "char_346_aosta",
+    "name": N_("光铳调试员"),
+    "brand": N_("成就之星"),
+    "officialId": "char_346_aosta@game#2",
+    "wikiIndex": 1,
+    "charName": "奥斯塔" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_347_jaksel_whirlwind_2",
+    "charId": "char_347_jaksel",
+    "name": N_("纵身一跃"),
+    "brand": N_("0011/飙系列"),
+    "officialId": "char_347_jaksel@whirlwind#2",
+    "wikiIndex": 1,
+    "charName": "杰克" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_367_swllow_boc_1",
+    "charId": "char_367_swllow",
+    "name": N_("归巢"),
+    "brand": N_("斗争血脉"),
+    "officialId": "char_367_swllow@boc#1",
+    "wikiIndex": 1,
+    "charName": "灰喉" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4041_chnut_summer_12",
+    "charId": "char_4041_chnut",
+    "name": N_("悠然假日 HDm57"),
+    "brand": N_("珊瑚海岸"),
+    "officialId": "char_4041_chnut@summer#12",
+    "wikiIndex": 1,
+    "charName": "褐果" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4047_pianst_wild_8",
+    "charId": "char_4047_pianst",
+    "name": N_("荒野寻音"),
+    "brand": N_("生命之地"),
+    "officialId": "char_4047_pianst@wild#8",
+    "wikiIndex": 1,
+    "charName": "车尔尼" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4066_highmo_epoque_45",
+    "charId": "char_4066_highmo",
+    "name": N_("搁浅"),
+    "brand": N_("时代"),
+    "officialId": "char_4066_highmo@epoque#45",
+    "wikiIndex": 2,
+    "charName": "海沫" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4066_highmo_nian_10",
+    "charId": "char_4066_highmo",
+    "name": N_("及山海"),
+    "brand": N_("0011™制造"),
+    "officialId": "char_4066_highmo@nian#10",
+    "wikiIndex": 1,
+    "charName": "海沫" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4147_mitm_breaker_1",
+    "charId": "char_4147_mitm",
+    "name": N_("无影灯下"),
+    "brand": N_("破格视界"),
+    "officialId": "char_4147_mitm@breaker#1",
+    "wikiIndex": 1,
+    "charName": "渡桥" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4165_ctrail_yun_11",
+    "charId": "char_4165_ctrail",
+    "name": N_("渡澄空"),
+    "brand": N_("0011/韵系列"),
+    "officialId": "char_4165_ctrail@yun#11",
+    "wikiIndex": 1,
+    "charName": "云迹" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4177_brigid_epoque_53",
+    "charId": "char_4177_brigid",
+    "name": N_("轻语入梦"),
+    "brand": N_("时代"),
+    "officialId": "char_4177_brigid@epoque#53",
+    "wikiIndex": 1,
+    "charName": "水灯心" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_4198_christ_epoque_56",
+    "charId": "char_4198_christ",
+    "name": N_("底绒舞会"),
+    "brand": N_("时代"),
+    "officialId": "char_4198_christ@epoque#56",
+    "wikiIndex": 1,
+    "charName": "Miss.Christine" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_455_nothin_nian_7",
+    "charId": "char_455_nothin",
+    "name": N_("冷山月"),
+    "brand": N_("0011™制造"),
+    "officialId": "char_455_nothin@nian#7",
+    "wikiIndex": 1,
+    "charName": "乌有" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_484_robrta_ambienceSynesthesia_3",
+    "charId": "char_484_robrta",
+    "name": N_("待绘的作品"),
+    "brand": N_("音律联觉"),
+    "officialId": "char_484_robrta@ambienceSynesthesia#3",
+    "wikiIndex": 2,
+    "charName": "罗比菈塔" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_484_robrta_summer_10",
+    "charId": "char_484_robrta",
+    "name": N_("夏卉 FA374"),
+    "brand": N_("珊瑚海岸"),
+    "officialId": "char_484_robrta@summer#10",
+    "wikiIndex": 1,
+    "charName": "罗比菈塔" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_488_buildr_epoque_34",
+    "charId": "char_488_buildr",
+    "name": N_("晚风休憩"),
+    "brand": N_("时代"),
+    "officialId": "char_488_buildr@epoque#34",
+    "wikiIndex": 1,
+    "charName": "青枳" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_492_quercu_epoque_17",
+    "charId": "char_492_quercu",
+    "name": N_("遥乡之径"),
+    "brand": N_("时代"),
+    "officialId": "char_492_quercu@epoque#17",
+    "wikiIndex": 1,
+    "charName": "夏栎" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_492_quercu_witch_4",
+    "charId": "char_492_quercu",
+    "name": N_("树影吟游"),
+    "brand": N_("巫异盛宴 "),
+    "officialId": "char_492_quercu@witch#4",
+    "wikiIndex": 2,
+    "charName": "夏栎" // i18n-ignore: exact Wiki image-title lookup, not UI text
+  },
+  {
+    "id": "char_499_kaitou_epoque_37",
+    "charId": "char_499_kaitou",
+    "name": N_("斜照"),
+    "brand": N_("时代"),
+    "officialId": "char_499_kaitou@epoque#37",
+    "wikiIndex": 1,
+    "charName": "折光" // i18n-ignore: exact Wiki image-title lookup, not UI text
   }
 ].map(skin => Object.freeze(skin)));

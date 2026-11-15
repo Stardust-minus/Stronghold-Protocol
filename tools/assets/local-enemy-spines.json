@@ -3741,7 +3741,16 @@
           "loop": "Move_1",
           "end": null
         },
-        "stun": null
+        "stun": null,
+        "skills": {
+          "0": {
+            "begin": null,
+            "loop": "Skill_1",
+            "end": null,
+            "index": 0,
+            "idle": null
+          }
+        }
       },
       "animations": {
         "Attack_1": 1.2,
@@ -3852,7 +3861,16 @@
           "loop": "Move",
           "end": null
         },
-        "stun": null
+        "stun": null,
+        "skills": {
+          "0": {
+            "begin": null,
+            "loop": "Skill_1",
+            "end": null,
+            "index": 0,
+            "idle": null
+          }
+        }
       },
       "animations": {
         "Attack": 1.333,

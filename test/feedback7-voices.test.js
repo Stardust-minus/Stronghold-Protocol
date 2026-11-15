@@ -62,7 +62,7 @@ test('plan: audio.voiceJp is the JP dub (ArknightsAssets2 voice/) of the very sl
   assert.ok(plan({ voiceSlots: null }).audio.voiceJp.char_263_skadi.gacha);
 });
 
-test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (248 operators, 3470 files); stand-ins, 盟约·辅助干员 and summons have neither', () => {
+test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (249 operators, 3484 files); stand-ins, 盟约·辅助干员 and summons have neither', () => {
   const m = readJson('data/assets.json');
   const cn = m.audio.voice;
   const jp = m.audio.voiceJp;
@@ -73,13 +73,14 @@ test('data/assets.json: voiceJp gives every voiced operator the JP twin of each 
   // 192 / 2688 until the online regeneration of 2026-11-03 added the 19 第一期 operators' lines (DESIGN §37.93)
   // 规程 adds 34 voiced operators; 拜松, like 锡兰, has no 作战中 4 line in the source.
   // The fork's rel25 adds 塔露拉, 冻河 and 国度, 14 lines each (upstream's manifest has them without voices)
-  assert.equal(Object.keys(jp).length, 248);
+  // 0.4.0's asset fill (2026-11-15) adds 奥尔佳's 14 lines (tools/fetch-assets.mjs --add-only)
+  assert.equal(Object.keys(jp).length, 249);
   // the JP tree is the Chinese one with the folder swapped: same slots, same lines in the same order, same file names
   assert.deepEqual(JSON.parse(JSON.stringify(cn).replaceAll('/assets/audio/voice/cn/', '/assets/audio/voice/jp/')), jp);
   const lines = [];
   const walk = (x) => { if (typeof x === 'string') lines.push(x); else if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') Object.values(x).forEach(walk); };
   walk(jp);
-  assert.equal(lines.length, 3470);
+  assert.equal(lines.length, 3484);
   for (const u of lines) assert.match(u, /^\/assets\/audio\/voice\/jp\/char_[^/]+\/cn_\d+\.mp3$/);
   // no voice: the 17 stand-ins of data/backups.json (预备干员 / 原型干员), the mode's 盟约·辅助干员, every summon
   const backups = readJson('data/backups.json');

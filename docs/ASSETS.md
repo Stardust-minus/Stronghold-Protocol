@@ -77,14 +77,14 @@ binding, safe file paths, Spine 3.8 animations, every atlas region, and complete
 Metadata declarations alone are not installed resources. Directory case aliases and camelCase basenames are preserved
 separately; the importer never lowercases or reconstructs a declared file stem.
 
-`data/assets.json skins` holds **306 outfits of 195 operators** (`stats.skins`); the collab pack adds five
-(`shared/skin-catalogue.js` lists all 311). The six outfits of operators without a Back model have none either
+`data/assets.json skins` holds **345 outfits of 223 operators** (`stats.skins`); the collab pack adds five
+(`shared/skin-catalogue.js` lists all 350). The six outfits of operators without a Back model have none either
 (`backUnavailable`); 浊心斯卡蒂「红女爵」 is one explicitly unified battle model (`battleModelKind: 'unified'`), not a
 fabricated rear file. Outfit battle pages are premultiplied (`pma: true`) except the two of `STRAIGHT_ALPHA_SKINS`.
 The 2026-10-08 import's 286 new skeleton sides were parsed and rendered through the client loader and `SpineActor` in
 a local browser. This does not claim complete original-game effects, summons, animation parity, or deployment.
 
-**Dynamic illustrations** (动态立绘): 71 outfits carry theirs as `skins[id].dynamic`, a Spine object (11 from PRTS, 60
+**Dynamic illustrations** (动态立绘): 72 outfits carry theirs as `skins[id].dynamic`, a Spine object (11 from PRTS, 61
 unpacked from the local client's `arts/dynchars` with lossless WebP pages; three use JSON skeletons). `frames.avatar` /
 `frames.portrait` are the official avatar and half-body framing in skeleton space; `background` / `foreground` are the
 optional layers behind and over it. Their pages are straight alpha except the 15 of `PREMULTIPLIED_DYNAMIC` (history
@@ -266,7 +266,7 @@ How downloads are fetched:
 - A manifest entry with fallbacks (for example an enemy icon that falls back to its base enemy's icon) only moves on to the next alternative after a **definitive 404**. When the primary fails transiently (network error, 5xx or an invalid payload after all retries), no fallback is fetched. The path is listed under `downloadErrors` in the report, and the next run retries the primary.
 - A skeleton that fails to parse is deleted and removed from the ledger, so the next online run downloads it again.
 
-The committed manifest's `stats` count **23,970 files, 4,342,825,472 bytes**. About 2.2 GB of that are the imported outfits (`skins/`, "Targeted skin battle preparation") and about 1.2 GB the operators' HD 立绘 ("HD static art"): a run keeps them but never downloads them. The 干员战斗语音 trees hold the twelve slots a battle plays: Chinese and Japanese 2,730 files each for 195 operators (67.3 / 87.4 MiB), English and Korean 2,548 each for 182 (70.7 / 80.4 MiB), the own-language dubs 658 for 47 (19.0 MiB). A re-run takes about 1 s. The three prep-only slots the official client uses elsewhere (干员报到 / 编入队伍 / 任命队长, 360 more files per dub, 18.4 MiB of them Chinese) are left out unless `--voice-all` is passed.
+The committed manifest's `stats` count **28,825 files, 4,903,413,126 bytes**. About 2.4 GB of that are the imported outfits (`skins/`, "Targeted skin battle preparation") and about 1.4 GB the operators' HD 立绘 ("HD static art"): a run keeps them but never downloads them. The 干员战斗语音 trees hold the twelve slots a battle plays: Chinese and Japanese 2,730 files each for 195 operators (67.3 / 87.4 MiB), English and Korean 2,548 each for 182 (70.7 / 80.4 MiB), the own-language dubs 658 for 47 (19.0 MiB). A re-run takes about 1 s. The three prep-only slots the official client uses elsewhere (干员报到 / 编入队伍 / 任命队长, 360 more files per dub, 18.4 MiB of them Chinese) are left out unless `--voice-all` is passed.
 
 Outputs:
 - `data/assets.json`: the manifest (committed).
@@ -330,7 +330,7 @@ languages, including their references in the prune set.
 | 上半期 BGM (a player's pick only, `audio.bgm.firstHalf`, feedback #45) | AA2 `voice` `audio/sound_beta_2/music/act35side` (沙海流金 `m_bat1_act35side`, 城市觉醒 `m_bat2_act35side`: the `bgmEvent` of the 2025-11 levels) and `act1vautochess` (休整) | `audio/bgm/{file}.mp3` |
 | Organisation emblems and official player avatars (feedback #89, #100) | the local client's `spritepack/ui_camp_logo_0.ab` and `spritepack/ui_player_avatar_list_h2_0.ab` (names: `handbook_team_table`, `display_meta_table`) | `ui/campLogo/logo_*.png`, `ui/playerAvatar/avatar_*.png` |
 | Official dynamic player avatars (rel27: the eight `avatar_dyn_01`…`08`; six Spine skeletons, two frame sequences) | the local client's `arts/dynavatars_0.ab` (`tools/local-extract/extract.py --only ui/avatar_dyn`, opt-in; `tools/local-extract/avatars.py`); without them the static avatar picture stays | `local/ui/avatar_dyn/{avatarId}/avatar.json` with its skeleton, atlas and page, or `{avatarId}.webp` (listed in `data/local-assets.json`) |
-| Operator outfits (时装: avatar, portrait, 立绘, battle Spine, 71 dynamic illustrations; "Targeted skin battle preparation") | not fetched by this tool: `tools/prepare-operator-skins.mjs` (PRTS), 60 dynamic illustrations from the local client's `arts/dynchars`; a run keeps every installed outfit whose files are complete (`retainInstalledSkins`) | `skins/{skinId}/{avatar,portrait,illustration,portrait_hd}.png`, `skins/{skinId}/{front,back,dynamic}/…` |
+| Operator outfits (时装: avatar, portrait, 立绘, battle Spine, 72 dynamic illustrations; "Targeted skin battle preparation") | not fetched by this tool: `tools/prepare-operator-skins.mjs` (PRTS), 61 dynamic illustrations from the local client's `arts/dynchars`; a run keeps every installed outfit whose files are complete (`retainInstalledSkins`) | `skins/{skinId}/{avatar,portrait,illustration,portrait_hd}.png`, `skins/{skinId}/{front,back,dynamic}/…` |
 | HD static 立绘 of every operator look (rel30, "HD static art") | not fetched by this tool: the PRTS 立绘 through `tools/assets/hd-art/`, written into the manifest by `tools/prepare-operator-illustrations.mjs`; a run keeps the fields whose files are on disk | `char/illustration/{charId}_{1,2}.png`, `char/portrait_hd/{charId}_{1,2}.png` |
 | SFX (UI, battle, per unit) | AA2 `voice` `audio/sound_beta_2/**`, mapped from `audio_data.json` banks | `audio/sfx/{same sub-path}.mp3` |
 | 干员战斗语音 | AA2 `voice` `audio/sound_beta_2/voice_cn/{charId}/cn_nn.mp3` (Chinese, `audio.voice`), `voice/{charId}/cn_nn.mp3` (Japanese, `audio.voiceJp`), `voice_en/` (English, `audio.voiceEn`), `voice_kr/` (Korean, `audio.voiceKr`) and `voice_custom/<wordkey lowercase>/` (the operator's own-language dub, `audio.voiceNative`: charword `voiceLangDict` entries whose `voiceLangTypeDict` `groupType` is `CUSTOM` — Italian, Russian, Spanish, Chinese dialect, German, French; the first such dub when there are several). Same file names. `--voice-lang=jp|en|kr` fills `audio.voice` from `voice/`, `voice_en/`, `voice_kr/` instead. `--no-optional-voice` skips the three extra trees. | `audio/voice/cn/{charId}/{cn_nn}.mp3`, `audio/voice/jp/…`, `audio/voice/en/…`, `audio/voice/kr/…`, `audio/voice/native/<wordkey>/{cn_nn}.mp3` |

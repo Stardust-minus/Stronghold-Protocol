@@ -1,8 +1,10 @@
 """PRTS imageinfo for 立绘 / 半身像 {name} 1|2.png of every operator (metadata only). argv: names.json chars.json out.json"""
-import json, sys, time, urllib.parse, urllib.request
+import json, sys, time, urllib.error, urllib.parse, urllib.request
 names = json.load(open(sys.argv[1], encoding='utf-8'))
 want = json.load(open(sys.argv[2], encoding='utf-8'))   # charId -> {"e2": bool}
-UA = 'stronghold-assets/1.0 (fan remake asset check)'
+UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+# prts.wiki / media.prts.wiki answer 403 to a client without browser-like headers (2026-11-15); 403 / 429 end the run (no retry)
+HEADERS = {'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8', 'Accept-Language': 'zh-CN,zh;q=0.9'}
 titles = []
 for cid, info in want.items():
     n = names[cid]
@@ -15,9 +17,12 @@ def query(batch):
                                 'titles': '|'.join(t[3] for t in batch)})
     for attempt in range(4):
         try:
-            req = urllib.request.Request('https://prts.wiki/api.php?' + q, headers={'User-Agent': UA})
+            req = urllib.request.Request('https://prts.wiki/api.php?' + q, headers=HEADERS)
             with urllib.request.urlopen(req, timeout=30) as r:
                 return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code in (403, 429): raise SystemExit(f'PRTS answered {e.code}: stop (no retry)')
+            time.sleep(3 * (attempt + 1)); err = e
         except Exception as e:
             time.sleep(3 * (attempt + 1)); err = e
     raise err

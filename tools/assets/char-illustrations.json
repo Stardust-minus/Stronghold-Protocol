@@ -899,6 +899,77 @@
     "scene": true
    }
   },
+  "char_1027_greyy2": {
+   "e1": {
+    "box": [
+     433,
+     -27,
+     185,
+     370
+    ],
+    "gain": 1.028,
+    "hd": {
+     "bytes": 76860,
+     "sha256": "c275fdb47e036d15b3ede81c56da04d82bbc949af7585899cf1b6ea0238d24e5",
+     "size": [
+      185,
+      370
+     ]
+    },
+    "illustration": {
+     "bytes": 448042,
+     "sha256": "b6054e9310c8100868c9a572728bb793ca12011d823d45fed12cf315508c8a61",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_承曦格雷伊_1.png",
+      "sha1": "8ebf8a05604ea3db7b888179251817370ba1c641",
+      "url": "https://media.prts.wiki/b/b7/%E7%AB%8B%E7%BB%98_%E6%89%BF%E6%9B%A6%E6%A0%BC%E9%9B%B7%E4%BC%8A_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.887,
+    "ncc": 0.9785,
+    "psnr": 25.15
+   },
+   "e2": {
+    "box": [
+     910,
+     768,
+     198,
+     396
+    ],
+    "gain": 1.1,
+    "hd": {
+     "bytes": 121800,
+     "sha256": "a20e5303c51aef0a39956d98e24455772f7afb7cb3b33a50a01ccd45944acca7",
+     "size": [
+      198,
+      396
+     ]
+    },
+    "illustration": {
+     "bytes": 2416460,
+     "sha256": "5037ddf827ecf0c7a32f777dd1250d998fc122e358552cd9f588de0970ca0060",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_承曦格雷伊_2.png",
+      "sha1": "53e643c2747901a9d06a716c6dafe653e71b80b8",
+      "url": "https://media.prts.wiki/0/09/%E7%AB%8B%E7%BB%98_%E6%89%BF%E6%9B%A6%E6%A0%BC%E9%9B%B7%E4%BC%8A_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.861,
+    "ncc": 0.9809,
+    "psnr": 24.51,
+    "scene": true
+   }
+  },
   "char_1028_texas2": {
    "e1": {
     "box": [
@@ -1448,6 +1519,114 @@
     "inlier": 0.821,
     "ncc": 0.9646,
     "psnr": 22.55,
+    "scene": true
+   }
+  },
+  "char_1036_fang2": {
+   "e1": {
+    "box": [
+     538,
+     5,
+     220,
+     440
+    ],
+    "gain": 1.222,
+    "hd": {
+     "bytes": 137431,
+     "sha256": "58332a9efe1ecfc1630c8ba7d9257eca44dae01a31d66b4143a4b0929e54962d",
+     "size": [
+      220,
+      440
+     ]
+    },
+    "illustration": {
+     "bytes": 749225,
+     "sha256": "7e2873ccdcd08f40a8df74652290d6df5dfebbd2222e9338744d7641167c4553",
+     "size": [
+      1292,
+      1292
+     ],
+     "source": {
+      "file": "立绘_历阵锐枪芬_1.png",
+      "sha1": "9792cb46981593547d81c8245aa5b1aa49f4d535",
+      "url": "https://media.prts.wiki/6/6d/%E7%AB%8B%E7%BB%98_%E5%8E%86%E9%98%B5%E9%94%90%E6%9E%AA%E8%8A%AC_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.896,
+    "ncc": 0.9719,
+    "psnr": 24.2
+   },
+   "e2": {
+    "box": [
+     1172,
+     774,
+     191,
+     382
+    ],
+    "gain": 1.061,
+    "hd": {
+     "bytes": 143239,
+     "sha256": "933a04b3e4b38a3b42b22189d23628d4b2a651788dabd04157c99728b7c945db",
+     "size": [
+      191,
+      382
+     ]
+    },
+    "illustration": {
+     "bytes": 5776580,
+     "sha256": "5afd27234b73de9a05a2572cf567e4cf73093853ec8577e2b85bcaaf01553c75",
+     "size": [
+      2560,
+      2560
+     ],
+     "source": {
+      "file": "立绘_历阵锐枪芬_2.png",
+      "sha1": "39be52b35d94b24b9c83af1f2536db819245b97a",
+      "url": "https://media.prts.wiki/f/f5/%E7%AB%8B%E7%BB%98_%E5%8E%86%E9%98%B5%E9%94%90%E6%9E%AA%E8%8A%AC_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.939,
+    "ncc": 0.9885,
+    "psnr": 27.75,
+    "scene": true
+   }
+  },
+  "char_1037_amiya3": {
+   "e2": {
+    "box": [
+     1278,
+     648,
+     218,
+     436
+    ],
+    "gain": 1.211,
+    "hd": {
+     "bytes": 219430,
+     "sha256": "76465c2a8457cd6032e0bdc133c1f3e403613bdcdc739d0b1b21b9283e7a2716",
+     "size": [
+      218,
+      436
+     ]
+    },
+    "illustration": {
+     "bytes": 5821231,
+     "sha256": "fa3a957810fa0378a1365b28ef0195719a859999d51397882ef0d5e5171191e6",
+     "size": [
+      2560,
+      2560
+     ],
+     "source": {
+      "file": "立绘_阿米娅(医疗)_2.png",
+      "sha1": "192365a89775bb64d4ad7e7962ec3315c56833fc",
+      "url": "https://media.prts.wiki/e/e1/%E7%AB%8B%E7%BB%98_%E9%98%BF%E7%B1%B3%E5%A8%85%28%E5%8C%BB%E7%96%97%29_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.883,
+    "ncc": 0.9792,
+    "psnr": 24.64,
     "scene": true
    }
   },
@@ -2958,6 +3137,76 @@
     "scene": true
    }
   },
+  "char_129_bluep": {
+   "e1": {
+    "box": [
+     393,
+     10,
+     206,
+     412
+    ],
+    "gain": 1.144,
+    "hd": {
+     "bytes": 68425,
+     "sha256": "aaa43522dce46cd99b95f7d39c6ca3c6996d6114aa449b5fa2018f0cf8c4eb49",
+     "size": [
+      206,
+      412
+     ]
+    },
+    "illustration": {
+     "bytes": 204358,
+     "sha256": "fa3e4b50ddb4c5996b5639054efc5bed4a68845f7ea2cd1ff28532d5d575dc26",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_蓝毒_1.png",
+      "sha1": "1d35b1e1610ae1985eebafaa55e54e748d14805d",
+      "url": "https://media.prts.wiki/6/66/%E7%AB%8B%E7%BB%98_%E8%93%9D%E6%AF%92_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.939,
+    "ncc": 0.99,
+    "psnr": 28.7
+   },
+   "e2": {
+    "box": [
+     363,
+     21,
+     207,
+     414
+    ],
+    "gain": 1.15,
+    "hd": {
+     "bytes": 82577,
+     "sha256": "6b1999b5884dfd52f6a89037d87a5b7205afae4568bd355ad89f11f9c6422352",
+     "size": [
+      207,
+      414
+     ]
+    },
+    "illustration": {
+     "bytes": 496571,
+     "sha256": "cff913c455f8b50a44a3a125a9191dfc0c9a3ce43381c1b0a4247183f3e7b6f8",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_蓝毒_2.png",
+      "sha1": "9092cc6d73c41197a03647237408eba93a73590e",
+      "url": "https://media.prts.wiki/3/36/%E7%AB%8B%E7%BB%98_%E8%93%9D%E6%AF%92_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.892,
+    "ncc": 0.9788,
+    "psnr": 24.58
+   }
+  },
   "char_133_mm": {
    "e1": {
     "box": [
@@ -4185,6 +4434,76 @@
     "scene": true
    }
   },
+  "char_185_frncat": {
+   "e1": {
+    "box": [
+     395,
+     2,
+     217,
+     434
+    ],
+    "gain": 1.206,
+    "hd": {
+     "bytes": 92075,
+     "sha256": "2ce2ef243259190676b7b11e16614aeda4a61ed0791561b67475ec8c1aeabf63",
+     "size": [
+      217,
+      434
+     ]
+    },
+    "illustration": {
+     "bytes": 276342,
+     "sha256": "a2004e0f6c75e652460cd3fe46a8c40f757b9756136ab4933155b96b90b77c7d",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_慕斯_1.png",
+      "sha1": "0bbcf3a4c6db7bfedcad8c2ce2c6172b744664db",
+      "url": "https://media.prts.wiki/c/c5/%E7%AB%8B%E7%BB%98_%E6%85%95%E6%96%AF_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.883,
+    "ncc": 0.9792,
+    "psnr": 24.24
+   },
+   "e2": {
+    "box": [
+     397,
+     -31,
+     241,
+     482
+    ],
+    "gain": 1.339,
+    "hd": {
+     "bytes": 115303,
+     "sha256": "a2b0e65d382b78309bcdb31ec9839131b0c4cb311fc3dfbc7f37fa6807fa847c",
+     "size": [
+      241,
+      482
+     ]
+    },
+    "illustration": {
+     "bytes": 621942,
+     "sha256": "0efbcbf166352a67e8bfbd565c798913e5b5f2fa8d3834ee4c3d814c1cbabc17",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_慕斯_2.png",
+      "sha1": "9451833330c2308bf82ef9bd914731f49618eb2f",
+      "url": "https://media.prts.wiki/d/d3/%E7%AB%8B%E7%BB%98_%E6%85%95%E6%96%AF_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.905,
+    "ncc": 0.9829,
+    "psnr": 25.35
+   }
+  },
   "char_188_helage": {
    "e1": {
     "box": [
@@ -4253,6 +4572,219 @@
     "inlier": 0.949,
     "ncc": 0.9917,
     "psnr": 28.29,
+    "scene": true
+   }
+  },
+  "char_193_frostl": {
+   "e1": {
+    "box": [
+     347,
+     162,
+     184,
+     368
+    ],
+    "gain": 1.022,
+    "hd": {
+     "bytes": 67326,
+     "sha256": "207c46ba48d5dfaaf94d442ea1325a9be7c9fbe2bcb3b354ed33e2d2cf749778",
+     "size": [
+      184,
+      368
+     ]
+    },
+    "illustration": {
+     "bytes": 267625,
+     "sha256": "11cf4d972577f0fa0a3cd616970495e9f2dd8aa689bcb004ec5791dd07fae743",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_霜叶_1.png",
+      "sha1": "1b80df91715fa03d6d8aa56b69cb574cdffc4bfa",
+      "url": "https://media.prts.wiki/5/50/%E7%AB%8B%E7%BB%98_%E9%9C%9C%E5%8F%B6_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.942,
+    "ncc": 0.9919,
+    "psnr": 28.22
+   },
+   "e2": {
+    "box": [
+     906,
+     633,
+     220,
+     440
+    ],
+    "gain": 1.222,
+    "hd": {
+     "bytes": 134368,
+     "sha256": "073b36069b6660903067714961b6aef9e8b64c969914ecae610d4435139135a6",
+     "size": [
+      220,
+      440
+     ]
+    },
+    "illustration": {
+     "bytes": 2255181,
+     "sha256": "49955c384f67d481a803108d93ee4a9a9ee3786dd3dc2363182183a98fb3d340",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_霜叶_2.png",
+      "sha1": "33492e68eb4a63fa185d194951e2b1ed4a911f78",
+      "url": "https://media.prts.wiki/7/7a/%E7%AB%8B%E7%BB%98_%E9%9C%9C%E5%8F%B6_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.922,
+    "ncc": 0.9818,
+    "psnr": 25.32,
+    "scene": true
+   }
+  },
+  "char_194_leto": {
+   "e1": {
+    "box": [
+     529,
+     83,
+     226,
+     452
+    ],
+    "gain": 1.256,
+    "hd": {
+     "bytes": 161635,
+     "sha256": "6ef6ea0c4a75f27289309fad5107033104eead01cdbed27495527aa75ebb1b30",
+     "size": [
+      226,
+      452
+     ]
+    },
+    "illustration": {
+     "bytes": 939762,
+     "sha256": "86011ee120bf1df62843ce772051418036dda54bfc89ef8d829d361a5dcef90e",
+     "size": [
+      1304,
+      1304
+     ],
+     "source": {
+      "file": "立绘_烈夏_1.png",
+      "sha1": "5b25dba37cb8529628ecb78ed9910ca83a1aa761",
+      "url": "https://media.prts.wiki/f/fa/%E7%AB%8B%E7%BB%98_%E7%83%88%E5%A4%8F_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.909,
+    "ncc": 0.985,
+    "psnr": 25.84
+   },
+   "e2": {
+    "box": [
+     836,
+     576,
+     215,
+     430
+    ],
+    "gain": 1.194,
+    "hd": {
+     "bytes": 194584,
+     "sha256": "c401d26fe095f252978eac28cef08a364a9c7172e9db02c2610e0df0e442ccf4",
+     "size": [
+      215,
+      430
+     ]
+    },
+    "illustration": {
+     "bytes": 3297167,
+     "sha256": "c5ff4d5b1174ed3ed34c86f94a6f91b5a135d8c72b9ef7db83df21ef488835b0",
+     "size": [
+      1652,
+      1652
+     ],
+     "source": {
+      "file": "立绘_烈夏_2.png",
+      "sha1": "94aca14685d77571c4c0a1a35e72d522b111fd88",
+      "url": "https://media.prts.wiki/a/a6/%E7%AB%8B%E7%BB%98_%E7%83%88%E5%A4%8F_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.933,
+    "ncc": 0.9816,
+    "psnr": 26.28,
+    "scene": true
+   }
+  },
+  "char_195_glassb": {
+   "e1": {
+    "box": [
+     406,
+     -14,
+     217,
+     434
+    ],
+    "gain": 1.206,
+    "hd": {
+     "bytes": 88054,
+     "sha256": "39d432307e17df91d4fd70f13ea61a466f77f6f8bf50febf8efc1d60c7c3b121",
+     "size": [
+      217,
+      434
+     ]
+    },
+    "illustration": {
+     "bytes": 270764,
+     "sha256": "9df7e82d729abd04f2c7146aff9095a637e0dd2481fbe153185e3be39347bcd1",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_真理_1.png",
+      "sha1": "700cf59e780a82998729d1142d3e4aa8986a21ff",
+      "url": "https://media.prts.wiki/1/19/%E7%AB%8B%E7%BB%98_%E7%9C%9F%E7%90%86_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.945,
+    "ncc": 0.9858,
+    "psnr": 25.53
+   },
+   "e2": {
+    "box": [
+     915,
+     338,
+     253,
+     506
+    ],
+    "gain": 1.406,
+    "hd": {
+     "bytes": 199565,
+     "sha256": "a07bf6d4ab15838b6949ab06b30c8d77f4f3826947127166d3eda46acb68c971",
+     "size": [
+      253,
+      506
+     ]
+    },
+    "illustration": {
+     "bytes": 2917259,
+     "sha256": "ababe26da7e3232702407b953b3457ca596ea707c1b2773e840e8752faaa4ade",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_真理_2.png",
+      "sha1": "1d88509eae236b1bd919367064d84a9feaa66514",
+      "url": "https://media.prts.wiki/3/30/%E7%AB%8B%E7%BB%98_%E7%9C%9F%E7%90%86_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.852,
+    "ncc": 0.9765,
+    "psnr": 22.56,
     "scene": true
    }
   },
@@ -5461,6 +5993,77 @@
     "scene": true
    }
   },
+  "char_219_meteo": {
+   "e1": {
+    "box": [
+     497,
+     -46,
+     241,
+     482
+    ],
+    "gain": 1.339,
+    "hd": {
+     "bytes": 178881,
+     "sha256": "586837d4048ccdb5c4329b9f90b293f2081da6ea5e5dd2e80532342bc06c04fe",
+     "size": [
+      241,
+      482
+     ]
+    },
+    "illustration": {
+     "bytes": 760926,
+     "sha256": "2af445d20034431a05c95116d2c5af908745e994596574b4292bf716c22ba8b4",
+     "size": [
+      1224,
+      1224
+     ],
+     "source": {
+      "file": "立绘_陨星_1.png",
+      "sha1": "b743e32336a25be0b71fe47131c463746f5947ab",
+      "url": "https://media.prts.wiki/f/f8/%E7%AB%8B%E7%BB%98_%E9%99%A8%E6%98%9F_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.957,
+    "ncc": 0.991,
+    "psnr": 29.02
+   },
+   "e2": {
+    "box": [
+     427,
+     875,
+     195,
+     390
+    ],
+    "gain": 1.083,
+    "hd": {
+     "bytes": 111174,
+     "sha256": "c3aeeb180521d3e153109e150352abbbfa504cfd1f3229bd78a032984f5dcd67",
+     "size": [
+      195,
+      390
+     ]
+    },
+    "illustration": {
+     "bytes": 1863775,
+     "sha256": "6afc0f2dff33feb15b5eecd426a72120bca6cc38c9851bc2e8fdd72df2603632",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_陨星_2.png",
+      "sha1": "be929e0aeafeb66d5b89812c86ade163b2e67292",
+      "url": "https://media.prts.wiki/9/9b/%E7%AB%8B%E7%BB%98_%E9%99%A8%E6%98%9F_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.934,
+    "ncc": 0.9821,
+    "psnr": 27.33,
+    "scene": true
+   }
+  },
   "char_222_bpipe": {
    "e1": {
     "box": [
@@ -6475,6 +7078,69 @@
     "scene": true
    }
   },
+  "char_274_astesi": {
+   "e1": {
+    "box": [
+     413,
+     -17,
+     183,
+     366
+    ],
+    "gain": 1.017,
+    "hd": {
+     "bytes": 75695,
+     "sha256": "797c387756a68b7c89bfd49f293ed43828df0db4cc832a282efda1fc95f329b3",
+     "size": [
+      183,
+      366
+     ]
+    },
+    "illustration": {
+     "bytes": 346445,
+     "sha256": "c84197cfa31316c073d386053b382cfae56b5ff3762c6563025c995b71c30590",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_星极_1.png",
+      "sha1": "28b47071a8b9fb417219ae272f2b4182aae58ad4",
+      "url": "https://media.prts.wiki/b/bb/%E7%AB%8B%E7%BB%98_%E6%98%9F%E6%9E%81_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.905,
+    "ncc": 0.9845,
+    "psnr": 25.97
+   },
+   "e2": {
+    "box": [
+     396,
+     79,
+     174,
+     348
+    ],
+    "gain": 0.967,
+    "illustration": {
+     "bytes": 621299,
+     "sha256": "e1f4e4df7fb9d09fa0009061dad5b1b2e868c13ad6751a656196edca81c2efde",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_星极_2.png",
+      "sha1": "d4778cf1b3f6d006aa6da852444fbff264c6332d",
+      "url": "https://media.prts.wiki/1/13/%E7%AB%8B%E7%BB%98_%E6%98%9F%E6%9E%81_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.863,
+    "ncc": 0.975,
+    "psnr": 23.98,
+    "scene": true
+   }
+  },
   "char_279_excu": {
    "e1": {
     "box": [
@@ -7222,6 +7888,148 @@
     "scene": true
    }
   },
+  "char_325_bison": {
+   "e1": {
+    "box": [
+     415,
+     43,
+     185,
+     370
+    ],
+    "gain": 1.028,
+    "hd": {
+     "bytes": 90669,
+     "sha256": "83192d2a79b958ed4e33b38d34e2d64c29c841819e8b29b30ea0673350f7a06c",
+     "size": [
+      185,
+      370
+     ]
+    },
+    "illustration": {
+     "bytes": 364324,
+     "sha256": "8a702619d900875c7a6356a4e235a23b5b1703337b561ce056dcfb48e9048a55",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_拜松_1.png",
+      "sha1": "d60a4ade62e0295cb1805e2cfabf770a8889bc05",
+      "url": "https://media.prts.wiki/8/80/%E7%AB%8B%E7%BB%98_%E6%8B%9C%E6%9D%BE_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.86,
+    "ncc": 0.9787,
+    "psnr": 24.78
+   },
+   "e2": {
+    "box": [
+     852,
+     438,
+     268,
+     536
+    ],
+    "gain": 1.489,
+    "hd": {
+     "bytes": 210528,
+     "sha256": "da77cba6c1473a7865494235ea37e42a5e3bc107e03d7e6ee35a07740e1f4e2e",
+     "size": [
+      268,
+      536
+     ]
+    },
+    "illustration": {
+     "bytes": 3189266,
+     "sha256": "4c644186b2e9ad4357711d0d5f6c698729fd10b341acd849207c3e49006a41af",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_拜松_2.png",
+      "sha1": "1d7563ef41e5eb74a8d9b8deaff2cfc55e05f50e",
+      "url": "https://media.prts.wiki/7/72/%E7%AB%8B%E7%BB%98_%E6%8B%9C%E6%9D%BE_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.868,
+    "ncc": 0.9831,
+    "psnr": 24.85,
+    "scene": true
+   }
+  },
+  "char_328_cammou": {
+   "e1": {
+    "box": [
+     484,
+     38,
+     218,
+     436
+    ],
+    "gain": 1.211,
+    "hd": {
+     "bytes": 75139,
+     "sha256": "57681887517dd08e5a3063ac3db1f87debf732c9302af712dcea2653c075ab64",
+     "size": [
+      218,
+      436
+     ]
+    },
+    "illustration": {
+     "bytes": 236493,
+     "sha256": "e90af7cc3fb7917923f2d0c8ba2f5283557168dfadbdb41af78ed4529f95feca",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_卡达_1.png",
+      "sha1": "5a907d2e3fb37cbe2409aca7c1651878ba238963",
+      "url": "https://media.prts.wiki/1/1a/%E7%AB%8B%E7%BB%98_%E5%8D%A1%E8%BE%BE_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.945,
+    "ncc": 0.9924,
+    "psnr": 28.75
+   },
+   "e2": {
+    "box": [
+     207,
+     169,
+     209,
+     418
+    ],
+    "gain": 1.161,
+    "hd": {
+     "bytes": 84231,
+     "sha256": "459771519532bb5dca9b75c3f0a7438b76aa8a5b16c4c9541f346748a79f7ee4",
+     "size": [
+      209,
+      418
+     ]
+    },
+    "illustration": {
+     "bytes": 566285,
+     "sha256": "f9e4d7737d7dc2d58d4267963baf429e34df294037c5f54ba11925cd84cc9b44",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_卡达_2.png",
+      "sha1": "69df60c691ae4de7e63ba049c617548cd64ddea6",
+      "url": "https://media.prts.wiki/b/b8/%E7%AB%8B%E7%BB%98_%E5%8D%A1%E8%BE%BE_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.94,
+    "ncc": 0.9882,
+    "psnr": 27.33,
+    "scene": true
+   }
+  },
   "char_332_archet": {
    "e1": {
     "box": [
@@ -7290,6 +8098,77 @@
     "inlier": 0.868,
     "ncc": 0.9821,
     "psnr": 25.23,
+    "scene": true
+   }
+  },
+  "char_333_sidero": {
+   "e1": {
+    "box": [
+     419,
+     70,
+     182,
+     364
+    ],
+    "gain": 1.011,
+    "hd": {
+     "bytes": 85632,
+     "sha256": "14f4a1ce0fb85d9d42b20895ed31a9fdc3192a8f568e9521f8bf3e66fa1a4806",
+     "size": [
+      182,
+      364
+     ]
+    },
+    "illustration": {
+     "bytes": 297993,
+     "sha256": "6eaa45f81b8c816ccfe3c6c8588aa4c4e06ebe006fc82c7e4d49b504ea9069bc",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_铸铁_1.png",
+      "sha1": "0728a81cee72e54249a14545a2d821e144c74c42",
+      "url": "https://media.prts.wiki/1/16/%E7%AB%8B%E7%BB%98_%E9%93%B8%E9%93%81_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.96,
+    "ncc": 0.9949,
+    "psnr": 29.97
+   },
+   "e2": {
+    "box": [
+     1146,
+     539,
+     356,
+     712
+    ],
+    "gain": 1.978,
+    "hd": {
+     "bytes": 317096,
+     "sha256": "c5ea3f7cfbf2279896d1824eeecd0537ac0ef9954136f2d3c261479812416e7c",
+     "size": [
+      356,
+      712
+     ]
+    },
+    "illustration": {
+     "bytes": 2543670,
+     "sha256": "f153726d677374dd1a42b0266c1b32c6bfeb6f8b759ddfdaeaf670e775cfc19d",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_铸铁_2.png",
+      "sha1": "3ce38ee569c665c09dd1b505b68a1976e46b2a98",
+      "url": "https://media.prts.wiki/8/81/%E7%AB%8B%E7%BB%98_%E9%93%B8%E9%93%81_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.949,
+    "ncc": 0.989,
+    "psnr": 28.42,
     "scene": true
    }
   },
@@ -7631,6 +8510,138 @@
     "scene": true
    }
   },
+  "char_346_aosta": {
+   "e1": {
+    "box": [
+     594,
+     7,
+     234,
+     468
+    ],
+    "gain": 1.3,
+    "hd": {
+     "bytes": 158506,
+     "sha256": "cb56d9fa40e0e7602f660c036b39d5747f575618207801ee3599339a27e31c77",
+     "size": [
+      234,
+      468
+     ]
+    },
+    "illustration": {
+     "bytes": 1152557,
+     "sha256": "768c1157e76eaaf47720e37b865d0ed37062dfb8c26e3353c78ec943ac6ef105",
+     "size": [
+      1488,
+      1488
+     ],
+     "source": {
+      "file": "立绘_奥斯塔_1.png",
+      "sha1": "1a421fcb39668788dbe6e56e3de0827b473bdb98",
+      "url": "https://media.prts.wiki/5/51/%E7%AB%8B%E7%BB%98_%E5%A5%A5%E6%96%AF%E5%A1%94_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.908,
+    "ncc": 0.9824,
+    "psnr": 24.97
+   },
+   "e2": {
+    "box": [
+     912,
+     637,
+     213,
+     426
+    ],
+    "gain": 1.183,
+    "hd": {
+     "bytes": 113981,
+     "sha256": "e6f32b1396e8b3af204d912fa9c29017c7ac6322d718825ab6c7b41cdacc233e",
+     "size": [
+      213,
+      426
+     ]
+    },
+    "illustration": {
+     "bytes": 2917587,
+     "sha256": "fcf15497efdf22164a53251035cf490b603bb26c4d505fc384f910fde416ed63",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_奥斯塔_2.png",
+      "sha1": "ebb415840c1662f02be3805625edc4793dffe3a7",
+      "url": "https://media.prts.wiki/d/df/%E7%AB%8B%E7%BB%98_%E5%A5%A5%E6%96%AF%E5%A1%94_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.935,
+    "ncc": 0.9875,
+    "psnr": 26.74
+   }
+  },
+  "char_347_jaksel": {
+   "e1": {
+    "box": [
+     407,
+     19,
+     185,
+     370
+    ],
+    "gain": 1.028,
+    "hd": {
+     "bytes": 74174,
+     "sha256": "c96b3e763c47fb933cf6c45fc2619bad9cdbfd9f20f9fa5181268ee38c732b9d",
+     "size": [
+      185,
+      370
+     ]
+    },
+    "illustration": {
+     "bytes": 249837,
+     "sha256": "887ff1dd41da867822c54aed267f6cbe18950abdefd0de61e5510d3eae37f785",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_杰克_1.png",
+      "sha1": "f8cbcd2d22da1939a6da552c34076beecd8fd62d",
+      "url": "https://media.prts.wiki/1/1d/%E7%AB%8B%E7%BB%98_%E6%9D%B0%E5%85%8B_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.954,
+    "ncc": 0.9946,
+    "psnr": 29.82
+   },
+   "e2": {
+    "box": [
+     464,
+     224,
+     159,
+     318
+    ],
+    "gain": 0.883,
+    "illustration": {
+     "bytes": 631833,
+     "sha256": "b8217bfd916236ce7e1de3b21bdcc8e4227c3aea70227d153ab7ea179fa464ec",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_杰克_2.png",
+      "sha1": "f06fdd0d196b9099965e8dd126981673884e02c2",
+      "url": "https://media.prts.wiki/0/0e/%E7%AB%8B%E7%BB%98_%E6%9D%B0%E5%85%8B_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.818,
+    "ncc": 0.9358,
+    "psnr": 19.76
+   }
+  },
   "char_348_ceylon": {
    "e1": {
     "box": [
@@ -7967,6 +8978,77 @@
     "inlier": 0.928,
     "ncc": 0.9869,
     "psnr": 27.63,
+    "scene": true
+   }
+  },
+  "char_367_swllow": {
+   "e1": {
+    "box": [
+     417,
+     -7,
+     182,
+     364
+    ],
+    "gain": 1.011,
+    "hd": {
+     "bytes": 65298,
+     "sha256": "b76defbf7a72d123971a8feca19e4611c9b013bb784a5639c2d2aec55ed75234",
+     "size": [
+      182,
+      364
+     ]
+    },
+    "illustration": {
+     "bytes": 271629,
+     "sha256": "8ab5c129e6d7c0e3095af1d9d2154fd45342ffadd6e5535110c04ea424ca741a",
+     "size": [
+      1024,
+      1024
+     ],
+     "source": {
+      "file": "立绘_灰喉_1.png",
+      "sha1": "4f78ce6c1f96e0c545947f181e089e1b01154e75",
+      "url": "https://media.prts.wiki/2/23/%E7%AB%8B%E7%BB%98_%E7%81%B0%E5%96%89_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.927,
+    "ncc": 0.9836,
+    "psnr": 25.66
+   },
+   "e2": {
+    "box": [
+     1225,
+     718,
+     198,
+     396
+    ],
+    "gain": 1.1,
+    "hd": {
+     "bytes": 107260,
+     "sha256": "2b71ae514fce537fd2c65da8a992ec322f844a327b7a8f9aaa651a2ed8eff655",
+     "size": [
+      198,
+      396
+     ]
+    },
+    "illustration": {
+     "bytes": 2654017,
+     "sha256": "946b0dc0b5fef6db556e54d382d1b590292bfcc2a7d180958ee4c65399b22b01",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_灰喉_2.png",
+      "sha1": "a321390ca1bbf7df3934d678776b0d30a2d8951b",
+      "url": "https://media.prts.wiki/6/66/%E7%AB%8B%E7%BB%98_%E7%81%B0%E5%96%89_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.91,
+    "ncc": 0.9785,
+    "psnr": 25.2,
     "scene": true
    }
   },
@@ -8846,6 +9928,77 @@
     "scene": true
    }
   },
+  "char_4031_liesel": {
+   "e1": {
+    "box": [
+     521,
+     130,
+     220,
+     440
+    ],
+    "gain": 1.222,
+    "hd": {
+     "bytes": 164743,
+     "sha256": "848a200d0b40528de329a3b76d1dcdc407498378f6f083b9dc06cec41228254f",
+     "size": [
+      220,
+      440
+     ]
+    },
+    "illustration": {
+     "bytes": 1192979,
+     "sha256": "36a66e2fd9eb230140844d89459273f5b54b8320fdc2c4ea7a31b7e8c90ccaa1",
+     "size": [
+      1352,
+      1352
+     ],
+     "source": {
+      "file": "立绘_复奏_1.png",
+      "sha1": "2dd3332b21994e58946bd800c99a36d79350d5c2",
+      "url": "https://media.prts.wiki/1/1c/%E7%AB%8B%E7%BB%98_%E5%A4%8D%E5%A5%8F_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.954,
+    "ncc": 0.988,
+    "psnr": 28.95
+   },
+   "e2": {
+    "box": [
+     1081,
+     534,
+     195,
+     390
+    ],
+    "gain": 1.083,
+    "hd": {
+     "bytes": 138023,
+     "sha256": "4e73bbdbae7762188a5808f6adc259003bfdc9a72bbb9422a6ccd143184d40ce",
+     "size": [
+      195,
+      390
+     ]
+    },
+    "illustration": {
+     "bytes": 4227280,
+     "sha256": "9184a190e1cfc9f10dfb97b340d243df6dd4c2256b3d76106c7d0dd2eb60f06e",
+     "size": [
+      2308,
+      2308
+     ],
+     "source": {
+      "file": "立绘_复奏_2.png",
+      "sha1": "51c38ffe024b394f9f00348c9bb792df3a395db9",
+      "url": "https://media.prts.wiki/8/8a/%E7%AB%8B%E7%BB%98_%E5%A4%8D%E5%A5%8F_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.954,
+    "ncc": 0.9902,
+    "psnr": 29.19,
+    "scene": true
+   }
+  },
   "char_4036_forcer": {
    "e1": {
     "box": [
@@ -9130,6 +10283,77 @@
     "scene": true
    }
   },
+  "char_4041_chnut": {
+   "e1": {
+    "box": [
+     917,
+     276,
+     290,
+     580
+    ],
+    "gain": 1.611,
+    "hd": {
+     "bytes": 178162,
+     "sha256": "86331c05468bf629e257545561efb9f084520ffa887e87b604d63ad03c50c7fa",
+     "size": [
+      290,
+      580
+     ]
+    },
+    "illustration": {
+     "bytes": 1132057,
+     "sha256": "6be3e4114886ae7e7d6d7b91323b42792893e00af1880614f8dd183e85a0e25b",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_褐果_1.png",
+      "sha1": "d57a5d2d94cfb34979caf812a783bcc7015a2f05",
+      "url": "https://media.prts.wiki/0/04/%E7%AB%8B%E7%BB%98_%E8%A4%90%E6%9E%9C_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.9,
+    "ncc": 0.975,
+    "psnr": 25.88
+   },
+   "e2": {
+    "box": [
+     840,
+     361,
+     218,
+     436
+    ],
+    "gain": 1.211,
+    "hd": {
+     "bytes": 129097,
+     "sha256": "4bef3df1b1ce411b483fefce47324230a8d8c1f9aa58bc2e813d5093dcc542fd",
+     "size": [
+      218,
+      436
+     ]
+    },
+    "illustration": {
+     "bytes": 2334484,
+     "sha256": "b16d3ab7f5cb4366649dc667b910dd7e39f9093f136842c14745008532d7fdd8",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_褐果_2.png",
+      "sha1": "e91c1129f3c459d6042665c60f4516b616d5da89",
+      "url": "https://media.prts.wiki/1/1b/%E7%AB%8B%E7%BB%98_%E8%A4%90%E6%9E%9C_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.887,
+    "ncc": 0.9789,
+    "psnr": 25.75,
+    "scene": true
+   }
+  },
   "char_4042_lumen": {
    "e1": {
     "box": [
@@ -9332,6 +10556,77 @@
     "inlier": 0.833,
     "ncc": 0.9751,
     "psnr": 23.66,
+    "scene": true
+   }
+  },
+  "char_4047_pianst": {
+   "e1": {
+    "box": [
+     1000,
+     164,
+     266,
+     532
+    ],
+    "gain": 1.478,
+    "hd": {
+     "bytes": 178431,
+     "sha256": "0a4564aa39b698db59575ef7c092560cf666da9ad4465156876c4b4b2dab2056",
+     "size": [
+      266,
+      532
+     ]
+    },
+    "illustration": {
+     "bytes": 1745382,
+     "sha256": "4f01d5ba04492c66f0af7091f0ff371c43ddbf0decb3e00b8d799c1fc389b02c",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_车尔尼_1.png",
+      "sha1": "32b85daaf33eca57c2c50a608f9d32e5f7e46073",
+      "url": "https://media.prts.wiki/8/8a/%E7%AB%8B%E7%BB%98_%E8%BD%A6%E5%B0%94%E5%B0%BC_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.947,
+    "ncc": 0.99,
+    "psnr": 28.24
+   },
+   "e2": {
+    "box": [
+     890,
+     539,
+     188,
+     376
+    ],
+    "gain": 1.044,
+    "hd": {
+     "bytes": 123001,
+     "sha256": "516f89d163dd61d7f1ca0b78326b7edcb7e12ff533ad0959a6aa210c5147accf",
+     "size": [
+      188,
+      376
+     ]
+    },
+    "illustration": {
+     "bytes": 2574250,
+     "sha256": "47466626c11f9a5579c6b18a9ae52e4da41d1cae7756d13357e2a1b3e0117330",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_车尔尼_2.png",
+      "sha1": "061391d8682b72ae1e091743d19c14bd83b4b3af",
+      "url": "https://media.prts.wiki/6/6e/%E7%AB%8B%E7%BB%98_%E8%BD%A6%E5%B0%94%E5%B0%BC_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.867,
+    "ncc": 0.9753,
+    "psnr": 24.32,
     "scene": true
    }
   },
@@ -9892,6 +11187,77 @@
     "inlier": 0.936,
     "ncc": 0.9916,
     "psnr": 27.31,
+    "scene": true
+   }
+  },
+  "char_4066_highmo": {
+   "e1": {
+    "box": [
+     1011,
+     149,
+     323,
+     646
+    ],
+    "gain": 1.794,
+    "hd": {
+     "bytes": 218708,
+     "sha256": "e94a864f0f696f4cf83666a7059c42e651305e920c047997482ae85ea9754f31",
+     "size": [
+      323,
+      646
+     ]
+    },
+    "illustration": {
+     "bytes": 1786812,
+     "sha256": "34534eacb4df1500066d99b7243f09bc967e26b4f049c935e4ea7e8e41e59866",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_海沫_1.png",
+      "sha1": "84468d7ca03e92ddf7035517e3e3adf8419370f9",
+      "url": "https://media.prts.wiki/d/df/%E7%AB%8B%E7%BB%98_%E6%B5%B7%E6%B2%AB_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.933,
+    "ncc": 0.989,
+    "psnr": 27.05
+   },
+   "e2": {
+    "box": [
+     723,
+     590,
+     233,
+     466
+    ],
+    "gain": 1.294,
+    "hd": {
+     "bytes": 147507,
+     "sha256": "94405fdedc981d9b48d8623c793e1ee3c4901fb5d595c8230f777fe2b7eb55a8",
+     "size": [
+      233,
+      466
+     ]
+    },
+    "illustration": {
+     "bytes": 2722083,
+     "sha256": "007b10e611e352be930cd0153fbdc3d5439df49a1004536c864f87d990c7a4e0",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_海沫_2.png",
+      "sha1": "cf30893f1550608895f77a1557837aec8e96b413",
+      "url": "https://media.prts.wiki/b/bc/%E7%AB%8B%E7%BB%98_%E6%B5%B7%E6%B2%AB_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.922,
+    "ncc": 0.9864,
+    "psnr": 26.53,
     "scene": true
    }
   },
@@ -11548,6 +12914,42 @@
     "scene": true
    }
   },
+  "char_4147_mitm": {
+   "e1": {
+    "box": [
+     489,
+     3,
+     228,
+     456
+    ],
+    "gain": 1.267,
+    "hd": {
+     "bytes": 190443,
+     "sha256": "a6e8c7a9a7c65d1f6647a3913c0ff1c0c8da7b6310d4dc3522997ced4fe25089",
+     "size": [
+      228,
+      456
+     ]
+    },
+    "illustration": {
+     "bytes": 1186385,
+     "sha256": "87471fa66a0482c8155868b6b52ebd4933f7c36fdf9dc2aec177d117fde574fc",
+     "size": [
+      1312,
+      1312
+     ],
+     "source": {
+      "file": "立绘_渡桥_1.png",
+      "sha1": "90437d8434eafa7a06c7859238146cff637360b3",
+      "url": "https://media.prts.wiki/7/74/%E7%AB%8B%E7%BB%98_%E6%B8%A1%E6%A1%A5_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.975,
+    "ncc": 0.9952,
+    "psnr": 31.25
+   }
+  },
   "char_4148_philae": {
    "e1": {
     "box": [
@@ -11832,6 +13234,148 @@
     "scene": true
    }
   },
+  "char_4165_ctrail": {
+   "e1": {
+    "box": [
+     443,
+     -39,
+     231,
+     462
+    ],
+    "gain": 1.283,
+    "hd": {
+     "bytes": 160068,
+     "sha256": "0f6e7ed0fba1baaffe495ed619540fb4391f5f686979f24a67724efd99e7d1c6",
+     "size": [
+      231,
+      462
+     ]
+    },
+    "illustration": {
+     "bytes": 714289,
+     "sha256": "a3d368521b957487850279164868b2d10524b5cfc4515f0aae61295e54ff87c0",
+     "size": [
+      1212,
+      1212
+     ],
+     "source": {
+      "file": "立绘_云迹_1.png",
+      "sha1": "99fd9279da76772d372e5fd397bb2b7a196724bd",
+      "url": "https://media.prts.wiki/c/ca/%E7%AB%8B%E7%BB%98_%E4%BA%91%E8%BF%B9_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.933,
+    "ncc": 0.9888,
+    "psnr": 27.85
+   },
+   "e2": {
+    "box": [
+     886,
+     408,
+     219,
+     438
+    ],
+    "gain": 1.217,
+    "hd": {
+     "bytes": 192419,
+     "sha256": "cbed1cd2f837b47e667f938ece0aac21777ac4bb670c7500e4212d61b0f66ef6",
+     "size": [
+      219,
+      438
+     ]
+    },
+    "illustration": {
+     "bytes": 3699876,
+     "sha256": "111c6acdc176a685361bfa4b57bf1913300c1181833751a673419153487d3ba7",
+     "size": [
+      1920,
+      1920
+     ],
+     "source": {
+      "file": "立绘_云迹_2.png",
+      "sha1": "93cfac7d7f943ceb0fbeb6c241068d99fccfc001",
+      "url": "https://media.prts.wiki/f/fd/%E7%AB%8B%E7%BB%98_%E4%BA%91%E8%BF%B9_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.95,
+    "ncc": 0.9914,
+    "psnr": 28.55,
+    "scene": true
+   }
+  },
+  "char_4166_varkis": {
+   "e1": {
+    "box": [
+     858,
+     246,
+     212,
+     424
+    ],
+    "gain": 1.178,
+    "hd": {
+     "bytes": 163971,
+     "sha256": "5c5c7530d6e4e47047bf0cc48c442ae91c0ccef80a958c7cd0360d304fad2df4",
+     "size": [
+      212,
+      424
+     ]
+    },
+    "illustration": {
+     "bytes": 2879549,
+     "sha256": "fc8cbebe484da15352fe00a0fb58158733b27f290936476283780ec7328f3141",
+     "size": [
+      1976,
+      1976
+     ],
+     "source": {
+      "file": "立绘_摆渡人_1.png",
+      "sha1": "eb471a71e32b0c90ab4b3ebb167771b753cbf860",
+      "url": "https://media.prts.wiki/9/9a/%E7%AB%8B%E7%BB%98_%E6%91%86%E6%B8%A1%E4%BA%BA_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.891,
+    "ncc": 0.9697,
+    "psnr": 24.96
+   },
+   "e2": {
+    "box": [
+     1128,
+     659,
+     213,
+     426
+    ],
+    "gain": 1.183,
+    "hd": {
+     "bytes": 209152,
+     "sha256": "4b81a7873a766fb5376fc237ed2b0d2098de5c04a26e446c1719f5fcc968363e",
+     "size": [
+      213,
+      426
+     ]
+    },
+    "illustration": {
+     "bytes": 5873601,
+     "sha256": "c52a878dd60b00ffdf29a22202bb4b6114c7a67bbd9d8f24e41fb029bee69aa0",
+     "size": [
+      2240,
+      2240
+     ],
+     "source": {
+      "file": "立绘_摆渡人_2.png",
+      "sha1": "1da13c8ac073922b5ccfefac6a7cc6e3a579aac0",
+      "url": "https://media.prts.wiki/f/f6/%E7%AB%8B%E7%BB%98_%E6%91%86%E6%B8%A1%E4%BA%BA_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.783,
+    "ncc": 0.9411,
+    "psnr": 21.21,
+    "scene": true
+   }
+  },
   "char_416_zumama": {
    "e1": {
     "box": [
@@ -11900,6 +13444,77 @@
     "inlier": 0.859,
     "ncc": 0.9776,
     "psnr": 23.63,
+    "scene": true
+   }
+  },
+  "char_4177_brigid": {
+   "e1": {
+    "box": [
+     633,
+     28,
+     226,
+     452
+    ],
+    "gain": 1.256,
+    "hd": {
+     "bytes": 156646,
+     "sha256": "6f2f8df73d3c86071b8515678c7963e6b40c915e9b46e17b04bdccc3c913ce34",
+     "size": [
+      226,
+      452
+     ]
+    },
+    "illustration": {
+     "bytes": 1074097,
+     "sha256": "0e96ad34ecbd1e3b809b6376534b9810cde803e0e3d96a13e3cf62fe3c744dc5",
+     "size": [
+      1448,
+      1448
+     ],
+     "source": {
+      "file": "立绘_水灯心_1.png",
+      "sha1": "66c96116eba04591de160085069f5f58c608691a",
+      "url": "https://media.prts.wiki/b/b6/%E7%AB%8B%E7%BB%98_%E6%B0%B4%E7%81%AF%E5%BF%83_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.909,
+    "ncc": 0.9779,
+    "psnr": 26.19
+   },
+   "e2": {
+    "box": [
+     1461,
+     749,
+     225,
+     450
+    ],
+    "gain": 1.25,
+    "hd": {
+     "bytes": 189041,
+     "sha256": "751e71f7c501a6c330bf33d76c173522b6808432e120d2f4848531ef60ebb866",
+     "size": [
+      225,
+      450
+     ]
+    },
+    "illustration": {
+     "bytes": 6172878,
+     "sha256": "fd2d367fd554a91e46292f24ceb4c90106f09b3fa41c25014a34f2380dd8c9b8",
+     "size": [
+      2380,
+      2380
+     ],
+     "source": {
+      "file": "立绘_水灯心_2.png",
+      "sha1": "ebc5b55f3fb5584f0d878fa8cc7725796a1e38b3",
+      "url": "https://media.prts.wiki/3/36/%E7%AB%8B%E7%BB%98_%E6%B0%B4%E7%81%AF%E5%BF%83_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.956,
+    "ncc": 0.9898,
+    "psnr": 29.6,
     "scene": true
    }
   },
@@ -12384,6 +13999,78 @@
     "scene": true
    }
   },
+  "char_4198_christ": {
+   "e1": {
+    "box": [
+     558,
+     267,
+     247,
+     494
+    ],
+    "gain": 1.372,
+    "hd": {
+     "bytes": 222310,
+     "sha256": "2bde5d3e23e0e24db358d408385c6da76f81d909cc73ffcc97f61eab2f14e297",
+     "size": [
+      247,
+      494
+     ]
+    },
+    "illustration": {
+     "bytes": 1584089,
+     "sha256": "6c84204c83bbfb30b1318150cf51042baff3fd15ac99fc105ab86daf960de442",
+     "size": [
+      1152,
+      1152
+     ],
+     "source": {
+      "file": "立绘_Miss.Christine_1.png",
+      "sha1": "53334c55a9cb5438b53b2404f42207278e3bd5ab",
+      "url": "https://media.prts.wiki/f/f0/%E7%AB%8B%E7%BB%98_Miss.Christine_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.986,
+    "ncc": 0.9953,
+    "psnr": 33.38,
+    "scene": true
+   },
+   "e2": {
+    "box": [
+     1044,
+     862,
+     229,
+     458
+    ],
+    "gain": 1.272,
+    "hd": {
+     "bytes": 194737,
+     "sha256": "ad6d4ad2dd1419926f22693494bcf1087ecf051647b70f3f94a15b2221e99982",
+     "size": [
+      229,
+      458
+     ]
+    },
+    "illustration": {
+     "bytes": 5772960,
+     "sha256": "9633ff0b34a226a717c6d88b115051b25ea7a6439ef9097ffb6f48d0ae603c76",
+     "size": [
+      2304,
+      2304
+     ],
+     "source": {
+      "file": "立绘_Miss.Christine_2.png",
+      "sha1": "22da60df3eb1469326efbed5deebec2eb0aa11ab",
+      "url": "https://media.prts.wiki/6/63/%E7%AB%8B%E7%BB%98_Miss.Christine_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.907,
+    "ncc": 0.9597,
+    "psnr": 24.86,
+    "scene": true
+   }
+  },
   "char_4202_haruka": {
    "e1": {
     "box": [
@@ -12452,6 +14139,77 @@
     "inlier": 0.902,
     "ncc": 0.9877,
     "psnr": 26.67,
+    "scene": true
+   }
+  },
+  "char_4203_kichi": {
+   "e1": {
+    "box": [
+     626,
+     15,
+     211,
+     422
+    ],
+    "gain": 1.172,
+    "hd": {
+     "bytes": 155362,
+     "sha256": "9d04c508474bf19549237b4bfff92aed20a8e88e6653bc30b35b4de624fd06fe",
+     "size": [
+      211,
+      422
+     ]
+    },
+    "illustration": {
+     "bytes": 1406775,
+     "sha256": "4db31db5c8a918e6897bb515f1291d3c5feaff3981f60185000980151af5c099",
+     "size": [
+      1444,
+      1444
+     ],
+     "source": {
+      "file": "立绘_吉星_1.png",
+      "sha1": "6474b1cb6d52bfe560bd545db1edc217030bfeb3",
+      "url": "https://media.prts.wiki/2/28/%E7%AB%8B%E7%BB%98_%E5%90%89%E6%98%9F_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.914,
+    "ncc": 0.9892,
+    "psnr": 27.19
+   },
+   "e2": {
+    "box": [
+     817,
+     542,
+     206,
+     412
+    ],
+    "gain": 1.144,
+    "hd": {
+     "bytes": 188616,
+     "sha256": "414ed33c970bcb4adedfa0091d98d6d218ff573ab868218608974bedd9671b71",
+     "size": [
+      206,
+      412
+     ]
+    },
+    "illustration": {
+     "bytes": 4530326,
+     "sha256": "6c89716787b90ba1a83b15a1ba529710a637f1849efd99bb22e25951ae96785d",
+     "size": [
+      1948,
+      1948
+     ],
+     "source": {
+      "file": "立绘_吉星_2.png",
+      "sha1": "493f5ae57fcbbc08a7a0b6a52e3b7a92658e6a1e",
+      "url": "https://media.prts.wiki/0/06/%E7%AB%8B%E7%BB%98_%E5%90%89%E6%98%9F_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.915,
+    "ncc": 0.9861,
+    "psnr": 26.64,
     "scene": true
    }
   },
@@ -12820,6 +14578,219 @@
     "inlier": 0.944,
     "ncc": 0.9935,
     "psnr": 28.4
+   }
+  },
+  "char_4221_ju": {
+   "e1": {
+    "box": [
+     711,
+     277,
+     217,
+     434
+    ],
+    "gain": 1.206,
+    "hd": {
+     "bytes": 185038,
+     "sha256": "86ea3af8f1090f60f2054e7b922eb91f0a133d3901614a0c05fdc29028efa17c",
+     "size": [
+      217,
+      434
+     ]
+    },
+    "illustration": {
+     "bytes": 1418506,
+     "sha256": "200302d04fc89c559f437bc943966a0e90cd599e379ab12a1173dbfe4f767a95",
+     "size": [
+      1456,
+      1456
+     ],
+     "source": {
+      "file": "立绘_矩_1.png",
+      "sha1": "a42c0c912f70a998ca9a286118b83fafad527433",
+      "url": "https://media.prts.wiki/1/13/%E7%AB%8B%E7%BB%98_%E7%9F%A9_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.963,
+    "ncc": 0.9927,
+    "psnr": 29.59
+   },
+   "e2": {
+    "box": [
+     1060,
+     876,
+     188,
+     376
+    ],
+    "gain": 1.044,
+    "hd": {
+     "bytes": 153757,
+     "sha256": "7d79524490ac7607129810d79a6d22860413b029fb031eb5432d62bbed627c4f",
+     "size": [
+      188,
+      376
+     ]
+    },
+    "illustration": {
+     "bytes": 4048880,
+     "sha256": "0a10d859b36a6965f788f757d44c91a11d001bbd5fff492518369b06e4e8dfc5",
+     "size": [
+      1868,
+      1868
+     ],
+     "source": {
+      "file": "立绘_矩_2.png",
+      "sha1": "b651ede80f55105308e45c921f0a06f017e80ec9",
+      "url": "https://media.prts.wiki/a/a5/%E7%AB%8B%E7%BB%98_%E7%9F%A9_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.945,
+    "ncc": 0.9926,
+    "psnr": 28.64,
+    "scene": true
+   }
+  },
+  "char_4222_taraxa": {
+   "e1": {
+    "box": [
+     531,
+     -4,
+     208,
+     416
+    ],
+    "gain": 1.156,
+    "hd": {
+     "bytes": 180375,
+     "sha256": "46902092b4dce0b1d542593cba4e020c3102975c29082060de5de02d38aaa8ce",
+     "size": [
+      208,
+      416
+     ]
+    },
+    "illustration": {
+     "bytes": 1417322,
+     "sha256": "66ff98ed378ade5d18c437c168a7b5762991919d5d6ec0a9012d7d99b019852a",
+     "size": [
+      1264,
+      1264
+     ],
+     "source": {
+      "file": "立绘_风絮_1.png",
+      "sha1": "1108186437ece2d6dfa301e08b4b4590bbccce77",
+      "url": "https://media.prts.wiki/d/d4/%E7%AB%8B%E7%BB%98_%E9%A3%8E%E7%B5%AE_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.993,
+    "ncc": 0.9973,
+    "psnr": 33.43
+   },
+   "e2": {
+    "box": [
+     1065,
+     764,
+     193,
+     386
+    ],
+    "gain": 1.072,
+    "hd": {
+     "bytes": 168669,
+     "sha256": "170e499dd1a0bdec2c1cb4862875a6305b29db33ea46d69165c2e208ab432308",
+     "size": [
+      193,
+      386
+     ]
+    },
+    "illustration": {
+     "bytes": 6281375,
+     "sha256": "36533450fe5672702234edf5666d230a9a4186841411256b8c24fe4b5911116b",
+     "size": [
+      2400,
+      2400
+     ],
+     "source": {
+      "file": "立绘_风絮_2.png",
+      "sha1": "1a9a7ad406e707df30402711452c253b8b189d08",
+      "url": "https://media.prts.wiki/0/0b/%E7%AB%8B%E7%BB%98_%E9%A3%8E%E7%B5%AE_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.915,
+    "ncc": 0.9858,
+    "psnr": 26.56,
+    "scene": true
+   }
+  },
+  "char_4224_turdus": {
+   "e1": {
+    "box": [
+     511,
+     -4,
+     227,
+     454
+    ],
+    "gain": 1.261,
+    "hd": {
+     "bytes": 188394,
+     "sha256": "0b637fee0262498a099c12763dce97a6da77657fe02e7daa8815c43bf46baaeb",
+     "size": [
+      227,
+      454
+     ]
+    },
+    "illustration": {
+     "bytes": 1135313,
+     "sha256": "ff36845b664ca870c1d4d7648274de3404ff97b3d0f03d5bbe3cd97f249788bb",
+     "size": [
+      1180,
+      1180
+     ],
+     "source": {
+      "file": "立绘_乌啾_1.png",
+      "sha1": "fe1830954b1128d9c080cf53d46cd654ab384063",
+      "url": "https://media.prts.wiki/9/90/%E7%AB%8B%E7%BB%98_%E4%B9%8C%E5%95%BE_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.931,
+    "ncc": 0.9781,
+    "psnr": 26.83
+   },
+   "e2": {
+    "box": [
+     1147,
+     769,
+     218,
+     436
+    ],
+    "gain": 1.211,
+    "hd": {
+     "bytes": 201913,
+     "sha256": "424cfc71bd24cd313aca31e0ae5c51093dd86db11325700cf93e5427de638ec6",
+     "size": [
+      218,
+      436
+     ]
+    },
+    "illustration": {
+     "bytes": 5397349,
+     "sha256": "5dfb97bfc397477eb5b9413265702ddd19c53b8b6d5bd8cdd9a2fb773f4f4415",
+     "size": [
+      2156,
+      2156
+     ],
+     "source": {
+      "file": "立绘_乌啾_2.png",
+      "sha1": "182d8dce4bfccf62faaea88d8ee0898c09c15988",
+      "url": "https://media.prts.wiki/7/7e/%E7%AB%8B%E7%BB%98_%E4%B9%8C%E5%95%BE_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.899,
+    "ncc": 0.9793,
+    "psnr": 25.66,
+    "scene": true
    }
   },
   "char_4226_veen": {
@@ -13224,6 +15195,77 @@
     "scene": true
    }
   },
+  "char_4232_hbound": {
+   "e1": {
+    "box": [
+     859,
+     176,
+     208,
+     416
+    ],
+    "gain": 1.156,
+    "hd": {
+     "bytes": 174466,
+     "sha256": "d5c9b259d8e68c94820ef863ffe3d97d903ad2f22da487666d16be2a852a726c",
+     "size": [
+      208,
+      416
+     ]
+    },
+    "illustration": {
+     "bytes": 1812291,
+     "sha256": "634f2fa25cd3af766b536a2701ccb691a7b68bd7b9760b9bb6fefb266d1fd613",
+     "size": [
+      1716,
+      1716
+     ],
+     "source": {
+      "file": "立绘_旅骨_1.png",
+      "sha1": "5aae0b845452cf989235b44b69db90d6a70bd7be",
+      "url": "https://media.prts.wiki/4/45/%E7%AB%8B%E7%BB%98_%E6%97%85%E9%AA%A8_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.923,
+    "ncc": 0.9839,
+    "psnr": 26.05
+   },
+   "e2": {
+    "box": [
+     1187,
+     458,
+     218,
+     436
+    ],
+    "gain": 1.211,
+    "hd": {
+     "bytes": 189622,
+     "sha256": "43ea81928ac7850e5458479584203421f1ffcdde92a42d9ecf475ef52b62937f",
+     "size": [
+      218,
+      436
+     ]
+    },
+    "illustration": {
+     "bytes": 6191074,
+     "sha256": "00edbf851e5d00f2e55d71c5588fd9bd1bbd8276a4e824fe2d681fc739721cad",
+     "size": [
+      2428,
+      2428
+     ],
+     "source": {
+      "file": "立绘_旅骨_2.png",
+      "sha1": "971c1cd4e391e72411936f672b343a47104b3ca8",
+      "url": "https://media.prts.wiki/d/d8/%E7%AB%8B%E7%BB%98_%E6%97%85%E9%AA%A8_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.883,
+    "ncc": 0.9732,
+    "psnr": 24.6,
+    "scene": true
+   }
+  },
   "char_4235_thumpy": {
    "e1": {
     "box": [
@@ -13418,6 +15460,69 @@
     "inlier": 0.63,
     "ncc": 0.8669,
     "psnr": 16.65,
+    "scene": true
+   }
+  },
+  "char_4245_alga": {
+   "e1": {
+    "box": [
+     515,
+     11,
+     194,
+     388
+    ],
+    "gain": 1.078,
+    "hd": {
+     "bytes": 129892,
+     "sha256": "7fd8d3e81b6607529af1b5abcc7ca0a6106d556be0f58833738e5990bc0a9317",
+     "size": [
+      194,
+      388
+     ]
+    },
+    "illustration": {
+     "bytes": 1362615,
+     "sha256": "23a494cf0384db5f6703c1ba9cd2256059bf9ff9ddb24befa81e4991fdf27214",
+     "size": [
+      1292,
+      1292
+     ],
+     "source": {
+      "file": "立绘_奥尔佳_1.png",
+      "sha1": "cebca1b5bc494f1934fdf99c0e0c80c2aeac8cb5",
+      "url": "https://media.prts.wiki/b/bd/%E7%AB%8B%E7%BB%98_%E5%A5%A5%E5%B0%94%E4%BD%B3_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.909,
+    "ncc": 0.9816,
+    "psnr": 25.58
+   },
+   "e2": {
+    "box": [
+     1469,
+     911,
+     176,
+     352
+    ],
+    "gain": 0.978,
+    "illustration": {
+     "bytes": 8522652,
+     "sha256": "e1af37b208e1f89514a92fd61534c23ca5a0bb538f1b3e533c720e8305dc83f6",
+     "size": [
+      2560,
+      2560
+     ],
+     "source": {
+      "file": "立绘_奥尔佳_2.png",
+      "sha1": "81fe1753cb0659d892fed4723cecbc045a23200e",
+      "url": "https://media.prts.wiki/a/ad/%E7%AB%8B%E7%BB%98_%E5%A5%A5%E5%B0%94%E4%BD%B3_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.961,
+    "ncc": 0.9921,
+    "psnr": 29.57,
     "scene": true
    }
   },
@@ -14153,6 +16258,76 @@
     "scene": true
    }
   },
+  "char_455_nothin": {
+   "e1": {
+    "box": [
+     889,
+     49,
+     250,
+     500
+    ],
+    "gain": 1.389,
+    "hd": {
+     "bytes": 169914,
+     "sha256": "28ec38f3803c17be65ccbc071fd90b9bfb6e2523d39936fe32a9131dc3db6f98",
+     "size": [
+      250,
+      500
+     ]
+    },
+    "illustration": {
+     "bytes": 2264211,
+     "sha256": "7767d441ecd72a43b54d73bccfd321e34772fefa7f827eebc7ec9b87009cde7e",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_乌有_1.png",
+      "sha1": "85b783f00e0bf0cc212df7246f189578062882a1",
+      "url": "https://media.prts.wiki/b/bb/%E7%AB%8B%E7%BB%98_%E4%B9%8C%E6%9C%89_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.926,
+    "ncc": 0.9884,
+    "psnr": 26.87
+   },
+   "e2": {
+    "box": [
+     865,
+     555,
+     181,
+     362
+    ],
+    "gain": 1.006,
+    "hd": {
+     "bytes": 113315,
+     "sha256": "f4d79721ba25e1881cdd94480ddacc6deb75937467b874f4161517368f25fe97",
+     "size": [
+      181,
+      362
+     ]
+    },
+    "illustration": {
+     "bytes": 4049402,
+     "sha256": "0d2eb7d196e159f3392c28ed0e442e93c426aabe4592a329d31cf77de394b1be",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_乌有_2.png",
+      "sha1": "00cb81ad1ac0cc46b387384a167ac48108acf44c",
+      "url": "https://media.prts.wiki/6/68/%E7%AB%8B%E7%BB%98_%E4%B9%8C%E6%9C%89_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.902,
+    "ncc": 0.9859,
+    "psnr": 25.75
+   }
+  },
   "char_456_ash": {
    "e1": {
     "box": [
@@ -14548,6 +16723,77 @@
     "scene": true
    }
   },
+  "char_484_robrta": {
+   "e1": {
+    "box": [
+     856,
+     17,
+     350,
+     700
+    ],
+    "gain": 1.944,
+    "hd": {
+     "bytes": 202846,
+     "sha256": "d56d50993a14790b5537957a73590900070733cd26ffd9409e8d224fd309effa",
+     "size": [
+      350,
+      700
+     ]
+    },
+    "illustration": {
+     "bytes": 2001213,
+     "sha256": "f41aed8d00fd51e0c629211306e2b4fffc2428fa7ba97d98402fa64fb5f659a3",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_罗比菈塔_1.png",
+      "sha1": "9d3ef9577a3c797b4a5f8237ffb5516c7b950c82",
+      "url": "https://media.prts.wiki/9/9d/%E7%AB%8B%E7%BB%98_%E7%BD%97%E6%AF%94%E8%8F%88%E5%A1%94_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.919,
+    "ncc": 0.9847,
+    "psnr": 25.32
+   },
+   "e2": {
+    "box": [
+     869,
+     468,
+     246,
+     492
+    ],
+    "gain": 1.367,
+    "hd": {
+     "bytes": 155514,
+     "sha256": "1c9155351a514d456513eaaa237fbcfbfb30f28ebb5e586bd7460d86d0987a4b",
+     "size": [
+      246,
+      492
+     ]
+    },
+    "illustration": {
+     "bytes": 3366447,
+     "sha256": "6f01531df8d4a2441d5815c46137ef3efac5bf34271bd665e13c470971bc792d",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_罗比菈塔_2.png",
+      "sha1": "9d8e8c048a356d04e78b256d52b997685a5e2e19",
+      "url": "https://media.prts.wiki/c/c4/%E7%AB%8B%E7%BB%98_%E7%BD%97%E6%AF%94%E8%8F%88%E5%A1%94_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.925,
+    "ncc": 0.9814,
+    "psnr": 26.1,
+    "scene": true
+   }
+  },
   "char_485_pallas": {
    "e1": {
     "box": [
@@ -14619,6 +16865,69 @@
     "scene": true
    }
   },
+  "char_488_buildr": {
+   "e1": {
+    "box": [
+     815,
+     13,
+     371,
+     742
+    ],
+    "gain": 2.061,
+    "hd": {
+     "bytes": 414316,
+     "sha256": "4c5c87202f9cafecb2cdb0656fcbf40e6a55797332ff0366e28a4002eba1db99",
+     "size": [
+      371,
+      742
+     ]
+    },
+    "illustration": {
+     "bytes": 1702829,
+     "sha256": "7c9deb895dbf5ab710edb0007581c9f2211a8171639b10d4dad2a36217203610",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_青枳_1.png",
+      "sha1": "259ceae5bd42b4e837279c34a25573998afe4d5d",
+      "url": "https://media.prts.wiki/f/f7/%E7%AB%8B%E7%BB%98_%E9%9D%92%E6%9E%B3_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.898,
+    "ncc": 0.9783,
+    "psnr": 25.05
+   },
+   "e2": {
+    "box": [
+     1264,
+     1012,
+     179,
+     358
+    ],
+    "gain": 0.994,
+    "illustration": {
+     "bytes": 4585435,
+     "sha256": "fa49a2c54c974963cca182d79f77ac20e63ce9d9e48562e33e987f3b0da166c4",
+     "size": [
+      2560,
+      2560
+     ],
+     "source": {
+      "file": "立绘_青枳_2.png",
+      "sha1": "6be3ac1860ff4318843f7338c63cc6900e2e668d",
+      "url": "https://media.prts.wiki/1/1a/%E7%AB%8B%E7%BB%98_%E9%9D%92%E6%9E%B3_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.901,
+    "ncc": 0.9851,
+    "psnr": 26.02,
+    "scene": true
+   }
+  },
   "char_491_humus": {
    "e1": {
     "box": [
@@ -14687,6 +16996,77 @@
     "inlier": 0.958,
     "ncc": 0.9909,
     "psnr": 29.56,
+    "scene": true
+   }
+  },
+  "char_492_quercu": {
+   "e1": {
+    "box": [
+     863,
+     196,
+     289,
+     578
+    ],
+    "gain": 1.606,
+    "hd": {
+     "bytes": 257540,
+     "sha256": "361cf64d8f5a7a78a9652059a653f090e560a645d152f6f2d75d99134e099887",
+     "size": [
+      289,
+      578
+     ]
+    },
+    "illustration": {
+     "bytes": 1615213,
+     "sha256": "962e79bac5ee25507c2abbe14b76ed280163fc24f648f2a220c93da268276907",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_夏栎_1.png",
+      "sha1": "577c77d52030eb1ca251247b360f91be05f8ae0a",
+      "url": "https://media.prts.wiki/4/4d/%E7%AB%8B%E7%BB%98_%E5%A4%8F%E6%A0%8E_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.909,
+    "ncc": 0.9809,
+    "psnr": 25.52
+   },
+   "e2": {
+    "box": [
+     894,
+     567,
+     191,
+     382
+    ],
+    "gain": 1.061,
+    "hd": {
+     "bytes": 134286,
+     "sha256": "119be9fb1be7fcdeb7180b9a2f4fbd626260d5480c2b5034c4a11a419587dc22",
+     "size": [
+      191,
+      382
+     ]
+    },
+    "illustration": {
+     "bytes": 2873565,
+     "sha256": "bc7c2da8cb17c5fb5a963031418cbbfe21c20d2ef51a8561fe894ca21f012a34",
+     "size": [
+      2048,
+      2048
+     ],
+     "source": {
+      "file": "立绘_夏栎_2.png",
+      "sha1": "70f21b7fa37aa6873219646744e9ed229edc268b",
+      "url": "https://media.prts.wiki/0/02/%E7%AB%8B%E7%BB%98_%E5%A4%8F%E6%A0%8E_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.859,
+    "ncc": 0.9777,
+    "psnr": 24.12,
     "scene": true
    }
   },
@@ -14876,6 +17256,77 @@
     "inlier": 0.783,
     "ncc": 0.9569,
     "psnr": 21.45,
+    "scene": true
+   }
+  },
+  "char_499_kaitou": {
+   "e1": {
+    "box": [
+     730,
+     214,
+     212,
+     424
+    ],
+    "gain": 1.178,
+    "hd": {
+     "bytes": 148749,
+     "sha256": "1a283c9f8eb4e416fafe9f5d06ee21c09d514cfb1a711f9048dc1fee6fbff39f",
+     "size": [
+      212,
+      424
+     ]
+    },
+    "illustration": {
+     "bytes": 1280495,
+     "sha256": "920cd0c8d091e5c8efd8e2bca755847f8bc97b3205e1407edc89758c9e74edc8",
+     "size": [
+      1812,
+      1812
+     ],
+     "source": {
+      "file": "立绘_折光_1.png",
+      "sha1": "8bbeeb0848c12f78061d8e82172cdd0a1742ba47",
+      "url": "https://media.prts.wiki/e/e7/%E7%AB%8B%E7%BB%98_%E6%8A%98%E5%85%89_1.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.907,
+    "ncc": 0.9772,
+    "psnr": 25.06
+   },
+   "e2": {
+    "box": [
+     1160,
+     720,
+     214,
+     428
+    ],
+    "gain": 1.189,
+    "hd": {
+     "bytes": 191965,
+     "sha256": "ca966743ee59693ce52355a54a7593b07f81bb6a2e272520eefdf6b6ce31234a",
+     "size": [
+      214,
+      428
+     ]
+    },
+    "illustration": {
+     "bytes": 4283263,
+     "sha256": "4346f2d0d80e231c667681c0147676b9f078a36b99a875ae787ebc6c0c463afb",
+     "size": [
+      2508,
+      2508
+     ],
+     "source": {
+      "file": "立绘_折光_2.png",
+      "sha1": "8b66fc5f0c61d4f77c60063a220d89bf1802f412",
+      "url": "https://media.prts.wiki/c/c2/%E7%AB%8B%E7%BB%98_%E6%8A%98%E5%85%89_2.png",
+      "variant": "base"
+     }
+    },
+    "inlier": 0.9,
+    "ncc": 0.9848,
+    "psnr": 25.19,
     "scene": true
    }
   },
@@ -16151,6 +18602,87 @@
    "psnr": 23.19,
    "scene": true
   },
+  "char_1027_greyy2_breaker_1": {
+   "box": [
+    753,
+    503,
+    231,
+    462
+   ],
+   "gain": 1.283,
+   "hd": {
+    "bytes": 197821,
+    "sha256": "648dc69a37ca31a5daad95c164de254a41c268aca7d37b9a39577b90a9956fd4",
+    "size": [
+     231,
+     462
+    ]
+   },
+   "illustration": {
+    "size": [
+     1908,
+     1908
+    ]
+   },
+   "inlier": 0.897,
+   "ncc": 0.9881,
+   "psnr": 26.99,
+   "scene": true
+  },
+  "char_1027_greyy2_snow_5": {
+   "box": [
+    836,
+    402,
+    211,
+    422
+   ],
+   "gain": 1.172,
+   "hd": {
+    "bytes": 139390,
+    "sha256": "2541d6241961cbedf144eb67f969751861b11c88ff2c8f04aa542b0969465ab7",
+    "size": [
+     211,
+     422
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.888,
+   "ncc": 0.9819,
+   "psnr": 25.37,
+   "scene": true
+  },
+  "char_1027_greyy2_wild_12": {
+   "box": [
+    921,
+    804,
+    257,
+    514
+   ],
+   "gain": 1.428,
+   "hd": {
+    "bytes": 215107,
+    "sha256": "9aedf777cfa9336e60bc652ea8c21c15e6ef21fa44c8d787413565f91f87dad2",
+    "size": [
+     257,
+     514
+    ]
+   },
+   "illustration": {
+    "size": [
+     2200,
+     2200
+    ]
+   },
+   "inlier": 0.986,
+   "ncc": 0.996,
+   "psnr": 33.48,
+   "scene": true
+  },
   "char_1028_texas2_epoque_36": {
    "box": [
     1117,
@@ -16437,6 +18969,60 @@
    "inlier": 0.8,
    "ncc": 0.965,
    "psnr": 22.28,
+   "scene": true
+  },
+  "char_1036_fang2_snow_8": {
+   "box": [
+    1022,
+    493,
+    214,
+    428
+   ],
+   "gain": 1.189,
+   "hd": {
+    "bytes": 177790,
+    "sha256": "525003eebec95feb51b46de8ece1f28949fc5c90ef32012f79c453b56b2499f5",
+    "size": [
+     214,
+     428
+    ]
+   },
+   "illustration": {
+    "size": [
+     1940,
+     1940
+    ]
+   },
+   "inlier": 0.953,
+   "ncc": 0.9901,
+   "psnr": 28.85,
+   "scene": true
+  },
+  "char_1037_amiya3_sale_13": {
+   "box": [
+    1042,
+    739,
+    234,
+    468
+   ],
+   "gain": 1.3,
+   "hd": {
+    "bytes": 240294,
+    "sha256": "c8e0ba983b05afd9877c0c60893737b771e91ae8bbcd57d2bc4f441eda4eb7d8",
+    "size": [
+     234,
+     468
+    ]
+   },
+   "illustration": {
+    "size": [
+     2344,
+     2344
+    ]
+   },
+   "inlier": 0.846,
+   "ncc": 0.9729,
+   "psnr": 23.62,
    "scene": true
   },
   "char_1038_whitw2_sale_15": {
@@ -17119,6 +19705,60 @@
    "inlier": 0.838,
    "ncc": 0.9709,
    "psnr": 23.87,
+   "scene": true
+  },
+  "char_129_bluep_iteration_2": {
+   "box": [
+    1042,
+    648,
+    211,
+    422
+   ],
+   "gain": 1.172,
+   "hd": {
+    "bytes": 185442,
+    "sha256": "c1f32752bd8ea767ed2a61d00550a42c0c6aa881aee593951fc6b1512da7ba7d",
+    "size": [
+     211,
+     422
+    ]
+   },
+   "illustration": {
+    "size": [
+     2300,
+     2300
+    ]
+   },
+   "inlier": 0.851,
+   "ncc": 0.9792,
+   "psnr": 24.87,
+   "scene": true
+  },
+  "char_129_bluep_marthe_3": {
+   "box": [
+    801,
+    540,
+    271,
+    542
+   ],
+   "gain": 1.506,
+   "hd": {
+    "bytes": 132719,
+    "sha256": "490f454e3efda42ab8f6fc89f6b69ad98943fe804890e9644792a36d6d04a634",
+    "size": [
+     271,
+     542
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.937,
+   "ncc": 0.9698,
+   "psnr": 27.83,
    "scene": true
   },
   "char_133_mm_summer_20": {
@@ -17918,6 +20558,60 @@
    "psnr": 27.23,
    "scene": true
   },
+  "char_185_frncat_marthe_12": {
+   "box": [
+    763,
+    563,
+    228,
+    456
+   ],
+   "gain": 1.267,
+   "hd": {
+    "bytes": 182656,
+    "sha256": "a38f990d4f65995db6a93f91cd7a759481624f027f0bb394a5c68f78698e52af",
+    "size": [
+     228,
+     456
+    ]
+   },
+   "illustration": {
+    "size": [
+     1828,
+     1828
+    ]
+   },
+   "inlier": 0.939,
+   "ncc": 0.986,
+   "psnr": 28.57,
+   "scene": true
+  },
+  "char_185_frncat_wild_7": {
+   "box": [
+    831,
+    668,
+    254,
+    508
+   ],
+   "gain": 1.411,
+   "hd": {
+    "bytes": 127257,
+    "sha256": "395f3e139e3427fe40884b7e48512ec994caa1cb512aba0e698493fd204acb27",
+    "size": [
+     254,
+     508
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.938,
+   "ncc": 0.9841,
+   "psnr": 27.58,
+   "scene": true
+  },
   "char_188_helage_boc_2": {
    "box": [
     1068,
@@ -17935,6 +20629,87 @@
    "inlier": 0.801,
    "ncc": 0.9536,
    "psnr": 21.92,
+   "scene": true
+  },
+  "char_193_frostl_boc_4": {
+   "box": [
+    851,
+    350,
+    229,
+    458
+   ],
+   "gain": 1.272,
+   "hd": {
+    "bytes": 122049,
+    "sha256": "1c67465d09244845c5019878f874f049ed77d1ce834a4d8f166eb7ef8ddd779f",
+    "size": [
+     229,
+     458
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.906,
+   "ncc": 0.9809,
+   "psnr": 24.42,
+   "scene": true
+  },
+  "char_194_leto_sightseer_4": {
+   "box": [
+    637,
+    649,
+    198,
+    396
+   ],
+   "gain": 1.1,
+   "hd": {
+    "bytes": 147117,
+    "sha256": "f89184846752c19c77690a96d5a108177287139443b0fd79676333d5a0dd3a16",
+    "size": [
+     198,
+     396
+    ]
+   },
+   "illustration": {
+    "size": [
+     1876,
+     1876
+    ]
+   },
+   "inlier": 0.972,
+   "ncc": 0.9955,
+   "psnr": 30.74,
+   "scene": true
+  },
+  "char_195_glassb_kitchen_1": {
+   "box": [
+    792,
+    617,
+    259,
+    518
+   ],
+   "gain": 1.439,
+   "hd": {
+    "bytes": 192874,
+    "sha256": "120eb29ea80cce43f6945740d932970ce0d03a66e0609751738da0e00878dbb3",
+    "size": [
+     259,
+     518
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.862,
+   "ncc": 0.9741,
+   "psnr": 24.18,
    "scene": true
   },
   "char_196_sunbr_summer_1": {
@@ -18741,6 +21516,60 @@
    "psnr": 28.26,
    "scene": true
   },
+  "char_219_meteo_summer_22": {
+   "box": [
+    1276,
+    1005,
+    216,
+    432
+   ],
+   "gain": 1.2,
+   "hd": {
+    "bytes": 209954,
+    "sha256": "a94d355b37ee2e1c0911a68153634845ccf5825755fb4b3df64f5bf796246888",
+    "size": [
+     216,
+     432
+    ]
+   },
+   "illustration": {
+    "size": [
+     2396,
+     2396
+    ]
+   },
+   "inlier": 0.962,
+   "ncc": 0.9888,
+   "psnr": 29.41,
+   "scene": true
+  },
+  "char_219_meteo_sweep_1": {
+   "box": [
+    983,
+    397,
+    216,
+    432
+   ],
+   "gain": 1.2,
+   "hd": {
+    "bytes": 121882,
+    "sha256": "d26b7b286d0109a7945fafb98a3d1635260910f7e74c8559d838820384cbcade",
+    "size": [
+     216,
+     432
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.963,
+   "ncc": 0.9913,
+   "psnr": 29.37,
+   "scene": true
+  },
   "char_222_bpipe_epoque_28": {
    "box": [
     950,
@@ -19464,6 +22293,87 @@
    "psnr": 28.94,
    "scene": true
   },
+  "char_274_astesi_epoque_23": {
+   "box": [
+    630,
+    574,
+    229,
+    458
+   ],
+   "gain": 1.272,
+   "hd": {
+    "bytes": 174853,
+    "sha256": "6d08977ebbdb90bcc32d8a25ec16bbc6944de488062d59403f61816c065c6b40",
+    "size": [
+     229,
+     458
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.811,
+   "ncc": 0.9761,
+   "psnr": 22.83,
+   "scene": true
+  },
+  "char_274_astesi_epoque_5": {
+   "box": [
+    637,
+    541,
+    213,
+    426
+   ],
+   "gain": 1.183,
+   "hd": {
+    "bytes": 127424,
+    "sha256": "1a91d6b685d28b7be10b7aab525dc55ca9f2f639c290093c4f50916ccdd0b098",
+    "size": [
+     213,
+     426
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.912,
+   "ncc": 0.9852,
+   "psnr": 25.17,
+   "scene": true
+  },
+  "char_274_astesi_shining_1": {
+   "box": [
+    1185,
+    875,
+    186,
+    372
+   ],
+   "gain": 1.033,
+   "hd": {
+    "bytes": 166167,
+    "sha256": "e4e1025ae1b344682f144678e58def42e8d6b206f9c3e5557285cfdc5fc53560",
+    "size": [
+     186,
+     372
+    ]
+   },
+   "illustration": {
+    "size": [
+     2624,
+     2624
+    ]
+   },
+   "inlier": 0.822,
+   "ncc": 0.9739,
+   "psnr": 23.29,
+   "scene": true
+  },
   "char_279_excu_boc_1": {
    "box": [
     803,
@@ -19933,6 +22843,87 @@
    "psnr": 25.22,
    "scene": true
   },
+  "char_325_bison_yun_7": {
+   "box": [
+    629,
+    119,
+    214,
+    428
+   ],
+   "gain": 1.189,
+   "hd": {
+    "bytes": 194320,
+    "sha256": "61377abda6e140cacebf6b9a4efb13a27d22e149e342340ac369b94fc55e8db9",
+    "size": [
+     214,
+     428
+    ]
+   },
+   "illustration": {
+    "size": [
+     1568,
+     1568
+    ]
+   },
+   "inlier": 0.846,
+   "ncc": 0.9704,
+   "psnr": 23.1,
+   "scene": true
+  },
+  "char_328_cammou_summer_22": {
+   "box": [
+    714,
+    493,
+    220,
+    440
+   ],
+   "gain": 1.222,
+   "hd": {
+    "bytes": 167424,
+    "sha256": "f5d18c04c4600ba087fed474e997a29a790e41bb754607b48bc5de8bcf54da73",
+    "size": [
+     220,
+     440
+    ]
+   },
+   "illustration": {
+    "size": [
+     1812,
+     1812
+    ]
+   },
+   "inlier": 0.949,
+   "ncc": 0.992,
+   "psnr": 28.89,
+   "scene": true
+  },
+  "char_328_cammou_witch_2": {
+   "box": [
+    937,
+    302,
+    312,
+    624
+   ],
+   "gain": 1.733,
+   "hd": {
+    "bytes": 246029,
+    "sha256": "ead4389c1706edad8b92f135d20f2998d9d0ac54c7dc43f7118bf60e804ea079",
+    "size": [
+     312,
+     624
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.929,
+   "ncc": 0.9839,
+   "psnr": 26.17,
+   "scene": true
+  },
   "char_332_archet_sale_14": {
    "box": [
     975,
@@ -19985,6 +22976,33 @@
    "inlier": 0.836,
    "ncc": 0.9785,
    "psnr": 24.1,
+   "scene": true
+  },
+  "char_333_sidero_summer_6": {
+   "box": [
+    888,
+    387,
+    238,
+    476
+   ],
+   "gain": 1.322,
+   "hd": {
+    "bytes": 165702,
+    "sha256": "8cf19c8291e7cda5a376c4dd369c8123493a901c0987e02d5d6f85d1e0c1fd50",
+    "size": [
+     238,
+     476
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.937,
+   "ncc": 0.9952,
+   "psnr": 28.63,
    "scene": true
   },
   "char_337_utage_epoque_15": {
@@ -20201,6 +23219,33 @@
    "inlier": 0.988,
    "ncc": 0.997,
    "psnr": 31.97,
+   "scene": true
+  },
+  "char_346_aosta_game_2": {
+   "box": [
+    1088,
+    516,
+    296,
+    592
+   ],
+   "gain": 1.644,
+   "hd": {
+    "bytes": 236798,
+    "sha256": "9c8a60ccd6e93322c094763664eafbb7b0a9f1a72d17f2d4ebbba09683b4a539",
+    "size": [
+     296,
+     592
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.92,
+   "ncc": 0.989,
+   "psnr": 27.07,
    "scene": true
   },
   "char_348_ceylon_summer_13": {
@@ -20444,6 +23489,33 @@
    "inlier": 0.842,
    "ncc": 0.7755,
    "psnr": 15.36,
+   "scene": true
+  },
+  "char_367_swllow_boc_1": {
+   "box": [
+    922,
+    531,
+    230,
+    460
+   ],
+   "gain": 1.278,
+   "hd": {
+    "bytes": 125367,
+    "sha256": "729da0f05359b89b7db4d133e1659d9a1d760b556abc412f4708341fe09ce812",
+    "size": [
+     230,
+     460
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.977,
+   "ncc": 0.9931,
+   "psnr": 30.2,
    "scene": true
   },
   "char_373_lionhd_snow_3": {
@@ -21132,6 +24204,33 @@
    "psnr": 24.58,
    "scene": true
   },
+  "char_4041_chnut_summer_12": {
+   "box": [
+    956,
+    532,
+    236,
+    472
+   ],
+   "gain": 1.311,
+   "hd": {
+    "bytes": 228146,
+    "sha256": "a976555692903dbeb82bc8b12b7ca43f3d898b8091ce5f721efd233ca8ebfbc3",
+    "size": [
+     236,
+     472
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.811,
+   "ncc": 0.9588,
+   "psnr": 23.12,
+   "scene": true
+  },
   "char_4042_lumen_ambienceSynesthesia_3": {
    "box": [
     1024,
@@ -21238,6 +24337,33 @@
    "inlier": 0.813,
    "ncc": 0.9773,
    "psnr": 22.77,
+   "scene": true
+  },
+  "char_4047_pianst_wild_8": {
+   "box": [
+    965,
+    307,
+    236,
+    472
+   ],
+   "gain": 1.311,
+   "hd": {
+    "bytes": 169522,
+    "sha256": "3b3015b52abd0e9ebb13b540c730ddc5633d72c24a3b74210dea5f6051157f54",
+    "size": [
+     236,
+     472
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.795,
+   "ncc": 0.9545,
+   "psnr": 21.28,
    "scene": true
   },
   "char_4048_doroth_witch_4": {
@@ -21500,6 +24626,60 @@
    "inlier": 0.942,
    "ncc": 0.9857,
    "psnr": 26.78,
+   "scene": true
+  },
+  "char_4066_highmo_epoque_45": {
+   "box": [
+    970,
+    473,
+    224,
+    448
+   ],
+   "gain": 1.244,
+   "hd": {
+    "bytes": 184222,
+    "sha256": "e0dc889f1d8a0a1a96ba177ed13aef499d6e4baa23153220a91a6d3a59dd6a15",
+    "size": [
+     224,
+     448
+    ]
+   },
+   "illustration": {
+    "size": [
+     2072,
+     2072
+    ]
+   },
+   "inlier": 0.89,
+   "ncc": 0.9814,
+   "psnr": 25.7,
+   "scene": true
+  },
+  "char_4066_highmo_nian_10": {
+   "box": [
+    1127,
+    801,
+    213,
+    426
+   ],
+   "gain": 1.183,
+   "hd": {
+    "bytes": 154703,
+    "sha256": "5e11e54782ef6f7366e389baa09d020dc11de30470c843e6f9766d2dcefd2f2c",
+    "size": [
+     213,
+     426
+    ]
+   },
+   "illustration": {
+    "size": [
+     2532,
+     2532
+    ]
+   },
+   "inlier": 0.917,
+   "ncc": 0.9878,
+   "psnr": 27.33,
    "scene": true
   },
   "char_4072_ironmn_ambienceSynesthesia_5": {
@@ -22342,6 +25522,33 @@
    "psnr": 23.87,
    "scene": true
   },
+  "char_4147_mitm_breaker_1": {
+   "box": [
+    1072,
+    924,
+    201,
+    402
+   ],
+   "gain": 1.117,
+   "hd": {
+    "bytes": 207231,
+    "sha256": "2b71bbdcb1d96168e88d16efc1fc43af7515bfcdba9679d9d69262696ab36be9",
+    "size": [
+     201,
+     402
+    ]
+   },
+   "illustration": {
+    "size": [
+     2560,
+     2560
+    ]
+   },
+   "inlier": 0.821,
+   "ncc": 0.9679,
+   "psnr": 23.34,
+   "scene": true
+  },
   "char_4148_philae_nian_12": {
    "box": [
     875,
@@ -22442,6 +25649,33 @@
    "psnr": 24.67,
    "scene": true
   },
+  "char_4165_ctrail_yun_11": {
+   "box": [
+    1083,
+    357,
+    213,
+    426
+   ],
+   "gain": 1.183,
+   "hd": {
+    "bytes": 206288,
+    "sha256": "fa23b3ed79aa431e3ab880a57445023022f62451a7b409ad74608c8c79ba7b24",
+    "size": [
+     213,
+     426
+    ]
+   },
+   "illustration": {
+    "size": [
+     1900,
+     1900
+    ]
+   },
+   "inlier": 0.853,
+   "ncc": 0.9837,
+   "psnr": 25.33,
+   "scene": true
+  },
   "char_416_zumama_boc_3": {
    "box": [
     919,
@@ -22467,6 +25701,33 @@
    "inlier": 0.865,
    "ncc": 0.9749,
    "psnr": 23.45,
+   "scene": true
+  },
+  "char_4177_brigid_epoque_53": {
+   "box": [
+    607,
+    417,
+    190,
+    380
+   ],
+   "gain": 1.056,
+   "hd": {
+    "bytes": 128007,
+    "sha256": "d00237d8227f2cf9e3efb4a9905ccd05882cbd4f781b9567035d5c695ddce33d",
+    "size": [
+     190,
+     380
+    ]
+   },
+   "illustration": {
+    "size": [
+     1592,
+     1592
+    ]
+   },
+   "inlier": 0.939,
+   "ncc": 0.9863,
+   "psnr": 28.28,
    "scene": true
   },
   "char_4179_monstr_boc_11": {
@@ -22613,6 +25874,25 @@
    "inlier": 0.972,
    "ncc": 0.9944,
    "psnr": 30.32,
+   "scene": true
+  },
+  "char_4198_christ_epoque_56": {
+   "box": [
+    714,
+    810,
+    149,
+    298
+   ],
+   "gain": 0.828,
+   "illustration": {
+    "size": [
+     1760,
+     1760
+    ]
+   },
+   "inlier": 0.9,
+   "ncc": 0.9902,
+   "psnr": 25.38,
    "scene": true
   },
   "char_4202_haruka_iteration_6": {
@@ -23130,6 +26410,33 @@
    "psnr": 24.11,
    "scene": true
   },
+  "char_455_nothin_nian_7": {
+   "box": [
+    756,
+    544,
+    210,
+    420
+   ],
+   "gain": 1.167,
+   "hd": {
+    "bytes": 144352,
+    "sha256": "095a76f487ee6155939326d1e9895f94e9e8bf6d2b4204d3527950ea03ff295c",
+    "size": [
+     210,
+     420
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.854,
+   "ncc": 0.9636,
+   "psnr": 22.74,
+   "scene": true
+  },
   "char_469_indigo_nian_7": {
    "box": [
     948,
@@ -23338,6 +26645,60 @@
    "psnr": 26.01,
    "scene": true
   },
+  "char_484_robrta_ambienceSynesthesia_3": {
+   "box": [
+    907,
+    348,
+    256,
+    512
+   ],
+   "gain": 1.422,
+   "hd": {
+    "bytes": 151970,
+    "sha256": "c5a33d3d62ec67b25b5aa33c708cce1fa885208a5c05e8e6011be471bc3bd4ec",
+    "size": [
+     256,
+     512
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.938,
+   "ncc": 0.9904,
+   "psnr": 26.85,
+   "scene": true
+  },
+  "char_484_robrta_summer_10": {
+   "box": [
+    594,
+    500,
+    323,
+    646
+   ],
+   "gain": 1.794,
+   "hd": {
+    "bytes": 245904,
+    "sha256": "3e1769f013e6c41602a75ad65c93a6ace241597fc317c49cd3f07674d5af72d5",
+    "size": [
+     323,
+     646
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.9,
+   "ncc": 0.9797,
+   "psnr": 24.09,
+   "scene": true
+  },
   "char_485_pallas_epoque_12": {
    "box": [
     871,
@@ -23384,6 +26745,33 @@
    "psnr": 25.44,
    "scene": true
   },
+  "char_488_buildr_epoque_34": {
+   "box": [
+    856,
+    338,
+    214,
+    428
+   ],
+   "gain": 1.189,
+   "hd": {
+    "bytes": 154398,
+    "sha256": "537d50b9f043497ff6f8e4e5fad2678502d82bb37c08104e674c82e375252c73",
+    "size": [
+     214,
+     428
+    ]
+   },
+   "illustration": {
+    "size": [
+     1612,
+     1612
+    ]
+   },
+   "inlier": 0.84,
+   "ncc": 0.9548,
+   "psnr": 21.82,
+   "scene": true
+  },
   "char_491_humus_marthe_10": {
    "box": [
     1045,
@@ -23409,6 +26797,60 @@
    "inlier": 0.939,
    "ncc": 0.9921,
    "psnr": 28.61,
+   "scene": true
+  },
+  "char_492_quercu_epoque_17": {
+   "box": [
+    908,
+    522,
+    199,
+    398
+   ],
+   "gain": 1.106,
+   "hd": {
+    "bytes": 146698,
+    "sha256": "4cc72afe2c5bb630f7d935916144ce69ca02632fd60e97c8e2ac4a1ff3d701d1",
+    "size": [
+     199,
+     398
+    ]
+   },
+   "illustration": {
+    "size": [
+     2048,
+     2048
+    ]
+   },
+   "inlier": 0.867,
+   "ncc": 0.9847,
+   "psnr": 25.55,
+   "scene": true
+  },
+  "char_492_quercu_witch_4": {
+   "box": [
+    1157,
+    648,
+    185,
+    370
+   ],
+   "gain": 1.028,
+   "hd": {
+    "bytes": 142347,
+    "sha256": "55301bab5a0c52049449949d82b8f92eeaa7ced585ed64ac432a94d8b8bbf728",
+    "size": [
+     185,
+     370
+    ]
+   },
+   "illustration": {
+    "size": [
+     2560,
+     2560
+    ]
+   },
+   "inlier": 0.805,
+   "ncc": 0.9602,
+   "psnr": 23.4,
    "scene": true
   },
   "char_494_vendla_game_10": {
@@ -23517,6 +26959,33 @@
    "inlier": 0.938,
    "ncc": 0.9887,
    "psnr": 28.07,
+   "scene": true
+  },
+  "char_499_kaitou_epoque_37": {
+   "box": [
+    1053,
+    406,
+    234,
+    468
+   ],
+   "gain": 1.3,
+   "hd": {
+    "bytes": 188524,
+    "sha256": "b08263a992ea4504b55ad8d432c0315cde171d34d0c5b2061c3eee85b598a28a",
+    "size": [
+     234,
+     468
+    ]
+   },
+   "illustration": {
+    "size": [
+     2096,
+     2096
+    ]
+   },
+   "inlier": 0.93,
+   "ncc": 0.9872,
+   "psnr": 26.92,
    "scene": true
   }
  },

@@ -6,7 +6,7 @@
 
 只核查游戏素材目录里实际有的干员（`charId`），不是明日方舟全部干员。时装按公开游戏皮肤表与 PRTS 页面匹配；页面中的 `时装N名称` 与具体时装名精确对应，不用发行顺序推断 Wiki 图片编号。
 
-当前 `shared/skin-catalogue.js` 收录 **200 名干员、311 套时装**（默认素材 195 名干员 306 套，加联动素材包 5 套），其中 **71 套有可用动态立绘**。仅头像、半身像、完整立绘与战斗本体兼容素材完整的时装进入目录；缺兼容战斗素材的时装未开放选择。官方标为有动态立绘的时装目前都有动态资源；若某套的动态资源缺失，界面标注“动态立绘待补 · 静态预览”。这不是全时装覆盖或全部原作特效还原。
+当前 `shared/skin-catalogue.js` 收录 **228 名干员、350 套时装**（默认素材 223 名干员 345 套，加联动素材包 5 套），其中 **72 套有可用动态立绘**。仅头像、半身像、完整立绘与战斗本体兼容素材完整的时装进入目录；缺兼容战斗素材的时装未开放选择。官方标为有动态立绘的时装目前都有动态资源；若某套的动态资源缺失，界面标注“动态立绘待补 · 静态预览”。这不是全时装覆盖或全部原作特效还原。
 
 少数时装的原资源没有背面：浊心斯卡蒂「升华」、安洁莉娜「质素访客」「夏卉 FA017」、魔王「追悼」、海蒂「书信零落」。这几套在朝上时仍使用**本套正面**，界面明确标记，不悄悄借用默认服装的背面；浊心斯卡蒂「红女爵」官方只有一个统一战斗模型，界面标“统一战斗模型，正背面共用”。
 
@@ -23,7 +23,7 @@
 - 预设里外观是独立的 `skins` 项；旧的单独外观文件 `{kind: 'stronghold.skins', v: 1, choices}` 仍可导入，只替换外观。
 - 本局确认阶段 `INFO_CHECK` 结束后锁定外观；之后的修改保存给下一局，不中途替换单位。
 
-动态立绘（rel26，2026-11-02 用户决定）：71 套有官方动态立绘的时装全部带上（11 套来自 PRTS，60 套由本地客户端 `arts/dynchars` 解包，图集页为无损 WebP，逐像素 RGBA 与 PNG 一致）。图集页多为直通 alpha；15 套是预乘 alpha，在 `data/assets.json` 标 `pma: true`（`tools/prepare-operator-skins.mjs` 的 `PREMULTIPLIED_DYNAMIC`），其中 11 套的接缝由 `tools/fix-dynamic-edges.py` 修过，用另存的 `<页>.edge.<扩展名>` 与 `.edge.atlas`（rel37）。除「查看立绘」外，rel27 起（2026-11-03 用户决定）凡显示这些时装立绘的地方都实时播放（`public/js/ui/dynamicIllustration.js` 的 cover 模式）：干员调配的列表头像（官方头像取景）、卡片视图和详情立绘（官方半身像取景）、自选立绘框、玩家头像（大厅、同盟座位、成就；对局界面内仍为静态）、名片底图（任意宽度），以及同盟座位卡（默认官方半身像取景）。取景框由离线比对官方头像／半身像与动态立绘静帧得到，存于 `data/assets.json` 的 `skins[id].dynamic.frames`，与下面的静态图同一裁切；第一帧画出后静态图隐藏，任何失败都留静态图。所有立绘共用一个 WebGL 上下文（`public/js/ui/dynamicStage.js`：每帧把屏幕上的立绘排进一张离屏画布，一次绘制后拷到各自的 2D 画布），不限个数、不限帧率（跟随显示器刷新）、分辨率为框的 CSS 尺寸 × devicePixelRatio；离开屏幕的不加载也不绘制；不理会 `prefers-reduced-motion`。比图集本身更细的清晰度只是插值，是素材的上限。客户端里环绕骨骼的 Unity 粒子与网格背景不是 Spine，不在此列。联动时装没有动态立绘。
+动态立绘（rel26，2026-11-02 用户决定）：72 套有官方动态立绘的时装全部带上（11 套来自 PRTS，61 套由本地客户端 `arts/dynchars` 解包，含 0.4.0 医疗阿米娅的「寰宇独奏」，图集页为无损 WebP，逐像素 RGBA 与 PNG 一致）。图集页多为直通 alpha；15 套是预乘 alpha，在 `data/assets.json` 标 `pma: true`（`tools/prepare-operator-skins.mjs` 的 `PREMULTIPLIED_DYNAMIC`），其中 11 套的接缝由 `tools/fix-dynamic-edges.py` 修过，用另存的 `<页>.edge.<扩展名>` 与 `.edge.atlas`（rel37）。除「查看立绘」外，rel27 起（2026-11-03 用户决定）凡显示这些时装立绘的地方都实时播放（`public/js/ui/dynamicIllustration.js` 的 cover 模式）：干员调配的列表头像（官方头像取景）、卡片视图和详情立绘（官方半身像取景）、自选立绘框、玩家头像（大厅、同盟座位、成就；对局界面内仍为静态）、名片底图（任意宽度），以及同盟座位卡（默认官方半身像取景）。取景框由离线比对官方头像／半身像与动态立绘静帧得到，存于 `data/assets.json` 的 `skins[id].dynamic.frames`，与下面的静态图同一裁切；第一帧画出后静态图隐藏，任何失败都留静态图。所有立绘共用一个 WebGL 上下文（`public/js/ui/dynamicStage.js`：每帧把屏幕上的立绘排进一张离屏画布，一次绘制后拷到各自的 2D 画布），不限个数、不限帧率（跟随显示器刷新）、分辨率为框的 CSS 尺寸 × devicePixelRatio；离开屏幕的不加载也不绘制；不理会 `prefers-reduced-motion`。比图集本身更细的清晰度只是插值，是素材的上限。客户端里环绕骨骼的 Unity 粒子与网格背景不是 Spine，不在此列。联动时装没有动态立绘。
 
 高清静态立绘（rel30）：`data/assets.json`（联动干员在 `data/assets-collab.json`）的干员精一／精二与时装带 PRTS 原画的 `illustration`／`portraitHD`／`portraitBox`／`portraitScene` 等字段（`tools/prepare-operator-illustrations.mjs`，素材重建见 `tools/assets/hd-art/README.md`）；干员调配、自选、结算、成就统计与对局内详情画高清裁切，同盟座位卡画整张立绘（含场景）。玩家可在自己的座位上「调整立绘」拖动、缩放，精一／精二、静态和动态时装都可以；取景随 room.card 的 artX／artY／artZoom 同步给全房间。名片底图另有「调整位置和缩放」（bgX／bgY／bgZoom）。
 
@@ -49,7 +49,7 @@ Session／座位／PlayerState／集群 assignment 独立复制、冻结选择�
 node tools/prepare-operator-skins.mjs --source <新的隔离素材来源目录> --download
 ```
 
-扩展目录可用 `--catalogue <已核实的metadata.json>` 与 `--registry shared/skin-catalogue.js`。工具限制来源主机、单文件尺寸、atlas 页数与纹理预算；至多两套同时导入，不重试，遇到403／429停止继续请求。不能在下载目录里运行脚本或第三方工程。
+扩展目录可用 `--catalogue <已核实的metadata.json>` 与 `--registry shared/skin-catalogue.js`。工具限制来源主机、单文件尺寸、atlas 页数与纹理预算；请求带浏览器式请求头、相邻请求至少隔 250 ms，至多两套同时导入，不重试，遇到403／429停止继续请求。不能在下载目录里运行脚本或第三方工程。
 
 `tools/fetch-assets.mjs` 重建默认素材时保留已收录且文件完整的时装，并将其文件纳入清单与 prune 引用；不为缺失素材发出坏 URL。美术、原始来源、下载库存与缓存不进入 Git。新游戏版本、私有素材清单与公开静态文件必须作为配套材料准备；此本地实现不代表已上传 provider 或部署。
 
