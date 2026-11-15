@@ -14,7 +14,7 @@
 import http from 'node:http';
 import path from 'node:path';
 import { getData, loadData } from './data.js';
-import { getBotStrategy } from './match/botStrategies.js';
+import { getBotStrategy, getBotStrategySeats } from './match/botStrategies.js';
 import { noteLlmIgnored, releaseIgnoresExternalAi, validateExternalConfig } from './match/llmGate.js';
 import { ROOT, listenAddress, bindCandidates, serveDirs, makeLogger, parseTrustProxy, assetIndexOptionsFrom, versionsFrom, parseRoomCode } from './http/config.js';
 import { WS_MAX_PAYLOAD, createSessionStack, attachWebSocket } from './http/websocket.js';
@@ -122,6 +122,12 @@ export async function startServer(opts = {}) {
   } catch (cause) {
     throw new Error(`Invalid SP_BOT_STRATEGY: ${cause.message}. Unset SP_BOT_STRATEGY to use the original bot (legacy).`, { cause });
   }
+  try {
+    const seats = getBotStrategySeats(process.env.SP_BOT_STRATEGY_SEATS);
+    if (Object.values(seats).some((s) => s.id === 'external')) validateExternalConfig();
+  } catch (cause) {
+    throw new Error(`Invalid SP_BOT_STRATEGY_SEATS: ${cause.message}. Unset SP_BOT_STRATEGY_SEATS to use SP_BOT_STRATEGY for every seat.`, { cause });
+  }
   const { port, host } = listenAddress(opts);
   const wsCompression = resolveWsCompression(opts.wsCompression ?? process.env.SP_WS_COMPRESSION ?? 'off');
   const snapshotHz = parseSnapshotHz(opts.snapshotHz ?? process.env.SP_SNAPSHOT_HZ);
@@ -183,8 +189,12 @@ export async function startServer(opts = {}) {
     visual = createVisualSets({ registry: packs, log });
     // the server owner's policy (plugins/config.json), the content sets of the gameplay plugins (served at /cs/<cs16>/…),
     // what a room's plugins make of both, and the match hosts a room with gameplay plugins plays in (DESIGN §32.6)
+    // (the official versions come first: a gameplay plugin that declares a version composes over that version's data,
+    // server/plugins/contentSets.js)
+    const versionCfg = versionsFrom(opts, log);
+    versions = createVersionSets({ enabled: versionCfg.enabled, defaultId: versionCfg.default, dataDir, vanilla: content, defaultData: data, log });
     const policy = createPluginPolicy({ pluginsDir, log });
-    contents = createContentSets({ registry: packs, vanillaData: data, log, maxSets: () => policy.get().maxSets });
+    contents = createContentSets({ registry: packs, vanillaData: data, versions, log, maxSets: () => policy.get().maxSets });
     const roomSets = createRoomSets({ registry: packs, visual, contents, policy });
     // a child process per content set; SP_MATCH_HOST=worker asks for a worker thread instead (match/host/index.js header:
     // an out-of-memory abort in a worker thread ends the whole server)
@@ -192,8 +202,6 @@ export async function startServer(opts = {}) {
     hosts = createMatchHosts({ contents, log, options: { transport, maxWorkers: Math.max(1, policy.get().maxSets), ...(opts.matchHost || {}) } });
     // the official versions (DESIGN §35.23, M1): which ones (the option, else SP_VERSIONS …), their content, and — only
     // when one beyond 第二期下半 is enabled — the match hosts their rooms play in (counted apart from the plugin hosts)
-    const versionCfg = versionsFrom(opts, log);
-    versions = createVersionSets({ enabled: versionCfg.enabled, defaultId: versionCfg.default, dataDir, vanilla: content, defaultData: data, log });
     // (the test options of matchHost apply to both pools, but never the version pool's kind or its own SP_MAX_VERSION_HOSTS)
     // Each version's host runs its server-run fields on its own combat Workers (SP_VERSION_COMBAT_WORKERS, default 2, 0 =
     // inline and streamed; match/host/entry.js): the coordinator's combatWorkers: 0 is about its own process.

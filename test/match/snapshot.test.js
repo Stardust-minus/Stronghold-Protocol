@@ -7,11 +7,14 @@ import { makeMatch } from './harness.js';
 import { PHASE } from '../../shared/constants.js';
 import { OFFLINE_TAKEOVER_ROUNDS } from '../../server/match/Match.js';
 import { createRngFromState } from '../../server/sim/rng.js';
+import { getVersionData } from '../../server/data.js';
 import { canSnapshot, snapshotMatch, restoreMatch, matchState, encodeValue, decodeValue, MATCH_FIELDS, PLAYER_FIELDS,
   SNAPSHOT_VERSION, RESTORE_SEQ_GAP, MIN_RECOVER_PREP_SEC, CHECKPOINT_PREP_END } from '../../server/match/snapshot.js';
 
 const classified = (lists) => new Set(Object.values(lists).flat());
 const twenty = { revivalEnabled: true, disableSharedPool: false, playerCapacity: 20 };
+/** 规程·序列Ⅰ (0.4.0): 选择自编, 指挥, the bots' synthesized 自选 rosters — a hosted match's checkpoint is this document too */
+const ACT3 = getVersionData('act3autochess@V3_1', { log: { warn() {}, info() {}, error() {} } });
 
 /** A fresh match built from a checkpoint (the platform's restore path), the checkpoint applied. */
 function restored(doc, o = {}) {
@@ -19,7 +22,7 @@ function restored(doc, o = {}) {
   // nobody rejoins these restored matches and they must play on like the original: the offline hold off
   // (a restored match nobody comes back to holds: test/match/offline-hold.test.js)
   const r = makeMatch({ mode: o.mode ?? 'coop', difficulty: o.difficulty ?? 'NORMAL', seats: json.seats, seed: json.seed,
-    matchNo: o.matchNo, experimental: o.experimental, offlineHoldMs: 0 });
+    matchNo: o.matchNo, experimental: o.experimental, offlineHoldMs: 0, ...(o.data ? { data: o.data } : {}) });
   assert.equal(restoreMatch(r.m, json, { createRngFromState, log: { warn: (...a) => r.logs.warn.push(a.join(' ')) }, replay: o.replay }), true);
   return r;
 }
@@ -54,6 +57,7 @@ test('every own property of a Match and a PlayerState is classified, and every s
     { humans: 2, bots: 2, seed: 11 },
     { humans: 3, bots: 17, seed: 12, experimental: twenty },
     { mode: 'solo', humans: 1, seed: 13 },
+    { humans: 2, bots: 2, seed: 14, data: ACT3 },
   ];
   for (const cfg of configs) {
     const h = makeMatch(cfg).autoHumans();
@@ -65,7 +69,7 @@ test('every own property of a Match and a PlayerState is classified, and every s
       for (const ps of h.m.order) for (const k of Object.keys(ps)) if (!pKnown.has(k)) unknown.add(`PlayerState.${k}`);
       if ((h.m.phase !== phase || ++steps % 400 === 0) && canSnapshot(h.m)) {
         phase = h.m.phase;
-        assert.ok(snapshotMatch(h.m), `a checkpoint in ${h.m.phase} R${h.m.round} (${cfg.experimental ? 20 : cfg.mode ?? 'coop'})`);
+        assert.ok(snapshotMatch(h.m), `a checkpoint in ${h.m.phase} R${h.m.round} (${cfg.experimental ? 20 : cfg.data ? '规程' : cfg.mode ?? 'coop'})`);
         checked++;
       }
       return h.ended != null;
@@ -265,4 +269,33 @@ test('a checkpoint holding what the game data no longer has (another release) is
   assert.equal(restoreMatch(r.m, doc, { createRngFromState }), false);
   const s2 = makeMatch({ seats: doc.seats, seed: doc.seed });
   assert.equal(restoreMatch(s2.m, { ...JSON.parse(JSON.stringify(snapshotMatch(h.m))), match: { ...doc.match, stageId: 'no_such_stage' } }, { createRngFromState }), false);
+});
+
+test('规程·序列Ⅰ: a checkpoint after 选择自编 restores losslessly (the confirmed slots, the bots\' synthesized rosters and their stock) and plays on identically', { timeout: 300_000 }, () => {
+  const cfg = { humans: 2, bots: 2, seed: 31, data: ACT3 };
+  for (const [want, after] of [[PHASE.ROUND_START, 1], [PHASE.PREP, 3]]) {
+    const h = makeMatch(cfg).autoHumans();
+    h.start();
+    h.run(() => h.ended != null || (h.m.phase === want && h.m.round >= after && canSnapshot(h.m)));
+    assert.ok(!h.ended && h.m.phase === want, `${want} from R${after} reached`);
+    const bots = h.m.order.filter((p) => p.isBot);
+    assert.ok(h.m.order.every((p) => Array.isArray(p.diyBring)), 'every seat confirmed 选择自编');
+    assert.ok(bots.some((p) => Object.keys(p.diy).length > 0 && p.diyStock.entries.size > 0), 'a bot fields a synthesized roster');
+    const doc = snapshotMatch(h.m);
+    assert.equal(doc.v, SNAPSHOT_VERSION);
+    const r = restored(doc, cfg);
+    assert.deepEqual(matchState(r.m), matchState(h.m), `lossless in ${want} R${h.m.round}`);
+    for (const ps of h.m.order) {
+      const back = r.m.players.get(ps.playerId);
+      assert.deepEqual(back.diy, ps.diy, `${ps.playerId}: the same 自选 slots`);
+      assert.ok(Object.isFrozen(back.diyBring), `${ps.playerId}: 选择自编 stays confirmed`);
+    }
+    for (const ps of r.m.order) if (!ps.isBot) r.m.onReconnect(ps.playerId);
+    const until = (x, from) => x.run(() => x.ended != null || (x.m.phase === PHASE.COMBAT && x.m.round > from) || x.m.phase === PHASE.FINAL_ASSAULT);
+    until(h, h.m.round - (want === PHASE.PREP ? 1 : 0)); until(r, r.m.round - (want === PHASE.PREP ? 1 : 0));
+    const strip = (x) => { const { match, ...rest } = x; const { errors, errorCount, lastResults, simErrorLog, ...m } = match; return { ...rest, match: m }; };
+    assert.deepEqual(strip(matchState(r.m)), strip(matchState(h.m)), `the same next prep end after ${want}`);
+    assert.deepEqual(r.logs.error, []);
+    r.runToEnd();
+  }
 });

@@ -1,7 +1,7 @@
 // The room option "an AI seat's strategy" (room.setBotBand → opts.seats[].band of an AI seat): in the strategy draft
 // (BAND_DRAFT) the designated AI seat takes exactly that strategy on its turn, whatever the order (and with 「AI 队友最后
-// 选择」 on or off); until then the strategy is held for it — a human cannot pick it, and a timed-out turn, a departing
-// seat or the end-of-draft defaults skip it. m.public draft.reserved lists the strategies still held. Without a
+// 选择」 on or off); until then the strategy is held for it — a human cannot pick it, and a timed-out turn, the AI's pick
+// for a departing seat or the end-of-draft defaults skip it. m.public draft.reserved lists the strategies still held. Without a
 // designation (or with one the match cannot honour) the draft is exactly today's. Expanded-capacity rooms allow
 // repeats: nothing is held there, the AI seat still takes its strategy.
 import { test } from 'node:test';
@@ -138,14 +138,16 @@ test('automatic assignments skip a held strategy: a timed-out turn (highlight an
     assert.equal(m.draft.picks.ai_1, 'band_amiya');
     m.dispose();
   }
-  // a human departing before its turn gets the default — never the held one
+  // a human departing before its pick (holding nothing): the AI drafts for it at once by the team's rule (upstream
+  // §37.65: Touch while nobody else has it, never 歌利亚) — never a designated strategy
   {
     const h = toBandDraft({ seats: seatsOf(['p_0', 'p_1', 'ai_0', 'ai_1'], bands), seed: 2, aiPicksLast: true });
     const m = h.m;
     const [first, second] = m.draft.order;
     assert.ok(!isAi(first) && !isAi(second));
     m.onLeave(second);
-    assert.equal(m.draft.picks[second], 'band_duyaoy');
+    h.sched.advance(1);
+    assert.equal(m.draft.picks[second], 'band_amedic');
     assert.deepEqual(m.handle(first, { t: 'g.band', bandId: 'band_pepe' }), { ok: true });
     h.run(() => m.phase !== PHASE.BAND_DRAFT);
     assert.equal(m.draft.picks.ai_0, 'band_bldsk');

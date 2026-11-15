@@ -84,14 +84,14 @@ export function prepCameraFor(pub, myId, folded = false) {
  * (`busy`: the drop target and the wheel sit on tiles of the camera in use — the caller asks again once that ends), and
  * nothing when the current request (`current` { kind, opts }) already has that shop state.
  * @param {{ pub: any, myId: string|null, ownPrep: boolean, folded: boolean, pen?: boolean, busy?: boolean,
- *   current?: { kind: string, opts?: { shop?: boolean } }|null }} s
+ *   current?: { kind: string, opts?: { shop?: boolean|'partial' } }|null }} s
  * @returns {{ kind: 'prep'|'bossPrep', opts: object }|null}
  */
 export function foldCamera(s) {
   if (!s || !s.ownPrep || s.pen || s.busy) return null;
   const want = prepCameraFor(s.pub, s.myId, !!s.folded);
   const cur = s.current;
-  if (cur && cur.kind === want.kind && (cur.opts?.shop !== false) === want.opts.shop) return null;
+  if (cur && cur.kind === want.kind && (cur.opts?.shop ?? true) === want.opts.shop) return null;
   return want;
 }
 

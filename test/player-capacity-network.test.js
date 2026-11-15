@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
 import { startServer } from '../server/index.js';
 import { ERR, MATCHMAKING_VERSION } from '../shared/constants.js';
+import { DEFAULT_VERSION } from '../shared/versions.js';
 import { PLAYER_CAPACITY_VERSION } from '../shared/playerCapacity.js';
+
+// a room.create names 第二期下半 unless the test names a version (as test/helpers/wsClient.js does): the lobby's default
+// is 规程·序列Ⅰ (shared/versions.js LOBBY_DEFAULT_VERSION), whose rooms wait for the page's content check
+const withVersion = (type, fields) => (type === 'room.create' && !Object.hasOwn(fields, 'version') ? { ...fields, version: DEFAULT_VERSION } : fields);
 
 async function setup(t) {
   class FixtureMatch {
@@ -27,7 +32,7 @@ async function setup(t) {
     await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
     const request = (type, fields = {}) => new Promise((resolve, reject) => {
       const id = ++rid, timer = setTimeout(() => { pending.delete(id); reject(new Error('fixture timeout')); }, 6000);
-      pending.set(id, { resolve, reject, timer }); socket.send(JSON.stringify({ t: type, ...fields, rid: id }));
+      pending.set(id, { resolve, reject, timer }); socket.send(JSON.stringify({ t: type, ...withVersion(type, fields), rid: id }));
     });
     const c = { socket, frames, request }; clients.push(c); return c;
   }

@@ -22,7 +22,7 @@ const noop = () => {};
 // eslint-disable-next-line require-yield -- an empty step generator: the legacy step it replaces does nothing
 const none = function* () { return null; };
 export const LAYOUT_ONLY = createBotPrepSteps({ takeOffers: noop, sellJunk: noop, buyLoopSteps: none, levelUp: noop,
-  advisorSpendSteps: none, spendDown: noop, maybeFreeze: noop });
+  planSpendSteps: none, spendDown: noop, maybeFreeze: noop }); // (0.4.0: advisorSpendSteps is planSpendSteps)
 // Legacy procurement only (the teacher): everything before the first arrange.
 export const PROCURE_ONLY = createBotPrepSteps({ arrangeSteps: none, equipItems: noop });
 

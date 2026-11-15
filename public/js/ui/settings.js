@@ -26,6 +26,10 @@
 // 界面大小 (uiScale, applied by applyUiScale): the match HUD as a whole — css/theme.css `--ui` scales the layout root and
 // every pixel floor of the match CSS while the match screen is mounted. On a phone (default 80 %) the HUD's bottom band
 // shrinks and the prep camera frames a taller board, so the shop stays open while deploying instead of being folded.
+// 界面主题 (docs/THEMES.md): a pack this browser imported. The choice is `uiTheme` (empty = 卫戍协议终端). Nothing is
+// uploaded. uiTheme.js must not import this file; the store is handed over with bindThemeSettings.
+// 部署时收起商店 (upstream #602, and its 0.4.0 middle level 适度缩小 #692) is not offered: this fork removed the deploy
+// fold (2026-10-16, the owner); the 0.4.0 sync leaves its three-level switch out too (to be confirmed by the owner).
 
 import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Modal, Button, Icon, MicroLabel, Tooltip, confirmDialog } from './components.js';
@@ -55,6 +59,11 @@ import { toast, describeError } from './toasts.js';
 import { pluginMicro } from './pluginTag.js';
 import { fxAvailable } from '../render/vfx/available.js';
 import { resolveOfficialFx } from '../render/vfx/tier.js';
+import { ThemeSection } from './themeSettings.js';
+import {
+  applyUiTheme, bindThemeSettings, bootUiThemes, composeLocalManifest, importedThemeGroups, onImportedThemeGroups, syncThemeVoiceVolume,
+} from '../uiTheme.js';
+import { data } from '../data.js';
 import { askPersistStorage, importSupport, storagePersisted } from '../assetCache.js';
 import { assetImport, pruneImportedAssets } from '../assetPack.js';
 import { cosmetics } from '../cosmetics.js';
@@ -92,6 +101,10 @@ export function applyUiScale(v) {
   el.dataset.ui = next;
   if (!first) globalThis.requestAnimationFrame?.(() => globalThis.dispatchEvent(new Event('resize')));
 }
+bindThemeSettings({
+  get: () => settingsStore.get(),
+  set: (patch) => settingsStore.set(sanitizeSettings({ ...settingsStore.get(), ...patch })),
+});
 
 settingsStore.subscribe((s) => {
   savePref('settings', sanitizeSettings(s));
@@ -101,6 +114,8 @@ settingsStore.subscribe((s) => {
   audio.setVoiceNative(s.voiceNative);
   applyTextSize(s.textSize);
   applyUiScale(s.uiScale);
+  applyUiTheme(s.uiTheme);
+  syncThemeVoiceVolume();
 });
 audio.setVolumes(settingsStore.get());
 audio.setVoiceLang(settingsStore.get().voiceLang, settingsStore.get().voiceOverrides);
@@ -240,11 +255,10 @@ function HotkeySection({ keys, touchUi }) {
   </ul>
   <p class=${cx('set-keys__note', note?.warn && 'is-warn')} role="status" aria-live="polite">${status}</p>`;
   return html`<section class="set-keys" aria-labelledby="set-keys-title">
-    <div class="set-keys__head">
-      <span class="set-row__label" id="set-keys-title">${t('快捷键')}<${MicroLabel}>HOTKEYS<//></span>
+    <${SetHead} id="set-keys-title" icon="key" title=${t('快捷键')} micro="HOTKEYS">
       <${Button} variant="ghost" size="sm" icon="refresh" class="set-keys__reset" disabled=${isDefaultHotkeys(keys)}
         onClick=${() => { setWaiting(null); updateSettings({ keys: DEFAULT_HOTKEYS }); setNote({ text: t('已恢复默认快捷键') }); }}>${t('恢复默认')}<//>
-    </div>
+    <//>
     ${touchUi ? html`<p class="set-hint">${t('快捷键需要实体键盘；触屏设备连接键盘后可用')}</p>
       <details class="set-keys__more"><summary>${t('查看 / 更改快捷键')}</summary>${list}</details>` : list}
   </section>`;
@@ -283,10 +297,9 @@ function DiagSection() {
     setNote(ok ? 'copied' : 'refused');
   };
   return html`<section class="set-diag" aria-labelledby="set-diag-title">
-    <div class="set-keys__head">
-      <span class="set-row__label" id="set-diag-title">${t('问题反馈')}<${MicroLabel}>DIAGNOSTICS<//></span>
+    <${SetHead} id="set-diag-title" icon="warn" title=${t('问题反馈')} micro="DIAGNOSTICS">
       <${Button} variant="ghost" size="sm" icon="copy" class="set-diag__copy" data-testid="diag-copy" onClick=${copy}>${t('复制诊断信息')}<//>
-    </div>
+    <//>
     <p class="set-hint">${t('遇到问题时，复制诊断信息并粘贴到反馈板（大厅的「反馈板」）中，开发者就能看到出错时的情况。诊断信息只在本机生成，不会自动上传；玩家名和房间号会被替换。')}</p>
     <div class="set-diag__meta">
       <span class="set-diag__stat">${t('已记录的错误')}<b class=${cx('set-diag__count num', n > 0 && 'is-warn')} data-testid="diag-count">${n}</b></span>
@@ -318,7 +331,7 @@ function CosmeticSection() {
   // plugin is switched back on.
   if (!list.length) {
     return html`<section class="set-plugins" aria-labelledby="set-skins-title" data-testid="other-skins">
-      <div class="set-keys__head"><span class="set-row__label" id="set-skins-title">${t('皮肤')}<${MicroLabel}>SKINS<//></span></div>
+      <${SetHead} id="set-skins-title" icon="image" title=${t('皮肤')} micro="SKINS" />
       <${OtherSkinsRow} value=${s.otherSkins !== false} onSet=${(v) => updateSettings({ otherSkins: v })} />
     </section>`;
   }
@@ -331,9 +344,7 @@ function CosmeticSection() {
   }));
   const flip = (id, on) => { const r = setPersonalPlugin(id, on); if ('error' in r) toast(describeError(r.error), 'warn'); };
   return html`<section class="set-plugins" aria-labelledby="set-plugins-title" data-testid="personal-plugins">
-    <div class="set-keys__head">
-      <span class="set-row__label" id="set-plugins-title">${t('外观插件')}<${MicroLabel}>COSMETIC PLUGINS<//></span>
-    </div>
+    <${SetHead} id="set-plugins-title" icon="image" title=${t('外观插件')} micro="COSMETIC PLUGINS" />
     <p class="set-hint">${t('只改变你自己看到的画面和声音，不影响其他博士，也不影响战斗；插件为非官方制作。')}</p>
     <${OtherSkinsRow} value=${s.otherSkins !== false} onSet=${(v) => updateSettings({ otherSkins: v })} />
     ${winners.map((w) => html`<p key=${w.name} class="set-hint set-theme-win">${t('{token} 由「{name}」生效', { token: w.name, name: pluginName(list.find((p) => p.id === w.pluginId) || { id: w.pluginId }) })}</p>`)}
@@ -386,9 +397,7 @@ function UiPluginSection() {
     toast(r.error === 'PLUGIN_LIMIT' ? t('最多同时开启 {n} 个界面插件', { n: UI_LIMITS.maxPlugins }) : describeError(r.error), 'warn');
   };
   return html`<section class="set-plugins" aria-labelledby="set-ui-plugins-title" data-testid="ui-plugins">
-    <div class="set-keys__head">
-      <span class="set-row__label" id="set-ui-plugins-title">${t('界面插件')}<${MicroLabel}>UI PLUGINS<//></span>
-    </div>
+    <${SetHead} id="set-ui-plugins-title" icon="dots" title=${t('界面插件')} micro="UI PLUGINS" />
     <p class="set-hint">${t('只改变这个浏览器里的界面，不能替你操作对局，也不影响其他博士；插件为非官方制作。')}</p>
     ${!list.length ? html`<p class="set-hint">${t('本服务器没有可开启的界面插件')}</p>` : list.map((p) => {
       const on = onIds.has(p.id);
@@ -459,21 +468,30 @@ function StorageSection() {
     } finally { setPruning(false); }
   };
   return html`<section class="set-storage" aria-labelledby="set-storage-title" data-testid="storage-section">
-    <div class="set-keys__head">
-      <span class="set-row__label" id="set-storage-title">${t('素材存储')}<${MicroLabel}>STORAGE<//></span>
+    <${SetHead} id="set-storage-title" icon="copy" title=${t('素材存储')} micro="STORAGE">
       <span class="set-storage__actions">
         ${importSupport().ok ? html`<${Button} variant="ghost" size="sm" icon="refresh" data-testid="storage-prune" disabled=${pruning || importing}
           loading=${pruning} onClick=${prune}>${t('清理旧版本素材')}<//>` : null}
         ${askable ? html`<${Button} variant="ghost" size="sm" icon="shield" data-testid="storage-persist" disabled=${state === 'on' || busy}
           loading=${busy} onClick=${ask}>${state === 'on' ? t('已持久保存') : t('申请持久保存')}<//>` : null}
       </span>
-    </div>
+    <//>
     <p class="set-hint">${t('导入的素材包保存在这个浏览器里。手动清除网站数据会删除它们；Safari 约 7 天没打开本站也可能清除。')}</p>
     ${state ? html`<p class=${cx('set-keys__note', state !== 'on' && state !== 'off' && 'is-warn')} role="status" aria-live="polite"
       data-testid="storage-note">${t(PERSIST_NOTES[state])}</p>` : null}
     ${pruned ? html`<p class=${cx('set-keys__note', pruned.kind === 'failed' && 'is-warn')} role="status" aria-live="polite"
       data-testid="storage-prune-note">${t(PRUNE_NOTES[pruned.kind], { n: pruned.n })}</p>` : null}
   </section>`;
+}
+
+/** The result screen's button plate. A missing sprite falls back to the same CSS wash. */
+/** A settings block title in the S.W.E.E.P. section-caption shape. `children` are the row's actions. */
+function SetHead({ id, title, micro, icon = null, children }) {
+  return html`<div class="set-keys__head sw-sec__head">
+    ${icon ? html`<span class="sw-sec__glyph" aria-hidden="true"><${Icon} name=${icon} /></span>` : null}
+    <span class="set-row__label sw-sec__name" id=${id || undefined}><i>[</i> ${title} <i>]</i>${micro ? html`<${MicroLabel}>${micro}<//>` : null}</span>
+    ${children || null}
+  </div>`;
 }
 
 export function SettingsModal({ open, onClose }) {
@@ -494,13 +512,15 @@ export function SettingsModal({ open, onClose }) {
     return () => { live = false; off(); };
   }, [open]);
   const fxTier = resolveOfficialFx(s.officialFx, true);
-  return html`<${Modal} open=${open} onClose=${onClose} title=${t('设置')} micro="SETTINGS" width="7.4rem"
+  return html`<${Modal} open=${open} onClose=${onClose} class="setdlg" title=${t('设置')} micro="SETTINGS" width="7.4rem"
                         actions=${html`<${Button} variant="secondary" icon="book" class="set-guide" onClick=${() => openGuide(0)}>${t('玩法说明')}<//>
                         <${Button} variant="primary" icon="check" onClick=${onClose}>${t('完成')}<//>`}>
     <div class="set-list">
+      <${SetHead} icon="book" title=${t('语言')} micro="LANGUAGE" />
       <${LanguageSettings} />
       <${Toggle} label=${tc('voice-lang', '本土语言')} micro="NATIVE VOICE" value=${s.voiceNative} onChange=${(v) => updateSettings({ voiceNative: v })} />
       <p class="set-hint">${t('有本土语言配音时使用')}</p>
+      <${SetHead} icon="music" title=${t('声音')} micro="SOUND" />
       <${Slider} label=${t('背景音乐')} micro="BGM" icon="play" value=${s.bgm} onInput=${(v) => updateSettings({ bgm: v })} />
       <${Slider} label=${t('干员语音')} micro="VOICE" icon="mic" value=${s.voice} onInput=${(v) => updateSettings({ voice: v })} />
       <${Slider} label=${t('音效')} micro="SFX" icon="signal" value=${s.sfx}
@@ -560,6 +580,9 @@ export function SettingsModal({ open, onClose }) {
       </div>
       <p class="set-hint set-uiscale-note">${t('对局界面整体缩放：调小后棋盘更大，商店不用收起也能一边购买一边部署。默认手机 80%，电脑 100%。')}</p>
       <${AssetSection} voice=${s.voiceLang} native=${s.voiceNative} />
+      <${ThemeSection} activeId=${s.uiTheme || ''} />
+      <${Toggle} label=${t('主题动画')} micro="THEME MOTION" value=${s.themeMotion} onChange=${(v) => updateSettings({ themeMotion: v })} />
+      <p class="set-hint" data-testid="theme-motion-hint">${t('规程里乌萨斯齐心团、可露希尔主题界面的循环动画（倒计时与按钮的闪光等）。关闭后只显示静态画面，适合配置较低的设备；系统开启“减少动态效果”时也不播放。')}</p>
       <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
       <${ScreenFitSection} />
       <${CosmeticSection} />
@@ -585,3 +608,24 @@ export function SettingsButton({ class: cls, size = 'sm', variant = 'ghost', lab
       title=${t('设置')} aria-label=${t('设置')} data-testid="settings-btn"><${GIcon} name="gear" class="btn__icon" />${square ? null : label}<//>
     ${open ? html`<${SettingsModal} open=${true} onClose=${() => setOpen(false)} />` : null}`;
 }
+
+// The official themes this browser imported (§37.232) join the local art manifest every screen reads
+// (data.get('local').groups): the prefab HUD, the 规程 card faces and the banners find their sprites there. A group the
+// server serves wins; with nothing imported the manifest is the server's own.
+let localIn = null;
+let groupsIn = null;
+let localOut = null;
+function localWithImportedThemes(local) {
+  const groups = importedThemeGroups();
+  if (local !== localIn || groups !== groupsIn) {
+    localIn = local;
+    groupsIn = groups;
+    localOut = composeLocalManifest(local, groups);
+  }
+  return localOut;
+}
+localWithImportedThemes.withMissing = true;
+data.setView('local', localWithImportedThemes);
+onImportedThemeGroups(() => data.setView('local', localWithImportedThemes));
+
+bootUiThemes();

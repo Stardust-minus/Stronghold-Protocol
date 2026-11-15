@@ -3,11 +3,16 @@
 // count them like slots of their tier (one operator once per tier, an owned operator once in the whole preset), the
 // slots win a clash; resolveDiySlots fields the player's choice, else the first candidates whose bonds are not all
 // banned, and keeps a chosen slotted pick in its own slot (a preset without a bench comes back unchanged).
+// (0.4.0) 规程·序列Ⅰ has no 候补: its six slots per tier come with the official 选择自编 (diyBringLimits) instead
+// (diyBenchSize; the owner's decision of 2026-11-15).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { validateC2S, checkDiyPicks, DIY_LIMITS } from '../shared/protocol.js';
 import { DIY_BENCH_SIZE, diyBenchId, diyBenchIds, diyBenchTier, diyKeySlotId, diyKeyTier, diyCandidates, hasDiyChoice,
-  resolveDiySlots, validateDiyPicks, diyPickOff } from '../shared/diy.js';
+  resolveDiySlots, validateDiyPicks, diyPickOff, diyBenchSize, diySlotIds, diyTierSlotIds } from '../shared/diy.js';
+import { VERSIONS } from '../shared/versions.js';
+import { diyBringLimitsOf } from '../shared/diyBring.js';
 import { KITTED_CHARS } from '../server/sim/content/kits/index.js';
 import { DATA } from './match/harness.js';
 
@@ -20,10 +25,12 @@ const KALTS = 'char_003_kalts', IFRIT = 'char_134_ifrit', SHINING = 'char_147_sh
 const SHARP = 'char_609_acguad'; // a 6★ prototype at both tiers
 const opts = { data: DATA, kitted: KITTED_CHARS };
 
-test('bench keys: two per tier, the tier\'s first slot to check against, the wire limit still 8', () => {
+test('bench keys: two per tier, the tier\'s first slot to check against, within the wire limit', () => {
   assert.equal(DIY_BENCH_SIZE, 2);
+  assert.equal(diyBenchSize(DATA), 2);
   assert.deepEqual(diyBenchIds(DATA), [B51, B52, B61, B62]);
-  assert.equal(DIY_LIMITS.slots, 4 + diyBenchIds(DATA).length);
+  // 0.4.0 raised the wire limit to 12 for 规程's twelve slots; a 盟约 preset's 4 slots + 4 bench keys stay within it
+  assert.ok(DIY_LIMITS.slots >= 4 + diyBenchIds(DATA).length);
   assert.equal(diyBenchTier(B62, DATA), 6);
   for (const bad of ['diyBench_5_3', 'diyBench_4_1', 'diyBench_5_0', 'diyBench_5_1x', T5A, null]) assert.equal(diyBenchTier(bad, DATA), null, String(bad));
   assert.equal(diyKeySlotId(B52, DATA), T5A);
@@ -92,4 +99,37 @@ test('resolveDiySlots: no bench → unchanged; the default skips a pick whose bo
     assert.deepEqual(resolveDiySlots(preset, DATA, { off: yan, choice: { '5': bad } }), { [T5A]: own(IFRIT), [T5B]: own(KALTS), [T6A]: own(SIEGE) }, JSON.stringify(bad));
   }
   assert.deepEqual(resolveDiySlots(preset, DATA, { off: null, choice: { '5': [HAAK, KALTS] } }), { [T5A]: own(HAAK), [T5B]: own(KALTS), [T6A]: own(SIEGE) });
+});
+
+const versionData = (v) => {
+  const read = (n) => JSON.parse(readFileSync(new URL(`../data/${v.dir}${n}.json`, import.meta.url), 'utf8'));
+  return { chess: read('chess'), backups: read('backups'), config: read('config') };
+};
+
+test('every version: a 候补 bench exactly where no 选择自编 (diyBringLimits) is — 规程 has none, the 盟约 versions keep theirs', () => {
+  for (const v of VERSIONS) {
+    const data = versionData(v);
+    const bring = diyBringLimitsOf(data.config);
+    assert.equal(diyBenchSize(data), bring ? 0 : DIY_BENCH_SIZE, `${v.id}: ${bring ? '选择自编' : '候补'}`);
+    assert.equal(diyBenchSize({ chess: data.chess, backups: data.backups }), diyBenchSize(data), `${v.id}: the page's { chess, backups } agree`);
+    assert.equal(v.family === 'regulation', !!bring, `${v.id}: 规程 is the 选择自编 family`);
+  }
+});
+
+test('规程: no bench keys, never a 候补 choice; a bench key is no 自选 slot there and checkDiyPicks drops it', () => {
+  const data = versionData(VERSIONS.find((v) => v.family === 'regulation'));
+  assert.deepEqual(diyBenchIds(data), []);
+  assert.equal(diyBenchTier(diyBenchId(5, 1), data), null);
+  assert.equal(diyKeySlotId(diyBenchId(6, 2), data), null);
+  assert.equal(diySlotIds(data).length, 12, 'six slots per tier');
+  // a full roster of the twelve slots is no choice to make (选择自编 brings two per tier instead)
+  const slots5 = diyTierSlotIds(5, data);
+  const proto = Object.keys(data.backups.diy.prototypes || {});
+  const picks = Object.fromEntries(slots5.slice(0, 2).map((id, i) => [id, { charId: proto[i] ?? KALTS }]));
+  assert.equal(hasDiyChoice(picks, data), false);
+  assert.equal(hasDiyChoice({ ...picks, [diyBenchId(5, 1)]: own(SIEGE) }, data), false, 'a bench key does not count');
+  assert.equal(diyCandidates({ [diyBenchId(5, 1)]: own(SIEGE) }, data).size, 0);
+  const r = checkDiyPicks({ [diyBenchId(5, 1)]: own(SIEGE) }, { data, kitted: KITTED_CHARS });
+  assert.deepEqual([r.ok, r.picks, r.dropped], [true, {}, 1]);
+  assert.equal(validateDiyPicks({ [diyBenchId(5, 1)]: own(SIEGE) }, { data, kitted: KITTED_CHARS }).error, 'BAD_TARGET');
 });

@@ -56,6 +56,7 @@
 .stagemap__t--smog { fill: #77778a; }
 .stagemap__t--deep { fill: #2f6a96; }
 .stagemap__t--infect { fill: #9a4a70; }
+.stagemap__t--duel-grass { fill: #5a8a8f; } /* 隐匿地块 (tile_duel_grassland, 规程 MAP09), as the DOM board's .ff-tile--duel-grass */
 /* an experimental room's chess pools (#66) */
 .draft-pool { flex: none; display: flex; flex-direction: column; gap: .12rem; padding-left: .12rem; border-left: .03rem solid var(--line-2); }
 .draft-pool.is-mine { border-left-color: var(--mint-500); }
@@ -136,6 +137,18 @@
 }
 /* all in view: the wall sits in the middle of its box (a scrolling one keeps its top reachable) */
 .draft-grid[data-fit="all"] { align-content: center; }
+/* 规程's section headers (泛用型策略 / 盟约型策略, bandType): the icon in a small box, then the caption in brackets across
+   the four columns, as the official draft */
+.draft-grid__sec { grid-column: 1 / -1; display: flex; align-items: center; gap: .1rem; margin-top: .08rem; padding: .03rem .04rem;
+  font-size: calc(.17 * var(--t)); font-weight: 700; color: rgba(225, 240, 236, .92);
+  background: linear-gradient(90deg, rgba(255, 255, 255, .07), transparent 75%); }
+.draft-grid__sec .icon { box-sizing: content-box; width: calc(.15 * var(--t)); height: calc(.15 * var(--t)); padding: .04rem;
+  color: rgba(225, 240, 236, .92); background: rgba(255, 255, 255, .12); border-radius: .03rem; }
+.draft-grid__sec span { position: relative; padding: 0 .1rem; }
+.draft-grid__sec span::before, .draft-grid__sec span::after { content: ''; position: absolute; top: -.02rem; bottom: -.02rem; width: .05rem;
+  border: .02rem solid rgba(225, 240, 236, .7); }
+.draft-grid__sec span::before { left: 0; border-right: 0; }
+.draft-grid__sec span::after { right: 0; border-left: 0; }
 .dband, .dorder__box, .draft-skip, .draft-lockbtn, .stephead__info { border: 0; font: inherit; }
 .dband {
   position: relative; aspect-ratio: 1; padding: 0; color: var(--text-md); background: #0e1212;

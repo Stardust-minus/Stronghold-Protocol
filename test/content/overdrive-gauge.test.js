@@ -66,7 +66,7 @@ test('过载 skills: 号角 S3 (24 s, 过载 the last 12) lists its gauge too; a
 
 test('every kit marked `overdrive` names 过载 in its skill text (ba.overdrive), and the three that do are marked', () => {
   const src = (p) => readFileSync(new URL(`../../server/sim/content/kits/ops/${p}`, import.meta.url), 'utf8');
-  assert.match(src('op-oxi.js'), /kind: 'duration', mods: \{ atkPct: num\(b3\.atk\) \}, flags: \{ disarm: true \}, overdrive: true,/);
+  assert.match(src('op-oxi.js'), /attack: \{ noAttack: true \},\n\s+overdrive: true,/);
   assert.match(src('op-wisdel.js'), /targeting: \{ maxTargets: 3 \},\n\s+overdrive: true,/);
   assert.match(src('chess_char_5_08-horn.js'), /kind: 'duration', duration: total, overdrive: true,/);
 });
@@ -75,6 +75,10 @@ for (const [name, status] of [['晕眩', 'stun'], ['冻结', 'freeze'], ['睡眠
   test(`塔露拉 S3 under ${name} (feedback #143): the 簇火 waves keep their 80-frame time and the overload its half time`, () => {
     const runOf = (controlled) => {
       const { h, u } = oxi();
+      // the volleys fired: one 'heatwave' fx per 簇火 (op-oxi.js, upstream 0.4.0's kit), a volley = the 簇火 of one tick
+      const ticks = new Set();
+      const fx = h.b.fx.bind(h.b);
+      h.b.fx = (kind, p) => { if (kind === 'heatwave' && p.id === u.id) ticks.add(h.b.tickCount); return fx(kind, p); };
       fillSp(u);
       assert.ok(u.skill.activate('manual'));
       if (controlled) {
@@ -83,8 +87,8 @@ for (const [name, status] of [['晕眩', 'stun'], ['冻结', 'freeze'], ['睡眠
         assert.equal(u.canAct, false, `${status} holds her`);
       }
       const waves = [];
-      for (let i = 0; i < 31 * 30 && u.skill.active; i++) { h.step(); waves.push(u.mem.oxi.fire?.wave ?? 0); }
-      const half = u.mem.oxi.fire?.over;
+      let half = false;
+      for (let i = 0; i < 31 * 30 && u.skill.active; i++) { h.step(); waves.push(ticks.size); half ||= !!u.mem.oxiRain?.over; }
       const out = { waves: Math.max(...waves), over: half, at: waves.findIndex((w) => w >= 3) };
       checkInvariants(h.b);
       return out;

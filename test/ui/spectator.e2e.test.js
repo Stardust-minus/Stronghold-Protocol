@@ -51,6 +51,10 @@ describe('spectator seats (community report #26, real server)', { skip: !ENABLED
       await spec.click('.hub-tile', '密钥加入');
       await spec.click('.hub-dialog .join-row input');
       await spec.page.keyboard.type(room.code);
+      // the page's opening settings sync (room.loadout / ownership / diy / skins / card) empties the per-connection heavy
+      // bucket that room.spectate draws on (server/net.js HEAVY_TYPES, 6 then 2 a second): a 观战 pressed meanwhile is
+      // refused 操作过于频繁 (master the same, it only lost the race less often)
+      await sleep(3500);
       await spec.click('.hub-dialog .join-spectate', '观战');
       await spec.page.waitForSelector('.room-screen .specbar__who.is-me', { timeout: 10000 });
       const roomView = await spec.page.evaluate(() => ({

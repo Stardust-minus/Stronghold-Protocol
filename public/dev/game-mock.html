@@ -12,6 +12,8 @@
                       |players20 (a 20-seat room) |roster (open a folded roster) |emotestorm (every seat keeps sending emotes)
                       |owner / ownerSelf / ownerSpec (服主 on Doctor·B (and the AI seat, never shown) / on you / on the first spectator)
               &shot=1 (hide the switcher)  &render=engine|fallback (default: the Pixi engine, DOM fallback if it fails)
+              &version=regulation|act3autochess@V3_1 (swap config + stages for 规程, so INFO_CHECK uses that briefing;
+                  &stage=act3autochess_m01 is then a real 规程 board. Default stage stays act2 without this.)
   Keyboard: ` toggles the switcher.
 -->
 <html lang="zh-CN">
@@ -30,8 +32,10 @@
   <link rel="stylesheet" href="/css/screens/protocol-boot.css" />
   <link rel="stylesheet" href="/css/screens/boss-plates.css" />
   <link rel="stylesheet" href="/css/screens/game-shop.css" />
+  <link rel="stylesheet" href="/css/screens/game-reghud.css" />
   <link rel="stylesheet" href="/css/screens/game-panels.css" />
   <link rel="stylesheet" href="/css/screens/briefing.css" />
+  <link rel="stylesheet" href="/css/screens/diy-check.css" />
   <link rel="stylesheet" href="/css/screens/draft.css" />
   <link rel="stylesheet" href="/css/screens/result.css" />
   <link rel="stylesheet" href="/css/screens/settle.css" />
@@ -41,6 +45,7 @@
   <link rel="stylesheet" href="/css/screens/team.css" />
   <link rel="stylesheet" href="/css/screens/damage-board.css" />
   <link rel="stylesheet" href="/css/devices.css" />
+  <link rel="stylesheet" href="/css/ui-theme.css" />
   <script type="importmap">
     { "imports": { "preact": "/vendor/preact.module.js", "preact/hooks": "/vendor/hooks.module.js", "htm": "/vendor/htm.module.js" } }
   </script>

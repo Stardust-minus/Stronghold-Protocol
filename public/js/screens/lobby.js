@@ -18,6 +18,15 @@
 // 第二期上半 have no 终极; the remembered difficulty, when it is not offered, shows as the server's fallback — the highest
 // offered below it — and stays remembered until the player picks one; the cards wait while the version loads), and
 // 创建同盟 / 独立模拟 create the room in that version (room.create `version`). 多人匹配 stays on 第二期下半.
+// 规程·序列Ⅰ (upstream 0.4.0, the lobby's default version there — shared/versions.js LOBBY_DEFAULT_VERSION): the title reads
+// 卫戍协议·规程, and 独立模拟's 选择模拟协议 picks one of its laddered official modes — 极速模拟 or 规程等级 1–20 (LadderList,
+// versions.js ladderModes; room.create `modeId`, remembered as `lobby.ladderMode`) — instead of the four difficulties.
+// The lobby keeps this fork's green look in every version by default. Upstream 0.4.0's red 规程 season look is the
+// 大厅背景 dialog's 规程 choice (the owner, 2026-11-15; ui/hubBackdrop.js REGULATION_THEME): while it is chosen, in every
+// version, the lobby draws its ground (ui/regulationBackdrop.js), the season emblem and — in 规程 — its wordmark and title
+// art (HubTitle), and `data-look="regulation"` turns the lobby, 选择模拟协议 and the room red (css/screens/lobby.css).
+// `data-season` names the lobby version's season (no style of its own here). No release-notes popup (upstream #603):
+// this fork's announcement board is its only automatic popup, opened once the entry film is over (useEntryFilmOver).
 //
 // Difficulty descriptions come from data/config.json `modes[modeId]` when present, else from the
 // official act2autochess `modeDataDict` texts embedded below (desc + effectDescList), so the
@@ -29,7 +38,8 @@
 
 import { LobbyMusicButton } from '../ui/lobbyMusic.js';
 import { Emblem } from '../ui/emblem.js';
-import { useHubBackdrop, HubBackdrop, HubRadar, BackdropSettings, BackdropGlyph, backdropTheme } from '../ui/hubBackdrop.js';
+import { useHubBackdrop, HubBackdrop, HubRadar, BackdropSettings, BackdropGlyph, backdropTheme, regulationLook } from '../ui/hubBackdrop.js';
+import { REGULATION_ART } from '../ui/regulationBackdrop.js';
 import { ResumeMatchButton, resumeLocalMatch } from '../ui/resumeMatch.js';
 import { openNameDialog } from '../ui/nickname.js';
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
@@ -40,7 +50,7 @@ import { ServerStatusModal } from '../ui/serverStatus.js';
 import { SiteBoards } from '../ui/siteBoards.js';
 import { VersionSwitch } from '../ui/versionPicker.js';
 import { contentSet, retryContentSet } from '../content.js';
-import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, soloTimedOf, versionLabel } from '../versions.js';
+import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, ladderModes, ladderPick, seasonOf, soloTimedOf, versionLabel, REGULATION_SEASON } from '../versions.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { openStats } from './stats.js';
@@ -58,11 +68,12 @@ import { RadarScene, CreateArt, JoinArt } from '../ui/matchFlow.js';
 import { useLeave } from '../ui/transitions.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
-import { data, getConfig, getMode, getStage, useData } from '../data.js';
+import { data, getConfig, getMode, getStage, useData, localAsset } from '../data.js';
 import { EXPERIMENTAL_RULES, MATCH_SCOPE_DEFAULT, QueueFlow, matchScope, matchScopeRequest, multiSeats, queueActive, queueDifficulties, queueScope, toggleMatchScope } from '../ui/matchmaking.js';
 import { RoomListDialog } from '../ui/roomList.js';
 import { queueCancellation } from '../queueCancellation.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
+import { scriptOf } from '../../../shared/i18nPacks.js';
 import { NoticesButton } from '../ui/notices.js';
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
@@ -153,6 +164,36 @@ export function difficultyInfo(roomMode, difficulty) {
     rounds,
     hidden: difficulty !== 'FUNNY',
     stageNote: stageNote(Array.isArray(m?.stages) && m.stages.length ? m.stages : STAGE_POOL[difficulty]),
+  };
+}
+
+/**
+ * Text for one official mode of a laddered room mode (规程's 极速模拟 / 规程等级 n: data/config.json `modes[modeId]`), in
+ * difficultyInfo's shape plus its own name, colour and difficulty (FAST, 极速模拟's, shows as 标准 where a difficulty is needed).
+ * @param {string} modeId
+ * @returns {{ name: string, color: string, difficulty: string, code: string, desc: string, effects: string[], rounds: number, hidden: boolean, stageNote: string, offBonds: string[] }}
+ */
+export function modeInfo(modeId) {
+  const m = getMode(modeId) || {};
+  const difficulty = DIFFICULTIES.includes(m.difficulty) ? m.difficulty : 'FUNNY';
+  // the rounds / battlefield fallbacks of the difficulty (its desc and effects are the mode's own below: a laddered solo's
+  // mode_single_funny is 极速模拟, whose 「时长较短的模拟训练」 is no 规程等级's)
+  const base = difficultyInfo('coop', difficulty);
+  const off = Array.isArray(m.inactiveBondIds) ? m.inactiveBondIds : [];
+  return {
+    ...base,
+    name: typeof m.name === 'string' ? m.name : modeId,
+    color: typeof m.color === 'string' && /^#?[0-9a-f]{6}$/i.test(m.color) ? (m.color.startsWith('#') ? m.color : `#${m.color}`) : DIFFICULTY_COLORS[difficulty],
+    difficulty,
+    code: typeof m.code === 'string' ? m.code : '',
+    // its own text (规程等级5 追加更多盟约, 9 追加更多敌人 …), else the difficulty's general one — never another mode's own,
+    // which names that mode's unlocks (险境模拟: 「解锁时可开放至【规程等级3】」)
+    desc: typeof m.desc === 'string' && m.desc ? m.desc : t(MODE_TEXT.multi[difficulty]?.desc || ''),
+    effects: Array.isArray(m.effectDescList) ? m.effectDescList.map((e) => String(e).replace(/^[·•・･\s]+/, '')).filter(Boolean) : [],
+    rounds: Number.isFinite(m.lastRound) ? m.lastRound : base.rounds,
+    hidden: Number.isFinite(m.hiddenRound),
+    stageNote: stageNote(Array.isArray(m.stages) ? m.stages : []),
+    offBonds: off.map((id) => data.lookup('bonds', id)?.name || id),
   };
 }
 
@@ -450,6 +491,37 @@ export function ProtoCard({ roomMode, difficulty, selected, onSelect, disabled =
   </button>`;
 }
 
+/**
+ * A laddered room mode's choice (规程's solo, upstream 0.4.0; instead of the four difficulty cards): 极速模拟 — its modes
+ * outside the ladder — as a card in ProtoCard's shape, then 规程等级 1–20 as numbered cells in rows by difficulty, each row
+ * named and coloured by its difficulty (lobby.css .ladder). Shared with the room's 选择模拟协议 (room.js RoomProtocol).
+ */
+export function LadderList({ ladder, modeId, onMode, disabled = false }) {
+  const side = ladder.filter((m) => !DIFFICULTIES.includes(m.difficulty));
+  const rows = DIFFICULTIES.map((d) => ({ d, modes: ladder.filter((m) => m.difficulty === d) })).filter((r) => r.modes.length);
+  const num = (m) => /(\d+)$/.exec(m.name)?.[1] ?? m.code;
+  return html`<div class="ladder" data-testid="proto-ladder">
+    ${side.map((m) => { const info = modeInfo(m.id); const on = m.id === modeId; return html`<button key=${m.id} type="button" class=${`pcard ladder__side${on ? ' is-on' : ''}`}
+        style=${`--d-color:${info.color}`} disabled=${disabled} onClick=${() => onMode(m.id)} aria-pressed=${on ? 'true' : 'false'} data-mode=${m.id}>
+      <span class="pcard__glow" aria-hidden="true"></span>
+      <span class="pcard__head"><span class="pcard__name">${info.name}</span></span>
+      <span class="pcard__desc">${info.desc}</span>
+      <span class="pcard__meta">
+        ${info.code ? html`<span class="num">${info.code}</span>` : null}
+        <span><b class="num">${info.rounds}</b> ${tc('rounds', '回合')}${info.hidden ? t(' + 隐秘核心') : ''}</span>
+      </span>
+      <span class="pcard__stamp" aria-hidden="true"><${StampRing} /><span class="pcard__tick"><${Icon} name="check" /></span><span class="pcard__ok">${t('已选定')}</span></span>
+    </button>`; })}
+    <div class="ladder__grid" role="group" aria-label=${t('规程等级')}>
+      ${rows.map(({ d, modes }) => html`<div key=${d} class="ladder__row" style=${`--d-color:${DIFFICULTY_COLORS[d]}`}>
+        <span class="ladder__tier"><${DifficultyIcon} difficulty=${d} />${t(DIFFICULTY_NAMES[d])}</span>
+        <span class="ladder__cells">${modes.map((m) => html`<button key=${m.id} type="button" class=${`ladder__cell num${m.id === modeId ? ' is-on' : ''}`}
+            disabled=${disabled} onClick=${() => onMode(m.id)} aria-pressed=${m.id === modeId ? 'true' : 'false'} title=${`${m.name} · ${m.code}`} data-mode=${m.id}>${num(m)}</button>`)}</span>
+      </div>`)}
+    </div>
+  </div>`;
+}
+
 /** 多人匹配's difficulties after pressing `x` (feedback #87): the press toggles it, and the last one stays. */
 export function toggleMatchPick(picks, x) {
   if (!picks.includes(x)) return [...picks, x];
@@ -509,15 +581,31 @@ function MatchRules() {
 }
 
 /**
+ * The picture of 选择模拟协议: the difficulty's scene (ui/protocolScene.js), or with the 规程 theme in 规程 (`regArt`)
+ * the season's key art (the 乌萨斯 monument, upstream 0.4.0's ProtocolArt) when the local-client art has it.
+ * @param {{ d: string, regArt?: boolean }} props
+ */
+function ProtocolArt({ d, regArt = false }) {
+  useData('local');
+  const pic = regArt ? localAsset(REGULATION_ART, 'bg_season_on') : null;
+  if (pic) return html`<div class="proto-reg-art" data-difficulty=${d}><img src=${pic} alt="" /></div>`;
+  return html`<${ProtocolScene} key=${d} difficulty=${d} />`;
+}
+
+/**
  * 选择模拟协议 (the design's second screen after 独立模拟; also 多人匹配's): full screen, the picture of the selected
  * difficulty at the left (ui/protocolScene.js, original), the difficulties down the right with the 已选定 stamp, the
  * start button at the bottom right — 开始模拟 (solo: room.create) or 开始多人匹配 (queue.join). While queued the right
  * column is the queue (QueueFlow: 搜寻中 / 确认入场 / 搜寻成功); ‹ returns to the hub and the queue keeps running.
  * Comes up from black over the hub (`chained`: straight after 选择同盟方式, already black) and fades back out
- * (ui/transitions.js); the picture is redrawn for each difficulty.
+ * (ui/transitions.js); the picture is redrawn for each difficulty. A laddered version's solo (规程, `ladder`: versions.js
+ * ladderModes) lists its official modes instead (LadderList), and the brief names, colours and describes the chosen one
+ * (modeInfo), with the bonds it does not load; `season` is set as data-season. `look` (the 规程 theme, see the header):
+ * the lobby's `data-look` turns it red, and in 规程 the season's key art stands in the picture's place (ProtocolArt).
  */
 function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, onClose, online, maint, busy, queue, onCreate, onQueue, chained = false,
-  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, picks = null, onPick = null, scope = null, onScope = null }) {
+  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, picks = null, onPick = null, scope = null, onScope = null,
+  ladder = null, modeId = null, onMode = null, season = null, look = false }) {
   const [leaving, leave] = useLeave(onClose);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
@@ -529,8 +617,11 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
   const match = purpose === 'match';
   const roomMode = match ? 'coop' : card.id === 'solo' ? 'solo' : 'coop';
   const queued = queueActive(queue);
-  const d = queued && DIFFICULTIES.includes(queue.difficulty) ? queue.difficulty : difficulty;
-  const info = difficultyInfo(roomMode, d);
+  // a laddered room mode (规程's solo): the chosen official mode names, colours and describes the brief
+  const mode = !match && ladder && modeId ? modeInfo(modeId) : null;
+  const d = mode ? mode.difficulty : queued && DIFFICULTIES.includes(queue.difficulty) ? queue.difficulty : difficulty;
+  const info = mode || difficultyInfo(roomMode, d);
+  const color = mode ? mode.color : DIFFICULTY_COLORS[d];
   const back = html`<button type="button" class="proto-back" onClick=${leave} title=${queued ? t('返回大厅（继续匹配）') : t('返回大厅 (Esc)')} aria-label=${t('返回大厅')}>
     <${Icon} name="chevronLeft" /><span class="proto-back__home"><${Icon} name="rook" /></span>
   </button>`;
@@ -553,7 +644,7 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
     : match ? matchHint(scope)
     : roomMode === 'solo' ? t('独自调配阵容，按自己的节奏开始模拟') : t('创建后可邀请好友或添加 AI 队友');
   const working = busy === 'create' || busy === 'queue';
-  return html`<div class=${`proto${fx}`} style=${`--d-color:${DIFFICULTY_COLORS[d]}`} data-difficulty=${d} role="dialog" aria-label=${t('选择模拟协议')}>
+  return html`<div class=${`proto${fx}`} style=${`--d-color:${color}`} data-difficulty=${d} data-season=${season || undefined} role="dialog" aria-label=${t('选择模拟协议')}>
     <div class="proto__bg" aria-hidden="true"></div>
     <header class="proto-top">${back}
       <div class="proto-title">
@@ -563,11 +654,12 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
     </header>
     <div class="proto-body">
       <section class="proto-stage">
-        <${ProtocolScene} key=${d} difficulty=${d} />
+        <${ProtocolArt} key=${d} d=${d} regArt=${look && season === REGULATION_SEASON} />
         <div class="proto-brief">
           <span class="proto-brief__code num">${info.code}</span>
-          <b class="proto-brief__name">${t(DIFFICULTY_NAMES[d])}</b>
-          <p>${t(card.desc, card.params)}</p>
+          <b class="proto-brief__name">${mode ? mode.name : t(DIFFICULTY_NAMES[d])}</b>
+          <p>${mode ? mode.desc : t(card.desc, card.params)}</p>
+          ${mode?.offBonds.length ? html`<p class="proto-brief__off" data-testid="proto-off-bonds">${t('本模式未载入的盟约：{names}', { names: mode.offBonds.join('、') })}</p>` : null}
         </div>
       </section>
       <section class="proto-side">
@@ -575,7 +667,8 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
           ${failed ? html`<p class="proto-list__wait is-failed" data-testid="proto-failed"><${Icon} name="warn" />${t('版本数据校验失败')}
               <${Button} size="sm" variant="secondary" data-testid="proto-retry" onClick=${retryContentSet}>${t('重试')}<//></p>`
             : loading ? html`<p class="proto-list__wait" data-testid="proto-loading"><${Spinner} size="sm" />${t('正在载入版本数据…')}</p>` : null}
-          ${difficulties.map((x) => html`<${ProtoCard} key=${x} roomMode=${roomMode} difficulty=${x} selected=${match && picks ? picks.includes(x) : d === x} onSelect=${match && onPick ? onPick : onDifficulty} disabled=${working || loading} />`)}
+          ${!match && ladder ? html`<${LadderList} ladder=${ladder} modeId=${modeId} onMode=${onMode || (() => {})} disabled=${working || loading} />`
+            : difficulties.map((x) => html`<${ProtoCard} key=${x} roomMode=${roomMode} difficulty=${x} selected=${match && picks ? picks.includes(x) : d === x} onSelect=${match && onPick ? onPick : onDifficulty} disabled=${working || loading} />`)}
         </div>
         <div class=${`proto-foot${match ? ' proto-foot--match' : ''}`}>
           ${match && scope ? html`<${MatchScope} scope=${scope} onToggle=${onScope} disabled=${working} />` : null}
@@ -674,7 +767,10 @@ function DesignCredit() {
   </p>`;
 }
 
-/** The fan-work notice, the project repository and the version (the title screen's footer until 2026-10-15). */
+/**
+ * The fan-work notice, the project repository and the version (the title screen's footer until 2026-10-15). Upstream
+ * 0.4.0's 更新说明 (#603) is not taken (the owner, 2026-11-15): updates are announced on the 公告板.
+ */
 function HubFoot() {
   return html`<p class="hub-credit hub-foot">
     <span>${t('非官方同人复刻 · 游戏素材版权归 上海鹰角网络 / Yostar 所有')}</span><span class="hub-credit__sep" aria-hidden="true">·</span><a class="hub-repo" href="https://github.com/sganggs/Stronghold-Protocol" target="_blank" rel="noopener noreferrer">${t('项目仓库')}</a><span class="hub-credit__sep" aria-hidden="true">·</span><span class="num">v${APP_VERSION}</span>
@@ -697,6 +793,67 @@ function MeChip({ me }) {
     </span>
     <${Icon} name="chart" class="me-chip__stats" />
   </button>`;
+}
+
+/**
+ * The emblem in its radar and the title. With the 规程 theme (大厅背景 → 规程, `look`), upstream 0.4.0's: the official
+ * raised-fist season logo in the radar (the dot emblem without the local-client art) in every version; in 规程 also the
+ * glowing РЕГЛАМЕНТ wordmark and the official 「卫戍协议【规程】」 title art in a Chinese script (elsewhere the title as text in
+ * the same red brackets); a 盟约 version keeps its own words, set in the brackets.
+ * @param {{ bg: any, look: boolean, reg: boolean, version: string }} props
+ */
+function HubTitle({ bg, look, reg, version }) {
+  useData('local');
+  const title = reg ? t('卫戍协议·规程') : t('卫戍协议：盟约');
+  const ver = version !== DEFAULT_VERSION ? html`<div class="hub-center__ver" data-testid="hub-version">${versionLabel(version)}</div>` : null;
+  if (!look) {
+    return html`<div class="hub-center">
+      <div class="hub-center__mark"><${HubRadar} bg=${bg} /><${Emblem} /></div>
+      <div class="hub-center__en">STRONGHOLD PROTOCOL <b>${reg ? 'REGULATION' : 'ALLIANCE'}</b></div>
+      <h1 class="hub-center__title">${title}</h1>
+      ${ver}
+    </div>`;
+  }
+  const art = (name) => localAsset(REGULATION_ART, name);
+  const logo = art('entry_anim_season_logo') || art('entry_anim_season_logo_2');
+  const word = reg ? art('entry_anim_season_logo_text_2') : null;
+  const lockup = reg && scriptOf(t('卫戍协议')) !== 'alphabetic' && /^zh/i.test(document.documentElement.lang || 'zh') ? art('common_title') : null;
+  return html`<div class="hub-center hub-center--reg">
+    <div class="hub-center__mark"><${HubRadar} bg=${bg} />${logo ? html`<img class="hub-center__logo hub-center__fist" src=${logo} alt="" />` : html`<${Emblem} />`}</div>
+    ${!reg ? html`<div class="hub-center__en">STRONGHOLD PROTOCOL <b>ALLIANCE</b></div>`
+      : word ? html`<img class="hub-reg__word" src=${word} alt="РЕГЛАМЕНТ · STRONGHOLD PROTOCOL REGULATION" />`
+      : html`<div class="hub-reg__wordtext" lang="ru">РЕГЛАМЕНТ</div>`}
+    ${lockup ? html`<h1 class="hub-reg__lockup"><img src=${lockup} alt=${title} /></h1>`
+      : html`<h1 class="hub-center__title hub-reg__title"><span class="hub-reg__brk" aria-hidden="true">[</span>${title}<span class="hub-reg__brk" aria-hidden="true">]</span></h1>`}
+    ${ver}
+  </div>`;
+}
+
+// the entry film (main.js → ui/entryFilm.js) is over for this page: the lobby's announcement board may open
+let filmOver = false;
+/**
+ * False until this page's entry film is over — main.js's `__SP__.entryFilm` has settled (its overlay is up by then, or
+ * none comes this page load) and the overlay (`.spa-entry`, a top-layer <dialog>) is gone — so the announcement board
+ * never opens over the film; true at once afterwards (a later visit to the lobby does not wait).
+ */
+function useEntryFilmOver() {
+  const [over, setOver] = useState(filmOver);
+  useEffect(() => {
+    if (over) return undefined;
+    let live = true;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    (async () => {
+      // main.js sets __SP__ right after the first render
+      for (let i = 0; i < 100 && !globalThis.__SP__; i++) await sleep(50);
+      try { await globalThis.__SP__?.entryFilm; } catch { /* no film */ }
+      while (live && document.querySelector('.spa-entry')) await sleep(150);
+      if (!live) return;
+      filmOver = true;
+      setOver(true);
+    })();
+    return () => { live = false; };
+  }, []);
+  return over;
 }
 
 /** Lobby screen component. */
@@ -722,6 +879,8 @@ export function LobbyScreen() {
   const noticeStatus = data.status('announcements'), noticeValue = data.get('announcements');
   const [recent] = useState(recentRooms);
   const [soloFree, setSoloFree] = useState(() => loadPref('lobby.soloUnlimited', false) === true);
+  // a laddered version's solo mode (规程: 极速模拟 / 规程等级 n), remembered; the version's data decides what is shown
+  const [ladderMode, setLadderMode] = useState(() => { const v = loadPref('lobby.ladderMode', null); return typeof v === 'string' ? v : null; });
   const [matchPicks, setMatchPicks] = useState(() => {
     const saved = loadPref('lobby.matchDifficulties', []);
     return Array.isArray(saved) ? saved.filter((d) => DIFFICULTIES.includes(d)) : [];
@@ -755,6 +914,8 @@ export function LobbyScreen() {
   const coop = offeredDifficulties(versionLoading ? null : cfg, 'coop');
   const shownSolo = fallbackDifficulty(solo, difficulty);
   const shownCoop = fallbackDifficulty(coop, difficulty);
+  const ladder = ladderModes(versionLoading ? null : cfg, 'solo');
+  const shownMode = ladder ? ladderPick(ladder, ladderMode, shownSolo) : null;
 
   useEffect(() => {
     // Optional low-frequency checks exist only while the lobby is mounted, never during a match.
@@ -777,13 +938,16 @@ export function LobbyScreen() {
     });
     return () => { current = false; };
   }, [noticeStatus, noticeValue]);
+  // the board opens by itself once the entry film is over (never over it)
+  const filmDone = useEntryFilmOver();
   useEffect(() => {
-    if (online && !queued && !busy && !pendingJoin && overlay == null && announcements.revision && !announcementDismissed(announcements.revision)) setOverlay('announcements');
-  }, [online, queued, busy, pendingJoin, overlay, announcements.revision]);
+    if (filmDone && online && !queued && !busy && !pendingJoin && overlay == null && announcements.revision && !announcementDismissed(announcements.revision)) setOverlay('announcements');
+  }, [filmDone, online, queued, busy, pendingJoin, overlay, announcements.revision]);
   const closeAnnouncements = () => { dismissAnnouncement(announcements.revision); setOverlay(null); };
   const unread = !!announcements.revision && !announcementDismissed(announcements.revision);
 
   const pickDifficulty = (d) => { setDifficulty(d); savePref('lobby.difficulty', d); };
+  const pickMode = (id) => { setLadderMode(id); savePref('lobby.ladderMode', id); };
   const setSoloFreePref = (on) => { const next = on === true; setSoloFree(next); savePref('lobby.soloUnlimited', next); };
 
   const run = async (kind, fn) => {
@@ -806,6 +970,8 @@ export function LobbyScreen() {
   const create = (roomMode) => run('create', () => net.request('room.create', {
     mode: roomMode, difficulty: roomMode === 'solo' ? shownSolo : shownCoop, ...(versions ? { version } : {}),
     ...(roomMode === 'solo' && soloFree && soloTimed === true ? { soloUnlimited: true } : {}),
+    // a laddered version's solo (规程): the official mode picked in 选择模拟协议 (server/lobby.js ladderMode)
+    ...(roomMode === 'solo' && shownMode ? { modeId: shownMode } : {}),
   }));
   // 多人匹配 waits in every picked difficulty (feedback #87); the picture shows the one pressed last, and it is the first
   const picks = matchPicks.length ? matchPicks : [difficulty];
@@ -859,8 +1025,13 @@ export function LobbyScreen() {
   const openMatch = () => { savePref('lobby.mode', 'match'); setSheetChained(allyOpen); setAllyOpen(false); setSheet('match'); };
   const sheetCard = MODE_CARDS.find((c) => c.id === sheet) || MODE_CARDS[0];
   const cancelling = useStore((s) => s.ui.queueCancel);
+  // the lobby version's season: 规程 renames the title (卫戍协议·规程); the 规程 theme (大厅背景) is the red look in every
+  // version (`data-look`, see the header)
+  const season = seasonOf(version);
+  const reg = season === REGULATION_SEASON;
+  const look = regulationLook(bg.pref);
 
-  return html`<div class="screen lobby-screen lobby-hub" data-hub-theme=${backdropTheme(bg)}>
+  return html`<div class="screen lobby-screen lobby-hub" data-hub-theme=${backdropTheme(bg)} data-season=${season} data-look=${look ? 'regulation' : undefined}>
     <${HubBackdrop} bg=${bg} />
     <header class="topbar hub-topbar">
       <div class="topbar__left">
@@ -890,12 +1061,7 @@ export function LobbyScreen() {
     </header>
 
     <main class="hub-stage">
-      <div class="hub-center">
-        <div class="hub-center__mark"><${HubRadar} bg=${bg} /><${Emblem} /></div>
-        <div class="hub-center__en">STRONGHOLD PROTOCOL <b>ALLIANCE</b></div>
-        <h1 class="hub-center__title">${t('卫戍协议：盟约')}</h1>
-        ${version !== DEFAULT_VERSION ? html`<div class="hub-center__ver" data-testid="hub-version">${versionLabel(version)}</div>` : null}
-      </div>
+      <${HubTitle} bg=${bg} look=${look} reg=${reg} version=${version} />
 
       <aside class="hub-side">
         <${AchievementEntry} onOpen=${() => setAchOpen(true)} />
@@ -937,6 +1103,7 @@ export function LobbyScreen() {
       onDifficulty=${pickDifficulty} onClose=${() => setSheet(null)} online=${online} maint=${maint} busy=${busy} queue=${queue}
       difficulties=${sheet === 'match' ? DIFFICULTIES : solo} loading=${sheet !== 'match' && versionLoading} failed=${sheet !== 'match' && versionFailed}
       soloTime=${sheet !== 'match' && soloTimed === true ? { on: soloFree, onToggle: setSoloFreePref } : null}
+      ladder=${sheet === 'match' ? null : ladder} modeId=${sheet === 'match' ? null : shownMode} onMode=${pickMode} season=${sheet === 'match' ? null : season} look=${look}
       onCreate=${() => create('solo')} onQueue=${queueMatch} chained=${sheetChained} />` : null}
 
     ${allyOpen ? html`<${AllianceSelect} onClose=${() => setAllyOpen(false)} code=${code} onCode=${(v) => setCode(normalizeCode(v))} codeOk=${codeOk}

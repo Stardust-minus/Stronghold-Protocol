@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, BOND_PLAN_SUB_MAX } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, BOND_PLAN_SUB_MAX, REHEARSAL_MAX_CANDIDATES } from './constants.js';
 import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS, PLAYER_CAPACITIES, isPlayerCapacity } from './playerCapacity.js';
 import { isExperimental } from './experimental.js';
 import { isSkinChoices } from './skins.js';
@@ -17,6 +17,7 @@ import { isPluginId } from './plugins/manifest.js';
 import { isTestCommand } from './testMode.js';
 import { NETQ_SCHEMA } from './netQuality.js';
 import { PLUGIN_OFFER_SLOTS } from './plugins/limits.js';
+import { LEADER_OPS_MAX } from './leaderOps.js';
 
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -49,6 +50,9 @@ const isList = (v, max, item) => Array.isArray(v) && v.length <= max && v.every(
 const isScalar = (v) => isStr(v, 64) || isNum(v) || isBool(v);
 /** An official version id (shared/versions.js: the activity id, `@<sub-version>` for a sub-version) — structural only; the lobby answers VERSION_UNKNOWN for one this server does not enable (DESIGN §35.23). */
 export const isVersionId = (v) => typeof v === 'string' && v.length <= 40 && /^[a-z0-9]{1,32}(?:@[A-Za-z0-9_]{1,16})?$/.test(v);
+const isPeerDescription = (v) => isPlain(v) && (v.type === 'offer' || v.type === 'answer') && isStr(v.sdp, 16 * 1024);
+const isPeerCandidate = (v) => isPlain(v) && isStr(v.candidate, 2048)
+  && (v.sdpMid === null || isStr(v.sdpMid, 256)) && (v.sdpMLineIndex === null || isInt(v.sdpMLineIndex, 0, 65535));
 
 /** Safe game-process measurements only; 100% CPU is one core, including Worker usage. */
 export function normalizeLoadDetails(value) {
@@ -87,11 +91,17 @@ const isPerPlayer = (p) => isPlain(p) && isInt(p.killed, 0, 1e5) && isInt(p.tota
   && optional((x) => isInt(x, 0, 1e9))(p.creditedKills)
   && isList(p.leaked, RESULT_LIMITS.leaked, isLeak) && isBool(p.perfect)
   && isMap(p.layerGains, RESULT_LIMITS.layerGains, isId, (v) => isNum(v, 0, 1e4))
+  // 规程: temporary layers converted at settle. Absent on every result that has none.
+  && (p.tempLayerGains === undefined || isMap(p.tempLayerGains, RESULT_LIMITS.layerGains, isId, (v) => isNum(v, 0, 1e4)))
   && isStat(p.coins) && isStat(p.damageDealt) && isStat(p.bossDamage) && isStat(p.healingDone) && isStat(p.deaths)
+  && optional(v => isList(v, 64, c => isPlain(c) && isUid(c.id) && isBool(c.alive)))(p.commandChests)
   && isList(p.unitsEnd, RESULT_LIMITS.unitsEnd, isUnitEnd)
   && (p.unitStats === undefined || isList(p.unitStats, RESULT_LIMITS.unitStats, isUnitStat));
 const isUnspawned = (u) => isPlain(u) && isId(u.enemyKey) && nullable(isId)(u.sourcePlayerId) && nullable((v) => isStr(v, 16))(u.tag)
   && optional((v) => isNum(v, 0, 1e6))(u.time);
+// 规程 leader ranking (b.progress `ops`): exactly these five keys. A 盟约 server accepts the field and stores nothing.
+const isLeaderOp = (row) => isPlain(row) && Object.keys(row).length === 5
+  && isUid(row.uid) && isId(row.pid) && isId(row.chess) && isInt(row.tier, 0, 10) && isNum(row.dmg, 0, BIG);
 
 /**
  * Structural check of a client BattleResult (DESIGN §5.1 / §14 `b.result`): types, ranges and size limits only —
@@ -417,18 +427,18 @@ export function checkNotOwned(list, getChess) {
 
 /**
  * `room.diy { picks }`: the player's 自选编队 — `{ [slotBaseId]: { charId, skillIndex?, uniEquipId? } | null }` for the
- * four DIY slots (data/backups.json `diy.slots`: two at tier 5, two at tier 6; shared/diy.js). An out-of-match setting
- * like 干员持有: stored per session / seat, a match takes the picks its seat had at its start. Structural limit below
- * (room for more slots in a later season); the semantic check (`checkDiyPicks`) is LENIENT, like checkNotOwned: an
+ * DIY slots (data/backups.json `diy.slots`: 盟约 is two at tier 5 and two at tier 6; 规程 is six at each. shared/diy.js).
+ * An out-of-match setting like 干员持有: stored per session / seat, a match takes the picks its seat had at its start.
+ * Structural limit below (12: the 规程 roster); the semantic check (`checkDiyPicks`) is LENIENT, like checkNotOwned: an
  * illegal pick — not a pick of the slot's tier, an operator without a kit, a prototype off its locked skill, an unknown
  * skill / module, the same operator twice in a tier, an owned operator in a second slot, an unknown slot — is dropped,
  * never the whole roster; only malformed input is BAD_MSG. The map also carries the 候补 (feedback #114: `diyBench_<tier>_<n>`
  * keys, shared/diy.js DIY_BENCH_SIZE): four slots + four bench keys fill the limit.
  */
-export const DIY_LIMITS = Object.freeze({ slots: 8 });
+export const DIY_LIMITS = Object.freeze({ slots: 12 });
 const isDiyPickWire = (p) => p === null || (isPlain(p) && isId(p.charId)
   && nullable((v) => isInt(v, 0, 9))(p.skillIndex) && nullable(isId)(p.uniEquipId));
-/** Structural check of `room.diy.picks`: a map of ≤ 8 slot ids → a pick `{ charId, skillIndex?, uniEquipId? }` or null. */
+/** Structural check of `room.diy.picks`: a map of ≤ 12 slot ids → a pick `{ charId, skillIndex?, uniEquipId? }` or null. */
 export const isDiyPicks = (v) => isMap(v, DIY_LIMITS.slots, isId, isDiyPickWire);
 
 /**
@@ -495,7 +505,7 @@ const statView = (x) => ({
  * `base.respawnTime` × the redeploy multipliers (`s.redeployMul` × `unit.persist.redeployMul`: equipment, 特质 such as
  * 耀骑士临光's grant, bonds, strategies), the formula of Battle._remove; `base.respawnTime` its own (feedback #86: the
  * card showed only the record's 再部署).
- * @param {{ id?: number, uid?: number|null, defId?: string, hp?: number, alive?: boolean, base?: any, liveRangeGrid?: any, dir?: string, cultMul?: { atk: number, def: number, hp: number }, side?: string } | null} u
+ * @param {{ id?: number, uid?: number|null, defId?: string, hp?: number, alive?: boolean, base?: any, liveRangeGrid?: any, dir?: string, cultMul?: { atk: number, def: number, hp: number }, side?: string, persist?: { redeployMul?: number } } | null} u
  * @param {any} [s] aggregated stats (missing ⇒ the base)
  * @returns {{ id: number|null, uid: number|null, defId: string|null, hp: number, alive: boolean, maxHp: number, atk: number,
  *   def: number, res: number, interval: number|null, blockCnt: number, moveSpeed: number,
@@ -575,6 +585,7 @@ const target = (v) => {
   if (!v || typeof v !== 'object') return false;
   if (v.area === 'board') return isInt(v.row, 0, GEO.ROWS - 1) && isInt(v.col, 0, GEO.COLS - 1);
   if (v.area === 'hand') return isInt(v.idx, 0, GEO.HAND_SIZE - 1);
+  if (v.area === 'temp') return isInt(v.idx, 0, GEO.TEMP_SIZE - 1);
   return false;
 };
 
@@ -607,8 +618,10 @@ export const C2S = {
   // soloUnlimited: the timed-solo opt-out 「不限时」 (DESIGN §35.23.10). Optional, and only the literal boolean —
   // the server applies `true` solely to a solo room of a version whose solo is timed, and ignores it otherwise, so a
   // default create stays the message it was.
+  // modeId: an official mode of a laddered version's room mode (规程's solo: 极速模拟 / 规程等级 n); ignored elsewhere
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), experimental: isExperimental,
-    test: (v) => v === true, version: isVersionId, soloUnlimited: isBool, $optional: ['experimental', 'test', 'difficulty', 'version', 'soloUnlimited'] },
+    test: (v) => v === true, version: isVersionId, soloUnlimited: isBool, modeId: isId,
+    $optional: ['experimental', 'test', 'difficulty', 'version', 'soloUnlimited', 'modeId'] },
   'room.setExperimental': { experimental: isExperimental },
   // 同盟列表 (feedback #30): the host of a private co-op room of ROOM_LIST_MIN_CAPACITY seats or more lists it (off by
   // default); room.list asks for the listed rooms waiting for players, answered on its ok (server-cached, never pushed):
@@ -618,6 +631,9 @@ export const C2S = {
   'room.setListed': { listed: isBool },
   'room.list': {},
   'room.join': { $optional: ['testAck'], testAck: (v) => v === true, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
+  'p2p.enable': { enabled: isBool },
+  'p2p.signal': { epoch: isId, to: isId, description: isPeerDescription, candidate: isPeerCandidate, $optional: ['description', 'candidate'] },
+  'p2p.ready': { epoch: isId, ready: isBool, seq: (v) => Number.isSafeInteger(v) && v >= 0 },
   'room.leave': {},
   'room.ready': { ready: isBool },
   'room.voteRevival': { enable: isBool },
@@ -706,6 +722,8 @@ export const C2S = {
   'room.contentReady': { cs: isContentHash, ok: isBool, $optional: ['ok'] },
 
   // match
+  // 规程 independent simulation (rule bondDraw): in the briefing the solo seat picks one of the two core-bond groups
+  'g.bondGroup': { idx: (v) => isInt(v, 0, 1), setupRevision: (v) => isInt(v, 0, 0x80000000) },
   'g.infoReady': { setupRevision: (v) => isInt(v, 0, 0x80000000), $optional: ['setupRevision'] },
   // 自选候补 (feedback #114, shared/diy.js resolveDiySlots): in the briefing (INFO_CHECK) the candidates of one tier of the
   // player's preset that fill its slots — exactly min(slots, candidates) distinct charIds of m.private diyChoice
@@ -719,6 +737,14 @@ export const C2S = {
   // when a battle starts, never during one
   'g.speedVote': { agree: isBool },
   'g.band': { bandId: isId },
+  // 规程 选择自编: the slots this match brings (0–2 per tier). Shape only; the match re-checks caps, bans and the roster.
+  'g.diyBring': { slots: (v) => isList(v, DIY_LIMITS.slots, isId) },
+  'g.command': { effectId: isId, target: (v) => isPlain(v) && (
+    Object.keys(v).length === 0
+    || (Object.keys(v).length === 1 && (isUid(v.uid) || isInt(v.slot, 0, 15)))
+    || (Object.keys(v).length === 2 && isInt(v.row, GEO.FIELD.r0, GEO.FIELD.r1) && isInt(v.col, GEO.FIELD.c0, GEO.FIELD.c1))
+  ) },
+  'g.commandChoice': { choiceId: isId, idx: v => isInt(v, 0, 2) },
   'g.bandSkip': {},
   // the free strategy draft (server MatchPhases.freeDraft; m.public draft.free): a tentative choice (held, 队友已选 for the
   // others), its cancel and its 锁定 — final; `WRONG_PHASE` outside a free draft, `ALREADY` once locked
@@ -797,7 +823,9 @@ export const C2S = {
   // field's own scheduled enemies that were knocked out **or leaked** (official: 漏一个 1/3, 打死一个 2/3,
   // 打死会分裂的 3/3 — Battle.leakedInTotal; runtime splits / summons stay out of both parts of the capsule). A boss / hidden field adds
   // `leaksBy` = { [playerId]: the cumulative LP the enemies that reached that player's goal cost } — `leaks` minus its
-  // sum is the leader's own "扣除目标生命" effects; the server holds the b.result's leaked lists to it (Match._bossLeaksAgree)
+  // sum is the leader's own "扣除目标生命" effects; the server holds the b.result's leaked lists to it (Match._bossLeaksAgree).
+  // `ops` (规程 ranking; a 盟约 server accepts it and stores nothing) = up to 48 { uid, pid, chess, tier, dmg } rows,
+  // this field's cumulative per-operator damage to the leader. The server credits no operator past the player's clamped `by`.
   'b.progress': {
     battleId: isId, gt: (v) => isNum(v, 0, 1e5), killed: (v) => isInt(v, 0, 1e5), total: (v) => isInt(v, 0, 1e5),
     resolved: (v) => isInt(v, 0, 1e5),
@@ -805,7 +833,8 @@ export const C2S = {
     by: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, BIG)), done: isBool,
     left: (v) => isMap(v, MAX_PLAYER_CAPACITY, isId, (x) => isInt(x, 0, 1e5)),
     leaksBy: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, 1e6)),
-    $optional: ['resolved', 'leaks', 'bossDmg', 'by', 'done', 'left', 'leaksBy'],
+    ops: (v) => isList(v, LEADER_OPS_MAX, isLeaderOp),
+    $optional: ['resolved', 'leaks', 'bossDmg', 'by', 'done', 'left', 'leaksBy', 'ops'],
   },
   // `cs` (DESIGN §32, optional): the content hash the reporting browser ran the battle on — its spec's `cs`. In a room
   // with gameplay plugins (P1c, DESIGN §32.6) the match refuses a result without it or with another one (and runs the
@@ -817,9 +846,9 @@ export const C2S = {
   // match state of its own; `error: true` says this client cannot run the task at all (no module Worker, or the
   // simulation data did not load), so the server takes the rehearsal over at once instead of waiting for its timeout.
   // An unknown task, another sender or a task the server already took over is ignored; an invalid `choice` makes the
-  // server run the candidates itself. `choice` stops at 7 because a match rehearses at most 8 candidates.
+  // server run the candidates itself. `choice` stops below REHEARSAL_MAX_CANDIDATES, the most one prep rehearses.
   'b.rehearsalResult': {
-    taskId: isId, choice: (v) => v === undefined || isInt(v, 0, 7), error: (v) => v === undefined || v === true,
+    taskId: isId, choice: (v) => v === undefined || isInt(v, 0, REHEARSAL_MAX_CANDIDATES - 1), error: (v) => v === undefined || v === true,
     $optional: ['choice', 'error'],
   },
   // State-delta transport (shared/stateDelta.js): the client asks for one full frame after it missed one. The server
@@ -832,6 +861,7 @@ export const C2S = {
 // Server → client message types (documentation + client dispatch table keys).
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
+  'p2p.config', 'p2p.signal', 'p2p.frame',
   'room.state', 'room.closed',
   // room.likes { match, counts: { [playerId]: likes }, from?, to?, mine? } — the likes of the room's last match (room.like):
   // to the whole room on each like (`from` liked `to`), and to one player with `mine` (the players it liked) after its
@@ -911,6 +941,7 @@ export function validateC2S(msg) {
   if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return 'not an object';
   const spec = typeof msg.t === 'string' && Object.hasOwn(C2S, msg.t) ? C2S[msg.t] : null;
   if (!spec) return `unknown type ${String(msg.t).slice(0, 32)}`;
+  if (msg.t === 'p2p.signal' && (msg.description !== undefined) === (msg.candidate !== undefined)) return 'exactly one signal required';
   if (msg.rid != null && !isInt(msg.rid, 0, 0x80000000)) return 'bad rid';
   const optional = spec.$optional || [];
   for (const [k, check] of Object.entries(spec)) {
@@ -939,6 +970,8 @@ export const EV = Object.freeze({
   // ['reload', id, seconds] - a 猎手 began a reload of that length (server/sim/professions.js installHunter, 莱伊's kit):
   // display only, the model's Reload clip over it (render/spine.js reload); its bullets are b.snap `mag`
   RELOAD: 'reload',
+  // ['resource', id, 'cost'|'sp', actual signed delta, source reason]: optional live-display receipts (#657).
+  RESOURCE: 'resource',
 });
 
 /**

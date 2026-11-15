@@ -15,7 +15,8 @@ const readDir = (rel) => {
   const dir = new URL(`../data/${rel}`, import.meta.url);
   return Object.fromEntries(['backups', 'bonds', 'chess'].map((n) => [n, JSON.parse(readFileSync(new URL(`${n}.json`, dir), 'utf8'))]));
 };
-const SETS = VERSIONS.map((v) => ({ id: v.id, slug: versionSlug(v), data: readDir(v.dir) }));
+// the 盟约 (covenant) versions: 规程·序列Ⅰ (0.4.0, family 'regulation') has its own 选择自编 pool and bonds
+const SETS = VERSIONS.filter((v) => v.family === 'covenant').map((v) => ({ id: v.id, slug: versionSlug(v), data: readDir(v.dir) }));
 
 test('every version: 塔露拉 冻河 国度 owned in both tiers, the 7 collab picks only with 联动干员 on, all kitted', () => {
   assert.equal(SETS.length, 4);

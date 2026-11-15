@@ -139,6 +139,7 @@
 // The helpers live in public/js/render/app/*.js and are re-exported below, so existing imports keep
 // working. createFieldView stays here: it is one closure over the view's own state.
 
+import { pieceItemProgress } from '../itemProgress.js';
 import { attackRateEvents } from './attackRate.js';
 import { GEO, ANIM } from '../../../shared/constants.js';
 import { skinIdFor } from '../../../shared/skins.js';
@@ -153,6 +154,7 @@ import { OfficialFx } from './vfx/system.js';
 import { FxWiring } from './vfx/wiring.js';
 import { PluginFxPlayer } from './vfx/pluginPlayer.js';
 import { resolveOfficialFx } from './vfx/tier.js';
+import { boardToUnity } from './vfx/math.js';
 import { createDragController, pieceTile, snapTile } from './drag.js';
 import { backdropTextures, shadowTexture, refreshTierChips, refreshDownLabels, silhouetteTexture } from './textures.js';
 import { TILE_H, TIER_COLORS, COLORS } from './style.js';
@@ -461,6 +463,32 @@ export async function createFieldView(host, options = {}) {
     ofx.setTier(board3d ? resolveOfficialFx(settings.officialFx, ofx.available) : 'off');
   }
   ofx.init().then((ok) => { if (!destroyed && ok) { syncOfficialFx(); wiring.ready(); } }, () => {});
+  // 规程 MAP09 隐匿地块 (§37.230): the client's own tile effect mapeff_079_dikuai_01 (FX_GENERIC tile.duelGrass) loops on
+  // every concealment tile, in prep and in battle, while the 3D board and the official effects are on; the 2D board and
+  // 官方特效 off keep the tinted tile (tiles.js 'w', board3d duelGrass material). A clear (battle start / end) drops the
+  // loops: they are spawned again on the next frame.
+  const GRASS_FX = 'mapeff_079_dikuai_01';
+  let grassFx = [];
+  let grassKey = '';
+  const grassAlive = (h) => !!h && !h.cancelled && (ofx.pending.includes(h) || (!!h.effect && ofx.effects.includes(h.effect)));
+  function syncGrassFx() {
+    const cells = board3d?.board?.terrain?.duelGrass || [];
+    const on = !!board3d && ofx.active && cells.length > 0 && ofx.lib.has(GRASS_FX);
+    const key = on ? `${board3d.stageKey}|${ofx.tier}` : '';
+    // the official loop replaces our tinted frame (board3d duelGrass mesh, #939's [ASSUMED] look): one or the other
+    const overlay = board3d?.meshes?.duelGrass;
+    if (overlay) overlay.visible = !on;
+    if (key === grassKey && (!on || grassFx.every(grassAlive))) return;
+    for (const h of grassFx) h?.kill?.();
+    grassFx = [];
+    grassKey = key;
+    if (!on) return;
+    for (const [r, c] of cells) {
+      const z = heightAt(r, c) || 0;
+      const h = ofx.spawn(GRASS_FX, { pos: boardToUnity(c, r, z), groundZ: -z }, { loop: true, important: true });
+      if (h) grassFx.push(h);
+    }
+  }
   // battle devices (crates / turrets as sim units): the official crate mesh in the 3D scene, else a Pixi box
   ctx.createBox = (spec) => switchableBox({ board: () => board3d, pixi: () => tiles.createBox(), spec });
   const impostors = new ImpostorAtlas(app.renderer);
@@ -663,7 +691,7 @@ export async function createFieldView(host, options = {}) {
     const vk = viewKind(kind, o); // (a 'prep' camera on the boss rows = the Final Assault prep)
     return presetCamera(k, { width: sz.width, height: sz.height, padding: o.padding || defaultPadding(k, sz) }, {
       rect, side: o.side, half: !!o.half, shop: o.shop, fit: !!o.fit, config: stageRec?.config || null,
-      hud: hudBands(vk, sz, { shop: o.shop !== false }),
+      hud: hudBands(vk, sz, { shop: o.shop !== false }), // (no #692 'partial' fold in this fork: a boolean)
     });
   }
 
@@ -821,7 +849,11 @@ export async function createFieldView(host, options = {}) {
     }
     if (kind === 'token') {
       const rec = data.token(piece.id);
-      return { kind: 'token', side: 'ally', defId: piece.id, spine: rec?.assets?.spine || piece.id, avatar: rec?.assets?.avatar || piece.id, tier: piece.tier || 1, golden: false, dir };
+      return { kind: 'token', side: 'ally', defId: piece.id, spine: rec?.assets?.spine || piece.id, avatar: rec?.assets?.avatar || piece.id,
+        tier: piece.tier || 1, golden: false, dir,
+        // 召唤物皮肤 (docs/SKINS.md): the outfit of the operator that owns this summon, published on the piece by the
+        // server (prep board, hand, 临时整备区); assets.js reads tokens[<token id>].skins[skin] from the composed manifest
+        skin: piece.skin || null };
     }
     const chess = data.chess(piece.id);
     // 0.2.0 补位: a piece of a chess the player does not own (m.private.standIns) is its stand-in's model, in the hand,
@@ -969,6 +1001,7 @@ export async function createFieldView(host, options = {}) {
       v.dimmed = false;
       if (info.kind === 'item' && v.setIcon) v.setIcon(info.icon); // an icon the manifest named late (onAssets)
       if (v.setCount) v.setCount(e.piece.kind === 'token' ? e.piece.count : 0);
+      if (v.setItemProgress) v.setItemProgress(pieceItemProgress(e.piece));
       if (v.setItems) v.setItems(Array.isArray(e.piece.items) ? e.piece.items.map((it) => { const r = data.item(it?.id); return assets.itemIcon ? assets.itemIcon(r ? { trapId: r.trapId, iconId: r.iconId } : it?.id) : null; }) : []);
       v._showFacing = e.area === 'board';
       // the stored facing (a piece held by the direction step shows the wheel's preview instead)
@@ -1055,7 +1088,7 @@ export async function createFieldView(host, options = {}) {
       const sig = `${info.defId}|${info.golden ? 1 : 0}|${info.spine || ''}|${info.skinId || ''}|${info.x},${info.y}|${info.dir || ''}|${(info.items || []).join(',')}`;
       let v = views.get(info.id);
       if (v && v._sig !== sig) { dropView(info.id); v = null; }
-      if (v) continue;
+      if (v) { v.info.itemProgress = info.itemProgress; v.setItemProgress?.(info.itemProgress); continue; }
       v = new UnitView(ctx, { ...info, maxHp: 1 }, { prep: true });
       v._sig = sig;
       v.setWorld(info.x, info.y, heightAt(info.y, info.x));
@@ -1362,9 +1395,9 @@ export async function createFieldView(host, options = {}) {
       v._follow = f;
     }
     // the drop target (p.target, highlighted) is the tile under the pointer
-    if (p.target && p.target.area !== 'temp') {
-      const r = p.target.area === 'board' ? p.target.row : GEO.HAND_ROW;
-      const c = p.target.area === 'board' ? p.target.col : p.target.idx;
+    if (p.target && (p.target.area !== 'temp' || p.legal)) {
+      const r = p.target.area === 'board' ? p.target.row : p.target.area === 'temp' ? GEO.TEMP_ROW : GEO.HAND_ROW;
+      const c = p.target.area === 'board' ? p.target.col : p.target.area === 'temp' ? GEO.TEMP_C0 + p.target.idx : p.target.idx;
       drawHighlight([[r, c]], p.legal ? 'target' : 'illegal', 'dragTarget');
     } else clearHl('dragTarget');
   }
@@ -1374,9 +1407,10 @@ export async function createFieldView(host, options = {}) {
     const v = dragState.view;
     v._follow = null;
     const t = p.target;
-    if (t && (t.area === 'board' || t.area === 'hand')) {
-      const row = t.area === 'board' ? t.row : GEO.HAND_ROW, col = t.area === 'board' ? t.col : t.idx;
-      const w = boardWorld(row, col, t.area === 'hand');
+    if (t && (t.area === 'board' || t.area === 'hand' || t.area === 'temp')) {
+      const row = t.area === 'board' ? t.row : t.area === 'temp' ? GEO.TEMP_ROW : GEO.HAND_ROW;
+      const col = t.area === 'board' ? t.col : t.area === 'temp' ? GEO.TEMP_C0 + t.idx : t.idx;
+      const w = boardWorld(row, col, t.area !== 'board');
       v._tween = { fx: v.x, fy: v.y, fz: v.z, tx: w.x, ty: w.y, tz: w.z, t: 0 };
       pending.set(dragState.key, { t: performance.now(), view: v, board: t.area === 'board' ? { row, col } : null });
     } else {
@@ -1728,6 +1762,7 @@ export async function createFieldView(host, options = {}) {
 
   function handleEvent(e, now) {
     switch (e[0]) {
+      case 'resource': fx.resourceNumber(views.get(e[1]), e); break;
       case 'spawn': {
         const info = applyInfo(e[1]);
         if (!info) break;
@@ -2079,6 +2114,7 @@ export async function createFieldView(host, options = {}) {
       }
       tiles.project(cam);
       updateBackdrop(clock);
+      syncGrassFx();
       if (mode === 'battle') {
         const renderT = interp.update(now / 1000);
         if (Number.isFinite(renderT)) {
@@ -2104,6 +2140,8 @@ export async function createFieldView(host, options = {}) {
         }
         if (beamQ.length) pumpBeams(dt);
       } else if (mode === 'prep') {
+        // the concealment tiles' loops are the only official effects in prep: run them on the frame clock
+        if (ofx.active && grassFx.length) ofx.update(Math.min(0.25, dt));
         for (const [key, pd] of pending) {
           if (now - pd.t > DROP_PENDING_MS) {
             pending.delete(key);

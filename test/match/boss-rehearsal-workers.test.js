@@ -6,7 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../../server/match/Match.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
-import { TrialEngine, snapshotTrialInput, beatsCandidate } from '../../server/match/combat/trial.js';
+import { TrialEngine, snapshotTrialInput, beatsCandidate, bestOf, NO_BEST } from '../../server/match/combat/trial.js';
+import { RehearsalScore, FA_LEAK_SECONDS } from '../../server/sim/rehearsal.js';
 import { createRehearsal, planLayout, trialCandidate, REHEARSAL_VARIANTS, LAYOUT_PARAMS } from '../../server/match/bot.js';
 import { legalTiles, tileKey, placeClass } from '../../server/match/board.js';
 import { makeMatch, give } from './harness.js';
@@ -97,6 +98,36 @@ test('the Worker ranking is RehearsalScore\'s: leaks, then leader damage, then s
   assert.equal(beatsCandidate(b, c), true, 'one counted leak outranks any leader damage');
   assert.equal(beatsCandidate({ leaks: 0, boss: 0, score: 3 }, { leaks: 0, boss: 0, score: 2.99 }), true, 'a normal field: the score');
   assert.equal(beatsCandidate(a, { leaks: Infinity, boss: -Infinity, score: -Infinity }), true, 'anything beats none');
+  // §37.37: the layers gained break a leak and leader-damage tie before the score
+  assert.equal(beatsCandidate({ leaks: 0, boss: 0, gain: 4, score: 1 }, { leaks: 0, boss: 0, gain: 3, score: 9 }), true);
+  // §37.61: a boss field ranks leader damage x (1 - leaks / FA_LEAK_SECONDS) first
+  const leaky = { leaks: 3, boss: 9000, gain: 0, score: -3000 }, tight = { leaks: 0, boss: 8000, gain: 0, score: 5 };
+  assert.equal(beatsCandidate(leaky, tight), false, 'a normal field: one leak outranks any leader damage');
+  assert.equal(beatsCandidate(leaky, tight, true), 9000 * (1 - 3 / FA_LEAK_SECONDS) > 8000, 'a boss field: the discounted damage');
+  assert.equal(beatsCandidate({ leaks: 0, boss: 100, gain: 0, score: 0 }, NO_BEST, true), true, 'no discount against none');
+  assert.equal(beatsCandidate({ leaks: 1, boss: 0, gain: 0, score: 0 }, { leaks: 2, boss: 0, gain: 0, score: 0 }, true), true,
+    'no leader damage on either side: the usual order');
+});
+
+test('bestOf replays RehearsalScore.note exactly on random boss and normal candidate sequences', () => {
+  let seed = 7;
+  const rand = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  for (let trial = 0; trial < 400; trial++) {
+    const kind = rand(2) ? 'boss' : 'normal';
+    const n = 1 + rand(8);
+    const score = new RehearsalScore('p');
+    const records = [];
+    for (let i = 0; i < n; i++) {
+      const leaks = rand(4), boss = kind === 'boss' ? [0, 1000, 1000 + 1e-7, 2500][rand(4)] * (1 + rand(3)) : 0;
+      const killed = rand(20), gain = rand(3), scored = rand(10) > 0;
+      const pp = { leaked: Array.from({ length: leaks }, () => ({ counted: true })), bossDamage: boss, killed, layerGains: { a: gain } };
+      score.note({ kind, result: () => (scored ? { perPlayer: { p: pp } } : { synthetic: true, perPlayer: {} }) }, i);
+      records.push(scored ? { leaks, boss, gain, score: -leaks * 1000 + killed - i * 0.01 } : { leaks: null, boss: null, gain: null, score: null });
+    }
+    const { index, best } = bestOf(records, () => kind === 'boss');
+    assert.equal(index, score.index, `trial ${trial}: ${JSON.stringify(records)}`);
+    if (best !== NO_BEST) assert.deepEqual([best.leaks, best.boss, best.gain, best.score], [score.leaks, score.boss, score.gain, score.score]);
+  }
 });
 
 test('a boss / hidden trial candidate carries its pool as data, never a live pool', () => {
@@ -117,10 +148,10 @@ test('a boss / hidden trial candidate carries its pool as data, never a live poo
 });
 
 // The actual prep driver (real scheduler) of an AI-托管 seat in a Final Assault prep, with and without the trial pool.
-function driverFixture(t, { trialPool = null, seed, round }) {
+function driverFixture(t, { trialPool = null, seed, round, bot = false }) {
   const errors = [], warnings = [];
   const m = new Match({ roomCode: 'BOSSR', mode: 'coop', difficulty: 'HARD', seed, data: DATA,
-    seats: [0, 1].map((seat) => ({ seat, playerId: `p${seat}`, name: `P${seat}`, isBot: false, connected: true })),
+    seats: [0, 1].map((seat) => ({ seat, playerId: `p${seat}`, name: `P${seat}`, isBot: bot && seat === 0, connected: true })),
     send: () => true, broadcast() {}, onEnd() {},
     log: { ...QUIET, warn: (s) => warnings.push(s), error: (s) => errors.push(s) },
     clientCombat: false, verify: 'off', trialPool, timerScale: 0.001, botSliceMs: 2, botRehearsal: 3 });
@@ -130,7 +161,8 @@ function driverFixture(t, { trialPool = null, seed, round }) {
   m._planBossWaves();
   const ps = m.order[0];
   for (const p of m.order) { p.lp = 40; p.bandId = 'band_bldsk'; p.recompute(); }
-  ps.autoplay = true; ps.funds = 12; ps.shop.level = 5; ps.shop.upgradePrice = m.gd.upgradeBase(5);
+  if (!bot) ps.autoplay = true;
+  ps.funds = 12; ps.shop.level = 5; ps.shop.upgradePrice = m.gd.upgradeBase(5);
   ps.rollShop();
   for (const id of PIECES) give(m, ps, `chess_char_${id}`);
   const h = { m, ps, errors, warnings, completed: null, mainTicks: 0, inputs: [] };
@@ -152,12 +184,12 @@ function driverFixture(t, { trialPool = null, seed, round }) {
 const snapshot = (m) => clone({ rng: ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta'].map((k) => m[k].state()),
   players: m.order.map((p) => ({ board: [...p.board], hand: p.hand, funds: p.funds, shop: p.shop, ready: p.ready, bonds: p.bonds })) });
 
-async function driverRun(t, pool, { seed, round }) {
+async function driverRun(t, pool, { seed, round, bot = false }) {
   const trace = { inputs: [], runTrial(input, callbacks) { trace.inputs.push(clone(input)); return pool.runTrial(input, callbacks); } };
-  const inline = driverFixture(t, { seed, round });
+  const inline = driverFixture(t, { seed, round, bot });
   inline.m.scheduleBotPrep(inline.ps);
   await until(() => inline.ps.ready, 30_000);
-  const remote = driverFixture(t, { seed, round, trialPool: trace });
+  const remote = driverFixture(t, { seed, round, trialPool: trace, bot });
   remote.m.scheduleBotPrep(remote.ps);
   await until(() => remote.ps.ready, 30_000);
   for (const h of [inline, remote]) assert.deepEqual(h.errors, []);
@@ -178,6 +210,13 @@ async function driverRun(t, pool, { seed, round }) {
   assert.deepEqual(remote.completed.plans, inline.completed.plans);
   assert.deepEqual(remote.completed.best, inline.completed.best);
   assert.equal(remote.completed.ticks, inline.mainTicks, 'the same ticks simulated');
+  // §37.67: a bot's own Final Assault seat asks the Worker for its operators' leader damage; both sides keep the same
+  // counts for the item hunt (an AI 托管 seat hunts nothing and asks for none)
+  const hunts = bot && round === 'boss';
+  assert.equal(trace.inputs[0].lead, hunts ? true : undefined);
+  const lead = (h) => (h.ps._botFaLead && h.ps._botFaLead.round === h.m.round && h.ps._botFaLead.lead ? [...h.ps._botFaLead.lead] : null);
+  assert.deepEqual(lead(remote), lead(inline), 'the same leader damage per operator');
+  if (hunts) assert.ok(lead(inline), 'the inline rehearsal counted');
   return true;
 }
 
@@ -191,3 +230,12 @@ for (const round of ['boss', 'hidden']) {
     assert.ok(rehearsed >= 2, `at least two of the seeds rehearse (${rehearsed})`);
   });
 }
+
+test('actual prep driver, a bot\'s own Final Assault seat: the Worker returns the winner\'s leader damage per operator (§37.67) and the hunt equips the same', { timeout: 180_000 }, async (t) => {
+  const pool = new CombatWorkerPool({ role: 'trial', size: 1, data: DATA, log: QUIET });
+  t.after(() => pool.close());
+  await pool.start();
+  let rehearsed = 0;
+  for (const seed of [3, 5, 8, 11]) if (await driverRun(t, pool, { seed, round: 'boss', bot: true })) rehearsed++;
+  assert.ok(rehearsed >= 2, `at least two of the seeds rehearse (${rehearsed})`);
+});

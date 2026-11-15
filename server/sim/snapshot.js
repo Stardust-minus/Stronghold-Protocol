@@ -14,6 +14,7 @@
 //   items = an ally operator's equipped item ids (absent without any).
 //   hidden = true only in m.field (Battle.fieldMeta): a deployed unit out of sight (a DISAPPEAR segment, a flight) — the
 //   snapshots leave it out until it is back, the viewer keeps its info and draws nothing for it meanwhile.
+//   itemProgress? = [{uid,id,current,total}], display-only counters captured at prep end; not in b.snap tuples.
 // flags bits & anim codes come from shared/constants.js (UF / ANIM); an enemy's stealth bit = its 隐匿 is on (not while it
 // is blocked or revealed, nor in the seconds after a block before it hides again — targeting.js enemyStealthed), an
 // ally's = 隐匿 / 迷彩 whatever it blocks.
@@ -73,6 +74,7 @@ export function unitInfo(u, stats = null) {
     // an ally operator's equipped item ids (display: a 变形同构体 wearer counts for the bond it grants — the bond popup's
     // member list and the detail card's bond chips of a teammate's unit)
     items: u.side === 'ally' && u.kind === 'op' && Array.isArray(u.items) && u.items.length ? [...u.items] : undefined,
+    itemProgress: u.itemProgress?.map(p => ({ ...p })),
     // 补位: the replaced operator's charId when the chess fights as its stand-in (spine / avatar are the stand-in's; the
     // detail card composes the stand-in record, shared/standIn.js standInRecord)
     standInFor: u.side === 'ally' && u.kind === 'op' && typeof d.standInFor === 'string' ? d.standInFor : undefined,
@@ -114,6 +116,7 @@ export function animOf(u, t) {
   if (t < (u.skillAnimUntil ?? -1)) return ANIM.SKILL;
   if (t - u.lastAttackAt < ATTACK_ANIM_TIME) return u.skill && u.skill.active && u.skill.kind !== 'passive' ? ANIM.SKILL : ANIM.ATTACK;
   if (u.side === 'enemy' && u.moving && !u.blockedBy) return ANIM.MOVE;
+  if (u.side === 'ally' && u.kind === 'token' && u.mem.lethaniaPursuit && u.moving && !u.blocking.length) return ANIM.MOVE;
   return ANIM.IDLE;
 }
 

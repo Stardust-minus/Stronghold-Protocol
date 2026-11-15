@@ -199,7 +199,9 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const [k, v] = argv[i].split('=');
     const val = () => (v !== undefined ? v : argv[++i]);
-    if (k === '--port') o.port = Number(val()) || o.port;
+    // --port 0 (an explicit 0): any free port, not 3000 (test/setup-assets.test.js — a host whose :3000 is taken by
+    // another program must not fail that check)
+    if (k === '--port') { const raw = val(); o.port = raw === '0' ? 0 : Number(raw) || o.port; }
     else if (k === '--host') o.host = val() || o.host;
     else if (k === '-h' || k === '--help') o.help = true;
     else throw new Error(`unknown option ${argv[i]}`);

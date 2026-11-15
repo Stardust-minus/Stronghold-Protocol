@@ -28,6 +28,8 @@ import { getData } from '../../server/data.js';
 import { FIELD, canPlace, placeClass, positionClass, tileKey } from '../../server/match/board.js';
 import { FakeBattle } from './fakeBattle.js';
 import { GEO } from '../../shared/constants.js';
+import { diySlot, diySlotIds } from '../../shared/diy.js';
+import { defaultDiyBring } from '../../shared/diyBring.js';
 import { collectViolations } from '../../server/match/invariants.js';
 import { attachSimClients } from './simClient.js';
 import { morphSlotPolicy, ruleOption } from '../../shared/plugins/rules.js';
@@ -61,7 +63,7 @@ export function makeMatch(o = {}) {
     if (o.script) FakeBattle.script = o.script;
   }
   h.m = new Match({
-    roomCode: 'TEST', mode, difficulty, seats, spectators: o.spectators, seed: o.seed ?? 1, matchNo: o.matchNo, data: o.data ?? DATA, log,
+    roomCode: 'TEST', mode, difficulty, modeId: o.modeId, seats, spectators: o.spectators, seed: o.seed ?? 1, matchNo: o.matchNo, data: o.data ?? DATA, log,
     send: (id, msg) => {
       for (const fn of h.onSend) fn(id, msg);
       if (msg.t === 'b.snap' || msg.t === 'b.ev') { h.frames++; if (!captureFrames) return true; }
@@ -84,6 +86,7 @@ export function makeMatch(o = {}) {
     // simulation work of full-match suites; test/match/bot.test.js covers it
     botRehearsal: o.botRehearsal ?? 0,
     botStrategy: o.botStrategy,
+    botStrategySeats: o.botStrategySeats,
     externalAI: o.externalAI,
     externalReplay: o.externalReplay,
     botSliceMs: o.botSliceMs,
@@ -156,6 +159,20 @@ export function makeMatch(o = {}) {
         // (an expanded room's drafts are concurrent: every seat still deciding picks — Match concurrentDraft)
         const bandDue = m.draft?.concurrent ? m.draft.order.includes(ps.playerId) && !m.draft.picks[ps.playerId] : m.draftTurn() === ps.playerId;
         if (m.phase === 'BAND_DRAFT' && bandDue) m.handle(ps.playerId, { t: 'g.band', bandId: band });
+        if (m.phase === 'CUSTOM_CHECK' && ps.diyBring == null) {
+          const bundle = m.gd.raw;
+          const off = new Set([...m.disabledBonds, ...m.staticInactiveBonds]);
+          const banned = [];
+          for (const slotId of Object.keys(ps.diy || {})) {
+            const rec = ps._diyRecords.get(slotId);
+            if (rec && m.gd.bondsExclude(rec, off)) banned.push(slotId);
+          }
+          const slots = defaultDiyBring(diySlotIds(bundle), {
+            roster: ps.diy || {}, banned, limits: m.gd.diyBringLimits,
+            tierOf: (id) => diySlot(id, bundle)?.tier ?? null,
+          });
+          m.handle(ps.playerId, { t: 'g.diyBring', slots });
+        }
         if (m.phase === 'SP_DRAFT' && (m.sp?.concurrent ? m.spPending(ps) : m.spTurn() === ps.playerId)) {
           const idx = m.sp.cards.find((c) => m.spCardAvailable(c, ps))?.idx;
           if (idx != null) m.handle(ps.playerId, { t: 'g.choice', idx });
@@ -236,7 +253,7 @@ function legacyInvariants(m) {
         const rec = m.gd.chess(p.id);
         assert.ok(rec, `unknown chess ${p.id}`);
         const slots = morphSlotPolicy(ruleOption(m.rules, 'morphPairing'), (it) => !!ps.gd.item(it?.id)?.canGiveBond);
-        assert.ok(Array.isArray(p.items) && slots.slotsUsed(p.items) <= slots.slotCap(m.gd.equipPerChess), `${p.id} carries ${p.items && p.items.length} items`);
+        assert.ok(Array.isArray(p.items) && slots.slotsUsed(p.items) <= slots.slotCap(ps.gd.equipSlots(p.id)), `${p.id} carries ${p.items && p.items.length} items`);
         for (const it of p.items) { note(it); assert.equal(it.kind, 'item'); assert.ok(m.gd.item(it.id), `unknown item ${it.id}`); }
         assert.ok(Number.isInteger(p.poolCopies) && p.poolCopies >= 0);
         const base = m.gd.baseIdOf(p.id);

@@ -118,13 +118,14 @@ test('the game screen hands the mode-disabled set to the shop bar, the detail ca
   assert.match(src, /const offBonds = modeOffBonds\(getMode\(pub\?\.modeId\)\)/);
   assert.match(src, /<\$\{ShopBar\}[\s\S]*?offBonds=\$\{offBonds\}/);
   assert.match(src, /<\$\{DetailPanel\}[\s\S]*?offBonds=\$\{offBonds\}/);
-  assert.match(src, /<\$\{BondPopup\}[\s\S]*?off=\$\{offBonds\.has\(bondPop\.bondId\)\}/);
+  assert.match(src, /<\$\{bondOpen\?\.from === 'info' \? MatchBondDialog : BondPopup\}[\s\S]*?off=\$\{offBonds\.has\(bondPop\.bondId\)\}/);
 });
 
 test('the bond popup closes on outside presses, while its own region and toggle triggers handle themselves', () => {
   const src = read('public/js/screens/game.js');
   assert.match(src, /const screen = hudElRef\.current\?\.parentElement/);
-  assert.match(src, /if \(!live\.current\.bondOpen \|\| e\.target\?\.closest\?\.\('\.bpop, \.bslot, \.dbond'\)\) return;\s+setBondOpen\(null\)/);
+  // (this fork's 本局信息 draws bondCell discs, `.ibonds [data-bond]`, where upstream has `.ibond` chips: both toggle the card)
+  assert.match(src, /if \(!live\.current\.bondOpen \|\| e\.target\?\.closest\?\.\('\.bpop, \.bslot, \.dbond, \.ibond, \.ibonds \[data-bond\]'\)\) return;\s+setBondOpen\(null\)/);
   assert.match(src, /screen\.addEventListener\('pointerdown', onDown, true\)/);
   assert.match(src, /screen\.removeEventListener\('pointerdown', onDown, true\)/);
 });

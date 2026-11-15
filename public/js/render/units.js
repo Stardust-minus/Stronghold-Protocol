@@ -83,6 +83,7 @@
 // screen rect for tooltips and overlays (view.pieceScreenRect). A dragged (lifted) item plate is drawn centred on its
 // ground point, i.e. on the pointer (render/app.js).
 
+import { progressLabel } from '../itemProgress.js';
 import { MoteRing } from './motes.js';
 import { UF, ANIM } from '../../../shared/constants.js';
 import { SpineActor } from './spine.js';
@@ -1184,6 +1185,25 @@ export class UnitView {
     this.countText = null;
     this.ammoText = null;          // 设置「弹药数量」: the magazine's count under the ammo bar (_updateAmmoCount)
     this.itemPips = [];
+    this._itemPipRows = 0;
+    this.itemProgressText = null;
+    this.setItemProgress(this.info.itemProgress);
+  }
+
+  /** Equipment's prep-side progress, below the carrier's feet in prep and combat. */
+  setItemProgress(rows) {
+    const label = (rows || []).map(progressLabel).filter(Boolean).join('\n');
+    if (!label) {
+      if (this.itemProgressText) { this.itemProgressText.text = ''; this.itemProgressText.visible = false; }
+      return;
+    }
+    if (!this.itemProgressText) {
+      this.itemProgressText = new this.P.Text('', { fontFamily: 'Bender, Oxanium, sans-serif', fontSize: 16, fontWeight: '700', fill: '#4ed8af', stroke: '#0b0f0e', strokeThickness: 4, align: 'center' });
+      this.itemProgressText.anchor.set(0.5, 0);
+      this.hud.addChild(this.itemProgressText);
+    }
+    if (this.itemProgressText.text !== label) this.itemProgressText.text = label;
+    this.itemProgressText.visible = true;
   }
 
   /** Show a stack count (token stacks in the hand) — BitmapText-free: a tiny canvas-less chip via Text. */
@@ -1202,12 +1222,20 @@ export class UnitView {
   /** Equipped item pips (prep): list of item icon URLs. */
   setItems(urls) {
     const P = this.P;
-    // morphPairing plus can carry two ordinary items and one zero-slot morph (DESIGN §34.15).
-    const list = Array.isArray(urls) ? urls.slice(0, 3) : [];
-    while (this.itemPips.length > list.length) this.itemPips.pop().destroy(); // loop-cap: at most three item pips
+    // Display every carried item, including zero-slot equipment. Balance at most three icons per row:
+    // 4 → 2+2, 5 → 3+2, 6 → 3+3; larger valid inventories use more rows instead of truncating.
+    const list = Array.isArray(urls) ? urls : [];
+    const rows = Math.ceil(list.length / 3);
+    this._itemPipRows = rows;
+    const shortRow = rows ? Math.floor(list.length / rows) : 0, longRows = rows ? list.length % rows : 0;
+    let row = 0, col = 0;
+    while (this.itemPips.length > list.length) this.itemPips.pop().destroy(); // loop-cap: the previous carried-item count
     list.forEach((u, i) => {
       let s = this.itemPips[i];
       if (!s) { s = new P.Sprite(P.Texture.EMPTY); s.anchor.set(0.5); this.hud.addChild(s); this.itemPips[i] = s; }
+      const columns = shortRow + (row < longRows ? 1 : 0);
+      s._itemRow = row; s._itemCol = col; s._itemColumns = columns;
+      if (++col === columns) { row++; col = 0; }
       if (s._url === u) return;
       s._url = u;
       const a = this.ctx.assets;
@@ -1546,12 +1574,8 @@ export class UnitView {
       }
       this.lastAtk = now;
     }
-    if (target && !this.isEnemy && this.info.kind !== 'device') {
-      // operators keep their deploy direction (research 09 §1.2); enemies may turn towards their target
-    } else if (target && this.isEnemy) {
-      const dx = target.x - this.x;
-      if (Math.abs(dx) > 0.1) this.visFacing = dx < 0 ? -1 : 1;
-    }
+    // operators keep their deploy direction (research 09 §1.2); an enemy turns toward the target
+    this._faceAttack(target);
     if (target) {
       const dx = target.x - this.x, dy = target.y - this.y, len = Math.hypot(dx, dy) || 1;
       this.lungeDir.x = dx / len; this.lungeDir.y = dy / len;
@@ -1597,16 +1621,30 @@ export class UnitView {
   }
 
   /**
+   * Face this attack's target. An enemy turns when the target is not straight ahead (|dx| > 0.1); an operator keeps
+   * its deploy direction (research 09 §1.2). The wind-up uses the same rule the moment its clip starts (GitHub #869):
+   * the strike used to be the first time the model turned, so a blocker redeployed behind a walking enemy was swung
+   * at while the model still faced the old walk.
+   */
+  _faceAttack(target) {
+    if (!target || !this.isEnemy) return;
+    const dx = target.x - this.x;
+    if (Math.abs(dx) > 0.1) this.visFacing = dx < 0 ? -1 : 1;
+  }
+
+  /**
    * An attack by this unit is `lead` game seconds ahead in the snapshot buffer: start the Spine attack wind-up now
    * so the strike frame lines up with the attack. True once started (then stop calling for that attack). `kind` = the
-   * 'atk' projKind (a one-off cast winds up at the clip's own speed).
+   * 'atk' projKind (a one-off cast winds up at the clip's own speed). `target` = that attack's view: the model faces
+   * it as the clip starts, by the same rule as onAttack.
    */
-  windUp(lead, kind, castSlot = null, interval = this.atkInterval) {
+  windUp(lead, kind, castSlot = null, interval = this.atkInterval, target = null) {
     if (!this.alive || !this.actor || !this.spineReady) return false;
     this._attackForm(kind);
     this.actor.castStrike?.(this._strikeClip(castSlot));
     const ok = this.actor.windUp(clampAtkInterval(interval), lead, !!PROJ[kind]?.once);
     if (!ok) this.actor.castStrike?.(null);
+    else this._faceAttack(target);
     if (ok && this.imp) this.imp.dirty = true;
     return ok;
   }
@@ -2174,12 +2212,21 @@ export class UnitView {
       this.countText.scale.set(clamp(s / 90, 0.5, 1.2));
       this.countText.position.set(x + s * 0.32, this.screen.y - s * 0.12);
     }
+    const pipSize = clamp(s * 0.26, 12, 30);
     for (let i = 0; i < this.itemPips.length; i++) {
       const pip = this.itemPips[i];
-      const ps = clamp(s * 0.26, 12, 30);
-      pip.width = pip.height = ps;
-      pip.position.set(this.screen.x - s * 0.36 + i * (ps + 1), this.screen.y - s * 0.05);
+      pip.width = pip.height = pipSize;
+      pip.position.set(
+        this.screen.x + (pip._itemCol - (pip._itemColumns - 1) / 2) * (pipSize + 1),
+        this.screen.y - s * 0.05 - (this._itemPipRows - 1 - pip._itemRow) * (pipSize + 2),
+      );
       pip.visible = this.alive;
+    }
+    if (this.itemProgressText) {
+      this.itemProgressText.visible = this.alive && !!this.itemProgressText.text;
+      this.itemProgressText.scale.set(clamp(s * 0.2, 10, 16) / 16);
+      const progressTop = this.itemPips.length ? Math.max(s * 0.14, -s * 0.05 + pipSize / 2 + 2) : s * 0.14;
+      this.itemProgressText.position.set(this.screen.x, this.screen.y + progressTop);
     }
   }
 

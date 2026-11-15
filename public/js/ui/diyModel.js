@@ -20,6 +20,9 @@
 // slots), 3–4 under `diyBench_<tier>_<n>` keys (shared/diy.js DIY_BENCH_SIZE); in the match's briefing the player picks
 // any two of them (ui/diyChoice.js). Every position is drawn and checked as a pick of its tier. In a match, whose bans
 // are known, a card names the bonds of its operator that are off (diyMatchOff / diyBanHint).
+// 规程·序列Ⅰ has no 候补 (the owner, 2026-11-15: a 规程 room plays upstream's 选择自编 only): its six slots a tier are the
+// positions, 12 in all, and the match brings 0–2 a tier at CUSTOM_CHECK (screens/diyCheck.js); shared/diy.js diyBenchSize
+// reads it from the slots, as the server does.
 // 联动干员的回退 (feedback #128, planned by the owner on 2026-11-03: 「在禁用联动干员的时候应该fallback到之前选用的自选干员，
 // 而不是继续保留无法使用的联动干员」): a collab 6★ put over a position's own pick keeps that pick as the position's fallback
 // (`sp.pref.diy` { v, picks, fallback }; setPickKeepingFallback); wherever 联动干员 is off — every room without the host's
@@ -30,7 +33,7 @@
 
 import { DIY_LIMITS, checkDiyPicks } from '../../../shared/protocol.js';
 import { diySlotIds, diySlot, diyPool, isPrototypePick, isCollabPick, lockedSelection, isDiyModule, diyRecord, diyTiers,
-  diyTierSlotIds, diyBenchId, diyKeySlotId, diyKeyTier, DIY_BENCH_SIZE } from '../../../shared/diy.js';
+  diyTierSlotIds, diyBenchId, diyBenchSize, diyBenchTier, diyKeySlotId, diyKeyTier } from '../../../shared/diy.js';
 import { unitForm } from '../../../shared/standIn.js';
 import { N_ } from '../../../shared/i18n.js';
 import { DEFAULT_VERSION, versionById, versionSlug } from '../../../shared/versions.js';
@@ -68,6 +71,20 @@ export function cleanPicks(raw) {
   }
   return out;
 }
+
+/**
+ * The picks without the 候补 keys the data has none of (规程: shared/diy.js diyBenchSize 0 — the server refuses such a key,
+ * BAD_TARGET; a 12-slot roster plus one is BAD_MSG): what the sync sends and the tab counts. Before backups.json is loaded
+ * nothing tells them apart, so the map stays as it is.
+ * @param {any} picks @param {any} data `{ chess, backups }`
+ */
+export function dropForeignBench(picks, data) {
+  if (!isObj(picks) || !isObj(backupsOf(data)?.diy)) return cleanPicks(picks);
+  const kept = {};
+  for (const [key, p] of Object.entries(picks)) if (!BENCH_KEY.test(key) || diyBenchTier(key, data) != null) kept[key] = p;
+  return cleanPicks(kept);
+}
+const BENCH_KEY = /^diyBench_/;
 
 /** Parse a stored setting (any junk → {}): `{ v, picks }`. @param {any} raw */
 export function parseStoredDiy(raw) {
@@ -170,15 +187,16 @@ export function diySlotList(data) {
 
 /**
  * The 候补 of each tier (feedback #114): [{ slotId: the bench key, goldenId / shopLevel of the tier's first slot, tier,
- * bench: true, n: 1…DIY_BENCH_SIZE }], tier 5's then tier 6's.
+ * bench: true, n: 1…diyBenchSize }], tier 5's then tier 6's; none in 规程 (shared/diy.js diyBenchSize).
  * @param {any} data
  */
 export function diyBenchList(data) {
+  const size = diyBenchSize(data);
   const out = [];
   for (const tier of diyTiers(data)) {
     const first = diySlot(diyTierSlotIds(tier, data)[0], data);
     if (!first) continue;
-    for (let n = 1; n <= DIY_BENCH_SIZE; n++) out.push({ slotId: diyBenchId(tier, n), goldenId: first.goldenId, tier, shopLevel: first.shopLevel, bench: true, n });
+    for (let n = 1; n <= size; n++) out.push({ slotId: diyBenchId(tier, n), goldenId: first.goldenId, tier, shopLevel: first.shopLevel, bench: true, n });
   }
   return out;
 }
@@ -225,7 +243,7 @@ export function diyBanHint(charId, data, off) {
   return hit.length ? { bonds: hit, all: hit.length === bonds.length } : null;
 }
 
-/** How many picks a preset holds at most: four per tier. @param {any} data */
+/** How many picks a preset holds at most: four per tier (slots + 候补); 规程's twelve slots. @param {any} data */
 export const diyCapacity = (data) => diySlotList(data).length + diyBenchList(data).length;
 
 const backupsOf = (data) => (isObj(data?.backups) ? data.backups : null);

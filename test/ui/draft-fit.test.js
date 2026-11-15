@@ -48,6 +48,17 @@ test('fitTiles: the design size caps a wall with room to spare; below the floor 
   assert.equal(fitTiles(5, 0, 0, 10, 10, 90, 190).tile, 190, 'no box yet: the design');
 });
 
+test('fitTiles with sections (规程\'s 泛用型 / 盟约型 strategies under full-row headers): each section starts a row', () => {
+  const fit = fitTiles(16, 800, 470, 10, 10, 50, 190, [7, 9]);
+  const rows = Math.ceil(7 / fit.cols) + Math.ceil(9 / fit.cols);
+  assert.ok(fit.fits && fit.cols * fit.tile + (fit.cols - 1) * 10 <= 800.01 && rows * fit.tile + (rows - 1) * 10 <= 470.01, JSON.stringify(fit));
+  assert.ok(fit.tile <= fitTiles(16, 800, 470, 10, 10, 50, 190).tile, 'a section break never makes the tiles larger');
+  assert.deepEqual(fitTiles(16, 800, 470, 10, 10, 50, 190, null), fitTiles(16, 800, 470, 10, 10, 50, 190), 'no sections: as before');
+  // the headers are no tiles (ui/fitGrid.js fitTileBox `head`)
+  assert.equal(DRAFT_TILE_REM.head, '.draft-grid__sec');
+  assert.match(read('public/js/screens/bandDraft.js'), /class="draft-grid__sec"/);
+});
+
 test('fitRowHeight: rows share what the pool heads and gaps leave, within the design height and the three-line floor', () => {
   // four rows of 109 px with 42 px of gaps and paddings in a 470 px column → 107 px each
   assert.equal(fitRowHeight(4, 470, 4 * 109 + 42, 109, 83, 109), 107);

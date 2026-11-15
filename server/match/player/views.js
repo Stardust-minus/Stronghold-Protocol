@@ -3,11 +3,16 @@
 // Installed on PlayerState.prototype by server/match/PlayerState.js (a method container: never instantiated; `this` is
 // the player state).
 
+import { itemProgress } from '../itemProgress.js';
+import { itemShowTags, garrisonShowTags } from '../showTags.js';
 import { PHASE } from '../../../shared/constants.js';
 import { boardOrder, pieceDir } from '../board.js';
 import { bondList, offBondCounts } from '../bondsMeta.js';
 import { bountyText, bountyCard } from '../choices.js';
 import { layerForecast } from '../layerForecast.js';
+import { bandProgressView } from '../bandProgress.js';
+import { commandBondOverrides, commandView, commandDraftView } from '../bandCommands.js';
+import { commandDisplayEffects } from '../../../shared/commandDisplay.js';
 
 export class PlayerViews {
   pieceView(p, rc = null) {
@@ -18,9 +23,15 @@ export class PlayerViews {
       id: p.id,
       golden: !!(rec && rec.isGolden),
       tier: rec && Number.isInteger(rec.tier) ? rec.tier : null,
-      items: p.kind === 'chess' ? (p.items || []).map((it) => ({ uid: it.uid, id: it.id })) : [],
+      items: p.kind === 'chess' ? (p.items || []).map((it) => ({ uid: it.uid, id: it.id, ...this._itemProgressView(it) })) : [],
+      ...(p.kind === 'item' ? this._itemProgressView(p) : {}),
+      // the live numbers of the record's {showtag_value_N} texts (§37.201, showTags.js) — only 规程 records carry them
+      ...(p.kind === 'chess' ? this._garrisonTagsView(p) : {}),
       count: p.kind === 'token' ? (p.count || 1) : 1,
       ownerUid: p.kind === 'token' ? p.ownerUid ?? null : null,
+      // Only an effect-resolved price. The table price stays on the chess record, so a default view omits this.
+      ...(p.meta && typeof p.meta.sellPrice === 'number' && Number.isFinite(p.meta.sellPrice)
+        ? { sellPrice: Math.max(0, Math.trunc(p.meta.sellPrice)) } : {}),
     };
     const skinId = p.kind === 'chess' ? this.skinIdFor(rec) : null;
     if (skinId) v.skinId = skinId;
@@ -28,10 +39,34 @@ export class PlayerViews {
     return v;
   }
 
+  bandProgressView() {
+    return bandProgressView(this);
+  }
+
   effectsView() {
     const out = [];
     const band = this.bandId ? this.gd.band(this.bandId) : null;
-    if (band) out.push({ id: band.effectId || band.bandId, name: band.effectName || band.name, desc: band.desc || '', iconKind: 'band', iconId: band.iconId || band.bandId });
+    const legacyBand = () => ({ id: band.effectId || band.bandId, name: band.effectName || band.name, desc: band.desc || '', iconKind: 'band', iconId: band.iconId || band.bandId, ...this.bandProgressView() });
+    if (band?.skills?.length) {
+      const command = commandView(this);
+      // Current command, then the replacement effects the battle uses, then a retained opening passive.
+      // A chain that cannot be resolved keeps the single strategy row, so the column does not go blank.
+      const rows = command && commandDisplayEffects({
+        bands: this.gd.raw.bands,
+        originalBandId: this.bandId,
+        commandEffectId: command.effectId,
+        effectOf: (id) => this.gd.effect(id),
+        progress: this.bandProgressView(),
+        commandType: command.type,
+        bonds: this.gd.raw.bonds,
+        bondStates: this.bondsView(),
+        effectOverrides: commandBondOverrides(this),
+      });
+      if (rows?.length) out.push(...rows);
+      else out.push(legacyBand());
+    } else if (band) {
+      out.push(legacyBand());
+    }
     for (const e of this.effects) {
       if (e.hidden) continue;
       const v = { id: e.id, name: e.name || e.id, desc: e.desc || '', iconKind: e.iconKind || 'choice', iconId: e.iconId || e.id };
@@ -84,8 +119,9 @@ export class PlayerViews {
       lp: this.lp,
       funds: this.funds,
       bandId: this.bandId,
+      ...(this.command ? { command: commandView(this), commandDraft: commandDraftView(this) } : {}),
       ready: this.ready,
-      canReady: this.alive && this.tempEmpty && !this.personalChoice && this.m.phase === PHASE.PREP,
+      canReady: this.alive && this.tempEmpty && !this.personalChoice && !this.commandDrafts.length && this.m.phase === PHASE.PREP,
       // a concurrent 机变 draft (Match concurrentDraft): the cards this seat's own equipment stock cannot give
       ...(this.m.phase === PHASE.SP_DRAFT && this.m.sp?.concurrent
         ? { spBlocked: this.m.sp.cards.filter((c) => !this.m.spCardAvailable(c, this)).map((c) => c.idx) } : {}),
@@ -118,14 +154,15 @@ export class PlayerViews {
         rewardOffer: offer ? { tier: offer.tier, source: offer.source === 'merge' ? 'merge' : 'special', label: offer.label || null, queued: this.offers.length - 1, slots: offer.slots.map((s) => ({ kind: s.kind === 'item' ? 'item' : 'chess', id: s.id, price: s.price, sold: !!s.sold })) } : null,
       },
       hand: this.hand.map((p) => (p ? this.pieceView(p) : null)),
-      temp: this.temp.map((p) => (p ? this.pieceView(p) : null)),
+      temp: (this.equipHand ? this.temp.slice(0, this.gd.tempSize) : this.temp).map((p) => (p ? this.pieceView(p) : null)),
+      ...(this.equipHand ? { stashCount: this.tempPieces().length } : {}),
       board,
       // The stage's 外勤医疗 reserve medic is present during prep, but is not a draggable board piece.
       prepMapChars: this.m.prepMapChars(this),
       deployCap: this.deployCap,
       deployCount: this.deployCount,
       // + the mode-off bonds it has members of (`off: true`, the strip's grey 本局禁用 discs — bondsMeta.offBondCounts)
-      bonds: bondList(this.gd, this.bondsView(), { full: true, off: offBondCounts(this.gd, this) }),
+      bonds: bondList(this.gd, this.bondsView(), { full: true, off: offBondCounts(this.gd, this), effectOverrides: commandBondOverrides(this) }),
       effects: this.effectsView(),
       nextEnemies: this.m.nextEnemiesFor(this),
       // DESIGN §16: the effective operator loadout ({ [baseChessId]: { skill, module } }; chess not listed use defaults)
@@ -149,6 +186,9 @@ export class PlayerViews {
       // slots — per tier its candidates (`off`: every bond banned this match), the ones fielded now and whether the
       // player chose; absent otherwise
       ...(this.m.phase === PHASE.INFO_CHECK && this.hasDiyChoice() ? { diyChoice: this.diyChoiceView(this.m.diyOff?.() ?? new Set()) } : {}),
+      // 选择自编: omitted on a season without the step, so those private views stay byte-identical.
+      // null = not confirmed yet; an array (possibly empty) is the confirmation.
+      ...(this.m.gd.diyBringLimits ? { diyBring: this.diyBring != null ? [...this.diyBring] : null } : {}),
       // 最终攻势 / 隐秘核心 prep (community report of 2026-10-06, item 51): `{ playerId, side, units }` — the pair partner's
       // board pieces as UnitInfo on its half of the boss field (mirrored on the right half, as the battle places them);
       // the own prep view draws them beside the own half, read-only. Absent otherwise.
@@ -162,5 +202,16 @@ export class PlayerViews {
         refreshes: this.stats.refreshes, merges: this.stats.merges,
       },
     };
+  }
+
+  _itemProgressView(item) {
+    const progress = itemProgress(this, item);
+    const showTag = itemShowTags(this, item);
+    return { ...(progress ? { progress } : {}), ...(showTag ? { showTag } : {}) };
+  }
+
+  _garrisonTagsView(piece) {
+    const garrisonTags = garrisonShowTags(this, piece);
+    return garrisonTags ? { garrisonTags } : {};
   }
 }

@@ -477,7 +477,8 @@ test('committed remote party aliases retain canonical membership, explicit join 
   const before = room.toState();
   assert.equal(h.lobby.join(observer, { code: oldRooms[0].code }).error, ERR.ROOM_STARTED);
   assert.equal(observer.roomCode, null); assert.deepEqual(room.toState(), before);
-  assert.equal(h.lobby.spectate(players[0], { code: oldRooms[1].code }).error, ERR.ALREADY);
+  // 0.4.0: room.spectate from one's own seat is upstream's role switch (Lobby.becomeSpectator), refused in a running match
+  assert.equal(h.lobby.spectate(players[0], { code: oldRooms[1].code }).error, ERR.ROOM_STARTED);
   const added = h.lobby.spectate(observer, { code: ` ${oldRooms[0].code.toLowerCase()} ` });
   const repeat = h.lobby.spectate(observer, { code: oldRooms[1].code });
   assert.equal(h.peers.length, 1, 'both old codes share one pending observer admission');

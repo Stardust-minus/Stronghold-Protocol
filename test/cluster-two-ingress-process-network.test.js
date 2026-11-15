@@ -12,6 +12,10 @@ import { startCoordinator } from '../server/cluster/coordinator.js';
 import { startGameNode } from '../server/cluster/game-node.js';
 import { CLOSE } from '../server/net.js';
 import { ERR, MATCHMAKING_VERSION, PROTOCOL_VERSION } from '../shared/constants.js';
+import { DEFAULT_VERSION } from '../shared/versions.js';
+// a room.create names 第二期下半 unless the test names a version (as test/helpers/wsClient.js does): the lobby's default
+// is 规程·序列Ⅰ (shared/versions.js LOBBY_DEFAULT_VERSION), whose rooms wait for the page's content check
+const withVersion = (type, fields) => (type === 'room.create' && !Object.hasOwn(fields, 'version') ? { ...fields, version: DEFAULT_VERSION } : fields);
 
 const ORIGIN = 'https://two-ingress-process-fixture.invalid';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
@@ -21,6 +25,7 @@ const ingressModule = new URL('../server/cluster/ingress.js', import.meta.url).h
 // variant the parent hands each child its fresh test-only link key over IPC (never a file or argv).
 const CHILD_SOURCE = `
 import { startIngress } from ${JSON.stringify(ingressModule)};
+
 let runtime, starting = false, stopping = false;
 async function stop() {
   if (stopping) return;
@@ -170,7 +175,7 @@ async function fixture(t, { link = false } = {}) {
     connection.request = (type, fields = {}) => new Promise((resolve, reject) => {
       const id = ++rid, timer = setTimeout(() => { pending.delete(id); reject(new Error('two-ingress request deadline')); }, 7000);
       pending.set(id, { resolve, reject, timer });
-      socket.send(JSON.stringify({ t: type, ...fields, rid: id }));
+      socket.send(JSON.stringify({ t: type, ...withVersion(type, fields), rid: id }));
     });
     return connection;
   };

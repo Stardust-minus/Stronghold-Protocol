@@ -31,7 +31,7 @@
 // `change` when a drag ends on its start value; a touch drag can turn into a scroll — DESIGN §35.45).
 
 import { useState } from '../../vendor/hooks.module.js';
-import { html, Button, MicroLabel } from './components.js';
+import { html, Button, Icon, MicroLabel } from './components.js';
 import { createStore, useStore, loadPref, savePref } from '../store.js';
 import { settingsStore } from './settingsStore.js';
 import { t, N_ } from '../../../shared/i18n.js';
@@ -138,9 +138,10 @@ export function ScreenFitSection() {
   const [open, setOpen] = useState(false);
   const any = FIT_SIDES.some((k) => f[k] !== 0);
   return html`<section class=${`set-fit${open ? ' is-open' : ''}`} aria-labelledby="set-fit-title" data-testid="screen-fit">
-    <div class="set-keys__head">
+    <div class="set-keys__head sw-sec__head">
       <button type="button" class="set-fit__toggle" aria-expanded=${open ? 'true' : 'false'} aria-controls="set-fit-body" data-testid="fit-toggle" onClick=${() => setOpen(!open)}>
-        <span class="set-row__label" id="set-fit-title">${t('异形屏适配')}<${MicroLabel}>SCREEN FIT<//></span>
+        <span class="sw-sec__glyph" aria-hidden="true"><${Icon} name="expand" /></span>
+        <span class="set-row__label sw-sec__name" id="set-fit-title"><i>[</i> ${t('异形屏适配')} <i>]</i><${MicroLabel}>SCREEN FIT<//></span>
         ${any ? html`<span class="set-fit__badge" data-testid="fit-badge">${t('已调整')}</span>` : null}
         <span class="set-fit__chev" aria-hidden="true"></span>
       </button>

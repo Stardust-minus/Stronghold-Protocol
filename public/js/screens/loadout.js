@@ -30,6 +30,7 @@ import { isCollabRoom } from '../../../shared/experimental.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { usePresence, LEAVE_MS } from '../ui/transitions.js';
 import { html, Icon, MicroLabel, Button, TierChip, TextField, Countdown, Spinner, confirmDialog, hasDeadline, Modal, Fragment } from '../ui/components.js';
+import { ComboBox } from '../ui/comboBox.js';
 import { Img, RichText, UnitThumb, PromotionIcon } from '../ui/gameComponents.js';
 import { chessAvatarUrl, portraitChain, chainProps, profGlyphUrl, subProfIconUrl, bondIconUrl, itemIconUrl, uiUrl } from '../ui/assetUrls.js';
 import { GarrisonBlock } from '../ui/detailPanel.js';
@@ -58,7 +59,7 @@ import { ModuleGlyph, ModuleInfo, SkillOption, SkillIcon, SkillSection, ModuleSe
 export { ModuleGlyph, ModuleInfo, SkillOption };
 import { LoadoutStats } from '../ui/loadoutStats.js';
 export { LoadoutStats, statsPreview } from '../ui/loadoutStats.js';
-import { diyCount, diyCapacity, diyMatchOff, sanitizeDiyPicks, setPickKeepingFallback, diyPicksFor, diyCollabHeld, diyPositions, slotRecord } from '../ui/diyModel.js';
+import { diyCount, diyCapacity, diyMatchOff, sanitizeDiyPicks, setPickKeepingFallback, diyPicksFor, diyCollabHeld, diyPositions, slotRecord, dropForeignBench } from '../ui/diyModel.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { copyText } from '../ui/clipboard.js';
 import { toast } from '../ui/toasts.js';
@@ -279,10 +280,9 @@ function Filters({ m, filters, onFilters, bonds, onDeck = null }) {
       <${ProfFilter} m=${m} prof=${filters.prof} onProf=${(prof) => set({ prof })} />
       <label class="lo-select">
         <span class="lo-select__k">${t('盟约')}</span>
-        <select value=${filters.bond || ''} onChange=${(e) => set({ bond: e.currentTarget.value || null })} aria-label=${t('按盟约筛选')}>
-          <option value="">${t('全部盟约')}</option>
-          ${bonds.map((b) => html`<option key=${b.bondId} value=${b.bondId}>${b.name}</option>`)}
-        </select>
+        <${ComboBox} label=${t('按盟约筛选')} value=${filters.bond || ''}
+          options=${[{ value: '', label: t('全部盟约') }, ...bonds.map((b) => ({ value: b.bondId, label: b.name }))]}
+          onChange=${(e) => set({ bond: e.currentTarget.value || null })} />
       </label>
       <button type="button" class=${cx('lo-toggle', filters.changedOnly && 'is-on')} aria-pressed=${filters.changedOnly ? 'true' : 'false'}
         onClick=${() => set({ changedOnly: !filters.changedOnly })}><i class="lo-toggle__box"><${Icon} name="check" /></i>${t('仅看已调整')}</button>
@@ -733,13 +733,13 @@ function LoadoutScreen({ st, leaving = false }) {
   const ownRoster = useOwnershipRoster(ready);
   const nNotOwned = notOwnedCount(st.notOwned, ownRoster);
   // 自选编队 (0.2.0 DIY): the stored picks, those the server would keep (the kit list of the last welcome)
-  const nDiy = diyCount(st.diy);
-  // the slots and the 候补 (feedback #114): 8 with the official data
+  const nDiy = diyCount(ready ? dropForeignBench(st.diy, diyData()) : st.diy); // (规程: no 候补 key counts)
+  // the slots and the 候补 (feedback #114): 8 with the 盟约 data; 规程's 12 slots, no 候补 (「已选 n/12」)
   const diyCap = (ready && diyCapacity(diyData())) || 8;
   // 联动干员: in a room with it on, the collab 6★ are picks too (the server keeps them only there)
   const collabRoom = useStore((s) => isCollabRoom(s.room?.experimental));
   // feedback #128: where 联动干员 is off a collab pick's position shows (and sends) the pick it replaced (diyModel.js diyPicksFor)
-  const diyShown = ready ? diyPicksFor(st.diy, st.diyFallback, diyData(), { collab: collabRoom }) : st.diy || {};
+  const diyShown = ready ? diyPicksFor(dropForeignBench(st.diy, diyData()), st.diyFallback, diyData(), { collab: collabRoom }) : st.diy || {};
   const diyHeld = ready ? diyCollabHeld(st.diy, diyData(), { collab: collabRoom }) : {};
   const diyLegal = ready ? sanitizeDiyPicks(diyShown, diyData(), st.diyKitted || [], { collab: collabRoom }) : {};
   // 自选候补 (feedback #114): opened during a match, whose bans are known, the 自选编队 cards name the bonds that are off

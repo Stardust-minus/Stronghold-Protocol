@@ -21,6 +21,7 @@
 // The room's big button and its 选择模拟协议: test/ui/lobby-hub.e2e.test.js; the cards' outfits: room-cards.e2e.test.js.
 // Screenshots: test/e2e/out/room-fit-*.png.
 
+import { skipEntryFilm } from '../helpers/entryFilm.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -72,6 +73,7 @@ describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: 
       sessionStorage.setItem('sp.entered', '1');
       if (l) localStorage.setItem('sp.pref.lang', JSON.stringify(l));
     }, lang === 'zh' ? null : lang, who);
+    await skipEntryFilm(page);
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && !!document.querySelector('.lobby-screen'), { timeout: 30000 });
     return { ctx, page, problems };

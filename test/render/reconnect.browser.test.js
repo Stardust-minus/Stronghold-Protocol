@@ -19,7 +19,9 @@ for (const delayed of [false, true]) test(`closing and reopening a real match re
   const { startServer } = await import('../../server/index.js');
   const puppeteer = (await import('puppeteer-core')).default;
   // This fixture tests renderer recovery, not the background hash scan of every installed art file.
-  const server = await startServer({ port: 0, host: '127.0.0.1', quiet: true, assetIndex: false, seedFn: () => 123 });
+  // (written for 第二期下半: the lobby's default — a room created without a version — is 规程 since 0.4.0)
+  const { DEFAULT_VERSION } = await import('../../shared/versions.js');
+  const server = await startServer({ port: 0, host: '127.0.0.1', quiet: true, assetIndex: false, seedFn: () => 123, versions: { default: DEFAULT_VERSION } });
   const base = `http://127.0.0.1:${server.port}`;
   console.info(`[reconnect] Testing ${base}`);
   const browser = await puppeteer.launch({ executablePath: executable, headless: true,

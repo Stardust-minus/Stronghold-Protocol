@@ -10,15 +10,18 @@
 // sends a stored choice back to Chinese. The shipped Japanese, Korean and Traditional Chinese packs (the owner's decisions of
 // 2026-10-07) switch to their official game texts and their own UI strings (what a pack lacks shows its fallback: English
 // for ja / ko, the Simplified Chinese for zh-TW); a pack marked `machineTranslated` says so in 设置 (none in Chinese).
-// With more than four languages the menu is a list (ui/lang.js SEGMENTED_MAX): the helpers read and pick either form.
+// With more than five languages the menu is a listbox (ui/lang.js SEGMENTED_MAX): the helpers read and pick either form.
+// The shown value is the applied language. A pack that has not arrived yet does not move the buttons or the listbox.
 // No console / page / request errors. docs/I18N.md.
 
+import { skipEntryFilm } from '../helpers/entryFilm.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHROME, hasChrome, sleep } from '../e2e/client.mjs';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome();
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -34,7 +37,9 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
   before(async () => {
     const { startServer } = await import('../../server/index.js');
     const puppeteer = (await import('puppeteer-core')).default;
-    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
+    // the game texts below are 第二期下半's (data/i18n overlays are keyed by the default data; another version, e.g. 规程 —
+    // a stock server's lobby default since 0.4.0 — takes only its own texts, public/js/data.js versionFiles)
+    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, versions: { default: DEFAULT_VERSION } });
     base = `http://127.0.0.1:${srv.port}`;
     browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--force-device-scale-factor=1'] });
   });
@@ -43,7 +48,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
   // the lobby (no title screen since 2026-10-15): the labels of its ⚙ and ✎ buttons, in the language on screen
   const settingsLabel = (page) => page.$eval('.lobby-settings', (el) => el.getAttribute('aria-label'));
   const renameLabel = (page) => page.$eval('.me-rename', (el) => el.getAttribute('aria-label'));
-  /** The menu's languages, [code, label] — its buttons, or the options of its list. */
+  /** 设置 open from the lobby's ⚙ (once): the language switch lives in it. */
   const openLanguageSettings = async (page) => {
     if (!await page.$('.modal [data-testid="lang-toggle"]')) {
       await page.waitForSelector('.lobby-screen .lobby-settings');
@@ -56,16 +61,26 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
       await page.waitForSelector('.modal [data-testid="lang-toggle"]');
     }
   };
+  /** The menu's languages, [code, label]. */
   const menu = async (page) => {
     await openLanguageSettings(page);
-    return page.$$eval('[data-testid="lang-toggle"] button, [data-testid="lang-toggle"] option',
-      (els) => els.map((e) => [e.dataset.lang ?? e.value, e.textContent.trim()]));
+    // its radio buttons, the options of its listbox (upstream 0.4 ComboBox; not the combobox button) or of a native select
+    return page.$$eval('[data-testid="lang-toggle"] button[data-lang], [data-testid="lang-toggle"] [role="option"], [data-testid="lang-toggle"] option',
+      (els) => els.map((e) => [e.dataset.lang ?? e.dataset.value ?? e.value, e.textContent.trim()]));
   };
-  /** Pick a language: its button, or its option in the list. */
+  /** Pick a language: its radio button, a native select if one is still there, or the listbox option. */
   const pick = async (page, code) => {
     await openLanguageSettings(page);
-    if (await page.$('[data-testid="lang-toggle"] select')) await page.select('[data-testid="lang-toggle"] select', code);
-    else await page.click(`[data-testid="lang-toggle"] button[data-lang="${code}"]`);
+    if (await page.$('[data-testid="lang-toggle"] select')) {
+      await page.select('[data-testid="lang-toggle"] select', code);
+      return;
+    }
+    const radio = await page.$(`[data-testid="lang-toggle"] button[data-lang="${code}"]`);
+    if (radio) { await radio.click(); return; }
+    await page.click('[data-testid="lang-toggle"] [role="combobox"]');
+    const opt = `[data-testid="lang-toggle"] [role="option"][data-lang="${code}"]`;
+    await page.waitForSelector(opt, { visible: true });
+    await page.click(opt);
   };
   const SHIPPED = [['zh', '中文'], ['en', 'English'], ['ja', '日本語'], ['ko', '한국어'], ['zh-TW', '繁體中文']];
   const pack = (code) => JSON.parse(fs.readFileSync(path.join(ROOT, `public/i18n/${code}.json`), 'utf8'));
@@ -95,6 +110,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('response', (r) => { if (r.status() >= 400 && !/fonts\.(googleapis|gstatic)/.test(r.url())) problems.push(`http ${r.status()}: ${r.url()}`); });
+    await skipEntryFilm(page);
     await page.goto(`${base}/`, { waitUntil: 'load' });
     await openLanguageSettings(page);
     assert.equal(await settingsLabel(page), '设置');
@@ -116,6 +132,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
     assert.equal(await settingsLabel(page), 'Settings', 'the choice survives a reload');
     assert.equal(await page.evaluate(() => document.title), 'Stronghold Protocol: Alliance · Web Simulation');
 
+    await skipEntryFilm(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'load' });
     await page.waitForSelector('.lobby-screen .lobby-settings');
     await sleep(200);
@@ -138,9 +155,10 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
       fs.writeFileSync(path.join(PACK_DIR, 'pack.json'), JSON.stringify({ type: 'lang', lang: 'qab', name: 'Qabisch', files: { ui: 'ui.json' } }));
       fs.writeFileSync(path.join(PACK_DIR, 'ui.json'), JSON.stringify({ 设置: 'Qab-Einstellung' }));
       await sleep(1100); // the server's registry looks at the folders again after a second
+      await skipEntryFilm(page);
       await page.goto(`${base}/?lang=zh`, { waitUntil: 'load' });
       await openLanguageSettings(page);
-      await page.waitForFunction(() => [...document.querySelectorAll('.modal [data-testid="lang-toggle"] :is(button, option)')].some((e) => (e.dataset.lang ?? e.value) === 'qaa'), { timeout: 8000 });
+      await page.waitForFunction(() => [...document.querySelectorAll('.modal [data-testid="lang-toggle"] :is(button[data-lang], [role="option"], option)')].some((e) => (e.dataset.lang ?? e.dataset.value ?? e.value) === 'qaa'), { timeout: 8000 });
       assert.deepEqual(await menu(page), [...SHIPPED.slice(0, 4), ['qaa', 'Testisch'], ['qab', 'Qabisch'], SHIPPED[4]]);
 
       await pick(page, 'qaa');
@@ -177,6 +195,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('response', (r) => { if (r.status() >= 400 && !/fonts\.(googleapis|gstatic)/.test(r.url())) problems.push(`http ${r.status()}: ${r.url()}`); });
+    await skipEntryFilm(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'load' });
     await openLanguageSettings(page);
     assert.equal(await settingsNote(page), null, 'Chinese: no machine-translation note');
@@ -225,7 +244,14 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
     script: document.documentElement.dataset.script,
     title: document.title,
     settings: document.querySelector('.lobby-settings').getAttribute('aria-label'),
-    selected: document.querySelector('[data-testid="lang-toggle"] select').value,
+    selected: (() => {
+      const root = document.querySelector('[data-testid="lang-toggle"]');
+      const select = root?.querySelector('select');
+      if (select) return select.value;
+      const combo = root?.querySelector('[role="combobox"]');
+      if (combo) return combo.dataset.value || '';
+      return root?.querySelector('[aria-checked="true"]')?.dataset.lang || '';
+    })(),
     saved: JSON.parse(localStorage.getItem('sp.pref.lang')),
   }));
   const expectedLanguage = {
@@ -237,6 +263,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
   test('a late English pack cannot overwrite a newer Traditional Chinese selection; its cache remains reusable', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await skipEntryFilm(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'load' });
     await page.waitForSelector('.lobby-screen .lobby-settings');
     await holdPacks(page, ['en']);
@@ -255,13 +282,14 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
   test('selecting the displayed default language cancels a pending pack', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await skipEntryFilm(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'load' });
     await page.waitForSelector('.lobby-screen .lobby-settings');
     await holdPacks(page, ['en']);
     await pick(page, 'en');
     await waitForPack(page, 'en');
-    assert.equal(await page.$eval('[data-testid="lang-toggle"] select', (el) => el.value), 'en', 'the native menu can still change back to Chinese');
-    assert.equal(await page.$eval('[data-testid="lang-toggle"] select', (el) => el.disabled), false);
+    assert.equal(await page.$eval('[data-testid="lang-toggle"] [aria-checked="true"], [data-testid="lang-toggle"] [role="combobox"]', (el) => el.dataset.lang || el.dataset.value), 'zh', 'the menu keeps the applied language until the pack arrives');
+    assert.equal(await page.$eval('[data-testid="lang-toggle"] button', (el) => el.disabled), false, 'the menu can still switch back to Chinese');
     await pick(page, 'zh');
     await releasePack(page, 'en');
     assert.deepEqual(await languageState(page), expectedLanguage.zh);
@@ -270,6 +298,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
   test('repeated selections reuse a pending pack and still supersede an intervening selection', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await skipEntryFilm(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'load' });
     await page.waitForSelector('.lobby-screen .lobby-settings');
     await holdPacks(page, ['en', 'zh-TW']);
@@ -289,6 +318,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
   test('a failed latest selection keeps the last successful UI and menu; an older pack stays stale', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await skipEntryFilm(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'load' });
     await page.waitForSelector('.lobby-screen .lobby-settings');
     await holdPacks(page, ['en', 'zh-TW']);
@@ -306,6 +336,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
   test('a stale failure leaves a newer pending dropdown selection intact', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await skipEntryFilm(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'load' });
     await page.waitForSelector('.lobby-screen .lobby-settings');
     await holdPacks(page, ['en', 'zh-TW']);
@@ -314,7 +345,7 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
     await pick(page, 'zh-TW');
     await waitForPack(page, 'zh-TW');
     await releasePack(page, 'en', false);
-    assert.deepEqual(await languageState(page), { ...expectedLanguage.zh, saved: 'zh-TW', selected: 'zh-TW' });
+    assert.deepEqual(await languageState(page), { ...expectedLanguage.zh, saved: 'zh-TW', selected: 'zh' }, 'the menu shows the applied language; the pending pick stays saved');
     await releasePack(page, 'zh-TW');
     assert.deepEqual(await languageState(page), expectedLanguage['zh-TW']);
   });

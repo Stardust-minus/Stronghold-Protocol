@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Battle } from '../../server/sim/Battle.js';
 import { canUseWorkerRehearsal, createWorkerRehearsal } from '../../server/match/combat/rehearsal.js';
-import { TrialEngine } from '../../server/match/combat/trial.js';
+import { TrialEngine, MAX_TRIAL_LEAD } from '../../server/match/combat/trial.js';
 import { DATA, phase } from './combat-fixtures.js';
 
 const progress = (bestIndex = 0, done = false) => ({ bestIndex, done, ticks: done ? 32 : 0,
   candidateIndex: done ? 2 : 0, bestScore: done ? 1 : -Infinity, bestLeaks: done ? 0 : Infinity, bestBoss: done ? 0 : -Infinity,
+  bestGain: done ? 0 : -Infinity,
   candidates: done ? [0, 1].map((index) => ({ index, ticks: 16, duration: 16 / 30, beaten: false, score: index,
-    leaks: 0, boss: 0, result: {}, error: null })) : [] });
+    leaks: 0, boss: 0, gain: 0, result: {}, error: null })) : [] });
 function fixture(ready = Promise.resolve(progress()), advance = async () => progress(1, true)) {
   const calls = { creates: 0, advances: 0, closes: 0 };
   const pool = { createTrial(input) {
@@ -65,17 +66,19 @@ function deferred() {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
-const streamedProgress = (ticks = 0, sliceCount = 0, records = []) => {
-  // the inline rehearsal's order (RehearsalScore): fewer leaks, then more leader damage, then the score
-  let bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity, bestBoss = -Infinity;
+const streamedProgress = (ticks = 0, sliceCount = 0, records = [], lead = undefined) => {
+  // the inline rehearsal's order on a normal field (RehearsalScore): fewer leaks, then more leader damage, then more
+  // layers gained (§37.37), then the score
+  let bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity, bestBoss = -Infinity, bestGain = -Infinity;
   for (const c of records) if (c.score !== null && (c.leaks < bestLeaks || (c.leaks === bestLeaks && c.boss > bestBoss)
-    || (c.leaks === bestLeaks && c.boss === bestBoss && c.score > bestScore))) {
-    bestIndex = c.index; bestScore = c.score; bestLeaks = c.leaks; bestBoss = c.boss;
+    || (c.leaks === bestLeaks && c.boss === bestBoss && c.gain > bestGain)
+    || (c.leaks === bestLeaks && c.boss === bestBoss && c.gain === bestGain && c.score > bestScore))) {
+    bestIndex = c.index; bestScore = c.score; bestLeaks = c.leaks; bestBoss = c.boss; bestGain = c.gain;
   }
   return { summary: true, ticks, sliceCount, candidateIndex: records.length, done: records.length === 2,
-    bestIndex, bestScore, bestLeaks, bestBoss, candidates: records };
+    bestIndex, bestScore, bestLeaks, bestBoss, bestGain, ...(lead !== undefined ? { bestLead: lead } : {}), candidates: records };
 };
-const record = (index, ticks = 80) => ({ index, ticks, duration: ticks / 30, beaten: false, leaks: 0, boss: 0,
+const record = (index, ticks = 80) => ({ index, ticks, duration: ticks / 30, beaten: false, leaks: 0, boss: 0, gain: 0,
   score: index, error: null, result: null, synthetic: false });
 function streamedFixture({ close, input } = {}) {
   const ready = deferred(), done = deferred();
@@ -134,6 +137,10 @@ for (const [name, mutate] of [
   ['winner leader damage', (p) => { p.bestBoss = 5; }],
   ['missing leader damage', (p) => { p.candidates[0].boss = null; }],
   ['winner beaten on leader damage', (p) => { p.candidates[0].boss = 7; }],
+  ['winner layer gain', (p) => { p.bestGain = 5; }],
+  ['missing layer gain', (p) => { p.candidates[0].gain = null; }],
+  ['winner beaten on layer gain', (p) => { p.candidates[0].gain = 3; }],
+  ['unrequested leader-damage counts', (p) => { p.bestLead = []; }],
   ['synthetic score', (p) => { p.candidates[0].synthetic = true; }],
   ['missing synthetic flag', (p) => { delete p.candidates[0].synthetic; }],
   ['beaten score', (p) => { p.candidates[0].beaten = true; }],
@@ -181,4 +188,28 @@ test('dedicated progress faults cannot restart inline until remote cleanup ackno
   assert.ok(Object.isFrozen(f.calls.input.candidates[0]));
   assert.deepEqual(f.calls.input.candidates, f.input.candidates);
   await f.job.close();
+});
+
+test('§37.67: a lead request hands the winner\'s per-operator leader damage to onLead once done; malformed counts are rejected', async () => {
+  const got = [];
+  const input = { playerId: 'p0', candidates: [phase().specs[0], phase().specs[0]], cap: 100, lead: true, onLead: (m) => got.push(m) };
+  const f = streamedFixture({ input });
+  const running = f.job.start();
+  assert.equal(f.calls.input.lead, true, 'the Worker is asked to count');
+  f.ready.resolve(streamedProgress(0, 0, [], null));
+  f.done.resolve(streamedProgress(160, 5, [record(0), record(1)], [[7, 1200.5], [9, 30]]));
+  assert.equal(await running, true);
+  assert.equal(got.length, 1);
+  assert.deepEqual([...got[0]], [[7, 1200.5], [9, 30]]);
+  for (const bad of [null, [[7, -1]], [[7, 1], [7, 2]], [['x', 1]], [[7, Infinity]], Array.from({ length: MAX_TRIAL_LEAD + 1 }, (_, i) => [i, 1])]) {
+    const g = streamedFixture({ input: { ...input, onLead: () => assert.fail('no counts from a malformed reply') } });
+    const run = g.job.start();
+    g.ready.resolve(streamedProgress(0, 0, [], null));
+    g.done.resolve(streamedProgress(160, 5, [record(0), record(1)], bad));
+    await assert.rejects(run, /invalid rehearsal winner/);
+  }
+  const h = streamedFixture({ input });
+  const early = h.job.start();
+  h.ready.resolve(streamedProgress(0, 0, [], []));
+  await assert.rejects(early, /invalid rehearsal winner/, 'counts before the end are refused');
 });

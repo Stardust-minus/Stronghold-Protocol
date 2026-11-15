@@ -31,6 +31,9 @@
 // check who draws from the same pool.
 // 投票移出 (ui/kickVote.js, GitHub feedback #12): the row of a teammate the AI plays because they stayed offline has a
 // 投票移出 button in SP_DRAFT / PREP; the open vote is shown in the notice slot above the rows.
+// 完美连胜 / 领袖伤害 (DESIGN §37.148, every version; ui/avatarBadges.js): the streak badge on the avatar's top-right corner
+// (the own row's "you" marker moves to the bottom-left corner while it shows), the leader-damage scan over the avatar
+// during a leader fight; `badges` = { pack, still } (the theme's avatar prefabs, else ac_n_initial's; null pack: CSS).
 
 import { useEffect, useReducer, useRef, useState } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
@@ -42,6 +45,7 @@ import { MissTag, uniteRemaining } from './hud.js';
 import { data, localAsset } from '../data.js';
 import { ReviveAction, RevivalNotice } from './revival.js';
 import { KickAction, KickVoteNotice } from './kickVote.js';
+import { WinStreakBadge, BossDamageBadge, avatarBadgeTips } from './avatarBadges.js';
 import { t } from '../../../shared/i18n.js';
 import { uniteRelayKey } from '../battle/observe.js';
 import { PHONE_QUERY, rosterPools, rosterStartsOpen, teamDensity, teamEmoteMode, teamPanelLayout } from './teamLayout.js';
@@ -221,7 +225,7 @@ function RowStatus({ status, meta, offline }) {
 }
 
 /** One seat. `bubble`: its emote beside the row (classic roster), else null. */
-function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, selfLive, cap, uniteLocal, team, frameArt, list, bubble, spMark = null, plan = null }) {
+function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, selfLive, cap, uniteLocal, team, frameArt, list, bubble, spMark = null, plan = null, badges = null }) {
   const self = p.playerId === myId;
   const status = p.pendingDeath ? 'rescue' : p.alive === false ? 'dead' : p.status;
   const meta = p.pendingDeath ? { ...STATUS_META.deciding, text: t('等待救援') } : STATUS_META[status] || STATUS_META.acting;
@@ -239,13 +243,22 @@ function TeamRow({ p, pub, myId, watching, onWatch, observe, halves, clicks, sel
   const { click, dblClick } = clicks;
   const owner = useIsOwner(p); // 服主 (ui/ownerName.js): the gold wash of the row
   const planned = planIds(p).length > 0; // 预选盟约 (主 / 副)
+  // 完美连胜 / 领袖伤害 (upstream §37.148, ui/avatarBadges.js); none on a fallen seat (a pending revival included)
+  const streakLevel = p.alive === false ? 0 : Math.trunc(Number(p.winStreakLevel) || 0);
+  const damageLevel = p.alive === false ? 0 : Math.trunc(Number(p.bossDamageLevel) || 0);
+  const tip = [[title, inTeam && !self ? t('与你在同一战场') : null, band].filter(Boolean).join(' · '), ...avatarBadgeTips(p)].join('\n');
+  // the list's 36 px avatar takes the badges' CSS stand-ins (css/screens/team.css): the prefab art is laid out for the
+  // classic .8rem avatar
+  const badgePack = list ? null : badges?.pack || null;
   return html`<div data-seat=${p.seat} class=${cx('team__row', owner && 'is-sp-owner', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && !p.pendingDeath && 'is-dead', p.pendingDeath && 'is-pending', open && 'is-open', offline && 'is-offline')}>
-    <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${[title, inTeam && !self ? t('与你在同一战场') : null, band].filter(Boolean).join(' · ')} aria-label=${title} aria-expanded=${observe && !self && !half ? String(open) : undefined}>
+    <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${tip} aria-label=${title} aria-expanded=${observe && !self && !half ? String(open) : undefined}>
       <${PlayerAvatar} player=${p} self=${self} />
+      ${damageLevel > 0 ? html`<${BossDamageBadge} pack=${badgePack} level=${damageLevel} still=${!!badges?.still} />` : null}
       ${inTeam ? html`<span class=${cx('team__frame', !frameArt && 'team__frame--plain')} style=${frameArt ? `--frame:url("${frameArt}")` : undefined} aria-hidden="true"></span>` : null}
       <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>
       ${p.isBot ? html`<span class="team__ai">AI</span>` : null}
-      ${self ? html`<span class="team__you"><${Icon} name="user" /></span>` : null}
+      ${self ? html`<span class=${cx('team__you', streakLevel > 0 && 'is-low')}><${Icon} name="user" /></span>` : null}
+      ${streakLevel > 0 ? html`<${WinStreakBadge} pack=${badgePack} level=${streakLevel} streak=${p.winStreak} still=${!!badges?.still} />` : null}
       ${spMark === 'done' ? html`<span class="team__spmark is-done" title=${t('已完成选择')}><${Icon} name="check" /></span>`
         : spMark === 'turn' ? html`<span class="team__spmark is-turn" title=${t('正在决策…')}><i></i><i></i><i></i></span>` : null}
     </button>
@@ -292,8 +305,10 @@ function PoolHead({ pool }) {
  *   spMarks: the shared 机变 draft's pick order on the portraits (ui/choiceOverlay.js spMarks: ✓ picked, ••• deciding)
  *   uniteLocal: the local 联防 replica's per-leaker counts while it is on screen (battle runner state().uniteLeft), else null
  *   plan: { onOpen } while the viewer may change its 预选盟约 (its own row's glyphs open the picker), else null
+ *   badges: { pack, still? } — how the 完美连胜 / 领袖伤害 badges are drawn (ui/avatarBadges.js: the theme's avatar
+ *   prefabs, else ac_n_initial's); null draws the CSS stand-ins
  */
-export function TeamPanel({ pub, myId, watching, onWatch, roster, emoteTtl = 3000, observe = null, halves = null, self: selfLive = null, cap = 10, uniteLocal = null, spMarks = null, plan = null }) {
+export function TeamPanel({ pub, myId, watching, onWatch, roster, emoteTtl = 3000, observe = null, halves = null, self: selfLive = null, cap = 10, uniteLocal = null, spMarks = null, plan = null, badges = null }) {
   const players = sortedPlayers(pub);
   const { density, open: rosterOpen, setOpen: setRosterOpen, phone } = roster;
   const list = density === 'list';
@@ -335,7 +350,7 @@ export function TeamPanel({ pub, myId, watching, onWatch, roster, emoteTtl = 300
   const frameArt = team.size ? localAsset('ui/battle', 'bg_team_border') : null;
   const columns = measured ? layout.columns : 1;
   const style = list ? `--team-columns:${columns};--team-rows:${Math.ceil(players.length / columns)}` : undefined;
-  const row = (p) => html`<${TeamRow} key=${p.playerId} p=${p} pub=${pub} myId=${myId} watching=${watching} onWatch=${onWatch} observe=${observe} halves=${halves} clicks=${clicks} spMark=${spMarks?.get(p.playerId) || null} plan=${plan}
+  const row = (p) => html`<${TeamRow} key=${p.playerId} p=${p} pub=${pub} myId=${myId} watching=${watching} onWatch=${onWatch} observe=${observe} halves=${halves} clicks=${clicks} spMark=${spMarks?.get(p.playerId) || null} plan=${plan} badges=${badges}
     selfLive=${selfLive} cap=${cap} uniteLocal=${uniteLocal} team=${team} frameArt=${frameArt} list=${list} bubble=${bubbles?.get(p.playerId) || null} />`;
   return html`<aside ref=${panelRef} class=${cx('team', `team--${density}`, list && columns > 1 && 'team--wide', pools && 'team--pools', !rosterOpen && 'is-folded', rosterOpen && 'is-open')} style=${style} aria-label=${t('同盟成员')}>
     <div ref=${headerRef} class="team__header">

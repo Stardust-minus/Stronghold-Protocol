@@ -20,6 +20,7 @@ export class MatchIntents {
         if ((msg.setupRevision ?? 0) !== this.setupRevision) return fail(ERR.BAD_TARGET, 'setup changed; confirm the current revision');
         if (!ps.infoReady) { ps.infoReady = true; this.markPublic(); this.maybeEndInfo(); }
         return OK;
+      case 'g.bondGroup': return this.pickBondGroup(ps, msg.idx, msg.setupRevision);
       case 'g.rerollVote': return this.voteSetupReroll(ps, msg.voteId, msg.agree);
       // 自选候补 (feedback #114): the briefing's choice of one tier (phases.js chooseDiy)
       case 'g.diyChoose': return this.chooseDiy(ps, msg.tier, msg.charIds);
@@ -29,6 +30,7 @@ export class MatchIntents {
       // 战斗 2 倍速: the seat's standing vote (speedVote.js)
       case 'g.speedVote': return this.setSpeedVote(ps, msg.agree === true);
       case 'g.band': return this.pickBand(ps, msg.bandId);
+      case 'g.diyBring': return this.confirmDiyBring(ps, msg.slots);
       case 'g.bandSkip': return this.skipBand(ps);
       // a free draft (MatchPhases.freeDraft): a tentative choice, its cancel and its 锁定
       case 'g.bandHold': return this.holdBand(ps, msg.bandId);
@@ -39,6 +41,8 @@ export class MatchIntents {
       // the bonds the player means to build (display only): 主盟约 and 副盟约, the whole match
       case 'g.bondPlan': return this.planBond(ps, msg.bondId ?? null, msg.subIds);
       case 'g.buy': return ps.buy(msg.slot);
+      case 'g.command': return ps.useCommand(msg.effectId, msg.target);
+      case 'g.commandChoice': return ps.pickCommand(msg.choiceId, msg.idx);
       case 'g.refresh': return ps.refresh();
       case 'g.freeze': return ps.freeze();
       case 'g.levelUp': return ps.levelUp();
@@ -150,11 +154,13 @@ export class MatchIntents {
   kickBot(ps) {
     if (!ps.botControlled || this.ended) return;
     this.offersChanged();
-    if (this.phase === PHASE.INFO_CHECK && !ps.infoReady) { ps.infoReady = true; this.markPublic(); this.maybeEndInfo(); }
+    if (this.phase === PHASE.INFO_CHECK) { this.pickBotBondGroup(ps); ps.infoReady = true; this.markPublic(); this.maybeEndInfo(); }
     // a concurrent draft (concurrentDraft) looks at every seat still deciding again
     else if (this.phase === PHASE.BAND_DRAFT && this.draft?.concurrent) this._concurrentBandStep();
     else if (this.phase === PHASE.BAND_DRAFT && this.draftTurn() === ps.playerId) this.scheduleBandBot();
     else if (this.phase === PHASE.SP_DRAFT && this.sp?.concurrent) this._concurrentSpStep();
+    // 选择自编: a seat that turns AI-controlled (托管, AI handover) confirms its bring at once, as at the step's start
+    else if (this.phase === PHASE.CUSTOM_CHECK && ps.diyBring == null) { this._applyDiyBring(ps, this._diyChoice(ps)); this.markPublic(); this.maybeEndCustom(); }
     else if (this.phase === PHASE.SP_DRAFT && this.spTurn() === ps.playerId) this.scheduleSpBot();
     else if (this.phase === PHASE.PREP && ps.alive && !ps.ready) this.scheduleBotPrep(ps, 0);
   }

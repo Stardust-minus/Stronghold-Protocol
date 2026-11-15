@@ -19,6 +19,8 @@
 // A tap on the ground itself emits tileClick { row, col } like render/app.js does, so a special terrain tile
 // explains itself on this board too (GitHub issue #184).
 
+import { resourceFloat } from '../render/resourceNumbers.js';
+import { pieceItemProgress, progressLabel } from '../itemProgress.js';
 import { render } from '../../vendor/preact.module.js';
 import { html, TierChip } from './components.js';
 import { GEO } from '../../../shared/constants.js';
@@ -56,6 +58,7 @@ export function fallbackTileClass(stage, row, col) {
   if (t.height === 'HIGH') return t.buildable === 'NONE' ? 'void' : 'high';
   if (t.special === 'mire' || glyph === 'm') return 'mire';
   if (glyph === 'g') return 'smog';
+  if (t.tileKey === 'tile_duel_grassland') return 'duel-grass';
   if (glyph === 'd') return 'deep';
   if (glyph === 'i') return 'infect';
   if (t.buildable === 'NONE') return 'lane';
@@ -72,6 +75,7 @@ export function fallbackTileClass(stage, row, col) {
  */
 export function fallbackFloat(e, settings) {
   if (!settings?.damageNumbers || !Array.isArray(e)) return null;
+  if (e[0] === 'resource') return resourceFloat(e, settings);
   if (settings.officialDamageNumbers === true) {
     if (e[0] === 'fx' && e[1] === 'dodge' && e[4] && e[4].num === 'm') return { id: e[4].id, text: 'MISS', type: 'miss' };
     if (e[0] !== 'dmg' || e[4] !== 'r') return null;
@@ -93,6 +97,7 @@ export function fallbackFloat(e, settings) {
  */
 export function createFallbackView(host, opts = {}) {
   const dataStore = opts.data;
+  const equipHand = () => dataStore?.get?.('config')?.version?.rules?.equipHand === true;
   const m = () => opts.assets || dataStore?.get?.('assets') || null;
   const lookup = (file, id) => dataStore?.lookup?.(file, id) ?? null;
   const listeners = new Map();
@@ -128,7 +133,7 @@ export function createFallbackView(host, opts = {}) {
     const r = st.rect;
     const cols = r.c1 - r.c0 + 1;
     const prep = st.mode === 'prep';
-    const hasTemp = prep && Array.isArray(st.priv?.temp) && st.priv.temp.some(Boolean);
+    const hasTemp = prep && (equipHand() || (Array.isArray(st.priv?.temp) && st.priv.temp.some(Boolean)));
     const rows = r.r1 - r.r0 + 1 + (prep ? 2.6 + (hasTemp ? 1.2 : 0) : 0); // + gap + hand (+ temp) rows
     // keep clear of the HUD: top bar + bond strip above, shop bar (prep) / switcher (combat) below
     const top0 = rem * 2.0;
@@ -151,7 +156,12 @@ export function createFallbackView(host, opts = {}) {
   function pieceArt(p) {
     const mm = m();
     if (p.kind === 'item') return itemIconUrl(mm, lookup('items', p.id));
-    if (p.kind === 'token') return tokenAvatarUrl(mm, p.id);
+    // 召唤物皮肤 (docs/SKINS.md): the summon wears its owner's outfit; 设置「显示其他玩家的皮肤」 off hides another
+    // seat's outfit
+    if (p.kind === 'token') {
+      const own = (st.priv?.playerId ?? st.myId) === st.myId || st.settings?.otherSkins !== false;
+      return tokenAvatarUrl(mm, p.id, { skin: own ? p.skin : null });
+    }
     const chess = lookup('chess', p.id);
     return chessAvatarUrl(mm, ownAppearance(ownSi(chess) || ownDiy(chess) || chess, st.priv));
   }
@@ -185,10 +195,16 @@ export function createFallbackView(host, opts = {}) {
       <div class="ff-piece__art"><${Img} src=${src} fallbackSrc=${p.kind === 'chess' ? chessAvatarUrl(m(), ownSi(lookup('chess', p.id)) || ownDiy(lookup('chess', p.id)) || lookup('chess', p.id)) : null}
         fallback=${html`<span>${[...pieceName(p)][0]}</span>`} /></div>
       ${tier && p.kind !== 'token' ? html`<${TierChip} tier=${tier} golden=${golden} size="sm" class="ff-piece__tier" />` : null}
-      ${p.kind === 'chess' && Array.isArray(p.items) && p.items.length ? html`<div class="ff-piece__items">${p.items.slice(0, 2).map((it) => html`<i key=${it.uid}></i>`)}</div>` : null}
+      ${p.kind === 'chess' && Array.isArray(p.items) && p.items.length ? html`<div class="ff-piece__items">${p.items.map((it) => html`<i key=${it.uid}></i>`)}</div>` : null}
       ${p.kind === 'token' && p.count > 1 ? html`<b class="ff-piece__count">×${p.count}</b>` : null}
+      <${EquipmentProgress} rows=${pieceItemProgress(p)} />
       ${wedge ? html`<i class="ff-piece__dir" aria-hidden="true"></i>` : null}
     </div>`;
+  }
+
+  function EquipmentProgress({ rows }) {
+    const labels = (rows || []).map(progressLabel).filter(Boolean);
+    return labels.length ? html`<span class="ff-progress">${labels.map((label, i) => html`<span key=${i}>${label}</span>`)}</span>` : null;
   }
 
   function onDown(e, p) {
@@ -208,6 +224,7 @@ export function createFallbackView(host, opts = {}) {
       if (!t) continue;
       if (t.dataset.drop === 'board') return { area: 'board', row: Number(t.dataset.row), col: Number(t.dataset.col) };
       if (t.dataset.drop === 'hand') return { area: 'hand', idx: Number(t.dataset.idx) };
+      if (equipHand() && t.dataset.drop === 'temp') return { area: 'temp', idx: Number(t.dataset.idx) };
     }
     return { area: 'outside', clientX, clientY };
   }
@@ -288,6 +305,7 @@ export function createFallbackView(host, opts = {}) {
         onContextMenu=${(e) => { e.preventDefault(); emit('pieceClick', { unitId: id, uid: info.uid ?? null, unit: info, button: 2, clientX: e.clientX, clientY: e.clientY }); }}>
       <div class="ff-unit__art"><${Img} src=${src} fallbackSrc=${unitArt(m(), { ...info, skinId: null })} fallback=${html`<span>${[...(info.name || '?')][0]}</span>`} /></div>
       <div class="ff-unit__bars"><i class="hp" style=${`width:${hpPct}%`}></i>${!enemy && spMax > 0 ? html`<i class="sp" style=${`width:${spPct}%`}></i>` : null}</div>
+      ${!dead ? html`<${EquipmentProgress} rows=${info.itemProgress} />` : null}
     </div>`;
   }
 
@@ -346,12 +364,16 @@ export function createFallbackView(host, opts = {}) {
         const p = tilePos(L, row, col);
         const k = tileKey(row, col);
         let hl = st.highlight.get(k);
-        for (const g of st.hlGroups.values()) if (g.tiles.has(k)) hl = g.name;
+        let rangeColor = '';
+        for (const g of st.hlGroups.values()) if (g.tiles.has(k)) {
+          hl = g.name;
+          rangeColor = Number.isInteger(g.color) ? `--ff-range-color:rgba(${(g.color >> 16) & 255},${(g.color >> 8) & 255},${g.color & 255},.7);` : '';
+        }
         const hov = st.hoverTarget?.area === 'board' && st.hoverTarget.row === row && st.hoverTarget.col === col ? dropState(st.hoverTarget) : null;
         tiles.push(html`<div key=${k} class=${cx('ff-tile', `ff-tile--${tileClass(row, col)}`, hl && `is-${hl}`, hov && `is-hover-${hov}`)}
           data-drop="board" data-row=${row} data-col=${col}
           onPointerDown=${(e) => { if (e.button === 0) emit('tileClick', { row, col, button: 0, clientX: e.clientX, clientY: e.clientY }); }}
-          style=${`transform:translate(${p.x}px,${p.y}px);width:${L.tile}px;height:${L.tile}px`}></div>`);
+          style=${`${rangeColor}transform:translate(${p.x}px,${p.y}px);width:${L.tile}px;height:${L.tile}px`}></div>`);
       }
     }
     const pieces = [];
@@ -362,7 +384,7 @@ export function createFallbackView(host, opts = {}) {
       for (const u of Array.isArray(st.priv.prepMapChars) ? st.priv.prepMapChars : []) {
         if (!u || !Number.isInteger(u.x) || !Number.isInteger(u.y) || typeof u.defId !== 'string') continue;
         const pos = tilePos(L, u.y, u.x);
-        const src = tokenAvatarUrl(m(), u.defId);
+        const src = (u.kind === 'enemy' || String(u.defId).startsWith('enemy_')) ? enemyIconUrl(m(), u.defId) : tokenAvatarUrl(m(), u.defId);
         pieces.push(html`<div key=${`map:${u.uid}`} class="ff-piece ff-piece--token ff-piece--map-char"
             style=${`transform:translate(${pos.x}px,${pos.y}px);width:${L.tile}px;height:${L.tile}px`}
             onPointerDown=${(e) => { if (e.button === 0) emit('pieceClick', { unit: u, unitId: null, uid: u.uid, prepMapChar: true, button: 0, clientX: e.clientX, clientY: e.clientY }); }}
@@ -385,10 +407,10 @@ export function createFallbackView(host, opts = {}) {
         if (p) { const hp = heldPos(p) || pos; pieces.push(html`<${Piece} key=${p.uid} p=${p} x=${hp.x} y=${hp.y} L=${L} area="hand" />`); }
       }
       const temp = Array.isArray(st.priv.temp) ? st.priv.temp : [];
-      if (temp.some(Boolean)) {
+      if (equipHand() || temp.some(Boolean)) {
         for (let i = 0; i < GEO.TEMP_SIZE; i++) {
           const pos = tempPos(L, i);
-          hand.push(html`<div key=${`t${i}`} class="ff-slot ff-slot--temp" style=${`transform:translate(${pos.x}px,${pos.y}px);width:${L.tile}px;height:${L.tile}px`}></div>`);
+          hand.push(html`<div key=${`t${i}`} class="ff-slot ff-slot--temp" data-drop=${equipHand() ? 'temp' : undefined} data-idx=${i} style=${`transform:translate(${pos.x}px,${pos.y}px);width:${L.tile}px;height:${L.tile}px`}></div>`);
           const p = temp[i];
           if (p) { const hp = heldPos(p) || pos; pieces.push(html`<${Piece} key=${p.uid} p=${p} x=${hp.x} y=${hp.y} L=${L} area="temp" />`); }
         }
@@ -504,7 +526,7 @@ export function createFallbackView(host, opts = {}) {
           const col = Array.isArray(t) ? t[1] : t?.col;
           if (Number.isInteger(row) && Number.isInteger(col)) set.add(tileKey(row, col));
         }
-        if (set.size) st.hlGroups.set(style.group, { name: 'range', tiles: set }); else st.hlGroups.delete(style.group);
+        if (set.size) st.hlGroups.set(style.group, { name: 'range', tiles: set, color: style.color }); else st.hlGroups.delete(style.group);
         schedule();
         return;
       }

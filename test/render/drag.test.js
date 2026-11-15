@@ -335,7 +335,8 @@ describe('drag controller', () => {
 describe('the drag moves the renderer follows (pieceDragMove)', () => {
   test('every move carries the pointer type and the pointer\'s tile; the drop lands on the last one (mouse, touch, pen)', () => {
     for (const pointerType of ['mouse', 'touch', 'pen']) {
-      const h = harness({ domCover: true, canPlace: (p, r, c) => !(r === 11 && c === 4) });
+      // a version without the equipment row: canPlace refuses a temp slot (ui/gameLogic/placement.js canPlace, ctx.equipHand)
+      const h = harness({ domCover: true, canPlace: (p, r, c, slot) => slot?.area !== 'temp' && !(r === 11 && c === 4) });
       h.c.setEditable(true);
       const at = (x, y) => {
         h.ev('pointerMove', x, y, { pointerType });
@@ -355,6 +356,18 @@ describe('the drag moves the renderer follows (pieceDragMove)', () => {
       h.ev('pointerUp', 350, 250, { pointerType });
       assert.deepEqual(h.events.find((e) => e[0] === 'pieceDrop')[1].target, { area: 'board', row: 10, col: 3 }, `${pointerType}: dropped on the pointer's tile`);
     }
+  });
+
+  test('a temp slot is a target where canPlace takes it (规程\'s 5-slot equipment row, upstream 007fbd8c)', () => {
+    const h = harness({ canPlace: (p, r, c, slot) => slot?.area === 'temp' });
+    h.c.setEditable(true);
+    h.ev('pointerDown', 50, 550);
+    h.ev('pointerMove', 50, 530);
+    h.ev('pointerMove', 550, 450);
+    const m = h.events.filter((e) => e[0] === 'pieceDragMove').pop()[1];
+    assert.deepEqual({ target: m.target, legal: m.legal }, { target: { area: 'temp', idx: 1 }, legal: true });
+    h.ev('pointerUp', 550, 450);
+    assert.deepEqual(h.events.find((e) => e[0] === 'pieceDrop')[1].target, { area: 'temp', idx: 1 });
   });
 });
 

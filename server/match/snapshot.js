@@ -35,7 +35,7 @@ import { SharedPool, createItemPools } from './pool.js';
  * Checkpoint layout version. A document of another version is refused (the match is dropped, server/persist/).
  * Raise it whenever a saved field is added, removed or changes its meaning, or the restore rules below change.
  */
-export const SNAPSHOT_VERSION = 1;
+export const SNAPSHOT_VERSION = 2;
 
 /** Phases whose state is fully serializable (see the header). */
 export const SNAPSHOT_PHASES = Object.freeze([PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.SP_DRAFT, PHASE.ROUND_START, PHASE.PREP]);
@@ -72,6 +72,8 @@ export const MATCH_FIELDS = Object.freeze({
     '_botEmotesSettledRound',
     // plugin interaction windows (0.3.1, match/offers.js): the id counter only — no checkpoint is taken while one is open
     'offerSeq',
+    // 0.4.0 (v2): 规程's two core-bond groups of a solo setup and the one picked in INFO_CHECK (setup / pickBondGroup)
+    'bondChoice',
   ]),
   special: Object.freeze([
     'phase', 'round', 'deadline', 'startedAt', '_battleSeq', 'damageBoard', 'poolGroups', 'playerItemPools',
@@ -95,6 +97,8 @@ export const MATCH_FIELDS = Object.freeze({
     'offlineHoldMs',
     // shadow verification (match/shadowVerify.js): the process's hub, from the options
     'verifyHub',
+    // 0.4.0: the per-seat bot strategies (opts / SP_BOT_STRATEGY_SEATS); a modded room's content list and rules (opts)
+    'seatBots', 'diyKitted', 'rules',
   ]),
   transient: Object.freeze([
     '_rehearsalTasks', 'paused', '_pausedAt',
@@ -116,6 +120,9 @@ export const MATCH_FIELDS = Object.freeze({
     'rehearsalPoolStats',
     // shadow verification (match/shadowVerify.js, verify/hub.js): recorded only, never checkpointed
     'shadowFlags', '_shadowRecent',
+    // 0.4.0 bot caches (bot.js: layout engines, positional traits, the boss field's grid), the 选择自编 advance timer (no
+    // checkpoint is taken in CUSTOM_CHECK), the unit-stats preview cache (match/intents.js)
+    '_botEngines', '_botPosTraits', '_botBossGrid', '_diyAdvanceTimer', '_unitStatsCache',
   ]),
 });
 
@@ -132,6 +139,12 @@ export const PLAYER_FIELDS = Object.freeze({
     'diyChoice',
     // 预选盟约's 副盟约 (rel34, g.bondPlan subIds): a server without it ignores the key; a checkpoint without it keeps []
     'bondPlanSub',
+    // 0.4.0 (v2): the strategy's 指挥 state, its marks, queued choices and discounts (bandCommands.js); 选择自编's confirmed
+    // slots (restored before the 自选 stock is rebuilt from them); a bot's Final Assault item hunt of this round and its
+    // 杰西卡 pager seat decision, made once (bot.js §37.67 / §37.69)
+    'command', 'commandMarks', 'commandDrafts', 'commandDiscounts', 'diyBring', '_botFaHunt', '_botPager', '_botPagerHunt',
+    // an eliminated human's 个人战报 (feedback #111, m.private `out`): built as it went out, kept for its page
+    'outResult',
   ]),
   special: Object.freeze(['ready', 'connected', 'loadout', 'ops', 'skins', 'diyStock']),
   derived: Object.freeze([
@@ -146,6 +159,11 @@ export const PLAYER_FIELDS = Object.freeze({
     '_planAt',
     // what the page said about itself for shadow verification (g.sim client): a reconnecting page says it again
     'simClient',
+    // 0.4.0: a bot seat's plan of this prep (bot.js selfPlan, set as each prep starts) and its rehearsal's leader damage
+    // per operator (§37.67, read by the same prep's item hunt)
+    '_botSelf', '_botFaLead',
+    // the last 侦查 view sent of this prep board (match/watch.js _notifyPrepScouts: a dedupe signature)
+    '_prepScoutSig',
   ]),
 });
 
@@ -302,6 +320,8 @@ export function matchSeats(m) {
   return m.order.map((ps) => ({
     seat: ps.seat, playerId: ps.playerId, name: ps.name, isBot: ps.isBot, connected: false,
     ...(ps.isBot ? {} : { notOwned: [...ps.standIns], diy: { ...ps.diy, ...ps.diyBenchSeat() } }),
+    // 规程: the roster a bot was given at 选择自编 (player/diy.js synthesizeBotRoster) — a fresh match's bot has none
+    ...(ps.isBot && Object.keys(ps.diyPreset || {}).length ? { diy: { ...ps.diyPreset } } : {}),
     ...(ps.isBot && m.botBands.has(ps.playerId) ? { band: m.botBands.get(ps.playerId) } : {}),
   }));
 }
@@ -462,8 +482,11 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
     // 自选候补 (feedback #114): the slots the checkpoint's seat names (matchSeats). A platform that builds the fresh match
     // from its own seats — the cluster's assignment, the preset as the match started — would field the preset's first
     // slots, not the ones the player chose in the briefing; the same picks again change nothing.
-    const seat = !ps.isBot && Array.isArray(doc.seats) ? doc.seats.find((s) => s && s.playerId === p.playerId) : null;
-    if (seat && seat.diy && typeof seat.diy === 'object') ps.setDiy(seat.diy, ps.diyMatchOpts());
+    const seat = Array.isArray(doc.seats) ? doc.seats.find((s) => s && s.playerId === p.playerId) : null;
+    // a 规程 bot's synthesized 选择自编 roster (matchSeats) the same way: setDiy's bot synthesis switch
+    if (seat && seat.diy && typeof seat.diy === 'object') ps.setDiy(seat.diy, { ...ps.diyMatchOpts(), allowBot: ps.isBot });
+    // 选择自编 (v2): the confirmed slots (already restored with the saved fields) decide which 自选 slots get stock below
+    if (Array.isArray(ps.diyBring)) ps.diyBring = Object.freeze([...ps.diyBring]);
     if (!piecesKnown(ps)) { log?.warn?.(`[snapshot] ${m.roomCode}: checkpoint refused (pieces of ${ps.playerId})`); return false; }
     const { stock, banned } = ps.buildDiyStock(off);
     for (const [id, left] of Object.entries(p.diyStock || {})) {

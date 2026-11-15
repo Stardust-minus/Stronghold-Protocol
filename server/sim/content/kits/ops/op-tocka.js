@@ -1,360 +1,433 @@
-// server/sim/content/kits/ops/op-tocka.js — 冻河 (char_4244_tocka) 自选 operator kit: 6★ 游击手 (辅助), an owned-6★ pick of the
-// tier-5 and tier-6 自选 slots; every skill and both talents at every form. She has no module. Kit contract and the 自选
-// rules: ../README.md ("How to add an operator (自选)").
+// server/sim/content/kits/ops/op-tocka.js — 冻河 (char_4244_tocka) 自选 operator kit: 6★ 游击手 (辅助, supportiveranger), an
+// owned-6★ pick of the tier-5 and tier-6 自选 slots; every skill, both talents and the trait at every form.
+// Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
-// Sources: character_table / skill_table of ArknightsGameData 08ba2aea (client 2.7.91, 2026-11-01), as built into
-// backups.json; the client's battle logic of that commit — buff_template_data (tocka_s1[trigger] / [shield],
-// tocka_s2[trigger] / [auto_skill], tocka_s3[trigger] / [trigger_listener] / [bonus] / [skill_add_sp],
-// tocka_t1[sp_and_heal], tocka_t2[aoe_mark_listener], tocka_mx_a[t2_dot]) and the prefabs (charpack char_4244_tocka,
-// [uc]skills.ab skchr_tocka_1..3, [uc]projectiles.ab projectile_chr_tocka*); PRTS 冻河 (2026-11-02) 备注. The official mode
-// never fielded her: what neither source settles is marked [ASSUMED].
+// Forms (data/backups.json units.char_4244_tocka): normal = E2 Lv1, skills at rank 4; elite = E2 Lv60, rank 7 (tiers 5 and
+// 6 alike: no module was released with her). Talents at the player's potential (`chess.talents`: 夜的哑然 80 % below 潜能 3,
+// 雪的印痕 6 s below 潜能 5). Sources: character_table / skill_table of CN 2.7.91 as built into backups.json; gamedata_const
+// ba.triggereffect "施加于敌方/友方单位的一次性减益/增益效果，该效果仅在满足特定条件时触发"; PRTS 冻河
+// (https://prts.wiki/w/冻河 oldid 447330), the skill 备注 quoted below.
 //
-// 触发型效果 ("trigger effects"): a buff she puts on one of our operators; it fires once on its condition, then it is gone.
-// Each firing runs 夜的哑然 (talent 1); each application arms 雪的印痕 (talent 2).
-// - S1 一无所有之人 (AUTO, instant): up to max_target operators of her attack range that hold no S1 effect — herself
-//   included —, lowest HP ratio first, then the latest deployed (PRTS 备注; the selector has no excludeOwner). With no
-//   such operator the cast waits, its SP kept (the skill's _minTargetNum 1 / _recoverSpIfNoTarget: the kit casts it, the
-//   data's trigger is NEVER here). The effect stays until it fires (lifeTimeType INFINITY): on the first damage its
-//   holder takes that is neither 元素 nor continuous (a DoT; ON_BEFORE_APPLYING_MODIFIER, FilterDamageModifer ELEMENT /
-//   IS_CONTINUOUS, not cancelled) the holder gets a 屏障 of shield_atk_scale × her ATK at that moment (PRTS 备注 "根据
-//   触发时…计算") that absorbs every type but 元素 (BlockDamage ANY_ATTACK_EXCEPT_ELEMENT) and loses initial / shield_time
-//   every second (the buff's 1 s trigger, PRTS 备注) — an earlier one of hers is cleared first and the new amount is the
-//   larger of the two (PRTS 备注) —, and that damage's source, alive and not of our side, is 晕眩 stun s. The 屏障 is
-//   made before the damage lands, so it takes that damage too [the client's order: the modifier stage precedes
-//   ON_TAKE_DAMAGE]; fully absorbed, the hit counts as blocked (PRTS 屏障).
-// - S2 意欲呼啸之心 (AUTO, instant): one operator of the whole field with a skill that is not passive and holds no S2
-//   effect nor its attack-speed window — whose skill is not running first, then the latest deployed, not herself (PRTS
-//   备注); herself only when nobody else qualifies (the skill's second selector). The effect flies to it
-//   (projectile_chr_tocka_s2, speed 10) and is put on at the landing. It fires when the holder starts a skill, or at its
-//   0.2 s check once the holder's skill is ready, its holder able to act and not silenced (PRTS 备注; "不考虑是否真的可开启");
-//   then attack_speed for buff_duration s (EXTEND) and, while that lasts, every 0.2 s a MANUAL skill of the holder that
-//   is ready opens (tocka_s2[auto_skill] TriggerSkill: "每6帧尝试触发…不会改变其手动触发性质") — [ASSUMED] not held back by
-//   the mode's 3 s automatic-operation cooldown: it is the skill's own effect, not the mode's operation. Every 冻河's
-//   window is its own buff (PRTS "不同冻河间的攻击速度加成互相独立").
-// - S3 踽踽独行之春 (MANUAL, data DEFAULT): duration, attack_speed; her attacks strike attack@max_target enemies (air too) for
-//   attack@atk_scale physical and 晕眩 attack@stun s (the S3 mode's attack, projectile_chr_tocka_s3). At its start, with no
-//   S3 effect of hers on the field, one goes on another operator of her attack range (SelectCharacter: our operators,
-//   not herself, without her S3 effect — first those with a non-passive skill that is not running, then those with a
-//   non-passive skill, then anyone; the highest SP ratio first); with one, it fires instead. It fires when its holder
-//   starts a skill: the holder and 冻河 get bonus_init_atk ATK (MULTIPLIER, i.e. 攻击力+%) that falls by
-//   bonus_atk_dec_per_sec every second over bonus_duration s (PRTS 备注), and the effect moves to the operator of her
-//   range with the highest SP ratio by the same order (none: it is gone). Whoever holds it gets bonus_sp SP every second
-//   while her skill runs. Her S3 effects belong to her (derived from her S3 passive): they end when she leaves.
-// - 夜的哑然: each firing of one of her effects gives her sp SP and heals one operator of her attack range but herself —
-//   [ASSUMED] the lowest HP ratio (SelectHealTarget's postFilter 3, the heal selectors' order) — for heal_scale × her ATK.
-//   Not while she is off the field (her talent buff goes with her). SP goes through giveSp: [ASSUMED] none during her
-//   running S3, the engine's rule for SP during a timed skill.
-// - 雪的印痕: an application of any of her effects arms her next normal attack (tocka_t2[aoe_mark], spent as that attack
-//   is made): it is the client's T2Attack — the same 1.0 × ATK physical hit, landing on every enemy within
-//   attack@projectile_range of the target (projectile_chr_tocka_t2) — and each enemy it lands on is 虚弱 |attack@t2_atk|
-//   (attr_down[atk], 最终乘算, PRTS) and takes attack@t2_magic_atk_scale × her ATK arts every second (a DoT, the first
-//   1 s later), both attack@t2_buff_duration s; hers refresh on a target and the DoT keeps the larger value (AssignMode
-//   MAX). Her S3 attacks are the S3 mode's: an armed attack waits for the first normal one after it.
+// - Trait (游击手) "可以使用触发型效果协助作战": no number of its own — the trigger effects below are the branch. Ranged,
+//   physical arrows that reach air units (the data's attackKind / dmgType / canHitFly); range 3-18 under every skill.
+// - Trigger effects (触发型效果), shared by the three skills: a one-time effect she places on an ally operator, held there as
+//   a buff `tocka:<s1|s2|s3>:<her id>` until its condition is met; then it fires once and is gone (`fire`). One per kind
+//   and 冻河 on a holder, so two 冻河 each place their own [ASSUMED for S1 / S3; S2 per PRTS "不同冻河间…互相独立"].
+//   [ASSUMED] An effect leaves the field with its holder (a holder's buffs go with it; nothing transfers), and stays on
+//   its holder when 冻河 leaves (an applied buff outlives its source; no PRTS note says otherwise) — while she is away its
+//   firing gives no talent part and S3's effect finds no one to move to.
+// - T1 夜的哑然 "自身的触发型效果触发时回复2点技力，并为攻击范围内一名友方干员治疗攻击力100%的生命" (t0 sp / heal_scale): each
+//   firing gives her `sp` SP (none while S3 runs: no SP during a timed skill) and heals heal_scale × her ATK on the injured
+//   ally operator of her range with the lowest HP ratio, then the latest created [ASSUMED: S1's order; none injured ⇒ no
+//   heal]; only while she is on the field [ASSUMED].
+// - T2 雪的印痕 "施加触发型效果后的下次普通攻击造成范围伤害，并使目标获得20%的虚弱效果，持续8秒，期间每秒受到攻击力80%的法术伤害"
+//   (t1 attack@projectile_range / attack@t2_atk / attack@t2_buff_duration / attack@t2_magic_atk_scale): placing an effect
+//   (施加 — a 转移 is not one [ASSUMED: S3's text names the two apart]) arms her next attack (`tocka:snow`, a buff: lost
+//   when she leaves the field [ASSUMED]). Every arrow of that attack bursts on its target: the enemies within
+//   attack@projectile_range of it (a 中点判定 like the profession splash [ASSUMED]) take the arrow's damage (its attack
+//   scale, physical splash; an S3 attack's stun too [ASSUMED: an attack's on-hit stun reaches its whole area]), and everyone
+//   it hits gets 虚弱 −attack@t2_atk (the catalogue status: 同名效果取最高) for attack@t2_buff_duration s and
+//   t2_magic_atk_scale × her current ATK as arts damage every second meanwhile (BUFF damage, not dodgeable; first tick at
+//   1 s, ticking on after she leaves, one per 冻河 [ASSUMED]); an arrow that fizzles spends it [ASSUMED]. The attack is
+//   chosen at launch: every target of each of her attacks queues a shot record (`mem.tockaShots`, one FIFO per enemy as
+//   黑键's stored energies, op-ebnhlz.js), shifted when that arrow lands (profile onEachHit).
+// - S1 一无所有之人 (AUTO, bb shield_atk_scale / shield_time / stun / max_target): "对范围内2名干员施加触发型效果（只选择未持有该
+//   效果的目标）" — PRTS "优先选择生命比例最低＞创建时间最晚的单位": the max_target ally operators of her range not holding
+//   her S1 effect, herself included [ASSUMED: unlike S2 "非自身" and S3 "另一名", no exclusion is written]. Effect:
+//   "受到攻击时，获得相当于冻河160%攻击力的屏障（在10秒内衰减），并使攻击者晕眩3秒" — [ASSUMED] 受到攻击时 = every damage
+//   instance its holder takes, as the engine's ON_TAKE_DAMAGE observers (an injury observer: SIM §5 / DESIGN §35.32 — a
+//   dodged or barrier-absorbed hit too), whatever its source (PRTS: the stun needs a living enemy source, so sourceless /
+//   ally hits trigger it), "触发型效果不会响应元素伤害" (no 元素伤害; a 流失 or an element fill never reaches the injury step).
+//   The barrier = her ATK when it fires × shield_atk_scale ("根据触发时（而非施加时）冻河的攻击力计算"), losing initial /
+//   shield_time every second ("固定为初始屏障量/10") [ASSUMED: in one-second steps, as 砾's]; firing again "会先清除原有的此
+//   技能屏障…新的屏障量在原有屏障量与新计算的屏障量间取高" — one S1 barrier per holder whatever 冻河 gave it [ASSUMED]. The
+//   hit that fires it is not absorbed by it [ASSUMED]. The source is stunned `stun` s unless it is missing, dead or ours.
+// - S2 意欲呼啸之心 (AUTO, bb attack_speed / buff_duration / max_target): "对全场1名干员施加触发型效果" — PRTS "优先选择场上创建
+//   时间最晚、未开启技能且非自身的我方干员…不会选择已持有冻河提供的此攻击速度加成的干员…技能类型为“被动”或未携带技能的干员":
+//   the latest created ally operator of the field [ASSUMED: aggroSeq, the deployment order — as the 链愈师 chain reads 部署
+//   时间点最晚] whose skill is not running, that is not her, holds neither her effect nor her ASPD (another 冻河's does not
+//   bar it [ASSUMED: the buffs are independent]), and has a non-passive skill. Effect: "技能可开启时，在15秒内攻击速度+25，
+//   期间技能变为自动开启" — PRTS: on the holder's skill start, or a check every 0.2 s "技力充足、未持有阻止能力类异常效果、
+//   不需要目标/满足目标条件" (`castable`: SP ready, can act, not silenced; and `targetMet`: the target condition the engine
+//   asks of that skill's automatic cast — the range rules' own range, DEFAULT's initial range or a blocked enemy, a heal
+//   skill's injured ally [ASSUMED: the 技能策略's condition stands for the skill's own target need]; the cast stays the
+//   engine's). The owner tested it in a normal stage (2026-11-03): "干员技力一满并且技能/攻击范围内有敌人就自动放，没敌人不会放"
+//   — so the rules whose cast asks no target of its own (SP_FULL / NEVER / TAKE_DAMAGE, PRTS's "不需要目标") wait for an
+//   enemy in the holder's attack or skill range, or one it blocks (`enemyInReach`). Then ASPD +attack_speed for
+//   buff_duration s (per 冻河).
+//   "期间技能变为自动开启" ("每6帧尝试触发…手动触发技能"): this remake already opens every MANUAL skill itself — the 技能策略
+//   (skills.js trigger rules) plays the player, and the only part left manual is the 3 s operation cooldown that holds a
+//   MANUAL skill but never an AUTO one (constants.js AUTO_OP_COOLDOWN). So while one of her ASPD buffs lasts the holder's
+//   MANUAL skill counts as an AUTO skill (`skill.manual` off: no operation cooldown, its trigger rule unchanged), and
+//   MANUAL again after (the owner's test above: opening it the moment it is ready would cast skills at nothing).
+// - S3 踽踽独行之春 (MANUAL, 20 s, the data's DEFAULT; bb attack_speed / attack@max_target / attack@atk_scale / attack@stun /
+//   bonus_init_atk / bonus_atk_dec_per_sec / bonus_duration / bonus_sp): ASPD +attack_speed; attacks hit attack@max_target
+//   enemies for attack@atk_scale × ATK physical and stun each attack@stun s. At its start "立刻对范围内另一名干员施加触发型
+//   效果（已存在时改为将其触发）": her S3 effect still held anywhere on the field fires [ASSUMED: anywhere]; else it goes to
+//   another ally operator of her range by the transfer's order [ASSUMED]. Effect: "开启技能时自身和冻河攻击力+70%（在15秒内
+//   衰减），并将该触发型效果转移给冻河攻击范围内技力比例最高的另一名干员" — on the holder's skill start (after its own start
+//   effects: the skillStart hook [ASSUMED]) the holder and 冻河 get ATK +bonus_init_atk, falling by bonus_atk_dec_per_sec
+//   every second to 0 at bonus_duration (PRTS "在15s内每秒线性衰减固定值，在第15s时衰减至0") [ASSUMED: one-second steps; a
+//   new one restarts it], then it moves to the ally operator of her range with the highest true SP ratio (PRTS: stored
+//   charges count — 技力上限 = 最大充能数 × 技力需求 —, a running skill that spent its SP is at 0; ties: the latest created
+//   [ASSUMED]) other than its holder and her; "若没有合法的转移对象…则会消失". "冻河技能期间拥有该效果的干员每秒获得1点技力":
+//   while S3 runs its holder gets bonus_sp SP every second of it (no SP during the holder's own timed skill).
+// - 干员 = operators: summons and devices are never picked [ASSUMED: the kits' reading of 干员].
+// - The two AUTO skills act on allies, so each fires as soon as its SP is full — no enemy needed (the owner's AUTO rule,
+//   kits/README.md checklist 5) — but only with a legal target ([ASSUMED] none ⇒ it waits full): the kit's own cast
+//   (trigger NEVER + a tick check), paced like the engine's casts of an instant skill without an attack (`nextCastAt`).
+// - fx (this fork, docs/history/0.3.3.md §36.5; display only): the client's own effects, FX_BINDINGS skchr_tocka_1..3
+//   (public/js/render/vfx/skills.js) — 'mark' on a holder as an effect goes on (id = her, target = it), S1's barrier
+//   'shield' (dur), S2's ASPD and S3's ATK 'buff' (dur), 'heal' for 夜的哑然, S2's throw and S3's move 'link' (from (x, y)
+//   to (tx, ty) in t s: projectile_chr_tocka_s2 / projectile_tocka_s3_effect; the effect itself is placed at once) and
+//   雪的印痕's 'aoe'. Merged with upstream 0.4.0 (2026-11-15): upstream's kit, this fork's fx calls.
 
-import { num, talentBb, skillRec, up, giveSp, alliesInGridOf } from '../shared/tier1.js';
-import { canTargetEnemy } from '../../../targeting.js';
-import { isHpLoss } from '../../../attack.js';
+import { num, talentBb, skillRec, up, giveSp, alliesInGridOf, once } from '../shared/tier1.js';
 import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_tocka_1', S2 = 'skchr_tocka_2', S3 = 'skchr_tocka_3';
-const AIR = Object.freeze({ canHitFly: true });
-/** S2's effect checks its holder and its window opens the holder's skill every 6 frames (PRTS 备注, triggerInterval 0.2). */
-const CHECK = 0.2;
-/** projectile_chr_tocka_s2 _speed (tiles / s); projectile_tocka_s3_effect, the S3 effect's move (a visual: it moves at once), 6. */
-const S2_SPEED = 10, S3_FX_SPEED = 6;
-const S1_KEY = 'tocka:s1', S2_KEY = 'tocka:s2', S2_TAG = 'tocka:s2';
+/** PRTS 冻河 S2 备注 "每0.2秒检测一次": how often a held S2 effect checks whether its holder's skill can open. */
+const S2_POLL = 0.2;
+/** The S1 barrier: one per holder whatever 冻河 gave it ("此技能屏障", PRTS S1 备注) [ASSUMED]. */
+const BARRIER = 'tocka:s1:barrier';
+/** S2's ASPD and S3's ATK bonus on a unit: + her id (two 冻河 never share them). */
+const ASPD = 'tocka:s2:aspd:', ATK = 'tocka:s3:atk:';
+/** 雪的印痕: her armed next attack (on her), and its arts DoT on an enemy (+ her id). */
+const SNOW_READY = 'tocka:snow', SNOW_DOT = 'tocka:snow:';
+/** A projectile lands within its maxAge (projectiles.js: 10 s by default): an older shot record is stale. */
+const SHOT_MAX_AGE = 10;
+/** fx only: projectile_chr_tocka_s2 _speed (tiles / s); projectile_tocka_s3_effect, the S3 effect's move, 6. */
+const S2_FX_SPEED = 10, S3_FX_SPEED = 6;
 
-const stateOf = (unit) => (unit.mem.tocka ??= { mark: false, armed: 0, s3: new Set(), s2hooked: new WeakSet() });
-const isDot = (dmg) => dmg?.attackType === 'BUFF' || !!dmg?.tags?.includes('dot');
-const isOp = (a) => a.kind === 'op';
-/** A skill her S2 / S3 selectors accept: one that is not passive (and exists). */
-const activeSkill = (a) => !!a.skill && !a.skill.noSkill && a.skill.kind !== 'passive';
-const spRatio = (a) => (a.skill && a.skill.spCost > 0 ? Math.min(1, (a.skill.sp + (a.skill.charges >= 1 ? a.skill.spCost : 0)) / a.skill.spCost) : 0);
-const latestFirst = (a, b) => b.deploySeq - a.deploySeq;
-/** Our operators of the whole field another unit's ability may pick. */
-const fieldOps = (battle, by) => battle.allyUnits.filter((a) => a.alive && a.deployed && !a.hidden && isOp(a) && battle.allySelectable(a, by));
-/** The holder's skill can be opened now (PRTS 备注: SP enough, no ability-stopping status, not running). */
-const openable = (a) => up(a) && activeSkill(a) && a.skill.ready && !(a.skill.active && a.skill.isTimed) && !a.skill.pending
-  && a.canAct && !a.s.flags.silence;
-
-/** 夜的哑然: a firing of one of her effects. */
-function onFire(battle, unit, t0) {
-  if (!up(unit)) return;
-  giveSp(unit, num(t0.sp, 2));
-  const pick = alliesInGridOf(battle, unit).filter((a) => a !== unit && isOp(a) && !a.s.flags.noHeal)
-    .sort((a, b) => a.hpRatio - b.hpRatio || latestFirst(a, b))[0];
-  if (!pick) return;
-  battle.heal({ source: unit, target: pick, amount: unit.s.atk * num(t0.heal_scale, 1) });
-  battle.fx('heal', { x: pick.x, y: pick.y, id: unit.id, target: pick.id });
+const effectKey = (kind, tocka) => `tocka:${kind}:${tocka.id}`;
+const isOp = (a) => !!a && a.kind === 'op';
+const bbOf = (chess, id) => skillRec(chess, id)?.bb ?? {};
+/** "创建时间最晚" first: the latest deployment (aggroSeq) [ASSUMED], then the later unit. */
+const later = (a, b) => b.aggroSeq - a.aggroSeq || b.id - a.id;
+/** A skill that can become castable: not missing, not passive ("技能类型为“被动”或未携带技能的干员" are never S2's picks). */
+const activeSkill = (u) => !!u.skill && !u.skill.noSkill && u.skill.kind !== 'passive'
+  && String(u.skill.def?.skillType ?? '').toUpperCase() !== 'PASSIVE';
+/** "技能可开启时" (PRTS S2 备注): SP ready, no running cast, able to act and not silenced. */
+const castable = (u) => activeSkill(u) && u.skill.ready && !u.skill.active && u.canAct && !u.s.flags.silence;
+/** Trigger rules whose cast asks no target of its own ("不需要目标"): at full SP, a kit's own cast, a hit taken. */
+const NO_TARGET_RULES = new Set(['SP_FULL', 'NEVER', 'TAKE_DAMAGE']);
+/** The rules the engine checks on their own range every tick (skills.js TICK_RULES but SP_FULL). */
+const RANGE_RULES = new Set(['SEARCH', 'CUSTOM_RANGE', 'SKILL_RANGE', 'ACTIVE_RANGE', 'GDGLOW_SKILL_2']);
+/**
+ * "满足目标条件" (PRTS S2 备注): the target condition the engine asks of an automatic cast of `u`'s skill — the range rules'
+ * own check (skills.js `_tickRuleSatisfied`), else DEFAULT's: an enemy in the initial range or one it blocks, a heal skill
+ * an injured ally (`_defaultCondition`; a DEFAULT cast bound to an ally: `_allyTriggerSatisfied`); the NO_TARGET_RULES an
+ * enemy within reach (`enemyInReach`, the owner's test). The cast itself stays the engine's.
+ */
+function targetMet(u) {
+  const sk = u.skill;
+  if (NO_TARGET_RULES.has(sk.rule)) return enemyInReach(u);
+  if (RANGE_RULES.has(sk.rule)) return !!sk._tickRuleSatisfied();
+  return sk.triggerAllies ? !!sk._allyTriggerSatisfied() : !!sk._defaultCondition();
 }
 
-/** 雪的印痕: an application of one of her effects arms her next normal attack. */
-const arm = (unit) => { stateOf(unit).mark = true; };
-
-// ---- S1 --------------------------------------------------------------------------------------------------------------
-
-const s1Targets = (battle, unit, n) => alliesInGridOf(battle, unit).filter((a) => isOp(a) && !a.findBuff(S1_KEY))
-  .sort((a, b) => a.hpRatio - b.hpRatio || latestFirst(a, b)).slice(0, n);
-
-function s1Shield(battle, unit, holder, b1) {
-  const key = `tocka:s1shield:${unit.id}`;
-  const old = holder.findBuff(key);
-  const amount = Math.max(old?.shield ?? 0, unit.s.atk * num(b1.shield_atk_scale));
-  if (old) battle.removeBuff(holder, old);
-  if (!(amount > 0)) return null;
-  const step = amount / Math.max(1e-9, num(b1.shield_time, 10));
-  const buff = battle.addBuff(holder, {
-    key, source: unit, shield: amount, shieldType: ['phys', 'arts', 'true'], visible: true, interval: 1,
-    onTick({ unit: h, buff: b }) {
-      b.shield = Math.max(0, b.shield - step);
-      h.markDirty();
-      if (!(b.shield > 1e-9)) battle.removeBuff(h, b);
-    },
-  });
-  battle.fx('shield', { x: holder.x, y: holder.y, id: unit.id, target: holder.id, from: unit.id, dur: num(b1.shield_time, 10) });
-  return buff ?? holder.findBuff(key);
+/**
+ * "技能/攻击范围内有敌人" (the owner's test, 2026-11-03): an enemy `u` can target in its initial range or in its skill's own
+ * trigger range, or one it blocks — DEFAULT's enemy part (skills.js `_defaultCondition`), a heal skill's too.
+ */
+function enemyInReach(u) {
+  const sk = u.skill, b = sk.battle;
+  if (b.rangeChanged(u)) b._refreshRange(u);
+  const keys = u.baseRangeKeys || u.rangeKeys;
+  if (keys && b.enemiesInKeys(keys, u, u.profile).length > 0) return true;
+  if (sk.triggerGrid && b.anyEnemyInKeys(sk._triggerKeys(), u)) return true;
+  return u.blocking.length > 0 && b.blockedTargets(u, u.profile).length > 0;
 }
 
-function putS1(battle, unit, holder, b1, t0) {
-  battle.addBuff(holder, {
-    key: S1_KEY, source: unit, visible: true, injuryPriority: 1000,
-    injury(ev) {
-      const dmg = ev.dmg;
-      if (!(ev.amount > 0) || ev.type === 'elemental' || isDot(dmg) || isHpLoss(dmg)) return;
-      const me = holder.findBuff(S1_KEY);
-      if (!me || me.source !== unit) return;
-      battle.removeBuff(holder, me);
-      const shield = s1Shield(battle, unit, holder, b1);
-      if (shield && shield.shield > 0 && ev.type !== 'elemental') {
-        const take = Math.min(shield.shield, ev.amount);
-        shield.shield -= take;
-        ev.amount -= take;
-        if (!(ev.amount > 1e-9)) { ev.amount = 0; ev.block(); }
-        if (!(shield.shield > 1e-9)) battle.removeBuff(holder, shield);
-        holder.markDirty();
-      }
-      const src = ev.source;
-      ev.defer(() => {
-        if (src && src.alive && src.side !== holder.side) battle.applyStatus(src, 'stun', { duration: num(b1.stun), source: unit });
-        onFire(battle, unit, t0);
-      });
-    },
-  });
-  battle.fx('mark', { x: holder.x, y: holder.y, id: unit.id, target: holder.id, skill: 'tocka_1' });
-  arm(unit);
+/**
+ * The true 技力 ratio (PRTS S3 备注): the stored charges count (技力上限 = 最大充能数 × 技力需求 — skills.js spTotal), and a
+ * running skill that spent its SP is at 0; no SP skill ⇒ 0.
+ */
+function spRatio(u) {
+  const sk = u.skill;
+  if (!activeSkill(u)) return 0;
+  const cap = sk.maxCharges * sk.spCost;
+  return cap > 0 ? sk.spTotal / cap : 0;
 }
 
-// ---- S2 --------------------------------------------------------------------------------------------------------------
-
-const hasS2 = (a) => a.buffs.some((b) => b.tags?.includes(S2_TAG));
-
-function s2Target(battle, unit) {
-  const ok = (a) => activeSkill(a) && !hasS2(a);
-  const order = (a, b) => (a.skill.active ? 1 : 0) - (b.skill.active ? 1 : 0) || latestFirst(a, b);
-  const others = fieldOps(battle, unit).filter((a) => a !== unit && ok(a)).sort(order);
-  if (others.length) return others[0];
-  return up(unit) && ok(unit) ? unit : null;
+/** Fire a held trigger effect once: off its holder first (一次性), then what it does (`data.fire`). */
+function fire(battle, holder, buff, ctx) {
+  if (!buff || !holder.buffs.includes(buff)) return false;
+  battle.removeBuff(holder, buff);
+  buff.data.fire(battle, holder, ctx);
+  return true;
 }
 
-function openWindow(battle, unit, holder, b2) {
-  battle.addBuff(holder, {
-    key: `tocka:s2auto:${unit.id}`, source: unit, duration: num(b2.buff_duration, 15), refresh: 'extend', visible: true,
-    tags: [S2_TAG], mods: { aspd: num(b2.attack_speed) }, interval: CHECK,
-    onTick({ unit: h }) { if (h.skill?.manual && openable(h)) h.skill.activate('tocka'); },
-  });
-  battle.fx('buff', { x: holder.x, y: holder.y, id: unit.id, target: holder.id, dur: num(b2.buff_duration, 15), skill: 'tocka_2' });
-}
-
-function putS2(battle, unit, holder, b2, t0) {
-  if (!holder.alive || !holder.deployed || hasS2(holder)) return;
-  let fired = false;
-  const fire = () => {
-    if (fired) return;
-    const me = holder.findBuff(S2_KEY);
-    if (!me || me.source !== unit) return;
-    fired = true;
-    battle.removeBuff(holder, me);
-    openWindow(battle, unit, holder, b2);
-    onFire(battle, unit, t0);
-  };
-  battle.addBuff(holder, {
-    key: S2_KEY, source: unit, visible: true, tags: [S2_TAG], interval: CHECK, data: { fire },
-    onTick({ unit: h }) { if (openable(h)) fire(); },
-  });
-  // "技能开启时" (and a toggle's switch): one handler per holder, owned by the holder (it outlives her)
-  const m = stateOf(unit);
-  if (!m.s2hooked.has(holder)) {
-    m.s2hooked.add(holder);
-    battle.on('skillStart', ({ unit: u }) => {
-      const me = u === holder ? holder.findBuff(S2_KEY) : null;
-      if (me && me.source === unit) me.data.fire();
-    }, { owner: holder });
+/** The unit on the field holding 冻河 `tocka`'s effect `kind`, with its buff, or null. */
+function heldEffect(battle, tocka, kind) {
+  const key = effectKey(kind, tocka);
+  for (const a of battle.allyUnits) {
+    if (!a.alive || !a.deployed) continue;
+    const buff = a.findBuff(key);
+    if (buff) return { holder: a, buff };
   }
-  battle.fx('mark', { x: holder.x, y: holder.y, id: unit.id, target: holder.id, skill: 'tocka_2' });
-  arm(unit);
+  return null;
 }
 
-// ---- S3 --------------------------------------------------------------------------------------------------------------
-
-/** SelectCharacter: our operators of her attack range but her (and `skip`), without her S3 effect; three tiers, SP ratio first. */
-function s3Target(battle, unit, skip = null) {
-  const key = `tocka:s3:${unit.id}`;
-  const pool = alliesInGridOf(battle, unit).filter((a) => a !== unit && a !== skip && isOp(a) && !a.findBuff(key));
-  const best = (list) => list.sort((a, b) => spRatio(b) - spRatio(a) || latestFirst(a, b))[0] ?? null;
-  return best(pool.filter((a) => activeSkill(a) && !a.skill.active)) ?? best(pool.filter(activeSkill)) ?? best(pool);
-}
-
-function bonus(battle, unit, target, b3) {
-  const dec = num(b3.bonus_atk_dec_per_sec);
-  let v = num(b3.bonus_init_atk);
-  if (!(v > 0) || !target?.alive) return;
-  battle.addBuff(target, {
-    key: `tocka:bonus:${unit.id}`, source: unit, duration: num(b3.bonus_duration, 15), visible: true, tags: ['skill'],
-    mods: { atkPct: v }, interval: 1,
-    onTick({ unit: h, buff: b }) { v = Math.max(0, v - dec); b.mods = { atkPct: v }; h.markDirty(); },
-  });
-  battle.fx('buff', { x: target.x, y: target.y, id: unit.id, target: target.id, dur: num(b3.bonus_duration, 15), skill: 'tocka_3' });
-}
-
-function putS3(battle, unit, holder, b3) {
-  const m = stateOf(unit), key = `tocka:s3:${unit.id}`;
-  if (!holder?.alive || holder.findBuff(key)) return;
-  m.s3.add(holder);
-  battle.addBuff(holder, {
-    key, source: unit, visible: true, interval: 1,
-    // tocka_s3[skill_add_sp]: bonus_sp every second while her skill runs
-    onTick({ unit: h }) { if (up(unit) && unit.skill?.id === S3 && unit.skill.active) giveSp(h, num(b3.bonus_sp, 1)); },
-    onRemove() { m.s3.delete(holder); },
-    onExpire() { m.s3.delete(holder); },
-  });
-  battle.fx('mark', { x: holder.x, y: holder.y, id: unit.id, target: holder.id, skill: 'tocka_3' });
-  arm(unit);
-}
-
-/** Her S3 effect on `holder` fires: both ATK bonuses, the move to the next operator, 夜的哑然. */
-function fireS3(battle, unit, holder, b3, t0) {
-  const key = `tocka:s3:${unit.id}`;
-  if (!holder.findBuff(key)) return;
-  bonus(battle, unit, holder, b3);
-  const next = up(unit) ? s3Target(battle, unit) : null;
-  battle.removeBuff(holder, key);
-  stateOf(unit).s3.delete(holder);
-  if (next) {
-    putS3(battle, unit, next, b3);
-    battle.fx('link', { x: holder.x, y: holder.y, tx: next.x, ty: next.y, t: hypot(next.x - holder.x, next.y - holder.y) / S3_FX_SPEED,
-      id: unit.id, target: next.id, flame: `${unit.id}:s3:${battle.time}:${next.id}`, skill: 'tocka_3' });
+/**
+ * S2 "期间技能变为自动开启": while one of the 冻河 ASPD buffs lasts, the holder's MANUAL skill counts as an AUTO skill for
+ * the engine (`skill.manual` off: no 3 s operation cooldown — skills.js `_opCooling`); MANUAL again once none is left or
+ * the holder left the field (its buffs then go without callbacks: the shared `death` hook).
+ */
+function syncAutoOpen(u) {
+  const sk = u && u.skill;
+  if (!sk) return;
+  const on = u.alive && u.buffs.some((b) => b.key.startsWith(ASPD));
+  if (on && sk.manual && !u.mem.tockaAutoOpen) {
+    u.mem.tockaAutoOpen = true;
+    sk.manual = false;
+  } else if (!on && u.mem.tockaAutoOpen) {
+    u.mem.tockaAutoOpen = false;
+    sk.manual = true;
   }
-  if (holder !== unit) bonus(battle, unit, unit, b3);
-  onFire(battle, unit, t0);
 }
 
-function installS3(battle, unit, b3, t0) {
-  const m = stateOf(unit);
-  battle.on('skillStart', ({ unit: u }) => {
-    if (u === unit || !m.s3.has(u)) return;
-    fireS3(battle, unit, u, b3, t0);
-  }, { owner: unit });
-  // derived from her S3 passive (tocka_s3[trigger_listener]): they go when she leaves
-  battle.on('death', ({ unit: u }) => {
-    if (u !== unit) return;
-    for (const h of [...m.s3]) battle.removeBuff(h, `tocka:s3:${unit.id}`);
-    m.s3.clear();
-  }, { owner: unit, priority: 5 });
-}
-
-// ---- 雪的印痕 ----------------------------------------------------------------------------------------------------------
-
-function installMark(battle, unit, t1) {
-  const m = stateOf(unit);
-  const radius = num(t1['attack@projectile_range'], 1.5), dur = num(t1['attack@t2_buff_duration'], 8);
-  const weak = Math.abs(num(t1['attack@t2_atk'], -0.2)), dotScale = num(t1['attack@t2_magic_atk_scale'], 0.8);
-  battle.on('deploy', ({ unit: u }) => { if (u === unit) { m.mark = false; m.armed = 0; } }, { owner: unit });
-  battle.on('beforeAttack', (c) => {
-    if (c.attacker !== unit || c.isSkill || !m.mark || (unit.skill?.id === S3 && unit.skill.active)) return;
-    m.mark = false;
-    m.armed++;
-  }, { owner: unit });
-  const mark = (e) => {
-    if (!e.alive) return;
-    if (weak > 0) battle.applyStatus(e, 'weaken', { duration: dur, value: weak, source: unit });
-    const key = `tocka:t2dot:${unit.id}`, value = unit.s.atk * dotScale, old = e.findBuff(key);
-    const keep = Math.max(value, old?.data?.value ?? 0);
-    battle.addBuff(e, {
-      key, source: unit, duration: dur, refresh: 'replace', interval: 1, data: { value: keep },
-      onTick({ unit: t, buff }) {
-        battle.dealDamage({ source: unit, target: t, amount: buff.data.value, type: 'arts', attackType: 'BUFF', canDodge: false, tags: ['dot', 'tocka:t2dot'] });
-      },
+/** The hooks every 冻河 of a battle shares, installed once: skill starts fire S2 / S3 effects; a holder leaving the field. */
+function installShared(battle) {
+  once(battle, 'tocka:effects', () => {
+    battle.on('skillStart', ({ unit }) => {
+      for (const b of unit.buffs.slice()) if (b.data && b.data.tockaOn === 'skillStart') fire(battle, unit, b, { reason: 'skillStart' });
     });
-  };
-  battle.on('hit', ({ source, target, dmg }) => {
-    if (source !== unit || !m.armed || !dmg?.isAttack || dmg.isSplash || dmg.isSkill || target?.side !== 'enemy') return;
-    if (dmg.tags?.includes('chain') || dmg.tags?.includes('addition')) return;
-    m.armed--;
-    battle.fx('aoe', { x: target.x, y: target.y, radius, id: unit.id, dmgType: 'phys', skill: 'tocka_t2' });
-    const others = battle.foesInRadius(target.x, target.y, radius).filter((e) => e !== target && canTargetEnemy(unit, e, AIR));
-    mark(target);
-    for (const e of others) {
-      battle.dealDamage({ source: unit, target: e, amount: unit.s.atk, type: 'phys', isAttack: true, isSplash: true, attackId: dmg.attackId, tags: ['tocka:t2'] });
-      mark(e);
-    }
-  }, { owner: unit });
+    battle.on('death', ({ unit }) => syncAutoOpen(unit));
+  });
+}
+
+/**
+ * S1's barrier on `holder`: max(its S1 barrier left, `amount`) — the old one cleared first (PRTS S1 备注) — losing a fixed
+ * initial / `dur` every second until it is gone [ASSUMED: one-second steps].
+ */
+function barrier(battle, holder, amount, dur, source) {
+  const old = holder.findBuff(BARRIER);
+  const total = Math.max(amount, old ? old.shield : 0);
+  if (old) battle.removeBuff(holder, old);
+  if (!(total > 0)) return;
+  const step = dur > 0 ? total / dur : 0;
+  battle.addBuff(holder, {
+    key: BARRIER, shield: total, duration: dur > 0 ? dur : Infinity, source, tags: ['skill'],
+    interval: step > 0 ? 1 : 0,
+    onTick: step > 0 ? ({ battle: b, unit, buff }) => {
+      buff.shield = Math.max(0, buff.shield - step);
+      unit.markDirty();
+      if (!(buff.shield > 1e-9)) b.removeBuff(unit, buff);
+    } : null,
+  });
+  battle.fx('shield', { x: holder.x, y: holder.y, id: source ? source.id : holder.id, target: holder.id, from: source ? source.id : undefined, dur });
+}
+
+/** S3's ATK +init on `u`, falling by `dec` every second to 0 [ASSUMED: one-second steps]; a new one restarts it. */
+function decayingAtk(battle, u, key, init, dec, dur, source) {
+  if (!(init > 0) || !(dur > 0)) return;
+  battle.addBuff(u, {
+    key, duration: dur, mods: { atkPct: init }, interval: 1, source, data: { v: init }, tags: ['skill'],
+    onTick: ({ unit, buff }) => {
+      buff.data.v = Math.max(0, buff.data.v - dec);
+      buff.mods = { atkPct: buff.data.v };
+      unit.markDirty();
+    },
+  });
+  if (source) battle.fx('buff', { x: u.x, y: u.y, id: source.id, target: u.id, dur, skill: 'tocka_3' });
 }
 
 export default {
-  char_4244_tocka: (bb, raw) => {
-    const t0 = talentBb(raw, 0), t1 = talentBb(raw, 1);
-    const b1 = skillRec(raw, S1)?.bb ?? {}, b2 = skillRec(raw, S2)?.bb ?? {}, b3 = skillRec(raw, S3)?.bb ?? {};
+  char_4244_tocka: (bb, chess) => {
+    const t0 = talentBb(chess, 0), t1 = talentBb(chess, 1);
+    const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);
+    const kindOf = (id) => (num(skillRec(chess, id)?.maxChargeTime, 1) > 1 ? 'charges' : 'instant');
+    const snowRadius = num(t1['attack@projectile_range']);
+    const weakVal = Math.abs(num(t1['attack@t2_atk'])), weakDur = num(t1['attack@t2_buff_duration']);
+    const dotScale = num(t1['attack@t2_magic_atk_scale']);
+
+    /** Ally operators on her range (no device, hidden or 孤立 unit — tier1 alliesInGridOf). */
+    const opsInRange = (battle, unit) => alliesInGridOf(battle, unit).filter(isOp);
+    /** S1's picks: not holding her S1 effect; the lowest HP ratio, then the latest created. */
+    const s1Picks = (battle, unit) => opsInRange(battle, unit).filter((a) => !a.findBuff(effectKey('s1', unit)))
+      .sort((a, b) => a.hpRatio - b.hpRatio || later(a, b));
+    /** S2's picks: anywhere on the field (PRTS S2 备注 above), the latest created first. */
+    const s2Picks = (battle, unit) => battle.alliesFor(unit).filter((a) => isOp(a) && a !== unit && !a.hidden && activeSkill(a)
+      && !a.skill.active && !a.findBuff(effectKey('s2', unit)) && !a.findBuff(ASPD + unit.id)).sort(later);
+    /** S3's pick / transfer: another ally operator of her range than `holder`, the highest true SP ratio first. */
+    const byRatio = (battle, unit, holder) => opsInRange(battle, unit).filter((a) => a !== unit && a !== holder)
+      .sort((a, b) => spRatio(b) - spRatio(a) || later(a, b));
+
+    /** T1 夜的哑然: `sp` SP to her and a heal of heal_scale × her ATK to the most injured ally operator of her range. */
+    const night = (battle, tocka) => {
+      if (!up(tocka)) return;
+      giveSp(tocka, num(t0.sp), 'talent');
+      const hs = num(t0.heal_scale);
+      const t = battle.injuredAlliesInKeys(tocka.rangeKeySet ?? tocka.rangeKeys, tocka)
+        .filter((a) => isOp(a) && battle.allySelectable(a, tocka)).sort((a, b) => a.hpRatio - b.hpRatio || later(a, b))[0];
+      if (t && hs > 0) {
+        battle.heal(tocka, t, tocka.s.atk * hs);
+        battle.fx('heal', { x: t.x, y: t.y, id: tocka.id, target: t.id });
+      }
+    };
+
+    /** What each effect does when it fires (`ctx`: the injury event for S1). */
+    const effects = {
+      s1(battle, tocka, holder, ctx) {
+        barrier(battle, holder, tocka.s.atk * num(b1.shield_atk_scale), num(b1.shield_time), tocka);
+        const src = ctx && ctx.source;
+        if (src && src.alive && src.side === 'enemy') battle.applyStatus(src, 'stun', { duration: num(b1.stun), source: tocka });
+      },
+      s2(battle, tocka, holder) {
+        const dur = num(b2.buff_duration);
+        if (!(dur > 0)) return;
+        battle.addBuff(holder, {
+          key: ASPD + tocka.id, duration: dur, mods: { aspd: num(b2.attack_speed) }, source: tocka, tags: ['skill'],
+          onRemove: ({ unit }) => syncAutoOpen(unit), onExpire: ({ unit }) => syncAutoOpen(unit),
+        });
+        syncAutoOpen(holder);
+        battle.fx('buff', { x: holder.x, y: holder.y, id: tocka.id, target: holder.id, dur, skill: 'tocka_2' });
+      },
+      s3(battle, tocka, holder) {
+        const init = num(b3.bonus_init_atk), dec = num(b3.bonus_atk_dec_per_sec), dur = num(b3.bonus_duration);
+        decayingAtk(battle, holder, ATK + tocka.id, init, dec, dur, tocka);
+        if (!up(tocka)) return;
+        decayingAtk(battle, tocka, ATK + tocka.id, init, dec, dur, tocka);
+        const next = byRatio(battle, tocka, holder)[0];
+        if (next) {
+          place(battle, tocka, next, 's3', false); // 转移: no 施加 for 雪的印痕
+          battle.fx('link', { x: holder.x, y: holder.y, tx: next.x, ty: next.y, t: hypot(next.x - holder.x, next.y - holder.y) / S3_FX_SPEED,
+            id: tocka.id, target: next.id, flame: `${tocka.id}:s3:${battle.time}:${next.id}`, skill: 'tocka_3' });
+        }
+      },
+    };
+
+    /** Place 冻河 `tocka`'s effect `kind` on `holder`; `applied` (施加, not a 转移) arms 雪的印痕. */
+    function place(battle, tocka, holder, kind, applied = true) {
+      const buff = {
+        key: effectKey(kind, tocka), source: tocka, tags: ['skill', 'tocka:effect'],
+        data: {
+          tocka, kind, tockaOn: kind === 's1' ? 'damage' : 'skillStart',
+          fire: (b, h, ctx) => { effects[kind](b, tocka, h, ctx); night(b, tocka); },
+        },
+      };
+      // S1: 受到攻击时 — every damage instance but 元素伤害 (see the header)
+      if (kind === 's1') buff.observeInjury = (ev) => { if (ev.type !== 'elemental' && ev.target.alive) fire(battle, ev.target, ev.buff, ev); };
+      // S2: 技能可开启时 — SP ready and its own target condition met, checked every 0.2 s (its skill start: the shared
+      // skillStart hook)
+      if (kind === 's2') {
+        buff.interval = S2_POLL;
+        buff.onTick = ({ battle: b, unit, buff: held }) => { if (castable(unit) && targetMet(unit)) fire(b, unit, held, { reason: 'ready' }); };
+      }
+      battle.addBuff(holder, buff);
+      battle.fx('mark', { x: holder.x, y: holder.y, id: tocka.id, target: holder.id, skill: `tocka_${kind.slice(1)}` });
+      if (applied && up(tocka)) battle.addBuff(tocka, { key: SNOW_READY, tags: ['talent'] });
+    }
+
+    /** 雪的印痕's burst where one arrow of the armed attack landed on `main` (`hc`: resolveHit's per-victim context). */
+    const snowBurst = (battle, unit, main, hc) => {
+      const s3 = !!hc.isSkill && unit.skill?.id === S3; // an S3 attack: its scale and its stun
+      const scale = (s3 ? num(b3['attack@atk_scale'], 1) : 1) * unit.s.atkScaleMul;
+      const type = unit.profile?.dmgType === 'arts' ? 'arts' : 'phys';
+      const hit = main.alive ? [main] : [];
+      if (snowRadius > 0) {
+        for (const e of battle.foesInRadius(main.x, main.y, snowRadius, true)) {
+          if (e === main) continue;
+          battle.dealDamage(unit, e, { amount: unit.s.atk * scale, type, isAttack: true, isSplash: true, isSkill: !!hc.isSkill,
+            attackId: hc.attackId, tags: ['talent', 'tocka:snow'] });
+          if (e.alive) hit.push(e);
+        }
+        battle.fx('aoe', { x: main.x, y: main.y, radius: snowRadius, id: unit.id, dmgType: type, skill: 'tocka:snow' });
+      }
+      for (const e of hit) {
+        if (weakVal > 0 && weakDur > 0) battle.applyStatus(e, 'weaken', { duration: weakDur, value: weakVal, source: unit });
+        if (dotScale > 0 && weakDur > 0) {
+          battle.addBuff(e, {
+            key: SNOW_DOT + unit.id, duration: weakDur, interval: 1, source: unit, tags: ['talent', 'dot'],
+            onTick: ({ battle: b, unit: t }) => b.dealDamage({ source: unit, target: t, amount: unit.s.atk * dotScale, type: 'arts',
+              attackType: 'BUFF', dodgeMode: 'ignore', tags: ['talent', 'dot', 'tocka:snow'] }),
+          });
+        }
+        // [ASSUMED] the attack's on-hit stun reaches every victim of its area (the main target has it from the attack)
+        if (s3 && e !== main) battle.applyStatus(e, 'stun', { duration: num(b3['attack@stun']), source: unit });
+      }
+    };
+
     return {
       skills: {
         [S1]: {
-          kind: 'instant', trigger: { rule: 'NEVER' },
+          kind: kindOf(S1), trigger: 'NEVER', // cast by the kit at full SP with a legal target (install)
           onStart({ battle, unit }) {
-            for (const a of s1Targets(battle, unit, Math.max(1, Math.floor(num(b1.max_target, 1))))) putS1(battle, unit, a, b1, t0);
+            for (const a of s1Picks(battle, unit).slice(0, Math.max(1, Math.floor(num(b1.max_target, 1))))) place(battle, unit, a, 's1');
           },
         },
         [S2]: {
-          kind: 'instant', trigger: { rule: 'NEVER' },
+          kind: kindOf(S2), trigger: 'NEVER',
           onStart({ battle, unit }) {
-            const t = s2Target(battle, unit);
-            if (!t) return;
-            const d = hypot(t.x - unit.x, t.y - unit.y);
-            battle.fx('link', { x: unit.x, y: unit.y, tx: t.x, ty: t.y, t: d / S2_SPEED, id: unit.id, target: t.id,
-              flame: `${unit.id}:s2:${battle.time}:${t.id}`, skill: 'tocka_2' });
-            if (d < 1e-6) putS2(battle, unit, t, b2, t0);
-            else battle.after(d / S2_SPEED, () => putS2(battle, unit, t, b2, t0), { owner: t });
+            for (const a of s2Picks(battle, unit).slice(0, Math.max(1, Math.floor(num(b2.max_target, 1))))) {
+              battle.fx('link', { x: unit.x, y: unit.y, tx: a.x, ty: a.y, t: hypot(a.x - unit.x, a.y - unit.y) / S2_FX_SPEED, id: unit.id,
+                target: a.id, flame: `${unit.id}:s2:${battle.time}:${a.id}`, skill: 'tocka_2' });
+              place(battle, unit, a, 's2');
+            }
           },
         },
         [S3]: {
-          kind: 'duration', mods: { aspd: num(b3.attack_speed) },
-          attack: {
-            atkScale: num(b3['attack@atk_scale'], 1), maxTargets: Math.max(1, Math.floor(num(b3['attack@max_target'], 1))),
-            onEachHit({ battle, unit, target }) {
-              if (target?.alive && target.side === 'enemy') battle.applyStatus(target, 'stun', { duration: num(b3['attack@stun']), source: unit });
-            },
-          },
+          kind: 'duration',
+          mods: { aspd: num(b3.attack_speed) },
+          targeting: { maxTargets: Math.max(1, Math.floor(num(b3['attack@max_target'], 1))) },
+          attack: { atkScale: num(b3['attack@atk_scale'], 1), onHitStatus: { key: 'stun', duration: num(b3['attack@stun']) } },
           onStart({ battle, unit }) {
-            const m = stateOf(unit);
-            const held = [...m.s3].filter((h) => h.alive && h.findBuff(`tocka:s3:${unit.id}`));
-            if (held.length) for (const h of held) fireS3(battle, unit, h, b3, t0);
-            else { const t = s3Target(battle, unit); if (t) putS3(battle, unit, t, b3); }
+            unit.mem.tockaSpAcc = 0;
+            const held = heldEffect(battle, unit, 's3');
+            if (held) { fire(battle, held.holder, held.buff, { reason: 'tocka' }); return; }
+            const a = byRatio(battle, unit, null)[0];
+            if (a) place(battle, unit, a, 's3');
+          },
+          // 冻河技能期间拥有该效果的干员每秒获得1点技力
+          onTick({ battle, unit, dt }) {
+            unit.mem.tockaSpAcc = (unit.mem.tockaSpAcc ?? 0) + dt;
+            while (unit.mem.tockaSpAcc >= 1 - 1e-9) { // loop-cap: one-second step
+              unit.mem.tockaSpAcc -= 1;
+              const held = heldEffect(battle, unit, 's3');
+              if (held) giveSp(held.holder, num(b3.bonus_sp), 'skill');
+            }
           },
         },
       },
       talents: [
-        { install() {} },   // 夜的哑然: run by each firing (onFire)
-        { install(battle, unit) { installMark(battle, unit, t1); } },
-      ],
-      install(battle, unit) {
-        const skill = unit.skill;
-        // S1 / S2: cast as soon as SP is full and someone can take the effect (the selectors' _minTargetNum 1)
-        if (skill?.id === S1 || skill?.id === S2) {
-          battle.on('tick', () => {
-            if (!skill.ready || skill.active || !unit.canAct || unit.s.flags.silence || battle.time < skill.nextCastAt - 1e-9) return;
-            const any = skill.id === S1 ? s1Targets(battle, unit, 1).length > 0 : !!s2Target(battle, unit);
-            if (any) skill.activate('SP_FULL');
+        { install(battle, unit) { // 雪的印痕: the armed attack's shots are queued at launch, burst when they land (trait)
+          battle.on('attack', ({ attacker, targets }) => {
+            if (attacker !== unit || !targets.length) return;
+            const snow = !!unit.findBuff(SNOW_READY);
+            if (snow) battle.removeBuff(unit, SNOW_READY);
+            const q = unit.mem.tockaShots ?? (unit.mem.tockaShots = new Map());
+            for (const t of targets) {
+              if (!q.has(t.id)) q.set(t.id, []);
+              q.get(t.id).push({ snow, t: battle.time });
+            }
           }, { owner: unit });
-        }
-        if (skill?.id === S3) installS3(battle, unit, b3, t0);
+          battle.on('death', ({ unit: e }) => { if (e.side === 'enemy') unit.mem.tockaShots?.delete(e.id); }, { owner: unit });
+        } },
+      ],
+      trait: {
+        // her arrow landed on its target: the shot it was (its queue's first record) — the armed attack's arrows burst
+        onEachHit(battle, unit, victim, hc) {
+          if (hc.kind !== 'main' || !victim) return;
+          const shots = unit.mem.tockaShots, q = shots && shots.get(victim.id);
+          if (!q) return;
+          while (q.length && q[0].t < battle.time - SHOT_MAX_AGE) q.shift(); // loop-cap: shrinks the queue
+          const shot = q.shift();
+          if (!q.length) shots.delete(victim.id);
+          if (shot && shot.snow) snowBurst(battle, unit, victim, hc);
+        },
+      },
+      install(battle, unit) {
+        installShared(battle);
+        const sid = unit.skill?.id;
+        if (sid !== S1 && sid !== S2) return;
+        // the AUTO skills: at full SP, with at least one legal target, no enemy needed (see the header)
+        battle.on('tick', () => {
+          const sk = unit.skill;
+          if (!up(unit) || !unit.canAct || !sk || !sk.ready || sk.active || unit.s.flags.silence) return;
+          if (battle.time < sk.nextCastAt - 1e-9) return;
+          if ((sid === S1 ? s1Picks(battle, unit) : s2Picks(battle, unit)).length) sk.activate('SP_FULL');
+        }, { owner: unit });
       },
     };
   },

@@ -292,9 +292,10 @@ export async function startGameNode({ host = '127.0.0.1', port = 0, nodeId, gene
     transferAiSeat(payload) {
       guardedMember(payload, ['botId', 'name', 'round'], [], true);
       if (!id(payload.botId) || !int(payload.round, 0, 2 ** 31)) throw new RpcError('BAD_REQUEST');
+      // its seat channel is the next one, with its own ticket; a version host's actor answers later (a Promise)
+      const settle = (result) => { if (result?.ok) closeMember(payload.assignmentId, payload.sessionId); return result; };
       const result = gameHost.transferAiSeat(payload.assignmentId, payload.sessionId, payload.botId, payload.name, payload.round);
-      if (result.ok) closeMember(payload.assignmentId, payload.sessionId); // its seat channel is the next one, with its own ticket
-      return result;
+      return typeof result?.then === 'function' ? result.then(settle) : settle(result);
     },
     removeSpectator(payload) {
       guardedMember(payload);

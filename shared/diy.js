@@ -122,6 +122,19 @@ export function diySlotIds(data) {
 export const DIY_BENCH_SIZE = 2;
 const BENCH_ID = /^diyBench_(\d)_(\d)$/;
 
+/**
+ * The 候补 of each tier the data's version offers: DIY_BENCH_SIZE in the 盟约 versions (two 自选 slots per tier), none in
+ * a version with more slots per tier — 规程·序列Ⅰ (0.4.0: six per tier, of which the official 选择自编 step brings two,
+ * config diyBringLimits / CUSTOM_CHECK). The owner's decision of 2026-11-15: a 规程 room plays upstream's 选择自编 only, and
+ * 候补 (feedback #114) stays as it is in the 盟约 versions. Read from the slots alone, so the page's `{ chess, backups }`
+ * and the server's full data agree (test/diy-bench.test.js checks it against every version's diyBringLimits).
+ * @param {DiyData} data @returns {number}
+ */
+export function diyBenchSize(data) {
+  const tiers = diyTiers(data);
+  return tiers.length && tiers.every((tier) => diyTierSlotIds(tier, data).length <= DIY_BENCH_SIZE) ? DIY_BENCH_SIZE : 0;
+}
+
 /** The bench key `n` (1-based) of `tier`. @param {number} tier @param {number} n */
 export const diyBenchId = (tier, n) => `diyBench_${tier}_${n}`;
 
@@ -138,9 +151,13 @@ export function diyTierSlotIds(tier, data) {
   return Object.keys(slots).filter((id) => slots[id]?.tier === tier);
 }
 
-/** The bench keys of the data: tier 5's, then tier 6's, each 1…DIY_BENCH_SIZE. @param {DiyData} data @returns {string[]} */
+/**
+ * The bench keys of the data: tier 5's, then tier 6's, each 1…diyBenchSize (none in 规程). @param {DiyData} data
+ * @returns {string[]}
+ */
 export function diyBenchIds(data) {
-  return diyTiers(data).flatMap((tier) => Array.from({ length: DIY_BENCH_SIZE }, (_, i) => diyBenchId(tier, i + 1)));
+  const size = diyBenchSize(data);
+  return diyTiers(data).flatMap((tier) => Array.from({ length: size }, (_, i) => diyBenchId(tier, i + 1)));
 }
 
 /** The tier of a bench key of the data, or null (not a bench key, or a tier without slots). @param {unknown} key @param {DiyData} data */
@@ -149,7 +166,7 @@ export function diyBenchTier(key, data) {
   if (!m) return null;
   const tier = Number(m[1]);
   const n = Number(m[2]);
-  return n >= 1 && n <= DIY_BENCH_SIZE && diyTiers(data).includes(tier) ? tier : null;
+  return n >= 1 && n <= diyBenchSize(data) && diyTiers(data).includes(tier) ? tier : null;
 }
 
 /**
@@ -181,15 +198,19 @@ export function diyKeyTier(key, data) {
 export function diyCandidates(picks, data) {
   const out = new Map();
   if (!isObj(picks)) return out;
+  const size = diyBenchSize(data);
   for (const tier of diyTiers(data)) {
-    const keys = [...diyTierSlotIds(tier, data), ...Array.from({ length: DIY_BENCH_SIZE }, (_, i) => diyBenchId(tier, i + 1))];
+    const keys = [...diyTierSlotIds(tier, data), ...Array.from({ length: size }, (_, i) => diyBenchId(tier, i + 1))];
     const list = keys.filter((k) => own(picks, k) && isObj(picks[k])).map((key) => ({ key, pick: picks[key] }));
     if (list.length) out.set(tier, list);
   }
   return out;
 }
 
-/** Whether a picks map leaves a choice to make: a tier with more candidates than slots. @param {any} picks @param {DiyData} data */
+/**
+ * Whether a picks map leaves a 候补 choice to make: a tier with more candidates than slots (never in 规程: no bench keys,
+ * diyBenchSize). @param {any} picks @param {DiyData} data
+ */
 export function hasDiyChoice(picks, data) {
   for (const [tier, list] of diyCandidates(picks, data)) if (list.length > diyTierSlotIds(tier, data).length) return true;
   return false;

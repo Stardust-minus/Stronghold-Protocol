@@ -156,7 +156,7 @@ export { withUnitLoadouts };
  * @param {object} spec BattleSpec
  * @param {any} dataSource DataSource (or raw data maps; default: the sim's default source)
  * @param {{ sharedBoss?: object|null, BattleClass?: Function, logger?: object, recordEvents?: boolean, quiet?: boolean,
- *           content?: string }} [opts]
+ *           content?: string, resourceNumbers?: boolean }} [opts]
  */
 export function createBattleFromSpec(spec, dataSource, opts = {}) {
   if (!spec || typeof spec !== 'object') throw new TypeError('createBattleFromSpec: spec required');
@@ -195,6 +195,7 @@ export function createBattleFromSpec(spec, dataSource, opts = {}) {
   if (opts.logger) battleOpts.logger = opts.logger;
   if (opts.recordEvents === false) battleOpts.recordEvents = false;
   if (opts.quiet) battleOpts.quiet = true;
+  if (opts.resourceNumbers) battleOpts.resourceNumbers = true;
   const b = new BattleClass(battleOpts);
   b.battleId = s.battleId ?? null;
   return b;
@@ -447,7 +448,7 @@ export function resultCanonicalJson(result, rename = null) {
     const pid = byName.get(shown);
     const p = per[pid] || {};
     const lg = p.layerGains && typeof p.layerGains === 'object' ? p.layerGains : {};
-    return [
+    const row = [
       shown,
       p.killed | 0, p.total | 0, !!p.perfect, r4(p.coins),
       Object.keys(lg).sort().map((k) => [k, r4(lg[k])]),
@@ -456,7 +457,12 @@ export function resultCanonicalJson(result, rename = null) {
       (Array.isArray(p.leaked) ? p.leaked : []).map((l) => `${l && l.enemyKey}|${l && l.counted === false ? 0 : 1}|${l && l.uniteRuntime ? 'x' : ''}|${name((l && l.sourcePlayerId) || '')}|${modsKey(l && l.mods)}`).sort(),
       Math.round(Number(p.damageDealt) || 0), Math.round(Number(p.bossDamage) || 0),
       (Array.isArray(p.unitsEnd) ? p.unitsEnd : []).map((u) => [u && u.uid, r4(u && u.hpPct), r4(u && u.sp), !!(u && u.alive)]),
+      ...(p.commandChests ? [p.commandChests.map(c => [c.id, c.alive])] : []),
     ];
+    // Optional. A result with no temporary layers keeps the same tuple length as before 规程.
+    const tg = p.tempLayerGains && typeof p.tempLayerGains === 'object' ? p.tempLayerGains : null;
+    if (tg && Object.keys(tg).length) row.push(Object.keys(tg).sort().map((k) => [k, r4(tg[k])]));
+    return row;
   });
   return JSON.stringify([res.reason ?? null, r4(res.time), res.killed | 0, res.total | 0, players]);
 }
@@ -538,9 +544,17 @@ export function compactResult(res) {
         taken: Math.max(0, Math.round(fnum(u.taken))), attacks: Math.max(0, Math.trunc(fnum(u.attacks))),
       })),
     };
+    if (Array.isArray(p.commandChests)) perPlayer[pid].commandChests = p.commandChests.slice(0, 64)
+      .filter(c => c && Number.isInteger(c.id) && c.id > 0 && typeof c.alive === 'boolean').map(c => ({ id: c.id, alive: c.alive }));
     // the HUD capsule's numerator (or absent for a result that has none: the teammate UI falls back to `killed`)
     const resolved = Number.isFinite(p.resolved) ? Math.max(0, Math.min(total, Math.trunc(p.resolved))) : null;
     if (resolved != null) perPlayer[pid].resolved = resolved;
+    // 规程 temporary layers. Omitted when empty so a default result stays the same shape.
+    const tempLayerGains = {};
+    for (const [k, v] of Object.entries(p.tempLayerGains || {}).slice(0, 40)) {
+      if (isKey(k) && fnum(v) > 0) tempLayerGains[k] = Math.min(1e4, Math.floor(fnum(v)));
+    }
+    if (Object.keys(tempLayerGains).length) perPlayer[pid].tempLayerGains = tempLayerGains;
   }
   const out = {
     reason: ['cleared', 'timeout', 'forced'].includes(r.reason) ? r.reason : 'forced',

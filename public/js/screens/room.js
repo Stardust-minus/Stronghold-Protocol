@@ -17,9 +17,15 @@
 // host's start counts as the host's ready. So 开始模拟 is enabled exactly then and sends room.start
 // alone (no separate room.ready round trip that could leave the host "ready" after a failed start).
 // Solo rooms show a single seat.
-// Spectator seats (community report #26, a remake feature): a co-op room with spectators shows the 观战席 strip under
-// the seats — names, offline marks, the host's ✕ (room.removeSpectator) — and a spectator's own view swaps the ready
-// button for 观战中 and offers 入座 (room.join of the room) while a player seat is free.
+// Spectator seats (community report #26, a remake feature): a co-op room shows the 观战席 strip under the seats — names,
+// offline marks, the host's ✕ (room.removeSpectator) — and a spectator's own view swaps the ready button for 观战中 and
+// offers 入座 (room.join of the room) while a player seat is free. A seated doctor turns spectator with 转为观战 (upstream
+// PR #910, 0.4.0: room.spectate of the own room; another connected human must stay seated, the host hands the room
+// over): the strip's button, on a short screen the eye on one's own card, where an empty strip gives its line up.
+// 规程·序列Ⅰ's solo (upstream 0.4.0) plays an official mode (room.modeId: 极速模拟 / 规程等级 n): the mode names the room
+// and the host changes it in 选择模拟协议 (LadderList, room.setMode). The room keeps this fork's green look by default; with
+// the lobby's 规程 theme (大厅背景 → 规程, ui/hubBackdrop.js regulationLook; the owner, 2026-11-15) it takes upstream 0.4.0's
+// red 规程 room look in every version (`data-look="regulation"`, css/screens/lobby.css).
 // Plugins (DESIGN §32 P1a): the tag under the title — 「原版」 or 「插件 ×N」 — opens the 插件 panel (ui/pluginPanel.js:
 // the host switches the room's plugins, everybody else reads them). With gameplay plugins (§32.6: a content set of its
 // own — the tag reads 「非官方」 too) every seat shows whether its page has loaded and checked the room's content
@@ -32,7 +38,7 @@
 // The version pill beside the difficulty (and the 版本 row of 同盟设置 in co-op) opens the version picker (ui/versionPicker.js): the
 // host's pick proposes the switch (room.proposeVersion: a lone human's room switches at once; otherwise the seated humans
 // vote — ui/versionVote.js, the strip between the 观战席 and the footer); everybody else reads it (由创建者发起). It is off
-// during a vote, with gameplay plugins on (they play 第二期下半 only) and offline. A switch is told to everybody (a toast,
+// during a vote and offline; gameplay plugins must support the target. A switch is told to everybody (a toast,
 // never on entering a room), and a room whose version is not this browser's lobby choice says that leaving restores it.
 // Texts go through t() (docs/I18N.md).
 
@@ -53,7 +59,7 @@ import { LoadoutButton } from './loadout.js';
 import { PluginTag, VersionTag, isModdedRoom } from '../ui/pluginTag.js';
 import { VersionVote, versionVoteOf } from '../ui/versionVote.js';
 import { VersionPicker } from '../ui/versionPicker.js';
-import { DEFAULT_VERSION, lobbyVersion, needsContent, offeredDifficulties, roomVersion, serverDefaultVersion, soloTimedOf, soloTimeMsgid, versionLabel } from '../versions.js';
+import { DEFAULT_VERSION, ladderModes, lobbyVersion, needsContent, offeredDifficulties, roomVersion, seasonOf, serverDefaultVersion, soloTimedOf, soloTimeMsgid, versionLabel } from '../versions.js';
 import { hasScriptConsent, rememberScriptConsent, pageVersion } from '../content.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
@@ -67,7 +73,7 @@ import { OperatorPicker, AvatarPicker } from '../ui/opPicker.js';
 import { NameCardLayer, NameCardPicker } from '../ui/namecards.js';
 import { TrophyBadge } from '../ui/trophies.js';
 import { OwnerBadge, isOwnerSeat } from '../ui/ownerName.js';
-import { difficultyInfo, ProtoCard } from './lobby.js';
+import { difficultyInfo, modeInfo, ProtoCard, LadderList } from './lobby.js';
 import { ProtocolScene } from '../ui/protocolScene.js';
 import { usePresence, useRise, afterLeave } from '../ui/transitions.js';
 import { experimentalChanged, experimentalSummary } from '../ui/experimental.js';
@@ -79,6 +85,7 @@ import { ServerStatusModal } from '../ui/serverStatus.js';
 import { QueueFlow, queueActive } from '../ui/matchmaking.js';
 import { useGameData, BandIcon } from '../ui/gameComponents.js';
 import { allowedBands } from './bandDraft.js';
+import { regulationLook } from '../ui/hubBackdrop.js';
 import { t, tc } from '../../../shared/i18n.js';
 
 /**
@@ -151,6 +158,23 @@ export function partyQueueReason(room, myId, online = true) {
 }
 
 /**
+ * Why 「转为观战」 is disabled, or '' when a seated player may switch.
+ * The same predicates as server/lobby.js becomeSpectator: another seated human must be connected
+ * (`s.connected`); a full spectator strip and a running match refuse on their own. This fork's MAX_SPECTATORS is 0, no
+ * cap (shared/constants.js): the strip is then never full.
+ * @param {any} room
+ * @param {{ humans?: { playerId: any, connected?: boolean }[], spectators?: unknown[] }} facts
+ * @param {any} myId
+ * @returns {string}
+ */
+export function spectateSwitchReason(room, facts, myId) {
+  if (room?.inMatch) return t('模拟已开始');
+  if (MAX_SPECTATORS > 0 && (facts?.spectators?.length || 0) >= MAX_SPECTATORS) return t('观战席已满');
+  if (!facts?.humans?.some((s) => s.playerId !== myId && s.connected !== false)) return t('至少保留一名参赛博士');
+  return '';
+}
+
+/**
  * The co-op room option 「AI 队友最后选择」 (GitHub #338; room.setAiPicksLast, room.state.aiPicksLast): in the strategy and
  * 机变 drafts every human picks before the AI teammates. null in a solo room (no AI teammates); otherwise its state (off
  * when the server sends none) and whether this player may switch it — the host only, the others see it read-only.
@@ -170,9 +194,12 @@ export function listedOption(room, myId) {
   return { on: room.listed === true, editable: room.hostId != null && room.hostId === myId && !room.inMatch };
 }
 
-/** Spectator handover is available only in original default-version co-op rooms, with a host opt-in. */
+/**
+ * Spectator handover in an original-content co-op room of any official version, with a host opt-in (upstream 0.4.0:
+ * 规程 rooms too — the version host runs it; server/aiTakeover.js decides whether this deployment allows it).
+ */
 export function aiTakeoverOption(room, myId) {
-  if (!room || room.mode === 'solo' || roomVersion(room) !== DEFAULT_VERSION || room.content?.vanilla === false) return null;
+  if (!room || room.mode === 'solo' || room.content?.vanilla === false) return null;
   return { on: room.aiTakeoverEnabled === true, editable: room.hostId != null && room.hostId === myId && !room.inMatch };
 }
 
@@ -268,8 +295,12 @@ function SeatPool({ room, index }) {
   return Number.isInteger(pool) ? html`<em class="rseat__pool" data-testid=${`seat-pool-${index}`}>${t('卡池 {n}', { n: pool + 1 })}</em>` : null;
 }
 
+/**
+ * One seat card. One's own card in a co-op room carries 转为观战 (`onSpectate`, upstream PR #910) at the corner the host's
+ * 移出 takes on the others' cards — shown only on a short screen, where the 观战席 strip gives its line up (lobby.css).
+ */
 function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, onKick, onInvite, onAddBot, onRemoveBot, onBotBand, portraits,
-  onPickCard = null, onPickAvatar = null, onPickBg = null }) {
+  onPickCard = null, onPickAvatar = null, onPickBg = null, onSpectate = null }) {
   const [bad, setBad] = useState(null);
   const flash = useRise(!!seat && (seat.ready || seat.isBot || seat.playerId === room.hostId));
   const coop = room.mode !== 'solo';
@@ -323,7 +354,7 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
       ${isHostSeat ? html`<span class="rseat__host">${t('创建者')}</span>` : null}
       ${offline ? html`<span class="rseat__lost"><${Icon} name="wifiOff" />${t('失去信号')}</span>` : null}
       <span class="rseat__state">${ready
-        ? html`<span class="rseat__box"><${Icon} name="check" /></span>${isHostSeat && !seat.ready ? t('待命中') : t('已就绪')}`
+        ? html`<span class="rseat__box"><${Icon} name="check" /></span>${isHostSeat ? t('待命中') : t('已就绪')}`
         : html`<span class="rseat__box"></span>${t('准备中')}`}</span>
       ${facts.needsContent && !seat.isBot ? html`<span class=${`rseat__content is-${seat.content || 'loading'}`} data-testid="seat-content">
         ${facts.versionRoom
@@ -336,6 +367,11 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
       onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}
     ${seat.isBot && facts.isHost ? html`<button type="button" class="rseat__kick rseat__kick--bot" disabled=${busy === `rm${index}`}
       onClick=${() => onRemoveBot(index)} title=${t('移除该 AI 队友')} aria-label=${t('移除 AI 队友')}><${Icon} name="robot" /><${Icon} name="close" /></button>` : null}
+    ${isMe && coop && onSpectate ? (() => {
+      const why = spectateSwitchReason(room, facts, myId);
+      return html`<button type="button" class="rseat__spectate" data-testid="seat-spectate" disabled=${!!why || !!busy || queued}
+        onClick=${onSpectate} title=${why || t('转为观战')} aria-label=${t('转为观战')}><${Icon} name="eye" /></button>`;
+    })() : null}
     <div class=${`rseat__plate${card?.bg ? ' has-nc' : ''}`}>
       ${card?.bg ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />` : null}
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
@@ -354,10 +390,15 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
   </article>`;
 }
 
-/** 观战席: the room's spectators (host: ✕ frees a seat), and 入座 for a spectator while a player seat is free. */
-function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {
-  if (!facts.spectators.length) return null;
-  return html`<section class="specbar" aria-label=${t('观战席')}>
+/**
+ * 观战席: the room's spectators (host: ✕ frees a seat), 入座 for a spectator while a player seat is free, and 转为观战 for a
+ * seated doctor (upstream PR #910). Every co-op room shows it; an empty one (no spectator yet: only the count and
+ * 转为观战) gives its line up on a short screen (lobby.css), where 转为观战 is the eye on one's own card.
+ */
+function SpectatorBar({ room, facts, myId, busy, queued = false, onRemove, onSit, onSpectate }) {
+  if (room.mode === 'solo') return null;
+  const reason = spectateSwitchReason(room, facts, myId);
+  return html`<section class=${`specbar${facts.spectators.length ? '' : ' specbar--empty'}`} aria-label=${t('观战席')}>
     <span class="specbar__label"><${Icon} name="eye" />${t('观战席')}<b class="num">${facts.spectators.length}</b><span class="num t-dim">${MAX_SPECTATORS > 0 ? `/${MAX_SPECTATORS}` : ` / ${t('无上限')}`}</span></span>
     ${facts.spectators.map((s) => html`<span key=${s.playerId} class=${`specbar__who${s.playerId === myId ? ' is-me' : ''}${s.connected === false ? ' is-offline' : ''}${isOwnerSeat(s) ? ' is-owner' : ''}`}>
       ${s.connected === false ? html`<${Icon} name="wifiOff" />` : null}<span class=${isOwnerSeat(s) ? 'sp-owner-name' : ''}>${s.name || t('博士')}</span><${OwnerBadge} seat=${s} />${s.playerId === myId ? html`<span class="seat__you">${t('你')}</span>` : null}
@@ -365,29 +406,39 @@ function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {
         onClick=${() => onRemove(s.playerId)} aria-label=${t('移出观战者 {name}', { name: s.name || '' })} title=${t('移出该观战者')} />` : null}
     </span>`)}
     ${facts.spectating && facts.emptySeats > 0 ? html`<${Button} size="sm" icon="user" loading=${busy === 'sit'} onClick=${onSit}>${t('入座')}<//>` : null}
+    ${facts.mine ? html`<${Button} variant="secondary" size="sm" icon="eye" disabled=${!!reason || !!busy || queued} loading=${busy === 'spectate'}
+      title=${reason || t('转为观战')} data-testid="room-spectate" onClick=${onSpectate}>${t('转为观战')}<//>` : null}
   </section>`;
 }
 
 /** mm:ss of a duration in seconds. */
 const clock = (s) => `${String(Math.floor(Math.max(0, s) / 60)).padStart(2, '0')}:${String(Math.floor(Math.max(0, s)) % 60).padStart(2, '0')}`;
 
-/** 选择模拟协议 over the room (host): the difficulty cards and 确认. */
-function RoomProtocol({ room, onClose, onPick, busy, leaving = false, difficulties = DIFFICULTIES }) {
-  const [pick, setPick] = useState(room.difficulty);
+/**
+ * 选择模拟协议 over the room (host): the difficulty cards and 确认. A laddered room (规程's solo, `ladder`: versions.js
+ * ladderModes) lists its official modes instead (lobby.js LadderList) and 确认 sends the mode (`onMode`, room.setMode).
+ */
+function RoomProtocol({ room, onClose, onPick, onMode = null, busy, leaving = false, difficulties = DIFFICULTIES, ladder = null }) {
+  const current = ladder ? room.modeId : room.difficulty;
+  const [pick, setPick] = useState(current);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
   }, []);
-  return html`<div class=${`rs-proto${leaving ? ' is-leaving' : ''}`} style=${`--d-color:${DIFFICULTY_COLORS[pick]}`} role="dialog" aria-label=${t('选择模拟协议')}
+  const mode = ladder && pick ? modeInfo(pick) : null;
+  const shown = mode ? mode.difficulty : pick;
+  return html`<div class=${`rs-proto${leaving ? ' is-leaving' : ''}`} style=${`--d-color:${mode ? mode.color : DIFFICULTY_COLORS[pick]}`} role="dialog" aria-label=${t('选择模拟协议')}
       onMouseDown=${(e) => { if (e.target === e.currentTarget) onClose(); }}>
-    <div class="rs-proto__scene" aria-hidden="true"><${ProtocolScene} key=${pick} difficulty=${pick} /></div>
+    <div class="rs-proto__scene" aria-hidden="true"><${ProtocolScene} key=${shown} difficulty=${shown} /></div>
     <section class="rs-proto__side">
       <h2 class="rs-proto__title">${t('选择模拟协议')}</h2>
       <div class="proto-list rs-proto__list" role="radiogroup" aria-label=${t('模拟难度')}>
-        ${difficulties.map((d) => html`<${ProtoCard} key=${d} roomMode=${room.mode} difficulty=${d} selected=${pick === d} onSelect=${setPick} />`)}
+        ${ladder ? html`<${LadderList} ladder=${ladder} modeId=${pick} onMode=${setPick} disabled=${!!busy} />`
+          : difficulties.map((d) => html`<${ProtoCard} key=${d} roomMode=${room.mode} difficulty=${d} selected=${pick === d} onSelect=${setPick} />`)}
       </div>
-      <button type="button" class="proto-start rs-proto__ok" disabled=${!!busy} onClick=${() => (pick === room.difficulty ? onClose() : onPick(pick))}>
+      ${mode?.offBonds.length ? html`<p class="proto-brief__off rs-proto__off" data-testid="proto-off-bonds">${t('本模式未载入的盟约：{names}', { names: mode.offBonds.join('、') })}</p>` : null}
+      <button type="button" class="proto-start rs-proto__ok" disabled=${!!busy} onClick=${() => (pick === current ? onClose() : ladder ? onMode?.(pick) : onPick(pick))}>
         <span class="proto-start__mark" aria-hidden="true"><span class="proto-start__rook"><i>[</i><${Icon} name="rook" /><i>]</i></span><small>STRONGHOLD<br />PROTOCOL</small></span>
         <span class="proto-start__label">${busy === 'diff' ? html`<${Spinner} size="sm" />` : null}${t('确认')}</span>
         <span class="proto-start__deco" aria-hidden="true"></span>
@@ -434,6 +485,8 @@ export function RoomScreen() {
   }), [cardList, m, me.playerId, myCard.charId, myCard.look]);
   const [protoShown, protoLeaving] = usePresence(picker && !!room && roomFacts(room, me.playerId).isHost, 220);
   const [exiting, setExiting] = useState(false);
+  // the lobby's 规程 theme (read once: the 大厅背景 dialog is the lobby's)
+  const [look] = useState(() => regulationLook());
   // the host's change of difficulty, told to the others (see the header); never on entering a room or switching rooms
   const seenDiff = useRef(room ? `${room.code}|${room.difficulty}` : '');
   useEffect(() => {
@@ -467,7 +520,9 @@ export function RoomScreen() {
   const coop = room.mode !== 'solo';
   const facts = roomFacts(room, me.playerId);
   const myReady = !!facts.mine?.ready;
-  const info = difficultyInfo(room.mode, room.difficulty);
+  // a laddered room (规程's solo) shows its official mode (规程等级 n · AC-SP-n) instead of the difficulty
+  const info = room.modeId ? modeInfo(room.modeId) : difficultyInfo(room.mode, room.difficulty);
+  const modeLabel = room.modeId ? info.name : DIFFICULTY_NAMES[room.difficulty] ? t(DIFFICULTY_NAMES[room.difficulty]) : '';
   const big = facts.seats.length > MAX_SEATS;
 
   /** Runs one request at a time; resolves true once the server took it (false: not sent, or refused — toasted). */
@@ -482,11 +537,13 @@ export function RoomScreen() {
     }
   };
 
-  // 准备 plays the official PLAYER_READY, cancelling it the plain button-up (feedback #10)
+  // 准备 plays the official PLAYER_READY, cancelling it the plain button-up (feedback #10). Since the 0.4.0 merge the
+  // ready edge is audio.js's room-wide cue (upstream 3868e24d: every member, the sender included, hears an accepted
+  // false → true once); playing it here as well doubled it on the sender. Only the cancel's button-up stays here.
   const toggleReady = () => run('ready', async () => {
     const ready = !myReady;
     await net.request('room.ready', { ready });
-    audio.sfx(ready ? 'ready' : 'back', { volume: 0.8 });
+    if (!ready) audio.sfx('back', { volume: 0.8 });
   });
   const start = () => run('start', () => net.request('room.start', {}));
   const queueReason = partyQueueReason(room, me.playerId, online);
@@ -501,6 +558,8 @@ export function RoomScreen() {
     if (ok) run(`kick${seat}`, () => net.request('room.kick', { seat, playerId }));
   };
   const setDifficulty = (difficulty) => run('diff', async () => { await net.request('room.setDifficulty', { difficulty }); savePref('lobby.difficulty', difficulty); setPicker(false); });
+  // a laddered room (规程's solo): the official mode (server/lobby.js setMode), remembered for the lobby's next solo
+  const setMode = (modeId) => run('diff', async () => { await net.request('room.setMode', { modeId }); savePref('lobby.ladderMode', modeId); setPicker(false); });
   const setAiTakeover = (on) => run('aihandover', () => net.request('room.setAiTakeover', { on }));
   const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
   const setListed = (listed) => run('listed', () => net.request('room.setListed', { listed }));
@@ -513,6 +572,14 @@ export function RoomScreen() {
   // spectator seats: the host frees one; a spectator takes a free player seat with room.join of this room
   const removeSpectator = (playerId) => run(`rs${playerId}`, () => net.request('room.removeSpectator', { playerId }));
   const sit = () => run('sit', () => net.request('room.join', { code: room.code, ...(room.test ? { testAck: true } : {}) }));
+  // 转为观战 (upstream PR #910): a seated doctor moves to the 观战席 (room.spectate of this room); the host hands the room over
+  const spectate = async () => {
+    if (inFlight.current || queued) return; // (its buttons are disabled while the party queues)
+    const ok = await confirmDialog({ title: t('转为观战'),
+      text: facts.isHost ? t('转入观战席后，创建者身份将移交给其他博士。有空位时可以重新入座。')
+        : t('转入观战席后仅观看模拟，有空位时可以重新入座。'), okText: t('转为观战') });
+    if (ok) run('spectate', () => net.request('room.spectate', { code: room.code, ...(room.test ? { testAck: true } : {}) }));
+  };
   const copy = async (what) => {
     // the copied link carries an invitation line (#103): 「{name}邀请你加入卫戍协议：盟约【{difficulty}】」 — with the
     // version's name for another official version (DESIGN §35.23)
@@ -572,6 +639,8 @@ export function RoomScreen() {
   // the difficulties the room's version offers (its config's modes, versions.js) — the page shows that version's data
   // once it is loaded; until then (or for a gameplay plugin room's own modes) all four
   const protoDifficulties = offeredDifficulties(pageVersion() === roomVersion(room) ? getConfig() : null, room.mode);
+  // a laddered room (规程's solo) picks its official mode (room.modeId) instead of a difficulty
+  const ladder = room.modeId ? ladderModes(pageVersion() === roomVersion(room) ? getConfig() : null, room.mode) : null;
   const soloTimed = soloTimedOf(pageVersion() === roomVersion(room) ? getConfig() : null, roomVersion(room));
   const soloOpt = soloUnlimitedOption(room, me.playerId, soloTimed);
   const soloBrief = soloTimeMsgid('brief', { timed: soloTimed, unlimited: room.soloUnlimited === true });
@@ -581,7 +650,6 @@ export function RoomScreen() {
   const showVersion = Array.isArray(versions) || curVersion !== DEFAULT_VERSION;
   const versionWhy = !online ? t('连接中断，请稍候重试')
     : vote ? t('切换版本投票进行中，请等投票结束')
-    : facts.modded ? t('请先关闭改变玩法的插件')
     : !Array.isArray(versions) || versions.length < 2 ? t('本服务器只启用了这一个版本') : null;
   const versionEditable = facts.isHost && !facts.spectating && !room.inMatch;
   // the room's version is not this browser's lobby choice: the banner says leaving restores it (on a short screen, where
@@ -607,7 +675,10 @@ export function RoomScreen() {
     if (sent && alive.current) setVersionOpen(false);
   };
 
-  return html`<div class=${`screen room-screen rs${coop ? '' : ' rs--solo'}${big ? ' rs--big' : ''}${exiting ? ' is-leaving' : ''}`} style=${`--d-color:${DIFFICULTY_COLORS[room.difficulty]}; --n:${facts.seats.length}`}>
+  // (`data-season`: the room version's season; `data-look`: the 规程 theme — see the header)
+  return html`<div class=${`screen room-screen rs${coop ? '' : ' rs--solo'}${big ? ' rs--big' : ''}${exiting ? ' is-leaving' : ''}`} data-season=${seasonOf(curVersion)}
+      data-look=${look ? 'regulation' : undefined}
+      style=${`--d-color:${room.modeId ? info.color : DIFFICULTY_COLORS[room.difficulty]}; --n:${facts.seats.length}`}>
     <div class="rs__bg" aria-hidden="true"></div>
     <header class="rs-top">
       <div class="rs-top__left">
@@ -616,7 +687,7 @@ export function RoomScreen() {
         <//>
         <div class="rs-clock">
           <b>${modeName}${room.test ? html` <${TestMark} />` : null}<${VersionTag} room=${room} class="rs-clock__ver" />${room.content?.modeId ? html`<span class="room-mode" data-testid="room-mode">${(room.content.modes || []).find((m) => m.id === room.content.modeId)?.name || room.content.modeId}</span>` : null}<span class="rs-clock__sep"></span>${t('同盟已等待')} <span class="num">${clock((Date.now() - since) / 1000)}</span></b>
-          ${big ? html`<span class="room-capacity">${t('实验性同盟 · {n} 人模式 · 支持同模式匹配', { n: facts.seats.length })}</span>` : html`<span>${t(DIFFICULTY_NAMES[room.difficulty])} · ${info.code}</span>`}
+          ${big ? html`<span class="room-capacity">${t('实验性同盟 · {n} 人模式 · 支持同模式匹配', { n: facts.seats.length })}</span>` : html`<span>${modeLabel} · ${info.code}</span>`}
         </div>
         <div class="rs-tools">
           <${PingPill} ms=${conn.ping} online=${online} status=${conn.status} loadState=${conn.loadState ?? 'unknown'} loadDetails=${conn.loadDetails}
@@ -643,10 +714,10 @@ export function RoomScreen() {
         myId=${me.playerId} myCard=${myCard} busy=${busy} gd=${gd} queued=${queued} onKick=${kick} onInvite=${() => copy('code')}
         onAddBot=${addBot} onRemoveBot=${removeBot} onBotBand=${setBandSeat} portraits=${portraits}
         onPickCard=${cardList.length ? () => setPicking('op') : null} onPickAvatar=${cardList.length ? () => setPicking('avatar') : null}
-        onPickBg=${() => setPicking('bg')} />`)}
+        onPickBg=${() => setPicking('bg')} onSpectate=${spectate} />`)}
       ${coop ? null : html`<aside class="solo-brief rs-brief brackets">
         <${MicroLabel} tone="mint">BRIEFING<//>
-        <h2>${DIFFICULTY_NAMES[room.difficulty] ? t(DIFFICULTY_NAMES[room.difficulty]) : ''} <span class="num t-dim">${info.code}</span></h2>
+        <h2>${modeLabel} <span class="num t-dim">${info.code}</span></h2>
         <p>${info.desc}</p>
         <ul>
           ${info.effects.map((e) => html`<li key=${e}>${e}</li>`)}
@@ -655,7 +726,7 @@ export function RoomScreen() {
         </ul>
       </aside>`}
     </main>
-    <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
+    <${SpectatorBar} room=${room} facts=${facts} myId=${me.playerId} busy=${busy} queued=${queued} onRemove=${removeSpectator} onSit=${sit} onSpectate=${spectate} />
     <${VersionVote} room=${room} />
     ${isCollabRoom(room.experimental) ? html`<div class="rs-collab"><${CollabNotice} /></div>` : null}
     ${isConsoleRoom(room.experimental) ? html`<div class="rs-collab"><${ConsoleNotice} /></div>` : null}
@@ -671,7 +742,7 @@ export function RoomScreen() {
         <p class="rs-hint">${coop ? html`<span class="rs-ready num" title=${t('已就绪')}>${facts.humans.map((s) => html`<${Icon} key=${s.playerId} name="user" class=${facts.isReady(s) ? 'is-on' : ''} />`)}<b>${facts.readyHumans}</b>/${facts.humans.length}</span>` : null}${statusLine}</p>
         <div class="rs-pill">
           <button type="button" class="rs-pill__diff" disabled=${!facts.isHost || !!busy || queued} onClick=${() => setPicker(true)}
-            title=${facts.isHost ? t('更改模拟难度') : t('由创建者选择')}><${DifficultyIcon} difficulty=${room.difficulty} />${t(DIFFICULTY_NAMES[room.difficulty])}</button>
+            title=${facts.isHost ? t('更改模拟难度') : t('由创建者选择')}><${DifficultyIcon} difficulty=${room.difficulty} />${modeLabel}</button>
           ${versionCtl ? html`<${Tooltip} text=${versionCtl.why} class="rs-pill__version"><button type="button" class=${`rs-pill__ver${versionCtl.editable ? '' : ' is-ro'}`} data-testid="room-version"
             disabled=${versionCtl.disabled} onClick=${versionCtl.onOpen} aria-label=${t('游戏版本：{name}', { name: versionLabel(curVersion) })}><${Icon} name="book" /><span class="rs-pill__vername">${versionLabel(curVersion)}</span></button><//>` : null}
           <button type="button" class=${`rs-pill__gear${settings ? ' is-on' : ''}`} disabled=${queued} onClick=${() => setSettings(settingsPage(room, 'alliance'))} title=${coop ? t('同盟设置') : t('模拟设置')} aria-label=${coop ? t('同盟设置') : t('模拟设置')} aria-haspopup="dialog">
@@ -723,7 +794,8 @@ export function RoomScreen() {
       looks=${{ kind: 'avatar', current: myCard.avatarLook, onLook: (look) => { setAvatarLook(look); setPicking(null); } }}
       onPick=${(id) => { setCardAvatar(id); if (!id || lookOptions(m, id, 'avatar').length < 2) setPicking(null); }} onClose=${() => setPicking(null)} />` : null}
     ${picking === 'bg' ? html`<${NameCardPicker} current=${myCard.bg} x=${myCard.bgX} y=${myCard.bgY} zoom=${myCard.bgZoom} onPick=${setCardBackground} onAdjust=${setCardBackgroundFrame} onClose=${() => setPicking(null)} />` : null}
-    ${protoShown ? html`<${RoomProtocol} room=${room} busy=${busy} onClose=${() => setPicker(false)} onPick=${setDifficulty} leaving=${protoLeaving} difficulties=${protoDifficulties} />` : null}
+    ${protoShown ? html`<${RoomProtocol} room=${room} busy=${busy} onClose=${() => setPicker(false)} onPick=${setDifficulty} onMode=${setMode} leaving=${protoLeaving}
+      difficulties=${protoDifficulties} ladder=${ladder} />` : null}
     ${versionOpen && versionCtl ? html`<${VersionPicker} mode="room" versions=${versions || [{ id: curVersion, roomModes: [room.mode] }]} current=${curVersion}
       serverDefault=${serverDefault} roomMode=${room.mode} editable=${versionEditable && !versionWhy} busy=${busy === 'version'}
       note=${versionEditable ? versionWhy || (facts.humans.length > 1 ? t('其他博士同意后才会切换；切换后需要重新准备。') : null) : t('由创建者发起')}

@@ -1,12 +1,15 @@
 // 成就奖杯等级 (the 2026-10-14 design by 雨千代chiyo, the PRTS 同盟成就奖杯 table): the cumulative trophies pick one of five
 // chess-piece badges — 0~9 / 10~29 / 30~59 / 60~99 / 100+ (data/config.json trophies.medals, the official medalDataList),
 // art data/assets.json ui['medalIcon/trophy_level<n>_icon']; the SVG rook while the pack is missing or fails to load.
+// 规程's config lists eight (150 / 200 / 300 more): their icons come from the local extraction only (ui/assetUrls.js
+// medalIconUrl, the medal's iconId).
 // One's own count is the sum of this browser's 统计数据 (ui/playerCard.js trophyTotal); a teammate's comes with their
 // seat's card (room.state seats[].card.trophies — that player's own claim, display only).
 
 import { useState } from '../../vendor/hooks.module.js';
 import { html, Icon } from './components.js';
 import { data, useData } from '../data.js';
+import { medalIconUrl } from './assetUrls.js';
 import { t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -30,8 +33,9 @@ export function TrophyBadge({ count, class: cls, title }) {
   const [bad, setBad] = useState(null);
   if (!Number.isFinite(count)) return null;
   const lv = trophyLevel(count);
-  const ui = data.get('assets')?.ui;
-  const src = ui && typeof ui === 'object' ? ui[`medalIcon/trophy_level${lv}_icon`] : null;
+  const medals = data.get('config')?.trophies?.medals;
+  const iconId = (Array.isArray(medals) && typeof medals[lv - 1]?.iconId === 'string' && medals[lv - 1].iconId) || `trophy_level${lv}_icon`;
+  const src = medalIconUrl(data.get('assets'), iconId);
   const tip = title ?? t('奖杯等级 {lv} · 累计奖杯 {n}', { lv, n: count });
   if (typeof src === 'string' && src && bad !== src) {
     return html`<img class=${cx('tbadge', `tbadge--${lv}`, cls)} src=${src} alt=${tip} title=${tip} draggable=${false} onError=${() => setBad(src)} />`;

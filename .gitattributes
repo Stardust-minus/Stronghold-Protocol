@@ -17,6 +17,8 @@
 *.yml  text eol=lf
 # Preserve the exact bytes/hashes of upstream moderation licenses, including their original whitespace.
 deploy/stardust/auth/NAME-*-LICENSE.txt -text whitespace=-blank-at-eol
+# Spine atlases (the theme guide's example pack): the guide test reads the page and region lines
+*.atlas text eol=lf
 # binary assets
 *.png binary
 *.jpg binary

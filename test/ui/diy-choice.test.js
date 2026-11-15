@@ -64,6 +64,21 @@ describe('four equal positions per tier in the 自选编队 tab', () => {
     assert.equal(M.diyCapacity(D), 8);
   });
 
+  test('规程·序列Ⅰ: its six slots a tier and no 候补 — twelve positions, 「已选 n/12」 (选择自编 only, the owner, 2026-11-15)', () => {
+    const dir = path.join(ROOT, 'data/versions/act3autochess-v3_1');
+    const R = { chess: JSON.parse(readFileSync(path.join(dir, 'chess.json'), 'utf8')), backups: JSON.parse(readFileSync(path.join(dir, 'backups.json'), 'utf8')) };
+    assert.deepEqual(M.diyBenchList(R), []);
+    const pos = M.diyPositions(R);
+    assert.deepEqual(pos.map((s) => [s.tier, s.n]), [5, 6].flatMap((tier) => [1, 2, 3, 4, 5, 6].map((n) => [tier, n])));
+    assert.ok(pos.every((s) => !/^diyBench_/.test(s.slotId)), 'every position is a slot of the data');
+    assert.equal(M.diyCapacity(R), 12);
+    // a 候补 key never goes out for 规程 (the server refuses it); the 盟约 data keeps its own; no data loaded: as stored
+    const picks = { chess_char_5_diy1_a: own(SIEGE), [B51]: own(KALTS) };
+    assert.deepEqual(Object.keys(M.dropForeignBench(picks, R)), ['chess_char_5_diy1_a']);
+    assert.deepEqual(Object.keys(M.dropForeignBench(picks, D)), ['chess_char_5_diy1_a', B51]);
+    assert.deepEqual(Object.keys(M.dropForeignBench(picks, { chess: null, backups: null })), ['chess_char_5_diy1_a', B51]);
+  });
+
   test('the bans of a match: none outside one; drawn and the mode\'s static ones in one; a pick\'s off bonds, all or some', () => {
     const config = { modes: { m1: { inactiveBondIds: ['lateranoShip'] } } };
     assert.equal(M.diyMatchOff(null, config), null);

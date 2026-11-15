@@ -13,6 +13,7 @@ import { startServer } from '../../server/index.js';
 import { hash16 } from '../../server/http/assetIndex.js';
 import { crc32 } from '../../public/js/assetPack.js';
 import { CHROME, hasChrome } from '../e2e/client.mjs';
+import { skipEntryFilm } from '../helpers/entryFilm.js';
 
 /** A zip of stored entries: `[{ name, raw }]`. */
 function buildStoredZip(files) {
@@ -64,8 +65,11 @@ function buildStoredZip(files) {
   return out;
 }
 
+// Not in this fork (the v0.4.0 merge, 2026-11-15): this fork opens on the lobby (2d4cd59a, no title screen): no title-page resource manager or 导入素材包 — the download is 设置 → 素材下载 (ui/assetSection.js, test/ui/asset-section.test.js), a different flow.
+const FORK_SKIP = 'this fork opens on the lobby (2d4cd59a, no title screen): no title-page resource manager or 导入素材包 — the download is 设置 → 素材下载 (ui/assetSection.js, test/ui/asset-section.test.js), a different flow';
+
 test('import has its own dialog that requests nothing on opening; imported art is not fetched again; plain HTTP explains why import is off', {
-  skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 90000,
+  skip: FORK_SKIP || process.env.SP_E2E !== '1' || !hasChrome(), timeout: 90000,
 }, async (t) => {
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
   const folderPng = Buffer.from('folder-png-bytes');
@@ -108,27 +112,29 @@ test('import has its own dialog that requests nothing on opening; imported art i
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
   t.after(() => browser.close());
   const page = await browser.newPage();
+  await skipEntryFilm(page); // the title's own controls: no entry film over them
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(srv.url);
   await page.waitForFunction(() => navigator.serviceWorker.controller != null, { timeout: 20000 });
-  await page.waitForSelector('[data-testid="asset-import"]');
+  await page.waitForSelector('[data-testid="resource-manager-open"]');
   // a first gesture unlocks audio (public/js/audio.js): make it elsewhere, so what follows is the dialog's own traffic
   await page.click('.title-tag');
   await new Promise((resolve) => setTimeout(resolve, 500));
   const quiet = requests.length;
-  await page.click('[data-testid="asset-import"]');
+  await page.click('[data-testid="resource-manager-open"]');
+  await page.click('[data-testid="resource-import"]');
   await page.waitForSelector('.asset-import-dialog [data-testid="asset-import-zip"]');
   await new Promise((resolve) => setTimeout(resolve, 800));
   const opening = requests.slice(quiet);
-  assert.deepEqual(opening.filter((url) => /^\/(?:assets|media|fonts)\//.test(url) || /^\/data\//.test(url)), [],
-    'opening the import dialog requests no art and no manifest');
+  assert.deepEqual(opening.filter((url) => /^\/(?:assets|media|fonts)\//.test(url)), [],
+    'opening the manager and selecting import requests no art; the default voice section may read manifests');
   assert.equal(await page.$('.asset-download'), null, 'the download dialog stays closed');
   assert.deepEqual(await page.evaluate(async () => ({
     download: (await import('/js/assetDownload.js')).assetDownload.get().phase,
     import: (await import('/js/assetPack.js')).assetImport.get().phase,
   })), { download: 'idle', import: 'idle' });
-  assert.ok(await page.$eval('.asset-import-dialog', (box) => box.contains(document.activeElement)), 'the dialog holds the focus');
+  assert.ok(await page.$eval('.resource-manager', (box) => box.contains(document.activeElement)), 'the dialog holds the focus');
 
   // a pack laid out like `node tools/package.mjs --assets`, through the dialog's zip picker
   const packZip = path.join(tmp, 'Stronghold-Protocol-v9.9.9-assets.zip');
@@ -170,7 +176,9 @@ test('import has its own dialog that requests nothing on opening; imported art i
   await page.evaluate(() => fetch('/healthz?import-probe=1'));
   assert.ok(probes > beforeProbe, 'a non-asset URL still reaches the server');
 
-  await page.click('[data-testid="asset-download"]');
+  await page.click('[data-testid="resource-manager-open"]');
+  await page.click('[data-testid="resource-download"]');
+  await page.click('[data-testid="asset-download-resume"]');
   await page.waitForFunction(() => document.querySelector('[data-testid="asset-download-status"]')?.textContent.includes('1 个素材下载失败'));
   assert.equal(counts.get(zipUrl) || 0, 0, 'download skips the imported zip file');
   assert.equal(counts.get(folderUrl) || 0, 0, 'download skips the imported folder file');
@@ -179,13 +187,14 @@ test('import has its own dialog that requests nothing on opening; imported art i
   assert.equal(await page.$('.asset-download .asset-import__row'), null, 'the download dialog has no import controls');
 
   const insecure = await browser.newPage();
+  await skipEntryFilm(insecure);
   await insecure.evaluateOnNewDocument(() => {
     Object.defineProperty(window, 'isSecureContext', { configurable: true, value: false });
   });
   await insecure.goto(srv.url);
-  await insecure.waitForSelector('[data-testid="asset-import"]');
-  assert.match(await insecure.$eval('#title-asset-import-hint', (el) => el.textContent), /HTTPS/, 'the hint under the button says why');
-  await insecure.click('[data-testid="asset-import"]');
+  await insecure.waitForSelector('[data-testid="resource-manager-open"]');
+  await insecure.click('[data-testid="resource-manager-open"]');
+  await insecure.click('[data-testid="resource-import"]');
   await insecure.waitForSelector('[data-testid="asset-import-unavailable"]');
   const reason = await insecure.$eval('[data-testid="asset-import-unavailable"]', (el) => el.textContent);
   assert.match(reason, /HTTPS/);

@@ -40,10 +40,12 @@ test('cueGate: one cue of a kind a second', () => {
   assert.equal(gate('joinRoom', 1000), true);
 });
 
-test('main.js plays the cue from onRoomState; the room screen plays 准备', () => {
+test('main.js plays the cue from onRoomState; the room screen plays the cancel (准备 is audio.js\'s room-wide cue)', () => {
   const main = readFileSync(new URL('../../public/js/main.js', import.meta.url), 'utf8');
   assert.match(main, /roomCue\(prevRoom, room, myId, \{ quiet: roomCueQuiet \}\)/);
   assert.match(main, /function onWelcome\(msg\) \{\n  roomCueQuiet = true;/);
   const roomJs = readFileSync(new URL('../../public/js/screens/room.js', import.meta.url), 'utf8');
-  assert.match(roomJs, /audio\.sfx\(ready \? 'ready' : 'back'/);
+  // the ready edge sounds once for every member, the sender too (audio.js installAudio, upstream 3868e24d): not here again
+  assert.match(roomJs, /if \(!ready\) audio\.sfx\('back'/);
+  assert.doesNotMatch(roomJs, /audio\.sfx\(ready \? 'ready'/);
 });

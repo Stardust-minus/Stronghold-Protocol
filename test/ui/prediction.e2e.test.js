@@ -12,6 +12,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { Client, hasChrome, sleep } from '../e2e/client.mjs';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 const enabled = process.env.SP_E2E === '1' && hasChrome();
 const request = (c, type, body = {}) => c.page.evaluate((type, body) => globalThis.__SP__.net.request(type, body), type, body);
@@ -66,7 +67,12 @@ before(async () => {
   savedTestMode = process.env.SP_TEST_MODE;
   process.env.SP_TEST_MODE = '1';
   const { startServer } = await import('../../server/index.js');
-  srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, assetIndex: false, matchHost: { matchOptions: { botRehearsal: 0 } } });
+  // the server's default version pinned to 第二期下半 as this suite was written (its 盟约 flow: 选策略 band_bldsk), like
+  // upstream's suites since c3524c1e: a stock server's lobby default is 规程 (LOBBY_DEFAULT_VERSION), a version room whose
+  // page loads the version's data first — its 开始模拟 waits for that (room.contentReady), a bare room.start right after
+  // room.create is refused CONTENT_NOT_READY
+  srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, assetIndex: false, versions: { default: DEFAULT_VERSION },
+    matchHost: { matchOptions: { botRehearsal: 0 } } });
   proxy = await delayProxy(new URL(srv.url).port | 0);
 });
 after(async () => {

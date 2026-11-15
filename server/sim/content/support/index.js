@@ -22,11 +22,11 @@ import { grantedBondsByMorph } from '../../../../shared/plugins/rules.js';
 import { RECORD_MAPS } from '../../../../shared/plugins/dataUtils.js';
 import { COLS, DIRECT_BONUS_STACKING } from '../../constants.js';
 import { frontOf, offsetTile } from '../../dir.js';
-import { bodyInKeys, bodyDist, bodyInRadius, bodyOnTile, bodyTileReach, bodyInRange } from '../../body.js';
+import { bodyInKeys, bodyDist, bodyInRadius, bodyOnTile, bodyTileReach, bodyInRange, bodyInRangeTile } from '../../body.js';
 
 export { COLS };
 /** Where an enemy can be hit (a huge enemy's whole hit rectangle, sim/body.js) — for every range test on enemies. */
-export { bodyInKeys, bodyDist, bodyInRadius, bodyOnTile, bodyTileReach };
+export { bodyInKeys, bodyDist, bodyInRadius, bodyOnTile, bodyTileReach, bodyInRangeTile };
 
 // =====================================================================================================================
 // numbers & data
@@ -55,6 +55,13 @@ export function initializeGameData(data) {
 export function setGameData(d) { DATA = d ?? null; CORE = null; EFFECT_ITEMS = new WeakMap(); }
 
 export const bondRecord = (id) => own(gameData().bonds, id);
+/** Per-player 规程 strategy replacement. The map is effect-id → effect-id, never a reused bond id. */
+export function playerBondRecord(battle, playerId, bondId) {
+  const record = bondRecord(bondId);
+  const effectId = battle.getPlayer(playerId)?.input?.bondEffectOverrides?.[record?.effectId];
+  const effect = effectId && battle.data.raw.effects?.[effectId];
+  return effect ? { ...record, effectId, buffs: effect.buffs, params: effect.params, effectDesc: effect.desc, effectDescRaw: effect.descRaw } : record;
+}
 export const itemRecord = (id) => own(gameData().items, id);
 export const garrisonRecord = (id) => own(gameData().garrisons, id);
 export const bandRecord = (id) => own(gameData().bands, id);

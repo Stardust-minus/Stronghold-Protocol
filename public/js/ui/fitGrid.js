@@ -4,7 +4,9 @@
 // CSS custom properties on the element only (no re-render): css/screens/draft.css reads them, with the design sizes as
 // the fallback (before the first measure, and where ResizeObserver is missing).
 //   * fitTiles: `count` square tiles in a w×h box — the column count that gives the largest tile, at most `max`; below
-//     `min` the tiles keep `min` and the box scrolls (a phone's portrait screen, a huge list).
+//     `min` the tiles keep `min` and the box scrolls (a phone's portrait screen, a huge list). With `groups` (the tile
+//     counts of sections, each starting a row: 规程's 泛用型 / 盟约型 strategies under their full-row headers) the rows add
+//     up per section; the headers' own height the caller takes off `h` (fitTileBox `head`).
 //   * fitRowHeight: `n` rows in a column whose other content (pool heads, gaps, paddings) keeps its height.
 // Used by screens/bandDraft.js (.draft-grid: --dcols / --dtile; .draft-order__rows: --drh).
 
@@ -14,17 +16,20 @@ import { useEffect } from '../../vendor/hooks.module.js';
  * The largest square tile for `count` tiles in a box of inner size w × h (px), with the gaps between them.
  * @param {number} count @param {number} w @param {number} h @param {number} gapX @param {number} gapY
  * @param {number} min @param {number} max px
+ * @param {number[]|null} [groups] the tiles of each section (summing to `count`), each section starting a new row
  * @returns {{ cols: number, tile: number, fits: boolean }}
  */
-export function fitTiles(count, w, h, gapX, gapY, min, max) {
+export function fitTiles(count, w, h, gapX, gapY, min, max, groups = null) {
   const n = Math.floor(Number(count));
   if (!(n > 0) || !(w > 0) || !(h > 0)) return { cols: Math.max(1, Math.min(4, n || 4)), tile: max, fits: true };
+  const parts = Array.isArray(groups) && groups.length && groups.every((g) => g > 0) ? groups : [n];
+  const rowsOf = (cols) => parts.reduce((sum, g) => sum + Math.ceil(g / cols), 0);
   // the largest tile; among column counts that give it (the `max` cap: a box with room to spare), the wall whose shape is
   // closest to the box's
-  const shape = (cols) => Math.abs(Math.log(cols / Math.ceil(n / cols)) - Math.log(w / h));
+  const shape = (cols) => Math.abs(Math.log(cols / rowsOf(cols)) - Math.log(w / h));
   const sizes = [];
   for (let cols = 1; cols <= n; cols++) {
-    const rows = Math.ceil(n / cols);
+    const rows = rowsOf(cols);
     sizes.push({ cols, tile: Math.min((w - (cols - 1) * gapX) / cols, (h - (rows - 1) * gapY) / rows, max) });
   }
   const top = Math.max(...sizes.map((s) => s.tile));
@@ -50,15 +55,35 @@ const px = (v) => parseFloat(v) || 0;
 const rootPx = () => px(globalThis.getComputedStyle?.(document.documentElement).fontSize) || 16;
 
 /**
- * Size a wall of square tiles (the element's children) to its box: sets --dcols and --dtile (px) on `el`.
- * @param {HTMLElement} el @param {{ min: number, max: number }} rem tile bounds in rem
+ * Size a wall of square tiles (the element's children) to its box: sets --dcols and --dtile (px) on `el`. Children that
+ * match `head` (full-row section headers: bandDraft.js .draft-grid__sec) are no tiles: each starts a section, and its
+ * row (its height, margins and one row gap) is taken off the box.
+ * @param {HTMLElement} el @param {{ min: number, max: number, head?: string|null }} rem tile bounds in rem
  */
-export function fitTileBox(el, { min, max }) {
+export function fitTileBox(el, { min, max, head = null }) {
   const cs = getComputedStyle(el);
   const w = el.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
-  const h = el.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
+  let h = el.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
   const r = rootPx();
-  const fit = fitTiles(el.children.length, w, h, px(cs.columnGap), px(cs.rowGap), min * r, max * r);
+  const kids = [...el.children];
+  let count = kids.length;
+  let groups = null;
+  if (head && kids.some((k) => k.matches(head))) {
+    groups = [];
+    count = 0;
+    let n = 0;
+    for (const k of kids) {
+      if (!k.matches(head)) { n++; continue; }
+      if (n) groups.push(n);
+      count += n;
+      n = 0;
+      const ks = getComputedStyle(k);
+      h -= k.getBoundingClientRect().height + px(ks.marginTop) + px(ks.marginBottom) + px(cs.rowGap);
+    }
+    if (n) groups.push(n);
+    count += n;
+  }
+  const fit = fitTiles(count, w, Math.max(1, h), px(cs.columnGap), px(cs.rowGap), min * r, max * r, groups);
   el.style.setProperty('--dcols', String(fit.cols));
   el.style.setProperty('--dtile', `${fit.tile}px`);
   el.dataset.fit = fit.fits ? 'all' : 'scroll';

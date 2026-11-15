@@ -183,14 +183,19 @@ test('an expanded-capacity room drafts freely too and allows repeats: the same s
   s.m.dispose();
 });
 
-test('a departing doctor keeps the strategy it held (else the default); AI 托管 locks the held one; neither stalls the step', () => {
+test('a departing doctor is drafted for by the team\'s rule, held strategy or not (§37.65); AI 托管 locks the held one; neither stalls the step', () => {
   const h = toDraft({ humans: 3, seed: 7 });
   const m = h.m;
   assert.deepEqual(m.handle('p_0', { t: 'g.bandHold', bandId: 'band_amiya' }), OK);
   assert.deepEqual(m.handle('p_1', { t: 'g.bandHold', bandId: 'band_lisa' }), OK);
+  // since the 0.4.0 merge (docs/history/0.3.3.md §36.10): upstream §37.65 — the AI drafts for the departed seat at once
+  // (botPickBand's departedWeight: Touch while nobody else has it, never 歌利亚), not the strategy it held
   m.onLeave('p_0');
-  assert.equal(m.draft.picks.p_0, 'band_amiya', 'the departed seat keeps its hold');
-  assert.equal(m.draft.holds.p_0, undefined);
+  assert.equal(m.draft.picks.p_0, undefined, 'nothing given at once');
+  h.sched.advance(1);
+  assert.equal(m.draft.picks.p_0, 'band_amedic', 'Touch, not the held strategy');
+  assert.equal(m.draft.holds.p_0, undefined, 'its hold is free again');
+  assert.equal(h.ps('p_0').lp, 0, 'it keeps the 0 it left with');
   assert.deepEqual(m.handle('p_1', { t: 'g.autoplay', on: true }), OK);
   h.sched.advance(1);
   assert.equal(m.draft.picks.p_1, 'band_lisa', 'AI 托管 locks what the doctor held');
@@ -199,10 +204,14 @@ test('a departing doctor keeps the strategy it held (else the default); AI 托�
   h.sched.advance(1);
   assert.equal(m.phase, PHASE.BATTLE_CHECK);
   m.dispose();
-  // holding nothing: the default; an offline doctor (no AI 托管 yet) waits for the countdown
+  // holding nothing: no default any more — the AI drafts for it at once by the team's rule (upstream §37.65, botPickBand's
+  // departedWeight: Touch while nobody else has it, never 歌利亚); an offline doctor (no AI 托管 yet) waits for the countdown
   const g = toDraft({ humans: 3, seed: 7 });
   g.m.onLeave('p_0');
-  assert.equal(g.m.draft.picks.p_0, 'band_bldsk');
+  assert.equal(g.m.draft.picks.p_0, undefined, 'nothing given at once');
+  g.sched.advance(1);
+  assert.equal(g.m.draft.picks.p_0, 'band_amedic', 'Touch, not the default 华法琳');
+  assert.equal(g.ps('p_0').lp, 0);
   g.m.onDisconnect?.('p_1');
   assert.deepEqual(g.m.handle('p_2', { t: 'g.bandHold', bandId: 'band_amiya' }), OK);
   assert.deepEqual(g.m.handle('p_2', { t: 'g.bandLock' }), OK);
@@ -210,7 +219,7 @@ test('a departing doctor keeps the strategy it held (else the default); AI 托�
   assert.equal(g.m.phase, PHASE.BAND_DRAFT, 'the offline doctor is still deciding');
   g.run(() => g.m.phase !== PHASE.BAND_DRAFT, { maxTime: 3 * TURN_MS });
   assert.equal(g.m.phase, PHASE.BATTLE_CHECK, 'the countdown fixes it');
-  assert.ok(g.m.draft.picks.p_1 && !['band_bldsk', 'band_amiya'].includes(g.m.draft.picks.p_1));
+  assert.equal(g.m.draft.picks.p_1, 'band_bldsk', 'the default, free since the departed seat took Touch');
   g.m.dispose();
 });
 

@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { Client, hasChrome, sleep } from '../e2e/client.mjs';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 import { startCoordinator } from '../../server/cluster/coordinator.js';
 import { startGameRuntime } from '../../server/cluster/game-runtime.js';
 import { startIngress } from '../../server/cluster/ingress.js';
@@ -78,7 +79,8 @@ test('a spectator takes an AI seat of a twelve-seat room on a game node, keeps i
     await host.open();
     await host.enter('房主');
     await sleep(3500); // the page's opening requests fill the heavy bucket
-    await net(host, 'room.create', { mode: 'coop', difficulty: 'NORMAL' });
+    // a 盟约 room (第二期下半: the briefing, band draft and rounds below): the node's default is 规程 since 0.4.0
+    await net(host, 'room.create', { mode: 'coop', difficulty: 'NORMAL', version: DEFAULT_VERSION });
     await net(host, 'room.setExperimental', { experimental: { revivalEnabled: false, disableSharedPool: false, playerCapacity: 12 } });
     // the switch the owner reported as 无效的目标, pressed where the host presses it
     await host.page.waitForSelector('.rs-pill__gear', { visible: true, timeout: 15000 });

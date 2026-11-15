@@ -7,6 +7,7 @@ import { MemoryValkey, memoryStore } from './helpers/memoryStore.js';
 import { stack, stop, nodeConfigs, actorOf, playToPrep, client, until } from './helpers/clusterStack.js';
 import { MATCHMAKING_VERSION } from '../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../shared/playerCapacity.js';
+import { LOBBY_DEFAULT_VERSION } from '../shared/versions.js';
 
 const enable = (c) => c.request('room.setAiTakeover', { on: true });
 
@@ -181,4 +182,70 @@ test('a game node restarts under a running coordinator after a handover: rebuilt
   const next = actorOf(s, code);
   assert.deepEqual([next.match.players.get(botId).isBot, next.match.players.get(botId).aiTakeoverRound], [false, 2]);
   assert.equal(late.socket.readyState, 1, 'moved over on its socket');
+});
+
+// (this fork, 0.4.0) Another official version's match on a game node (SP_VERSION_PLACEMENT=node, the default) — with
+// 规程·序列Ⅰ the lobby default, most co-op rooms: the node reads and changes the seat in its version host
+// (GameHost.aiSeat / transferAiSeat on a hosted actor, Match.acceptAiHandover fenced by the vote's round).
+const VERSION_GAME = Object.freeze({ versionCombatWorkers: 0, versionHosts: 1,
+  matchHost: { matchOptions: { clientCombat: false, botRehearsal: 0, combatSpeed: 200 } } });
+const hostedActor = (s, code) => {
+  for (const g of s.games) for (const ctx of g.gameHost.contexts.values()) if (ctx.spec.roomCode === code && ctx.state === 'committed') return { ctx, node: g };
+  return null;
+};
+
+test(`a ${LOBBY_DEFAULT_VERSION} room on a game node: a spectator is voted into an AI seat of the node's version host`, { timeout: 300_000 }, async (t) => {
+  const store = new MemoryValkey(), storeFor = () => memoryStore(store);
+  const s = await stack(storeFor, { configs: nodeConfigs(), game: VERSION_GAME });
+  t.after(() => stop(s));
+  const host = await client(s.ingress.url, 'Doctor');
+  await host.request('room.create', { mode: 'coop', difficulty: 'NORMAL', version: LOBBY_DEFAULT_VERSION });
+  const st = host.last('room.state');
+  assert.equal(st.version, LOBBY_DEFAULT_VERSION);
+  await enable(host);
+  for (let i = 0; i < 2; i++) await host.request('room.addBot');
+  await host.request('room.contentReady', { cs: st.content.cs });
+  await host.request('room.start');
+  const code = st.code;
+  await until(() => hostedActor(s, code), 15_000, 'on a node');
+  const { ctx } = hostedActor(s, code);
+  assert.equal(ctx.match.hosted, true, 'in the node\'s version host');
+  const room = s.coordinator.lobby.getRoom(code);
+  assert.equal(room.match.hosted, undefined, 'not the coordinator\'s');
+  // round 1 on autoplay, then held in round 2's prep (a lone human's prep waits for its Ready)
+  await host.request('g.infoReady').catch(() => null);
+  await host.request('g.autoplay', { on: true });
+  const pub = (f) => host.frames.some((m) => m.t === 'm.public' && f(m));
+  await until(() => pub((m) => m.round === 1 && !['PREP', 'ROUND_START', 'INFO_CHECK', 'CUSTOM_CHECK', 'BAND_DRAFT', 'SP_DRAFT'].includes(m.phase)), 150_000, 'round 1 fought');
+  await host.request('g.autoplay', { on: false });
+  await until(() => pub((m) => m.phase === 'PREP' && m.round === 2), 150_000, 'round 2 prep');
+  const late = await client(s.ingress.url, 'Late');
+  await late.request('room.spectate', { code });
+  await until(() => ctx.members.get(late.playerId)?.binding, 10_000, 'the spectator bound');
+  const before = await ctx.match.aiHandoverView();
+  const bot = before.players.find((p) => p.isBot && p.alive && !p.left);
+  assert.ok(bot, JSON.stringify(before.players));
+  const botId = bot.playerId, oldId = late.playerId;
+  // the node's answer is its version host's: round 2, nobody on autoplay
+  const game = s.games.find((g) => g.gameHost.contexts.has(ctx.spec.assignmentId));
+  assert.deepEqual(await game.gameHost.aiSeat(ctx.spec.assignmentId, oldId, botId), { ok: true, round: 2, autoplay: [] });
+  assert.deepEqual(await game.gameHost.aiSeat(ctx.spec.assignmentId, 'somebody', botId), { error: 'WRONG_PHASE' });
+  // a vote fenced to another round does not pass on the version host
+  assert.deepEqual(await game.gameHost.transferAiSeat(ctx.spec.assignmentId, oldId, botId, 'Late', 3), { error: 'WRONG_PHASE' });
+  await takeOver({ host, late, botId });
+  const after = await ctx.match.aiHandoverView();
+  const seat = after.players.find((p) => p.playerId === botId);
+  assert.deepEqual([seat.isBot, seat.autoplay, seat.funds, [...seat.pieceUids].sort()], [false, false, bot.funds, [...bot.pieceUids].sort()],
+    'the version host\'s seat is a human\'s, with the bot\'s funds and pieces');
+  assert.equal(late.frames.find((m) => m.t === 'welcome' && m.playerId === botId).takeoverFrom, oldId);
+  assert.equal(ctx.members.get(botId).role, 'player');
+  assert.equal(ctx.members.has(oldId), false);
+  assert.deepEqual(ctx.spec.takenOver, [botId]);
+  assert.equal(ctx.spec.seats.find((x) => x.playerId === botId).isBot, false);
+  assert.equal(room.seatOf(botId).isBot, false);
+  assert.equal(room.spectatorOf(oldId), null);
+  // a repeat of the transfer (its reply got lost) is answered OK and changes nothing
+  assert.deepEqual(await game.gameHost.transferAiSeat(ctx.spec.assignmentId, oldId, botId, 'Late', 2), { ok: true });
+  // plays on as the seat
+  assert.equal((await late.request('g.ready', { ready: true })).t, 'ok', 'the version host takes the Ready of the seat');
 });

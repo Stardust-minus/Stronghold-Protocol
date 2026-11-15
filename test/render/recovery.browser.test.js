@@ -12,7 +12,9 @@ describe('renderer recovery after transient resource failures', { skip: !enabled
     const { startServer } = await import('../../server/index.js');
     const { Match } = await import('../../server/match/Match.js');
     class RecoveryMatch extends Match { constructor(opts) { super({ ...opts, clientCombat: !serverRun }); } }
-    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, MatchClass: RecoveryMatch, seedFn: () => 123 });
+    // (written for 第二期下半: the lobby's default — a room created without a version — is 规程 since 0.4.0)
+    const { DEFAULT_VERSION } = await import('../../shared/versions.js');
+    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, MatchClass: RecoveryMatch, seedFn: () => 123, versions: { default: DEFAULT_VERSION } });
     const P = (await import('puppeteer-core')).default;
     browser = await P.launch({ executablePath: CHROME, headless: true,
       args: ['--no-first-run', '--no-proxy-server', ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []), '--enable-gpu', '--ignore-gpu-blocklist'] });

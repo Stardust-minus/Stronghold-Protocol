@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skipEntryFilm } from '../helpers/entryFilm.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = process.env.SP_SHOTS || path.join(ROOT, 'test/e2e/out');
@@ -42,6 +43,7 @@ describe('公开同盟 and several difficulties (real server, headless Chrome)',
       sessionStorage.setItem('sp.entered', '1');
       if (l) localStorage.setItem('sp.pref.lang', JSON.stringify(l));
     }, name, lang);
+    await skipEntryFilm(page); // no entry film over the lobby (the 公告板 is closed below)
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && !!document.querySelector('.lobby-screen .hub-entries'), { timeout: 60000 });
     // the 公告板 opens by itself on unread notices

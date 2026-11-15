@@ -10,6 +10,8 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settled } from '../e2e/client.mjs';
+import { skipEntryFilm } from '../helpers/entryFilm.js';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out/band-draft-free');
@@ -22,7 +24,8 @@ describe('the free strategy draft (real server, normal browser operations)', { s
     mkdirSync(OUT, { recursive: true });
     const { startServer } = await import('../../server/index.js');
     const puppeteer = (await import('puppeteer-core')).default;
-    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
+    // (written for 第二期下半: the lobby's default is 规程 since 0.4.0)
+    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, versions: { default: DEFAULT_VERSION } });
     base = `http://127.0.0.1:${srv.port}`;
     browser = await puppeteer.launch({ executablePath: CHROME, headless: true,
       args: ['--no-sandbox', '--no-first-run', '--mute-audio', '--disable-background-timer-throttling'] });
@@ -53,6 +56,7 @@ describe('the free strategy draft (real server, normal browser operations)', { s
     await page.setViewport({ width: 1600, height: 900, deviceScaleFactor: 1 });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.stack || e.message));
+    await skipEntryFilm(page); // no entry film over the lobby
     await page.evaluateOnNewDocument((n) => { try { localStorage.setItem('sp.name', n); } catch { /* none */ } }, name);
     await page.goto(base + '/' + suffix, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online');

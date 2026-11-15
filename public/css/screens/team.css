@@ -125,6 +125,23 @@
 .team--list .team__you { width: 16px; height: 16px; right: -2px; top: -2px; }
 .team--list .team__you .icon { width: 12px; height: 12px; }
 .team--list .team__frame { inset: -3px; }
+/* 完美连胜 / 领袖伤害 (upstream §37.148) on the list's 36 px avatar, centred in its 44 px button: the CSS stand-ins
+   (ui/teamPanel.js: no prefab art here) at the classic badges' proportions of the .8rem avatar (screens/game.css .abadge);
+   the own row's marker takes the bottom-left corner while a streak badge holds the top-right one */
+.team--list .abadge--boss { left: calc((44px - var(--team-av)) / 2); top: calc((44px - var(--team-av)) / 2); width: var(--team-av); height: var(--team-av); }
+.team--list .abadge--streak { left: calc((44px - var(--team-av)) / 2 + var(--team-av) * .76); top: calc((44px - var(--team-av)) / 2 - var(--team-av) * .13);
+  width: calc(var(--team-av) * .42); height: calc(var(--team-av) * .42); }
+.team.team--list .abadge--streak.is-css .abadge__n { margin-top: 2px; font-size: 9px; }
+.team.team--list .abadge--streak.is-r2 .abadge__n { margin-top: 0; font-size: 9px; }
+.team--list .abadge--boss.is-l3::before {
+  inset: 1px;
+  background:
+    linear-gradient(#ff9a5e, #ff9a5e) left top / 6px 2px no-repeat, linear-gradient(#ff9a5e, #ff9a5e) left top / 2px 6px no-repeat,
+    linear-gradient(#ff9a5e, #ff9a5e) right top / 6px 2px no-repeat, linear-gradient(#ff9a5e, #ff9a5e) right top / 2px 6px no-repeat,
+    linear-gradient(#ff9a5e, #ff9a5e) left bottom / 6px 2px no-repeat, linear-gradient(#ff9a5e, #ff9a5e) left bottom / 2px 6px no-repeat,
+    linear-gradient(#ff9a5e, #ff9a5e) right bottom / 6px 2px no-repeat, linear-gradient(#ff9a5e, #ff9a5e) right bottom / 2px 6px no-repeat;
+}
+.team--list .team__you.is-low { top: auto; right: auto; bottom: -2px; left: -2px; }
 /* the second line of a row: 救援 / 前往查看 / 返回战场 */
 .team--list .team-rescue-action, .team--list .team__ob, .team--list .team__back { flex-basis: 100%; }
 .team--list .team-rescue-action--compact { margin: 2px 0; max-width: 100%; }

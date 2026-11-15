@@ -209,13 +209,14 @@ export function tierChipUrl(t) {
  * Golden = elite (精锐) variant (gold glow).
  * @param {{ tier: number, golden?: boolean, size?: 'sm'|'md'|'lg', class?: string }} props
  */
-export function TierChip({ tier, golden = false, size = 'md', class: cls }) {
+export function TierChip({ tier, golden = false, size = 'md', class: cls, overlay = null, style = null }) {
   const n = Math.max(1, Math.min(6, Number(tier) | 0 || 1));
   const src = tierChipUrl(n);
   const [bad, fail] = useImageFailure(src);
   const img = !!src && !bad;
-  return html`<span class=${cx('tier', `tier--${n}`, `tier--${size}`, golden && 'tier--golden', img && 'tier--img', cls)} aria-label=${t('{tier}阶', { tier: n })}>
+  return html`<span class=${cx('tier', `tier--${n}`, `tier--${size}`, golden && 'tier--golden', img && 'tier--img', cls)} style=${style} aria-label=${t('{tier}阶', { tier: n })}>
     ${img ? html`<${MaterialImage} src=${src} alt="" draggable=${false} onError=${fail} />` : roman(n)}
+    ${overlay}
   </span>`;
 }
 
@@ -223,14 +224,16 @@ export function TierChip({ tier, golden = false, size = 'md', class: cls }) {
  * Bond disc: round glyph disc with segmented tier ring, stack count and name.
  * @param {{ name?: string, icon?: string, count?: number, layers?: number, tier?: number, maxTier?: number,
  *   active?: boolean, disabled?: boolean, layersDisabled?: boolean, size?: 'sm'|'md'|'lg', showName?: boolean,
- *   onClick?: Function, class?: string, title?: string }} props
+ *   onClick?: Function, class?: string, title?: string, cross?: boolean, tag?: any }} props
+ *   cross: the red ✕ corner (default: when disabled); tag: a corner mark drawn in its place, on the disc's box (the
+ *   briefing's official 阵容不完整 corner, ui/matchInfo.js BondLackTag)
  */
 /** A disc's layer count: a room without the 999 cap can pass what fits under the disc; the popup keeps the exact number. */
 export const discCount = (n) => (!(n >= 10000) ? n : n >= 1e6 ? `${Math.floor(n / 1e5) / 10}M` : `${Math.floor(n / 1000)}k`);
 
 export function BondDisc({
   name = '', icon, count, layers, tier = 0, maxTier = 3, active = false, disabled = false, layersDisabled = false,
-  size = 'md', showName = true, onClick, class: cls, title,
+  size = 'md', showName = true, onClick, class: cls, title, cross = disabled, tag = null,
 }) {
   const [bad, fail] = useImageFailure(icon);
   const imgOk = !!icon && !bad;
@@ -258,7 +261,8 @@ export function BondDisc({
           : html`<span class="bond__glyph">${glyph}</span>`}
       </span>
       ${stack != null ? html`<span class="bond__count">${discCount(stack)}</span>` : null}
-      ${disabled ? html`<span class="bond__ban" aria-label=${t('禁用')}><${Icon} name="close" /></span>` : null}
+      ${cross ? html`<span class="bond__ban" aria-label=${t('禁用')}><${Icon} name="close" /></span>` : null}
+      ${tag}
     </span>
     ${showName && name ? html`<span class="bond__name">${name}</span>` : null}
   <//>`;
@@ -407,13 +411,11 @@ export function Countdown({ deadline, seconds, total, warnAt = 10, label = 'COUN
 const modalStack = []; // open modals, topmost last: only the topmost handles keyboard focus / Escape
 
 /**
- * Modal dialog (declarative). Esc / backdrop click call onClose.
- * @param {{ open: boolean, title?: any, micro?: string, tone?: string, onClose?: Function, actions?: any,
- *   width?: string, closeOnBackdrop?: boolean, ariaLabel?: string, trapFocus?: boolean, class?: string, veilClass?: string, children?: any }} props
- * `veilClass` styles the backdrop itself (e.g. a dialog that dims the field without blurring it).
+ * Share keyboard/focus ownership between Modal and custom cards using the same stack.
+ * @param {boolean} open @param {Function} onClose @param {{ current: any }} boxRef @param {boolean} [trapFocus] re-arms the
+ *   handlers when it changes (a Modal opened with trapFocus, fork)
  */
-export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, ariaLabel, trapFocus = false, class: cls, veilClass, children }) {
-  const boxRef = useRef(null);
+export function useModalFocus(open, onClose, boxRef, trapFocus = false) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useLayoutEffect(() => {
@@ -461,6 +463,17 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
       prevFocus?.focus?.();
     };
   }, [open, trapFocus]);
+}
+
+/**
+ * Modal dialog (declarative). Esc / backdrop click call onClose.
+ * @param {{ open: boolean, title?: any, micro?: string, tone?: string, onClose?: Function, actions?: any,
+ *   width?: string, closeOnBackdrop?: boolean, ariaLabel?: string, trapFocus?: boolean, class?: string, veilClass?: string, children?: any }} props
+ * `veilClass` styles the backdrop itself (e.g. a dialog that dims the field without blurring it).
+ */
+export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, ariaLabel, trapFocus = false, class: cls, veilClass, children }) {
+  const boxRef = useRef(null);
+  useModalFocus(open, onClose, boxRef, trapFocus);
   if (!open) return null;
   return html`<div class=${cx('modal', veilClass)} role="presentation"
       onMouseDown=${(e) => { if (closeOnBackdrop && e.target === e.currentTarget && onClose) onClose(); }}>
@@ -876,10 +889,11 @@ export function AvatarFrame({ name = '', src, size = 'md', seat = 0, host, bot, 
 /**
  * Chevron phase banner (full-width strip that wipes in horizontally).
  * @param {{ title: any, sub?: any, micro?: string, tone?: 'mint'|'orange'|'red'|'gold'|'ice', mode?: 'overlay'|'inline',
- *   duration?: number, onDone?: Function, class?: string }} props
+ *   duration?: number, onDone?: Function, class?: string, banner?: string|null }} props
  *   mode 'overlay' = fixed over the screen; duration (ms) > 0 auto-hides then calls onDone. Re-key to replay.
+ *   `banner` is a theme plate id (docs/THEMES.md). Absent, the plate is the built-in art.
  */
-export function PhaseBanner({ title, sub, micro, tone = 'mint', mode = 'inline', duration = 0, onDone, class: cls }) {
+export function PhaseBanner({ title, sub, micro, tone = 'mint', mode = 'inline', duration = 0, onDone, class: cls, banner = null }) {
   const [leaving, setLeaving] = useState(false);
   const [gone, setGone] = useState(false);
   useEffect(() => {
@@ -889,7 +903,7 @@ export function PhaseBanner({ title, sub, micro, tone = 'mint', mode = 'inline',
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [duration]);
   if (gone) return null;
-  return html`<div class=${cx('pbanner', `pbanner--${tone}`, `pbanner--${mode}`, leaving && 'is-leaving', cls)} role="status" aria-live="polite">
+  return html`<div class=${cx('pbanner', `pbanner--${tone}`, `pbanner--${mode}`, leaving && 'is-leaving', cls)} role="status" aria-live="polite" data-banner=${banner || undefined}>
     <div class="pbanner__band">
       <${Chevrons} count=${4} tone=${tone} class="pbanner__chev pbanner__chev--l" />
       <div class="pbanner__text">
@@ -909,10 +923,11 @@ export function PhaseBanner({ title, sub, micro, tone = 'mint', mode = 'inline',
  * the line under it, chevrons as trim — it opens, holds `duration` ms and closes by itself. Purely presentational:
  * ui/gameLogic/phases.js (roundResultBox / uniteResultBox / battleResultBox) picks the words, screens/game.js the moment
  * (SETTLE). `pointer-events: none`: it never takes a click.
- * @param {{ title: any, sub?: any, micro?: string, tone?: 'mint'|'orange'|'red', duration?: number, onDone?: Function }} props
+ * @param {{ title: any, sub?: any, micro?: string, tone?: 'mint'|'orange'|'red', duration?: number, onDone?: Function, perfect?: boolean }} props
  *   duration (ms) > 0 auto-hides then calls onDone. Re-key to replay.
+ *   `perfect` is the 全员无伤 box (tone mint). A theme may paint a different picture there; the words stay.
  */
-export function ResultDialog({ title, sub, micro, tone = 'mint', duration = 2800, onDone }) {
+export function ResultDialog({ title, sub, micro, tone = 'mint', duration = 2800, onDone, perfect = false }) {
   const [leaving, setLeaving] = useState(false);
   const [gone, setGone] = useState(false);
   useEffect(() => {
@@ -922,7 +937,7 @@ export function ResultDialog({ title, sub, micro, tone = 'mint', duration = 2800
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [duration]);
   if (gone) return null;
-  return html`<div class=${cx('rdialog', `rdialog--${tone}`, leaving && 'is-leaving')} role="status" aria-live="polite">
+  return html`<div class=${cx('rdialog', `rdialog--${tone}`, leaving && 'is-leaving')} role="status" aria-live="polite" data-banner="battleEnd" data-perfect=${perfect ? '1' : undefined}>
     <div class="rdialog__box">
       <div class="rdialog__art" aria-hidden="true">
         <span class="rdialog__tick rdialog__tick--tl"></span><span class="rdialog__tick rdialog__tick--tr"></span>
@@ -1016,11 +1031,12 @@ export function DifficultyIcon({ difficulty, class: cls }) {
 }
 
 /**
- * Difficulty tag: coloured glyph + name (标准/险境/绝境/终极模拟).
- * @param {{ difficulty: string, size?: 'sm'|'md'|'lg', class?: string, code?: string }} props
+ * Difficulty tag: coloured glyph + name (标准/险境/绝境/终极模拟); `name` replaces the difficulty's name (a laddered mode's
+ * own: 规程等级 n, 极速模拟).
+ * @param {{ difficulty: string, size?: 'sm'|'md'|'lg', class?: string, code?: string, name?: string | null }} props
  */
-export function DifficultyTag({ difficulty, size = 'md', class: cls, code }) {
-  const name = DIFFICULTY_NAMES[difficulty] ? t(DIFFICULTY_NAMES[difficulty]) : difficulty || '—';
+export function DifficultyTag({ difficulty, size = 'md', class: cls, code, name: own = null }) {
+  const name = own || (DIFFICULTY_NAMES[difficulty] ? t(DIFFICULTY_NAMES[difficulty]) : difficulty || '—');
   const color = DIFFICULTY_COLORS[difficulty] || 'var(--text-lo)';
   return html`<span class=${cx('dtag', `dtag--${size}`, cls)} style=${`--d-color:${color}`}>
     <${DifficultyIcon} difficulty=${difficulty} class="dtag__icon" />

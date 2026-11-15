@@ -30,12 +30,14 @@
 // The other doctors' read-only view: test/ui/room-settings.e2e.test.js.
 // Every page must finish with zero console errors / page errors / failed requests. Screenshots: test/e2e/out/lobby-hub-*.png
 
+import { skipEntryFilm } from '../helpers/entryFilm.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { textProblems } from '../e2e/text-fit.mjs';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -50,7 +52,8 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
   before(async () => {
     const { startServer } = await import('../../server/index.js');
     const puppeteer = (await import('puppeteer-core')).default;
-    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
+    // written on 盟约 (第二期下半): a stock server's lobby starts on 规程 since 2026-11-09
+    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, versions: { default: DEFAULT_VERSION } });
     base = `http://127.0.0.1:${srv.port}`;
     browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
     mkdirSync(OUT, { recursive: true });
@@ -72,6 +75,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       if (l) localStorage.setItem('sp.pref.lang', JSON.stringify(l));
       if (ts) localStorage.setItem('sp.pref.settings', JSON.stringify({ textSize: ts }));
     }, lang, textSize);
+    await skipEntryFilm(page);
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && !!document.querySelector('.lobby-screen .hub-entries'), { timeout: 30000 });
     return { ctx, page, problems };

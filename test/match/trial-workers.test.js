@@ -35,7 +35,7 @@ function original(input, { onBattle = null } = {}) {
     try { return new Battle({ ...clone(c), data: combatData(DATA), logger: QUIET }); }
     catch { return new DeadBattle(c); }
   });
-  let bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity, bestBoss = -Infinity, totalTicks = 0;
+  let bestIndex = 0, bestScore = -Infinity, bestLeaks = Infinity, bestBoss = -Infinity, bestGain = -Infinity, totalTicks = 0;
   const candidates = [];
   for (let index = 0; index < battles.length; index++) {
     const battle = battles[index];
@@ -49,7 +49,7 @@ function original(input, { onBattle = null } = {}) {
         if (leaks > bestLeaks) { beaten = true; break; }
       }
     }
-    const record = { index, ticks, duration: battle.time, beaten, leaks: null, boss: null, score: null, result: null, error: null };
+    const record = { index, ticks, duration: battle.time, beaten, leaks: null, boss: null, gain: null, score: null, result: null, error: null };
     if (!beaten) {
       if (!battle.finished) battle.forceEnd('timeout');
       record.result = clone(battle.result());
@@ -58,16 +58,18 @@ function original(input, { onBattle = null } = {}) {
       if (pp) {
         record.leaks = (pp.leaked || []).filter((l) => l && l.counted !== false).length;
         record.boss = Math.max(0, Number(pp.bossDamage) || 0);
+        record.gain = Object.values(pp.layerGains || {}).reduce((s, n) => s + (Number(n) || 0), 0);
         record.score = -record.leaks * 1000 + (pp.killed || 0) - index * 0.01;
         if (record.leaks < bestLeaks || (record.leaks === bestLeaks && record.boss > bestBoss)
-          || (record.leaks === bestLeaks && record.boss === bestBoss && record.score > bestScore)) {
-          bestIndex = index; bestScore = record.score; bestLeaks = record.leaks; bestBoss = record.boss;
+          || (record.leaks === bestLeaks && record.boss === bestBoss && record.gain > bestGain)
+          || (record.leaks === bestLeaks && record.boss === bestBoss && record.gain === bestGain && record.score > bestScore)) {
+          bestIndex = index; bestScore = record.score; bestLeaks = record.leaks; bestBoss = record.boss; bestGain = record.gain;
         }
       }
     }
     candidates.push(record);
   }
-  return { done: true, candidateIndex: battles.length, ticks: totalTicks, bestIndex, bestScore, bestLeaks, bestBoss, candidates };
+  return { done: true, candidateIndex: battles.length, ticks: totalTicks, bestIndex, bestScore, bestLeaks, bestBoss, bestGain, candidates };
 }
 async function evaluate(t, data) {
   const pool = await realPool(t);
@@ -154,7 +156,7 @@ test('summary trial advanceSlice emits no DTO and retains exact original scoring
   assert.equal(out.sliceCount, slices);
   assert.equal(out.summary, true);
   assert.deepEqual(out.candidates, expected.candidates.map((c) => ({ ...c, result: null, synthetic: c.result ? !!c.result.synthetic : null })));
-  for (const key of ['bestIndex', 'bestScore', 'bestLeaks', 'bestBoss', 'ticks', 'candidateIndex', 'done']) assert.equal(out[key], expected[key]);
+  for (const key of ['bestIndex', 'bestScore', 'bestLeaks', 'bestBoss', 'bestGain', 'ticks', 'candidateIndex', 'done']) assert.equal(out[key], expected[key]);
   assert.ok(summary.completed.every((c) => c.result === null));
   assert.equal(out.candidates[0].synthetic, true);
   assert.equal(out.candidates[0].score, null);

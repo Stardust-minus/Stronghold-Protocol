@@ -3,10 +3,15 @@ import { audio } from '../audio.js';
 // 烬野, 静默 — or the player's own picture. A picture is downscaled on this device and kept in IndexedDB (never
 // uploaded); the choice and its dim / blur / overlay / motion settings are a localStorage pref. The ridges and the
 // stronghold silhouette are generated from fixed seeds, so every visit draws the same skyline.
+// 规程 (REGULATION_THEME, the owner's choice of 2026-11-15 at the 0.4.0 merge): upstream 0.4.0's red 规程 season look as one
+// more choice — its ground (ui/regulationBackdrop.js RegulationBackdrop) behind the lobby, and `data-look="regulation"` on
+// the lobby, 选择模拟协议 and the room (regulationLook; css/screens/lobby.css), in every version while it is chosen. The
+// default stays 夜巡 (this fork's green look) for every version.
 import { html } from './components.js';
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { loadPref, savePref } from '../store.js';
 import { toast } from './toasts.js';
+import { RegulationBackdrop } from './regulationBackdrop.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 export const HUB_THEMES = [
@@ -15,7 +20,9 @@ export const HUB_THEMES = [
   { id: 'ember', name: N_('烬野'), en: 'EMBERFIELD' },
   { id: 'calm', name: N_('静默'), en: 'SILENT' },
 ];
-const THEME_IDS = HUB_THEMES.map((x) => x.id);
+/** 大厅背景 → 规程: upstream's red 规程 season look on the lobby, 选择模拟协议 and the room (not a generated scene). */
+export const REGULATION_THEME = 'regulation';
+const THEME_IDS = [...HUB_THEMES.map((x) => x.id), REGULATION_THEME];
 const PREF_KEY = 'hub.backdrop';
 const MAX_EDGE = 2560; // longest edge kept of a custom picture
 const MAX_FILE = 30 * 1024 * 1024;
@@ -35,6 +42,15 @@ export function loadBackdropPref() {
     motion: o.motion !== false,
     videoSound: o.videoSound === true,videoPaused: o.videoPaused === true,
   };
+}
+
+/**
+ * Whether the 规程 theme is chosen (the lobby's `bg.pref`, else the saved pref): the lobby, 选择模拟协议 and the room then
+ * carry `data-look="regulation"`, whatever the version.
+ * @param {{ theme: string }} [pref]
+ */
+export function regulationLook(pref = loadBackdropPref()) {
+  return pref?.theme === REGULATION_THEME;
 }
 
 // ---- the picture store (IndexedDB: a Blob, no base64 bloat, no localStorage quota) ------------------------------
@@ -127,7 +143,7 @@ export function useHubBackdrop() {
   return { pref, update, imageUrl, mediaKind, ready, setImage, clearImage };
 }
 
-/** What the backdrop draws: a theme id, 'photo' (custom picture) or 'blank' (custom picture still loading). */
+/** What the backdrop draws: a theme id ('regulation' included), 'photo' (custom picture) or 'blank' (custom picture still loading). */
 function sceneOf(bg) {
   if (bg.pref.theme !== 'custom') return bg.pref.theme;
   return bg.imageUrl ? 'photo' : bg.ready ? 'night' : 'blank';
@@ -292,6 +308,10 @@ function HubVideo({bg}) {
 export function HubBackdrop({ bg }) {
   const scene = sceneOf(bg);
   const { pref } = bg;
+  // 规程: upstream's season ground alone (its own scan lines and vignette; the art layers only when extracted)
+  if (scene === REGULATION_THEME) {
+    return html`<div class="hub-bg" data-scene=${scene} data-motion=${pref.motion ? 'on' : 'off'} aria-hidden="true"><${RegulationBackdrop} /></div>`;
+  }
   return html`<div class="hub-bg" data-scene=${scene} data-motion=${pref.motion ? 'on' : 'off'} aria-hidden="true">
     ${scene === 'photo'
       ? html`${bg.mediaKind==='video'?html`<${HubVideo} key=${bg.imageUrl} bg=${bg} />`:html`<div class="hub-bg__photo" style=${`background-image:url("${bg.imageUrl}");filter:${pref.blur ? `blur(${pref.blur}px)` : 'none'}`}></div>`}
@@ -357,6 +377,7 @@ export function BackdropSettings({ bg }) {
     }
   };
   const custom = pref.theme === 'custom';
+  const reg = pref.theme === REGULATION_THEME;
   return html`<div class="bgset">
     <div class="bgset__themes" role="radiogroup" aria-label=${t('背景主题')}>
       ${HUB_THEMES.map((x) => html`<button key=${x.id} type="button" role="radio" aria-checked=${pref.theme === x.id ? 'true' : 'false'}
@@ -364,6 +385,11 @@ export function BackdropSettings({ bg }) {
         <${Swatch} theme=${x.id} />
         <span class="bgset__name">${t(x.name)}</span><span class="bgset__en">${x.en}</span>
       </button>`)}
+      <button type="button" role="radio" aria-checked=${reg ? 'true' : 'false'} class=${`bgset__theme${reg ? ' is-selected' : ''}`}
+          data-testid="bg-theme-regulation" onClick=${() => update({ theme: REGULATION_THEME })}>
+        <span class="bgset__swatch bgset__swatch--reg" aria-hidden="true"><i></i></span>
+        <span class="bgset__name">${t('规程')}</span><span class="bgset__en">REGULATION</span>
+      </button>
       <button type="button" role="radio" aria-checked=${custom ? 'true' : 'false'} class=${`bgset__theme${custom ? ' is-selected' : ''}`}
           onClick=${() => (imageUrl ? update({ theme: 'custom' }) : browse())}>
         <span class="bgset__swatch bgset__swatch--custom" style=${imageUrl && bg.mediaKind!=='video' ? `background-image:url("${imageUrl}")` : ''} aria-hidden="true">
@@ -387,6 +413,7 @@ export function BackdropSettings({ bg }) {
         <b class="num">${pref.blur}px</b></label>
       <label class="bgset__check"><input type="checkbox" checked=${pref.overlay} onChange=${(e) => update({ overlay: e.currentTarget.checked })} /><span>${t('叠加战术网格')}</span></label>
     </div>` : busy ? html`<p class="bgset__note">${t('图片处理中…')}</p>` : null}
+    ${reg ? html`<p class="bgset__note bgset__note--reg" data-testid="bg-reg-note">${t('规程：大厅、选择模拟协议和房间换上规程赛季的红色外观，所有版本都生效。')}</p>` : null}
     <label class="bgset__check"><input type="checkbox" checked=${pref.motion} onChange=${(e) => update({ motion: e.currentTarget.checked })} /><span>${t('动态效果（云层、粒子、雷达扫描）')}</span></label>
     <p class="bgset__note">${t('图片上限 30MB；视频上限 60MB、最高 1080p，推荐横版 H.264 MP4 / WebM。仅保存在当前浏览器。视频默认静音，可搭配 ♫ 大厅音乐；切出大厅或隐藏网页会暂停视频。')}</p>
   </div>`;

@@ -7,7 +7,7 @@ export const PROTOCOL_VERSION = 1;
 export const MATCHMAKING_VERSION = 'alliance-2';
 /** Release version shown to players (the lobby's footer, server banner, /healthz). Kept equal to package.json "version"
  * (test/version.test.js); PROTOCOL_VERSION above is the separate wire-format number. */
-export const APP_VERSION = '0.3.3';
+export const APP_VERSION = '0.4.0';
 /** A development build (the public `dev` branch): the lobby's footer, the boot banner and the README say so, and
  * tools/package.mjs refuses to build a release zip from it without --allow-dev. */
 export const DEV_BUILD = /-dev$/.test(APP_VERSION);
@@ -29,6 +29,12 @@ export const MAX_SEATS = 4;
  */
 export const MAX_SPECTATORS = 0; // 0 = unlimited observers; MAX_SEATS still caps players at four.
 /**
+ * The most candidate layouts one bot prep rehearses (server/match/bot.js arrangeSteps): up to 8 of its own plus the
+ * other lineups' (Final Assault damage lineups and spaced plans, co-op alternatives); a delegated rehearsal's answer
+ * names one of them (protocol 'b.rehearsalResult').
+ */
+export const REHEARSAL_MAX_CANDIDATES = 16;
+/**
  * 重刷本局 (PR #860, DESIGN §28.21 [ASSUMED]): each seat may open one setup-reroll vote per this many ms. Shared so the
  * client's refusal toast (ui/toasts.js) names the server's value (server/match/match/setupVote.js).
  */
@@ -48,6 +54,7 @@ export const PHASE = Object.freeze({
   LOBBY: 'LOBBY',
   INFO_CHECK: 'INFO_CHECK',
   BAND_DRAFT: 'BAND_DRAFT',
+  CUSTOM_CHECK: 'CUSTOM_CHECK',
   BATTLE_CHECK: 'BATTLE_CHECK',
   ROUND_START: 'ROUND_START',
   SP_DRAFT: 'SP_DRAFT',
@@ -61,7 +68,7 @@ export const PHASE = Object.freeze({
 });
 
 export const PHASE_NAMES = {
-  LOBBY: N_('等待中'), INFO_CHECK: N_('确认本局信息'), BAND_DRAFT: N_('选择策略'), BATTLE_CHECK: N_('协议启动'),
+  LOBBY: N_('等待中'), INFO_CHECK: N_('确认本局信息'), BAND_DRAFT: N_('选择策略'), CUSTOM_CHECK: N_('选择自编'), BATTLE_CHECK: N_('协议启动'),
   ROUND_START: N_('回合开始'), SP_DRAFT: N_('机变阶段'), PREP: N_('休整期'), COMBAT: N_('作战中'), UNITE: N_('联防阶段'),
   SETTLE: N_('结算'), FINAL_ASSAULT: N_('最终攻势'), HIDDEN_CORE: N_('隐秘核心'), RESULT: N_('模拟结束'),
 };
@@ -108,6 +115,30 @@ export const SKILL_SUMMON_START_DEPLOY = true;
  * A room's experimental `disableLayerCap` lifts it for one match (spec flag `layerCapOff`, docs/design/match.md).
  */
 export const BOND_LAYER_CAP = 999;
+
+/** Preview pen upper zone anchor row ((18,7); the lower anchor is (15,7)) and the client's row offsets. */
+const PEN_UPPER_ROW = 18;
+const PREVIEW_ROW_OFFSET = 6;
+const PREVIEW_ROW_OFFSET_LEADER = 13;
+
+/**
+ * 'upper' | 'lower' preview zone of a route start (client `AutoChessEnemyPreviewManager`, research 08 §4.2) — the
+ * enemy previews (server/match/waves.js) and 鸭爵's lower-lane rule (content/bands/meta.js, GitHub #839): target row =
+ * start row + 6 (leader rounds: + 13); the zone is the Manhattan-nearest anchor among those with anchor row ≤ target
+ * row — (18,7) upper, (15,7) lower — so only a target row ≥ 18 reaches the upper zone: normal fields row 12 (upper
+ * gate (12,10); rows 9–11 lower), boss fields row 5 (rows 2–4 lower: the leaders at (3,x)/(4,x) and the (2,10) gate).
+ * A target below row 15 has no zone (the client picks a random pen tile) and is reported 'lower'.
+ * @param {number[]|null} start [row, col]
+ * @param {boolean} [leader] leader / hidden round (default: a boss-field row, ≤ 8)
+ */
+export function gateOf(start, leader) {
+  const r = Array.isArray(start) ? start[0] : null;
+  if (!Number.isFinite(r)) return 'lower';
+  const lead = typeof leader === 'boolean' ? leader : r <= 8;
+  const target = r + (lead ? PREVIEW_ROW_OFFSET_LEADER : PREVIEW_ROW_OFFSET);
+  // both anchors share col 7, so with target ≥ 18 the upper one is always the nearer; below it only (15,7) qualifies
+  return target >= PEN_UPPER_ROW ? 'upper' : 'lower';
+}
 
 /**
  * Where a bond stops in a room with the cap lifted. Not a game rule: it only keeps a runaway board's count an exact
@@ -271,7 +302,7 @@ export const ERR_TEXT = {
   TEST_DISABLED: N_('测试模式未开启'),
   TEST_FORBIDDEN: N_('这不是测试房间'),
   VERSION_UNKNOWN: N_('本服务器没有启用该版本'),
-  VERSION_UNSUPPORTED: N_('该版本不能用于当前房间（例如房间开着改变玩法的插件）'),
+  VERSION_UNSUPPORTED: N_('该版本不能用于当前房间，请检查模拟方式与插件支持的版本'),
   VERSION_VOTE: N_('切换版本投票进行中，请等投票结束'),
 };
 

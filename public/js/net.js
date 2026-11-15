@@ -41,6 +41,7 @@ import { N_ } from '../../shared/i18n.js';
 import { StateReceiver, STATE_DELTA_VERSION } from '../../shared/stateDelta.js';
 import { ownerKey } from './ownerKey.js';
 import { laneWebSocket } from './lanes.js';
+import { PeerTransport } from './p2p.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
@@ -81,11 +82,26 @@ export function errorText(code, msg) {
   return ERR_TEXT[code] || CLIENT_ERR_TEXT[code] || (typeof msg === 'string' && msg) || String(code || N_('未知错误'));
 }
 
+/**
+ * Whether this browser asked for upstream's WebRTC fan-out (public/js/p2p.js): `?p2p=on`, or localStorage `sp.p2p` = 'on'
+ * (`?p2p=off` wins, as p2p.js reads it). Off by default in this fork (Net constructor).
+ */
+export function p2pWanted() {
+  try {
+    const q = new URLSearchParams(globalThis.location?.search || '').get('p2p');
+    if (q) return q === 'on';
+    return globalThis.localStorage?.getItem('sp.p2p') === 'on';
+  } catch { return false; }
+}
+
 /** Error thrown/rejected by requests. `code` is an ERR code or a CLIENT_ERR_TEXT key. */
 export class NetError extends Error {
   /** @param {string} code @param {string} [msg] server text @param {string} [detail] server developer detail */
   constructor(code, msg, detail) {
-    const versionMismatch = typeof detail === 'string' && /version/i.test(detail);
+    // only hello's protocol checks (server/net.js: BAD_MSG "version mismatch: server N", and this fork's "matchmaking
+    // version mismatch" / "player capacity version mismatch"): a refusal whose detail merely names an official version
+    // (VERSION_UNSUPPORTED, "not a mode of this version", a plugin's versions) keeps its text (upstream c3524c1e)
+    const versionMismatch = code === 'BAD_MSG' && typeof detail === 'string' && /\bversion mismatch\b/i.test(detail);
     // a nickname the server keeps for its owner (server/ownerFile.js): NAME_REJECTED with detail 'reserved'
     super(versionMismatch ? CLIENT_ERR_TEXT.VERSION : code === 'NAME_REJECTED' && detail === 'reserved' ? NAME_RESERVED_TEXT : errorText(code, msg));
     this.name = 'NetError';
@@ -147,6 +163,7 @@ export class Net {
    * @param {() => boolean} [opts.isVisible] whether latency probes belong to a visible page
    * @param {() => number} [opts.random]
    * @param {{setTimeout: Function, clearTimeout: Function, setInterval: Function, clearInterval: Function}} [opts.timers]
+   * @param {object} [opts.p2p] optional WebRTC transport dependencies; enabled:false opts out
    */
   constructor(opts = {}) {
     this.url = opts.url || null;
@@ -204,6 +221,10 @@ export class Net {
     this._pingReceivedAt = null;
     this._clockSamples = [];   // [{ offset, rtt }]
     this._clockEpoch = this.now() - this.monotonicNow();
+    // upstream's WebRTC fan-out of the public snapshots (public/js/p2p.js, 10624bda). This fork (0.4.0 sync, the owner to
+    // confirm) keeps it off in the browser unless asked for (p2pWanted): a peer connection shows every player's address
+    // to the room, and lanes already carry the loss. A caller that passes opts.p2p (the tests) gets upstream's default.
+    this.peers = new PeerTransport(this, opts.p2p ?? { enabled: p2pWanted() });
   }
 
   // ---- events ----------------------------------------------------------------------------------
@@ -613,6 +634,10 @@ export class Net {
       }
       msg = decoded.message;
     }
+    // Peer delivery (public/js/p2p.js): every snapshot — WebSocket or decoded from m.state — passes the same
+    // server-issued delivery order, so a delayed frame from either transport cannot overwrite newer state. Only while
+    // the peer transport is on: without it the socket (and the lane merger, public/js/lanes.js) keeps the order alone.
+    if (msg.t === 'm.public' && this.peers.enabled && !this.peers.directSnapshot(msg)) return;
     const { t } = msg;
     const rid = msg.rid;
     const isHelloError = t === 'error' && rid != null && rid === this._helloRid;
@@ -651,6 +676,18 @@ export class Net {
   }
 
   // ---- heartbeat & clock -----------------------------------------------------------------------
+
+  /** A verified public snapshot; peer traffic never answers a WebSocket heartbeat or request. */
+  acceptPeerSnapshot(msg) {
+    const continuingHandshake = this.status === 'handshaking' && this.ws
+      && this.peers.sessionWs === this.ws && this.peers.sessionPlayerId === this.playerId;
+    if ((this.status !== 'online' && !continuingHandshake) || msg?.t !== 'm.public') return;
+    if (Number.isFinite(msg.serverNow) && !this.clockSynced) {
+      this._addClockSample(msg.serverNow + (this.ping ?? 0) / 2 - this.now(), Infinity);
+    }
+    this._emit('m.public', msg);
+    this._emit('*', msg);
+  }
 
   _startHeartbeat() {
     this._clearTimer('_pingTimer', 'clearInterval');

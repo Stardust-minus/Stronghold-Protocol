@@ -84,10 +84,31 @@ import { t, N_, translateWire } from '../../shared/i18n.js';
 import { recordError, installTrafficMeter } from './diag.js';
 import { installContent, installContentSet } from './content.js';
 import { cosmetics } from './cosmetics.js';
-import { sanitizeVersions, roomVersion, isDefaultVersion, matchFrameVersion } from './versions.js';
+import { sanitizeVersions, roomVersion, isDefaultVersion, matchFrameVersion, musicSeason, seasonOf, startupVersion, REGULATION_SEASON } from './versions.js';
 import { prediction } from './ui/prediction.js';
 
 const RESTORE_GRACE_MS = 1500;
+
+/**
+ * Whether this page plays upstream's entry film (ui/entryFilm.js: the black 点击进入 card, then 盟约's film or 规程's
+ * opening) before the lobby — by default, on every page load (the owner, 2026-11-15). Opt-outs: `?film=off`, or
+ * localStorage `sp.entryFilm` = 'off'. A browser under automation (`navigator.webdriver`: the e2e suites drive raw
+ * puppeteer pages) gets none unless the page asks with `?film=on`. playEntryFilm has its own conditions (reduced
+ * motion, a portrait phone, art that does not load).
+ * @param {{ search?: string, stored?: string|null, webdriver?: boolean }} [env]  tests pass their own
+ */
+export function wantsEntryFilm(env = {}) {
+  try {
+    const search = env.search ?? globalThis.location?.search ?? '';
+    const q = new URLSearchParams(search).get('film');
+    if (q === 'on') return true;
+    if (q === 'off') return false;
+    const stored = 'stored' in env ? env.stored : globalThis.localStorage?.getItem('sp.entryFilm');
+    if (stored === 'off') return false;
+    return !(env.webdriver ?? globalThis.navigator?.webdriver === true);
+  } catch { return false; }
+}
+
 const JOIN_DELAY_MS = 350;
 /** The gap between the hellos that ask again for a shared seat after SESSION_IN_USE (identity.retryClaim). */
 const CLAIM_RETRY_GAP_MS = 5000;
@@ -614,7 +635,7 @@ async function boot() {
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   // a cosmetic plugin's sound that will not load falls back like its art (content.js, DESIGN §32 P1a)
-  installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get(),
+  installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, seasonOf: musicSeason, settings: settingsStore.get(),
     onFailed: (url) => cosmetics.fail(url) });
   // 确认入场 (2026-11-05): the takeover follows the queue (ui/matchOffer.js — the moments kept after an offer ends) and
   // its sounds play on any screen (ui/offerCues.js: arrival, each acceptance, my accept, the last seconds, all ready)
@@ -649,8 +670,22 @@ async function boot() {
     splash.classList.add('is-done');
     setTimeout(() => splash.remove(), 300);
   }
+  // the start-up version's entry animation (ui/entryFilm.js, upstream PR #878 / §37.147): the 点击进入 card, then 盟约's
+  // film, or for a 规程 start (versions.js startupVersion) 规程's own opening (ui/regulationFilm.js; 盟约's film when its art
+  // is missing); never over a restored match. On by default since the 0.4.0 merge (the owner, 2026-11-15; opt-outs and
+  // automation: wantsEntryFilm). `entryFilm` settles once the film has decided: its overlay is up by then, or none comes
+  // this page load (test/e2e/client.mjs passEntryFilm); the lobby opens its announcement board only after the overlay is
+  // gone (screens/lobby.js useEntryFilmOver).
+  const entryFilm = wantsEntryFilm()
+    ? import('./ui/entryFilm.js')
+      .then((m) => m.playEntryFilm({
+        skip: () => selectRoute(store.get()) === 'game',
+        regulation: () => seasonOf(startupVersion(store.get())) === REGULATION_SEASON,
+      }))
+      .catch((err) => console.warn('[app] entry film unavailable', err))
+    : Promise.resolve();
   // (audio: the browser tests watch the UI sounds a screen asks for, e.g. test/ui/match-offer.e2e.test.js)
-  globalThis.__SP__ = { store, net, data, audio, version: 1 };
+  globalThis.__SP__ = { store, net, data, audio, entryFilm, version: 1 };
   // A page keeps the modules it imported at load time for its whole lifetime, so a deploy cannot reach an open tab
   // (ui/buildGuard.js): watch `/client-build` (not private health). Outside a match the page reloads itself; during a match the guard says
   // so instead (the connection banner offers 刷新页面) and reloads once the match — settlement screen included — is over,

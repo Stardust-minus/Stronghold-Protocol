@@ -147,7 +147,7 @@ export class LaneMerger {
 
   /**
    * One frame from a lane. @param {any} lane @param {number} seq @param {any} payload @param {number} [size]
-   * @returns {{ deliver: any[], fatal: string | null }} payloads to hand on now, in order; fatal: close the socket
+   * @returns {{ deliver: readonly any[], fatal: string | null }} payloads to hand on now, in order; fatal: close the socket
    */
   push(lane, seq, payload, size = 0) {
     if (!(seq > (lane.last || 0))) return { deliver: NONE, fatal: 'LANE_ORDER' };

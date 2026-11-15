@@ -9,7 +9,12 @@ import { startIngress } from '../server/cluster/ingress.js';
 import { startServer } from '../server/index.js';
 import { CLUSTER_LOAD_EVERY_MS } from '../server/net.js';
 import { MATCHMAKING_VERSION } from '../shared/constants.js';
+import { DEFAULT_VERSION } from '../shared/versions.js';
 import { publicGameLabel } from '../shared/cluster-load.js';
+
+// a room.create names 第二期下半 unless the test names a version (as test/helpers/wsClient.js does): the lobby's default
+// is 规程·序列Ⅰ (shared/versions.js LOBBY_DEFAULT_VERSION), whose rooms wait for the page's content check
+const withVersion = (type, fields) => (type === 'room.create' && !Object.hasOwn(fields, 'version') ? { ...fields, version: DEFAULT_VERSION } : fields);
 
 const ORIGIN = 'https://cluster-load-fixture.invalid';
 const details = { windowMs: 10000, ageMs: 1, cpuPercent: 80, rssMiB: 240, heapMiB: 50, eluPercent: 50, p95Ms: 22, p99Ms: 30 };
@@ -38,7 +43,7 @@ async function client(url) {
   const request = (type, fields = {}) => new Promise((resolve, reject) => {
     const rid = ++nextRid;
     const timer = setTimeout(() => { pending.delete(rid); reject(new Error('fixture request timeout')); }, 6500);
-    pending.set(rid, { timer, resolve, reject }); socket.send(JSON.stringify({ t: type, ...fields, rid }));
+    pending.set(rid, { timer, resolve, reject }); socket.send(JSON.stringify({ t: type, ...withVersion(type, fields), rid }));
   });
   return { socket, frames, request, playerId: frames.find(message => message.t === 'welcome').playerId };
 }

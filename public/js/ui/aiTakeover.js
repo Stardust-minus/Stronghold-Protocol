@@ -3,12 +3,13 @@ import { html, Button, Modal } from './components.js';
 import { useStore } from '../store.js';
 import { net } from '../net.js';
 import { toastError } from './toasts.js';
-import { DEFAULT_VERSION, roomVersion } from '../versions.js';
 import { t } from '../../../shared/i18n.js';
 export function AiTakeoverPanel() {
   const room = useStore(s => s.room), pub = useStore(s => s.match.public), myId = useStore(s => s.me.playerId);
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false);
-  if (!room || room.aiTakeoverEnabled !== true || room.mode === 'solo' || roomVersion(room) !== DEFAULT_VERSION || room.content?.vanilla === false) return null;
+  // every official version's room (规程 too: its version host takes the seat, server/aiTakeover.js — since the v0.4.0 merge);
+  // not a solo room or one with gameplay plugins
+  if (!room || room.aiTakeoverEnabled !== true || room.mode === 'solo' || room.content?.vanilla === false) return null;
   const run = async (kind, body) => { if (busy) return; setBusy(true); try { await net.request(kind, body); } catch (e) { toastError(e); } finally { setBusy(false); } };
   const spectator = room.spectators?.some(s => s.playerId === myId);
   const requests = room.aiTakeoverVotes || [], votes = requests;

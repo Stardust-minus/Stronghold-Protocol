@@ -9,6 +9,8 @@ import { startServer } from '../../server/index.js';
 import { Match } from '../../server/match/Match.js';
 import { PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../../shared/playerCapacity.js';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
+import { skipEntryFilm } from '../helpers/entryFilm.js';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const enabled = process.env.SP_E2E === '1';
@@ -30,8 +32,10 @@ test('phone online count and full-size shops stay visible, touchable and reconne
         }
       }
     }
+    // 第二期下半 (the 盟约 briefing, band draft and shop below; PhoneMatch funds an in-process match): a stock server's
+    // lobby and rooms are 规程 since 0.4.0, whose matches run in a version host
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, MatchClass: PhoneMatch, seedFn: () => 173,
-      combatWorkers: 1, trialWorkers: 0, snapshotHz: 10, wsCompression: 'off' });
+      combatWorkers: 1, trialWorkers: 0, snapshotHz: 10, wsCompression: 'off', versions: { default: DEFAULT_VERSION } });
     assert.equal((await fetch(srv.url + '/healthz')).status, 200);
     browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true,
       args: ['--no-sandbox', '--mute-audio', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -40,6 +44,7 @@ test('phone online count and full-size shops stay visible, touchable and reconne
     // by --ui (test/ui/ui-scale.e2e.test.js, test/ui/ui-scale.test.js)
     await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sp.pref.settings', JSON.stringify({ uiScale: '100' })); } catch { /* ignore */ } });
     page.on('pageerror', error => report.pageErrors.push(error.message));
+    await skipEntryFilm(page); // no entry film over the lobby's 公告板
     await page.setRequestInterception(true);
     page.on('request', req => {
       if (/^(data:|blob:|about:)/.test(req.url()) || new URL(req.url()).hostname === '127.0.0.1') void req.continue();

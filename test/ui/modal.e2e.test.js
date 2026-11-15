@@ -1,5 +1,6 @@
 // Shared Modal keyboard boundaries, real Chrome. Component fixtures cover nested / empty dialogs; the settings
 // case uses the real lobby's ⚙. Opt-in: SP_E2E=1 node --test test/ui/modal.e2e.test.js
+import { skipEntryFilm } from '../helpers/entryFilm.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -34,6 +35,7 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
   };
   async function fixture(page) {
     page.setDefaultTimeout(5000);
+    await skipEntryFilm(page);
     await page.goto(`${srv.url}/dev/uikit.html`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
       const { render } = await import('/vendor/preact.module.js');
@@ -164,6 +166,7 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
     try {
       await page.setViewport({ width: 1280, height: 720 });
       page.setDefaultTimeout(5000);
+      await skipEntryFilm(page);
       await page.goto(srv.url, { waitUntil: 'domcontentloaded' });
       await lobbySettings(page);
       await page.waitForFunction(() => document.querySelector('.modal__box')?.contains(document.activeElement));
@@ -193,6 +196,7 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
     const page = await browser.newPage();
     try {
       page.setDefaultTimeout(5000);
+      await skipEntryFilm(page);
       await page.goto(srv.url, { waitUntil: 'domcontentloaded' });
       await lobbySettings(page);
       await page.waitForSelector('.set-guide');

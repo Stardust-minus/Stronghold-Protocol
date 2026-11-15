@@ -187,7 +187,8 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
               // §35.18's phone layout hides the redundant ready tag (02eebe5b); loading / failed tags remain visible.
               { sel: '.rseat__content.is-ready', within: '.rseat', optional: h <= 520 },
               { sel: '.rseat__content:not(.is-ready)', within: '.rseat', optional: true },
-              // the whole name (the part tells two halves apart): two lines on a short screen, never an ellipsis
+              // the whole name (the part tells two halves apart): two lines on a short screen, never an ellipsis (this
+              // fork's room keeps the tag there — lobby.css .rs-clock__ver; upstream §37.117 hides it on a short screen)
               { sel: '.rs-clock [data-testid="version-tag"]', wrap: true },
               { sel: '.rs-clock [data-testid="version-tag"] .vertag__label', wrap: true },
             ]);

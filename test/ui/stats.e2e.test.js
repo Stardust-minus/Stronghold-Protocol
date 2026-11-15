@@ -20,6 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, sleep, startRealServer, hasChrome, OUT } from '../e2e/client.mjs';
 import { buildRecord, buildQuitRecord, createLiveMatch, observeMatch, STATS_VERSION } from '../../public/js/ui/stats.js';
+import { skipEntryFilm } from '../helpers/entryFilm.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ENABLED = process.env.SP_E2E === '1' && hasChrome();
@@ -76,6 +77,7 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
     await c.page.setViewport({ width: w, height: h, hasTouch: w < 1000, isMobile: w < 1000 });
     c.page.on('console', (m) => { if (m.type() === 'error') c.problems.push(`console: ${m.text()}`); });
     c.page.on('pageerror', (e) => c.problems.push(`pageerror: ${e.message}`));
+    await skipEntryFilm(c.page); // no entry film over the lobby
     await c.page.evaluateOnNewDocument((stored, lang, nickname) => {
       if (nickname !== null) localStorage.setItem('sp.name', nickname);
       if (lang) localStorage.setItem('sp.pref.lang', JSON.stringify(lang));

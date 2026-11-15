@@ -7,7 +7,7 @@
 
 | 项目 | 说明 |
 |---|---|
-| 服务器 CPU | 战斗在各玩家浏览器里模拟（DESIGN §14），服务器只负责回合、经济和校验：**每个房间每个作战回合约 1 ms CPU**。AI 队友 / 掉线玩家的战场由服务器模拟：作战开始时 3 个 AI 战场在开发机上约 0.2–0.5 s CPU，小主机上可能要几秒（分成 8 ms 小片执行，不会卡住其他房间）。`SP_VERIFY=all` 会复算每个真人战场，CPU 明显增加，小主机建议保持 `off` 或 `sample`。AI 布阵的试算也会消耗 CPU；原版房间可设 `SP_BOT_REHEARSAL=host`，让房主浏览器代算（见下面）。 |
+| 服务器 CPU | 战斗在各玩家浏览器里模拟（DESIGN §14），服务器负责回合、经济和校验；未启用 P2P 时的原模式测量值为：**每个房间每个作战回合约 1 ms CPU**。P2P 转发会增加状态签名开销，且保留看门狗的 WebSocket 补发，不能按四人只发一份估算下行。AI 队友 / 掉线玩家的战场由服务器模拟：作战开始时 3 个 AI 战场在开发机上约 0.2–0.5 s CPU，小主机上可能要几秒（分成 8 ms 小片执行，不会卡住其他房间）。`SP_VERIFY=all` 会复算每个真人战场，CPU 明显增加，小主机建议保持 `off` 或 `sample`。AI 布阵的试算也会消耗 CPU；原版房间可设 `SP_BOT_REHEARSAL=host`，让房主浏览器代算（见下面）。 |
 | 服务器内存 | 空闲约 270 MB（2026-11-07 在 Linux 上实测），每个进行中的对局再增加几 MB。服务器演算战斗（`SP_COMBAT=server`）时每局约 50 MB，见 [CAPACITY.md](CAPACITY.md)。 |
 | 网络 | 4 人对局中服务器每回合下行约 0.25 MB（DESIGN §14 实测；设 `SP_WS_COMPRESSION=on` 可以对状态和战斗流消息启用 permessage-deflate 压缩，本 fork 默认关闭；上游 0.2.6 默认压缩 1 KB 以上的消息，实测一局单人对局的服务器消息从 173 KB 降到 60 KB）。首次进入游戏时浏览器要从主机下载所需的图片 / Spine 模型 / 音频（按需加载，之后走浏览器缓存），公网隧道带宽小时第一次会慢一些。0.2.6 起服务器启动后在后台给素材算内容哈希（第一次约 1–20 秒，看机器和硬盘；之后只检查大小和修改时间），下发的素材清单里每个地址带上哈希：浏览器把图片、模型和音频缓存一年，服务器更新、重新解压或 Docker 重建之后，玩家只重新下载内容真的变了的文件。哈希存在 `.cache/asset-hashes.json`，删掉会重新计算；目录不可写（例如只读的容器）时只在内存里算。 |
 | 磁盘 | 素材约 720 MB（`public/assets`，含中文约 65 MB、日文约 85 MB、英文约 71 MB、韩文约 80 MB、本土语言约 18 MB 的干员语音）+ 依赖约 125 MB（`node_modules`；整合包只带运行依赖，约 65 MB）；可选的本地提取约 40 MB（`.venv-extract`）+ 约 330 MB（贴图、各战场官方场景和官方战斗特效，见第 6 节）。完整包解压后约 1.16 GB。 |
@@ -19,7 +19,7 @@
 
 **房主帮 AI 试算布阵（可选）：**环境变量 `SP_BOT_REHEARSAL` 不设或设为 `server` 时，AI 布阵试算仍在服务器上（默认）。设为 `host` 后，当前房主的浏览器在整备阶段用同源的模块 Worker（`/js/battle/rehearsalWorker.js`，不绘图、不用 `eval`）比较 AI 队友的几种布阵，只把选中的序号发回；服务器直接采用，不再重算。房主掉线、换人、报错、答案不合法或超时（默认 3 秒）时，服务器用同一批候选自己算。整备先结束则取消试算、保留默认布阵，不延长回合。正式战斗和真人「AI 托管」不受影响。开了玩法插件的房间不走这条路：对局在内容组合自己的进程里，仍由服务器试算，避免浏览器用错数据包或绕过脚本额度。没有可用房主时也不会减少服务器负担。浏览器会多算一些，耗时取决于房主设备和局面。这个接口（任务、答案序号、超时、回退到服务器）以后可以换成本机或外部计算，当前版本不会对外发起网络请求。
 
-**外部 AI（目前仅开发分支，不随发布包提供）：**维护者 2026-10-23 决定，在语言模型席位的终极胜率接近 100% 之前，外部 AI 与顾问模式不进入发布包、更新包和 Docker 镜像（§35.66）。发布包里的服务器遇到 `SP_BOT_STRATEGY=external`、`SP_EXTERNAL_AI_*` 或 `SP_LLM_*` 时不崩溃、不连外网，忽略这些设置，用内置 AI，并打一行日志。内置 AI 和 #673 策略框架照常随包提供。从源码运行的开发分支仍可按
+**外部 AI（目前仅开发分支，不随发布包提供）：**维护者 2026-10-23 决定，在语言模型席位的终极胜率接近 100% 之前，外部 AI 与顾问模式不进入发布包、更新包和 Docker 镜像（§35.66）。发布包里的服务器遇到 `SP_BOT_STRATEGY=external`、`SP_BOT_STRATEGY_SEATS` 中的 `external`、`SP_EXTERNAL_AI_*` 或 `SP_LLM_*` 时不崩溃、不连外网，忽略这些设置，用内置 AI，并打一行日志。内置 AI 和 #673 策略框架照常随包提供。从源码运行的开发分支仍可按
 [服主接入指南](EXTERNAL_AI_ZH.md)与 [External AI API](EXTERNAL_AI.md) 配置；本机程序具有服务器权限，第三方服务能看到该席位视图，请自行选择可信服务。
 
 
@@ -250,11 +250,30 @@ https / wss 说明：页面通过 https 打开时客户端自动连接 `wss://�
 
 ### 2.5 玩家预先下载素材
 
-本 fork 打开页面直接进入大厅，没有标题画面：上游 0.3.0 标题画面上的「下载完整素材」和「导入素材包」不显示，也不能导入素材包（导入的美术只对应带内容哈希的素材地址，本 fork 的部署模板用 `SP_ASSET_INDEX=0` 下发普通地址）。
+本 fork 打开页面直接进入大厅，没有标题画面：上游 0.3.0 标题画面上的「下载完整素材」和「导入素材包」不显示，也不能导入素材包（导入的美术只对应带内容哈希的素材地址，本 fork 的部署模板用 `SP_ASSET_INDEX=0` 下发普通地址）。项目另外提供[资源完整性检查接口](ASSETS.md#client-resource-completeness-api)，方便希望节省服务器流量、让玩家自备素材包的站点定制资源检查流程。
 
 - 玩家可以在「设置 → 素材下载」把素材预先下载到浏览器，分两档：「对局素材」（不含皮肤，只含自己正在使用的配音）和「全部素材」（含全部皮肤和配音）。关闭设置后继续下载，进入对局时自动暂停，回到大厅或房间后继续；失败的文件可以重试。
 - 下载的是这台服务器素材清单里的同源地址：本机开服时字节从开服的电脑发出；本 fork 的部署模板把 `/assets/`、`/media/` 重定向到外部素材源（ModelScope 等）。
-- 只有页面的 Service Worker 带素材档案时（`/code-source.json` 的 `material`，由本 fork 的边缘节点给出，单机可用 `SP_CODE_SOURCE` 设置，见 `deploy/stardust/STUDIO-CODE-SOURCE.md`），文件才按路径保存在浏览器的 Cache Storage 里；没有档案时只靠浏览器的普通缓存，设置里会提示下载的素材可能不会保留。Service Worker 只在 **HTTPS** 或 **localhost** 页面上可用。
+- 只有页面的 Service Worker 带素材档案时（`/code-source.json` 的 `material`，由本 fork 的边缘节点给出，单机可用 `SP_CODE_SOURCE` 设置，见 `deploy/stardust/STUDIO-CODE-SOURCE.md`），文件才按路径保存在浏览器的 Cache Storage 里；没有档案时只靠浏览器的普通缓存，设置里会提示下载的素材可能不会保留。Service Worker 只在 **HTTPS** 或 **localhost** 页面上可用。带内容哈希的素材地址（`SP_ASSET_INDEX` 没关时）在 HTTPS 或 localhost 下还会像导入的素材一样存进站点存储（上游 #725）；`http://局域网IP` 只能放进浏览器的 HTTP 缓存（Windows 版 Chrome 最多约 320 MB），放不下完整素材，刷新后会重新下载。
+
+### 2.6 P2P 公共状态转发（可选，默认关闭）
+
+这是一条**可选的转发路径**，默认关闭：不设置 `SP_P2P` 时，所有公共对局状态仍由服务器直接分发，行为与之前完全一致。开服者显式设置 `SP_P2P=1`（或 `true`）后，同盟房间才会在玩家与观战者之间建立 WebRTC 星形连接，由一名浏览器转发服务器签名的公共对局状态（`m.public`）。连接就绪的成员从该浏览器接收，未就绪的成员继续由服务器发送。服务器先向中继发送一份；约 2.5 秒（`P2P_ACK_MS`）的看门狗到期后，仍向每名接收者的 WebSocket 补发最新快照。确认序号不会取消计时或补发，窗口内的新快照只覆盖待补发的旧快照。因此服务器总发送量不会从 4 份变成 1 份，不能据此承诺带宽节省；实际字节数取决于更新频率、状态大小、签名与压缩。战斗仍在浏览器计算。私人数据、玩家操作、战斗报告、实时领袖血量流（`b.pool`）及其他事件继续走 WebSocket；素材仍通过 HTTP 下载或使用本地缓存。`m.public` 中的领袖血量快照随公共状态一起转发。
+
+- 推荐通过 **HTTPS**（或本机 `localhost`）访问，以便使用 WebCrypto 验证服务器签名。浏览器不支持相关 API 时直接使用 WebSocket。
+- 默认不访问公共 STUN / TURN 服务，适合同一网络内直连。公网跨 NAT 可由开服者配置自己的 ICE 服务：
+
+  ```powershell
+  $env:SP_P2P = '1'
+  $env:SP_P2P_ICE_SERVERS = '[{"urls":"stun:stun.example.com:3478"}]'
+  npm start
+  ```
+
+  TURN 的格式为 `[{"urls":"turn:turn.example.com:3478","username":"临时用户名","credential":"临时密码"}]`。这些配置会发送给参与连接的浏览器，请使用有期限、权限受限的 TURN 凭据。TURN 中继会产生自身的流量费用，优先使用直连。
+- WebRTC 需要客户端之间的网络可达性；只配置反向代理的 `/ws` 不会打通 UDP。
+- **主机候选地址可能暴露局域网地址**：建立连接时浏览器会交换 ICE 候选地址，其中包含主机候选（本机在内网的地址，例如 `192.168.x.x`、`10.x.x.x`）。这些信息会发给同房间正在建立连接的成员，等同于把你的内网地址告诉对方。请按与朋友共享网络连接的方式使用；不希望暴露内网地址时不要开启 `SP_P2P`，或对客户端的网络权限加以限制。
+- **回退空窗约 2.5 秒**：中继通道仍显示连接、却不再转发状态（或转发的快照丢失、无法通过签名校验）时，服务器的看门狗会在约 2.5 秒（`P2P_ACK_MS`）后，把最新那条已签名快照从自己的 WebSocket 补发给该成员；只有计时期间确认序号完全没有前进才停用这条通道。也就是说这条路径上单次故障的恢复时间上界约为 2.5 秒，期间该成员看到的是上一帧状态；客户端自报的序号不会被当作"已应用"的证据，因此即便收到错误确认也会补发。
+- 开关：全服默认关闭，显式 `SP_P2P=1` 开启；单个浏览器在网址后加 `?p2p=off`（已有参数时用 `&p2p=off`）关闭。ICE JSON 配置错误会关闭 P2P 并给出日志提示，游戏继续走 WebSocket。
 
 ## 3. Docker
 
@@ -373,6 +392,15 @@ volumes:
 
 ## 7. 打包发布（维护者）
 
+打包命令默认在生成 ZIP 后执行启动冒烟检查（#568）：完整包、精简包分别解压到临时目录；更新包在
+每个 `--from` 基础包的临时副本上覆盖。只用包内文件及运行依赖执行 `node server/index.js`，绑定
+本机随机空闲端口，依次验证 `/healthz` 的版本、首页及 `/vendor/pixi.min.js`。不下载素材、不跑对局、
+不加入系统 CI 矩阵。素材专用 ZIP 不含服务器，仍走素材包校验。
+失败使打包命令返回非零，错误标明解压／启动／具体请求阶段；日志保留为 ZIP 旁的 `.smoke.log`
+（更新包为 `.base-N.smoke.log`）。无论成功失败都关闭本次子进程并清理临时安装。
+可单独重查：`node tools/package-smoke.mjs <release.zip> [base.zip或目录]`。`--no-install` 也不跳过冒烟，
+因此缺少运行依赖的调试包会失败；`--dry-run` 不产生 ZIP，也不启动检查。
+
 上游 Releases 的 zip（完整包、精简包，0.2.1 起还有更新包）由 `tools/package.mjs` 生成，在**源码仓库**里运行（整合包里没有这个工具）。本 fork 不发布整合包，工具保留原样：
 
 ```bash
@@ -381,6 +409,7 @@ npm run package -- --out <目录>        # 完整包 Stronghold-Protocol-v<版�
 npm run package:lite -- --out <目录>   # 精简包 Stronghold-Protocol-v<版本>-lite.zip
 npm run package -- --update --from <旧版本的完整包>[,<…>] --out <目录>   # 更新包 Stronghold-Protocol-v<版本>-update.zip
 node tools/package.mjs --assets --out <目录>   # 素材包 Stronghold-Protocol-v<版本>-assets.zip（给「导入素材包」用，不放进 Releases）
+node tools/package.mjs --theme-packs --out <目录>   # 主题包 Stronghold-Protocol-v<版本>-theme-ac_s_closur.zip（给「界面主题 → 导入主题包」用，不放进 Releases）
 ```
 
 完整包在打包机已经提取战场场景时带上 `public/assets/local/scene/`（`--dry-run` 摘要里的 `battlefield scenes` 一行）。还没有提取时完整包仍能打，棋盘用金属地块。要带上 11 个官方场景，先运行 `python3 tools/local-extract/fetch_scenes.py`，再用提取环境的 Python 运行 `tools/local-extract/extract.py --only scene`（或 `node tools/setup.mjs --scenes`），然后再 `npm run package`。精简包不带场景。`.cache/official-scenes/` 在拒绝名单里，不会打进任何包。`tools/local-extract/scenes.py` 和 `fetch_scenes.py` 必须先提交：打包读的是 `git ls-files`，未提交的脚本不会进玩家包。
@@ -392,6 +421,7 @@ node tools/package.mjs --assets --out <目录>   # 素材包 Stronghold-Protocol
 - **MANIFEST.json**：三种包的根目录都有（`npm ci` 之后写入）：除素材（`public/assets/`、`public/fonts/`、`data/assets.json`、`data/local-assets.json`，归 setup 管）以外每个文件的大小和 sha256，同一版本的三种包内容相同。`npm run doctor` 和更新包的启动检查（`server/update.js`）用它核对安装。
 - **更新包**（0.2.1 起，每个版本都发）：`--from` 后面列出**此次支持升级的每个旧版本完整包**（Releases 上的 zip，或它解压出来、没动过的文件夹；逗号分隔或写多个 `--from`），例如发布 0.2.2 时 `--from Stronghold-Protocol-v0.2.0.zip,Stronghold-Protocol-v0.2.1.zip`。工具照常构建完整包的临时目录（`npm ci` 等），逐个文件（大小 + sha256）和每个旧版本比较：和任何一个旧版本不同、或旧版本没有的文件都打进去，所以一个更新包能覆盖在列出的每个版本上；旧版本有、新版本没有的文件记进 `UPDATE.json` 的 `removed`（连同各旧版本里的 sha256，玩家那边只删内容一致的文件；只差大小写的同名文件和 `.env` 之类的本机文件名不删，摘要里会列出）。旧版本必须比当前版本旧、带素材（不能是精简包或更新包）、每个版本只给一次，`--dry-run` 只读取并检查旧版本。更新包里还有新版本的 `MANIFEST.json` 和 `UPDATE.json`（适用的旧版本、文件数、字节数、文件列表和 `removed`），同样经过拒绝名单和个人信息检查；摘要列出和每个旧版本相比改动 / 新增 / 删除的文件数和更新包里各类文件的数量。发布时在 Releases 说明里写明更新包适用的版本（即 `--from` 列出的版本）。0.3.0 至少以 0.2.6 完整包为基线；新增的插件模块、Schemas、作者工具、模板、SES / Acorn 与前端库都会作为新增或改变的文件进入更新包。删除列表以实际基线比较为准，不要凭开发过程里曾出现过的页面名手写。`--keep-stage` 保留更新包目录和完整包的临时目录（`<目录>/Stronghold-Protocol-v<版本>-update/` 里的 `Stronghold-Protocol/` 和 `.full/`）。
 - **素材包**（`--assets`，0.3.0 起，可选）：给标题画面「导入素材包」用的范例，只含这个版本导入时能收下的美术——`data/assets.json`、`data/local-assets.json`、`data/local-fx.json` 列出的文件（字体也在其中），按打包机上的语音和官方特效开关取舍，和完整包一致；不含清单本身（浏览器读的是服务器上的清单）、清单没有列出的本地提取残留文件，也不含任何代码。zip 里只有一个文件夹 `Stronghold-Protocol-v<版本>-assets/`，里面是 `public/assets/…`、`public/fonts/…` 和中英文说明 `README.txt`（是什么、对应哪个版本的清单、怎么导入；其他版本的服务器上，内容变了的文件校验不符、不会收下）。每个路径都带 `public/`，导入时整包按同一个前缀识别；说明文件是导入结果里唯一「跳过」的文件。打包前做和完整包相同的检查：清单列出的文件都在、没有只差大小写的路径、个人信息扫描（素材也查）、`data/assets.json` 已提交（`--allow-dirty` 跳过这一项）、开发版本要加 `--allow-dev`；`--dry-run [--list]` 只检查、不写文件。不运行 `npm ci`，也没有 `MANIFEST.json`。素材包要和发布的完整包用同一份素材来打：打包后又重新提取过本地素材（例如官方特效）就要重打，改过的文件在别人的服务器上会校验不符；本地提取的那部分（场景、官方特效等）也只对提供同一份提取结果的服务器（这个版本的完整包）有效，自己从其他客户端版本提取的服务器会拒收这些文件，其余照常导入。0.3.0 的素材包是 30936 个文件、990 MB，zip 约 711 MB。素材包**不附在 GitHub Release 上，也不提交到仓库**：维护者可以把它放到网盘等处另行提供下载；Releases 仍然只有完整包、精简包和更新包。
+- **可露希尔主题包**（`--theme-packs`，0.4.0 起）：维护者 2026-11-15 决定“全能的”可露希尔主题不内置（§37.232）。完整包、更新包和素材包都不带 `public/assets/local/themes/ac_s_closur/` 和 `ui/outer` 里属于它的 12 张图（皮肤预览、背景、卡片缩略图和 9 个小贴纸，游戏本来不画），随包的 `data/local-assets.json` 也删掉这些条目（`tools/package.mjs` 的 `HELD_THEME_GROUPS` / `HELD_THEME_ENTRIES`，摘要里 `held back` 一行）。`--theme-packs` 把打包机提取的这组文件打成 `Stronghold-Protocol-v<版本>-theme-ac_s_closur.zip`（导入时会收下的文件，不含 `layout.json`，加中英文 `README.txt`），检查组已提取、`theme.json` 在、清单列出的文件都在、不超过导入上限、个人信息扫描；玩家在「设置 → 界面主题」点「导入主题包」导入，只存在自己的浏览器里。主题包和素材包一样**不附在 GitHub Release 上**，由维护者另行提供；从自己的客户端提取过这个主题的服务器照常自带。
 - **需要**：已下载素材的仓库（完整包）——打包前先联网运行一次 `node tools/fetch-assets.mjs`，补齐清单计划但本机还没有的素材（清单只列出磁盘上有的文件，打包工具看不出缺了哪些；`data/assets.json` 有变化就先提交）；能访问 npm 的网络（`npm ci`）；`zip`（或 bsdtar 的 `tar`，Windows 10 起自带）；更新包还要之前各版本的完整包（工具自己读 zip，不需要 `unzip`；Releases 上可以重新下载）。`--out` 默认是系统临时目录下的 `stronghold-protocol-release`，不能在仓库里面；`--force` 覆盖已有的 zip，`--keep-stage` 保留打包用的目录供检查。
 
 ## 8. 插件：服主策略文件（0.3.0 起）
@@ -523,16 +553,17 @@ Node 24 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可�
 
 ## 11. 官方版本（0.3.2 起）
 
-除了现在的「第二期下半」（`act2autochess`），服务器还提供更早的三个官方版本：第二期上半（`act2autochess@V2_1`）、
-第一期下半（`act1autochess`）、第一期上半（`act1autochess@V1_1`）。数据随发布包和 Docker 镜像一起提供（`data/versions/`）。
-**不设置时四个版本都启用**（注册表顺序，默认版本仍是第二期下半），大厅右上角有「版本」。`npm start`、`scripts/start.sh` 和
+服务器提供五个官方版本：「第二期下半」（`act2autochess`，`data/*.json`）、第二期上半（`act2autochess@V2_1`）、
+第一期下半（`act1autochess`）、第一期上半（`act1autochess@V1_1`），以及 0.4.0 起的「规程·序列Ⅰ」（`act3autochess@V3_1`）。数据随发布包和
+Docker 镜像一起提供（`data/versions/`）。**不设置时五个版本都启用**（注册表顺序），大厅默认选中规程·序列Ⅰ
+（`shared/versions.js LOBBY_DEFAULT_VERSION`，没启用它时是第二期下半），大厅右上角有「版本」。`npm start`、`scripts/start.sh` 和
 `scripts/start-windows.bat` 不用加参数。`SP_VERSIONS=act2autochess`（或只含第二期下半的列表）收窄到这一个版本，大厅不显示版本按钮。
 房间和消息里省略的版本字段仍表示代码常量 `act2autochess`（DESIGN §35.23.11）。
 
 | 环境变量 | 作用 |
 |---|---|
-| `SP_VERSIONS` | 启用哪些版本。不设置等于 `all`（四个都开）。也可写 `all`，或逗号分隔的版本 id，例如 `SP_VERSIONS=act2autochess,act1autochess`。写错的 id 在启动日志里提示并忽略。`SP_VERSIONS=act2autochess` 只开第二期下半 |
-| `SP_VERSION_DEFAULT` | 没有指定版本时新房间用哪个版本（默认第二期下半）；不在已启用列表里时提示，并改用第一个启用的版本 |
+| `SP_VERSIONS` | 启用哪些版本。不设置等于 `all`（五个都开）。也可写 `all`，或逗号分隔的版本 id，例如 `SP_VERSIONS=act2autochess,act1autochess`。写错的 id 在启动日志里提示并忽略。`SP_VERSIONS=act2autochess` 只开第二期下半 |
+| `SP_VERSION_DEFAULT` | 没有指定版本时新房间用哪个版本（默认规程·序列Ⅰ，没启用它时第二期下半）；不在已启用列表里时提示，并改用第一个启用的版本 |
 | `SP_MAX_VERSION_HOSTS` | 版本对局子进程的上限（默认等于启用的非默认版本数；只要还有非默认版本，至少为 1） |
 | `SP_VERSION_COMBAT_WORKERS` | `SP_COMBAT=server` 时每个版本子进程的战斗线程数（默认 2，`0`–`32`；`0` = 在子进程主线程内演算并全程推流，玩家的干员卡片只有开战时数值）。默认版本的 `SP_COMBAT_WORKERS` 不影响它 |
 
@@ -541,8 +572,9 @@ Node 24 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可�
 - 非默认版本的对局在单独的子进程里运行（每个版本一个，同一版本的房间共用），和插件子进程分开计数。进程在该版本的第一局开局时才启动，
   空闲的服务器不会额外拉起进程。载入数据和对局代码后每个约占 100+ MB 内存 [ASSUMED：按插件子进程实测的约 117 MB 估计]，空闲 10 分钟后自动结束；
   冷启动约 0.2 秒到几秒。小主机内存紧张时用 `SP_VERSIONS` 只启用需要的版本，或用 `SP_MAX_VERSION_HOSTS` 限制同时存在的进程数。
-- `SP_COMBAT=server` 时这些房间的战斗和默认版本一样在战斗线程里算，浏览器用该版本的数据运行本地副本（实时数值、省流量）。线程在子进程启动时一起启动，子进程结束时一起结束；线程起不来只记日志，这个版本的房间退回主线程演算和推流。每个线程带一份该版本的数据。
-- 这些房间的 AI 布阵试算总在服务器上算（不会交给房主浏览器），CPU 比默认版本的房间略高。
+- `SP_COMBAT=server` 时这些房间的战斗和第二期下半一样在战斗线程里算，浏览器用该版本的数据运行本地副本（实时数值、省流量）。线程在子进程启动时一起启动，子进程结束时一起结束；线程起不来只记日志，这个版本的房间退回主线程演算和推流。每个线程带一份该版本的数据。
+- 这些房间的 AI 布阵试算总在服务器上算（不会交给房主浏览器），CPU 比第二期下半的房间略高。规程·序列Ⅰ是大厅默认版本，所以大多数
+  对局会跑在它的子进程里；想让新房间回到第二期下半（主进程运行），设置 `SP_VERSION_DEFAULT=act2autochess`。
 - 玩家第一次进入某个版本时，浏览器要下载该版本的数据（约 5 MB，之后缓存）。
 - `http://localhost:3000/healthz` 在启用了非默认版本时多一项 `versions`（不设置时就会有）：启用的版本、默认版本和版本子进程的数量。空闲时 `workers` 为 0；有战斗线程时 `hosts.combat` 给出可用线程数、总线程数和战斗会话数。
 - 也可以在 `startServer({ versions: { enabled, default, maxHosts } })` 里设置（优先于环境变量）。
@@ -641,7 +673,7 @@ SP_REDIS_URL=redis://127.0.0.1:6379/0 npm start
 在恢复的对局里按「离开」处理（交给 AI 规则）。不在任何房间里的访客、匹配队列、尚未开始的匹配邀请、上一局的
 结算回放不保存（排队的玩家重新排队即可）。带玩法插件的房间不保存，测试房间和调控台房间的对局也不存档。
 
-**其他官方版本的房间**（第二期上半、第一期上半/下半）在单机服务器上的对局跑在本进程的版本子进程里（集群设
+**其他官方版本的房间**（第二期上半、第一期上半/下半，以及 0.4.0 起的规程·序列Ⅰ）在单机服务器上的对局跑在本进程的版本子进程里（集群设
 `SP_VERSION_PLACEMENT=coordinator` 时跑在协调器上，同样如此），同样存档：
 子进程在每个安全阶段、每轮定时写入和正常关闭时把对局状态交给主进程，主进程存成 `cp:V.<房间>.<局号>.<种子>`（信封带版本号）。
 重启后房间回到原版本，对局在该版本的子进程里从存档重建，规则与上面相同；子进程拒绝这份存档（数据或引擎已不兼容、子进程起不来）

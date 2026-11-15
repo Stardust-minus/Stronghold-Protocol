@@ -1,18 +1,23 @@
 // tools/versions/act2autochess.mjs — build profile of the default version, 第二期下半: 盟约·下半 (act2autochess) in its
-// final state V2_2 (docs/DATA.md "Official versions (M0)", DESIGN §35.22): the research in docs/research/, the 下半-measured
-// tables of tools/build-data.mjs, and no config.version. Kengxxiao/ArknightsGameData dropped AUTOCHESS_SEASON from
-// activity_table with client 2.7.91 (08ba2aea, 2026-11-01), so master cannot build the mode any more. Every table is read
-// at fe7d8d05 (2026-10-24), the last commit with the season. Against 17759cc8 (2026-10-08), which the data was built from
-// before, it changes only 克莱门莎 S3's projectile_life_time from 5 to 3.5 (bee3f83c, 2026-10-14), taken on the owner's
-// word of 2026-11-02.
+// final state V2_2 (docs/DATA.md "Official versions (M0)", DESIGN §35.22). It is today's build: the tables of
+// Kengxxiao/ArknightsGameData at the pinned commits, the research in docs/research/, the 下半-measured tables of
+// tools/build-data.mjs, and no config.version (test/versions-default-guard.test.js).
+// Pinned since 2026-11-02 (DESIGN §37.91): master's activity_table lost the 盟约 season (CN 2.7.91, 卫戍协议·规程), so
+// every file stays at CN 2.7.81 (the commit data/*.json was built from since 0.2.3) except the operator tables, which
+// bring in the 2.7.91 operators and modules.
+// The fork read every table at fe7d8d05 (2026-10-24, the last commit with the season; against 17759cc8 only 克莱门莎 S3's
+// projectile_life_time 5 → 3.5, the owner's word of 2026-11-02) and took 冻河, 国度 and 塔露拉 as `lateOperators` from
+// 08ba2aea. The operator-table pin gives the same records (克莱门莎 3.5 included), so that entry is gone with the 0.4.0
+// merge: lateOperators refuses an operator the pinned tables already have. The older versions still name the commit
+// each of their late 自选 comes from (tools/versions/act1autochess*.mjs, act2autochess-v2_1.mjs).
 
 export default Object.freeze({
   id: 'act2autochess',
   season: 'act2autochess',
-  pins: Object.freeze({ default: 'fe7d8d05edc36cf5678a24bfe9e84e891f6cf7ad' }),
-  // 冻河, 国度 and 塔露拉 (2026-11-01) are newer than the pin; only their own records come from the later commit, so no
-  // other operator moves
-  lateOperators: Object.freeze({ sha: '08ba2aea0e8dba88eff0ec0d2c87e24b4db626f8', charIds: Object.freeze(['char_4244_tocka', 'char_4246_dminon', 'char_4247_oxi']) }),
+  pins: Object.freeze({
+    default: '17759cc8cdf37388414145d16262a3a06f3ab25e',   // CN 2.7.81, 2026-10-08
+    character: '08ba2aea0e8dba88eff0ec0d2c87e24b4db626f8', // CN 2.7.91, 2026-11-01: 冻河 / 国度 / 塔露拉, 4 modules
+  }),
   adapters: Object.freeze([]),
   research: null,                // docs/research/
   tables: 'default',             // stock / shopDraft / tacticDraft / bountyDrafts as measured on 下半

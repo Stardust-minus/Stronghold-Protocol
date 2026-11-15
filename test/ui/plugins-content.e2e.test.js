@@ -97,14 +97,18 @@ describe('a room\'s content set in the browser (P1c)', { skip: !ENABLED && 'set 
       const finished = new Map();
       let last = null;
       const firstDone = (id) => [...finished.values()].find((f) => f.kind === 'normal' && f.players.includes(id));
+      // P3b: all gameplay sets use a real Worker; the page holds only cached wire state. Sampled while the battle runs: the
+      // runner may drop a finished field's entry before both fields are done
+      const onWorker = () => host.page.evaluate(() => [...globalThis.__SP_RUNNER__._entries.values()].some(e =>
+        e.host?.remote && e.host.worker instanceof Worker && !e.battle.step && !e.battle.data));
+      let sawWorker = await onWorker();
       for (const t0 = Date.now(); Date.now() - t0 < 90000 && !(firstDone(hostId) && firstDone(guestId)); await sleep(100)) {
+        sawWorker ||= await onWorker();
         const d = await match.diag();
         last = d;
         for (const f of d?.fields || []) if (f.done && !finished.has(f.battleId)) finished.set(f.battleId, f);
       }
-      // P3b: all gameplay sets use a real Worker; the page holds only cached wire state.
-      assert.equal(await host.page.evaluate(() => [...globalThis.__SP_RUNNER__._entries.values()].some(e =>
-        e.host?.remote && e.host.worker instanceof Worker && !e.battle.step && !e.battle.data)), true);
+      assert.equal(sawWorker, true, 'the battle ran on the plugin Worker');
       const mine = firstDone(hostId);
       const theirs = firstDone(guestId);
       assert.ok(mine && theirs, `both battles settled: ${JSON.stringify([...finished.values()])} (the match's diag: ${JSON.stringify(last)?.slice(0, 600)})`);

@@ -5,15 +5,16 @@ import { useState, useMemo } from '../../vendor/hooks.module.js';
 import { html, Icon, TierChip, Tooltip } from './components.js';
 import { data, useData, localAsset } from '../data.js';
 import { parseRichText, rtClassName } from './richText.js';
+import { fillShowTags } from './showTags.js';
 import { t as tr } from '../../../shared/i18n.js';
 import { appearanceRecord } from './skinAssets.js';
 import { MaterialImage, useImageFailure } from './materialImage.js';
 import { useCardAvatarPick } from './playerCard.js';
 import { cardAvatarUrl } from './seatArt.js';
 import { CardAvatarLive } from './avatarLive.js';
-import { useStore } from '../store.js';
+import { useStore, store } from '../store.js';
 import { OwnerAvatarFx } from './ownerName.js';
-import { skinsStore, ownerSkin } from './skins.js';
+import { skinsStore, ownerSkin, tokenSkinShown } from './skins.js';
 import { settingsStore } from './settingsStore.js';
 import {
   uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
@@ -121,11 +122,12 @@ export function LocalSprite({ group = 'ui/battle', name, class: cls, fallback = 
 }
 
 /**
- * Rich text (official markup) → spans. Newlines become <br>.
+ * Rich text (official markup) → spans. Newlines become <br>. A {showtag_value_N} the caller did not fill (ui/showTags.js
+ * itemText / garrisonText give the live or starting value) reads 0 rather than the raw placeholder (§37.201).
  * @param {{ text: any, class?: string, as?: string }} props
  */
 export function RichText({ text, class: cls, as = 'span' }) {
-  const segs = useMemo(() => parseRichText(text), [text]);
+  const segs = useMemo(() => parseRichText(typeof text === 'string' ? fillShowTags(text, null) : text), [text]);
   const Tag = as;
   return html`<${Tag} class=${cx('rt', cls)}>${segs.map((s, i) => (s.br
     ? html`<br key=${i} />`
@@ -144,8 +146,23 @@ export const isGoldenPiece = (piece, chess) => !!(piece?.golden || chess?.isGold
  *   `rec`: the chess record to draw instead of the data's (a 自选 piece's composed record — 0.2.0, gameLogic/diy.js; a
  *   补位 stand-in's — gameLogic/standIn.js: drawn with a small 「替补」 mark in the corner)
  */
-export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showTier = true, class: cls, dim = false, badge = null, title, rec = null, skinId = null }) {
+/** The summon outfit this viewer may see (#876; round-54 audit): read without hooks — thumbnails and the detail head are
+ * also rendered as plain functions — and only when there is a skin to gate. This fork's catalogue skins (shared/skins.js,
+ * skinId) send no summon outfit, so `skin` is null here and the token's own avatar shows (upstream's plugin skins only). */
+function shownTokenSkin(skin, ownerId) {
+  if (!skin) return null;
+  return tokenSkinShown(skin, { ownerId, myId: store.get()?.me?.playerId ?? null, otherSkins: settingsStore.get()?.otherSkins !== false });
+}
+
+/** A summon's avatar in its owner's outfit (#876) under the operators' 显示其他玩家的皮肤 gate (round-54 audit). */
+export function TokenAvatar({ m, tokenId, ownerId = null, skin = null, fallback = null }) {
+  return html`<${Img} src=${tokenAvatarUrl(m, tokenId, { skin: shownTokenSkin(skin, ownerId) })} fallback=${fallback} />`;
+}
+
+export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showTier = true, class: cls, dim = false, badge = null, title, rec = null, skinId = null, ownerId, skin = null }) {
   const m = data.get('assets');
+  // a summon wears its owner's outfit (#876) under the operators' 显示其他玩家的皮肤 gate (round-54 audit)
+  const tokenSkin = kind === 'token' ? shownTokenSkin(skin, ownerId) : null;
   let src = null;
   let fallbackSrc = null;
   let name = '';
@@ -168,7 +185,7 @@ export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showT
     golden = golden ?? !!it?.isGolden;
   } else if (kind === 'token') {
     const tk = data.lookup('tokens', id);
-    src = tokenAvatarUrl(m, id);
+    src = tokenAvatarUrl(m, id, { skin: tokenSkin });
     name = tk?.name || '';
   } else if (kind === 'enemy') {
     const e = data.lookup('enemies', id);
@@ -267,9 +284,15 @@ export function CoinGlyph({ class: cls }) {
 }
 
 /** Bond glyph image (white mask tinted by CSS) or first-letter fallback. */
-export function BondGlyph({ bondId, class: cls }) {
+export function BondGlyph({ bondId, class: cls, mask = false }) {
   const b = data.lookup('bonds', bondId);
   const src = bondIconUrl(data.get('assets'), bondId);
+  // `mask`: the icon's shape filled with the current text colour (the 规程 card: the official cards draw a bond's icon in
+  // the same colour as its name — the theme's bondColor —, not the fixed mint filter below)
+  if (mask && src) {
+    const url = `url("${src}")`;
+    return html`<span class=${cx('bglyph', 'bglyph--mask', cls)} title=${b?.name || bondId} style=${{ WebkitMaskImage: url, maskImage: url }}></span>`;
+  }
   return html`<span class=${cx('bglyph', cls)} title=${b?.name || bondId}>
     <${Img} src=${src} fallback=${html`<span class="bglyph__txt">${[...(b?.name || '?')][0]}</span>`} />
   </span>`;

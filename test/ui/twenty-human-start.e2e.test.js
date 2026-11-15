@@ -15,6 +15,7 @@ import { getData } from '../../server/data.js';
 import { cultivationCharIds } from '../../shared/protocol.js';
 import { PROTOCOL_VERSION, MATCHMAKING_VERSION } from '../../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../../shared/playerCapacity.js';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 const enabled = process.env.SP_E2E === '1';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -36,7 +37,10 @@ test('browser start button launches twenty real human sessions with more than 64
     game = await startGameRuntime({ nodeId: 'twenty-browser-node', generation: 'twenty-browser-generation', build: 'twenty-browser-build', key,
       combatWorkers: 1, trialWorkers: 0, onEnd() {}, shutdownMs: 100 });
     const nodes = [{ nodeId: 'twenty-browser-node', url: game.url, key }];
-    coordinator = await startCoordinator({ nodes, build: 'twenty-browser-build', host: '127.0.0.1', port: 0, heartbeatMs: 500, quiet: true });
+    // 第二期下半 the default (the 72 operator settings below are its operators'; the room is created without a version): a
+    // stock server's default is 规程 since 0.4.0, whose data the lobby's settings would be checked against
+    coordinator = await startCoordinator({ nodes, build: 'twenty-browser-build', host: '127.0.0.1', port: 0, heartbeatMs: 500, quiet: true,
+      versions: { default: DEFAULT_VERSION } });
     // The production-shaped browser origin serves coordinator HTTP and ingress WS.
     // This fixture has no gate/TLS/Nginx/WAN and exposes no external endpoints.
     proxy = http.createServer((req, res) => {

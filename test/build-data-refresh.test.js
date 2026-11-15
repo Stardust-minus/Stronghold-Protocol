@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { DEFAULT_VERSION } from '../shared/versions.js';
-import { loadProfile, pinnedShaOf } from '../tools/versions/profiles.mjs';
+import defaultProfile from '../tools/versions/act2autochess.mjs';
+import { pinnedShaOf } from '../tools/versions/profiles.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../tools/build-data.mjs', import.meta.url));
 const source = await readFile(SCRIPT, 'utf8');
@@ -20,9 +20,6 @@ const downloaderSource = source.slice(begin, end);
 const TABLES = ['excel/character_table.json', 'excel/skill_table.json'];
 const OLD = '{"revision":"old"}';
 const NEW = '{"revision":"new"}';
-// The CLI builds the default version, which reads a file it pins from <cache>@<sha>/ (tools/versions/profiles.mjs)
-const { profile: DEFAULT_PROFILE } = await loadProfile(DEFAULT_VERSION);
-const cliCache = (cache, rel) => { const sha = pinnedShaOf(DEFAULT_PROFILE, rel); return sha ? `${cache}@${sha}` : cache; };
 
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'sp-data-refresh-'));
@@ -126,12 +123,16 @@ test('offline mode rejects a missing table without a request', async (t) => {
 
 for (const force of [false, true]) {
   test(`CLI refresh failure leaves generated files untouched${force ? ' even with --force' : ''}`, async (t) => {
-    const { dir, cache: base } = await fixture(t);
+    const { dir, cache } = await fixture(t);
+    // where the default build caches a table: <cache>@<sha> for a pinned group (tools/build-data.mjs sourceOf)
+    const cached = (rel) => {
+      const sha = pinnedShaOf(defaultProfile, rel);
+      return join(sha ? `${cache}@${sha}` : cache, rel);
+    };
     for (const rel of TABLES) {
-      await mkdir(dirname(join(cliCache(base, rel), rel)), { recursive: true });
-      await writeFile(join(cliCache(base, rel), rel), OLD);
+      await mkdir(dirname(cached(rel)), { recursive: true });
+      await writeFile(cached(rel), OLD);
     }
-    const cache = (rel) => join(cliCache(base, rel), rel);
     const out = join(dir, 'data');
     const report = join(dir, 'report.json');
     await mkdir(out);
@@ -146,7 +147,7 @@ for (const force of [false, true]) {
     `);
     const result = spawnSync(process.execPath, [
       '--import', pathToFileURL(preload).href, SCRIPT,
-      '--refresh', '--cache', base, '--out', out, '--report', report,
+      '--refresh', '--cache', cache, '--out', out, '--report', report,
       ...(force ? ['--force'] : []),
     ], { encoding: 'utf8', timeout: 30_000 });
     assert.equal(result.error, undefined);
@@ -154,8 +155,8 @@ for (const force of [false, true]) {
     // A schema error from these tiny fixtures would also exit 1: require the actual download error.
     assert.match(result.stderr, /cannot obtain excel\/skill_table.json: simulated outage/);
     assert.doesNotMatch(result.stdout + result.stderr, /using stale cache|building…/);
-    assert.equal(await readFile(cache(TABLES[0]), 'utf8'), NEW, 'another download succeeded');
-    assert.equal(await readFile(cache(TABLES[1]), 'utf8'), OLD);
+    assert.equal(await readFile(cached(TABLES[0]), 'utf8'), NEW, 'another download succeeded');
+    assert.equal(await readFile(cached(TABLES[1]), 'utf8'), OLD);
     assert.deepEqual((await readdir(out)).sort(), ['chess.json', 'config.json']);
     for (const name of ['chess.json', 'config.json']) assert.equal(await readFile(join(out, name), 'utf8'), OLD);
     assert.equal(await readFile(report, 'utf8'), OLD);

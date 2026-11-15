@@ -291,18 +291,24 @@ for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode repeated equipmen
   assert.deepEqual(h.logs.error, []);
 });
 
-for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode timeout focus, departing defaults and later two survivors retain repeat rules`, t => {
+for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode timeout focus, a departing seat drafted by the team's rule and later two survivors retain repeat rules`, t => {
   const h = make(t, 5, { experimental: rules(capacity), data: forced('bounty') }), m = h.m; enterBand(h);
   const focused = m.gd.bandIds().find(id => id !== m.gd.bandDraft.timeoutBandId); assert.ok(focused);
   const focusing = m.draft.order.slice(0, 2).map(pid => m.players.get(pid));
   for (const ps of focusing) assert.deepEqual(m.bandFocus(ps, focused), { ok: true });
+  // holding nothing as it leaves: the AI drafts for it at once by the team's rule (upstream §37.65 departedWeight: Touch
+  // while nobody else has it), no default
   const departing = m.players.get(m.draft.order[2]); m.onLeave(departing.playerId);
-  assert.equal(m.draft.picks[departing.playerId], m.gd.bandDraft.timeoutBandId);
+  assert.equal(m.draft.picks[departing.playerId], undefined);
+  h.sched.advance(0);
+  assert.equal(m.draft.picks[departing.playerId], 'band_amedic');
   assert.equal(m.phase, 'BAND_DRAFT', 'a departure leaves the others deciding');
   h.sched.advance(m.bandTurnMs());
   for (const ps of focusing) assert.equal(m.draft.picks[ps.playerId], focused);
   h.sched.advance(0); assert.equal(m.phase, 'BATTLE_CHECK');
-  assert.ok(m.order.filter(ps => ![m.draft.order[0], m.draft.order[1]].includes(ps.playerId)).every(ps => ps.bandId === m.gd.bandDraft.timeoutBandId));
+  const rest = m.order.filter(ps => ![m.draft.order[0], m.draft.order[1], departing.playerId].includes(ps.playerId));
+  assert.equal(rest.length, 2);
+  assert.ok(rest.every(ps => ps.bandId === m.gd.bandDraft.timeoutBandId));
   m.setDeadline(0);
   for (const ps of m.order.slice(2)) if (ps.alive) ps.eliminate(1);
   m.round = 9; m.enterSpDraft(); const draft = m.sp;

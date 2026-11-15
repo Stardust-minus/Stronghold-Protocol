@@ -3,7 +3,7 @@
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
 import { deepFreeze, getData, workerDataJson } from '../../data.js';
-import { snapshotTrialInput, MAX_TRIAL_TICKS, beatsCandidate } from './trial.js';
+import { snapshotTrialInput, MAX_TRIAL_TICKS, bestOf, bossLike, validLead } from './trial.js';
 import { workerResourceLimits } from '../../workerHeap.js';
 
 const WORKER_URL = new URL('./worker.js', import.meta.url);
@@ -233,8 +233,10 @@ export class CombatWorkerPool {
     const generation = `${this.generation}:${++this.nextSession}`;
     const session = { generation, kind: 'trial', stream: true, slot, seq: 0, controlSeq: 1, eventSeq: 0,
       closed: false, onFailure, onProgress, summary, cap: snapshot.cap, candidateCount: snapshot.candidates.length,
+      // the boss fields among the candidates (the winner's order, trial.js beatsCandidate) and the §37.67 count request
+      boss: snapshot.candidates.map(bossLike), lead: snapshot.lead === true,
       initialized: false, sent: false, pending: false, closedDone: deferred(), done: deferred(), completed: false,
-      lastTicks: 0, lastCandidate: 0, lastSlices: 0, lastBest: { leaks: Infinity, boss: -Infinity, score: -Infinity }, prefix: [], callbackBusy: false, latestProgress: null,
+      lastTicks: 0, lastCandidate: 0, lastSlices: 0, prefix: [], callbackBusy: false, latestProgress: null,
       deadline: performance.now() + timeoutMs };
     this.sessions.set(generation, session);
     slot.sessions.add(session);
@@ -257,9 +259,11 @@ export class CombatWorkerPool {
         !Number.isInteger(p.bestIndex) || p.bestIndex < 0 || p.bestIndex >= session.candidateCount ||
         !(p.bestScore === -Infinity || Number.isFinite(p.bestScore)) ||
         !Array.isArray(p.candidates) || p.candidates.length !== p.candidateIndex) bad();
+    // §37.67: the winner's leader-damage counts only when asked for, and only in the final DTO
+    if (session.lead ? (p.done ? !validLead(p.bestLead) : p.bestLead !== null) : p.bestLead !== undefined) bad();
     if (initial && (p.ticks !== 0 || p.sliceCount !== 0 || p.candidateIndex !== 0 || p.done || p.bestIndex !== 0)) bad();
     if (!initial && p.sliceCount === session.lastSlices && p.candidateIndex !== session.lastCandidate) bad();
-    const keys = ['index', 'ticks', 'duration', 'beaten', 'leaks', 'boss', 'score', 'error', 'synthetic'];
+    const keys = ['index', 'ticks', 'duration', 'beaten', 'leaks', 'boss', 'gain', 'score', 'error', 'synthetic'];
     let total = 0;
     const prefix = [];
     for (let i = 0; i < p.candidates.length; i++) {
@@ -268,27 +272,25 @@ export class CombatWorkerPool {
           !Number.isFinite(c.duration) || c.duration < 0 || typeof c.beaten !== 'boolean' ||
           !(c.leaks === null || (Number.isSafeInteger(c.leaks) && c.leaks >= 0)) ||
           !(c.score === null || Number.isFinite(c.score)) || !(c.error === null || typeof c.error === 'string') ||
-          !(c.boss === null || (Number.isFinite(c.boss) && c.boss >= 0)) ||
+          !(c.boss === null || (Number.isFinite(c.boss) && c.boss >= 0)) || !(c.gain === null || Number.isFinite(c.gain)) ||
           !(c.synthetic === null || typeof c.synthetic === 'boolean') ||
-          (c.score !== null && (c.synthetic !== false || c.leaks === null || c.boss === null || c.beaten)) ||
+          (c.score !== null && (c.synthetic !== false || c.leaks === null || c.boss === null || c.gain === null || c.beaten)) ||
           ((session.summary || !p.done) ? c.result !== null : !(c.result === null || typeof c.result === 'object'))) bad();
       if (session.prefix[i] && keys.some((k) => c[k] !== session.prefix[i][k])) bad();
       total += c.ticks;
       prefix.push(Object.fromEntries(keys.map((k) => [k, c[k]])));
     }
     if (total > p.ticks || (p.done && total !== p.ticks)) bad();
-    const best = p.candidates[p.bestIndex];
-    // The best is the RehearsalScore order's (trial.js beatsCandidate): no scored candidate beats it, and it never gets
-    // worse than the one reported before — its score alone may fall (more leader damage on fewer kills).
-    if (p.bestScore === -Infinity) {
-      if (p.bestIndex !== 0 || p.bestLeaks !== Infinity || p.bestBoss !== -Infinity || p.candidates.some((c) => c.score !== null)) bad();
-    } else if (!best || best.score !== p.bestScore || best.leaks !== p.bestLeaks || best.boss !== p.bestBoss ||
-        p.candidates.some((c) => c.score !== null && beatsCandidate(c, best)) || beatsCandidate(session.lastBest, best)) bad();
+    // The best is the RehearsalScore sequence's (trial.js bestOf) over the completed records, an immutable prefix (checked
+    // above), so it can only move to a candidate that beat it — its score alone may fall (more leader damage on fewer
+    // kills; a boss field's leader damage less a leak's cost, §37.61).
+    const { index: bestIndex, best } = bestOf(p.candidates, (i) => session.boss[i]);
+    if (p.bestIndex !== bestIndex || p.bestScore !== best.score || p.bestLeaks !== best.leaks || p.bestBoss !== best.boss
+      || p.bestGain !== best.gain) bad();
     const advanced = p.ticks > session.lastTicks || p.candidateIndex > session.lastCandidate;
     session.lastTicks = p.ticks;
     session.lastCandidate = p.candidateIndex;
     session.lastSlices = p.sliceCount;
-    if (best && p.bestScore !== -Infinity) session.lastBest = { leaks: best.leaks, boss: best.boss, score: best.score };
     session.prefix = prefix;
     return advanced;
   }

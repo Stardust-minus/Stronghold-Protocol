@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MATCHMAKING_VERSION } from '../../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../../shared/playerCapacity.js';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 import { TestClient } from '../helpers/wsClient.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -276,8 +277,11 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
   test('room: a friend room\'s party queue shows the takeover over the room and confirms into the game', async () => {
     await dropClients();
     const me = await open('房间博士', { width: 1280, height: 720, deviceScaleFactor: 1 });
-    // (险境: its own pools, whatever an earlier test left in the standard ones)
-    await me.evaluate(() => globalThis.__SP__.net.request('room.create', { mode: 'coop', difficulty: 'NORMAL' }));
+    // (险境: its own pools, whatever an earlier test left in the standard ones). A room of 第二期下半, the version
+    // matchmaking plays (server/lobby.js: a matchmade Room is of DEFAULT_VERSION): since the 0.4.0 merge a new room is
+    // 规程 (LOBBY_DEFAULT_VERSION), and queue.join { party } from a room of another version answers BAD_TARGET — what
+    // matchmaking plays under the 规程 default is still the owner's to decide
+    await me.evaluate((version) => globalThis.__SP__.net.request('room.create', { mode: 'coop', difficulty: 'NORMAL', version }), DEFAULT_VERSION);
     await me.waitForSelector('.room-screen', { visible: true, timeout: 15000 });
     await me.evaluate(() => globalThis.__SP__.net.request('queue.join', { difficulty: 'NORMAL', party: true }));
     await me.waitForFunction(() => globalThis.__SP__.store.get().queue?.state === 'queued', { timeout: 15000 });

@@ -42,7 +42,7 @@ import { POTENTIAL_DEFAULT, CULTIVATE_DEFAULT } from '../../../shared/potential.
 import { ruleOption } from '../../../shared/plugins/rules.js';
 import { OWNERSHIP_PREF, parseStoredOwnership, parseStoredOwnershipChars, toStoredOwnership, toStoredOwnershipV1, cleanIds, sanitizeNotOwned,
   notOwnedView, rebaseChars } from './ownershipModel.js';
-import { parseStoredDiy, parseStoredDiyFallback, toStoredDiy, cleanPicks, sanitizeDiyPicks, diyPrefKey, diyPicksFor } from './diyModel.js';
+import { parseStoredDiy, parseStoredDiyFallback, toStoredDiy, cleanPicks, sanitizeDiyPicks, diyPrefKey, diyPicksFor, dropForeignBench } from './diyModel.js';
 import { cardStore, CARD_KEY, CARD_SYNC_KEY, cardOperators } from './seatArt.js';
 import { cardStore as playerCardStore, cardMessage, refreshTrophies } from './playerCard.js';
 import { needsContent, serverDefaultVersion } from '../versions.js';
@@ -585,7 +585,8 @@ function installPrefSync({ net, timers, target, notify, key, stateKey, msgType, 
     const code = s?.room?.code ?? null;
     if (code === roomCode) return;
     roomCode = code;
-    if (code && gated) { revision++; lastSent = null; schedule(50); }
+    // at once, not debounced: 开始模拟 right after the room appears must not overtake it (same socket ⇒ ordered)
+    if (code && gated) { revision++; lastSent = null; T.clearTimeout(timer); timer = null; void flush(); }
   }) : null;
   // `resendOn(appState)`: a value of the room that changes what the server keeps of the same payload (the 自选 picks:
   // 联动干员, which the server checks against the room) — sent again when it changes
@@ -723,16 +724,21 @@ export function installPlayerCardSync({ net, timers, target = playerCardStore, l
 /**
  * Wire the 名片干员 sync once (PR #643 split 6, ui/seatArt.js): `room.card { charId }` after every welcome, every pick
  * and whenever the room's content set arrives or goes — the server keeps it on the session, so it follows the player
- * into every room (server/lobby.js card / humanSeat), and the room sees it as room.state seats[].card. A pick the data
- * shown now does not list (a plugin operator, the room left) goes out as '' (默认), as one's own card draws it; the pref
+ * into every room (server/lobby.js card / humanSeat), and the room sees it as room.state seats[].card. The list is the
+ * room's picker's (ui/seatArt.js cardOperators): the visible chess operators plus the room version's 自选编队 pool (#877).
+ * A pick the data shown now does not list (a plugin operator, the room left) goes out as '' (默认), as one's own card
+ * draws it; the pref
  * keeps it. The engine retries RATE / TIMEOUT / OFFLINE (review fix of PR #813: the room's own effect gave up after
  * them, so teammates kept the old card); BAD_MSG is final ('error', logged).
  * @param {{ net: any, timers?: { setTimeout: Function, clearTimeout: Function }, target?: ReturnType<typeof createStore>,
- *   getChessReady?: () => Promise<any>, listChess?: () => any[], notify?: (text: string) => void, content?: any }} deps
+ *   getChessReady?: () => Promise<any>, getBackupsReady?: () => Promise<any>, listChess?: () => any[],
+ *   listBackups?: () => any, notify?: (text: string) => void, content?: any }} deps
  */
-export function installCardSync({ net, timers, target = cardStore, getChessReady, listChess, notify, content = appContentSet, app = store, gate = null } = {}) {
+export function installCardSync({ net, timers, target = cardStore, getChessReady, getBackupsReady, listChess, listBackups, notify, content = appContentSet, app = store, gate = null } = {}) {
   const ready = getChessReady || (() => data.load('chess'));
+  const readyBackups = getBackupsReady || (() => data.load('backups'));
   const list = listChess || (() => data.list('chess'));
+  const backupsOf = listBackups || (() => data.get('backups'));
   return installPrefSync({
     net, timers, target, notify, key: CARD_KEY, stateKey: CARD_SYNC_KEY, msgType: 'room.card', field: null, tag: 'card',
     lockedText: null, // room.card has no phase gate: never WRONG_PHASE / ROOM_STARTED
@@ -741,7 +747,12 @@ export function installCardSync({ net, timers, target = cardStore, getChessReady
       const want = target.get()[CARD_KEY];
       if (!want) return { charId: '' };
       if (await ready() == null) return null;
-      return { charId: cardOperators(list()).some((c) => c.charId === want) ? want : '' };
+      // a chess operator needs nothing more: the common pick goes out before backups.json is asked for
+      if (cardOperators(list()).some((c) => c.charId === want)) return { charId: want };
+      // 自选编队 operator (#877): no chess record of its own, listed only through backups.diy.ownedPool — the same list
+      // the room's picker draws (cardOperators(chess, backups)), so a pool pick goes out as itself, never as 默认
+      if ((await readyBackups()) == null) return null;
+      return { charId: cardOperators(list(), backupsOf()).some((c) => c.charId === want) ? want : '' };
     },
   });
 }
@@ -793,8 +804,14 @@ export function installDiySync({ net, timers, target = loadoutStore, notify, con
       if (!collab && Object.keys(cleanPicks(s.diyFallback)).length && data.status('backups') !== 'ready') {
         try { await data.loadAll('chess', 'backups'); } catch { /* missing: the stored picks go, the server drops a collab one */ }
       }
+      // 规程 has no 候补 (shared/diy.js diyBenchSize 0): a bench key never goes out there — the server refuses it — so a
+      // preset holding one waits for backups.json, which tells the versions apart (diyModel.js dropForeignBench)
+      if (Object.keys(cleanPicks(s.diy)).some((k) => k.startsWith('diyBench_')) && data.status('backups') !== 'ready') {
+        try { await data.loadAll('chess', 'backups'); } catch { /* missing: as stored */ }
+      }
       const cur = target.get();
-      return cleanPicks(diyPicksFor(cur.diy, cur.diyFallback, { chess: data.get('chess'), backups: data.get('backups') }, { collab }));
+      const D = { chess: data.get('chess'), backups: data.get('backups') };
+      return cleanPicks(diyPicksFor(dropForeignBench(cur.diy, D), cur.diyFallback, D, { collab }));
     },
   });
   return { flush: sync.flush, dispose() { offKit?.(); offKitContent?.(); sync.dispose(); } };

@@ -201,7 +201,7 @@ describe('the folded board grows and every bench / temp tile stays clear of the 
 describe('wiring', () => {
   test('the view passes the request\'s shop state to the HUD bands; the game asks for the camera of the fold state', () => {
     const app = read('public/js/render/app.js');
-    assert.match(app, /hud: hudBands\(vk, sz, \{ shop: o\.shop !== false \}\),/);
+    assert.match(app, /hud: hudBands\(vk, sz, \{ shop: o\.shop !== false \}\),/); // (no #692 partial fold: a boolean)
     assert.match(app, /return opts\.hud\(kind, sz, o\) \|\| null;/);
     const game = read('public/js/screens/game.js');
     // the player's own fold state (a drag never folds it: issue602-deploy-fold.test.js)

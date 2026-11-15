@@ -5,8 +5,10 @@
 //
 //   start()                                  the worker creates the match and starts it (the worker may still be booting:
 //                                            the host queues the messages; the match exists for the lobby at once)
-//   handle / setLoadout / setSkins / requestSetupReroll / cancelSetupReroll → Promise of the match's answer ({ ok } | { error, detail })
-//                                            — the lobby answers the request when it settles (server/net.js)
+//   handle / setLoadout / setSkins / requestSetupReroll / cancelSetupReroll / aiHandoverView / acceptAiHandover
+//                                            → Promise of the match's answer ({ ok } | { error, detail })
+//                                            — the lobby answers the request when it settles (server/net.js).
+//                                            aiHandoverView's ok result also carries the eligibility snapshot.
 //   onDisconnect / onReconnect / onLeave / addSpectator / removeSpectator → posted, no answer
 //   dispose()                                posted; nothing of this match reaches the lobby afterwards
 //   restore(doc, { replay })                 instead of start(): the worker builds the match and applies the checkpoint
@@ -171,6 +173,14 @@ export class MatchProxy {
   }
 
   handle(playerId, msg) { return this._request('handle', [playerId, msg]); }
+  /** Eligibility snapshot for a spectator AI handover. @returns {Promise<any>} */
+  aiHandoverView() { return this._request('aiHandoverView', []); }
+  /**
+   * Match half of inheriting a bot seat. @param {string} botId @param {string} name
+   * @param {{ round?: number, connected?: boolean }} [opts] a game node's transfer (Match.acceptAiHandover)
+   * @returns {Promise<{ ok?: boolean, error?: string, detail?: string }>}
+   */
+  acceptAiHandover(botId, name, opts) { return this._request('acceptAiHandover', opts === undefined ? [botId, name] : [botId, name, opts]); }
   setLoadout(playerId, loadout, ops) { return this._request('setLoadout', [playerId, loadout, ops]); }
   /** A human's skin choices during the match (as a default match takes them). */
   setSkins(playerId, choices) { return this._request('setSkins', [playerId, choices]); }

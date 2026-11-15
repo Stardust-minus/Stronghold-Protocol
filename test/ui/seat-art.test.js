@@ -1,5 +1,6 @@
 // test/ui/seat-art.test.js — 名片干员 on the room's seat cards (PR #643 split 6, public/js/ui/seatArt.js): the pickable
-// operators (one per charId of the visible, non-自选 chess records, the elite form, 6★ first), the default pool (5★/6★ by
+// operators (one per charId of the visible, non-自选 chess records, the elite form, plus the 自选编队 pool of backups.json
+// — #877; 6★ first), the default pool (5★/6★ by
 // charId), the operator a seat shows (one's own local pick at once, a teammate's seats[].card, else one chosen by the
 // player id — the same whatever order the records arrive in; none for a bot or an empty seat), the outfit it wears
 // (seatCardSkin, the maintainer's decision 4 of 2026-10-21), the picture a card falls back to when one fails to load
@@ -17,6 +18,7 @@ import { CARD_ROSTER } from '../../shared/card-roster.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const CHESS = Object.values(JSON.parse(readFileSync(path.join(ROOT, 'data/chess.json'), 'utf8')));
+const BACKUPS = JSON.parse(readFileSync(path.join(ROOT, 'data/backups.json'), 'utf8'));
 
 test('the pickable operators: one per visible, non-自选 charId, the elite form, 6★ first', () => {
   const list = cardOperators(CHESS);
@@ -44,6 +46,43 @@ test('feedback #62 / #99: the rest of the roster joins the list (协防干员, t
   assert.ok(list.some((c) => c.charId === 'char_109_fmout'), 'a 第一期 operator (远山)');
   assert.ok(cardContext(list).pool.every((c) => !c.roster));
   assert.ok(cardContext(list).byChar.has('char_1035_wisdel'), 'a seat wearing one draws it');
+});
+
+test('the 自选编队 pool joins the list (#877): backups.diy.ownedPool, named and rated by diy.operators, no duplicate of a chess record', () => {
+  const pool = BACKUPS.diy.ownedPool;
+  const ops = BACKUPS.diy.operators;
+  assert.ok(pool.length > 50);
+  const plain = cardOperators(CHESS);
+  const list = cardOperators(CHESS, BACKUPS);
+  const ids = list.map((c) => c.charId);
+  assert.equal(new Set(ids).size, ids.length, 'one record per charId');
+  const chess = new Set(plain.map((c) => c.charId));
+  for (const id of pool) {
+    assert.ok(ids.includes(id), `${id} offered`);
+    // a pool operator outside chess.json has no chess record: its name and rarity come from the 自选 operator table
+    if (!chess.has(id)) {
+      const rec = list.find((c) => c.charId === id);
+      assert.equal(rec.name, ops[id].name);
+      assert.equal(rec.rarity, ops[id].rarity);
+      assert.equal(rec.assets, undefined, 'no chess record leaked in');
+    }
+  }
+  // a pool id that also has a chess record keeps the chess one (its elite art), never a second entry; this fork's roster
+  // records (feedback #62, `roster`, after the pool) give way to the pool's own entry
+  for (const c of plain) if (!c.roster && pool.includes(c.charId)) assert.equal(list.find((x) => x.charId === c.charId), c);
+  for (let i = 1; i < list.length; i++) assert.ok((list[i - 1].rarity ?? 0) >= (list[i].rarity ?? 0), 'rarity descending');
+  // a pool pick is a card like any other: the seat resolves it, and the default pool may land on one
+  const ctx = cardContext(list);
+  const op = seatOperator({ playerId: 'p_x', name: 'X', isBot: false, card: 'char_003_kalts' }, ctx, { myId: 'p_x', myCard: 'char_003_kalts' });
+  assert.equal(op.chess.charId, 'char_003_kalts');
+  assert.equal(op.picked, true);
+  assert.ok(ctx.pool.some((c) => c.charId === 'char_003_kalts'), 'a 6★ 自选 operator joins the default pool');
+  // junk in the backups is ignored; a pool id without an operator record still shows (its charId as the name)
+  const junk = { diy: { ownedPool: ['char_003_kalts', 'char_999_ghost', 7, ''], operators: { char_003_kalts: { name: '凯尔希', rarity: 6 } } } };
+  const ids2 = cardOperators([], junk).filter((c) => !c.roster).map((c) => [c.charId, c.name, c.rarity]); // (the roster follows)
+  assert.deepEqual(ids2, [['char_003_kalts', '凯尔希', 6], ['char_999_ghost', 'char_999_ghost', 0]]);
+  assert.deepEqual(cardOperators(CHESS, null), plain, 'no backups: the chess list as before');
+  assert.deepEqual(cardOperators(CHESS, {}), plain);
 });
 
 test('the default pool: 5★/6★ only, ordered by charId whatever order the records came in', () => {
@@ -80,6 +119,22 @@ test('the operator a seat shows: own pick at once, a teammate\'s seats[].card, e
   assert.equal(seatOperator(null, ctx), null);
   assert.equal(seatOperator({ playerId: 'p_x' }, cardContext([])), null);
   assert.equal(CARD_PREF, 'room.card');
+});
+
+// PR #894 follow-up: while the 自选 pool (backups) loads, a pick missing from the list draws nothing rather than a default
+// operator that would swap to the real pick a moment later; a seat without a pick keeps its default at once
+test('a pick not yet in the list waits while the 自选 pool loads; no pick keeps the default (PR #894 follow-up)', () => {
+  const loading = cardContext(cardOperators(CHESS), { pending: true });
+  // (this fork's CARD_ROSTER lists every 自选 pool operator from the start — 凯尔希 included —, so the pick that waits is one
+  // the list does not have yet)
+  const mate = { playerId: 'p_mate', name: 'Mate', isBot: false, card: 'char_999_pending' };
+  assert.ok(!cardOperators(CHESS).some((c) => c.charId === mate.card));
+  assert.equal(seatOperator(mate, loading), null, 'a pick missing from the list waits');
+  assert.equal(seatOperator({ ...mate, card: 'char_003_kalts' }, loading).picked, true, 'a roster pick shows at once');
+  assert.equal(seatOperator({ ...mate, card: 'char_498_inside' }, loading).picked, true, 'a chess pick shows at once');
+  assert.equal(seatOperator({ ...mate, card: undefined }, loading).picked, false, 'no pick: the default at once');
+  // once loaded, an id that is still missing falls back to the default as before
+  assert.equal(seatOperator(mate, cardContext(cardOperators(CHESS))).picked, false);
 });
 
 test('the outfit a seat card wears (decision 4 of 2026-10-21): one\'s own choice at once, another doctor\'s published map, the switch, the fallback', () => {

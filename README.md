@@ -1,13 +1,13 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-> 本仓库是 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 的 fork。玩法规则、游戏数据和素材流程跟随上游（目前同步到上游 0.3.3），在此之上增加了公开匹配、扩展人数的好友房、服务器端战斗与集群部署、登录门禁和素材分发等改动，见[与上游的区别](#与上游的区别)。`master` 是开发集成分支，推送不等于线上发布；本文不记录任何部署地址或上线状态。
+> 本仓库是 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 的 fork。玩法规则、游戏数据和素材流程跟随上游（目前同步到上游 0.4.0），在此之上增加了公开匹配、扩展人数的好友房、服务器端战斗与集群部署、登录门禁和素材分发等改动，见[与上游的区别](#与上游的区别)。`master` 是开发集成分支，推送不等于线上发布；本文不记录任何部署地址或上线状态。
 
 > [!NOTE]
 > 本 fork 的公开服务器自 2026-11-08 17:00（北京时间）起关闭：官方「卫戍协议：规程」开放了，大家去玩官方的吧，我们休赛期见！想继续玩的可以按[快速开始](#快速开始)在自己的电脑上部署。
 
 《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人、1–4 人合作，或在好友房里扩展到最多 20 人。
 
-![version](https://img.shields.io/badge/version-0.3.3-2ea44f)
+![version](https://img.shields.io/badge/version-0.4.0-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-24-339933)
 
@@ -44,7 +44,7 @@ English summary: [below](#english).
 - **两种运行方式**：
   - **单进程**：和上游一样，一个 Node.js 进程同时提供页面和 WebSocket，战斗默认在各玩家的浏览器里模拟，一台低功耗小主机就能开服。
   - **集群**：一个 coordinator 负责大厅、房间与匹配，多个 game 节点用固定的 Worker 池在服务器上模拟战斗，多个 ingress 转发玩家连接。浏览器在本地演算自己看到的战场，由服务器定期校验，胜负以服务器为准。见 [deploy/stardust/cluster/](deploy/stardust/cluster/README.md)。
-- **版本**：玩法与数据同步到上游 0.3.3，默认提供四个官方版本（大厅右上角「版本」）（包括插件系统，见[插件](#插件)；上游的版本记录见 [CHANGELOG.md](CHANGELOG.md)）。本 fork 的改动见下一节和提交记录。仍有少数规则按推断实现，与官方不一致的地方欢迎在 Issue 里反馈。
+- **版本**：玩法与数据同步到上游 0.4.0，共提供五个官方版本（大厅右上角「版本」），包括插件系统（见[插件](#插件)）。0.4.0 新增官方版本「规程·序列Ⅰ」（11 月 8 日开放的「卫戍协议·规程」，和上游一样设为大厅默认，`SP_VERSION_DEFAULT` 可改回第二期下半）：单人规程等级 1–20 与极速模拟、指令、5 格装备区、每局盟约抽选、官方战场场景，以及「大厅背景」里可选的规程赛季外观；另有界面主题（含官方主题；“全能的”可露希尔主题包另行提供，在设置里导入）、CN 2.7.91 的新干员和大量修复。上游与本 fork 的版本记录见 [CHANGELOG.md](CHANGELOG.md)。本 fork 的改动见下一节和提交记录。仍有少数规则按推断实现，与官方不一致的地方欢迎在 Issue 里反馈。
 
 ## 与上游的区别
 
@@ -133,7 +133,7 @@ npm run setup      # 检查环境，并从公开镜像下载约 720 MB 美术 / 
 npm start          # 启动服务器：http://localhost:3000
 ```
 
-也可以直接运行启动脚本（Windows `scripts\start-windows.bat`，macOS / Linux `scripts/start.sh`）：首次会自动安装依赖、下载素材，然后启动服务器并打开浏览器。四个官方版本默认都开着，大厅右上角有「版本」。启动脚本和 `npm start` 不用加参数。只开第二期下半时设置 `SP_VERSIONS=act2autochess`（大厅不显示版本按钮），详见 [docs/DEPLOY.md](docs/DEPLOY.md) §11。
+也可以直接运行启动脚本（Windows `scripts\start-windows.bat`，macOS / Linux `scripts/start.sh`）：首次会自动安装依赖、下载素材，然后启动服务器并打开浏览器。五个官方版本默认都开着，大厅默认选中「规程·序列Ⅰ」，右上角有「版本」。启动脚本和 `npm start` 不用加参数。只开第二期下半时设置 `SP_VERSIONS=act2autochess`（大厅不显示版本按钮），详见 [docs/DEPLOY.md](docs/DEPLOY.md) §11。
 
 - 这样启动的是单进程服务器，战斗在浏览器里模拟。想让服务器模拟战斗，设置 `SP_COMBAT=server` 和 `SP_COMBAT_WORKERS`（见[端口与配置](#端口与配置)）；集群部署见 [deploy/stardust/cluster/](deploy/stardust/cluster/README.md)。
 - **本地客户端素材（可选）**：官方 3D 棋盘、官方战斗特效（0.3.0「官方特效」）、部分官方界面图标（交流按钮与表情面板的边框、模组类型图标等）、灼热 / 炽焰源石虫和 39 个召唤物（多数自选召唤物）的官方模型需要从本机的《明日方舟》PC 客户端提取（Windows 原生客户端、macOS 的 CrossOver 或 PlayCover）。`npm run setup` 检测到客户端时会询问是否提取（需要 Python 3.8+，依赖装在项目内的 `.venv-extract`，不影响系统）；之后可以用 `node tools/setup.mjs --local` 重新提取，或用 `--game "<…/StreamingAssets/AB/Windows>"` 指定路径；各战场的官方场景可以用 `node tools/setup.mjs --scenes` 下载并提取。没有客户端时游戏照常运行，这几样换成替代样式：2D 棋盘、样式相近的图标、染色的普通源石虫、召唤物头像。表情和「玩法说明」的教程图随上面的素材一起从公开镜像下载，不需要客户端。
@@ -180,14 +180,17 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_SHADOW_VERIFY_DEADLINE_MS` | `20000` | 验算者的期限（毫秒，2000–120000）；超时的浏览器 10 分钟内不再被选 |
 | `SP_OFFLINE_HOLD_MINUTES` | `10` | 同盟模拟所有博士都掉线时对局暂停多少分钟，没人回来就结束（`1`–`1440`；`0` = 不暂停，按原阵容继续）；独立模拟固定为 24 小时 |
 | `SP_BOT_REHEARSAL` | 不设（服务器试算） | 仅 `host` 让房主浏览器帮 AI 队友试算布阵（同源 Worker，只回候选序号）；不设或 `server` 仍由服务器试算。房主无法完成时服务器用同一批候选接手。玩法插件房间始终由服务器试算。真人「AI 托管」和正式战斗不受影响 |
+| `SP_P2P` | 不设（关闭） | 显式设为 `1`（或 `true`）时，同盟房间通过 WebRTC 转发公共对局状态，看门狗仍从 WebSocket 补发最新快照；不设或其他值保持服务器直接分发。开启后连接失败会自动回退 WebSocket，见 [部署指南](docs/DEPLOY.md#26-p2p-公共状态转发) |
+| `SP_P2P_ICE_SERVERS` | `[]` | 可选的 STUN / TURN 配置（JSON 数组），仅在 `SP_P2P` 开启时生效，见 [部署指南](docs/DEPLOY.md#26-p2p-公共状态转发) |
 | `TRUST_PROXY` | `auto` | 是否信任 `X-Forwarded-For` 等转发头：`auto` 只信任来自本机 / 内网的代理；`1` 总是；`0` 从不 |
 | `DEBUG` | 空 | 设为任意值输出详细日志 |
 | `SP_NO_BROWSER` | 空 | 设为 `1` 时启动脚本不自动打开浏览器 |
 | `SP_BOT_EMOTES` | 空 | AI 队友的对局表情回应（战斗、整备、合成、联防、收礼时即刻的 `m.emote` 广播）；设为 `0` 时整体关闭 |
 | `SP_CLIENT` | `source` | `build` 时首页使用 `npm run build` 生成的打包版本（`public/build/`），没有打包结果时退回源码页面；Docker 镜像默认 `build` |
 | `SP_ASSET_INDEX` | 空 | 素材地址带内容哈希、浏览器长期缓存（0.2.6 起默认开启，哈希存在 `.cache/asset-hashes.json`）；设为 `0` 时关闭，素材清单原样下发；本 fork 的部署模板设为 `0`（素材按原路径重定向到外部源） |
-| `SP_VERSIONS` | 不设（四个官方版本都开，默认第二期下半） | 收窄启用的版本：不设置与 `all` 相同；`act2autochess` 只开第二期下半，大厅不显示「版本」；也可写逗号分隔的版本 id（如 `act1autochess,act2autochess@V2_1`）。`SP_VERSION_DEFAULT` 指定默认版本，`SP_MAX_VERSION_HOSTS` 限制版本模拟进程数（空闲时不额外启动进程）。详见 [DEPLOY.md](docs/DEPLOY.md) §11 |
+| `SP_VERSIONS` | 不设（五个官方版本都开，大厅默认规程·序列Ⅰ） | 收窄启用的版本：不设置与 `all` 相同；`act2autochess` 只开第二期下半，大厅不显示「版本」；也可写逗号分隔的版本 id（如 `act1autochess,act2autochess@V2_1`）。`SP_VERSION_DEFAULT` 指定默认版本，`SP_MAX_VERSION_HOSTS` 限制版本模拟进程数（空闲时不额外启动进程）。详见 [DEPLOY.md](docs/DEPLOY.md) §11 |
 | `SP_REDIS_URL` | 空 | 断点续玩：指向 Valkey / Redis 后，重启服务器时对局从存档继续；不设时房间和对局只在内存里。详见 [DEPLOY.md](docs/DEPLOY.md) §13 |
+| `SP_BOT_STRATEGY_SEATS` | 不设（各席位都用 `SP_BOT_STRATEGY`） | 按席位覆盖 AI 策略：逗号分隔的 `席位:ID`（席位 0–3，ID 须已注册），如 `1:ioleta,3:adaptive`；未列出的席位用 `SP_BOT_STRATEGY`，启动时校验。发布包里选 `external` 的席位同样改用内置 AI。详见 [BOT_STRATEGIES.md](docs/BOT_STRATEGIES.md) |
 | `SP_BOT_STRATEGY` / `SP_EXTERNAL_AI_*` / `SP_LLM_*` | 不设（内置 AI） | 外部 AI 与顾问模式只在从源码运行时可用；上游的发布包和本仓库的 Docker 镜像会忽略这些变量，仍用内置 AI，并打一行日志。详见 [DEPLOY.md](docs/DEPLOY.md) |
 
 `--room-code` 只接受 4 位字母或数字，不是环境变量，也不会跨重启保留；同一时间只能有一个使用该密钥的房间。固定密钥更容易被猜到，建议只在私服 / 局域网使用。
@@ -227,6 +230,7 @@ npm start          # 启动服务器：http://localhost:3000
 
 通用注意事项：
 
+- 同盟可选 **P2P 公共状态转发**（默认关闭，设 `SP_P2P=1` 开启）：开启后服务器把签名后的公共状态交给一名浏览器，由其通过 WebRTC 转给队友和观战者。约 2.5 秒的看门狗到期后，服务器仍向每名接收者的 WebSocket 补发最新快照，确认序号不会取消补发；窗口内的新快照覆盖旧的待补发快照。因此不能把服务器发送量写成从 4 份降为 1 份，实际字节数还受更新频率、签名和压缩影响。私人状态、操作和战斗结果仍走 WebSocket，素材下载和缓存方式不变。需要支持 WebRTC 与 WebCrypto 的浏览器，推荐 HTTPS；普通 HTTP 局域网或 NAT 无法直连时会自动回退。单个浏览器可在地址后加 `?p2p=off` 关闭，详见[部署指南 §2.6](docs/DEPLOY.md#26-p2p-公共状态转发)。
 - 单进程模式是**单个常驻 Node.js 进程 + WebSocket**（路径 `/ws`），只能跑一个实例，必须部署在域名根路径；Vercel 之类的 Serverless 平台和 GitHub Pages 之类的静态托管都不适用。反向代理要转发 WebSocket 升级。
 - 游戏本身没有账号系统，**知道地址的人都能进来**。请只把地址发给需要的人；要对外开放时，至少在前面加一道门禁（本 fork 的口令门禁见 [deploy/stardust/auth/](deploy/stardust/README.md)），这同时能降低素材版权方面的风险。
 - 有公网 IPv4 时也可以在路由器上做端口转发，但这会把家里的电脑直接暴露在公网上，优先考虑上面的方式。
@@ -273,9 +277,10 @@ npm start          # 启动服务器：http://localhost:3000
 
 | 文档 | 内容 |
 |---|---|
-| [CHANGELOG.md](CHANGELOG.md) | 上游各版本的更新记录：每个版本修复了什么、哪些反馈经核实不是问题 |
+| [CHANGELOG.md](CHANGELOG.md) | 更新记录：上游各版本修复了什么、哪些反馈经核实不是问题，以及本 fork 0.3.3 之后的改动 |
 | [docs/PLAYING.md](docs/PLAYING.md) | 玩法指南：流程、经济、招募与晋升、摆阵、联防、盟约、最终攻势、结算称号 |
 | [docs/PLUGINS.md](docs/PLUGINS.md) · [docs/PLUGIN-GUIDE.md](docs/PLUGIN-GUIDE.md) | 插件格式、安装与服主策略；中文工作台入门、DSL 和对战试验 |
+| [docs/THEME-GUIDE.md](docs/THEME-GUIDE.md) · [docs/THEMES.md](docs/THEMES.md) | 界面主题：从零做一个主题包的中文教程（附示例包）；主题包格式规格 |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | 部署指南：Windows 开服与开机自启、防火墙、组网 / 隧道、反向代理与 HTTPS、Docker、systemd、排错 |
 | [docs/WINDOWS.md](docs/WINDOWS.md) | Windows 便携包：怎么打一份「零安装」包（`scripts/make-windows-bundle.mjs`）、包里放了什么、授权注意事项 |
 | [docs/DESIGN.md](docs/DESIGN.md) | 架构与契约（英文）：索引，按章节号找到文件；现行规则在 `docs/design/`（范围与目录分工、坐标与时间、战斗引擎、对局、网络协议、渲染与 UI），各次试玩和各版本的规则修订与依据在 `docs/history/` |
@@ -363,7 +368,7 @@ node tools/perfbench.mjs --cpu 1,4,6 --profile             # 真实战斗的帧�
 
 ## English
 
-A fork of [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol), an **unofficial, non-commercial fan remake** of Arknights' seasonal auto-chess tower-defense mode *Stronghold Protocol: Alliance*, played in the browser. Gameplay and data follow upstream (currently 0.3.3, with its four official versions); this fork adds multiplayer, server-side combat and deployment work on top.
+A fork of [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol), an **unofficial, non-commercial fan remake** of Arknights' seasonal auto-chess tower-defense mode *Stronghold Protocol: Alliance*, played in the browser. Gameplay and data follow upstream (currently 0.4.0, with its five official versions; the new 规程·序列Ⅰ is the lobby default, as upstream's); this fork adds multiplayer, server-side combat and deployment work on top.
 
 - **Public server:** this fork's public server closes on 2026-11-08 17:00 (UTC+8), when the official game's 「卫戍协议：规程」 opens — see you in the off-season. To keep playing, run it yourself (see **Run** below).
 - **What this fork adds:** public matchmaking (four players, or 8–20 with 多人同盟; several difficulties at once) with whole-party queueing; opt-in friend rooms of 8 / 12 / 16 / 20 players (repeatable drafts, a second relay defense round, grouped stock, optional rescue and independent pools — [docs/EXPERIMENTAL-MULTIPLAYER.md](docs/EXPERIMENTAL-MULTIPLAYER.md)); unlimited spectators, also after the match has started; AI teammate strategies and AFK removal; strategies picked by everyone at once on one 50 s clock, bond pre-picks (one main, up to four secondary, marked in the shop), four 自选 candidates per tier, a 2× battle-speed vote and settlement likes; room rules in one dialog (rescue by any living teammate, independent or hand-made pools, enemy HP / ATK multipliers, no layer or hit caps, AI-last 联防), an experimental collab-operator switch and a 调控台 test console for private rooms; display-only operator skins, the official art as HD static illustrations and live dynamic illustrations, cn / jp / en operator voices, full operator presets, per-view damage boards and an interface scale setting.

@@ -7,7 +7,7 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 ### 6.1 State machine (Match.js)
 
 ```
-LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed (§18.2); all ready ⇒ skip; the operator loadout (§16) locks when it ends) → BAND_DRAFT (co-op with two or more humans: the free draft — every seat at once under one 50 s countdown, hold / switch / cancel / 锁定 a strategy (`g.bandHold` / `g.bandCancel` / `g.bandLock`), first come first served (队友已选), every seat locked ends the step, the countdown fixes the holds and gives a human holding nothing its highlighted strategy else the default, AI seats lock at once or after the humans (「AI 队友最后选择」), no skip (MatchPhases.freeDraft, the owner 2026-11-05); a single human, and a checkpoint from before the free draft: the turns — random order — the room option 「AI 队友最后选择」 (host, on by default since feedback #46; `room.setAiPicksLast`) puts every human seat before every AI seat, each group keeping the drawn order, and draws no extra random number; a skipping human goes behind the other humans still to pick and ahead of the AI seats, or to the very end when no other human remains [ASSUMED] —, ONE countdown — `BAND_TURN_SECONDS` 50 s per turn = m.public.deadline, AI seats pick at once — the host may designate an AI seat's strategy in the room (`room.setBotBand`, off by default, one AI seat per strategy [ASSUMED: a remake option, no source]): that seat takes it on its turn and, in ordinary co-op, it counts as taken for everybody else until then (refused picks, skipped by the timeout / departure defaults; `m.public.draft.reserved` {bandId: playerId}) —, 1 skip each, in ordinary co-op a strategy a teammate already took is refused (队友已选; expanded fork exception below), timeout ⇒ the strategy the player highlights (`g.bandFocus`) while free, else band_bldsk, else the first free one; solo: free pick, no timer, no skip; a single human: untimed) → BATTLE_CHECK (3 s)
+LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed (§18.2); all ready ⇒ skip; the operator loadout (§16) locks when it ends) → BAND_DRAFT (co-op with two or more humans: the free draft — every seat at once under one 50 s countdown, hold / switch / cancel / 锁定 a strategy (`g.bandHold` / `g.bandCancel` / `g.bandLock`), first come first served (队友已选), every seat locked ends the step, the countdown fixes the holds and gives a human holding nothing its highlighted strategy else the default, AI seats lock at once or after the humans (「AI 队友最后选择」), an AI 托管 seat locks the strategy it holds, a seat that leaves is drafted for at once by the AI by the team's rule whatever it held (upstream §37.65 since the 0.4.0 merge: Touch while nobody has it, else any other, never 歌利亚; it keeps 0 LP), no skip (MatchPhases.freeDraft, the owner 2026-11-05); a single human, and a checkpoint from before the free draft: the turns — random order — the room option 「AI 队友最后选择」 (host, on by default since feedback #46; `room.setAiPicksLast`) puts every human seat before every AI seat, each group keeping the drawn order, and draws no extra random number; a skipping human goes behind the other humans still to pick and ahead of the AI seats, or to the very end when no other human remains [ASSUMED] —, ONE countdown — `BAND_TURN_SECONDS` 50 s per turn = m.public.deadline, AI seats pick at once — the host may designate an AI seat's strategy in the room (`room.setBotBand`, off by default, one AI seat per strategy [ASSUMED: a remake option, no source]): that seat takes it on its turn and, in ordinary co-op, it counts as taken for everybody else until then (refused picks, skipped by the timeout defaults and by the AI's pick for a departed seat (§37.65); `m.public.draft.reserved` {bandId: playerId}) —, 1 skip each, in ordinary co-op a strategy a teammate already took is refused (队友已选; expanded fork exception below), timeout ⇒ the strategy the player highlights (`g.bandFocus`) while free, else band_bldsk, else the first free one; solo: free pick, no timer, no skip; a single human: untimed) → BATTLE_CHECK (3 s)
 → loop r = 1..lastRound:
      ROUND_START   (income, upgrade price −1 (floor 0), temp NOT wiped — what overflowed after the last prep's deadline is shown in this
                     prep (§6.2 temp overflow), unfrozen shop slots rerolled, frozen kept; a strategy's 「进入休整期时」 grants and the
@@ -136,21 +136,34 @@ Intent handlers (validate → mutate → recompute bonds → push private view):
 
 Summons (§20.1): an operator on the board sends its manually deployable summons to the hand — deploy-limit copies in one stack, no deploy slot (tokens.json `placeable`, `gamedata.placeableTokens`); moving or swapping it sends its placed summons back to their stack, withdrawing or selling it removes them. A range-bound summon (tokens.json `ownerRange`: 狼群, 流形) goes only on a tile of its owner's attack range (`PlayerState._legal` / `summonRange`); in a swap each piece is checked from the tile it ends on; an in-place re-orientation or promotion that leaves it outside sends it back to its stack with a toast (one still inside stays [ASSUMED], user-confirmed 2026-10-03), and a re-orientation whose lifted summon would have no room is refused with `HAND_FULL`; on the other paths it leaves the board and joins the expandable temp queue (§32.14.21).
 
-Equipment (research 04 §2 + addendum, 09 §1.2): 2 slots per chess; a third item on a full carrier replaces the equipped item `replaceUid` names (the replace dialog's pick, official `UseEquipUp.unloadInstId`; absent ⇒ the oldest; a uid not equipped on the target ⇒ `BAD_TARGET`, nothing changes) and the replaced item is destroyed. A consume-on-equip item (盟约之币, 博士投影 …) on a full carrier replaces the same way before it resolves, so the carrier is left with a free slot (the normal 博士投影 takes it until the next round start); a target its effect refuses (博士投影 on an elite) keeps both items — PRTS 卫戍协议/帮助 "达到上限强行佩戴会改为替换装备" names no exception (GitHub #263; the client opens the replace dialog for it, `equipReplaces`). Equipped items are otherwise **locked**: `destroy` (销毁) accepts hand / temp items only (`BAD_TARGET 'equipped items are locked'`); equipment goes back to the hand only when its carrier merges, is sold, or is destroyed by 突变细胞's transformation (the cell itself returns too; PRTS 帮助 "在失去该干员（干员出售、销毁、合并等）…时自动卸除", §21.1) — sales retain all returned equipment in the expandable temp queue; returned equipment is stowed before the operator a transformation gains and before a merge elite's summon cards, and every path that hands the player an item — returned equipment included — ends with the auto-merge, so no player holds two identical mergeable normal items (§21.7).
+Equipment (research 04 §2 + addendum, 09 §1.2): mode-default slots per chess (normally 2), overridden by official `equipSlotNum` (Ironhide normal 4 / elite 6); a further item on a full carrier replaces the equipped item `replaceUid` names (the replace dialog's pick, official `UseEquipUp.unloadInstId`; absent ⇒ the oldest; a uid not equipped on the target ⇒ `BAD_TARGET`, nothing changes) and the replaced item is destroyed. A consume-on-equip item (盟约之币, 博士投影 …) on a full carrier replaces the same way before it resolves, so the carrier is left with a free slot (the normal 博士投影 takes it until the next round start); a target its effect refuses (博士投影 on an elite) keeps both items — PRTS 卫戍协议/帮助 "达到上限强行佩戴会改为替换装备" names no exception (GitHub #263; the client opens the replace dialog for it, `equipReplaces`). Equipped items are otherwise **locked**: `destroy` (销毁) accepts hand / temp items only (`BAD_TARGET 'equipped items are locked'`); equipment goes back to the hand only when its carrier merges, is sold, or is destroyed by 突变细胞's transformation (the cell itself returns too; PRTS 帮助 "在失去该干员（干员出售、销毁、合并等）…时自动卸除", §21.1) — sales retain all returned equipment in the expandable temp queue; returned equipment is stowed before the operator a transformation gains and before a merge elite's summon cards, and every path that hands the player an item — returned equipment included — ends with the auto-merge, so no player holds two identical mergeable normal items (§21.7).
+
+Equipment (research 04 §2 + addendum, 09 §1.2): 2 slots per chess; a third item on a full carrier replaces the equipped item `replaceUid` names (the replace dialog's pick, official `UseEquipUp.unloadInstId`; absent ⇒ the oldest; a uid not equipped on the target ⇒ `BAD_TARGET`, nothing changes) and the replaced item is destroyed. A consume-on-equip item (盟约之币, 博士投影 …) on a full carrier replaces the same way before it resolves, so the carrier is left with a free slot (the normal 博士投影 takes it until the next round start); a target its effect refuses (博士投影 on an elite) keeps both items — PRTS 卫戍协议/帮助 "达到上限强行佩戴会改为替换装备" names no exception (GitHub #263; the client opens the replace dialog for it, `equipReplaces`). Except for explicit trait returns such as [Stainless upgrades](#stainless-upgraded-equipment-return), equipped items are otherwise **locked**: `destroy` (销毁) accepts hand / temp items only (`BAD_TARGET 'equipped items are locked'`); equipment goes back to the hand when its carrier merges, is sold, or is destroyed by 突变细胞's transformation (the cell itself returns too; PRTS 帮助 "在失去该干员（干员出售、销毁、合并等）…时自动卸除", §21.1) — sales retain all returned equipment in the expandable temp queue; returned equipment is stowed before the operator a transformation gains and before a merge elite's summon cards, and every path that hands the player an item — returned equipment included — ends with the auto-merge, so no player holds two identical mergeable normal items (§21.7).
 
 Economy/shop/pool/merge/hand rules: exactly as research 00-INDEX §3–§4 (income `min(3+r,12)`; prices by tier; refresh 1; freeze toggles all, and a successful manual refresh (paid or free) cancels it — the new cards are not frozen (DESIGN §32.14.7); sell +1; items not sellable; upgrade prices per mode with −1/round; single-player pool copies 12/14/18/16/8/5 plus measured exceptions; co-op shared operators use twice those counts, while equipment has separate shared stock (DESIGN §29.8), and so does each player's private 自选 stock (8 / 5 solo, 16 / 10 co-op — §32.14.31); elite = 3 copies; odds = copy-weighted draw over unbanned visible chess with tier ≤ level; merge 3 (风丸 2) → elite onto the consumed deployed copy's tile, else to the hand (§20.11) + reward offer of 3 **different** free chess of tier `min(level+1, 6)` (copy-weighted, including the player's stocked 自选 of that tier — one shop level before the ordinary shop, §30.23; a tier short of different chess tops up from the tier below [ASSUMED], §20.6); full hand blocks every buy / reward pick, a merge-completing one too (PRTS 卫戍协议/帮助 §手牌区, GitHub #82); overflow to temp; a free hand slot pulls the temp pieces back in at once, right → left (`PlayerState._fillHandFromTemp`); temp blocks ready).
 
-**Advisor economy (§35.13–§35.14).** With a nonempty advisor plan, `economy.level` is a minimum: complete
-merges, meet an affordable floor before fill purchases, then resume legacy leveling. `holdLevel:true` requires
-an explicit level and nonblank `economy.why`; it caps only this prep, including one-round deferrals. `keep`/`sell`
-match exact forms; `buy` and bond priority stop wanting normal copies once that elite is owned. Non-carry seats
-spend expiring funds on useful targets, freeze only unaffordable explicit buys or merge completions, search while
-a purchase remains affordable, then bank spare operators. Opt-in `freezeSearch` also searches without purchase
-funds within the prep's `maxRefreshes`, to freeze a target for next round. `items.buy` requests up to eight items.
-Advisor cleanup protects elites, tier ≥4, exact keeps, targets bought this prep and active plan-bond threshold
-members; sell unprotected clutter first, destroy cheap unequipped hand items second, fall back last. Incidental
-unequippable items must leave two hand slots; explicit requests keep one. Carry bands retain interest behavior.
-Absent/empty plans and AI takeover without an advisor retain legacy behavior (maintainer **2026-10-20**).
+Fusion equipment (规程; official playtests reported 2026-11-14): acquiring a matching component consumes the two owned
+components wherever they are, including an equipped partner, and returns the combination to the equipment row
+unequipped. A full carrier keeps its unrelated equipment. Fusion sends one item `onMerge`, so Mechanist's 精巧设计
+recognizes it and shares the same per-round reward allowance as a same-name promotion. Both component stocks/debts
+are released before callbacks; no `onEquip` fires for the result. `[ASSUMED]` Existing stash overflow and result-stock
+gates apply, multiple partners use the normal merge preference, and fusion is immediate during prep-end grants too;
+ordinary same-name upgrades retain their deferred timing. Full-row purchase/pick restrictions remain unchanged.
+
+**Advisor economy (§35.13–§35.14, §37.71).** Each plan field changes only what it names; an absent or empty field
+keeps the legacy rule (a plan of empty fields plays exactly like none). `economy.level` is a minimum for this prep, at
+most the bots' L5 cap: complete merges, meet an affordable floor before fill purchases, then resume legacy leveling.
+`holdLevel:true` requires an explicit level and nonblank `economy.why`; it caps only this prep, including one-round
+deferrals. `keep`/`sell` match exact forms; `buy` and bond priority stop wanting normal copies once that elite is owned.
+Expiring funds go to the plan's own fields (`items.buy`, explicit `buy` targets, `freezeSearch`), then to the bot's
+`spendDown`, which also buys an explicit target a refresh shows; unaffordable explicit buys or merge completions are
+frozen. Opt-in `freezeSearch` also searches without purchase funds within the prep's `maxRefreshes` (which caps only
+the ordinary refresh search), to freeze a target for next round. `items.buy` requests up to eight items, each needing
+an immediate carrier or two free hand slots. Protection comes only from fields: exact keeps (not a crowded R9+ bench's
+tier ≤4 normal keep that completes no merge), explicit targets bought this prep and members whose removal lowers an
+active plan-bond tier; when such a piece must leave the board or the temp row, a bot's own seat destroys a cheap unkept
+hand item. Every bot rule holds for plan seats; a bot's own seat plays its focus as a priority-5 plan main
+(§37.75). Carry bands retain interest behavior.
 This is **[ASSUMED] AI policy**, not an official economy change. Bounds and sources:
 [EXTERNAL_AI](../EXTERNAL_AI.md#advisor-mode-and-readable-observations-359).
 
@@ -161,6 +174,17 @@ Pointing Stick creates at most one pending offer per alive, non-Ready player in 
 Ready requires no pending offer as well as an empty temp area. The co-op prep deadline resolves the offer randomly
 before resolving temp and setting Ready; untimed solo / single-human prep does not schedule a separate choice timer.
 The offer is recipient-private, including after reconnect, and never enters `m.public.sp` or a teammate's scout view.
+
+**规程 equipment row.** With `config.version.rules.equipHand === true`, the 10-slot hand accepts only operators
+and summons. The former five visible temp cells are a permanent equipment row (all item cards, including Arts),
+with no expiry and no Ready block. The season specifies 10 character slots and 5 equipment slots, with distinct
+`CHAR_HAND` / `EQUIP_HAND` client map areas and `tile_acbag` cells.
+[ASSUMED] Owner decision 2026-11-09: the equipment row fills right-to-left; normal actions require space in their
+card's row; forced overflow enters a hidden stash, automatically refills each row in arrival order, blocks Ready,
+and expires at the existing temp deadline. Entry notifies only the owner. Private views reveal the stash count,
+not its contents. Voluntary unequip (`unequip=allow`) requires equipment-row space. Equipment may move within
+that row or be equipped on a unit; operators/summons cannot occupy it. Covenant rules above stay unchanged.
+Implementation and protocol details: [META.md](../META.md#regulation-equipment-row-and-overflow).
 
 ### 6.3 Bonds & layers (bondsMeta.js)
 
@@ -174,6 +198,15 @@ The offer is recipient-private, including after reconnect, and never enters `m.p
 - Σ activated layers (hidden-core check) = Σ layers over bonds that are active at the moment of the check (end of R14 prep, per research).
 
 ### 6.4 Prep-phase effect dispatcher (effectsMeta.js)
+
+Regulation rewards use the season profile's equipment pools (DATA section 8): normal Catherine grants an ordinary
+or special hammer, elite Catherine a special or ultimate hammer, Victoria a special including electric, Passenger
+a coin/tea/mimic, and Kjerag ice. Members follow the pinned official trait/bond descriptions; unpublished small-chance
+weights remain [ASSUMED] 10% total. Other versions' pools and existing gift-stock semantics are unchanged.
+
+人事部记录的特殊刷新包含干员和装备（维护者核对官方录屏，2026-11-11）。干员栏保留第一盟约优先，装备栏重新抽取当前等级内普通装备并遵守库存；空、已购买和冻结栏同样刷新。保留特殊刷新不支付主动刷新费用、不增加主动刷新计数的行为。装备抽样复用已有指令换装池；录屏仅确认刷新范围，没有新增概率权重证据。
+
+SERVER_MOST_BOND uses the triggering garrison event to distinguish its sale variant from the prep-start variant. Sale rewards exclude BOARD_ALL_CHESS counting-only bonds (绝技 has no member operators) before comparing member counts; official captures with 3 绝技 and 2 助力 show Ethan granting 罗比菈塔. Rewards are capped at the current shop level and cannot return the source operator in either form, including copies just returned by the sale. Prep-start grants retain the upstream bond selection, row conditions and shop-level cap. Tied maxima and stock handling are unchanged; an out-of-stock member bond does not fall back to a smaller bond.
 
 A registry mapping **effect keys** → handler objects `{ onRoundStart, onPrepEnd, onGain(piece), onSold(piece), onRefresh, onPrice(slot), onBuy, onMerge, onLevelUp, onBattleResult }`. Sources: garrison `SERVER_*` keys (per chess on board or hand as the key requires), band effects, item meta effects, bond meta effects (助力, 远见, 奇迹, 投资人…), choice/team cards. Content owners register handlers; the dispatcher owns ordering and the 投资人 "获得时 ×2/×3" multiplier, and only while that bond is active (标准 lists `investShip` inactive; copies of one investor are one member — §32.14.8). 娜仁图亚 见者有份 draws `pool_equip_narant` with no tier cap: every shop-eligible equip, uniform [ASSUMED] (§32.14.8). `onBuy` = a shop purchase (`g.buy`) only: a free pick or a grant never counts as 购买 (休露丝, 玛恩纳, 升华, 整备; §21.21). Equipped items run from a snapshot — the owned chess and each holder's items as that step begins (every [holder, item] pair, taken before the first item runs) — each only while it is still equipped on its still-owned holder (handlers move and destroy pieces: 突变细胞, 博士投影; §21.25).
 
@@ -200,27 +233,49 @@ only lose their cell, as described above.
 
 Per match: pick stage (weighted among the mode's `config.modes[m].stages`, weight 50 each: 标准 FUNNY = 战场#01 `act1autochess_m01` only, 险境 NORMAL = 8 stages, 绝境 / 终极 = 7 without 战场#01 — `waves.js setupMatchWaves`, `test/match/stagepick.test.js`), 3 of 6 typed enemy factions, disabled bond set (3 core + 4 add-on for NORMAL+, per research), boss (weighted), hidden boss. Per round: wave template (by mode & round) → replace placeholders per research 05 §3.2 algorithm → apply stat multipliers (research 00-INDEX §5 `atk ×base×1.1^k`, `hp ×base×1.2^k`, ABYSS speed ×1.15 from R3) → `SpawnSpec[]` + routes resolved on the stage. *(Superseded by the official generator — §14 "Corrections from research 08/09" and the waves.js header.)* A player's normal battle (and the bot rehearsal) runs `withBounties(gd, round, wave, bounties, playerId)`: the bounty units inserted among their host action's own units, which are re-timed around them (client order); `previewOf` keeps one entry per action (`wave.spawns` + `bountySpawns`).
 
+规程 uses `config.version.rules.bondDraw = 'regulation'` (owner's official play, 2026-11-09;
+the regulation `mode_training_2` stage-info tutorial). Available cores have positive weight and are not in the mode's
+fixed inactive list. MULTI greys `floor(n/2)` cores; SINGLE shuffles two disjoint groups of `floor(n/2)` and chooses one
+in INFO_CHECK (`g.bondGroup { idx: 0|1, setupRevision }`), greying the other. Level 1 has 4 + 4. [ASSUMED] Levels 5–20
+use 5 + 5, 标准 co-op greys 4 of 8, and an odd leftover stays active. A bot prefers its plan/strategy core, otherwise
+the seeded first group; [ASSUMED] a human leaving the briefing without a choice keeps that first group.
+Add-on counts stay editable in `config.bans`: [ASSUMED] FUNNY/FAST 1, NORMAL/HARD/ABYSS 4, TRAINING 0.
+An operator with a core bond is excluded when all its core bonds are grey/inactive; one without a core bond when all its
+add-ons are. Grey add-ons never take out an operator of a lit core (owner's official play, 2026-11-13: a lit core bond
+never loses a member); one lit core keeps the six operators of two or three cores (owner, 2026-11-13). The same
+rule governs the shared pool, 自选 stock, shop, rewards and grants. INFO_CHECK rolls no shop; a pick rebuilds the
+provisional pool and 自选 stock before the draft, without drawing RNG. Reroll resets the groups/pick and stocks;
+public snapshots, reconnects and input replay retain the choice. Covenant draws and exclusion are unchanged.
+
 ### 6.6 AI players (bot.js)
 
 Match selects a trusted server-side implementation through `botStrategies.js`: `opts.botStrategy` (registered ID
-or definition object), then `SP_BOT_STRATEGY`, then `legacy`. The registry contains the unchanged
+or definition object), then `SP_BOT_STRATEGY`, then `legacy`. `opts.botStrategySeats`, then `SP_BOT_STRATEGY_SEATS`
+(`seat:id,…`, seats 0–3), override single seats; a seat without one plays the match's selection. The registry contains the unchanged
 `bot.js` adapter, the explicitly configured `external` adapter and the opt-in `ioleta`, `adaptive` and `ioleta-adaptive` strategies. `botStrategyContract.js` defines immutable strategy objects and pure registries; omitted hooks
 inherit an existing strategy (legacy by default). Invalid hooks, unknown IDs and duplicate registrations fail early.
 Registry additions do not reweight opening choices or consume RNG.
 An unset or empty `SP_BOT_STRATEGY` uses the original bot without a programmatic override. `startServer()` validates
-the environment selection before loading data or accepting connections; an unknown ID prevents startup with a
-diagnostic naming the variable, rejected value, available IDs and how to restore the default.
-Test input journals record the resolved strategy ID; replays use it explicitly, defaulting older records to `legacy`
-independently of the replay host's environment. Prep generators and rehearsal jobs retain journalled slice counts.
+both environment selections before loading data or accepting connections; an unknown ID or a malformed seat entry
+prevents startup with a diagnostic naming the variable, rejected value, available IDs and how to restore the default.
+A seat override applies to the seat number: an AI seat and a human under AI takeover there both play it. A match
+whose default or any seat selects `external` has one external host; only external seats ask it, still narrowed by
+`SP_EXTERNAL_AI_SEATS`, and they fall back to legacy as before.
+Test input journals record the resolved strategy ID and any seat overrides (`botStrategySeats`); replays use them
+explicitly, defaulting older records to `legacy` without overrides, independently of the replay host's environment. Prep generators and rehearsal jobs retain journalled slice counts.
 The offline hold's `offlineHoldMs` is journalled the same way (not the replay host's `SP_OFFLINE_HOLD_MINUTES`;
 records before 2026-11-11: no hold).
-The selected implementation does not change draft order or give any AI seat priority.
+The selected implementations do not change draft order or give any AI seat priority.
 
-The selected implementation handles band/card drafts, personal bounty choices, sliced prep begin/end and benchmark
+A seat's implementation (its override, else the match's) handles that seat's band/card drafts, personal bounty choices, sliced prep begin/end and benchmark
 bounty estimates. Prep hooks return synchronous iterators and preserve the existing rehearsal job protocol,
 including host delegation, cancellation and error cleanup. Definitions do not hold mutable per-room/player state.
 This is a development interface, not a new gameplay policy or a client code/plugin loading mechanism.
 See [the strategy guide](../BOT_STRATEGIES.md) for the contract, registration and testing steps.
+
+The optional `botbench --layers` audit wraps only benchmark match instances and records actual banked layers,
+source hooks, spending and round snapshots ([META §6](../META.md#6-testing--tools)). It never feeds decisions or
+counts rehearsal gains. The three §37.24 procurement/refresh trials were withdrawn; legacy policy is unchanged.
 
 The opt-in `ioleta` strategy applies [ASSUMED] staged Russell procurement to Russell seats and legacy prep to other
 bands. Its seat-local plan, core-merge/reward ordering and affordable search rules are recorded in
@@ -231,12 +286,35 @@ Maintainer decision 2026-10-17, requested 2026-10-19 (§35.8): `external`, a str
 accepts human intents through the same schema and semantic validators, and falls back to legacy on failure.
 Requests run asynchronously within existing phase timers; default selection and golden results stay unchanged.
 [ASSUMED] Engineering policy: version `sp-ai/1`, 1000 ms total decision/request cap, half the remaining phase
-reserved for fallback, 64 intents, 64 KiB response, 3 consecutive failures to match-long legacy for that seat,
+reserved for fallback (plan mode since §37.72: only the built-in bot's per-round reserve, `BOT_PREP_RESERVE_MS`),
+64 intents, 64 KiB response, 3 consecutive failures to match-long legacy for that seat,
 1000 ms child restart backoff; limits configurable. One stdio child per match, no HTTP redirects, no client-set
 endpoint/command, gameplay actions only. Test journals record replies/failures; offline replay performs no IO.
 The complete policy and scope are in [External AI API](../EXTERNAL_AI.md).
 Maintainer decision 2026-10-23 (§35.66): a release package does not include this strategy. The zip, the update
 package and the Docker image omit the host, and a packaged server ignores external-AI settings.
+
+0.4.0 development adapter (§37.21): provider thinking mode is explicitly configurable, independent of the
+token cap. Opt-in local captures omit credentials/headers; debug usage may distinguish reasoning tokens.
+[ASSUMED] A normal-stop response with a complete final `plan.items.equip` and only its outer wrapper brace
+missing may recover that single brace before the unchanged validators. This changes neither match timers,
+the default provider controls, legacy behavior nor the release gate. See [adapter details](../EXTERNAL_AI.md).
+
+0.4.0 development adapter (§37.23): HTTP 429/503 can retry at most three times per decision, within the
+original deadline. [ASSUMED] Retry-After is capped at 30 s (missing/invalid: 10 s), and each retry reserves
+half the original request budget after waiting. Numeric status/delay diagnostics never include remote error
+bodies. Exhaustion retains the generic failure and existing fallback; host timers and release isolation stay fixed.
+The opt-in `SP_LLM_REASONING_EFFORT=adaptive` policy keeps provider defaults for solo/ample or unknown budgets,
+and selects low for known co-op budgets below 90 s ([ASSUMED], experimental). It uses the host clock pair,
+never wall time against virtual time; fixed settings, prompts and timers stay unchanged. Cycle 5 tested fixed
+default/low, not adaptive; the adaptive path has mock validation only. See §37.23 and the adapter instructions.
+
+0.4.0 development adapter (§37.25): `SP_LLM_API_FORMAT=anthropic` opts into Messages with a cacheable system
+block and explicit Bearer / `x-api-key` authentication. Text blocks use the same plan/choice validation, retries
+and fallback; usage includes cache reads and writes in input, reads in cached tokens, and writes separately in
+optional diagnostics. `SP_LLM_HEADERS` uses strict safe-header validation and cannot replace credentials or
+content/host/cookie/framing headers. OpenAI remains the default; no live Haiku probe was run. Provider controls,
+presets and subscription restrictions are documented in [External AI API](../EXTERNAL_AI.md).
 
 Maintainer request 2026-10-19 (§35.12): the example advisor's static knowledge includes a regenerable playbook
 from the active data and a sourced community overlay. [ASSUMED] Per-seat scoring uses only announced
@@ -287,7 +365,8 @@ enemy replacements, teammate effects and in-battle layer gains. A Final Assault 
 `startRound` already planned, an independent seed `deriveSeed(0xA11CE, fa:round:seat)` (not the match seed and not the
 live fight's seed), a fresh boss pool per candidate, the teammate's currently deployed board, and the visible
 countdown on the combat clock (`bossLevelTime` real seconds × `combatTimeScale`, 240 game seconds when the data
-says 120; §35.64). Counted leaks still rank first; leader damage breaks a leak tie (#315). With a dedicated trial pool
+says 120; §35.64). Counted leaks still rank first; leader damage breaks a leak tie (#315), then kills and candidate
+order. The layer-gain tie-break trial was withdrawn after a solo NORMAL win-rate regression (§37.20). With a dedicated trial pool
 (`SP_COMBAT=server`, `SP_TRIAL_WORKERS`) a boss / hidden rehearsal runs there like a normal one, off the match's main
 thread (2026-11-11; before, only normal rounds left it): the candidate's pool travels as data (`boss: { poolHp, poolMax }`,
 `bot.js trialCandidate`), the Worker builds the fresh pool, and `combat/trial.js beatsCandidate` ranks with the same
@@ -380,13 +459,21 @@ adjusted count and reset scope stay limited to its own operators; the DIY export
 
 ### Cooperative buying, reactions, opening rerolls and 投票移出 (§28.15–16, §28.21, §32.14.45)
 
-[ASSUMED] Bot purchasing applies one soft 18-point penalty to non-elite, non-DIY tier V/VI shared-pool cards whose
-active bonds overlap another living teammate's opening strategy. Human and AI teammates are treated equally; it
-neither reserves stock nor prevents a stronger purchase. Existing strategy presets and rehearsal counts are unchanged.
+[ASSUMED] Bot purchasing applies one soft penalty to non-elite, non-DIY shared-pool cards whose bonds overlap what a
+living teammate needs — its opening strategy's bonds or its main core bond on its public bond strip (`teammateBonds`),
+minus the bonds the bot's own opening strategy needs: 18 points for tiers V/VI (PR #407), 12 for tiers I–IV (#121, a
+歌利亚 bot hoarding a 潘格尼尼 player's low-tier <拉特兰>). Human and AI teammates are treated equally and several
+teammates do not stack it; it neither reserves stock nor outweighs an own merge or a missing blocker / healer.
+Existing strategy presets and rehearsal counts are unchanged.
 A living teammate's selected strategy also soft-reserves its bonds for bot strategy selection and focus planning
-before any member is deployed (§30.28). The reservation ends when that teammate is eliminated. It does not hard-exclude
+before any member is deployed (§30.28). The reservation ends when that teammate is eliminated. [ASSUMED] Focus planning subtracts 30 for the union of
+public main-core and opening claims, excluding the bot's own opening bonds; changing that union invalidates the cached
+plan even within a prep (§37.15). An accepted advisor main still takes precedence. It does not hard-exclude
 a strategy, reserve stock, or stop an immediate merge. A reserved strategy keeps a quarter of its unreserved draw
 weight (`SOFT_BAND_RESERVE` = 0.25), so it can still be chosen. Mode-inactive bonds stay weight 0 (DESIGN §21.26).
+A strategy whose mechanic also changes the teammates' enemies (鸭爵 「神秘顾客」: from round 5 some enemies of the player
+and the teammates become 鸭爵 / 高普尼克 / 流泪小子 / 圆仔) keeps a tenth of its weight while a teammate lives
+(`MATE_BURDEN` = 0.1, #121); alone it is drawn as before.
 
 [ASSUMED] AI reactions are cosmetic social choices, enabled by default and disabled with `SP_BOT_EMOTES=0`. Only
 mixed human/AI matches emit them, through the existing whitelist and cooldown. A human emote gets at most one eligible
@@ -462,3 +549,36 @@ layout search inside the five-hook contract; `ioleta-adaptive` composes Russell-
 variants and contact repairs extend the list up to eight. Extension stops after a clean completed zero-leak result,
 or at a strict six-times-per-candidate total tick cap. Server and host Worker share RehearsalRun, limits and counters.
 Default legacy rules remain the baseline. See [BOT_STRATEGIES](../BOT_STRATEGIES.md).
+
+### Special communicator recruitment
+
+The profile's `recruitTierExempt` explicitly marks only Ironhide. A first-bond communicator used on that special carrier
+can recruit its normal form above shop level without placing it in ordinary stock. Ordinary candidates keep their level,
+stock and ban gates; exact-tier draws and the paging module do not inherit the exception.
+[Official recording BV1FVWN6VEAr](https://www.bilibili.com/video/BV1FVWN6VEAr/?t=74), 01:15–01:19, confirms a normal
+communicator at shop II produces a new normal Ironhide while retaining the carrier. [ASSUMED] Advanced / elite carrier
+cases follow the same handler, and mixed-candidate weights reuse the existing copy model; the recording does not establish those.
+
+### Stainless upgraded-equipment return
+
+`SERVER_UPGRADE_SELF_EQUIP` upgrades carried normal equipment at prep start and returns only successfully
+upgraded instances to equipment storage (existing overflow when full). Both forms and copied traits use the same
+handler; already-elite equipment, invalid upgrade targets and off-board carriers remain unchanged. This is an effect,
+not the manual unequip intent, so its return does not depend on manual-unequip settings or Ready.
+Source: official-game footage [BV1egWJ66Ejp](https://www.bilibili.com/video/BV1egWJ66Ejp/?t=1), opening 00:00–00:08,
+and pinned `garrison_84_a/b` (`SERVER_PREP_START`, `SERVER_UPGRADE_SELF_EQUIP`). The clip begins after the upgrade:
+it shows upgraded equipment in storage being re-equipped, with the player's explanation of automatic removal.
+[ASSUMED, existing] Upgrade target precedence (`upgradeChessId`, then `goldenId`) and no second stock copy are unchanged.
+
+### Garrison upgrade progression
+
+The official pinned regulation activity table (`6f63c14e`) gives Aurora `garrison_50_a/b` count=1, delta_count=1,
+max_count=11; Vulpisfoglia `garrison_74_a/b` count=1, n=2, delta_count=1, max_count=2. `max_count` caps each payout's increase,
+not a lifetime allowance: Aurora pays 1, 2, …, 12, 12, …; Vulpisfoglia 1, 1, 2, 2, 3, 3, … .
+
+Shared pure math lives in `shared/garrisonUpgrades.js`. Progress uses existing player counters keyed by original base chess
+and effect key; ordinary and elite copies, rebuy and later rounds share it, while players and matches are isolated.
+[ASSUMED: fork maintainer confirmation 2026-11-11, pending official recording] These sharing boundaries also include copied
+traits using the copied-from operator and investor repeats advancing once each. No official state-layout claim is made.
+Other garrison counters are unchanged. No persistence or replay infrastructure is introduced by this fix. Runtime text is handled separately by #926, which reads
+shared counters when present and otherwise keeps the legacy display path; this payout fix builds independently.

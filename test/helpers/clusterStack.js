@@ -10,6 +10,7 @@ import { createRpcAuthenticator, createRpcClient } from '../../server/cluster/rp
 import { sendEndReceipt, sendMemberRemoved } from '../../server/cluster/receipts.js';
 import { Match } from '../../server/match/Match.js';
 import { MATCHMAKING_VERSION } from '../../shared/constants.js';
+import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 export const ORIGIN = 'https://persist-cluster-fixture.invalid', BUILD = 'persist-fixture';
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -37,6 +38,10 @@ export async function client(url, name, token, hello = {}) {
   await until(() => frames.some((f) => f.t === 'welcome' || f.t === 'error'), 5000, 'welcome');
   const welcome = frames.find((f) => f.t === 'welcome');
   const request = (t, fields = {}) => new Promise((resolve, reject) => {
+    // a room.create names 第二期下半 unless the test names a version (as test/helpers/wsClient.js does): the lobby's
+    // default is 规程·序列Ⅰ (shared/versions.js LOBBY_DEFAULT_VERSION) and these tests exercise the classic room;
+    // `version: undefined` asks for the server's default
+    if (t === 'room.create' && !Object.hasOwn(fields, 'version')) fields = { ...fields, version: DEFAULT_VERSION };
     const id = ++rid;
     const timer = setTimeout(() => { pending.delete(id); reject(new Error(`request deadline: ${t}`)); }, 10_000);
     pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });

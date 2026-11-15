@@ -35,7 +35,9 @@ import { useMyCard } from '../ui/playerCard.js';
 import { appearanceRecord } from '../ui/skinAssets.js';
 import { VersionTag } from '../ui/pluginTag.js';
 import { shownVersion, seasonOf } from '../versions.js';
+import { ladderName } from '../ui/hud.js';
 import { ResultView, resultBonds, BossDamageBrief } from './result.js';
+import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
 import { t } from '../../../shared/i18n.js';
 import { MatchName, useIsOwner } from '../ui/ownerName.js';
 import { cardLike } from '../ui/likes.js';
@@ -377,9 +379,21 @@ function BondBar({ bonds, gd }) {
   </div>`;
 }
 
+/**
+ * The result's mode name: 规程's own mode name where it is not its difficulty's (规程等级 n / 极速模拟, as the in-match tag:
+ * the official settlement of a solo 规程等级20 match says 「规程等级20」, BV12ZWP6pE7m 11:40), else the difficulty's.
+ * @param {{ difficulty?: string|null, modeId?: string|null }} r
+ */
+export function modePillName(r) {
+  const d = r?.difficulty;
+  if (!d) return '';
+  return ladderName({ modeId: r.modeId || undefined, difficulty: d }) || (DIFFICULTY_NAMES[d] ? t(DIFFICULTY_NAMES[d]) : d);
+}
+
+/** The mode pill: the difficulty tag under the mode's name (modePillName: 规程等级 n / 极速模拟 for 规程's solo modes). */
 function ModePill({ r }) {
   return html`<span class="smode">
-    ${r.difficulty ? html`<${DifficultyTag} difficulty=${r.difficulty} size="lg" />` : null}
+    ${r.difficulty ? html`<${DifficultyTag} difficulty=${r.difficulty} size="lg" name=${modePillName(r)} />` : null}
   </span>`;
 }
 

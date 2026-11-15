@@ -195,7 +195,8 @@ test('consumed party codes admit only late observers to the committed local matc
   const before = room.toState();
   assert.equal(f.lobby.join(observer, { code: a.room.code }).error, ERR.ROOM_STARTED);
   assert.equal(observer.roomCode, null); assert.deepEqual(room.toState(), before);
-  assert.equal(f.lobby.spectate(a.host, { code: b.room.code }).error, ERR.ALREADY);
+  // 0.4.0: room.spectate from one's own seat is upstream's role switch (Lobby.becomeSpectator), refused in a running match
+  assert.equal(f.lobby.spectate(a.host, { code: b.room.code }).error, ERR.ROOM_STARTED);
   assert.deepEqual(f.lobby.spectate(observer, { code: ` ${a.room.code.toLowerCase()} ` }), { ok: true });
   assert.equal(observer.roomCode, room.code); assert.equal(room.spectators.length, 1);
   assert.equal(room.seats.length, members.length); assert.equal(room.seatOf(observer.playerId), null);

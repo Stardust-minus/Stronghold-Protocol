@@ -1,6 +1,6 @@
 // A rehearsal owns frozen trial inputs, never the player's board, pool, money or random stream.
 import { Battle } from '../../sim/Battle.js';
-import { TrialEngine, MAX_TRIAL_TICKS, assembleTrialInput, beatsCandidate } from './trial.js';
+import { TrialEngine, MAX_TRIAL_TICKS, assembleTrialInput, bestOf, bossLike, validLead } from './trial.js';
 
 export function canUseWorkerRehearsal(match) {
   const pool = match.trialPool;
@@ -19,12 +19,28 @@ export function rehearsalFingerprint(match, ps) {
     ps.layers, ps.pendingLayerGains, ps.effects, ps.deviceOverrides, ps.tileOverrides, ps.bounties]);
 }
 
+/**
+ * The rehearsal of `candidates` on the trial pool. `lead` (§37.67, a bot's own Final Assault rehearsal): the Worker also
+ * counts each own operator's leader damage, and `onLead(Map uid → damage)` receives the winner's counts once the job is
+ * done — what the inline job stores as ps._botFaLead (bot.js createRehearsalJob).
+ */
 export function createWorkerRehearsal(pool, input) {
   return typeof pool.runTrial === 'function' ? createStreamedRehearsal(pool, input) : createLegacyRehearsal(pool, input);
 }
 
+/** The winner's fields of a progress DTO equal the RehearsalScore sequence over its scored records (trial.js bestOf). */
+const winnerMatches = (p, bossAt) => {
+  const { index, best } = bestOf(p.candidates, bossAt);
+  return p.bestIndex === index && p.bestScore === best.score && p.bestLeaks === best.leaks && p.bestBoss === best.boss
+    && p.bestGain === best.gain;
+};
+/** `bestLead` is there only when asked for, and holds the counts only once done. */
+const leadMatches = (p, lead) => (lead ? (p.done ? validLead(p.bestLead) : p.bestLead === null) : p.bestLead === undefined);
+
 // Retain the original per-32-tick protocol and main-thread driving for explicit legacy comparisons.
-function createLegacyRehearsal(pool, { playerId, chosen, plans, candidates, cap }) {
+function createLegacyRehearsal(pool, { playerId, chosen, plans, candidates, cap, lead = false, onLead = null }) {
+  const request = { playerId, candidates, cap, ...(lead ? { lead: true } : {}) };
+  const bossAt = (i) => bossLike(candidates[i]);
   let handle = null;
   let local = null;
   let initialized = false;
@@ -58,15 +74,13 @@ function createLegacyRehearsal(pool, { playerId, chosen, plans, candidates, cap 
             !Number.isFinite(c.duration) || c.duration < 0 || !(c.score === null || Number.isFinite(c.score)) ||
             !(c.leaks === null || (Number.isInteger(c.leaks) && c.leaks >= 0)) ||
             !(c.boss === null || (Number.isFinite(c.boss) && c.boss >= 0)) || (c.score !== null && c.boss === null) ||
+            !(c.gain === null || Number.isFinite(c.gain)) || (c.score !== null && c.gain === null) ||
             !(c.result === null || typeof c.result === 'object') || !(c.error == null || typeof c.error === 'string')) invalid();
       }
-      const best = p.candidates[p.bestIndex];
-      // the inline rehearsal's order (trial.js beatsCandidate): fewer leaks, then leader damage, then score
-      if (p.bestScore === -Infinity) {
-        if (p.bestIndex !== 0 || p.bestLeaks !== Infinity || p.candidates.some((c) => c.score !== null)) invalid();
-      } else if (!best || best.score !== p.bestScore || best.leaks !== p.bestLeaks ||
-          p.candidates.some((c) => c.score !== null && beatsCandidate(c, best))) invalid();
+      // the inline rehearsal's pick (server/sim/rehearsal.js RehearsalScore, replayed by trial.js bestOf)
+      if (!winnerMatches(p, bossAt)) invalid();
     }
+    if (!leadMatches(p, lead)) invalid();
     lastTicks = p.ticks;
   };
   const job = {
@@ -76,7 +90,7 @@ function createLegacyRehearsal(pool, { playerId, chosen, plans, candidates, cap 
       if (cancelled || advancing || job.done || job.inline || (handle && !released)) throw new Error('rehearsal cannot restart');
       // An RPC failure must not silently reduce the bot's search. Restart ALL frozen candidates, preserving
       // seeds/order/cap/pruning, without repeating shop decisions, layout generation or any match RNG draw.
-      local = new TrialEngine({ playerId, candidates, cap }, { data });
+      local = new TrialEngine(request, { data });
       handle = null;
       closing = null;
       released = false;
@@ -92,7 +106,7 @@ function createLegacyRehearsal(pool, { playerId, chosen, plans, candidates, cap 
       try {
         // Admission is lazy: cancellation while the surrounding planning generator still places the default
         // layout cannot strand an initialized session whose returned job Match has not received yet.
-        if (!handle && !local) handle = pool.createTrial({ playerId, candidates, cap });
+        if (!handle && !local) handle = pool.createTrial(request);
         const progress = local ? (initialized ? local.advance() : local.state())
           : initialized ? await handle.advance() : await handle.ready;
         if (cancelled) throw new Error('rehearsal cancelled');
@@ -104,6 +118,7 @@ function createLegacyRehearsal(pool, { playerId, chosen, plans, candidates, cap 
           if (cancelled) throw new Error('rehearsal cancelled');
           job.best = plans[progress.bestIndex];
           job.done = true;
+          if (lead) onLead?.(new Map(progress.bestLead));
         }
         return job.done;
       } catch (e) {
@@ -115,14 +130,15 @@ function createLegacyRehearsal(pool, { playerId, chosen, plans, candidates, cap 
   return job;
 }
 
-function createStreamedRehearsal(pool, { playerId, chosen, plans, candidates, cap }) {
-  const input = assembleTrialInput({ playerId, candidates, cap });
+function createStreamedRehearsal(pool, { playerId, chosen, plans, candidates, cap, lead = false, onLead = null }) {
+  const input = assembleTrialInput({ playerId, candidates, cap, lead });
+  const bossAt = (i) => bossLike(input.candidates[i]);
   if (plans.length !== candidates.length) throw new TypeError('rehearsal plans/candidates differ');
   let handle = null, local = null, started = false, cancelled = false, released = false;
   let closing = null, cleanupAcknowledged = false;
   let lastTicks = 0, lastSlices = 0, lastCandidates = [];
   const invalid = () => { throw new TypeError('invalid rehearsal winner/progress'); };
-  const candidateFields = (c) => [c.index, c.ticks, c.duration, c.beaten, c.leaks, c.boss, c.score, c.error, c.synthetic];
+  const candidateFields = (c) => [c.index, c.ticks, c.duration, c.beaten, c.leaks, c.boss, c.gain, c.score, c.error, c.synthetic];
   const validate = (p) => {
     if (!p || p.summary !== true || typeof p.done !== 'boolean' ||
         !Number.isInteger(p.candidateIndex) || p.candidateIndex < lastCandidates.length || p.candidateIndex > candidates.length ||
@@ -131,32 +147,31 @@ function createStreamedRehearsal(pool, { playerId, chosen, plans, candidates, ca
         p.ticks - lastTicks > MAX_TRIAL_TICKS * (p.sliceCount - lastSlices) || p.ticks > cap * candidates.length ||
         !Array.isArray(p.candidates) || p.candidates.length !== p.candidateIndex ||
         !Number.isInteger(p.bestIndex) || p.bestIndex < 0 || p.bestIndex >= plans.length) invalid();
-    let completedTicks = 0, bestIndex = 0, best = { leaks: Infinity, boss: -Infinity, score: -Infinity };
+    let completedTicks = 0;
     const records = [];
     for (let i = 0; i < p.candidates.length; i++) {
       const c = p.candidates[i];
       if (!c || c.index !== i || typeof c.beaten !== 'boolean' || !Number.isSafeInteger(c.ticks) || c.ticks < 0 || c.ticks > cap ||
           !Number.isFinite(c.duration) || c.duration < 0 || !(c.score === null || Number.isFinite(c.score)) ||
           !(c.leaks === null || (Number.isSafeInteger(c.leaks) && c.leaks >= 0)) || c.result !== null ||
-          !(c.boss === null || (Number.isFinite(c.boss) && c.boss >= 0)) ||
+          !(c.boss === null || (Number.isFinite(c.boss) && c.boss >= 0)) || !(c.gain === null || Number.isFinite(c.gain)) ||
           !(c.error == null || typeof c.error === 'string') || !(c.synthetic === null || typeof c.synthetic === 'boolean') ||
-          (c.score !== null && (c.beaten || c.synthetic !== false || c.leaks === null || c.boss === null))) invalid();
+          (c.score !== null && (c.beaten || c.synthetic !== false || c.leaks === null || c.boss === null || c.gain === null))) invalid();
       const fields = JSON.stringify(candidateFields(c));
       if (i < lastCandidates.length && fields !== lastCandidates[i]) invalid();
       records.push(fields);
       completedTicks += c.ticks;
-      // the inline rehearsal's order (trial.js beatsCandidate): fewer leaks, then leader damage, then score
-      if (c.score !== null && beatsCandidate(c, best)) { bestIndex = i; best = c; }
     }
     // Completed records are immutable prefixes; only the currently running candidate can account for extra ticks.
+    // The winner is the inline rehearsal's pick (server/sim/rehearsal.js RehearsalScore, replayed by trial.js bestOf).
     if (p.ticks < completedTicks || p.ticks > completedTicks + (p.done ? 0 : cap) ||
-        p.bestIndex !== bestIndex || p.bestScore !== best.score || p.bestLeaks !== best.leaks || p.bestBoss !== best.boss) invalid();
+        !winnerMatches(p, bossAt) || !leadMatches(p, lead)) invalid();
     lastTicks = p.ticks; lastSlices = p.sliceCount; lastCandidates = records;
   };
   const validateReady = (p) => {
     if (!p || p.summary !== true || p.ticks !== 0 || p.sliceCount !== 0 || p.candidateIndex !== 0 || p.done !== false ||
         p.bestIndex !== 0 || p.bestScore !== -Infinity || p.bestLeaks !== Infinity || p.bestBoss !== -Infinity ||
-        !Array.isArray(p.candidates) || p.candidates.length) invalid();
+        p.bestGain !== -Infinity || !leadMatches(p, lead) || !Array.isArray(p.candidates) || p.candidates.length) invalid();
   };
   const release = (cancel = false) => {
     if (cancel) cancelled = true;
@@ -204,6 +219,7 @@ function createStreamedRehearsal(pool, { playerId, chosen, plans, candidates, ca
         await release();
         if (cancelled) throw Object.assign(new Error('rehearsal cancelled'), { code: 'SESSION_CLOSED' });
         job.best = plans[final.bestIndex]; job.done = true;
+        if (lead) onLead?.(new Map(final.bestLead));
         return true;
       } catch (e) {
         // A failed remote reservation must actually be gone before the same search can restart inline.
@@ -226,7 +242,10 @@ function createStreamedRehearsal(pool, { playerId, chosen, plans, candidates, ca
       do { done = local.advanceSlice(); } while (!done && performance.now() - start < budgetMs);
       const p = local.state();
       validate(p); job.progress = p;
-      if (p.done) { job.best = plans[p.bestIndex]; job.done = true; release(); }
+      if (p.done) {
+        job.best = plans[p.bestIndex]; job.done = true; release();
+        if (lead) onLead?.(new Map(p.bestLead));
+      }
       return job.done;
     },
   };

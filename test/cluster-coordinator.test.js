@@ -10,6 +10,7 @@ import { startIngress } from '../server/cluster/ingress.js';
 import { createRpcAuthenticator, createRpcClient } from '../server/cluster/rpc.js';
 import { sendEndReceipt, sendMemberRemoved } from '../server/cluster/receipts.js';
 import { MATCHMAKING_VERSION } from '../shared/constants.js';
+import { DEFAULT_VERSION } from '../shared/versions.js';
 
 const ORIGIN = 'https://full-cluster-fixture.invalid';
 const until = async (condition, ms = 4000) => {
@@ -36,6 +37,9 @@ async function client(url, name, token) {
   assert.equal(Object.keys(welcome)[0], 't', 'the ingress can inspect the frame type without parsing optional DIY metadata');
   assert.ok(Array.isArray(welcome.diyKitted), 'the new operator kit catalog survives the cluster ingress');
   const request = (t, fields = {}) => new Promise((resolve, reject) => {
+    // a room.create names 第二期下半 unless the test names a version (test/helpers/wsClient.js): the lobby's default is
+    // 规程·序列Ⅰ (shared/versions.js LOBBY_DEFAULT_VERSION), whose rooms wait for the page's content check
+    if (t === 'room.create' && !Object.hasOwn(fields, 'version')) fields = { ...fields, version: DEFAULT_VERSION };
     const id = ++rid;
     const timer = setTimeout(() => { pending.delete(id); reject(new Error('fixture request deadline')); }, 7000);
     pending.set(id, { resolve, reject, timer }); socket.send(JSON.stringify({ t, ...fields, rid: id }));

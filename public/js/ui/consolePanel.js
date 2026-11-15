@@ -131,7 +131,7 @@ export const currentLayers = (priv, bondId) => (Array.isArray(priv?.bonds) ? pri
  */
 export function consoleCommandText(entry, names) {
   const e = entry || {};
-  const label = t(CONSOLE_LABELS[e.cmd] || '指令');
+  const label = CONSOLE_LABELS[e.cmd] ? t(CONSOLE_LABELS[e.cmd]) : t('指令');
   const a = isObj(e.args) && !e.args.rejected ? e.args : null;
   if (!a) return label;
   switch (e.cmd) {

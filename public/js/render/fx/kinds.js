@@ -50,10 +50,13 @@ export const FX_KINDS = Object.freeze({
   sonic: { a: 'wave', c: 0xc9a2ff, r: 1.5 }, pulse: { a: 'wave', c: 0x9ff0dc }, sermon: { a: 'wave', c: 0xffe28a, r: 1.5 }, ripple: { a: 'wave', c: 0x5fe0ff },
   tornadoPulse: { a: 'wave', c: 0xd8e8ff }, wake: { a: 'wave', c: 0x5fe0ff }, wolfShadow: { a: 'wave', c: 0x8fa0b0 }, wolfShadowLost: { a: 'vanish', c: 0x8fa0b0 },
   redistribute: { a: 'wave', c: 0x62f08a }, dilemma: { a: 'wave', c: 0xc9a2ff },
+  domain: { a: 'domain', c: 0x8a5cd0 },
   // marks
-  taunt: { a: 'mark', c: 0xff9c33 }, palsy: { a: 'mark', c: 0xc77dff }, emergency: { a: 'mark', c: 0xff5a4a },
+  taunt: { a: 'mark', c: 0xff9c33 }, palsy: { a: 'mark', c: 0xc77dff }, emergency: { a: 'mark', c: 0xff5a4a }, fear: { a: 'mark', c: 0x9b7bff },
   lock: { a: 'reticle', c: 0xff5a4a }, droneLock: { a: 'reticle', c: 0x8fe6ff }, wanted: { a: 'reticle', c: 0xffc600 }, expose: { a: 'reticle', c: 0xff7b8a },
   reveal: { a: 'reticle', c: 0x9fd4ff }, anchor: { a: 'reticle', c: 0x9fd4ff },
+  // 塔露拉 S3's 簇火 (op-oxi.js, this fork's kit): each flies from (x, y) to (tx, ty), its 'heatwaveHit' bursts where it
+  // stops (upstream 0.4.0's kit drew one 'wave' per volley under the same name; the merged kit emits these)
   heatwave: { a: 'move', c: 0xff8a3c }, heatwaveHit: { a: 'blast', c: 0xff8a3c, r: 1.5 },
   oblvnsNote: { a: 'move', c: 0xd9c2ff }, oblvnsS1: { a: 'move', c: 0xd9c2ff }, oblvnsOrgan: { a: 'move', c: 0xb08cff },
   // 灰烬 (op-ash.js) / 艾拉 (op-ela.js) without the collab pack's official effects: the shots fly, the hits burst

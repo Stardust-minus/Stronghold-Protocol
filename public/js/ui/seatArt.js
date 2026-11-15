@@ -42,17 +42,27 @@ const ROSTER_RECORDS = CARD_ROSTER.map((r) => Object.freeze({ ...r, isGolden: tr
 
 /**
  * The operators a seat card can show: one record per charId of the data on screen (the elite form for its E2 art), then
- * the rest of the roster (feedback #62: the 协防干员 pool, the other versions' operators), which the default portrait
- * never draws from (`roster`); 6★ first.
+ * the room version's 自选编队 pool (upstream #877: `backups.diy.ownedPool`, named and rated by `backups.diy.operators` —
+ * those operators have no chess record of their own), then the rest of the roster (feedback #62: the 协防干员 pool, the
+ * other versions' operators), which the default portrait never draws from (`roster`); 6★ first.
  * @param {any[]} chessList chess.json records
+ * @param {any} [backups] backups.json (its 自选编队 pool joins the list)
  * @returns {any[]}
  */
-export function cardOperators(chessList) {
+export function cardOperators(chessList, backups = null) {
   const by = new Map();
   for (const c of Array.isArray(chessList) ? chessList : []) {
     if (!c || c.isDiy || c.visible === false || typeof c.charId !== 'string') continue;
     const prev = by.get(c.charId);
     if (!prev || (c.isGolden && !prev.isGolden)) by.set(c.charId, c);
+  }
+  const diy = backups && typeof backups === 'object' ? backups.diy : null;
+  const pool = diy && Array.isArray(diy.ownedPool) ? diy.ownedPool : [];
+  const ops = diy && diy.operators && typeof diy.operators === 'object' ? diy.operators : {};
+  for (const id of pool) {
+    if (typeof id !== 'string' || !id || by.has(id)) continue;
+    const rec = ops[id];
+    by.set(id, { charId: id, name: rec && typeof rec.name === 'string' ? rec.name : id, rarity: rec && Number.isFinite(rec.rarity) ? rec.rarity : 0 });
   }
   for (const r of ROSTER_RECORDS) if (!by.has(r.charId)) by.set(r.charId, r);
   return [...by.values()].sort((a, b) => ((b.rarity ?? 0) - (a.rarity ?? 0)) || String(a.name).localeCompare(String(b.name), 'zh'));
@@ -168,8 +178,11 @@ export function seatPortraitSource(seat, { pool, byChar, m, myId, myCard, myLook
  * client orders it the same).
  * @param {any[]} list cardOperators()
  */
-export function cardContext(list) {
+export function cardContext(list, { pending = false } = {}) {
   return {
+    // PR #894 follow-up: true while the room version's 自选 pool (backups) is still loading — a pick that is not in the
+    // list yet waits for it instead of drawing a default pool operator for a moment
+    pending,
     byChar: new Map(list.map((c) => [c.charId, c])),
     pool: list.filter((c) => (c.rarity ?? 0) >= 5 && !c.roster).sort((a, b) => (a.charId < b.charId ? -1 : a.charId > b.charId ? 1 : 0)),
   };
@@ -180,15 +193,16 @@ export function cardContext(list) {
  * seats[].card), else one of the pool chosen by the player id [ASSUMED, see the header]. null for an empty seat, a bot,
  * or before the data loads.
  * @param {any} seat room.state seat
- * @param {{ byChar: Map<string, any>, pool: any[] }} ctx cardContext()
+ * @param {{ byChar: Map<string, any>, pool: any[], pending?: boolean }} ctx cardContext()
  * @param {{ myId?: any, myCard?: string }} [own]
  * @returns {{ chess: any, picked: boolean } | null}
  */
-export function seatOperator(seat, { byChar, pool }, { myId, myCard } = {}) {
+export function seatOperator(seat, { byChar, pool, pending = false }, { myId, myCard } = {}) {
   if (!seat || seat.playerId == null || seat.isBot) return null;
   const pick = (seat.playerId === myId ? myCard : typeof seat.card === 'string' ? seat.card : seat.card?.charId) || '';
   const rec = pick && byChar ? byChar.get(pick) : null;
   if (rec) return { chess: rec, picked: true };
+  if (pick && pending) return null;
   if (!Array.isArray(pool) || !pool.length) return null;
   return { chess: pool[hash32(seat.playerId) % pool.length], picked: false };
 }

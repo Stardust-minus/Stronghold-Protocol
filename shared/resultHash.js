@@ -26,14 +26,17 @@ const toHex = (bytes) => {
 
 /**
  * @param {string} json the canonical JSON of a result
- * @param {{ subtle?: SubtleCrypto | null }} [opts] `subtle`: tests (null = the plain-JS hash)
+ * @param {{ subtle?: { digest(algorithm: string, data: Uint8Array): Promise<ArrayBuffer> } | null }} [opts] `subtle`: tests
+ *   (null = the plain-JS hash); the part of SubtleCrypto used here (jsconfig's lib ES2022 has no DOM types)
  * @returns {Promise<string>}
  */
 export async function resultHashOf(json, { subtle = globalThis.crypto?.subtle ?? null } = {}) {
   if (typeof json !== 'string') throw new TypeError('resultHashOf: the canonical JSON string is required');
-  if (subtle && typeof subtle.digest === 'function' && typeof TextEncoder === 'function') {
+  // the page's / Node's WHATWG TextEncoder (not in jsconfig's lib ES2022)
+  const Encoder = /** @type {any} */ (globalThis).TextEncoder;
+  if (subtle && typeof subtle.digest === 'function' && typeof Encoder === 'function') {
     try {
-      return toHex(new Uint8Array(await subtle.digest('SHA-256', new TextEncoder().encode(json))));
+      return toHex(new Uint8Array(await subtle.digest('SHA-256', new Encoder().encode(json))));
     } catch { /* a context without the digest: the plain-JS hash below gives the same digest */ }
   }
   return sha256Hex(json);

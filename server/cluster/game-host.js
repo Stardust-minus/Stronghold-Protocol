@@ -13,7 +13,7 @@ import { SKIN_LIMITS, isSkinChoices } from '../../shared/skins.js';
 import { DIFFICULTIES, ERR, NAME_MAX_LEN, modeIdFor } from '../../shared/constants.js';
 import { roomCapacity } from '../../shared/playerCapacity.js';
 import { restoreMatch, CHECKPOINT_PREP_END } from '../match/snapshot.js';
-import { adoptAiSeat, aiSeatOpen } from '../aiTakeover.js';
+import { adoptAiSeat, aiSeatOpen, aiSeatOpenInView } from '../aiTakeover.js';
 import { createRngFromState } from '../sim/rng.js';
 import { DEFAULT_VERSION, versionById } from '../../shared/versions.js';
 
@@ -728,8 +728,17 @@ export class GameHost {
   /** A spectator's room.aiRequest: whether `botId`'s seat can be taken now, the round and who is on autoplay (server/aiTakeover.js). */
   aiSeat(assignmentId, playerId, botId) {
     const ctx = this.contexts.get(assignmentId);
-    if (!ctx || !this._live(ctx) || ctx.state !== 'committed' || ctx.members.get(playerId)?.role !== 'spectator'
-      || !aiSeatOpen(ctx.match, botId)) return fail(ERR.WRONG_PHASE);
+    const asked = () => !!ctx && this._live(ctx) && ctx.state === 'committed' && ctx.members.get(playerId)?.role === 'spectator';
+    if (!asked()) return fail(ERR.WRONG_PHASE);
+    // (this fork) another official version's actor: its version host's view of the seats (a Promise; the RPC awaits it)
+    if (ctx.match.hosted) {
+      return Promise.resolve(ctx.match.aiHandoverView()).then((raw) => {
+        const view = aiSeatOpenInView(raw, botId);
+        if (!view || !asked()) return fail(ERR.WRONG_PHASE);
+        return { ok: true, round: view.round, autoplay: view.players.filter(p => p && p.autoplay === true).map(p => p.playerId) };
+      }, () => { this._log('aiSeat'); return fail(ERR.WRONG_PHASE); });
+    }
+    if (!aiSeatOpen(ctx.match, botId)) return fail(ERR.WRONG_PHASE);
     return { ok: true, round: ctx.match.round, autoplay: ctx.match.order.filter(p => p.autoplay).map(p => p.playerId) };
   }
 
@@ -744,9 +753,41 @@ export class GameHost {
     const taken = ctx.members.get(botId);
     if (taken?.takenFrom === playerId) return OK;
     if (typeof name !== 'string' || !name.trim() || name.length > NAME_MAX_LEN || /[\x00-\x1f\x7f]/.test(name)) return fail(ERR.BAD_MSG);
-    if (ctx.state !== 'committed' || taken || ctx.members.get(playerId)?.role !== 'spectator' || !ctx.seatIds.has(botId)
-      || ctx.match.round !== round || !aiSeatOpen(ctx.match, botId)) return fail(ERR.WRONG_PHASE);
+    if (ctx.state !== 'committed' || taken || ctx.members.get(playerId)?.role !== 'spectator' || !ctx.seatIds.has(botId)) return fail(ERR.WRONG_PHASE);
+    if (ctx.match.hosted) return this._transferHostedAiSeat(ctx, playerId, botId, name, round);
+    if (ctx.match.round !== round || !aiSeatOpen(ctx.match, botId)) return fail(ERR.WRONG_PHASE);
     try { adoptAiSeat(ctx.match, botId, name, false); } catch { this._log('transferAiSeat'); return fail(ERR.INTERNAL); }
+    this._seatTakenOver(ctx, playerId, botId, name);
+    try { this.onCheckpoint?.(ctx, ctx.match, 'takeover'); } catch { this._log('checkpoint'); }
+    return OK;
+  }
+
+  /**
+   * (this fork) transferAiSeat on another official version's actor: its version host makes the seat a human's
+   * (Match.acceptAiHandover, fenced by the vote's round, offline until the seat's channel binds), then the assignment
+   * follows as for a default match. One transfer per seat at a time: a repeat while the host answers shares its answer.
+   * @returns {Promise<{ ok: true } | { error: string }>}
+   */
+  _transferHostedAiSeat(ctx, playerId, botId, name, round) {
+    const pending = (ctx.aiTransfers ||= new Map()).get(botId);
+    if (pending) return pending.playerId === playerId ? pending.promise : fail(ERR.WRONG_PHASE);
+    const promise = Promise.resolve(ctx.match.acceptAiHandover(botId, name, { round, connected: false })).then((accepted) => {
+      if (accepted?.ok !== true || !this._live(ctx) || ctx.state !== 'committed') return fail(ERR.WRONG_PHASE);
+      // the host's seat is a human's now: the assignment follows even when the spectator went meanwhile (the seat then
+      // stays offline, the match's disconnect rules apply — never a human seat the assignment does not name)
+      this._seatTakenOver(ctx, playerId, botId, name);
+      try { this.onCheckpoint?.(ctx, ctx.match, 'takeover'); } catch { this._log('checkpoint'); }
+      // the version host's own checkpoint of the handed-over seat follows as it posts it (onCheckpoint)
+      Promise.resolve(ctx.match.checkpoint?.('takeover')).catch(() => this._log('checkpoint'));
+      return OK;
+    }, () => { this._log('transferAiSeat'); return fail(ERR.INTERNAL); })
+      .finally(() => { if (ctx.aiTransfers?.get(botId)?.promise === promise) ctx.aiTransfers.delete(botId); });
+    ctx.aiTransfers.set(botId, { playerId, promise });
+    return promise;
+  }
+
+  /** The assignment after a handover (both kinds of actor): the seat is `name`'s, the spectator's membership gone. */
+  _seatTakenOver(ctx, playerId, botId, name) {
     const seats = ctx.spec.seats.map(s => {
       if (s.playerId !== botId) return s;
       const { band, ...seat } = s;
@@ -759,8 +800,6 @@ export class GameHost {
     ctx.results.delete(playerId);
     ctx.members.set(botId, { role: 'player', left: false, binding: null, engineConnected: false, takenFrom: playerId });
     this._invoke(ctx, 'removeSpectator', playerId);
-    try { this.onCheckpoint?.(ctx, ctx.match, 'takeover'); } catch { this._log('checkpoint'); }
-    return OK;
   }
 
   removeSpectator(assignmentId, playerId) {
