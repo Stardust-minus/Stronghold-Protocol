@@ -10,6 +10,7 @@ import { boardOrder, pieceDir } from '../board.js';
 import { bondList, offBondCounts } from '../bondsMeta.js';
 import { bountyText, bountyCard } from '../choices.js';
 import { layerForecast } from '../layerForecast.js';
+import { poolCountsView } from '../pool.js';
 import { bandProgressView } from '../bandProgress.js';
 import { commandBondOverrides, commandView, commandDraftView } from '../bandCommands.js';
 import { commandDisplayEffects } from '../../../shared/commandDisplay.js';
@@ -125,6 +126,8 @@ export class PlayerViews {
     const bossMate = typeof this.m.bossMateView === 'function' ? this.m.bossMateView(this) : null;
     // 预计叠层 (PREP only, the own seat only): the layers the own <休整期结束时> effects add at the deadline
     const forecast = layerForecast(this.m, this);
+    // 卡池剩余 (feedback #160): the copies left in the stock this seat shares (pool.js poolCountsView; connected alive humans)
+    const poolLeft = !this.isBot && this.alive && !this.left && this.connected !== false ? poolCountsView(this.m, this) : null;
     return {
       t: 'm.private',
       playerId: this.playerId,
@@ -219,6 +222,12 @@ export class PlayerViews {
       // id, n }] } }, random, randomSources: [{ kind, id }], partial }` — the layers this player's own prep-end effects add if the
       // prep ended now; random sources are left out (`random` true when one would add layers). Absent outside PREP.
       ...(forecast ? { layerForecast: forecast } : {}),
+      // 卡池剩余 (feedback #160, server/match/pool.js poolCountsView): `{ chess: { [baseChessId]: n }, items: { [baseItemId]: n } }`
+      // — the copies left in the chess pool / equipment stock this seat shares with the rest of its pool group, AI seats
+      // included. Absent when nothing is shared (单人, 独立卡池, a one-seat pool group) and for bots, eliminated or
+      // disconnected seats; effect-only equipment and the private 自选 stock are never listed. Messaging.flush re-sends it to
+      // the group when another seat's purchase moves it.
+      ...(poolLeft ? { poolLeft } : {}),
       stats: {
         dmgDealt: Math.round(this.stats.dmgDealt), kills: this.stats.kills, leaks: this.stats.leaks, gold: this.stats.gold,
         refreshes: this.stats.refreshes, merges: this.stats.merges,

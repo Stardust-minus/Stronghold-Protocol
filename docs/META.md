@@ -942,6 +942,8 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   from the recipient's pool. 手动指定卡池编组 (`experimental.poolPlan`, feedback #49, any co-op room): the plan's seat
   groups replace the rule; a pool with nobody seated at the start does not exist, a pool of up to four seats keeps a
   complete stock and a larger one scales with its seats (`shared/poolPlan.js poolScale`, up to ×5). These rules do not change shared equipment stock (§29.8 below).
+  The client sees the counts of a shared group (two or more seats) in `m.private.poolLeft` (`pool.js poolCountsView`: every
+  chess of the group's pool and every capped shop equipment, docs/design/network.md §8.3; feedback #160, §36.24).
 * **自选编队 (0.2.0, `player/diy.js`; research 0.2.0 §2, the owner's decisions of 2026-10-05)**: a human's `seat.diy`
   picks (room.diy, checked again against the match's data and kits) are fixed for the match; bots field no lobby roster [ASSUMED] (规程 gives an empty bot a deterministic capped roster at 选择自编).
   The player's `ps.gd` is then a view of the match's GameData whose `chess(id)` of a slotted slot (normal and elite) is

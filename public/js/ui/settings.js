@@ -537,6 +537,8 @@ export function SettingsModal({ open, onClose }) {
       <p class="set-hint">${t('商店和晋升奖励的干员卡上，你的主盟约显示为绿底，副盟约显示为绿框。')}</p>
       <${Toggle} label=${t('商店标出队友的预选盟约')} micro="TEAM PLANS" value=${s.planMarkMates} onChange=${(v) => updateSettings({ planMarkMates: v })} />
       <p class="set-hint">${t('共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。')}</p>
+      <${Toggle} label=${t('显示卡池剩余张数')} micro="POOL COUNT" value=${s.poolCount} onChange=${(v) => updateSettings({ poolCount: v })} />
+      <p class="set-hint">${t('和队友共用卡池时，在商店卡牌的价格下方、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。')}</p>
       <${Toggle} label=${t('部署时按格子吸附')} micro="SNAP TO TILE" value=${s.deploySnap} onChange=${(v) => updateSettings({ deploySnap: v })} />
       <p class="set-hint">${t('拖动干员时，干员站在目标格子上逐格移动，松手就落在这一格。关闭时干员跟随手指或鼠标自由移动。')}</p>
       <${Toggle} label=${t('全屏时保持屏幕常亮')} micro="SCREEN WAKE LOCK" value=${s.fullscreenWakeLock} onChange=${(v) => updateSettings({ fullscreenWakeLock: v })} />

@@ -482,6 +482,18 @@ A bond the mode never activates (标准: official `inactiveBondIdList`) reads �
 
 预选盟约 (`ui/bondPlan.js`, §36.11): a 主盟约 (a core bond) and up to four 副盟约 (`BOND_PLAN_SUB_MAX`; any bond with a member), shown on the draft's order rows and the team panel (the main glyph first); the picker marks 盟约禁用 on the static (不会激活) and the drawn bonds (N 名干员无法出现) and is opened from the draft (预选盟约) or, the whole match while alive, from the viewer's own team-panel row. The shop and promotion-reward cards mark the plans on the card's own bond chips, never on its frame (§36.17; `bondPlan.js shopPlanMarks` / `cardPlanMarks`, `ui/shopBar.js`): my 主盟约 solid mint, a 副盟约 mint-outlined, a bond an alive pool teammate planned dash-outlined in ice with the people icon (which teammate is not shown; `poolGroups` decide the pool, nobody with the shared pool off). 设置「商店标出我的预选盟约」/「商店标出队友的预选盟约」 (`planMarkMine` / `planMarkMates`, on by default, kept with the settings) switch each kind off. A change after the draft toasts on the others' screens (`m.notice bondPlan`).
 
+卡池剩余 (`ui/poolCount.js`, §36.24, feedback #160; a fork addition): `m.private.poolLeft` (a shared pool group only) as 「余 n」, a flat
+dark tab under the card's price — the 盟约 card's price hex in `.scard__top`, the 规程 card's `root_cost` position — on the shop's and the
+reward row's operator and equipment cards, red at 0, and on the bond card's member portraits (own card only, not a banned member).
+设置「显示卡池剩余张数」 (`poolCount`, on by default) switches it off.
+
+收起 / 展开 of a pending choice (§36.23, feedback #162; upstream's 7a9d225f for the 机变 draft): `screens/game.js` keeps it per choice
+(`usePeek`: the 机变 draft by round and family, a 教鞭 choice and 规程's 更换指令 by id); while hidden the screen drops `has-sp` /
+`has-spdraft` (top bar, bond strip, effects and shop are back) and adds `is-peek`, and the choice waits in a 展开 button
+(`ui/choiceOverlay.js PeekPill`: the official `btn_open` sprite, the choice's countdown, 「已选中」 for a card that stays selected,
+a pulse on the viewer's turn); the expanded overlay's 收起 draws the official `btn_close`. On phones both are 46 px × 界面大小 square
+(`--spov-cw`) with the 44 px `.tapx` touch area.
+
 The strategy draft enables skip only on the viewer's turn, with quota left and another unpicked player to pass to.
 The free draft (two or more humans, `m.public.draft.free`; `screens/bandDraft.js` header) has no turn and no skip: 选择
 holds the strategy shown in the detail pane, 改选此策略 moves the hold, 取消选择 drops it, 锁定选择 (detail pane, or the

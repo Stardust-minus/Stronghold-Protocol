@@ -123,6 +123,8 @@ export const MATCH_FIELDS = Object.freeze({
     // 0.4.0 bot caches (bot.js: layout engines, positional traits, the boss field's grid), the 选择自编 advance timer (no
     // checkpoint is taken in CUSTOM_CHECK), the unit-stats preview cache (match/intents.js)
     '_botEngines', '_botPosTraits', '_botBossGrid', '_diyAdvanceTimer', '_unitStatsCache',
+    // 卡池剩余 (feedback #160, messaging.js _poolPeers): the pool counts last flushed per group; a restore re-sends every view
+    '_poolCountSigs',
   ]),
 });
 

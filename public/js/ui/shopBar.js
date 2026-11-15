@@ -50,6 +50,7 @@ import { t } from '../../../shared/i18n.js';
 import { ownAppearance } from './skinAssets.js';
 import { cardPlanMarks } from './bondPlan.js';
 import { itemText } from './showTags.js';
+import { poolLeftOf, PoolTag } from './poolCount.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -156,7 +157,7 @@ function ArmedTag({ reason, free }) {
  * @param {{ slot:any, idx:number, priv:any, frozen?:boolean, reason?:string|null, free?:boolean, armed?:boolean,
  *   onTap?:(idx:number)=>void, onBuy:Function, onDetail:Function }} props
  */
-export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free = false, armed = false, still = false, faceModel = null, facePack = null, onTap = null, onBuy, onDetail, offBonds = null, plan = null, reg = false, backing = null }) {
+export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free = false, armed = false, still = false, faceModel = null, facePack = null, onTap = null, onBuy, onDetail, offBonds = null, plan = null, reg = false, backing = null, pool = null }) {
   const c0 = data.lookup('chess', slot.id);
   // 0.2.0 自选编队: a DIY slot the player filled is its operator (shared/diy.js, the pick of m.private.diy)
   const diyData = { chess: data.get('chess'), backups: data.get('backups') };
@@ -196,6 +197,7 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
       </span>
       ${face?.layers.map((layer, i) => html`<span key=${`${layer.node.name}:${i}`} class=${cx('scard__prefab-layer', `scard__prefab-layer--${layer.node.name}`)} style=${layer.style} aria-hidden="true"><i style=${layer.image}></i></span>`)}
       ${regCost(slot, free, reason === t('资金不足'), face?.cost?.style)}
+      <${PoolTag} n=${pool} style=${face?.cost?.style} />
       <${Img} src=${chessPortraitUrl(m, c)} fallbackSrc=${chessPortraitUrl(m, defaultBody)} class="scard__art" />
       ${prog.copies > 0 ? html`<span class="scard__pips" title=${t('已拥有 {copies}/{need}', { copies: prog.copies, need: prog.need })}>
         ${Array.from({ length: prog.need }, (_, i) => html`<i key=${i} class=${i < prog.copies ? 'on' : ''}></i>`)}
@@ -232,6 +234,7 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
     <span class="scard__top">
       <${TierChip} tier=${tier} size="md" />
       <${PriceHex} slot=${slot} free=${free} poor=${reason === t('资金不足')} />
+      <${PoolTag} n=${pool} />
       ${prog.copies > 0 ? html`<span class="scard__pips" title=${t('已拥有 {copies}/{need}', { copies: prog.copies, need: prog.need })}>
         ${Array.from({ length: prog.need }, (_, i) => html`<i key=${i} class=${i < prog.copies ? 'on' : ''}></i>`)}
       </span>` : null}
@@ -284,7 +287,7 @@ function SkillBadge({ chess, lo, standIn = false }) {
  * @param {{ slot:any, idx:number, frozen?:boolean, reason?:string|null, armed?:boolean, onTap?:(idx:number)=>void,
  *   onBuy:Function, onDetail:Function }} props
  */
-export function ItemCard({ slot, idx, frozen = false, reason = null, free = false, armed = false, still = false, faceModel = null, facePack = null, onTap = null, onBuy, onDetail, reg = false, backing = null }) {
+export function ItemCard({ slot, idx, frozen = false, reason = null, free = false, armed = false, still = false, faceModel = null, facePack = null, onTap = null, onBuy, onDetail, reg = false, backing = null, pool = null }) {
   const it = data.lookup('items', slot.id);
   const m = data.get('assets');
   const disabled = !!reason;
@@ -303,6 +306,7 @@ export function ItemCard({ slot, idx, frozen = false, reason = null, free = fals
       ${face?.item?.watermark ? html`<span class="scard__prefab-layer scard__prefab-layer--deco_item" style=${face.item.watermark.style} aria-hidden="true"><i style=${face.item.watermark.image}></i></span>` : null}
       ${face?.layers.map((layer, i) => html`<span key=${`${layer.node.name}:${i}`} class=${cx('scard__prefab-layer', `scard__prefab-layer--${layer.node.name}`)} style=${layer.style} aria-hidden="true"><i style=${layer.image}></i></span>`)}
       ${regCost(slot, free, reason === t('资金不足'), face?.cost?.style)}
+      <${PoolTag} n=${pool} style=${face?.cost?.style} />
       <span class="scard__itemart" style=${face?.item?.icon}>
         <${Img} src=${itemIconUrl(m, it)} fallback=${html`<${GIcon} name="bolt" />`} />
       </span>
@@ -324,6 +328,7 @@ export function ItemCard({ slot, idx, frozen = false, reason = null, free = fals
     <span class="scard__top">
       <${TierChip} tier=${it?.tier ?? 1} size="md" />
       <${PriceHex} slot=${slot} free=${free} poor=${reason === t('资金不足')} />
+      <${PoolTag} n=${pool} />
     </span>
     <span class="scard__itemart"><${Img} src=${itemIconUrl(m, it)} fallback=${html`<${GIcon} name="bolt" />`} /></span>
     <span class="scard__body">
@@ -484,7 +489,7 @@ export function useTwoTap({ editable, keys }) {
  * report #6 after 0.1.0, the items used to be drawn as nameless operator cards — and the header names the offer
  * (gameLogic.offerHeader: 晋升奖励 / the strategy's effect name …; "之后还有 N 项" while more offers wait behind it).
  */
-export function RewardCards({ offer, priv, editable, onPick, onDetail, onLater, armed, onTap, offBonds = null, plan = null, reg = false, faceModels = null, facePack = null, still = false, backing = null }) {
+export function RewardCards({ offer, priv, editable, onPick, onDetail, onLater, armed, onTap, offBonds = null, plan = null, reg = false, faceModels = null, facePack = null, still = false, backing = null, poolOf = () => null }) {
   const head = offerHeader(offer);
   return html`<div class=${cx('shopbar__reward', head.items && 'is-items')} role="group" aria-label=${head.title}>
     <div class="rwtag">
@@ -502,7 +507,7 @@ export function RewardCards({ offer, priv, editable, onPick, onDetail, onLater, 
         const reason = shopBlockReason('reward', { config: data.get('config'), priv, editable, slot: s, ...LOOKUPS });
         const tier = Math.max(1, Math.min(6, Number((kind === 'item' ? LOOKUPS.getItem(s.id) : LOOKUPS.getChess(s.id))?.tier) || 1));
         const props = { slot: { ...s, price: 0 }, idx: i, free: true, reason, reg, faceModel: reg ? faceModels?.[kind]?.[tier - 1] : null, facePack, still, backing: reg ? null : backing,
-          armed: armed === armKey('r', i, s), onBuy: onPick, onDetail,
+          armed: armed === armKey('r', i, s), onBuy: onPick, onDetail, pool: poolOf(kind, s.id),
           onTap: (idx) => onTap('r', idx, s, kind, reason, onPick) };
         return kind === 'item' ? html`<${ItemCard} key=${`rw${i}:${s.id}`} ...${props} />` : html`<${ChessCard} key=${`rw${i}:${s.id}`} priv=${priv} offBonds=${offBonds} plan=${plan} ...${props} />`;
       })}
@@ -575,6 +580,8 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
   const faceTheme = regChromeTheme(groups, settings?.uiTheme);
   const facePack = usePrefabPack(groups, faceTheme || null, { includeDefault: true });
   const still = settings?.themeMotion === false;
+  // 卡池剩余 (feedback #160, ui/poolCount.js): the shared stock's count under each card's price, unless 设置 turns it off
+  const poolOf = (kind, id) => (settings?.poolCount === false ? null : poolLeftOf(priv, kind, id));
   // the card's prefab `bkg` belongs to the official theme's own look: drawn only while that theme is the selected one, so a
   // non-official theme (or none) on ac_n_initial's card keeps our dark face under its frame (§37.237)
   const ownFace = !!faceTheme && faceTheme === settings?.uiTheme;
@@ -678,13 +685,13 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
         <div class="shopbar__row">
           <${RegLevelCard} shop=${shop} reason=${lvReason} armed=${armed === levelKey} onTap=${tapLevel} themeId=${settings?.uiTheme} />
           ${showReward ? html`<${RewardCards} offer=${reward} priv=${priv} editable=${editable} onPick=${onReward} onDetail=${onDetail} onLater=${onRewardLater}
-              armed=${armed} onTap=${tapCard} offBonds=${offBonds} plan=${plan} reg=${true} faceModels=${faceModels} facePack=${facePack} still=${still} />`
+              armed=${armed} onTap=${tapCard} offBonds=${offBonds} plan=${plan} reg=${true} faceModels=${faceModels} facePack=${facePack} still=${still} poolOf=${poolOf} />`
             : html`<div class="shopbar__cards">
             ${chessSlots.map(({ s, i }) => {
               if (!s) return html`<${EmptyCard} key=${`e${i}`} reg=${true} face=${emptyFace} />`;
               if (s.sold) return html`<${SoldCard} key=${`s${i}`} reg=${true} face=${emptyFace} />`;
               const reason = shopBlockReason('buy', { config: data.get('config'), priv, editable, slot: s, ...LOOKUPS });
-              return html`<${ChessCard} key=${`c${i}:${s.id}`} slot=${s} idx=${i} priv=${priv} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} offBonds=${offBonds} plan=${plan}
+              return html`<${ChessCard} key=${`c${i}:${s.id}`} slot=${s} idx=${i} priv=${priv} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} offBonds=${offBonds} plan=${plan} pool=${poolOf('chess', s.id)}
                   reg=${true} faceModel=${faceModels?.chess?.[Math.max(1, Math.min(6, Number(data.lookup('chess', s.id)?.tier) || 1)) - 1]} facePack=${facePack} still=${still}
                   reason=${reason} armed=${armed === armKey('c', i, s)} onTap=${editable ? (idx) => tapCard('c', idx, s, 'chess', reason, onBuy) : null} />`;
             })}
@@ -695,7 +702,7 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
                 if (!s) return html`<${EmptyCard} key=${`ie${i}`} item=${true} reg=${true} face=${emptyFace} />`;
                 if (s.sold) return html`<${SoldCard} key=${`is${i}`} item=${true} reg=${true} face=${emptyFace} />`;
                 const reason = shopBlockReason('buy', { config: data.get('config'), priv, editable, slot: s, ...LOOKUPS });
-                return html`<${ItemCard} key=${`i${i}:${s.id}`} slot=${s} idx=${i} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} reason=${reason}
+                return html`<${ItemCard} key=${`i${i}:${s.id}`} slot=${s} idx=${i} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} reason=${reason} pool=${poolOf('item', s.id)}
                   reg=${true} faceModel=${faceModels?.item?.[Math.max(1, Math.min(6, Number(data.lookup('items', s.id)?.tier) || 1)) - 1]} facePack=${facePack} still=${still}
                   armed=${armed === armKey('i', i, s)} onTap=${editable ? (idx) => tapCard('i', idx, s, 'item', reason, onBuy) : null} />`;
               })
@@ -732,13 +739,13 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
     <div class="shopbar__row">
       <${LevelCard} shop=${shop} reason=${lvReason} armed=${armed === levelKey} onTap=${tapLevel} />
       ${showReward ? html`<${RewardCards} offer=${reward} priv=${priv} editable=${editable} onPick=${onReward} onDetail=${onDetail} onLater=${onRewardLater}
-          armed=${armed} onTap=${tapCard} offBonds=${offBonds} plan=${plan} backing=${covenantBacking} />`
+          armed=${armed} onTap=${tapCard} offBonds=${offBonds} plan=${plan} backing=${covenantBacking} poolOf=${poolOf} />`
         : html`<div class="shopbar__cards">
         ${chessSlots.map(({ s, i }) => {
           if (!s) return html`<${EmptyCard} key=${`e${i}`} face=${emptyFace} />`;
           if (s.sold) return html`<${SoldCard} key=${`s${i}`} face=${emptyFace} />`;
           const reason = shopBlockReason('buy', { config: data.get('config'), priv, editable, slot: s, ...LOOKUPS });
-          return html`<${ChessCard} key=${`c${i}:${s.id}`} slot=${s} idx=${i} priv=${priv} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} offBonds=${offBonds} plan=${plan}
+          return html`<${ChessCard} key=${`c${i}:${s.id}`} slot=${s} idx=${i} priv=${priv} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} offBonds=${offBonds} plan=${plan} pool=${poolOf('chess', s.id)}
               backing=${covenantBacking} reason=${reason} armed=${armed === armKey('c', i, s)} onTap=${editable ? (idx) => tapCard('c', idx, s, 'chess', reason, onBuy) : null} />`;
         })}
       </div>`}
@@ -748,7 +755,7 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
             if (!s) return html`<${EmptyCard} key=${`ie${i}`} item=${true} face=${emptyFace} />`;
             if (s.sold) return html`<${SoldCard} key=${`is${i}`} item=${true} face=${emptyFace} />`;
             const reason = shopBlockReason('buy', { config: data.get('config'), priv, editable, slot: s, ...LOOKUPS });
-            return html`<${ItemCard} key=${`i${i}:${s.id}`} slot=${s} idx=${i} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} reason=${reason}
+            return html`<${ItemCard} key=${`i${i}:${s.id}`} slot=${s} idx=${i} frozen=${slotFrozen(s, frozen)} onBuy=${onBuy} onDetail=${onDetail} reason=${reason} pool=${poolOf('item', s.id)}
               backing=${covenantBacking} armed=${armed === armKey('i', i, s)} onTap=${editable ? (idx) => tapCard('i', idx, s, 'item', reason, onBuy) : null} />`;
           })
           : layout?.item === 0 ? null : html`<${EmptyCard} item=${true} face=${emptyFace} />`}

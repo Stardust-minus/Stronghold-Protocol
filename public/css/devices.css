@@ -185,6 +185,8 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
   .gm .funds__num { font-size: max(calc(.36 * var(--t)), calc(24px * var(--ui))); }
   .gm .funds__hex { width: max(1rem, calc(44px * var(--ui))); height: max(.9rem, calc(40px * var(--ui))); }
   .gm .shopbar .hex { --hex-h: max(.32rem, calc(20px * var(--ui))); }
+  .gm .shopbar { --pt-hex: max(.32rem, calc(20px * var(--ui))); }
+  .gm .pooltag { font-size: max(.12rem, calc(12px * var(--ui))); }
   .gm .shopbar .tier { --tier-h: max(.28rem, calc(16px * var(--ui))); }
   .gm .scard__skill { width: max(.3rem, calc(18px * var(--ui))); height: max(.3rem, calc(18px * var(--ui))); }
   .gm .scard__confirm b { font-size: max(.18rem, calc(12px * var(--ui))); letter-spacing: .04em; }
