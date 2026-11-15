@@ -1154,8 +1154,11 @@ export function createIdentity(deps = {}) {
 /** Browser identity singleton (main.js awaits `identity.init()` before connecting). */
 export const identity = createIdentity({ onYield: () => net.reconnectNow(net.helloName || net.name) });
 
-/** WebSockets per connection (lanes, public/js/lanes.js): localStorage `sp.lanes` '1' … '3' overrides it; 1 is one plain socket. */
-export const DEFAULT_LANES = 2;
+/**
+ * WebSockets per connection (lanes, public/js/lanes.js): localStorage `sp.lanes` '1' … '3' overrides it; 1 is one plain socket.
+ * 3 (this fork, the owner 2026-11-15 「开三个吧」): the most the server takes (shared/lanes.js MAX_LANES).
+ */
+export const DEFAULT_LANES = 3;
 export function lanesWanted(storage = globalThis.localStorage) {
   try { const v = storage?.getItem('sp.lanes'); if (typeof v === 'string' && /^[1-3]$/.test(v)) return Number(v); } catch { /* storage blocked */ }
   return DEFAULT_LANES;

@@ -623,7 +623,7 @@ Docker 镜像一起提供（`data/versions/`）。**不设置时五个版本都�
 
 ### 多连接（lanes）
 
-浏览器默认用 **2 条** WebSocket 承载同一个连接，每帧在每条上各发一份，先到的算数（docs/design/network.md「Lanes」）。玩家到入口这一段丢包时，只有所有连接都卡住才会卡顿。服务器端不用配置，默认开启；`SP_WS_LANES=0`（集群 ingress 配置写 `"lanes": false`）则一律退回单连接。浏览器里 `localStorage['sp.lanes']` 可设 `'1'`–`'3'`。
+浏览器默认用 **3 条** WebSocket 承载同一个连接（本 fork，维护者 2026-11-15「开三个吧」；服务器最多也只收 3 条），每帧在每条上各发一份，先到的算数（docs/design/network.md「Lanes」）。玩家到入口这一段丢包时，只有所有连接都卡住才会卡顿。服务器端不用配置，默认开启；`SP_WS_LANES=0`（集群 ingress 配置写 `"lanes": false`）则一律退回单连接。浏览器里 `localStorage['sp.lanes']` 可设 `'1'`–`'3'`。
 
 - **配额**：`SP_MAX_CONNECTIONS` / `SP_MAX_CONNECTIONS_PER_ADDR` 按玩家的那一个逻辑连接计数，附加的连接不计入。前面的 Nginx 是逐条连接计数的。
 - **Nginx 前置时要做两件事**，否则附加连接会落到别的 ingress 进程上被拒，页面拒 3 次后只用单连接（功能不受影响）：
@@ -639,12 +639,12 @@ Docker 镜像一起提供（`data/versions/`）。**不设置时五个版本都�
          server …;
      }
      ```
-  2. 每个 IP 的 WebSocket 上限（`limit_conn ark_proto_ws_ip`）按连接数放大（2 条时 64 → 128），否则同一出口 IP 后能玩的人数会减半。每会话 8 条的上限够用。
+  2. 每个 IP 的 WebSocket 上限（`limit_conn ark_proto_ws_ip`）按连接数放大（3 条时 64 → 192，2 条时 128），否则同一出口 IP 后能玩的人数会按条数成倍减少。每会话 8 条的上限够用。
   3. （可选）入口机的默认路由加上 `rto_min 50ms quickack 1`，例如 `ip route change default via <网关> dev <网卡> proto static rto_min 50ms quickack 1`（IPv6 同理）。丢包时卡顿的尾部还能再减半：2 条连接加上它，约等于不加时的 3 条。Netplan 写不了这两个路由属性，本服入口用一个开机和每 2 分钟检查一次的 systemd 定时器重新应用。
 
-  本服的 `deploy/stardust/tools/prepare-dual-ingress-proxy.mjs` 生成的上游块已经带第 1 条的哈希（`--replace-prepared` 也认旧的 `least_conn` 块）；`deploy/stardust/nginx/ark-proto.conf` 已改成 128。
+  本服的 `deploy/stardust/tools/prepare-dual-ingress-proxy.mjs` 生成的上游块已经带第 1 条的哈希（`--replace-prepared` 也认旧的 `least_conn` 块）；`deploy/stardust/nginx/ark-proto.conf` 已改成 192（3 条）。
 - **网络质量监测**：页面每分钟上报一次本页测到的心跳往返、多连接副本晚到、连接替换和掉线时间（docs/LATENCY.md「Network quality reports」）。服务器按运营商和省份汇总，在 `/healthz` 的 `netq` 里给出。按运营商和省份分要设 `SP_ISP_FILE`，指向 `node tools/isp-table.mjs --out <文件>` 生成的表（约 600 KB，每月更新一次即可）；不设时全部算作「未识别」。不保存任何玩家、会话或 IP。
-- **成本**：对局下行字节数和连接数按条数翻倍（2 条时每人多约 5 kbit/s），每条多一份 TLS 状态、一条 Nginx 上游连接和 ingress 上的一个压缩上下文（约 144 KiB）。附加连接在第一条建好后随机等 0.5–3 秒再建，发版后集体重连时握手不会一下翻倍。
+- **成本**：对局下行字节数和连接数按条数成倍增加（每多 1 条，每人多约 5 kbit/s；3 条时多约 11 kbit/s），每条多一份 TLS 状态、一条 Nginx 上游连接和 ingress 上的一个压缩上下文（约 144 KiB）。附加连接在第一条建好后随机等 0.5–3 秒再建，发版后集体重连时握手不会一下翻倍。
 
 ## 13. 断点续玩：重启后接着打（可选，Valkey）
 

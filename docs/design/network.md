@@ -32,7 +32,7 @@ full and delta frames and bytes; `net.snapDropped` / `net.backpressureClosed` co
 **Lanes (fork, 2026-11-11; `shared/lanes.js`, `server/wsLanes.js`, `public/js/lanes.js`).** A WebSocket is one TCP
 connection, and TCP hands nothing on behind a lost segment until it is resent — at the 10–20 % loss of a player's last
 mile in the evening peak the whole stream stalls for a retransmission timeout every few seconds. The browser therefore
-carries its one socket over up to 3 WebSockets ("lanes", 2 by default; localStorage `sp.lanes` = '1' … '3', '1' is one
+carries its one socket over up to 3 WebSockets ("lanes", 3 by default — this fork, the owner 2026-11-15; localStorage `sp.lanes` = '1' … '3', '1' is one
 plain socket) and sends every frame on each of them; the receiver takes the first copy. A frame is late only when it is
 late on every lane.
 - Negotiation is the subprotocol list `[sp.plain, sp.lanes1.<bundle>.<lane>.<new|join.<seq>>]` (bundle: 128 random bits,

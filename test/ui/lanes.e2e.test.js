@@ -28,8 +28,8 @@ async function checkPage(puppeteer, base, label) {
   try {
     await c.open();
     await c.enter(`通道${label}`);
-    await lanesUp(c, 2);
-    assert.deepEqual(await conn(c), { status: 'online', mode: 'lanes', lanes: 2, native: false });
+    await lanesUp(c, 3);
+    assert.deepEqual(await conn(c), { status: 'online', mode: 'lanes', lanes: 3, native: false });
     const created = await request(c, 'room.create', { mode: 'coop' });
     assert.ok(created, 'room.create answered over lanes');
     await c.waitFor((s) => !!s.room?.code, 'room created');
@@ -60,7 +60,7 @@ test('the page reports its network quality once a minute; the server sums it int
   try {
     await c.open();
     await c.enter('网络质量');
-    await lanesUp(c, 2);
+    await lanesUp(c, 3);
     let netq = null;
     const end = Date.now() + 100_000;
     while (Date.now() < end) {
@@ -70,7 +70,7 @@ test('the page reports its network quality once a minute; the server sums it int
     }
     assert.equal(netq?.reports, 1, 'one report after about a minute');
     const g = netq.groups[0];
-    assert.deepEqual([g.isp, g.lanes], ['unknown', 2], 'no ISP table here; the page wanted two lanes');
+    assert.deepEqual([g.isp, g.lanes], ['unknown', 3], 'no ISP table here; the page wanted three lanes (DEFAULT_LANES)');
     assert.ok(g.seconds >= 10 && g.rtt.reduce((a, b) => a + b, 0) >= 1, `seconds and round trips counted: ${JSON.stringify(g)}`);
     assert.ok(g.copies >= 1, 'later lane copies were timed');
     const errors = c.problems.filter((p) => /pageerror|netQuality|lanes\.js|net\.q/i.test(p));
