@@ -22,13 +22,25 @@ for (const [profile, source] of Object.entries(sources)) test(profile + ' prepar
   assert.deepEqual(r.manifest.endpoints, profile === 'formal' ? ['172.30.246.2:3000', '172.30.246.3:3000'] : ['127.0.0.1:35301', '127.0.0.1:35302']);
   assert.deepEqual(r.manifest.publishedPorts, profile === 'formal' ? [35401, 35402] : [35301, 35302]);
   assert.equal(r.manifest.upstreamTransport, profile === 'formal' ? 'container-direct' : 'loopback');
-  assert.match(r.vhost, /least_conn;/); assert.doesNotMatch(r.vhost.slice(0, r.vhost.indexOf('\n\n')), /keepalive|ip_hash|hash \$/);
+  // lanes (docs/DEPLOY.md「多连接」): one group's connections hash to one ingress
+  const head = r.vhost.slice(0, r.vhost.indexOf('\n\n'));
+  assert.match(head, /map \$http_sec_websocket_protocol \$\w+_route \{\n    "~sp\\\.lanes1\\\.\(\[A-Za-z0-9_-\]\{22\}\)\\\." \$1;\n    default \$request_id;\n\}/);
+  assert.ok(head.includes(`hash $${r.manifest.upstream}_route;`)); assert.doesNotMatch(head, /keepalive|ip_hash|least_conn/);
   let restored = r.vhost.slice(r.vhost.indexOf('\n\n') + 2);
   const previous = r.manifest.webSocketLocations[0].previousUpstream;
   assert.ok(r.manifest.webSocketLocations.every(x => x.previousUpstream === previous));
   restored = restored.replaceAll(`proxy_pass http://${r.manifest.upstream};\n        proxy_next_upstream error timeout;\n        proxy_next_upstream_tries 2;`, `proxy_pass http://${previous};`);
   assert.equal(restored, source, 'no unrelated location, gate, Origin, headers, timeout, provider or HTTP backend changed');
   assert.equal(r.manifest.webSocketLocations.length, profile === 'formal' ? 2 : 1);
+});
+
+test('re-preparation also replaces the earlier least_conn block (before lanes) with the lanes hash', () => {
+  const fresh = prepareDualIngressProxy(sources.formal, {});
+  const head = fresh.vhost.slice(0, fresh.vhost.indexOf('\n\n') + 2);
+  const servers = head.split('\n').filter(line => line.startsWith('    server ')).join('\n');
+  const legacy = `# New handshakes only; established WebSockets stay on their original ingress.\nupstream ${fresh.manifest.upstream} {\n    least_conn;\n${servers}\n}\n\n`;
+  assert.equal(prepareDualIngressProxy(legacy + fresh.vhost.slice(head.length), { replacePrepared: true }).vhost, fresh.vhost);
+  assert.equal(prepareDualIngressProxy(fresh.vhost, { replacePrepared: true }).vhost, fresh.vhost);
 });
 
 test('Formal explicit profile ports retain direct bypass; custom ports remain unapproved loopback fixtures', () => {

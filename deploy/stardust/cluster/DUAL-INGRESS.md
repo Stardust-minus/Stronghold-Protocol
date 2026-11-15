@@ -40,7 +40,7 @@ node deploy/stardust/tools/prepare-dual-ingress-proxy.mjs \
 
 直连只能用于已核实固定网络／容器 IP、host-network 代理可达、同版 guard 已准入的实际实例；不改 Docker daemon、发布端口或 guard。自定义端口 API 仅为隔离 loopback fixture，manifest 的 `deploymentPortsMatchProfile:false` 不可当作生产批准材料。
 
-只分新 WS 握手；已有 WS 不迁移。`proxy_next_upstream error timeout`／tries2 只处理升级前的连接错误；不把 Origin403／门禁401 变成重试绕过。Nginx least_conn 不承诺所有 worker 全局严格均分。原单文件 bind 的 vhost 需保留 inode、备份与 CAS 写入，采用实际启动配置语法检查及正常 reload；HTTP 和密码门禁不接到 ingress 的404监听上。
+只分新 WS 握手；已有 WS 不迁移。`proxy_next_upstream error timeout`／tries2 只处理升级前的连接错误；不把 Origin403／门禁401 变成重试绕过。上游按多连接（lanes）的组 ID 哈希：同一组的几条连接进同一个 ingress，其余按请求 ID 散开，不承诺严格均分（旧的 least_conn 块在 --replace-prepared 时仍能识别并替换）。原单文件 bind 的 vhost 需保留 inode、备份与 CAS 写入，采用实际启动配置语法检查及正常 reload；HTTP 和密码门禁不接到 ingress 的404监听上。
 
 ## 管理器与单实例维护
 

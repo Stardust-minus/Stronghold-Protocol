@@ -52,9 +52,17 @@ function mask(text) {
   return result;
 }
 
-function upstreamBlock(name, endpoints) {
+// Multi-connection lanes (docs/DEPLOY.md「多连接」): every connection of one lanes group hashes to the same ingress, read
+// from its Sec-WebSocket-Protocol token sp.lanes1.<22 base64url>.…; anything else spreads by request id. `legacy`: the
+// earlier least_conn block, recognised only so re-preparation can replace it.
+function upstreamBlock(name, endpoints, legacy = false) {
   const servers = endpoints.map(endpoint => `    server ${endpoint} max_fails=1 fail_timeout=5s;`).join('\n');
-  return `# New handshakes only; established WebSockets stay on their original ingress.\nupstream ${name} {\n    least_conn;\n${servers}\n}\n\n`;
+  const head = '# New handshakes only; established WebSockets stay on their original ingress.\n';
+  if (legacy) return `${head}upstream ${name} {\n    least_conn;\n${servers}\n}\n\n`;
+  return '# Multi-connection lanes (docs/DEPLOY.md「多连接」): every connection of one lanes group\n'
+    + '# (Sec-WebSocket-Protocol sp.lanes1.<group>.…) hashes to the same ingress; anything else spreads by request id.\n'
+    + `map $http_sec_websocket_protocol $${name}_route {\n    "~sp\\.lanes1\\.([A-Za-z0-9_-]{22})\\." $1;\n    default $request_id;\n}\n`
+    + `${head}upstream ${name} {\n    hash $${name}_route;\n${servers}\n}\n\n`;
 }
 
 function wgEndpoints(spec, count) {
@@ -148,17 +156,21 @@ export function prepareDualIngressProxy(source, { profile = 'formal', ports, ing
     throw new Error('Exact distinct loopback ingress ports are required');
   }
   // Re-preparation replaces ONLY an exact earlier generator block at the head: WG form, or (local only) either local layout.
-  let previous = null;
+  let previous = null, previousBlock = '';
   if (replacePrepared) {
     const forms = [];
     for (let n = 2; n <= spec.maxInstances; n++) forms.push({ topology: 'wg', endpoints: wgEndpoints(spec, n) });
     if (summary) for (const gameNodes of [16, 32]) for (let n = 2; n <= localMax(spec.local, gameNodes); n++) {
       forms.push({ topology: 'local', gameNodes, endpoints: localLayout(spec.local, gameNodes, n).map(row => `${row.container_ip}:3000`) });
     }
-    previous = forms.find(form => source.startsWith(upstreamBlock(spec.name, form.endpoints)));
+    // either the current block or the earlier least_conn one (before lanes)
+    for (const form of forms) for (const legacy of [false, true]) {
+      const block = upstreamBlock(spec.name, form.endpoints, legacy);
+      if (!previous && source.startsWith(block)) { previous = form; previousBlock = block; }
+    }
     if (!previous) throw new Error('Replace-prepared requires an exact earlier generator upstream');
   }
-  const base = previous ? source.slice(upstreamBlock(spec.name, previous.endpoints).length) : source;
+  const base = source.slice(previousBlock.length);
   const masked = mask(base);
   if (new RegExp('\\bupstream\\s+' + spec.name + '\\b').test(masked)) throw new Error('Dual ingress upstream already present');
   if (!/\bauth_request\s+\/[^;\s]+\s*;/.test(masked)) throw new Error('Existing private request gate is required');
