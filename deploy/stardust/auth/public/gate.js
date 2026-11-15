@@ -2,7 +2,13 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const body = document.body;
-  if (body.dataset.build !== 'ae-12') { location.reload(); return; }
+  if (body.dataset.build !== 'ae-13') { location.reload(); return; }
+  // the private-run notice (login.html #service-notice): shown on every visit, closed by its button or Esc
+  const notice = document.getElementById('service-notice');
+  if (notice && !notice.open) {
+    if (typeof notice.showModal === 'function') { try { notice.showModal(); } catch { notice.setAttribute('open', ''); } }
+    else notice.setAttribute('open', '');
+  }
   const form = $('login-form'), logout = $('logout-form'), input = $('password');
   const callsign = $('callsign'), credentialName = $('credential-name');
   const message = $('login-message'), statusMessage = $('status-message');
@@ -255,7 +261,7 @@
         };
         try {
           for (let i = 0; i < count; i++) {
-            const worker = new Worker('/_gate/assets/altcha-pbkdf2.js?v=ae-12');
+            const worker = new Worker('/_gate/assets/altcha-pbkdf2.js?v=ae-13');
             workers.push(worker);
             worker.onmessage = event => {
               const data = event.data;
@@ -387,7 +393,7 @@
   function loadScene() {
     if (motion.matches || scene || sceneLoading || navigation) return;
     sceneLoading = true;
-    import('/_gate/assets/scene.js?v=ae-12').then(module => {
+    import('/_gate/assets/scene.js?v=ae-13').then(module => {
       if (motion.matches || navigation) return;
       $('spatial-dom').hidden = false;
       scene = module.createTerminalScene({ canvas: $('world'), plane: $('terminal-plane'), home: $('plane-home'), dom: $('spatial-dom'), reduced: motion.matches });

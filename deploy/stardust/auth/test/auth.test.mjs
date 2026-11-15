@@ -252,7 +252,7 @@ test('password page assets are allowlisted, not a filesystem proxy', async t => 
   const base = await start(t);
   assert.equal((await request(base + '/_gate/assets/gate.css')).status, 200);
   assert.equal((await request(base + '/_gate/assets/warmup.js')).status, 200);
-  assert.equal((await request(base + '/_gate/assets/terminal-motion.js?v=ae-12')).status, 200);
+  assert.equal((await request(base + '/_gate/assets/terminal-motion.js?v=ae-13')).status, 200);
   for (const name of ['doctor.webp', 'rhodes.webp', 'ae-sphere.json']) assert.equal((await request(base + '/_gate/assets/' + name)).status, 404, 'optional missing art does not prevent the gate starting');
   for (const path of ['/_gate/assets/secrets.json', '/_gate/assets/%2e%2e/server.mjs', '/server.mjs', '/data/chess.json', '/ws']) assert.equal((await request(base + path)).status, 404);
 });
