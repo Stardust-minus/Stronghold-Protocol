@@ -184,10 +184,13 @@ def prepare(stage, prefix):
         require(ext in ASSET_EXTENSIONS and type(row.get("bytes")) is int and row["bytes"] > 0 and
                 isinstance(row.get("sha256"), str) and
                 re.fullmatch(r"[0-9a-f]{64}", row["sha256"]) is not None, "invalid-asset-record")
-        if ext == ".mp3":
+        theme_voice = re.fullmatch(r"assets/local/themes/[^/]+/voice/[^/]+\.mp3", path) is not None
+        if ext == ".mp3" and not theme_voice:
             require(path.startswith("assets/audio/"), "audio-outside-audio-directory")
             name = prefix + "/media/" + path[len("assets/audio/"):-4]
         else:
+            # A theme's own voice lines (assets/local/themes/<id>/voice/*.mp3) keep their path: the client asks for them
+            # there, never through the /media/ alias, so they get no media rows.
             require(not path.startswith("assets/audio/"), "unexpected-audio-format")
             # JSON is only allowed for the prepared local model/map material metadata.
             # ... and a dynamic illustration's Spine skeleton exported as JSON (assets/skins/<id>/dynamic/*.json).

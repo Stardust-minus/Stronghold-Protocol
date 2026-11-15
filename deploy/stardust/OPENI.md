@@ -31,6 +31,8 @@ python3 -I deploy/stardust/tools/openi-assets.py \
 
 MP3 远端名映射为 `media/<stem>`，不带扩展名；所有对应的 `/assets/audio/...mp3` 和 `/media/` 别名都指向同一个对象，不复制第二份音频。保留上游避免下载管理器劫持的无扩展名路径。
 
+主题自带的语音 `assets/local/themes/<id>/voice/*.mp3` 例外：客户端按原路径请求，远端名保持原路径，没有 `/media/` 别名。其他不在 `assets/audio/` 下的 MP3 仍被拒绝（`audio-outside-audio-directory`）。只给私下用的主题（如 `ac_s_closur`）不放进 OpenI stage，由 ModelScope 专用路径提供（MATERIAL-SOURCES.md）。
+
 上传使用 `Cache-Control: public, max-age=31536000, immutable`，provider行为须独立核验。不能添加 PUT Content-Type：现有签名会因此被拒绝。OBS 返回 binary MIME，因此 JS 模块不能迁入这个方案；PNG/Canvas、完整Spine三件套、音频解码及Range须单独测试。
 
 ## 签名缓存和回退

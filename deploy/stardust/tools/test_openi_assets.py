@@ -212,6 +212,35 @@ class AssetsTest(unittest.TestCase):
         with self.assertRaisesRegex(tool.ToolError, "non-scene-bin"):
             self.plan()
 
+    def test_theme_voice_keeps_its_path_and_other_mp3_outside_audio_refused(self):
+        # A theme's voice lines (assets/local/themes/<id>/voice/*.mp3) are requested at their own path: one object
+        # under the same path, no /media/ alias. Any other mp3 outside assets/audio is still refused.
+        voice = "assets/local/themes/ac_n_iron/voice/cn_001.mp3"
+        self.add_file(voice, b"fixture theme voice mp3")
+        self.save_manifest()
+        entries = {e["requestPath"]: e for e in self.plan().manifest["entries"]}
+        self.assertEqual(entries["/" + voice]["fileName"], self.prefix + "/" + voice)
+        self.assertEqual(entries["/" + voice]["mime"], "audio/mpeg")
+        self.assertFalse(any("ac_n_iron" in path for path in entries if path.startswith("/media/")))
+        bad_media = {"url": "/media/local/themes/ac_n_iron/voice/cn_001", "requestedExtension": "",
+                     "file": voice, "ext": ".mp3"}
+        self.manifest["media"].append(bad_media)
+        self.save_manifest()
+        with self.assertRaisesRegex(tool.ToolError, "invalid-media-file"):
+            self.plan()
+        self.manifest["media"].remove(bad_media)
+        for path in ["assets/local/themes/ac_n_iron/voice/jp/cn_001.mp3", "assets/local/themes/ac_n_iron/bgm.mp3",
+                     "assets/local/ui/voice/cn_001.mp3", "assets/skins/char_1/voice/cn_001.mp3"]:
+            with self.subTest(path=path):
+                self.add_file(path, b"misplaced mp3")
+                self.save_manifest()
+                with self.assertRaisesRegex(tool.ToolError, "audio-outside-audio-directory"):
+                    self.plan()
+                (self.source / path).unlink()
+                self.manifest["files"].pop()
+        self.save_manifest()
+        self.assertIn("/" + voice, {e["requestPath"] for e in self.plan().manifest["entries"]})
+
     def test_legacy_stage_keeps_release_fallback_and_cli_default(self):
         plan = tool.prepare(self.stage, None)
         self.assertEqual(plan.prefix, "releases/v012-openi-20261004")
