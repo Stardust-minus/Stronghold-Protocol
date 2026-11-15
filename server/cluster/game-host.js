@@ -107,6 +107,16 @@ function opsCopy(value) {
   }));
 }
 
+/**
+ * The assignment's mode id: the difficulty's official mode for 第二期下半; another official version may name one of its
+ * own (a laddered room — 规程's solo plays mode_single_1…20 and 极速模拟 — keeps its mode: Lobby.create). Its version host
+ * checks that mode against the version's data (Match: "mode … is unavailable"); here only its shape (rel40, 2026-11-16).
+ */
+function assignmentModeId(spec) {
+  if (spec.version === undefined) return spec.modeId === modeIdFor(spec.mode, spec.difficulty);
+  return typeof spec.modeId === 'string' && /^mode_[a-z0-9_]{1,40}$/.test(spec.modeId);
+}
+
 export function copyAssignmentSpec(input, fallbackAssignmentId) {
   const spec = dataRecord(input, SPEC_KEYS);
   if (spec.assignmentId == null && fallbackAssignmentId !== undefined) spec.assignmentId = fallbackAssignmentId;
@@ -114,7 +124,7 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
     || typeof spec.roomCode !== 'string' || !/^[A-Z]{4}(?![\s\S])/.test(spec.roomCode)
     || !integer(spec.protocol, 1) || !integer(spec.seed, 0, 0xffffffff) || !integer(spec.matchNo, 1)
     || !['solo', 'coop'].includes(spec.mode) || !DIFFICULTIES.includes(spec.difficulty)
-    || spec.modeId !== modeIdFor(spec.mode, spec.difficulty)
+    || !assignmentModeId(spec)
     || (spec.revivalEnabled !== undefined && typeof spec.revivalEnabled !== 'boolean')
     || (spec.disableSharedPool !== undefined && typeof spec.disableSharedPool !== 'boolean')
     || (spec.aiPicksLast !== undefined && typeof spec.aiPicksLast !== 'boolean')

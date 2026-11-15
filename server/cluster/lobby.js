@@ -45,7 +45,10 @@ const takenOverField = (seats, spectators) => {
 function matchDTO(room, seed, snapshotHz) {
   const spectators = room.spectators.map(s => s.playerId);
   return {
-    roomCode: room.code, mode: room.mode, difficulty: room.difficulty, modeId: modeIdFor(room.mode, room.difficulty),
+    roomCode: room.code, mode: room.mode, difficulty: room.difficulty,
+    // the match's mode as Lobby.createMatch names it (a plugin mode, a laddered room's official mode — 规程's solo:
+    // mode_single_<level> — else the difficulty's): createMatch refuses an assignment whose options differ (rel40)
+    modeId: room.content?.modeId || room.modeId || modeIdFor(room.mode, room.difficulty),
     revivalEnabled: room.revivalState().enabled, disableSharedPool: room.experimental.disableSharedPool,
     experimental: room.experimental, aiPicksLast: room.mode !== 'solo' && room.aiPicksLast === true, seed, matchNo: room.matchCount + 1,
     seats: room.seats.filter(Boolean).map(s => ({ seat: s.seat, playerId: s.playerId, name: s.name,
