@@ -2,6 +2,16 @@ local cjson = require "cjson.safe"
 local key = "ark_material_lb_20261006_model60_v3"
 local modelscope_bases = __MATERIAL_LB_MODELSCOPE_BASES__
 local openi_only = __MATERIAL_LB_OPENI_ONLY__
+-- ModelScope-only areas (prepare-material-lb.py MODELSCOPE_ONLY_*; {} unless this profile declares such paths).
+local modelscope_only_prefixes = __MATERIAL_LB_MODELSCOPE_ONLY_PREFIXES__
+local modelscope_only_exact = __MATERIAL_LB_MODELSCOPE_ONLY_EXACT__
+local function modelscope_only_allowed(value)
+    if modelscope_only_exact[value] then return true end
+    for _, prefix in ipairs(modelscope_only_prefixes) do
+        if value:sub(1, #prefix) == prefix then return true end
+    end
+    return false
+end
 local extensions = { png = true, jpg = true, jpeg = true, webp = true, gif = true,
     atlas = true, skel = true, obj = true, mtl = true, json = true, bin = true,
     mp3 = true, m4a = true, aac = true, ogg = true, oga = true, opus = true, wav = true }
@@ -39,7 +49,8 @@ local function valid_data(value)
         or type(value.paths) ~= "table" or value.openiWeight ~= __MATERIAL_LB_OPENI_WEIGHT__
         or value.modelscopeWeight ~= __MATERIAL_LB_MODELSCOPE_WEIGHT__ or value.ningxiaWeight ~= 0 then return false end
     local fields = { schemaVersion = true, release = true, fallbackBase = true, modelscopeBase = true,
-        modelscopeBases = true, paths = true, openiWeight = true, modelscopeWeight = true, ningxiaWeight = true }
+        modelscopeBases = true, paths = true, openiWeight = true, modelscopeWeight = true, ningxiaWeight = true,
+        modelscopeOnly = true }
     for field in pairs(value) do if not fields[field] then return false end end
     if #modelscope_bases == 1 then
         if value.modelscopeBases ~= nil then return false end
@@ -50,9 +61,20 @@ local function valid_data(value)
         end
     end
     for alias in pairs(openi_only) do if value.paths[alias] ~= false then return false end end
+    -- ModelScope-only aliases: a non-empty set inside the reviewed areas, each with a pinned ModelScope target.
+    local modelscope_only = value.modelscopeOnly
+    if modelscope_only ~= nil then
+        if type(modelscope_only) ~= "table" or next(modelscope_only) == nil then return false end
+        for alias, flag in pairs(modelscope_only) do
+            if flag ~= true or type(alias) ~= "string" or not public_path(alias) or alias:sub(1, 7) == "/media/"
+                or not modelscope_only_allowed(alias) or openi_only[alias] then return false end
+        end
+    end
     local count = 0
     for alias, target in pairs(value.paths) do
         if not public_path(alias) then return false end
+        -- Nothing inside a ModelScope-only area may fall back to OpenI: every such alias is declared ModelScope-only.
+        if modelscope_only_allowed(alias) and not (modelscope_only and modelscope_only[alias] == true) then return false end
         if openi_only[alias] then
             if target ~= false then return false end
         elseif not model_target_allowed(target) then return false end
@@ -105,6 +127,46 @@ if model_target == nil then return ngx.exit(404) end
 if openi_only[path] then
     if model_target ~= false then return ngx.exit(500) end
 elseif not model_target_allowed(model_target) then return ngx.exit(500) end
+local function signer()
+    -- Optional signed profile (mssign.lua), loaded once per worker.
+    local signer_file = __MATERIAL_LB_SIGNER__
+    local module = signer_file and package.loaded[signer_file]
+    if signer_file and module == nil then
+        local ok, loaded = pcall(dofile, signer_file)
+        module = ok and type(loaded) == "table" and loaded or false
+        package.loaded[signer_file] = module
+    end
+    return module
+end
+if db.modelscopeOnly ~= nil and db.modelscopeOnly[path] == true then
+    -- ModelScope-only material (联动, 可露希尔; MATERIAL-SOURCES.md): a signed CDN redirect of the private dataset or
+    -- nothing. Never OpenI, the static fallback or the unsigned resolve URL; HEAD and the OpenI retry find nothing.
+    if force_openi or method == "HEAD" then return ngx.exit(404) end
+    if method == "OPTIONS" then
+        ngx.header["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        ngx.header["Access-Control-Allow-Headers"] = "Range, If-Range, If-None-Match, If-Modified-Since"
+        return ngx.exit(204)
+    end
+    ngx.ctx.material_lb_known = true
+    ngx.ctx.material_lb_path = path
+    ngx.ctx.material_lb_selected = "modelscope"
+    local module = signer()
+    if module then
+        local ok, location, ts = pcall(module.location, model_target)
+        if ok and location then
+            ngx.ctx.material_lb_ms_location = location
+            ngx.ctx.material_lb_ms_max_age = module.max_age(ts)
+            return ngx.redirect(location, 302)
+        end
+    end
+    -- Not signed (cold, cooling down, no signer): a 503 the browser does not keep. Sent here, not by ngx.exit(503), so
+    -- no error_page of the location (asset-resolver-location.conf maps 5xx to the static fallback) can redirect it.
+    ngx.status = 503
+    ngx.header["Cache-Control"] = "no-store"
+    ngx.header["Content-Length"] = 0
+    ngx.send_headers()
+    return ngx.exit(ngx.HTTP_OK)
+end
 if method == "OPTIONS" then return end
 
 ngx.ctx.material_lb_known = true
@@ -129,25 +191,19 @@ if not number then return ngx.exit(500) end
 if model_target ~= false and number < __MATERIAL_LB_MODELSCOPE_BOUNDARY__ then
     ngx.ctx.material_lb_selected = "modelscope"
     -- Optional signed profile (mssign.lua): one redirect straight to the CDN.
-    local signer_file = __MATERIAL_LB_SIGNER__
-    local signer = signer_file and package.loaded[signer_file]
-    if signer_file and signer == nil then
-        local ok, module = pcall(dofile, signer_file)
-        signer = ok and type(module) == "table" and module or false
-        package.loaded[signer_file] = signer
-    end
-    if signer then
-        local ok, location, ts = pcall(signer.location, model_target)
+    local module = signer()
+    if module then
+        local ok, location, ts = pcall(module.location, model_target)
         if ok and location then
             ngx.ctx.material_lb_ms_location = location
-            ngx.ctx.material_lb_ms_max_age = signer.max_age(ts)
+            ngx.ctx.material_lb_ms_max_age = module.max_age(ts)
             return ngx.redirect(location, 302)
         end
     end
     -- Unsigned profile: the public resolve URL. A signed profile that could not sign (cold, cooling down, signer
     -- missing) sends the request to OpenI instead: the dataset is private since 2026-10-18, so its resolve URL
     -- needs a login that only the signer carries (mssign-server.conf).
-    if not signer_file then return ngx.redirect(model_target, 302) end
+    if module == nil then return ngx.redirect(model_target, 302) end
 end
 ngx.ctx.material_lb_selected = "openi"
 -- Continue through the unchanged OpenI proxy and its existing failure fallback.

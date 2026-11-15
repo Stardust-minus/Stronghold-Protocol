@@ -62,6 +62,6 @@ MP3 远端名映射为 `media/<stem>`，不带扩展名；所有对应的 `/asse
 
 ## 多源与验证边界
 
-公开材料消费者限额为150000 aliases／64MiB输入，OpenI最多五个明确审核、固定且去重的mirror目录（保持旧单／双／三／四mirror兼容，拒绝第六个）；新增供给为已有两目录之外的固定0.2.3增量目录、0.2.5战场场景增量目录（维护者2026-10-12决定开第四个目录）和0.3.0素材增量目录（2026-10-16随0.3.0官方特效/配音/场景开第五个目录，alias上限同时从100000提到150000），不授权自动发现或扩容。ModelScope上限为九个明确批准的prefix（rel22 增加第九个）。唯一批准的素材例外为 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 的OpenI-only供给；不通过改名重传或旧pin绕过provider限制，也不泛化其他例外。
+公开材料消费者限额为150000 aliases／64MiB输入，OpenI最多五个明确审核、固定且去重的mirror目录（保持旧单／双／三／四mirror兼容，拒绝第六个）；新增供给为已有两目录之外的固定0.2.3增量目录、0.2.5战场场景增量目录（维护者2026-10-12决定开第四个目录）和0.3.0素材增量目录（2026-10-16随0.3.0官方特效/配音/场景开第五个目录，alias上限同时从100000提到150000），不授权自动发现或扩容。ModelScope上限为九个明确批准的prefix（rel22 增加第九个）。批准的OpenI-only素材例外只有 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 一条；反方向有固定的ModelScope专用区域（联动包、`ac_s_closur` 主题及其12张外层UI、`themes/summary.json`），它们永不进入OpenI库存或上传stage（MATERIAL-SOURCES.md）。不通过改名重传或旧pin绕过provider限制，也不泛化其他例外。
 
 不能把ModelScope CDN `auth_key` 的签发时间当OpenI `Expires`，或套用固定TTL。未签名profile只302到稳定、40hex revision-pinned的ModelScope resolve入口，不保存或自行解释临时CDN链接；签名profile的CDN签名地址见[MATERIAL-SOURCES.md](MATERIAL-SOURCES.md)。metadata库存核验、远端正文抽样、完整正文重下载和浏览器验收须分别记录；这些不自动构成密码输入、玩法或容量验收，也不能保证任意下游CDN错误自动回退。

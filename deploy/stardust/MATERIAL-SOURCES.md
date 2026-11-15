@@ -5,18 +5,25 @@
 ## 离线工具的安全合同
 - `prepare-material-lb.py` 输出固定小型 `access.lua`／`header.lua` 和 `routes.json`／`header-data.json`（`--signed-ttl` 时另加 `mssign.lua`、`sign.lua`、`sign-location.conf`），以及供 nginx master 预加载库存的 `preload.lua`（见[下文](#master-预加载preloadlua)）；**不再把全量库存编译为 Lua 表**。大型 Lua 表可能触发 LuaJIT 常量上限，`nginx -t` 不能证明运行时filter可执行。必须用实际全量尺寸执行 JSON 解码、缓存和 HTTP filter。
 - 默认单前缀、无例外及原 60/40 行为保留；新版本要同时指定 release、40hex revision、primary prefix；公开材料消费者上限为150000 aliases／64MiB输入（0.3.0官方特效与韩语/本土语言配音使库存约13万alias），OpenI最多五个明确审核、固定且去重的mirror目录，保持单／双／三／四目录兼容并拒绝第六个；已有两目录之外只增加固定0.2.3增量目录、0.2.5战场场景增量目录和0.3.0素材增量目录，不提供自动发现或任意host/root/path。ModelScope上限为九个明确批准的prefix（rel22 增加第九个）。多前缀以重复 `--modelscope-allowed-prefix` 明示，清单 `prefixes` 必须同序、去重且 primary 在首位；所有 URL 均绑定同一个 revision 和固定公开 repo/origin。
-- `--openi-only-path` 仅允许 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 这一精确批准的素材例外，且必须与 MS 清单 `openiOnlyPaths` 一致、存在于 OI 库存。MS alias 集合必须正好为 OI 集合减该例外；普通条目的 bytes／SHA／MIME 逐项一致。未知根字段、额外缺项、其他例外或未认可前缀均拒绝。
+- `--openi-only-path` 仅允许 `/assets/skins/char_340_shwaz_snow_1/illustration.png` 这一精确批准的素材例外，且必须与 MS 清单 `openiOnlyPaths` 一致、存在于 OI 库存。MS alias 集合必须正好为 OI 集合减该例外、再加下条的 ModelScope 专用路径；普通条目的 bytes／SHA／MIME 逐项一致。未知根字段、额外缺项、其他例外或未认可前缀均拒绝。
 - 例外在 routes 中保留为 `false`，只允许该已明示路径直接进入 OI；未知路径的 `nil` 仍拒绝。例外的 header entry 不包含 ModelScope target，因此伪造 MS Location 不能得到公开缓存。JSON 每个 worker 只读取／解码一次（装了 `preload.lua` 则由 master 每次启动／reload 做一次），错误数据也缓存为拒绝，避免重复解析大文件。
+- ModelScope 专用路径（维护者 2026-11-15）：只允许固定审核的区域——`/assets/collab/`、`/assets/local/themes/ac_s_closur/`、可露希尔的 12 张 `/assets/local/ui/outer/` 图和 `/assets/local/themes/summary.json`（`MODELSCOPE_ONLY_*`）。
+  - MS 清单列出 `modelscopeOnlyPaths`（排序、去重），同时给 `--modelscope-only`；二者缺一即拒绝。必须是签名 profile（`--signed-ttl`）：数据集私有，未签名的 resolve 地址打不开。
+  - 这些区域里的 alias 一条也不能出现在 OI 库存里（声明与否都拒绝），专用路径与 OI 不相交；alias 总数（OI + 专用）仍受 150000 上限。
+  - routes 里它们是普通 ModelScope target，另加 `modelscopeOnly` 集合；header entry 只有 `modelscope`，没有 OpenI `fileName`。Lua 加载时复核：区域里的 alias 必须都被声明为专用，否则整个库存无效。
+  - 请求时：GET 只发签名 CDN 302；签不出来（冷启动、冷却、无 signer）直接回 503 `no-store`——由 access 阶段自己发出，所以 location 里把 5xx 交给静态回退的 `error_page` 不会把它变成跳转；`?sp_source=openi` 和 HEAD 回 404；OPTIONS 在 access 阶段回 204。永远不进 OpenI resolver、静态回退源或未签名 resolve 地址。`header.lua` 对它们只认可本次签出的 CDN Location。批量签名（`sign.lua`）照常签它们。
 - `uploadVerified=true` 仍要求真实 assigned 远端库存证据，不是执行上传命令成功；复用固定 pin 的完整 metadata 审计与全量正文重下载须分别表述。镜像数量限制、私有门禁、签名寿命、CORS、HEAD／OPTIONS／回退合同没有放宽。
 
-准备、远端供给核验和正式切换必须分别授权。离线输出不自动安装入口profile、重建resolver或重启游戏。公开素材的唯一例外不授权改名重传、借旧pin绕过provider限制，或增加其他例外。
+准备、远端供给核验和正式切换必须分别授权。离线输出不自动安装入口profile、重建resolver或重启游戏。公开素材的这两类例外（一条 OpenI-only、固定的 ModelScope 专用区域）不授权改名重传、借旧pin绕过provider限制，或增加其他例外。
 
 ## 联动素材包（`/assets/collab/`）
 
 联动干员（2026-11-02）的立绘、语音、模型只放在 `public/assets/collab/` 下，清单是 `data/assets-collab.json`（[docs/ASSETS.md](../../docs/ASSETS.md#the-collab-pack)）。发布时：
 
 1. 发布前在仓库里运行 `node tools/collab-assets.mjs --check`：清单没有包外 URL、文件齐全、`data/assets.json` 不含联动干员、普通官方特效索引不含联动干员；联动官方特效在 `assets/collab/local/fx/`，清单 `data/local-fx-collab.json` 与 `data/local-fx.json` 一样是本机文件（不进 Git），随联动包一起发布。
-2. 普通素材 profile 的库存与上传排除 `assets/collab/**`。联动包不上传 ModelScope 或 OpenI，也不建 material profile：`/assets/collab/` 只由入口本机的静态目录供给（入口 vhost 须为该前缀单独设本机 location；它不进任何 material-lb 库存），与普通素材分别授权、发布。
+2. 联动包不进 OpenI（库存与上传 stage 都排除 `assets/collab/**`）。从 0.4（2026-11-15，维护者「联动素材也放到 modelscope」）起它上传到私有 ModelScope 数据集，作为 profile 的 ModelScope 专用路径（上文）供给；以前的入口本机目录只用于还没有带联动的 profile。
+   - 入口 vhost 的 `location ^~ /assets/collab/` 保留门禁（不加 `auth_request off`，联动包只给开了联动干员的房间），从 `alias` 改为运行该 profile 的 `access.lua`／`header.lua`，不接 resolver，content 阶段兜底 404。
+   - 签不出来时联动干员显示占位图，与包载不进来时一样。
 3. `/data/assets-collab.json` 随游戏数据发布。
 4. 联动包只在房主开启联动干员的房间里被请求，流量与普通 profile 分开计。
 
@@ -66,7 +73,7 @@ OpenI目标只接受原Signature V2字段与固定HTTP wrapper `sp_request=cors|
 
 ## Browser failure selector
 
-浏览器只有在公开素材加载失败后才追加一次 `?sp_source=openi`，并从原始本站 alias 发起新请求，绕过已缓存的普通分流 302。`access.lua` 仅接受无查询或这一精确单字段：重复字段、未知字段、其他 source 值、编码变体及空查询均404；已知 alias、safe raw path、方法、同release清单检查仍先行。GET 强制继续现有 OpenI proxy，不改变正常请求的权重或 OpenI-only 例外；HEAD 仍同版本静态回退，OPTIONS 仍原 resolver，其他方法405。选择标记不转发为签名字段，也不能指定任意 URL、provider、镜像目录或版本。
+浏览器只有在公开素材加载失败后才追加一次 `?sp_source=openi`，并从原始本站 alias 发起新请求，绕过已缓存的普通分流 302。`access.lua` 仅接受无查询或这一精确单字段：重复字段、未知字段、其他 source 值、编码变体及空查询均404；已知 alias、safe raw path、方法、同release清单检查仍先行。GET 强制继续现有 OpenI proxy，不改变正常请求的权重或 OpenI-only 例外；HEAD 仍同版本静态回退，OPTIONS 仍原 resolver，其他方法405。ModelScope 专用路径例外：强制请求与 HEAD 都 404（见上文）。选择标记不转发为签名字段，也不能指定任意 URL、provider、镜像目录或版本。
 
 `header.lua` 对强制请求只认可匹配清单的 OpenI/同版本静态回退目标，误回 ModelScope 的 Location 不获得公开短缓存。现有 CORS/Vary 和签名TTL边界保留。不同请求 URL 隔离普通分流与强制跳转的缓存；不加随机 cache-buster，不公开临时签名或把素材正文转发经过游戏节点。
 

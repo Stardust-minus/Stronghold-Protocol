@@ -1020,10 +1020,11 @@ warning (docs/EXPERIMENTAL-MULTIPLAYER.md), so they never ship with the normal p
   manifests name is always copied). `tools/fetch-assets.mjs` plans the normal pack without the collab operators
   (`presentationUnion(…, { collab: false })`); the coverage audit (`tools/assets/coverage.mjs`) reads the normal manifest
   with the pack laid over it.
-- **Release**: the normal material profile is built from `public/assets/` without `collab/`. The collab pack is never
-  uploaded to ModelScope or OpenI and has no material profile: `/assets/collab/` is served only from the entry host's
-  local directory, checked with `node tools/collab-assets.mjs --check` (deploy/stardust/MATERIAL-SOURCES.md "联动素材包"),
-  and `data/assets-collab.json` ships with the data.
+- **Release**: the public (OpenI) inventory is built from `public/assets/` without `collab/`; the collab pack never goes
+  to OpenI. Since 0.4 (2026-11-15) it is uploaded to the private ModelScope dataset and served as the profile's
+  ModelScope-only paths (signed CDN redirects only, never an OpenI fallback; the entry's gated `/assets/collab/` location
+  runs the profile's Lua instead of a local directory). Check it with `node tools/collab-assets.mjs --check`
+  (deploy/stardust/MATERIAL-SOURCES.md "联动素材包"); `data/assets-collab.json` ships with the data.
 - **Summons**: 艾拉's 雷鸣地雷 (`token_10033_ela_grzmot`, a device on its tile) has the local client's model, which no dump
   carries: exported like the TOKEN_SPINES (`extract.py export_token_spines`, metadata by `tools/assets/spine.mjs
   localSpineMeta`) into a scratch folder and given to the pack as a plain `tokens[id].spine` (its own

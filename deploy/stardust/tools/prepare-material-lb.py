@@ -5,6 +5,8 @@ ModelScope share 60 (default, 60/40 with OpenI) or 100; optional --signed-ttl ad
 and the batch signer sign.lua + sign-location.conf (POST /material-sign, public/sw.js; MATERIAL-SOURCES.md).
 preload.lua loads the inventories once in the nginx master (init_by_lua, MATERIAL-SOURCES.md); access.lua/header.lua
 keep loading them lazily per worker when it is not installed.
+--modelscope-only accepts the ModelScope manifest's modelscopeOnlyPaths (fixed reviewed areas, signed profile only): those
+aliases have no OpenI object and are answered by a signed CDN redirect or 503, never OpenI (MATERIAL-SOURCES.md).
 """
 
 import argparse
@@ -30,6 +32,14 @@ TEMPLATES = Path(__file__).resolve().parent.parent / 'material-lb'
 ENTRY_KEYS = {'requestPath', 'fileName', 'bytes', 'sha256', 'mime'}
 RELEASE_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}')
 OPENI_ONLY_ALLOWLIST = frozenset({'/assets/skins/char_340_shwaz_snow_1/illustration.png'})
+# ModelScope-only material (MATERIAL-SOURCES.md, the maintainer 2026-11-15): never in the public OpenI inventory, served only
+# by signed CDN redirects of the private dataset — the 联动 pack, the privately played 可露希尔 theme, its 12 outer-UI
+# images and the theme summary that names it. Fixed and reviewed like the OpenI-only exception: a profile may declare
+# ModelScope-only paths only inside these, and no OpenI alias may sit inside them.
+MODELSCOPE_ONLY_PREFIXES = ('/assets/collab/', '/assets/local/themes/ac_s_closur/')
+MODELSCOPE_ONLY_EXACT = frozenset({'/assets/local/themes/summary.json'} | {
+    '/assets/local/ui/outer/' + name + '.png' for name in (
+        'background_pre_closur', 'skin_pre_closur', 'thumbnail_ac_s_closur', *('closur_%d' % i for i in range(1, 10)))})
 MAX_MODEL_PREFIXES = 9
 MAX_OPENI_MIRRORS = 5
 MAX_ENTRIES = 150000
@@ -39,7 +49,7 @@ OPENI_MANIFEST_KEYS = {'schemaVersion', 'release', 'fallbackBase', 'dataset', 'a
                        'ossOrigin', 'ossPathPrefix', 'entries', 'mirrorReleases'}
 MODEL_MANIFEST_KEYS = {'schemaVersion', 'release', 'fallbackBase', 'repo', 'revision', 'prefix',
                        'apiOrigin', 'deliveryStrategy', 'uploadVerified', 'entries', 'mirrorReleases',
-                       'prefixes', 'openiOnlyPaths'}
+                       'prefixes', 'openiOnlyPaths', 'modelscopeOnlyPaths'}
 # preload.lua runs these regions of the rendered access.lua/header.lua verbatim (first and last line of each), so the
 # master preload and the lazy per-worker loader share their keys, file paths, validation and cached `false`.
 CJSON = 'local cjson = require "cjson.safe"\n'
@@ -51,6 +61,10 @@ HEADER_LOADER = ((CJSON, CJSON), ('local function decode(value, plus)\n', '    r
 def model_prefix_pin(value):
     return isinstance(value, str) and value.startswith('releases/') and bool(
         RELEASE_ID.fullmatch(value[len('releases/'):]))
+
+
+def modelscope_only_allowed(path):
+    return path in MODELSCOPE_ONLY_EXACT or any(path.startswith(prefix) for prefix in MODELSCOPE_ONLY_PREFIXES)
 
 
 def require(condition, message):
@@ -114,7 +128,7 @@ def loader(source, regions):
 
 
 def render(openi, models, container_dir, *, release=RELEASE, model_revision=MODEL_REVISION, model_prefix=MODEL_PREFIX,
-           model_prefixes=None, openi_only_paths=(), modelscope_weight=60, signed_ttl=None):
+           model_prefixes=None, openi_only_paths=(), modelscope_weight=60, signed_ttl=None, modelscope_only=False):
     require(isinstance(openi, dict) and isinstance(models, dict), 'manifests must be objects')
     require(set(openi) <= OPENI_MANIFEST_KEYS and set(models) <= MODEL_MANIFEST_KEYS, 'unknown manifest fields')
     require(isinstance(release, str) and RELEASE_ID.fullmatch(release), 'invalid release pin')
@@ -133,6 +147,15 @@ def render(openi, models, container_dir, *, release=RELEASE, model_revision=MODE
             SIGNED_TTL_RANGE[0] <= signed_ttl <= SIGNED_TTL_RANGE[1]), 'invalid signed TTL')
     require(models.get('prefixes', [model_prefix]) == list(prefixes), 'ModelScope prefix declarations differ')
     require(models.get('openiOnlyPaths', []) == list(openi_only_paths), 'OpenI-only declarations differ')
+    ms_only_paths = models.get('modelscopeOnlyPaths', [])
+    require(isinstance(ms_only_paths, list) and all(isinstance(path, str) for path in ms_only_paths) and
+            ms_only_paths == sorted(set(ms_only_paths)), 'invalid ModelScope-only declaration')
+    # Explicit on both sides, like the OpenI-only exception: the option and a non-empty declaration, or neither.
+    require(type(modelscope_only) is bool and modelscope_only == bool(ms_only_paths), 'ModelScope-only declarations differ')
+    require(all(public_path(path) and not path.startswith('/media/') and modelscope_only_allowed(path)
+                for path in ms_only_paths), 'unapproved ModelScope-only path')
+    # The dataset is private: an unsigned resolve URL needs a login, so only a signed profile can serve these at all.
+    require(not ms_only_paths or signed_ttl is not None, 'ModelScope-only paths require signed redirects')
     fallback = FALLBACK_ORIGIN + '/releases/' + release
     resolve_base = 'https://modelscope.cn/datasets/' + MODEL_REPO + '/resolve/' + model_revision + '/'
     model_bases = [resolve_base + pin + '/' for pin in prefixes]
@@ -155,31 +178,47 @@ def render(openi, models, container_dir, *, release=RELEASE, model_revision=MODE
     oi = entries(openi, False, release=release, model_prefix=model_prefix)
     ms = entries(models, True, release=release, model_prefix=model_prefix, model_prefixes=prefixes)
     exceptions = set(openi_only_paths)
+    ms_only = set(ms_only_paths)
     require(exceptions <= set(oi), 'OpenI-only alias missing from OpenI inventory')
-    require(set(ms) == set(oi) - exceptions, 'alias inventories differ')
+    # ModelScope-only material never reaches the public inventory, declared or not.
+    require(not any(modelscope_only_allowed(path) for path in oi), 'ModelScope-only material in OpenI inventory')
+    require(not ms_only & set(oi), 'ModelScope-only alias also in OpenI inventory')
+    require(set(ms) == (set(oi) - exceptions) | ms_only, 'alias inventories differ')
+    require(len(oi) + len(ms_only) <= MAX_ENTRIES, 'invalid entry count')
     for path, row in ms.items():
-        require(all(row[k] == oi[path][k] for k in ('bytes', 'sha256', 'mime')), 'alias bytes differ')
+        require(path in ms_only or all(row[k] == oi[path][k] for k in ('bytes', 'sha256', 'mime')), 'alias bytes differ')
     urls = {p: resolve_base + '/'.join(quote(segment, safe='') for segment in row['fileName'].split('/'))
             for p, row in ms.items()}
     require(all(any(url.startswith(base) for base in model_bases) for url in urls.values()), 'invalid ModelScope target')
     paths = {path: False if path in exceptions else urls[path] for path in oi}
+    paths.update((path, urls[path]) for path in ms_only_paths)
     data = {'schemaVersion': 2, 'release': release, 'fallbackBase': fallback, 'modelscopeBase': model_base,
             'openiWeight': 100 - modelscope_weight, 'modelscopeWeight': modelscope_weight, 'ningxiaWeight': 0, 'paths': paths}
     if len(model_bases) > 1:
         data['modelscopeBases'] = model_bases
+    if ms_only_paths:
+        data['modelscopeOnly'] = {path: True for path in ms_only_paths}
     q = lambda value: json.dumps(value, ensure_ascii=True)
     lua_bases = '{' + ', '.join(q(base) for base in model_bases) + '}'
     lua_exceptions = '{' + ', '.join('[' + q(path) + '] = true' for path in openi_only_paths) + '}'
+    # The reviewed ModelScope-only areas, rendered only into a profile that declares such paths ({} otherwise).
+    lua_ms_only_prefixes = '{' + ', '.join(q(prefix) for prefix in MODELSCOPE_ONLY_PREFIXES) + '}' if ms_only_paths else '{}'
+    lua_ms_only_exact = '{' + ', '.join('[' + q(path) + '] = true' for path in sorted(MODELSCOPE_ONLY_EXACT)) + '}' \
+        if ms_only_paths else '{}'
     header_data = {'fallback_base': fallback, 'oss_authority': OSS_ORIGIN.removeprefix('https://'),
                    'oss_path_prefix': prefix, 'entries': {
                        path: {'fileName': row['fileName'], **({} if path in exceptions else {'modelscope': urls[path]})}
                        for path, row in oi.items()}}
+    # A ModelScope-only alias has no OpenI object: its entry is the pinned ModelScope target alone.
+    header_data['entries'].update((path, {'modelscope': urls[path]}) for path in ms_only_paths)
     access = (TEMPLATES / 'access.lua').read_text().replace('__MATERIAL_LB_DATA__', container_dir + '/routes.json')
     access = access.replace('"' + RELEASE + '"', q(release)).replace('"' + FALLBACK + '"', q(fallback)).replace('"' + MODEL_BASE + '"', q(model_base))
     access_key = 'ark_material_lb_' + container_dir[len(CONTAINER_PREFIX):].replace('-', '_')
     access = access.replace('"ark_material_lb_20261006_model60_v3"', q(access_key))
     access = access.replace('__MATERIAL_LB_MODELSCOPE_BASES__', lua_bases).replace(
         '__MATERIAL_LB_OPENI_ONLY__', lua_exceptions).replace('__MATERIAL_LB_MAX_ENTRIES__', str(MAX_ENTRIES))
+    access = access.replace('__MATERIAL_LB_MODELSCOPE_ONLY_PREFIXES__', lua_ms_only_prefixes).replace(
+        '__MATERIAL_LB_MODELSCOPE_ONLY_EXACT__', lua_ms_only_exact)
     access = access.replace('__MATERIAL_LB_OPENI_WEIGHT__', str(100 - modelscope_weight)).replace(
         '__MATERIAL_LB_MODELSCOPE_WEIGHT__', str(modelscope_weight)).replace(
         '__MATERIAL_LB_MODELSCOPE_BOUNDARY__', str(round(modelscope_weight * 2 ** 32 / 100)))
@@ -190,6 +229,8 @@ def render(openi, models, container_dir, *, release=RELEASE, model_revision=MODE
     header = header.replace('"' + FALLBACK + '"', q(fallback)).replace(
         '__MATERIAL_LB_MODELSCOPE_BASES__', lua_bases).replace('__MATERIAL_LB_OPENI_ONLY__', lua_exceptions)
     header = header.replace('__MATERIAL_LB_MAX_ENTRIES__', str(MAX_ENTRIES))
+    header = header.replace('__MATERIAL_LB_MODELSCOPE_ONLY_PREFIXES__', lua_ms_only_prefixes).replace(
+        '__MATERIAL_LB_MODELSCOPE_ONLY_EXACT__', lua_ms_only_exact)
     header = header.replace('__MATERIAL_LB_OSS_PATH_PREFIX__', q(prefix)).replace(
         '__MATERIAL_LB_MIRRORS__', '{' + ', '.join('[' + q(mirror) + '] = true'
             for mirror in openi.get('mirrorReleases', [release])) + '}')
@@ -244,6 +285,8 @@ def main():
                         help='percentage of ordinary GETs sent to ModelScope (rest: OpenI)')
     parser.add_argument('--signed-ttl', type=int,
                         help='add mssign.lua: signed CDN redirects, signature validity lower bound in seconds')
+    parser.add_argument('--modelscope-only', action='store_true',
+                        help='accept the manifest modelscopeOnlyPaths (reviewed areas only; signed profile required)')
     args = parser.parse_args()
     try:
         pins = (args.release, args.modelscope_revision, args.modelscope_prefix)
@@ -253,7 +296,7 @@ def main():
         models = json.loads(args.modelscope_manifest.read_text())
         files = render(openi, models, args.container_dir, model_prefixes=args.model_prefixes,
                        openi_only_paths=args.openi_only_paths, modelscope_weight=args.modelscope_weight,
-                       signed_ttl=args.signed_ttl, **profile)
+                       signed_ttl=args.signed_ttl, modelscope_only=args.modelscope_only, **profile)
         hashes = write_output(files, args.out)
         print(json.dumps({'prepared': True, 'activated': False, 'out': str(args.out), 'filesSha256': hashes}))
     except (OSError, ValueError, TypeError, KeyError):

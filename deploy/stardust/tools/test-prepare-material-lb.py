@@ -136,6 +136,22 @@ def exception_fixture(full=False, multiple_prefixes=False, count=40000):
     return openi, models, options
 
 
+MS_ONLY = ['/assets/collab/char/avatar/char_1029_yato2.png', '/assets/local/themes/ac_s_closur/voice/cn_001.mp3',
+           '/assets/local/themes/summary.json', '/assets/local/ui/outer/closur_1.png']
+
+
+def ms_only_fixture(paths=MS_ONLY):
+    """A signed full-share profile with the OpenI-only exception and ModelScope-only aliases (no OpenI rows)."""
+    openi, models, options = exception_fixture()
+    for path in paths:
+        mime = 'audio/mpeg' if path.endswith('.mp3') else 'application/json' if path.endswith('.json') else 'image/png'
+        models['entries'].append({'requestPath': path, 'fileName': TOOL.MODEL_PREFIX + path, 'bytes': 9,
+                                  'sha256': 'e' * 64, 'mime': mime})
+    models['modelscopeOnlyPaths'] = sorted(paths)
+    options.update(modelscope_weight=100, signed_ttl=3600, modelscope_only=True)
+    return openi, models, options
+
+
 class PrepareTests(unittest.TestCase):
     @unittest.skipUnless(os.environ.get('MATERIAL_OPENRESTY_RUNTIME'), 'opt-in local OpenResty runtime not supplied')
     def test_force_openi_actual_http(self):
@@ -404,6 +420,124 @@ location /media/ {{ {public} }}
                           if '[error]' in line and 'client intended to send too large body' not in line]
                 self.assertEqual(errors, [])
 
+    @unittest.skipUnless(os.environ.get('MATERIAL_OPENRESTY_RUNTIME'), 'opt-in local OpenResty runtime not supplied')
+    def test_modelscope_only_actual_http(self):
+        runtime = Path(os.environ['MATERIAL_OPENRESTY_RUNTIME'])
+        # the synthetic provider answers 503 for it (the signer cools down); in /assets/, whose 5xx go to the fallback
+        cool = '/assets/local/themes/ac_s_closur/fx/cool.png'
+        openi, models, options = ms_only_fixture(MS_ONLY + [cool])
+        files = TOOL.render(openi, models, CONTAINER, **options)
+        ordinary = '/assets/test/pixel.png'
+        resolve = f"""location = /_ark_ms_resolve {{
+    internal;
+    content_by_lua_block {{
+        local uri = ngx.var.ark_ms_uri
+        if uri:find("cool", 1, true) then return ngx.exit(503) end
+        local hex = ngx.md5(uri)
+        ngx.header["Location"] = "https://cdn-lfs-cn-1.modelscope.cn/prod/lfs-objects/" .. hex:sub(1, 2) .. "/" .. hex:sub(3, 4)
+            .. "/" .. hex .. "?filename=x&namespace=Stardust&repository=arknight-assets&revision={TOOL.MODEL_REVISION}"
+            .. "&auth_key=" .. ngx.time() .. "-0-0-" .. hex
+        return ngx.exit(302)
+    }}
+}}
+location = /_ark_ms_declare {{ internal; set $ark_ms_uri ""; return 404; }}
+location = /_fixture_counts {{ content_by_lua_block {{
+    ngx.say(ngx.shared.fixture:get("content") or 0, " ", ngx.shared.fixture:get("fallback") or 0) }} }}"""
+        # /assets/: the vhost's public location — the OpenI resolver as content phase (synthetic OSS redirect) and,
+        # as in asset-resolver-location.conf, every 5xx mapped to the static fallback. /assets/collab/: the entry's
+        # proposed gated collab location — the same Lua, no resolver, a 404 if anything reached the content phase.
+        content = """content_by_lua_block {
+    ngx.shared.fixture:incr("content", 1, 0)
+    if ngx.req.get_method() == "OPTIONS" then return ngx.exit(204) end
+    ngx.header["Location"] = "https://obs.cn-south-222.ai.pcl.cn/bucket-prefix/object-prefix/x?AWSAccessKeyId=a&Expires="
+        .. math.floor(ngx.now() + 90) .. "&Signature=s"
+    return ngx.exit(302)
+}"""
+
+        def serve(work, routes=None, header_data=None):
+            (work / 'lualib').mkdir(parents=True)
+            shutil.copyfile(runtime / 'openresty/lualib/cjson.so', work / 'lualib/cjson.so')
+            for name, body in files.items():
+                text = body.decode().replace(CONTAINER + '/', str(work) + '/')
+                text = routes if name == 'routes.json' and routes else header_data if name == 'header-data.json' and header_data else text
+                (work / name).write_text(text)
+            lua = f'access_by_lua_file {work}/access.lua;\nheader_filter_by_lua_file {work}/header.lua;'
+            return openresty(runtime, work, f"""lua_shared_dict ark_ms_signed 1m;
+lua_shared_dict ark_ms_lock 1m;
+lua_shared_dict fixture 1m;
+server {{
+listen 127.0.0.1:__PORT__ reuseport;
+{resolve}
+include {work}/sign-location.conf;
+location @fallback {{ content_by_lua_block {{
+    ngx.shared.fixture:incr("fallback", 1, 0)
+    return ngx.redirect("{TOOL.FALLBACK}" .. ngx.var.uri, 302) }} }}
+location ^~ /assets/collab/ {{ {lua}
+content_by_lua_block {{ ngx.shared.fixture:incr("content", 1, 0) return ngx.exit(404) }} }}
+location /assets/ {{ {lua}
+error_page 500 502 503 504 = @fallback;
+{content} }}
+location /media/ {{ {lua}
+error_page 500 502 503 504 = @fallback;
+{content} }}
+}}""")
+
+        with tempfile.TemporaryDirectory(prefix='material-ms-only-') as directory:
+            root = Path(directory)
+            with serve(root / 'profile') as request:
+                counts = lambda: tuple(int(n) for n in request('/_fixture_counts')[2].split())
+                signed = {}
+                for path in MS_ONLY:
+                    status, headers, _ = request(path)
+                    self.assertEqual(status, 302, path)
+                    self.assertTrue(headers['location'].startswith('https://cdn-lfs-cn-1.modelscope.cn/prod/lfs-objects/'), path)
+                    self.assertTrue(re.fullmatch(r'public, max-age=(5[4-9][0-9]|600)', headers['cache-control']), headers['cache-control'])
+                    self.assertEqual(headers['access-control-allow-origin'], '*')
+                    signed[path] = headers['location']
+                    for query, method in (('?sp_source=openi', 'GET'), ('', 'HEAD'), ('?sp_source=modelscope', 'GET')):
+                        status, headers, _ = request(path + query, method)
+                        self.assertEqual((status, headers['cache-control']), (404, 'no-store'), (path, query, method))
+                        self.assertNotIn('location', headers)
+                    status, headers, _ = request(path, 'OPTIONS')
+                    self.assertEqual((status, headers['access-control-allow-methods']), (204, 'GET, OPTIONS'))
+                    self.assertEqual(request(path, 'POST')[0], 405)
+                self.assertEqual(counts(), (0, 0), 'no ModelScope-only request reached OpenI or the static fallback')
+                # the batch signer signs them like any ModelScope alias (public/sw.js), the same cached URLs
+                status, _, body = request('/material-sign', 'POST', body=json.dumps({'paths': MS_ONLY}),
+                                          headers={'Content-Type': 'application/json'})
+                self.assertEqual(status, 200)
+                self.assertEqual({p: v[0] for p, v in json.loads(body)['urls'].items()}, signed)
+                # ordinary aliases unchanged: signed CDN, the OpenI retry through the resolver, HEAD to the static fallback
+                self.assertTrue(request(ordinary)[1]['location'].startswith('https://cdn-lfs-cn-1.modelscope.cn/'))
+                self.assertTrue(request(ordinary + '?sp_source=openi')[1]['location'].startswith(TOOL.OSS_ORIGIN))
+                self.assertEqual(request(ordinary, 'HEAD')[1]['location'], TOOL.FALLBACK + ordinary)
+                self.assertEqual(counts(), (1, 0))
+                # cannot sign (provider 503 -> cooling down): a plain 503, never the fallback the location's error_page
+                # would pick, never OpenI; a URL already signed keeps being served, an ordinary alias goes to OpenI
+                for _ in range(3):
+                    status, headers, body = request(cool)
+                    self.assertEqual((status, headers['cache-control'], body), (503, 'no-store', b''))
+                    self.assertNotIn('location', headers)
+                status, headers, _ = request(MS_ONLY[1])
+                self.assertEqual((status, headers['location']), (302, signed[MS_ONLY[1]]))
+                self.assertTrue(request(ordinary)[1]['location'].startswith('https://cdn-lfs-cn-1.modelscope.cn/'))
+                self.assertEqual(counts(), (1, 0))
+                errors = [line for line in (root / 'profile' / 'error.log').read_text().splitlines() if '[error]' in line]
+                self.assertEqual(errors, [])
+            # An inventory that leaves a ModelScope-only area alias undeclared is invalid as a whole (500, no request
+            # sent anywhere); header data giving one an OpenI object keeps every redirect no-store.
+            routes = json.loads(files['routes.json']); del routes['modelscopeOnly'][MS_ONLY[0]]
+            with serve(root / 'undeclared', routes=json.dumps(routes)) as request:
+                self.assertEqual(request(MS_ONLY[0])[0], 500)
+                self.assertEqual(request(MS_ONLY[2])[0], 302, 'the /assets/ location maps the 500 to the static fallback')
+                self.assertEqual(request(MS_ONLY[2])[1]['location'], TOOL.FALLBACK + MS_ONLY[2])
+            header_data = json.loads(files['header-data.json'])
+            header_data['entries'][MS_ONLY[2]]['fileName'] = 'releases/' + TOOL.RELEASE + MS_ONLY[2]
+            with serve(root / 'header', header_data=json.dumps(header_data)) as request:
+                for path in (MS_ONLY[2], ordinary):
+                    status, headers, _ = request(path)
+                    self.assertEqual((status, headers['cache-control']), (302, 'no-store'))
+
     def test_preload_runs_the_lazy_loaders_verbatim(self):
         openi, models, options = exception_fixture(multiple_prefixes=True)
         profiles = {'default': TOOL.render(*fixture(), CONTAINER),
@@ -619,6 +753,103 @@ location /media/ {{ {public} }}
             models['entries'][0][key] = value
             with self.subTest(normal_key=key):
                 with self.assertRaises(ValueError): TOOL.render(openi, models, CONTAINER, **options)
+
+    def test_modelscope_only_aliases_signed_cdn_only(self):
+        openi, models, options = ms_only_fixture()
+        files = TOOL.render(openi, models, CONTAINER, **options)
+        data, header = json.loads(files['routes.json']), json.loads(files['header-data.json'])
+        self.assertEqual(data['modelscopeOnly'], {path: True for path in MS_ONLY})
+        self.assertEqual(len(data['paths']), len(openi['entries']) + len(MS_ONLY))
+        for path in MS_ONLY:
+            self.assertTrue(data['paths'][path].startswith(TOOL.MODEL_BASE), path)
+            self.assertEqual(header['entries'][path], {'modelscope': data['paths'][path]}, 'no OpenI object')
+        for name, body in files.items():
+            self.assertNotIn(b'__MATERIAL_LB_', body, name)
+        for name in ('access.lua', 'header.lua'):
+            source = files[name].decode()
+            self.assertIn('local modelscope_only_prefixes = {"/assets/collab/", "/assets/local/themes/ac_s_closur/"}\n', source)
+            self.assertIn('["/assets/local/themes/summary.json"] = true', source)
+            self.assertEqual(source.count('["/assets/local/ui/outer/'), 12)
+        # preload and batch signer run the same validation (loader regions)
+        self.assertEqual(files['preload.lua'].decode().count('local function modelscope_only_allowed(value)'), 2)
+        self.assertEqual(files['sign.lua'].decode().count('local function modelscope_only_allowed(value)'), 1)
+        # a profile without them: empty areas, no routes field, everything else as before
+        plain = TOOL.render(*exception_fixture()[:2], CONTAINER, modelscope_weight=100, signed_ttl=3600,
+                            **exception_fixture()[2])
+        self.assertNotIn('modelscopeOnly', json.loads(plain['routes.json']))
+        for name in ('access.lua', 'header.lua'):
+            self.assertIn('local modelscope_only_prefixes = {}\nlocal modelscope_only_exact = {}\n', plain[name].decode())
+
+    def test_modelscope_only_declaration_area_signing_and_disjointness(self):
+        def attempt(change, message, **override):
+            openi, models, options = ms_only_fixture()
+            change(openi, models, options)
+            options.update(override)
+            with self.assertRaisesRegex(ValueError, message): TOOL.render(openi, models, CONTAINER, **options)
+
+        def add(models, path, declare=True):
+            models['entries'].append({'requestPath': path, 'fileName': TOOL.MODEL_PREFIX + path, 'bytes': 9,
+                                      'sha256': 'e' * 64, 'mime': 'image/png'})
+            if declare: models['modelscopeOnlyPaths'] = sorted(models['modelscopeOnlyPaths'] + [path])
+
+        def public(openi, models, path):
+            openi['entries'].append({'requestPath': path, 'fileName': 'releases/' + TOOL.RELEASE + path, 'bytes': 9,
+                                     'sha256': 'e' * 64, 'mime': 'image/png'})
+            add(models, path, declare=False)
+        nothing = lambda openi, models, options: None
+        attempt(nothing, 'declarations differ', modelscope_only=False)
+        attempt(lambda o, m, x: m.pop('modelscopeOnlyPaths'), 'declarations differ')
+        attempt(nothing, 'declarations differ', modelscope_only='yes')
+        attempt(nothing, 'require signed redirects', signed_ttl=None)
+        attempt(lambda o, m, x: add(m, '/assets/char/avatar/char_002_amiya.png'), 'unapproved ModelScope-only path')
+        attempt(lambda o, m, x: add(m, '/assets/local/ui/outer/closur_10.png'), 'unapproved ModelScope-only path')
+        attempt(lambda o, m, x: add(m, '/assets/collab'), 'unapproved ModelScope-only path')
+        attempt(lambda o, m, x: m.update(modelscopeOnlyPaths=list(reversed(MS_ONLY))), 'invalid ModelScope-only declaration')
+        attempt(lambda o, m, x: m.update(modelscopeOnlyPaths=MS_ONLY + MS_ONLY[-1:]), 'invalid ModelScope-only declaration')
+        attempt(lambda o, m, x: m.update(modelscopeOnlyPaths=','.join(MS_ONLY)), 'invalid ModelScope-only declaration')
+        attempt(lambda o, m, x: m['entries'].pop(), 'alias inventories differ')
+        attempt(lambda o, m, x: add(m, '/assets/collab/char/avatar/undeclared.png', declare=False), 'alias inventories differ')
+        # never in the OpenI inventory: declared or not, collab, closur theme, its outer UI and the theme summary
+        for path in ('/assets/collab/x.png', '/assets/local/themes/ac_s_closur/x.png', '/assets/local/ui/outer/closur_9.png'):
+            with self.subTest(path=path):
+                attempt(lambda o, m, x: public(o, m, path), 'ModelScope-only material in OpenI inventory')
+                openi, models = fixture()
+                public(openi, models, path)
+                with self.assertRaisesRegex(ValueError, 'ModelScope-only material in OpenI inventory'):
+                    TOOL.render(openi, models, CONTAINER)
+        attempt(lambda o, m, x: o['entries'].append({**o['entries'][0], 'requestPath': MS_ONLY[2]}),
+                'ModelScope-only material in OpenI inventory')
+        # one bound for the whole alias set
+        openi, models, options = ms_only_fixture()
+        bound = TOOL.MAX_ENTRIES
+        try:
+            TOOL.MAX_ENTRIES = len(models['entries'])
+            with self.assertRaisesRegex(ValueError, 'invalid entry count'): TOOL.render(openi, models, CONTAINER, **options)
+            TOOL.MAX_ENTRIES = len(openi['entries']) + len(MS_ONLY)
+            TOOL.render(openi, models, CONTAINER, **options)
+        finally:
+            TOOL.MAX_ENTRIES = bound
+
+    def test_cli_modelscope_only(self):
+        openi, models, options = ms_only_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            oi, ms = root / 'openi.json', root / 'models.json'
+            oi.write_text(json.dumps(openi))
+            ms.write_text(json.dumps(models))
+            common = [sys.executable, '-I', str(Path(TOOL.__file__)), '--openi-manifest', str(oi),
+                      '--modelscope-manifest', str(ms), '--container-dir', CONTAINER, '--modelscope-weight', '100',
+                      '--openi-only-path', options['openi_only_paths'][0]]
+            accepted = subprocess.run(common + ['--signed-ttl', '3600', '--modelscope-only', '--out', str(root / 'ok')],
+                                      capture_output=True, text=True, check=False)
+            self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+            self.assertEqual(set(json.loads((root / 'ok' / 'routes.json').read_text())['modelscopeOnly']), set(MS_ONLY))
+            for index, flags in enumerate((['--signed-ttl', '3600'], ['--modelscope-only'])):
+                denied = subprocess.run(common + flags + ['--out', str(root / ('rejected-' + str(index)))],
+                                        capture_output=True, text=True, check=False)
+                with self.subTest(flags=flags):
+                    self.assertNotEqual(denied.returncode, 0)
+                    self.assertFalse((root / ('rejected-' + str(index))).exists())
 
     def test_unknown_manifest_fields_rejected(self):
         for provider in (0, 1):

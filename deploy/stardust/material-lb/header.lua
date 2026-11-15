@@ -90,6 +90,16 @@ local function model_object_path(target)
 end
 local oss_path_prefix = __MATERIAL_LB_OSS_PATH_PREFIX__
 local mirrors = __MATERIAL_LB_MIRRORS__
+-- ModelScope-only areas (prepare-material-lb.py MODELSCOPE_ONLY_*; {} unless this profile declares such paths).
+local modelscope_only_prefixes = __MATERIAL_LB_MODELSCOPE_ONLY_PREFIXES__
+local modelscope_only_exact = __MATERIAL_LB_MODELSCOPE_ONLY_EXACT__
+local function modelscope_only_allowed(value)
+    if modelscope_only_exact[value] then return true end
+    for _, prefix in ipairs(modelscope_only_prefixes) do
+        if value:sub(1, #prefix) == prefix then return true end
+    end
+    return false
+end
 local function valid_data(value)
     if not only_fields(value, { fallback_base = true, oss_authority = true, oss_path_prefix = true, entries = true })
         or value.fallback_base ~= fallback_base or value.oss_authority ~= "obs.cn-south-222.ai.pcl.cn"
@@ -97,17 +107,23 @@ local function valid_data(value)
     for alias in pairs(openi_only) do if value.entries[alias] == nil then return false end end
     local count = 0
     for alias, entry in pairs(value.entries) do
-        if not public_path(alias) or not only_fields(entry, { fileName = true, modelscope = true })
-            or not relative(entry.fileName) then return false end
-        local release, object = entry.fileName:match("^releases/([^/]+)/(.+)$")
-        if not mirrors[release] or not public_object("/" .. object)
-            or (alias:sub(1, 7) == "/media/" and object:sub(1, 6) ~= "media/") then return false end
-        if openi_only[alias] then
-            -- An explicitly OpenI-only alias never authorizes any ModelScope redirect.
-            if entry.modelscope ~= nil then return false end
+        if not public_path(alias) or not only_fields(entry, { fileName = true, modelscope = true }) then return false end
+        if modelscope_only_allowed(alias) then
+            -- ModelScope-only (every alias inside such an area): no OpenI object, only its pinned ModelScope target.
+            if entry.fileName ~= nil or alias:sub(1, 7) == "/media/" or openi_only[alias]
+                or not model_object_path(entry.modelscope) then return false end
         else
-            local model_object = model_object_path(entry.modelscope)
-            if not model_object or (alias:sub(1, 7) == "/media/" and model_object:sub(1, 6) ~= "media/") then return false end
+            if not relative(entry.fileName) then return false end
+            local release, object = entry.fileName:match("^releases/([^/]+)/(.+)$")
+            if not mirrors[release] or not public_object("/" .. object)
+                or (alias:sub(1, 7) == "/media/" and object:sub(1, 6) ~= "media/") then return false end
+            if openi_only[alias] then
+                -- An explicitly OpenI-only alias never authorizes any ModelScope redirect.
+                if entry.modelscope ~= nil then return false end
+            else
+                local model_object = model_object_path(entry.modelscope)
+                if not model_object or (alias:sub(1, 7) == "/media/" and model_object:sub(1, 6) ~= "media/") then return false end
+            end
         end
         count = count + 1
         if count > __MATERIAL_LB_MAX_ENTRIES__ then return false end
@@ -144,6 +160,13 @@ local location = header["Location"]
 if type(location) ~= "string" or #location > 8192 or location:find("[%s%z\1-\31\127-\159#]") then return end
 -- A CDN redirect signed by mssign.lua (access phase): cached only until well before its signature ends.
 local signed_age = ngx.ctx.material_lb_ms_max_age
+-- A ModelScope-only alias: that signed CDN redirect is the only Location it may keep (no OpenI, fallback or resolve URL).
+if entry.fileName == nil then
+    if query == nil and signed_age and location == ngx.ctx.material_lb_ms_location then
+        header["Cache-Control"] = signed_age >= 1 and ("public, max-age=" .. signed_age) or "no-store"
+    end
+    return
+end
 if query == nil and entry.modelscope and signed_age and location == ngx.ctx.material_lb_ms_location then
     header["Cache-Control"] = signed_age >= 1 and ("public, max-age=" .. signed_age) or "no-store"
     return
