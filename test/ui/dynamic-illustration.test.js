@@ -123,6 +123,15 @@ test('pixi-spine\'s stale clip (夕「青玉砚」): a setup clip the Idle repla
   assert.deepEqual(fixStaleClips(data, 'Idle'), [], 'idempotent');
 });
 
+test('the 查看立绘 preview\'s markup is balanced: one root (rel27 lost the status line\'s </span>, the preview rendered as two roots and crashed 干员调配 once it loaded, feedback #168)', () => {
+  const src = readFileSync(new URL('../../public/js/ui/dynamicIllustration.js', import.meta.url), 'utf8');
+  for (const tag of ['div', 'span', 'label', 'select']) {
+    const open = (src.match(new RegExp(`<${tag}[\\s>]`, 'g')) || []).length, close = (src.match(new RegExp(`</${tag}>`, 'g')) || []).length;
+    assert.equal(open, close, `<${tag}> opened ${open}, closed ${close}`);
+  }
+  assert.match(src, /<span role="status">[^\n]*<\/span>\n/, 'the status line closes its span');
+});
+
 test('the shared renderer: views packed into pages, none overlapping, none larger than a page; frames advance by real time', () => {
   const sizes = [[480, 960], [200, 200], [200, 200], [120, 240], ...Array.from({ length: 40 }, () => [96, 96]), [5000, 300]].map(([w, h]) => ({ w, h }));
   const pages = packPages(sizes, PAGE);

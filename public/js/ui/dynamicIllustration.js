@@ -231,7 +231,7 @@ function FullIllustration({ entry, staticSrc }) {
       <div class="lo-dynamic__canvas" ref=${host} hidden=${state === 'fallback'}></div>
     </div>
     <div class="lo-dynamic__controls">
-      <span role="status">${state === 'loading' ? t('正在载入动态立绘…') : state === 'fallback' ? t('动态立绘暂不可用，已显示静态立绘') : playing ? t('动态立绘播放中') : t('动态立绘已暂停')}
+      <span role="status">${state === 'loading' ? t('正在载入动态立绘…') : state === 'fallback' ? t('动态立绘暂不可用，已显示静态立绘') : playing ? t('动态立绘播放中') : t('动态立绘已暂停')}</span>
       ${state === 'ready' ? html`<${Button} variant="secondary" size="sm" data-testid="dynamic-pause" onClick=${() => setPlaying(!playing)}>${playing ? t('暂停') : t('播放')}<//>` : null}
       ${state === 'ready' && clips.length > 1 ? html`<label>${t('动作')} <select id="operator-illustration-animation" value=${clip} onChange=${e => setClip(e.currentTarget.value)}>
         ${clips.map(name => html`<option key=${name} value=${name}>${name}</option>`)}
