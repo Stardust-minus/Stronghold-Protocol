@@ -8,7 +8,9 @@ import re
 import stat
 
 INDEX = 'data/local-assets.json'
-LIMIT = 4 * 1024 * 1024
+# A code / data file read for the export. data/assets.json passed 4 MiB on 2026-11-16 (rel43: 4,206,433 B with the 名片-only
+# skins and the 动态立绘 backdrops); 8 MiB, the per-file bound of cluster-private-code.py (MAX_FILE).
+LIMIT = 8 * 1024 * 1024
 # Referenced art: a 0.2.5 battlefield scene.bin reaches 6.5 MB (act2autochess_m01).
 RESOURCE_LIMIT = 16 * 1024 * 1024
 SEGMENT = re.compile(r'[A-Za-z0-9_\[\]-][A-Za-z0-9_.\[\]-]*')
