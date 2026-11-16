@@ -40,7 +40,7 @@ import { isCombatPhase, isBossPhase, prepCapsuleLabel, bossFrac, bossPctText, fm
 import { battleSpeedScale, overtimeState, overtimeDrainPerSec, remainAt, speedVoteState } from './matchStatus.js';
 import { hotkeyLabelOf, useSettings, settingsStore } from './settings.js';
 import { usePrefabPack } from './prefab/view.js';
-import { RegHudBand, RegCountdown, RegReadyFace, packHud, cornerOffset } from './prefab/hud.js';
+import { RegHudBand, RegCountdown, RegReadyFace, packHud, cornerOffset, readyCountPlate } from './prefab/hud.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { uniteRelayRound } from '../battle/observe.js';
 import { UnofficialMark, ruleLine } from './pluginTag.js';
@@ -380,6 +380,7 @@ export function ReadyToggle({ priv, onToggle, busy, readyCount, total, pack = nu
   const why = !ready && (choice || temp.count > 0);
   // 规程 with an official pack: its panel_prep_ready face (ui/prefab/hud.js); the words stay for screen readers
   const face = pack && packHud(pack).ready;
+  const plate = useMemo(() => (face ? readyCountPlate(pack) : null), [pack, face]);
   const btn = html`<button type="button" class=${cx('readybtn', 'tapx', ready && 'is-on', busy && 'is-busy', face && 'readybtn--pf')} disabled=${!!reason || busy}
       aria-pressed=${ready ? 'true' : 'false'} aria-describedby=${why ? 'readywrap-why' : undefined} onClick=${() => onToggle(!ready)}>
     ${face ? html`<${RegReadyFace} pack=${pack} ready=${ready} still=${settingsStill()} />` : html`<span class="readybtn__box">${ready ? html`<${Icon} name="check" />` : null}</span>`}
@@ -392,7 +393,7 @@ export function ReadyToggle({ priv, onToggle, busy, readyCount, total, pack = nu
       <${Icon} name="warn" />${choice ? html`<span>${reason}</span>`
         : data.get('config')?.version?.rules?.equipHand === true ? html`<span>${reason}</span>`
         : html`<span>${tParts('临时整备区 {n} 个单位待处理', { n: html`<b class="num">${temp.count}</b>`, count: temp.count })}</span>`}</span>` : null}
-    ${Number.isFinite(total) && total > 1 ? html`<span class="readywrap__count">${t('已就绪')} <b class="num">${readyCount}</b>/<span class="num">${total}</span></span>` : null}
+    ${Number.isFinite(total) && total > 1 ? html`<span class=${cx('readywrap__count', plate && 'has-plate')} style=${plate}>${t('已就绪')} <b class="num">${readyCount}</b>/<span class="num">${total}</span></span>` : null}
   </div>`;
 }
 

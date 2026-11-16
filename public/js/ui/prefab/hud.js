@@ -224,6 +224,38 @@ export function RegDeadlineCountdown({ pack, deadline = null, total = null, stil
   </div>`;
 }
 
+/**
+ * The plate under the 已就绪 n/m line: the pack's ready-panel player strip (panel_prep_ready … panel_player/bg: a dark bar
+ * fading out at both ends — 卫戍协议终端's 69×41 three-slice, 乌萨斯齐心团's 163×41, 可露希尔's 163×40), the official
+ * backing of the seat list under the ready button. Its caps at half the official size, as the line is about half the strip's
+ * height. Null without one (the hand-made line keeps the CSS plate, game.css .readywrap__count).
+ * @param {any} pack
+ * @returns {Record<string, string> | null}
+ */
+export function readyCountPlate(pack) {
+  const prefab = pack?.doc?.prefabs?.panel_prep_ready;
+  const find = (n, name) => {
+    if (!n) return null;
+    if (n.name === name) return n;
+    for (const c of n.children || []) {
+      const hit = find(c, name);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const strip = find(prefab, 'panel_player');
+  const bg = (strip?.children || []).find((c) => c?.name === 'bg' && c.image?.sprite);
+  const url = bg && typeof pack.sprite === 'function' ? pack.sprite(bg.image.sprite, bg.image.file) : '';
+  if (!url) return null;
+  const slice = bg.image.type === 'sliced' && Array.isArray(bg.image.slice) && bg.image.slice.length === 4 ? bg.image.slice.map((v) => Math.max(0, Number(v) || 0)) : [0, 0, 0, 0];
+  const cap = (v) => `${Number(((v * OFFICIAL_SCALE) / 200).toFixed(4))}rem`;
+  return {
+    '--rc-plate': `url("${url}")`,
+    '--rc-slice': slice.join(' '),
+    '--rc-cap': `0 ${cap(slice[1])} 0 ${cap(slice[3])}`,
+  };
+}
+
 /** Whether a pack draws these pieces. @param {any} pack */
 export function packHud(pack) {
   const p = pack?.doc?.prefabs || {};
