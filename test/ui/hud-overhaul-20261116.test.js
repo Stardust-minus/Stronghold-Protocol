@@ -75,6 +75,7 @@ test('the pack\'s countdown and ready button sit in the top-right corner; the EF
   assert.match(block(read('public/css/screens/game.css'), '.gtop'), /--gtop-pt:\s*\.2rem;\s*--gtop-pr:\s*\.3rem;\s*padding:\s*var\(--gtop-pt\) var\(--gtop-pr\)/);
   assert.match(reg, /\.gtop__clock--pf \{ margin-top: calc\(-1 \* var\(--gtop-pt, \.2rem\)\); margin-right: calc\(-1 \* var\(--gtop-pr, \.3rem\)\); \}/);
   assert.match(reg, /\.gtop--pf ~ \.gm__effects \{ top: 3rem; \}/);
+  assert.match(reg, /\.gtop--pf ~ \.dpanel--right \{ top: 3rem; \}/, 'the right detail card no longer covers the TV and the ready button');
 });
 
 test('a theme\'s 🔍 pictures are the whole button: our frame, icon, ▶▶ and bracket frames step aside, hover keeps the picture', () => {
@@ -90,6 +91,7 @@ test('phones keep the 规程 shop\'s own sizes; the right card ends above it at 
   assert.match(phone, /\.gm \.shopbar\.shopbar--reg \{ max-width: none; \}/);
   assert.match(phone, /\.gm \.shopbar \.scard\.scard--reg \{ width: 1\.55rem; height: 1\.87rem; \}/);
   assert.doesNotMatch(reg, /\.shopbar--reg \.scard \{ width: 1\.2rem; height: 1\.45rem; \}/, 'no shrunken short-screen card');
+  assert.match(phone, /\.gm \.scard\.scard--reg \.scard__name \{ font-size: max\(\.16rem, calc\(11px \* var\(--ui\)\)\) !important; \}/, 'a readable name over the inline prefab size');
   const inset = /\.gm\.gm--reg \.dpanel--right\.is-shop \{ bottom: ([\d.]+)rem; \}/.exec(reg);
   assert.equal(Number(inset?.[1]), PANEL_RIGHT_BOTTOM_SHOP_REG);
   assert.match(read('public/js/ui/shopBar.js'), /--reg-k-min/);
