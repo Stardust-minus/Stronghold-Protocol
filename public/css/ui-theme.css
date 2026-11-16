@@ -32,6 +32,9 @@
 }
 .theme-card__actions { display: flex; flex-wrap: wrap; gap: .06rem; align-items: center; }
 .theme-card__using { font-size: calc(.14 * var(--t)); color: var(--mint-400); }
+/* an official pack still being fetched (ui/themeSettings.js): the spinner where 使用 was, until 使用中 */
+.theme-card__loading { gap: .06rem; }
+.theme-card__loading .spinner__label { font-family: inherit; letter-spacing: normal; text-transform: none; font-size: calc(.14 * var(--t)); color: var(--text-md); }
 .theme-report { margin-top: .1rem; font-size: calc(.14 * var(--t)); color: var(--text-md); line-height: 1.6; overflow-wrap: anywhere; }
 .sp-coarse .theme-page .btn { min-height: var(--tap-min); }
 

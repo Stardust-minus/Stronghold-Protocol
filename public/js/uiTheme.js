@@ -6,6 +6,7 @@
 // session and says so. The choice itself is `settings.uiTheme` (empty = the built-in 卫戍协议终端).
 
 import { openZip, normalizePackPath } from './assetPack.js';
+import { splitHashedPath } from '../../shared/assetPaths.js';
 import {
   BUILTIN_ID, OFFICIAL_PACK_EXT, OFFICIAL_PACK_LIMITS, THEME_LIMITS, applyThemeTo, assessTheme, createVoiceGate,
   emptyCueState, installedOfficialThemes, officialAssetUrl, officialThemeById, setImportedThemeGroup, stepThemeCues,
@@ -29,6 +30,47 @@ const extOf = (path) => {
   const dot = path.lastIndexOf('.');
   return dot < 0 ? '' : path.slice(dot + 1).toLowerCase();
 };
+
+/**
+ * Files of an installed official pack loadOfficial fetches at once. One after another, ac_n_iron's 52 requests took
+ * 2–5 s through the edge (the owner, 2026-11-16 「界面主题 点击使用后不会变更选项，需要刷新才能生效」). Six is what a
+ * browser opens to one host over HTTP/1.1 (the plain Node server, an http:// LAN address): more would only wait in the
+ * browser's queue, ahead of the page's own requests. Over HTTP/2 six in flight already cut the round trips about
+ * sixfold, and the material service worker signs the misses that start within its window together (sw.js
+ * SIGN_WAIT_MS). The battle renderer's Spine loader keeps the same cap (assets.js spineConcurrency).
+ */
+export const OFFICIAL_FETCH_CONCURRENCY = 6;
+
+/**
+ * `fn` over every item, at most `limit` at a time; the results in the items' order. `fn` must not throw.
+ * @template T, R
+ * @param {T[]} items @param {number} limit @param {(item: T) => Promise<R>} fn
+ * @returns {Promise<R[]>}
+ */
+async function mapLimited(items, limit, fn) {
+  /** @type {R[]} */
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return out;
+}
+
+/**
+ * The fetch options of an official pack's file. A URL with a content-hash segment names its bytes (shared/assetPaths.js;
+ * the server answers it `immutable`, or `no-cache` when the hash is stale): the browser's cache may answer it. A plain
+ * path — the deployed fork's manifests (SP_ASSET_INDEX=0) — may be rewritten in place, so it is revalidated (a 304
+ * when unchanged; the material service worker answers it from Cache Storage either way).
+ * @param {string} url
+ */
+export function officialFetchInit(url) {
+  return { cache: splitHashedPath(url).hash ? 'default' : 'no-cache' };
+}
 
 function bannerPath(banner) {
   if (typeof banner === 'string') return banner;
@@ -684,13 +726,27 @@ export function createThemeLibrary(opts = {}) {
     return assetManifest;
   }
 
+  /** @type {Map<string, Promise<{ ok: boolean, id?: string, code?: string }>>} an official pack being fetched, by id */
+  const officialLoads = new Map();
+
   /**
    * Fetch one installed official pack and keep it in memory. It is not written to IndexedDB and
    * it does not count toward the imported-pack limit. Spine files stay on their served URLs.
+   * A load already running for that pack is shared: the boot's (bootUiThemes) and the settings dialog's
+   * (prepareTheme) do not fetch it twice.
    * @param {{ id: string, group: string }} row
    * @param {{ groups?: Record<string, Record<string, { path?: string }>> }} manifest
    */
-  async function loadOfficial(row, manifest) {
+  function loadOfficial(row, manifest) {
+    const running = officialLoads.get(row.id);
+    if (running) return running;
+    const load = fetchOfficial(row, manifest).finally(() => officialLoads.delete(row.id));
+    officialLoads.set(row.id, load);
+    return load;
+  }
+
+  /** loadOfficial's work. @param {{ id: string, group: string }} row @param {any} manifest */
+  async function fetchOfficial(row, manifest) {
     const group = manifest?.groups?.[row.group];
     const themeUrl = officialAssetUrl(row.group, group?.['theme.json']);
     if (!themeUrl) return { ok: false, code: 'missing' };
@@ -698,7 +754,7 @@ export function createThemeLibrary(opts = {}) {
     if (typeof fetchFn !== 'function') return { ok: false, code: 'missing' };
     let jsonText;
     try {
-      const res = await fetchFn(themeUrl, { cache: 'no-cache' });
+      const res = await fetchFn(themeUrl, officialFetchInit(themeUrl));
       if (!res?.ok) return { ok: false, code: 'broken' };
       jsonText = await res.text();
     } catch {
@@ -706,44 +762,39 @@ export function createThemeLibrary(opts = {}) {
     }
     let doc;
     try { doc = JSON.parse(jsonText); } catch { return { ok: false, code: 'broken' }; }
-    /** @type {{ rel: string, size: number, bytes: Uint8Array, url: string }[]} */
-    const fetched = [];
-    for (const rel of themePathsOf(doc)) {
+    // The files OFFICIAL_FETCH_CONCURRENCY at a time, each picture measured as soon as it is in; the results keep the
+    // manifest's order. A file that does not arrive is left out (assess reports the hole).
+    /** @type {({ file: { path: string, size: number, width?: number, height?: number, measured?: boolean }, blob: Blob | null } | null)[]} */
+    const fetched = await mapLimited(themePathsOf(doc), OFFICIAL_FETCH_CONCURRENCY, async (rel) => {
       const url = officialAssetUrl(row.group, group[rel]);
-      if (!url) continue;
+      if (!url) return null;
+      let bytes;
       try {
-        const res = await fetchFn(url, { cache: 'no-cache' });
-        if (!res?.ok) continue;
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        fetched.push({ rel, size: bytes.byteLength, bytes, url });
-      } catch { /* assess reports the hole */ }
-    }
+        const res = await fetchFn(url, officialFetchInit(url));
+        if (!res?.ok) return null;
+        bytes = new Uint8Array(await res.arrayBuffer());
+      } catch { return null; }
+      const size = bytes.byteLength;
+      const ext = extOf(rel);
+      const image = IMAGE_EXT.has(ext);
+      if (ext === 'skel' || ext === 'atlas' || !(image || AUDIO_EXT.has(ext))) return { file: { path: rel, size }, blob: null };
+      const blob = new Blob([bytes], { type: MIME[ext] || 'application/octet-stream' });
+      if (!image) return { file: { path: rel, size }, blob };
+      try {
+        const dim = await measure(blob);
+        return { file: { path: rel, size, width: dim.width, height: dim.height, measured: dim.ok === true }, blob };
+      } catch {
+        return { file: { path: rel, size, measured: false }, blob };
+      }
+    });
     /** @type {Record<string, Blob>} */
     const blobs = {};
     /** @type {{ path: string, size: number, width?: number, height?: number, measured?: boolean }[]} */
     const measured = [];
-    for (const file of fetched) {
-      const ext = extOf(file.rel);
-      if (ext === 'skel' || ext === 'atlas') {
-        measured.push({ path: file.rel, size: file.size });
-        continue;
-      }
-      const image = ['png', 'jpg', 'jpeg', 'webp'].includes(ext);
-      const audio = ['ogg', 'mp3'].includes(ext);
-      if (image || audio) {
-        const blob = new Blob([file.bytes], { type: MIME[ext] || 'application/octet-stream' });
-        blobs[file.rel] = blob;
-        if (image) {
-          try {
-            const dim = await measure(blob);
-            measured.push({ path: file.rel, size: file.size, width: dim.width, height: dim.height, measured: dim.ok === true });
-          } catch {
-            measured.push({ path: file.rel, size: file.size, measured: false });
-          }
-          continue;
-        }
-      }
-      measured.push({ path: file.rel, size: file.size });
+    for (const got of fetched) {
+      if (!got) continue;
+      measured.push(got.file);
+      if (got.blob) blobs[got.file.path] = got.blob;
     }
     const report = assessTheme({ jsonText, files: measured, storedCount: 0, replace: true });
     if (!report.ok || report.id !== row.id) return { ok: false, code: report.ok ? 'broken' : (report.code || 'broken') };
@@ -1027,6 +1078,19 @@ export function noteThemeBuy(buy) {
   playCues([buy.trigger]);
 }
 
+/**
+ * Paint the stored choice once bootUiThemes has its pack. The screens read the pack when they render (themePack: the
+ * funds box's character, a banner's Spine), and one drawn before it was in — a match page opened or refreshed — kept
+ * drawing without it (the 规程 shop's default robot for 可露希尔) until something else re-rendered it. When the paint
+ * changes, the store is told as well, which re-renders them.
+ * @param {string} id
+ */
+function applyBooted(id) {
+  const before = appliedKey;
+  applyUiTheme(id);
+  if (id && appliedKey !== before) settingsSet({ uiTheme: id });
+}
+
 export async function bootUiThemes() {
   try { await library.boot(); } catch { /* session only */ }
   let manifest;
@@ -1038,7 +1102,7 @@ export async function bootUiThemes() {
     // (§37.232: an official pack as a zip needs no group on the server).
     if (!installed) {
       if (library.get(id)?.officialPack) {
-        applyUiTheme(id);
+        applyBooted(id);
         return;
       }
       settingsSet({ uiTheme: '' });
@@ -1047,6 +1111,8 @@ export async function bootUiThemes() {
     }
     if (!library.get(id)?.official) {
       const loaded = await library.loadOfficial(officialThemeById(id), manifest);
+      // another theme chosen while this one loaded (设置 → 界面主题) is already painted and stays
+      if (settingsGet().uiTheme !== id) return;
       if (!loaded.ok) {
         settingsSet({ uiTheme: '' });
         library.setNotice('broken');
@@ -1054,7 +1120,7 @@ export async function bootUiThemes() {
         return;
       }
     }
-    applyUiTheme(id);
+    applyBooted(id);
     return;
   }
   if (id && !library.get(id)) {
@@ -1063,7 +1129,7 @@ export async function bootUiThemes() {
     applyUiTheme('');
     return;
   }
-  applyUiTheme(id);
+  applyBooted(id);
 }
 
 /**

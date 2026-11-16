@@ -1987,6 +1987,7 @@
   "不攻击": "Does not attack",
   "久经推演": "Seasoned Strategist",
   "使用中": "In use",
+  "载入中…": "Loading…",
   "作者 {author} · {version}": "{author} · {version}",
   "删除主题「{name}」？只从这台设备移除。": "Delete the theme \"{name}\"? It is removed from this device only.",
   "已使用：{used}": "Used: {used}",
