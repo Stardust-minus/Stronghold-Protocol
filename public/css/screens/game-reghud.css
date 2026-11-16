@@ -39,6 +39,11 @@
 }
 .shopbar--reg .shopbar__row::before { display: none; }
 .shopbar--reg .shopbar__cards { gap: .06rem; }
+/* A narrow window (a desktop window in portrait under 480 px; a phone's portrait shows 请横屏): two rows instead of one row
+   squeezed to half size — ui/shopBar.js useRegFit sets the row's width so the rows balance (twoRowWidth), right-aligned,
+   the character card bottom right; the rows keep clear of each other's price hexes and 可露希尔's taller faces. */
+.shopbar--reg .shopbar__cluster.is-2row .shopbar__row { flex-wrap: wrap; justify-content: flex-end; row-gap: .26rem; }
+.shopbar--reg .shopbar__cluster.is-2row .shopbar__cards { display: contents; }
 .shopbar--reg .shopbar__item { padding-left: .06rem; border-left: 0; }
 .shopbar--reg.is-frozen .shopbar__row { border-color: transparent; }
 

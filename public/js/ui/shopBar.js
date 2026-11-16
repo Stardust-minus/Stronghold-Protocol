@@ -555,13 +555,34 @@ function FundsChar({ character }) {
   return html`<div class="funds__char funds__char--${kind}" ref=${hostRef} aria-hidden="true"></div>`;
 }
 
+/** Narrower windows (CSS px) lay the 规程 shop out in two rows (useRegFit). */
+export const REG_TWO_ROWS_BELOW = 480;
+
+/**
+ * The row width that wraps the shop's items (level box, cards, equipment, character card — in order, laid-out widths) into
+ * two rows as even as can be: the smallest widest-row over every split point. Wrapping greedily at that width keeps two
+ * rows, the character card last on the second.
+ * @param {number[]} widths @param {number} [gap]
+ * @returns {number}
+ */
+export function twoRowWidth(widths, gap = 0) {
+  const ws = widths.filter((w) => w > 0);
+  if (ws.length < 2) return Math.ceil(ws[0] || 0);
+  const span = (a, b) => ws.slice(a, b).reduce((sum, w) => sum + w, 0) + gap * Math.max(0, b - a - 1);
+  let best = Infinity;
+  for (let j = 1; j < ws.length; j++) best = Math.min(best, Math.max(span(0, j), span(j, ws.length)));
+  return Math.ceil(best + 0.5);
+}
+
 /**
  * 规程: the shop cluster grows leftwards with its slots. Its scale (css --reg-k-max: 1.3 on a desktop, 1 on a narrow or
  * short screen) shrinks so the cluster never runs under the bottom-left corner buttons (.gm__corner): five operator
  * slots, the equipment slot, the level box and the character card are wider than 1.3× allows at 16:9. Below 1 too
  * (down to --reg-k-min, 0.5): a phone's row is wider than the room right of the corner, and the cluster used to stay at
  * 1× and slide its level box under the corner buttons (the owner 2026-11-16 UI 大修). The cluster is laid out at its
- * natural width (no max-width) so offsetWidth is the row it needs.
+ * natural width (no max-width) so offsetWidth is the row it needs. A window narrower than REG_TWO_ROWS_BELOW (a desktop
+ * window in portrait; a phone's portrait shows 请横屏) lays the row out in two balanced rows (twoRowWidth) instead of one
+ * squeezed to half size (the owner 2026-11-16).
  */
 function useRegFit(clusterRef, on) {
   useLayoutEffect(() => {
@@ -569,6 +590,14 @@ function useRegFit(clusterRef, on) {
     if (!on || !el) return undefined;
     const fit = () => {
       try {
+        const row = el.querySelector(':scope > .shopbar__row');
+        const two = (globalThis.innerWidth || 1920) < REG_TWO_ROWS_BELOW;
+        el.classList.toggle('is-2row', two);
+        if (row && two) {
+          const items = [...row.children].flatMap((c) => (c.classList.contains('shopbar__cards') ? [...c.children] : [c]));
+          const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+          row.style.setProperty('width', `${twoRowWidth(items.map((c) => c.offsetWidth), gap)}px`);
+        } else row?.style.removeProperty('width');
         const cs = getComputedStyle(el);
         const kMax = parseFloat(cs.getPropertyValue('--reg-k-max')) || 1;
         const kMin = Math.min(kMax, parseFloat(cs.getPropertyValue('--reg-k-min')) || 0.5);
