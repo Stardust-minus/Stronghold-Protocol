@@ -154,6 +154,7 @@ describe('selected operator shortcuts', { skip: !ENABLED && 'set SP_E2E=1 and CH
       await page.mouse.up();
       await page.keyboard.press('Escape');
       await page.click('.gm__gear');
+      await page.waitForSelector('[data-testid="set-tab-controls"]'); await page.click('[data-testid="set-tab-controls"]'); // 快捷键 is on the 操作 page (the paged 设置, 2026-11-16)
       await page.waitForSelector('.modal .set-keys');
       await inert('a dialog blocks selected shortcuts');
       await page.keyboard.press('Escape');

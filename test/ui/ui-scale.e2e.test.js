@@ -106,6 +106,8 @@ describe('界面大小 (headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (an
 
   test('a step picked in the match settings re-frames the open board at once', async () => {
     const { page, problems } = await prep(PHONE, '100', 'phase=PREP&variant=settings');
+    await page.waitForSelector('[data-testid="set-tab-display"]', { timeout: 5000 }); // 界面大小 is on the 画面 page (the paged 设置, 2026-11-16)
+    await page.click('[data-testid="set-tab-display"]');
     await page.waitForSelector('[data-testid="ui-scale"]', { timeout: 5000 });
     const before = await measure(page);
     assert.equal(await page.$eval('[data-testid="ui-scale"] button.is-on', (b) => b.textContent.trim()), '100%');

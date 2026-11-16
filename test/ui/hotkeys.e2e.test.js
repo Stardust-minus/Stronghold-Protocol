@@ -45,6 +45,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     try {
       const problems = await open(page);
       await page.click('.gm__gear');
+      await page.waitForSelector('[data-testid="set-tab-controls"]'); await page.click('[data-testid="set-tab-controls"]'); // 快捷键 is on the 操作 page (the paged 设置, 2026-11-16)
       await page.waitForSelector('.modal .set-keys');
       await page.waitForFunction(() => !document.querySelector('.modal__box')?.getAnimations().some((a) => a.playState === 'running'));
       await page.$eval('.set-keys', (el) => el.scrollIntoView({ block: 'start' }));
@@ -107,6 +108,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.ff-piece');
       await page.click('.gm__gear');
+      await page.waitForSelector('[data-testid="set-tab-controls"]'); await page.click('[data-testid="set-tab-controls"]'); // 快捷键 is on the 操作 page (the paged 设置, 2026-11-16)
       await page.waitForSelector('.modal .set-keys');
       assert.equal(await keyOf(page, 'retreat'), 'W');
       await page.click('.set-keys__reset');
@@ -120,6 +122,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     try {
       const problems = await open(page, { width: 640, height: 360, touch: true });
       await page.tap('.gm__gear');
+      await page.waitForSelector('[data-testid="set-tab-controls"]'); await page.tap('[data-testid="set-tab-controls"]'); // 快捷键 is on the 操作 page (the paged 设置, 2026-11-16)
       await page.waitForSelector('.modal .set-keys');
       assert.match(await page.$eval('.set-keys .set-hint', (el) => el.textContent), /快捷键需要实体键盘/);
       assert.equal(await page.$eval('.set-keys__more', (el) => el.open), false, 'the list is folded on a touch-only device');
@@ -236,6 +239,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     await page.keyboard.press('Escape');
 
     await page.click('.gm__gear');
+    await page.waitForSelector('[data-testid="set-tab-controls"]'); await page.click('[data-testid="set-tab-controls"]'); // 快捷键 is on the 操作 page (the paged 设置, 2026-11-16)
     await page.waitForSelector('.modal .set-keys');
     await page.hover(card(3));
     await inert('the settings dialog blocks buying');
@@ -277,6 +281,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     });
     const problems = await open(page);
     await page.click('.gm__gear');
+    await page.waitForSelector('[data-testid="set-tab-controls"]'); await page.click('[data-testid="set-tab-controls"]'); // 快捷键 is on the 操作 page (the paged 设置, 2026-11-16)
     await page.waitForSelector('.modal .set-keys');
     assert.equal(await keyOf(page, 'retreat'), 'W');
     assert.equal(await keyOf(page, 'buy'), 'Q', 'migration uses the free default, keeping W for retreat');
@@ -298,6 +303,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.ff-piece');
     await page.click('.gm__gear');
+    await page.waitForSelector('[data-testid="set-tab-controls"]'); await page.click('[data-testid="set-tab-controls"]'); // 快捷键 is on the 操作 page (the paged 设置, 2026-11-16)
     await page.waitForSelector('.modal .set-keys');
     assert.equal(await keyOf(page, 'buy'), 'B');
     assert.equal(await keyOf(page, 'retreat'), 'W');
