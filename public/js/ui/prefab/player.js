@@ -96,8 +96,53 @@ export function nodeKeyframes(tr, frames, ref) {
 }
 
 /**
+ * `keys` without the properties that hold one value through the whole clip when `idle(prop, value)` says that value is what
+ * the element shows anyway. Such a track changes nothing on screen, but an animation of it still makes the browser give
+ * the element a layer of its own, re-composite it every frame and, with a blend mode or a mask, draw it in an offscreen
+ * pass every frame (可露希尔's wireline glow, the owner 2026-11-16: the frame rate fell with 主题动画 on). Null when no
+ * property is left.
+ * @param {Keyframe[]|null} keys @param {(prop: string, value: any) => boolean} idle
+ * @returns {Keyframe[]|null}
+ */
+export function dropIdleTracks(keys, idle) {
+  if (!keys?.length) return null;
+  const props = Object.keys(keys[0]).filter((p) => p !== 'offset');
+  const still = props.filter((p) => keys.every((k) => k[p] === keys[0][p]) && idle(p, keys[0][p]));
+  if (!still.length) return keys;
+  if (still.length === props.length) return null;
+  return keys.map((k) => {
+    const out = { ...k };
+    for (const p of still) delete out[p];
+    return out;
+  });
+}
+
+/** The properties the element's running animations move. @param {Element} el */
+function animatedProps(el) {
+  const out = new Set();
+  for (const a of typeof el.getAnimations === 'function' ? el.getAnimations() : []) {
+    const effect = /** @type {KeyframeEffect|null} */ (a.effect);
+    for (const k of effect?.getKeyframes?.() || []) for (const p of Object.keys(k)) out.add(p);
+  }
+  return out;
+}
+
+/** An inline opacity as a number (Preact writes box / graphic alpha there; '' is 1). @param {HTMLElement} el */
+const inlineOpacity = (el) => (el.style.opacity === '' ? 1 : Number(el.style.opacity));
+
+/**
+ * The box's resting transform as nodeKeyframes writes it (no move from the layout, the drawn rotation and scale): a
+ * transform track that keeps this value moves nothing.
+ * @param {{ rot: number, scale: number[] }} ref
+ */
+const restTransform = (ref) => `translate(${rem(0)}, ${rem(0)}) rotate(${-ref.rot}deg) scale(${ref.scale[0]}, ${ref.scale[1]})`;
+
+/**
  * Run clips on a drawn prefab. `elOf(node)` gives a node's box element (null when not drawn), `refOf(node)` what the
  * layout drew for it. Returns the animations (cancel them to stop).
+ * A box with nothing drawn in it (an Image the HUD leaves out, such as 可露希尔's countdown light — an external material —,
+ * or an empty group) is not animated, and a track that only repeats what the element already shows is left out
+ * (dropIdleTracks): both look the same and keep the browser from compositing layers that change nothing.
  * @param {{ clip: any, on: any, loop?: boolean, reverse?: boolean, delay?: number, rate?: number }[]} jobs  rate: playback speed
  * @param {(node: any) => HTMLElement|null} elOf @param {(node: any) => any} refOf
  * @returns {Animation[]}
@@ -122,9 +167,31 @@ export function runClips(jobs, elOf, refOf) {
       if (!el || !ref) continue;
       const kf = nodeKeyframes(tr, frames, ref);
       try {
-        if (kf.box && typeof el.animate === 'function') out.push(el.animate(kf.box, timing));
-        const g = kf.gfx ? el.querySelector(':scope > .pf__g') : null;
-        if (g && typeof g.animate === 'function') out.push(g.animate(kf.gfx, timing));
+        const draws = !!el.querySelector('.pf__g, .pf__spine');
+        // what another animation on the element moves (a CSS tween, a clip started before) is not idle: this clip's value
+        // covers it while it runs
+        const busy = animatedProps(el);
+        // a box's own opacity / transform also isolates the blending of what it holds: kept unless it already has one
+        const blends = !!el.querySelector('.pf__g[style*="mix-blend-mode"]');
+        const box = draws ? dropIdleTracks(kf.box, (prop, v) => {
+          if (busy.has(prop)) return false;
+          if (prop === 'visibility') return v === 'visible' && getComputedStyle(el).visibility === 'visible';
+          if (prop === 'opacity') return (!blends || el.style.opacity !== '') && Math.abs(Number(v) - inlineOpacity(el)) < 0.002;
+          if (prop === 'transform') return (!blends || el.style.transform !== '') && v === restTransform(ref);
+          return false;
+        }) : null;
+        if (box && typeof el.animate === 'function') out.push(el.animate(box, timing));
+        const g = kf.gfx ? /** @type {HTMLElement|null} */ (el.querySelector(':scope > .pf__g')) : null;
+        // the graphic's own opacity: Preact wrote the drawn alpha there (rounded to .001)
+        const gbusy = g ? animatedProps(g) : null;
+        const gfx = g ? dropIdleTracks(kf.gfx, (prop, v) => prop === 'opacity' && !gbusy.has(prop) && Math.abs(Number(v) - inlineOpacity(g)) < 0.002) : null;
+        // a scrolling effect layer (view.js effectScrollLayers) keeps its opacity on the outer box and its colour on the
+        // inner one that slides
+        const tint = g?.classList.contains('pf__fx') ? g.querySelector(':scope > .pf__fxs') : null;
+        if (g && gfx && tint) {
+          if ('opacity' in gfx[0]) out.push(g.animate(gfx.map((k) => ({ offset: k.offset, opacity: k.opacity })), timing));
+          if ('backgroundColor' in gfx[0]) out.push(tint.animate(gfx.map((k) => ({ offset: k.offset, backgroundColor: k.backgroundColor })), timing));
+        } else if (g && gfx && typeof g.animate === 'function') out.push(g.animate(gfx, timing));
       } catch { /* an element gone mid-run */ }
     }
   }

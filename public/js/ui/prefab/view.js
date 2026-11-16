@@ -453,20 +453,55 @@ export function effectImageStyle(img, sprite, over = null, fillAmount = null, te
   return st;
 }
 
-/** The base texture's UV scroll (units / s along u and v) as a mask-position loop on the box. @param {any} m @param {any} box */
-export function effectScroll(m, box) {
+/**
+ * effectStyle's layer with its base texture's UV scroll (units / s along u and v; one tile per period) as two boxes the
+ * compositor can move: the outer keeps the blend, the opacity and the material's fixed mask (or clips), the inner
+ * (.pf__fxs) carries the colour through the base texture, one period larger on the side the texture comes in from, and
+ * slides by translateLoop. Same pixels as a mask-position loop, which repainted its layer every frame (可露希尔's ready
+ * arrow, 2026-11-16). A clip's colour goes to the inner box (player.js runClips).
+ * @param {Record<string, string>} st effectStyle's style @param {any} m the material @param {any} box
+ * @returns {{ outer: Record<string, string>, inner: Record<string, string> } | null}
+ */
+export function effectScrollLayers(st, m, box) {
   const speed = Array.isArray(m?.speed) ? m.speed.map((v) => num(v)) : null;
-  if (!speed || (!speed[0] && !speed[1]) || !(box?.w > 0) || !(box?.h > 0)) return null;
+  if (!st || !speed || (!speed[0] && !speed[1]) || !(box?.w > 0) || !(box?.h > 0)) return null;
   const tile = Array.isArray(m.tile) ? m.tile.map((v) => num(v, 1) || 1) : [1, 1];
-  const tw = box.w / tile[0];
-  const th = box.h / tile[1];
   const T = 1 / Math.max(Math.abs(speed[0]), Math.abs(speed[1]));
-  const dx = -speed[0] * T * tw;
-  const dy = speed[1] * T * th;
-  const rest = m.mask ? ', 0 0' : '';
-  const name = `pf-uv_${tok(dx)}_${tok(dy)}_${m.mask ? 'm' : 'n'}`;
-  const body = `from { -webkit-mask-position: 0 0${rest}; mask-position: 0 0${rest}; } to { -webkit-mask-position: ${rem(dx)} ${rem(dy)}${rest}; mask-position: ${rem(dx)} ${rem(dy)}${rest}; }`;
-  return { name, body, animation: `${name} ${Number(T.toFixed(3))}s linear infinite` };
+  const dx = (-speed[0] * T * box.w) / tile[0];
+  const dy = (speed[1] * T * box.h) / tile[1];
+  const layers = String(st.maskImage || '').split(/,\s*(?=url\()/);
+  const [base, mask] = [layers[0], m.mask ? layers[1] : null];
+  if (!base) return null;
+  /** @type {Record<string, string>} */
+  const outer = {};
+  if (st.mixBlendMode) outer.mixBlendMode = st.mixBlendMode;
+  if (st.opacity) outer.opacity = st.opacity;
+  if (mask) Object.assign(outer, { WebkitMaskImage: mask, maskImage: mask, WebkitMaskSize: '100% 100%', maskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat' });
+  else outer.overflow = 'hidden';
+  const ax = rem(Math.abs(dx));
+  const ay = rem(Math.abs(dy));
+  const size = `calc((100% - ${ax}) / ${tile[0]}) calc((100% - ${ay}) / ${tile[1]})`;
+  const pos = `${rem(Math.max(dx, 0))} ${rem(Math.max(dy, 0))}`;
+  const inner = {
+    left: rem(-Math.max(dx, 0)), top: rem(-Math.max(dy, 0)), width: `calc(100% + ${ax})`, height: `calc(100% + ${ay})`,
+    backgroundColor: st.backgroundColor,
+    WebkitMaskImage: base, maskImage: base, WebkitMaskSize: size, maskSize: size,
+    WebkitMaskRepeat: 'repeat', maskRepeat: 'repeat', WebkitMaskPosition: pos, maskPosition: pos,
+    animation: translateLoop(dx / 100, dy / 100, T),
+  };
+  return { outer, inner };
+}
+
+/**
+ * A loop of `transform: translate()` from none to (dx, dy) rem over `seconds`, linear, as one literal @keyframes rule (a
+ * texture scroll the compositor runs: ui/regHud.js scrollingTexture). Returns the `animation` value.
+ * @param {number} dx @param {number} dy @param {number} seconds
+ */
+export function translateLoop(dx, dy, seconds) {
+  const t5 = (n) => String(Number(Number(n).toFixed(5))).replace('-', 'm').replace('.', 'p');
+  const name = `pf-tl_${t5(dx)}_${t5(dy)}`;
+  ensureKeyframes(name, `from { transform: translate(0, 0); } to { transform: translate(${Number(dx.toFixed(5))}rem, ${Number(dy.toFixed(5))}rem); }`);
+  return `${name} ${Number(seconds.toFixed(3))}s linear infinite`;
 }
 
 const keyframesDone = new Set();
@@ -631,9 +666,9 @@ function PNodeView({ box, pack, fit, pose, idx, spine = null }) {
   let graphic = null;
   if (n.image) {
     const st = imageStyle(n.image, pack.sprite, pose?.color.get(n), pose?.fill.get(n), pack.texture);
-    const scroll = st && !n.image.sprite && n.image.material?.base && box.shown ? effectScroll(n.image.material, box) : null;
-    if (scroll) { ensureKeyframes(scroll.name, scroll.body); st.animation = scroll.animation; }
-    if (st) graphic = html`<i class=${scroll ? 'pf__g pf__fx' : 'pf__g'} style=${st}></i>`;
+    const fx = st && !n.image.sprite && n.image.material?.base && box.shown ? effectScrollLayers(st, n.image.material, box) : null;
+    if (fx) graphic = html`<i class="pf__g pf__fx" style=${fx.outer}><i class="pf__fxs" style=${fx.inner}></i></i>`;
+    else if (st) graphic = html`<i class="pf__g" style=${st}></i>`;
   } else if (n.text && box.text != null && box.text !== '') {
     const t = n.text;
     const align = num(t.align);
