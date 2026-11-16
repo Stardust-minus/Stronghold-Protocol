@@ -97,6 +97,29 @@ html[data-sp-slot~="img_check_enemy"] .enemybtn {
 /* the theme's own picture at its own aspect (uiTheme.js ASPECT_SLOTS measures it): same height, the width follows */
 html[data-sp-slot~="img_check_player"] .gtop__iconbtn.has-sprite { width: auto; aspect-ratio: var(--sp-ar-img_check_player, 35 / 29); }
 html[data-sp-slot~="img_check_enemy"] .enemybtn.has-sprite { width: auto; aspect-ratio: var(--sp-ar-img_check_enemy, 35 / 29); }
+/* …and the picture is the whole button: its own magnifier and ▶▶ (all three packs). Without the local battle sprites
+   (ui/hud.js CheckBtn: no `has-sprite`) our CSS look-alike — frame, 🔍 icon, ▶▶ — was drawn over it, a second icon in a
+   box; game.css's hover (the `background` shorthand at a higher weight) wiped the picture off the enemy button. */
+html[data-sp-slot~="img_check_player"] .gtop__iconbtn:not(.has-sprite),
+html[data-sp-slot~="img_check_enemy"] .enemybtn:not(.has-sprite) {
+  min-width: 0; padding: 0; border-color: transparent; border-radius: 0; box-shadow: none; background-color: transparent;
+}
+html[data-sp-slot~="img_check_player"] .gtop__iconbtn:not(.has-sprite) { width: auto; aspect-ratio: var(--sp-ar-img_check_player, 82 / 45); }
+html[data-sp-slot~="img_check_enemy"] .enemybtn:not(.has-sprite) { width: auto; aspect-ratio: var(--sp-ar-img_check_enemy, 82 / 45); }
+html[data-sp-slot~="img_check_player"] .gtop__iconbtn:not(.has-sprite) > *,
+html[data-sp-slot~="img_check_enemy"] .enemybtn:not(.has-sprite) > * { visibility: hidden; }
+html[data-sp-slot~="img_check_player"] .gtop__iconbtn:is(:hover, .is-on) {
+  background-image: var(--sp-img-img_check_player); background-size: 100% 100%; background-repeat: no-repeat;
+  background-color: transparent; filter: brightness(1.15);
+}
+html[data-sp-slot~="img_check_enemy"] .enemybtn:hover:not(.is-grey) {
+  background-image: var(--sp-img-img_check_enemy); background-size: 100% 100%; background-repeat: no-repeat;
+  background-color: transparent; box-shadow: none; filter: brightness(1.15);
+}
+html[data-sp-slot~="img_check_enemy"] .enemybtn.is-grey { background-color: transparent; filter: grayscale(1) brightness(.75); }
+/* 卫戍协议终端's pictures carry their own bracket frame ([🔍], [🔍▶▶]): the bar's bracket frames around them drew a second pair */
+html[data-sp-slot~="img_check_player"] .gtop__frame--l::before, html[data-sp-slot~="img_check_player"] .gtop__frame--l::after,
+html[data-sp-slot~="img_check_enemy"] .gtop__frame--r::before, html[data-sp-slot~="img_check_enemy"] .gtop__frame--r::after { display: none; }
 /* the countdown plates keep their aspect: a box about 1.4 : 1 squeezed 卫戍协议终端's 216×87 plate (its STRONGHOLD PROTOCOL
    type) and 乌萨斯齐心团's 694×134 wedge (§37.204) */
 html[data-sp-slot~="countdown"] .gtop__right .countdown {
