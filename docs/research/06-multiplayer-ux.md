@@ -517,6 +517,13 @@ Evidence:
 - 卫戍之星 is visibly rarer (about 25 % of wins for a strong player).
 - The web stats page tracks exactly: 盟约最高叠加数, 单局最多消耗资金, 单局最多晋级次数, 单局最多击败数. This supports the mapping.
 
+规程 (act3autochess V3_1) replaced the table: 18 评语, each with an official `type`, `rank` and `point` — six kinds (BOND,
+KILL, EQUIP, COIN, CHAR, DAMAGE) × ranks 0–2 (point 0, 1, 1): BOND 百花齐放 / 坚实盟约 / 不朽盟约, KILL 救火队长 / 可靠后盾 /
+力挽狂澜, EQUIP 精挑细选 / 有备无患 / 万事俱备, COIN 富贵浮云 / 一掷百金 / 挥金如土, CHAR 孤胆先锋 / 汇聚人才 / 精英云集, DAMAGE
+幕后领袖 / 中流砥柱 / 绝对核心. The client names the settlement's item `AutoChessSettleGamePlayerTitleItemView`; how many a
+player gets and the rank lines are not in the client data. Our rule (META "Titles", the owner's decision of 2026-11-16): one
+per player, the best kind on tier lines measured on the server's own bot matches [ASSUMED].
+
 ### 10.6 Settlement screens [WIKI][SHOT]
 
 1. **Team summary:** "展示同盟的通过回合数，本局耗时和完成日期。同时会显示每个玩家的通过回合数及其获得评语". Each row gets like and report buttons. [layout ASSUMED]

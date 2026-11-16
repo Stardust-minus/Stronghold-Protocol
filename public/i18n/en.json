@@ -3882,5 +3882,22 @@
   "只和选择同一版本的博士匹配；匹配中不能切换版本": "You are matched only with Doctors who picked the same version; the version cannot be switched while matching",
   "使用玩法插件的同盟不能组队匹配": "An alliance with gameplay plugins cannot queue as a party",
   "「{version}」暂不开放组队匹配": "Party matchmaking is not available for “{version}” right now",
-  "整队寻找「{version}」中相同人数模式和难度的真人，确认后自动开局": "Match your whole party with human players of “{version}” in the same player-count mode and difficulty; start automatically after confirmation"
+  "整队寻找「{version}」中相同人数模式和难度的真人，确认后自动开局": "Match your whole party with human players of “{version}” in the same player-count mode and difficulty; start automatically after confirmation",
+  "同盟模拟结算时队友给你的点赞": "Likes your teammates gave you on co-op settlements",
+  "已获赞": "Likes received",
+  "用同一策略成功卫戍 {n} 次：彩色标识": "{n} successful defenses with the same strategy: the colourful mark",
+  "名震四方": "Famed Far and Wide",
+  "累计获得 150 个奖杯（奖杯等级 6）": "Earn 150 trophies in total (trophy level 6)",
+  "誉满天下": "Acclaimed Everywhere",
+  "累计获得 200 个奖杯（奖杯等级 7）": "Earn 200 trophies in total (trophy level 7)",
+  "卫戍不朽": "Undying Garrison",
+  "累计获得 300 个奖杯（奖杯等级 8）": "Earn 300 trophies in total (trophy level 8)",
+  "第一期": "Season 1",
+  "第二期": "Season 2",
+  "卫戍协议：规程": "Stronghold Protocol: Regulation",
+  "成就按所有赛季累计": "Achievements count every season",
+  "用同一策略成功卫戍 {n} 次获得金色标识，{m} 次换成彩色标识": "A gold mark after {n} successful defenses with the same strategy, the colourful one after {m}",
+  "赛季": "Season",
+  "击败数": "Enemies Defeated",
+  "装备配发": "Equipment Issued"
 }

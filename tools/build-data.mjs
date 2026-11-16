@@ -3545,6 +3545,22 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
     comment_5: { stat: 'itemsEquipped', rule: 'max', text: '装备配发数量最多' },
     comment_6: { stat: 'fundsSpent', rule: 'max', text: '消耗资金最多' },
   };
+  // 规程's table (act3autochess playerTitleDataDict): every title has an official kind `type`, a `rank` (0–2) and a `point`
+  // (rank 0 none, ranks 1 and 2 one each). The stat each kind rates [ASSUMED: the kinds' names; the official conditions are
+  // unpublished] — server/match/results.js regulationTitles ranks it on the tier lines of server/match/titleCutoffs.js.
+  const titleKinds = {
+    BOND: { stat: 'activatedLayers', text: '激活的盟约层数总和' },
+    KILL: { stat: 'kills', text: '击败的敌人数（含联防）' },
+    EQUIP: { stat: 'itemsEquipped', text: '配发的装备数量' },
+    COIN: { stat: 'fundsSpent', text: '消耗的资金' },
+    CHAR: { stat: 'merges', text: '晋升精锐的次数' },
+    DAMAGE: { stat: 'bossDamage', text: '对敌方领袖造成的伤害' },
+  };
+  const titleOf = (t) => (typeof t.type === 'string'
+    ? { id: t.id, picId: t.picId, name: t.txt, type: t.type, rank: t.rank, point: t.point,
+      ...(titleKinds[t.type] ? { stat: titleKinds[t.type].stat, text: `${titleKinds[t.type].text} · 第 ${t.rank} 档` } : {}) }
+    : { id: t.id, picId: t.picId, name: t.txt, ...(titleRules[t.id] || {}) });
+  const titleList = Object.values(act.playerTitleDataDict || {}).map(titleOf);
   const trophies = ctx.research.core?.trophiesPerClear;
   const steps = Array.isArray(ac.enterStepList) ? ac.enterStepList : Object.values(ac.enterStepList || {});
   const step = (t) => steps.find((x) => x.stepType === t);
@@ -3625,8 +3641,10 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
         ? 'solo chooses one of two shuffled core groups; multi greys floor(n/2) cores; banned iff any core is off OR all add-ons are off; add-on counts from recordings (终极 / 规程等级20 5 of 16, 规程等级1 / 极速 2 of 10), the other modes [ASSUMED] alike'
         : 'banned iff every bond of a visible non-DIY chess is in (drawn set D ∪ mode.inactiveBondIds); core = isCore bonds, addon = other bonds with weight > 0; uniform draw' },
     bandDraft: { skipsPerPlayer: 1, order: 'random', duplicatesAllowed: true, timeoutBandId: 'band_bldsk' },
-    titles: Object.values(act.playerTitleDataDict || {}).map((t) => ({ id: t.id, picId: t.picId, name: t.txt, ...(titleRules[t.id] || {}) })),
-    titleRule: 'each player gets at most one title; each title is used at most once per match; assign by the category where the player ranks best relative to teammates [ASSUMED]',
+    titles: titleList,
+    titleRule: titleList.some((t) => t.type)
+      ? 'each player gets one title: the best rank over the six kinds on their tier lines (server/match/titleCutoffs.js), then the value furthest past that rank\'s line, then table order; teammates may share one [ASSUMED]'
+      : 'each player gets at most one title; each title is used at most once per match; assign by the category where the player ranks best relative to teammates [ASSUMED]',
     tips: (Array.isArray(ac.gameTipsList) ? ac.gameTipsList : Object.values(ac.gameTipsList || {})).map((t) => ({ tip: String(t.tip).trim(), weight: t.weight })),
     broadcasts: (Array.isArray(ac.broadcastList) ? ac.broadcastList : Object.values(ac.broadcastList || {})).map((b) => ({
       id: b.id, type: b.type, priority: b.priority, text: stripRich(b.desc), textRaw: b.desc, params: b.paramList || [],

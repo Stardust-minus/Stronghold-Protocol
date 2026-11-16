@@ -1152,7 +1152,20 @@ keeps just the result-title rules:
 The former `enemyHpMul` / `enemyAtkMul` / `enemySpeedMul` / `bossHpMul` / `flyPlaceholders` knobs were removed; a
 tuning file that still carries them is ignored (`gd.bossHpMul()` always returns 1). `tools/balance.mjs --tuning off`
 drops the file (titles only, so the numbers are the same). Titles: `rule: 'min'` ranks the players still alive by the
-smallest stat (坚若磐石 "目标生命值损失最少" = least `lpLost`). docs/BALANCE.md has the balance measurements.
+smallest stat (坚若磐石 "目标生命值损失最少" = least `lpLost`). The override names 盟约's comment_3; 规程's titles (an official
+`type`) ignore it — comment_3 is 不朽盟约 there. docs/BALANCE.md has the balance measurements.
+
+规程's 评语 (results.js `regulationTitles`, the owner's decision of 2026-11-16): `config.titles` is the official six kinds ×
+three ranks (BOND 盟约层数 `activatedLayers`, KILL 击败数 `creditedKills` — 联防 included, EQUIP 装备配发 `itemsEquipped`, COIN
+消耗资金 `gold`, CHAR 晋升次数 `merges`, DAMAGE 领袖伤害 `bossDamage`). Every player (an AI 托管 seat aside) is rated on each
+kind against its tier lines `[rank1, rank2]` (server/match/titleCutoffs.js: the official lines are unpublished; ours put
+the top 50 % of the server's bot matches at rank 1 and the top 15 % at rank 2, measured with tools/title-cutoffs.mjs over
+every 规程 mode) and gets the 评语 of its best kind: the highest rank, then the furthest into that rank (`regulationProgress`: rank 0
+the way to the rank-1 line, rank 1 the way to the rank-2 line, rank 2 past it in widths of that band — value / line would
+favour long-tailed kinds such as 领袖伤害), then the table order; rank 0 is the consolation of the kind closest to its
+rank-1 line. [ASSUMED] one 评语 per player
+per match like 盟约's, and teammates may share one (absolute lines, not a ranking among teammates). Rank 0 scores no point on
+the statistics' hexagon.
 
 ---
 

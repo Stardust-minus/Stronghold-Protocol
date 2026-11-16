@@ -109,3 +109,30 @@ export function useRecordLookups(gd, records) {
     return withAllVersions(gd, others, (zh) => data.localeName(zh));
   }, [gd, key, tick, data.locale()]);
 }
+
+/** The version that stands for a season (an activity id): its final sub-version, the season's first registry entry. @param {string|null} season */
+export const seasonVersion = (season) => VERSIONS.find((v) => v.season === season)?.id ?? DEFAULT_VERSION;
+
+/**
+ * Hook: the 评语 table (config.titles) of `version`'s family — 盟约's six (every 盟约 version has the same) or 规程's 18 (the
+ * same comment_N ids, other titles: ui/titleHexagon.js). The shown data's own when it is of that family; else that
+ * version's config, downloaded once (null until it lands, or when this server does not serve it).
+ * @param {any} gd the page's lookups @param {string|null} version a registry id (null: the shown data's)
+ * @returns {any[]|null}
+ */
+export function useTitleTable(gd, version) {
+  const [tick, force] = useReducer((c) => c + 1, 0);
+  const shown = configVersion(gd.config);
+  const id = version && versionById(version) ? version : shown;
+  const own = versionById(id)?.family === versionById(shown)?.family;
+  useEffect(() => {
+    if (own) return undefined;
+    let alive = true;
+    storeOf(id)?.load('config').then(() => { if (alive) force(); }, () => {});
+    return () => { alive = false; };
+  }, [id, own]);
+  return useMemo(() => {
+    const titles = own ? gd.config?.titles : stores.get(id)?.get('config')?.titles;
+    return Array.isArray(titles) ? titles : null;
+  }, [own, id, gd.config, tick]);
+}

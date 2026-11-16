@@ -97,7 +97,10 @@ test('the 评语 hexagon counts the records of the shown version\'s 评语 table
   assert.equal(titleFamilyOf(list[2]), 'regulation');
   assert.deepEqual(achievementStats(list, { titleFamily: 'covenant' }).titles, { comment_3: 2 }, '坚若磐石 of both 盟约 periods, not 规程\'s 不朽盟约');
   assert.deepEqual(achievementStats(list, { titleFamily: 'regulation' }).titles, { comment_3: 1, comment_1: 1 });
-  assert.equal(titleKindsOf(list), 2, 'the most kinds within one table');
+  // 评语收藏家 (2026-11-16): 盟约's titles, 规程's kinds by a scoring 评语 (its table needed: rank 0 百花齐放 does not count)
+  assert.equal(titleKindsOf(list), 1, '盟约: 坚若磐石; 规程 without its table collects nothing');
+  const regTable = read(VERSIONS.find((v) => v.family === 'regulation'), 'config').titles;
+  assert.equal(titleKindsOf(list, regTable), 1, '规程: one kind, BOND (不朽盟约)');
   assert.equal(hexFill(0), 0);
   assert.equal(hexFill(5), 0.25);
   assert.equal(hexFill(20), 1);

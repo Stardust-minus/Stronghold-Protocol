@@ -15,7 +15,7 @@ import {
   loadStats, peekStatsRecords, saveStats, migrateStats, normalizeRecord, importStats, exportStats, aggregateStats, selfRowOf, roomModeOf,
   recordToResult, compactRecord, fitToBudget, countsTowardStats, roundsOf, clearedRounds, createLiveMatch, observeMatch,
   buildQuitRecord, installStatsRecorder, liveMatch, MIGRATIONS,
-  trophyMedalOf,
+  trophyMedalOf, likesOf, recordLikes, HARD_CLEAR_DIFFICULTIES,
 } from '../../public/js/ui/stats.js';
 import { createStore, emptyMatch } from '../../public/js/store.js';
 import { MAX_PLAYER_CAPACITY } from '../../shared/playerCapacity.js';
@@ -787,17 +787,49 @@ describe('local stats: aggregation (what the page renders)', () => {
     assert.deepEqual({ ...aggregateStats(migrated.stats.records).bonds }, { steadShip: { games: 1 } });
   });
 
-  test('mode rows separate successful defense from hidden-core clears and use the player outcome', () => {
+  test('mode rows: 绝境突破 is a successful defense on 绝境 / 终极, the hidden-core clears their own count, the player outcome', () => {
     const solo = buildRecord(baseResult({ hiddenCleared: false }), { myId: 'p1', roomMode: 'solo', now: 1 });
     const coop = buildRecord(baseResult(), { myId: 'p1', roomMode: 'coop', now: 2 });
     const eliminated = buildRecord(baseResult(), { myId: 'p2', roomMode: 'coop', now: 3 });
-    const summary = aggregateStats([solo, coop, eliminated]);
-    assert.deepEqual(summary.byMode.solo, { games: 1, wins: 1, hiddenCleared: 0 }, 'failing the hidden core keeps the final-boss win');
-    assert.deepEqual(summary.byMode.coop, { games: 2, wins: 1, hiddenCleared: 1 }, 'an eliminated teammate gets neither a personal clear nor a breakthrough');
+    const normal = buildRecord(baseResult({ seed: 4, difficulty: 'NORMAL', modeId: 'mode_multi_normal' }), { myId: 'p1', roomMode: 'coop', now: 4 });
+    const abyss = buildRecord(baseResult({ seed: 5, difficulty: 'ABYSS', modeId: 'mode_multi_abyss', hiddenCleared: false }), { myId: 'p1', roomMode: 'coop', now: 5 });
+    const summary = aggregateStats([solo, coop, eliminated, normal, abyss]);
+    assert.deepEqual(summary.byMode.solo, { games: 1, wins: 1, hardWins: 1, hiddenCleared: 0 }, 'failing the hidden core keeps the 绝境 win');
+    assert.deepEqual(summary.byMode.coop, { games: 4, wins: 3, hardWins: 2, hiddenCleared: 2 },
+      'an eliminated teammate gets neither a personal clear nor a breakthrough; 险境 with the hidden core is no breakthrough, 终极 without it is one');
     assert.deepEqual(aggregateStats([]).byMode, {
-      solo: { games: 0, wins: 0, hiddenCleared: 0 }, coop: { games: 0, wins: 0, hiddenCleared: 0 },
+      solo: { games: 0, wins: 0, hardWins: 0, hiddenCleared: 0 }, coop: { games: 0, wins: 0, hardWins: 0, hiddenCleared: 0 },
     });
+    assert.deepEqual([...HARD_CLEAR_DIFFICULTIES].sort(), ['ABYSS', 'HARD']);
   });
+
+  test('已获赞: a row keeps its likes through normalization, compaction and transfer; an older record reads as none', () => {
+    const res = baseResult();
+    res.players[0].likes = 3;
+    const full = buildRecord(res, { myId: 'p1', roomMode: 'coop', now: 1 });
+    assert.equal(full.players[0].likes, 3);
+    assert.equal(likesOf(full.players[1]), 0, 'a row without the field');
+    assert.equal(normalizeRecord({ ...full, players: [{ ...full.players[0], likes: -2 }] }).players[0].likes, undefined, 'junk is dropped');
+    assert.equal(compactRecord(full).players[0].likes, 3);
+    const old = buildRecord(baseResult({ seed: 99 }), { myId: 'p1', roomMode: 'coop', now: 2 });
+    assert.equal(old.players[0].likes, undefined);
+    const transferred = importStats(exportStats({ v: STATS_VERSION, records: [compactRecord(full), old] }), emptyStats());
+    assert.equal(aggregateStats(transferred.stats.records).likes, 3);
+  });
+
+  test('recordLikes: the likes of the settlement on screen go into my row of its stored record, never lowered', () => withStorage(() => {
+    const res = baseResult();
+    assert.ok(recordResult(res, { myId: 'p1', roomMode: 'coop', now: 1 }));
+    assert.equal(recordLikes(res, 'p1', 2), true);
+    assert.equal(selfRowOf(loadStats().records[0]).likes, 2);
+    assert.equal(recordLikes(res, 'p1', 1), false, 'a resync with fewer never lowers it');
+    assert.equal(recordLikes(res, 'p1', 2), false, 'the same count changes nothing');
+    assert.equal(recordLikes(res, 'p1', 4), true);
+    assert.equal(aggregateStats(loadStats().records).likes, 4);
+    assert.equal(recordLikes(baseResult({ seed: 7 }), 'p1', 3), false, 'no record of that match');
+    assert.equal(recordLikes({ ...res, test: true }, 'p1', 3), false, 'a test match');
+    assert.equal(recordLikes(res, 'p1', 0), false);
+  }));
 
   test('trophy totals count self settled co-op awards, including defeats, and survive compaction and transfer', () => {
     const records = [['coop', 5, true, 'match'], ['coop', 2, false, 'match'], ['solo', 999, true, 'match'], ['coop', 999, false, 'quit']].map(([mode, award, won, end], i) => {
