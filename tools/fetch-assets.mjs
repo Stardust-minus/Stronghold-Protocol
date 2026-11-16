@@ -75,6 +75,7 @@ import {
 import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash, droppedEntries, MANIFEST_VERSION } from './assets/manifest.mjs';
 import { retainInstalledSkins } from './prepare-operator-skins.mjs';
 import { applyIllustrations } from './assets/illustrations.mjs';
+import { applyDynamicE2 } from './assets/dynamic-e2.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { statsTemplateJobs } from './assets/stats-template.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
@@ -553,6 +554,10 @@ async function main() {
   const hdArt = applyIllustrations(body, { assetRoot: ASSETS });
   body = hdArt.body;
   for (const rel of hdArt.files) resolved.files.add(rel);
+  // the operators' own 精二 动态立绘 (2026-11-16): the registry's records where their files are on disk (tools/assets/dynamic-e2.mjs)
+  const dynE2 = applyDynamicE2(body, { assetRoot: ASSETS });
+  body = dynE2.body;
+  for (const rel of dynE2.files) resolved.files.add(rel);
   const importedVoices = retainManifestVoices(current?.audio, body.audio, ASSETS);
   body.audio = importedVoices.audio;
   for (const rel of importedVoices.files) resolved.files.add(rel);

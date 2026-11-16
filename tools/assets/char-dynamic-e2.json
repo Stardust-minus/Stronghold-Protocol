@@ -1,0 +1,1530 @@
+{
+ "version": 1,
+ "source": "the local CN client: skin_table charSkins[<charId>#2].dynIllustId (data 79.2.0, hot update 26-11-06-12-42-25); files unpacked from arts/dynchars/<charId>_2.ab (Spine 3.8.99), pages lossless WebP equal to the decoded textures; pma: < 5 % of the semi-transparent pixels brighter than their alpha (the page is premultiplied); frames matched against the official 精二 avatar / portrait in an official spine-webgl 3.8 render of the Idle at t = 0 (2026-11-16)",
+ "chars": {
+  "char_1012_skadi2": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_2",
+   "bundle": "arts/dynchars/char_1012_skadi2_2.ab",
+   "clientHash": "9c7f62a42c0c588a32d12790ff32911c",
+   "skel": {
+    "name": "dyn_illust_char_1012_skadi2.skel",
+    "bytes": 701713,
+    "sha256": "944db9530ca30b034b840ae355dd8890eab34a533ee4628fe48f41088f9b32d2"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1012_skadi2.atlas",
+    "bytes": 23226,
+    "sha256": "a40d613d511b45177a3f5e56ef7300f870227beec3af17fcc22b0a0eace43c12"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1012_skadi2.webp",
+     "bytes": 3030374,
+     "sha256": "2c0ba75951569b345458c53fa8855a9e7e0a5ffcf54019117a2c95cf06963167"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.731,
+    "over": 0.62
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 4,
+    "Interact": 4,
+    "Special": 8
+   },
+   "bounds": {
+    "x": -3717.629,
+    "y": -262.349,
+    "width": 6998.771,
+    "height": 2356.325
+   },
+   "frames": {
+    "avatar": {
+     "x": -81.284,
+     "y": 898.672,
+     "width": 196.126,
+     "height": 196.126
+    },
+    "portrait": {
+     "x": -83.242,
+     "y": 755.79,
+     "width": 177.994,
+     "height": 355.988
+    }
+   }
+  },
+  "char_1013_chen2": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_2",
+   "bundle": "arts/dynchars/char_1013_chen2_2.ab",
+   "clientHash": "4215ec04ea03148b58441bba74ab318c",
+   "skel": {
+    "name": "dyn_illust_char_1013_chen2.skel",
+    "bytes": 683781,
+    "sha256": "7aa91a1ffd5da1570a9bad91cb83f9a18c04759ed477cfd45e62ee81a6a38f6e"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1013_chen2.atlas",
+    "bytes": 16881,
+    "sha256": "177fdab9f33de7493ec8807d8487d5db6ac8a4fd9169a8e11eb7e7159c301574"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1013_chen2.webp",
+     "bytes": 1411930,
+     "sha256": "556711c1102b3fb2214b5d7b70726b73ddee43d7803db7e9d2fc159868e545a5"
+    }
+   ],
+   "textureFormats": [
+    "DXT1+DXT1 alpha"
+   ],
+   "pma": true,
+   "pmaMeasure": {
+    "stay": 0.054,
+    "over": 0.023
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 10,
+    "Interact": 2.5,
+    "Special": 10
+   },
+   "bounds": {
+    "x": -2831.041,
+    "y": 60.799,
+    "width": 6138.77,
+    "height": 1586.204
+   },
+   "frames": {
+    "avatar": {
+     "x": -218.137,
+     "y": 873.562,
+     "width": 252.276,
+     "height": 252.276
+    },
+    "portrait": {
+     "x": -211.926,
+     "y": 683.282,
+     "width": 229.913,
+     "height": 459.826
+    }
+   }
+  },
+  "char_1014_nearl2": {
+   "dynIllustId": "dyn_illust_char_1014_nearl2_2",
+   "bundle": "arts/dynchars/char_1014_nearl2_2.ab",
+   "clientHash": "9640cc4fee845bd9f3e013d42494f84d",
+   "skel": {
+    "name": "dyn_illust_char_1014_nearl2.skel",
+    "bytes": 651755,
+    "sha256": "0003cd43b380af87224f214721e9a23014f8731f63e6fa14b1501eac06ef6b7b"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1014_nearl2.atlas",
+    "bytes": 26644,
+    "sha256": "056de278155f6963210244123ed68715a721862dd4f1851a7b1136d9684ad26c"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1014_nearl2.webp",
+     "bytes": 3914572,
+     "sha256": "9fe0d9f1dc41c1f58a4d0f3578e2da9524ca5df5bc6a9c1c8931605817b2a79f"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.497,
+    "over": 0.51
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 8,
+    "Interact": 4,
+    "Special": 6.667
+   },
+   "bounds": {
+    "x": -1207.277,
+    "y": -19.282,
+    "width": 2054.676,
+    "height": 1879.106
+   },
+   "frames": {
+    "avatar": {
+     "x": -312.21,
+     "y": 1013.095,
+     "width": 183.366,
+     "height": 183.366
+    },
+    "portrait": {
+     "x": -304.785,
+     "y": 875.931,
+     "width": 168.736,
+     "height": 337.471
+    }
+   }
+  },
+  "char_1015_aglna2": {
+   "dynIllustId": "dyn_illust_char_1015_aglna2_2",
+   "bundle": "arts/dynchars/char_1015_aglna2_2.ab",
+   "clientHash": "a98bb9e3f3fc258b563fa239bb916c1c",
+   "skel": {
+    "name": "dyn_illust_char_1015_aglna2.skel",
+    "bytes": 1247719,
+    "sha256": "bb8d460816953ec2dea8d9fdefad45d2cdf49b2e71ab1b0acda48a417c98bd80"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1015_aglna2.atlas",
+    "bytes": 31268,
+    "sha256": "726bc1a47beeb771328b98f5c321611b971126e13aef8447095c76c9739c4893"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1015_aglna2.webp",
+     "bytes": 4080390,
+     "sha256": "1e0b2b8b82909bbf351144bb44ec860c24cfdc0ed6264974ef6a6a3a9c70bd2b"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.693,
+    "over": 0.353
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 7.333,
+    "Interact": 22.633,
+    "Special": 18.767
+   },
+   "bounds": {
+    "x": -900.052,
+    "y": 80.5,
+    "width": 1568.552,
+    "height": 1754.5
+   },
+   "frames": {
+    "avatar": {
+     "x": -37.488,
+     "y": 1302.997,
+     "width": 225.468,
+     "height": 225.468
+    },
+    "portrait": {
+     "x": -42.639,
+     "y": 1130.489,
+     "width": 209.21,
+     "height": 418.42
+    }
+   }
+  },
+  "char_1016_agoat2": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_2",
+   "bundle": "arts/dynchars/char_1016_agoat2_2.ab",
+   "clientHash": "a8592ecfc8bf7350d0090750f7b0a010",
+   "skel": {
+    "name": "dyn_illust_char_1016_agoat2.skel",
+    "bytes": 1139578,
+    "sha256": "0bf1257b16f249561704ec916066019558138a2b2b7fe45360912386de6adca2"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1016_agoat2.atlas",
+    "bytes": 27779,
+    "sha256": "c4b8787e6f876962c31c25025f7ead52a4ce7df3023c0ad34b6213bba7c3f7c6"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1016_agoat2.webp",
+     "bytes": 4219156,
+     "sha256": "017a6c0b9980ec596134971bead163b98efb99946fccbd9bcf8e1a004a18058a"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.85,
+    "over": 0.656
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 4,
+    "Interact": 11.667,
+    "Special": 12.5
+   },
+   "bounds": {
+    "x": -910.928,
+    "y": -430.573,
+    "width": 1950.886,
+    "height": 2051.599
+   },
+   "frames": {
+    "avatar": {
+     "x": -43.974,
+     "y": 863.929,
+     "width": 178.682,
+     "height": 178.682
+    },
+    "portrait": {
+     "x": -42.835,
+     "y": 722.928,
+     "width": 167.885,
+     "height": 335.769
+    }
+   }
+  },
+  "char_1023_ghost2": {
+   "dynIllustId": "dyn_illust_char_1023_ghost2_2",
+   "bundle": "arts/dynchars/char_1023_ghost2_2.ab",
+   "clientHash": "85528560997b6e59b15da0cbb5058bba",
+   "skel": {
+    "name": "dyn_illust_char_1023_ghost2.skel",
+    "bytes": 1362677,
+    "sha256": "a1cb034c26238fffd5377da1cbbf1b806aef0d5422d8a3ad234e2dc5708ef2a5"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1023_ghost2.atlas",
+    "bytes": 32284,
+    "sha256": "e064bb45b480adf236f6fd8eb3d2bbd38473c19262161140f34727203bcf1d26"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1023_ghost2.webp",
+     "bytes": 5696016,
+     "sha256": "13c14368cf3eb409e82fecb1a919905583f4a2707f7e3dba206e772eb87502b8"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.391,
+    "over": 0.213
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 8,
+    "Interact": 8,
+    "Special": 20
+   },
+   "bounds": {
+    "x": -990.155,
+    "y": 32.821,
+    "width": 1976.957,
+    "height": 1595.045
+   },
+   "frames": {
+    "avatar": {
+     "x": -23.12,
+     "y": 973.364,
+     "width": 150.609,
+     "height": 150.609
+    },
+    "portrait": {
+     "x": -18.653,
+     "y": 860.189,
+     "width": 136.866,
+     "height": 273.732
+    }
+   }
+  },
+  "char_1026_gvial2": {
+   "dynIllustId": "dyn_illust_char_1026_gvial2_2",
+   "bundle": "arts/dynchars/char_1026_gvial2_2.ab",
+   "clientHash": "9fba1215c5802b495edd01959b2107d4",
+   "skel": {
+    "name": "dyn_illust_char_1026_gvial2.skel",
+    "bytes": 2374618,
+    "sha256": "dfdb9f1184662e7f7f6e0155e8f12b5b72575ea9bc849c0f69ba989bf6d74d30"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1026_gvial2.atlas",
+    "bytes": 25636,
+    "sha256": "4a6205d0b162ae13db24613d0e7d56e5232f8781458ca0789d119b03b7fdea06"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1026_gvial2.webp",
+     "bytes": 1790726,
+     "sha256": "f46da43e3acf34405dff6a1240692142f10503e39a5fa02dae10803bd5c266d1"
+    }
+   ],
+   "textureFormats": [
+    "DXT1+DXT1 alpha"
+   ],
+   "pma": true,
+   "pmaMeasure": {
+    "stay": 0.033,
+    "over": 0.004
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 8,
+    "Interact": 6,
+    "Special": 12
+   },
+   "bounds": {
+    "x": -1131.684,
+    "y": -208.195,
+    "width": 2027,
+    "height": 2220.297
+   },
+   "frames": {
+    "avatar": {
+     "x": -343.068,
+     "y": 1133.03,
+     "width": 212.74,
+     "height": 212.74
+    },
+    "portrait": {
+     "x": -332.376,
+     "y": 965.655,
+     "width": 200.543,
+     "height": 401.086
+    }
+   }
+  },
+  "char_1028_texas2": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_2",
+   "bundle": "arts/dynchars/char_1028_texas2_2.ab",
+   "clientHash": "f85ec5ec79805124d8fb701dc94b2205",
+   "skel": {
+    "name": "dyn_illust_char_1028_texas2.skel",
+    "bytes": 2170363,
+    "sha256": "b2edc56aa20ccbf1b7f401e9db2d4f14421499d833fdd84ecd51e24d4d08e443"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1028_texas2.atlas",
+    "bytes": 28524,
+    "sha256": "857379701e0e81df8f941759909dbf855228825693d6b60b75f406e7ec7ce423"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1028_texas2.webp",
+     "bytes": 2429876,
+     "sha256": "5dd23abdb5ffdcea235c17ea75c5df4fd4b3225210e5d77586f17930e34323ad"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.698,
+    "over": 0.231
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 8,
+    "Interact": 9,
+    "Special": 6.667
+   },
+   "bounds": {
+    "x": -668.746,
+    "y": -349.6,
+    "width": 1206.855,
+    "height": 1176.665
+   },
+   "frames": {
+    "avatar": {
+     "x": -65.093,
+     "y": 386.243,
+     "width": 127.669,
+     "height": 127.669
+    },
+    "portrait": {
+     "x": -61.282,
+     "y": 289.908,
+     "width": 117.507,
+     "height": 235.014
+    }
+   }
+  },
+  "char_1035_wisdel": {
+   "dynIllustId": "dyn_illust_char_1035_wisdel_2",
+   "bundle": "arts/dynchars/char_1035_wisdel_2.ab",
+   "clientHash": "48265b0180a6bdf5af365656a83a5dbb",
+   "skel": {
+    "name": "dyn_illust_char_1035_wisdel.skel",
+    "bytes": 697866,
+    "sha256": "8d756d37e803d5edb9b5a111e5b74f2b08787cac4617c344fd61a4cfa5373c44"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1035_wisdel.atlas",
+    "bytes": 19997,
+    "sha256": "14523a9c5b17c9277199386c1a1370deeaf70e90d51ad001fcf4ac59e19b8418"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1035_wisdel.webp",
+     "bytes": 3446598,
+     "sha256": "ea05e003de02026dc4580823f18afda3acc47192179c99b957fa0c5d9ed41473"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.63,
+    "over": 0.227
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 8,
+    "Interact": 11.833,
+    "Special": 8
+   },
+   "bounds": {
+    "x": -869.337,
+    "y": -136.09,
+    "width": 1648.412,
+    "height": 1714.211
+   },
+   "frames": {
+    "avatar": {
+     "x": -68.409,
+     "y": 844.78,
+     "width": 181.049,
+     "height": 181.049
+    },
+    "portrait": {
+     "x": -67.865,
+     "y": 708.235,
+     "width": 164.86,
+     "height": 329.72
+    }
+   }
+  },
+  "char_1038_whitw2": {
+   "dynIllustId": "dyn_illust_char_1038_whitw2_2",
+   "bundle": "arts/dynchars/char_1038_whitw2_2.ab",
+   "clientHash": "d8e80d532650c81643f07f28c1223153",
+   "skel": {
+    "name": "dyn_illust_char_1038_whitw2.skel",
+    "bytes": 483913,
+    "sha256": "2a9883826692c4919567a164d85d3e5a7f0a8c4e42fb42e49ce2d5eb168ecd67"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1038_whitw2.atlas",
+    "bytes": 18870,
+    "sha256": "27f44af0f3eb436858d4feee9009671ad6ba9b7575d7478dcdd94c9bbf04d323"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1038_whitw2.webp",
+     "bytes": 3042540,
+     "sha256": "5e402f1734f6af1034dd72a5767d0b6dfae440f55a410ed79418cc1301f56d12"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.695,
+    "over": 0.247
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 5.333,
+    "Interact": 9.5,
+    "Special": 7.333
+   },
+   "bounds": {
+    "x": -849.77,
+    "y": -103.581,
+    "width": 1891.5,
+    "height": 1428.796
+   },
+   "frames": {
+    "avatar": {
+     "x": -73.872,
+     "y": 647.406,
+     "width": 149.39,
+     "height": 149.39
+    },
+    "portrait": {
+     "x": -70.399,
+     "y": 532.148,
+     "width": 139.107,
+     "height": 278.214
+    }
+   }
+  },
+  "char_1041_angel2": {
+   "dynIllustId": "dyn_illust_char_1041_angel2_2",
+   "bundle": "arts/dynchars/char_1041_angel2_2.ab",
+   "clientHash": "aeb0df510faa84d65d4ea38ab70cddfc",
+   "skel": {
+    "name": "dyn_illust_char_1041_angel2.skel",
+    "bytes": 1438395,
+    "sha256": "18c42baa6c063e807e823705764296a1343e4606871ca5dc77dfb1b64d51927c"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1041_angel2.atlas",
+    "bytes": 41186,
+    "sha256": "59b394d1843c08be0b0a96f82c9266514895a7f306a1942f6cb67b56539feaaf"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1041_angel2.webp",
+     "bytes": 3430164,
+     "sha256": "4f8e6e7306dec6f8ea9ad6a8fa7f46a73e7a9431ca63f597302b0b598815d142"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.696,
+    "over": 0.496
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 9,
+    "Interact": 17.333,
+    "Special": 17.333
+   },
+   "bounds": {
+    "x": -937.448,
+    "y": 221.962,
+    "width": 1951.913,
+    "height": 1593.983
+   },
+   "frames": {
+    "avatar": {
+     "x": -7.752,
+     "y": 1138.793,
+     "width": 156.434,
+     "height": 156.434
+    },
+    "portrait": {
+     "x": 1.303,
+     "y": 1021.159,
+     "width": 143.163,
+     "height": 286.326
+    }
+   }
+  },
+  "char_1044_hsgma2": {
+   "dynIllustId": "dyn_illust_char_1044_hsgma2_2",
+   "bundle": "arts/dynchars/char_1044_hsgma2_2.ab",
+   "clientHash": "afd88a6e6b9efd2c159382f1e1b05166",
+   "skel": {
+    "name": "dyn_illust_char_1044_hsgma2.skel",
+    "bytes": 1479999,
+    "sha256": "30c302e87c2b687621c4a3533c71468dfe83e37f0db0c39500559e9306e83ae8"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1044_hsgma2.atlas",
+    "bytes": 28514,
+    "sha256": "754caaf9b4ebf5e60aecc49f80e13504b4224e105360c6d2f84266708bf69c58"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1044_hsgma2.webp",
+     "bytes": 7084368,
+     "sha256": "7966eaeb7320766bf2aa38318c92ed2afee7d6ef3c2b752f66712d0a858255fc"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.77,
+    "over": 0.738
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 9.333,
+    "Interact": 13.6,
+    "Special": 15
+   },
+   "bounds": {
+    "x": -1018.129,
+    "y": -217.767,
+    "width": 1976.297,
+    "height": 2027.195
+   },
+   "frames": {
+    "avatar": {
+     "x": -84.46,
+     "y": 1035.63,
+     "width": 150.409,
+     "height": 150.409
+    },
+    "portrait": {
+     "x": -83.507,
+     "y": 920.233,
+     "width": 139.259,
+     "height": 278.518
+    }
+   }
+  },
+  "char_1045_svash2": {
+   "dynIllustId": "dyn_illust_char_1045_svash2_2",
+   "bundle": "arts/dynchars/char_1045_svash2_2.ab",
+   "clientHash": "f7a4d58a261651a2bed75d3853b8a2b9",
+   "skel": {
+    "name": "dyn_illust_char_1045_svash2.skel",
+    "bytes": 2362493,
+    "sha256": "83dcb73eca87f372177039528039f5e1865fb59e26e839bb0fd4bb4daec1e373"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1045_svash2.atlas",
+    "bytes": 44740,
+    "sha256": "2d4bcdfa1f1031cdeac624cdc613c58fe526b201208c7af18180c7d2f034565e"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1045_svash2.webp",
+     "bytes": 5547486,
+     "sha256": "92e022586528d90b01fb14e6404359832d924f3c9779960ab97d4847f0815c38"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.466,
+    "over": 0.457
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 9.333,
+    "Interact": 10.333,
+    "Special": 10.233
+   },
+   "bounds": {
+    "x": -999.649,
+    "y": 28.73,
+    "width": 2051.283,
+    "height": 1716.02
+   },
+   "frames": {
+    "avatar": {
+     "x": -80.416,
+     "y": 1115.612,
+     "width": 137.41,
+     "height": 137.41
+    },
+    "portrait": {
+     "x": -73.254,
+     "y": 1010.547,
+     "width": 129.532,
+     "height": 259.063
+    }
+   }
+  },
+  "char_1052_kalts2": {
+   "dynIllustId": "dyn_illust_char_1052_kalts2_2",
+   "bundle": "arts/dynchars/char_1052_kalts2_2.ab",
+   "clientHash": "500630f3358e4292323f9b1b3b1e3399",
+   "skel": {
+    "name": "dyn_illust_char_1052_kalts2.skel",
+    "bytes": 736305,
+    "sha256": "5f8166865f1eb2ae228ae756ce9fae8deff5970ff4566adc1b61fa35a88db307"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_1052_kalts2.atlas",
+    "bytes": 18697,
+    "sha256": "345da6d895db56731fce6388cb3e2eeb8e204e76acf575dc0c7e60d090866d5e"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_1052_kalts2.webp",
+     "bytes": 3544684,
+     "sha256": "77e386662248fdb9885c0872241c36f44ea2b57c8026ce29c6717ccd0d13fe21"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.658,
+    "over": 0.415
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 6,
+    "Interact": 22.333,
+    "Special": 16.167
+   },
+   "bounds": {
+    "x": -857.967,
+    "y": -123.556,
+    "width": 1668.162,
+    "height": 1596.315
+   },
+   "frames": {
+    "avatar": {
+     "x": -10.024,
+     "y": 633.476,
+     "width": 151.369,
+     "height": 151.369
+    },
+    "portrait": {
+     "x": -6.731,
+     "y": 511.349,
+     "width": 145.287,
+     "height": 290.574
+    }
+   }
+  },
+  "char_113_cqbw": {
+   "dynIllustId": "dyn_illust_char_113_cqbw_2",
+   "bundle": "arts/dynchars/char_113_cqbw_2.ab",
+   "clientHash": "383a65800406136086066333366fda78",
+   "skel": {
+    "name": "dyn_illust_char_113_cqbw.skel",
+    "bytes": 558713,
+    "sha256": "16919341589800f777600b71613a144c2f17b588dee13cecc8d06c3fec7d4afb"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_113_cqbw.atlas",
+    "bytes": 21720,
+    "sha256": "a7dc356a94c6f6ee7a8bdfc08856b93d6eff8c7c9723b946f56339faa364b71d"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_113_cqbw.webp",
+     "bytes": 3301162,
+     "sha256": "015d4a6e14f7e7ac7313abd1299e6c5be8d5b5d3d83154fc5bd0416e553636bc"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.553,
+    "over": 0.403
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 4,
+    "Interact": 3.333,
+    "Special": 12
+   },
+   "bounds": {
+    "x": -2931.407,
+    "y": 37.78,
+    "width": 3719.26,
+    "height": 1739.541
+   },
+   "frames": {
+    "avatar": {
+     "x": -168.539,
+     "y": 1121.605,
+     "width": 197.321,
+     "height": 197.321
+    },
+    "portrait": {
+     "x": -154.569,
+     "y": 974.428,
+     "width": 177.826,
+     "height": 355.651
+    }
+   }
+  },
+  "char_2014_nian": {
+   "dynIllustId": "dyn_illust_char_2014_nian_2",
+   "bundle": "arts/dynchars/char_2014_nian_2.ab",
+   "clientHash": "507039d8e3ae305fa5bd3265e6ad1533",
+   "skel": {
+    "name": "dyn_illust_char_2014_nian2.skel",
+    "bytes": 737160,
+    "sha256": "8eb7d63b8427f690dee131aec374d9a80ffc0820f75b8c38e54fbf71c2532f76"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_2014_nian2.atlas",
+    "bytes": 17103,
+    "sha256": "57a72b63712856e3f66e2320c1bfe35c91e5c070fc641201b67eec1b6b1c5438"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_2014_nian.webp",
+     "bytes": 559688,
+     "sha256": "45a7cffb68e7b1f30af64af4cf5b4ec3c7d0bfe7362b2eb1f71a8e2ab79417c8"
+    },
+    {
+     "name": "dyn_illust_char_2014_nian2.webp",
+     "bytes": 1057046,
+     "sha256": "c2b3ea8f7c940461ad5db4cf94b74a386229a67c9f361ce7105eeba219e20430"
+    }
+   ],
+   "textureFormats": [
+    "DXT1+DXT1 alpha",
+    "DXT1+DXT1 alpha"
+   ],
+   "pma": true,
+   "pmaMeasure": {
+    "stay": 0.05,
+    "over": 0.014
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 8,
+    "Interact": 8,
+    "Special": 8
+   },
+   "bounds": {
+    "x": -966.5,
+    "y": -27.482,
+    "width": 1994.56,
+    "height": 1573.023
+   },
+   "frames": {
+    "avatar": {
+     "x": -45.352,
+     "y": 980.776,
+     "width": 147.469,
+     "height": 147.469
+    },
+    "portrait": {
+     "x": -47.164,
+     "y": 863.773,
+     "width": 141.446,
+     "height": 282.892
+    }
+   }
+  },
+  "char_2015_dusk": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_2",
+   "bundle": "arts/dynchars/char_2015_dusk_2.ab",
+   "clientHash": "2973f6545ac33c589a199fb087b04808",
+   "skel": {
+    "name": "dyn_illust_char_2015_dusk.skel",
+    "bytes": 925619,
+    "sha256": "c7da467bc61fd76b7d453bf2023aa193f05ab26c58e863650673a9e9b063d2c5"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_2015_dusk.atlas",
+    "bytes": 15385,
+    "sha256": "625479e31d86760c5c0df60a10e5ca46c6a98410889cb787c26b0967aa776621"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_2015_dusk.webp",
+     "bytes": 2745484,
+     "sha256": "72df284aab30b5a6c110662492895580cd9cdddaa1a39fcc8b4b9f1bc24ff8f6"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.833,
+    "over": 0.331
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 13.333,
+    "Interact": 6.667,
+    "Special": 8
+   },
+   "bounds": {
+    "x": -826.981,
+    "y": 77.111,
+    "width": 1645.996,
+    "height": 1686.875
+   },
+   "frames": {
+    "avatar": {
+     "x": -130.158,
+     "y": 1296.363,
+     "width": 191.256,
+     "height": 191.256
+    },
+    "portrait": {
+     "x": -122.621,
+     "y": 1150.025,
+     "width": 177.742,
+     "height": 355.484
+    }
+   }
+  },
+  "char_2023_ling": {
+   "dynIllustId": "dyn_illust_char_2023_ling_2",
+   "bundle": "arts/dynchars/char_2023_ling_2.ab",
+   "clientHash": "3fffdf3b42d51a07cc64eddba8aa981b",
+   "skel": {
+    "name": "dyn_illust_char_2023_ling.skel",
+    "bytes": 1685021,
+    "sha256": "013c5edf7ea7893d8540f8cf0531a8214309b0f36dfcf05c8d9dc11136e7848a"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_2023_ling.atlas",
+    "bytes": 23433,
+    "sha256": "c25f0e119373c0a82c2e0ee3677b11ad2655e8e87ec6213a13860d31d9121dad"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_2023_ling.webp",
+     "bytes": 1226256,
+     "sha256": "722382e84f503f0eb8a39734e1bef79150263412d4d633d81729ee45715d34c4"
+    },
+    {
+     "name": "dyn_illust_char_2023_ling2.webp",
+     "bytes": 352938,
+     "sha256": "1cf676a80e4a4bdf59988c15b5772eafd5f97c6858792f1bcf8941c084b95bbd"
+    }
+   ],
+   "textureFormats": [
+    "DXT1+DXT1 alpha",
+    "DXT1+DXT1 alpha"
+   ],
+   "pma": true,
+   "pmaMeasure": {
+    "stay": 0.04,
+    "over": 0.007
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 4,
+    "Interact": 6,
+    "Special": 20
+   },
+   "bounds": {
+    "x": -680.026,
+    "y": 112.71,
+    "width": 2001.742,
+    "height": 1984.774
+   },
+   "frames": {
+    "avatar": {
+     "x": -157.668,
+     "y": 1222.254,
+     "width": 176.151,
+     "height": 176.151
+    },
+    "portrait": {
+     "x": -152.228,
+     "y": 1078.832,
+     "width": 170.109,
+     "height": 340.219
+    }
+   }
+  },
+  "char_2024_chyue": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_2",
+   "bundle": "arts/dynchars/char_2024_chyue_2.ab",
+   "clientHash": "afb8fad2d5d3af0849f3771ccbfd23f2",
+   "skel": {
+    "name": "dyn_illust_char_2024_chyue.skel",
+    "bytes": 1235796,
+    "sha256": "fe1b6e725f17e0973d43ecee4a6b3a3c48fa0537d9a4c71ff61e16d06267e41e"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_2024_chyue.atlas",
+    "bytes": 38077,
+    "sha256": "baeead18f954aefbef0fa2403298a2ea571fe5455404e5f5c338908fb5cf9837"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_2024_chyue.webp",
+     "bytes": 3578988,
+     "sha256": "ef0b84d7ccaaf5bae50854819a35ad00eb59c95caaeb4b6c8c202cbc89e5afe8"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.67,
+    "over": 0.595
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 8,
+    "Interact": 10.433,
+    "Special": 11.8
+   },
+   "bounds": {
+    "x": -2261.293,
+    "y": -0.236,
+    "width": 3995.192,
+    "height": 1997.5
+   },
+   "frames": {
+    "avatar": {
+     "x": -82.692,
+     "y": 1246.699,
+     "width": 179.124,
+     "height": 179.124
+    },
+    "portrait": {
+     "x": -76.825,
+     "y": 1112.225,
+     "width": 165.519,
+     "height": 331.038
+    }
+   }
+  },
+  "char_2025_shu": {
+   "dynIllustId": "dyn_illust_char_2025_shu_2",
+   "bundle": "arts/dynchars/char_2025_shu_2.ab",
+   "clientHash": "83d837317d7f19290afbd990f6a0b608",
+   "skel": {
+    "name": "dyn_illust_char_2025_shu.skel",
+    "bytes": 677613,
+    "sha256": "7ff33c58860e51dfb6095d933d364f50d5f58315641eea0cf6105f9a42011526"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_2025_shu.atlas",
+    "bytes": 25819,
+    "sha256": "f6af1c32b185ce68278fe983b14e03793d8318cbace2db88b4e531221beecc03"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_2025_shu.webp",
+     "bytes": 3966566,
+     "sha256": "ace898072df98e6005e39c61b85c70e0d32d3320d818f55389589fc930502b15"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.823,
+    "over": 0.503
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 5.333,
+    "Interact": 10.667,
+    "Special": 11.333
+   },
+   "bounds": {
+    "x": -1033.013,
+    "y": -8.408,
+    "width": 2098.16,
+    "height": 1983.181
+   },
+   "frames": {
+    "avatar": {
+     "x": -43.527,
+     "y": 1081.763,
+     "width": 240.917,
+     "height": 240.917
+    },
+    "portrait": {
+     "x": -50.51,
+     "y": 893.87,
+     "width": 224.884,
+     "height": 449.767
+    }
+   }
+  },
+  "char_2026_yu": {
+   "dynIllustId": "dyn_illust_char_2026_yu_2",
+   "bundle": "arts/dynchars/char_2026_yu_2.ab",
+   "clientHash": "9896264c338494c00eae206b4130bb1f",
+   "skel": {
+    "name": "dyn_illust_char_2026_yu.skel",
+    "bytes": 1319024,
+    "sha256": "7aec89ca135202a28012bc246735290a06ef95739be124c9ad6f422e7923634b"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_2026_yu.atlas",
+    "bytes": 32705,
+    "sha256": "48fe3459ff2e7b2b39fd5ee0fee4c708ce47afade9dc84129a2f52028e24fb88"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_2026_yu.webp",
+     "bytes": 4182454,
+     "sha256": "5c5a4210e6d8f7bb4f7c88dd91e9091d30525a3c3f908352deda05fab8ff49ee"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.61,
+    "over": 0.623
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 10,
+    "Interact": 17.667,
+    "Special": 16
+   },
+   "bounds": {
+    "x": -949.615,
+    "y": -26.438,
+    "width": 1946.352,
+    "height": 1986.936
+   },
+   "frames": {
+    "avatar": {
+     "x": 10.512,
+     "y": 1133.229,
+     "width": 177.663,
+     "height": 177.663
+    },
+    "portrait": {
+     "x": 9.287,
+     "y": 988.633,
+     "width": 171.688,
+     "height": 343.376
+    }
+   }
+  },
+  "char_2027_wang": {
+   "dynIllustId": "dyn_illust_char_2027_wang_2",
+   "bundle": "arts/dynchars/char_2027_wang_2.ab",
+   "clientHash": "a60394e48c0dcf6292978ea6fa1724b8",
+   "skel": {
+    "name": "dyn_illust_char_2027_wang.skel",
+    "bytes": 3280688,
+    "sha256": "5e4a254b038f88e403950b5fb5b95755e309d3f9c1fdbf248a626c454336768b"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_2027_wang.atlas",
+    "bytes": 62752,
+    "sha256": "37e47101e0f16eea0fc3c11b10ea5250135126daff694e90deeeb608c779787e"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_2027_wang.webp",
+     "bytes": 4957332,
+     "sha256": "2603fee28d7aa57f20605d5ab49b8a808f2c6df89072fa8c6be212f160d245c6"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.432,
+    "over": 0.283
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 12,
+    "Interact": 15,
+    "Special": 25
+   },
+   "bounds": {
+    "x": -672.93,
+    "y": -45.01,
+    "width": 1647.835,
+    "height": 1672.054
+   },
+   "frames": {
+    "avatar": {
+     "x": -69.694,
+     "y": 1021.512,
+     "width": 175.339,
+     "height": 175.339
+    },
+    "portrait": {
+     "x": -61.653,
+     "y": 891.773,
+     "width": 157.156,
+     "height": 314.312
+    }
+   }
+  },
+  "char_245_cello": {
+   "dynIllustId": "dyn_illust_char_245_cello_2",
+   "bundle": "arts/dynchars/char_245_cello_2.ab",
+   "clientHash": "301987da05b1e456542f932f432bc61e",
+   "skel": {
+    "name": "dyn_illust_char_245_cello.skel",
+    "bytes": 482511,
+    "sha256": "dc0af27d53a8fb9983281caf776b6d78c613b5001a9489260e439803eda4d3ec"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_245_cello.atlas",
+    "bytes": 21572,
+    "sha256": "12e5ec9e3d54c165e486b3f38f9e133c9892e516a92beb8329311a54ce4e6954"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_245_cello.webp",
+     "bytes": 2907030,
+     "sha256": "04685d146486d1676905965fb7590bd38e9d7e4aeedf0248c331532cf911e1ac"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.232,
+    "over": 0.517
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 7,
+    "Interact": 16.8,
+    "Special": 9.2
+   },
+   "bounds": {
+    "x": -990.22,
+    "y": -7.462,
+    "width": 1936.997,
+    "height": 1811.445
+   },
+   "frames": {
+    "avatar": {
+     "x": -170.404,
+     "y": 894.74,
+     "width": 207.558,
+     "height": 207.558
+    },
+    "portrait": {
+     "x": -166.423,
+     "y": 736.187,
+     "width": 190.755,
+     "height": 381.51
+    }
+   }
+  },
+  "char_249_mlyss": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_2",
+   "bundle": "arts/dynchars/char_249_mlyss_2.ab",
+   "clientHash": "f0808e3e51f037e04cec27780d005861",
+   "skel": {
+    "name": "dyn_illust_char_249_mlyss.skel",
+    "bytes": 1732003,
+    "sha256": "819d183f1773135e271398391a61f6b7480c0fb1b6d78f9ee0ea16b54aad5497"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_249_mlyss.atlas",
+    "bytes": 23939,
+    "sha256": "77a3d51b319f49a986e613b28a9f4cab2349bd34440551ffa86186235038f4dc"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_249_mlyss.webp",
+     "bytes": 2794214,
+     "sha256": "798653c5f21ed93ac7eeae28d37cce87272c74705b1a00d68ae06bfea52c9d72"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.587,
+    "over": 0.279
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 4,
+    "Interact": 8,
+    "Special": 12
+   },
+   "bounds": {
+    "x": -320.16,
+    "y": 168.458,
+    "width": 987.492,
+    "height": 1281.621
+   },
+   "frames": {
+    "avatar": {
+     "x": 162.525,
+     "y": 1105.397,
+     "width": 190.634,
+     "height": 190.634
+    },
+    "portrait": {
+     "x": 161.99,
+     "y": 951.319,
+     "width": 180.73,
+     "height": 361.46
+    }
+   }
+  },
+  "char_391_rosmon": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_2",
+   "bundle": "arts/dynchars/char_391_rosmon_2.ab",
+   "clientHash": "b71ff8de26ae42de792dcfe589de6538",
+   "skel": {
+    "name": "dyn_illust_char_391_rosmon.skel",
+    "bytes": 510209,
+    "sha256": "131bac05a75249a4d383d0d91c764e456d7c81515cfc83c5541a135579367176"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_391_rosmon.atlas",
+    "bytes": 13489,
+    "sha256": "8d2857cec0fefd363c6c8c14774e1b5a1fcc22ef931d9a39e3f625ffa277fc54"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_391_rosmon.webp",
+     "bytes": 2939192,
+     "sha256": "ea335d89e73632c09c36f679bbb817df5c32df6dcf8da4bbc238d807e28c7fbb"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.762,
+    "over": 0.33
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 10.667,
+    "Interact": 5.333,
+    "Special": 10.667
+   },
+   "bounds": {
+    "x": -1028.734,
+    "y": -63.105,
+    "width": 3726.637,
+    "height": 3081.58
+   },
+   "frames": {
+    "avatar": {
+     "x": -322.771,
+     "y": 980.338,
+     "width": 178.573,
+     "height": 178.573
+    },
+    "portrait": {
+     "x": -313.777,
+     "y": 843.525,
+     "width": 165.297,
+     "height": 330.594
+    }
+   }
+  },
+  "char_4058_pepe": {
+   "dynIllustId": "dyn_illust_char_4058_pepe_2",
+   "bundle": "arts/dynchars/char_4058_pepe_2.ab",
+   "clientHash": "46bf19af2abe0fc0a779c06bc46228cd",
+   "skel": {
+    "name": "dyn_illust_char_4058_pepe.json",
+    "bytes": 2203885,
+    "sha256": "7395972019ad04b8e35434f0b3038f0dad0e1bca3b3f0546f388196c5403c1bb"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_4058_pepe.atlas",
+    "bytes": 29636,
+    "sha256": "c48670c1abde98369e538f04b49bdd7eb35f11525cb51ab489eb462b3c5a2f21"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_4058_pepe.webp",
+     "bytes": 4481984,
+     "sha256": "1008eb6613a361a4e76f909291513ace433cc8e43bd35411794f994a0d9ce0a0"
+    }
+   ],
+   "textureFormats": [
+    "DXT5"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.604,
+    "over": 0.388
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 8,
+    "Interact": 8,
+    "Special": 9
+   },
+   "bounds": {
+    "x": -1029.747,
+    "y": -23.49,
+    "width": 2084.354,
+    "height": 1946.291
+   },
+   "frames": {
+    "avatar": {
+     "x": -76.784,
+     "y": 1022.975,
+     "width": 210.367,
+     "height": 210.367
+    },
+    "portrait": {
+     "x": -76.991,
+     "y": 842.441,
+     "width": 206.294,
+     "height": 412.588
+    }
+   }
+  },
+  "char_4247_oxi": {
+   "dynIllustId": "dyn_illust_char_4247_oxi_2",
+   "bundle": "arts/dynchars/char_4247_oxi_2.ab",
+   "clientHash": "e0ac71a29efc04638bc1d3cbc51ab2c8",
+   "skel": {
+    "name": "dyn_illust_char_4247_oxi.skel",
+    "bytes": 1905450,
+    "sha256": "fb870ec0ff110bd2209534493839dde7d65153bed1179c422f48ee1dc660ab00"
+   },
+   "atlas": {
+    "name": "dyn_illust_char_4247_oxi.atlas",
+    "bytes": 47483,
+    "sha256": "01fce41e98f5cacd7722c923226bf7dbae3c82c68279efb6ee5470b3b1b33797"
+   },
+   "textures": [
+    {
+     "name": "dyn_illust_char_4247_oxi.webp",
+     "bytes": 5348384,
+     "sha256": "b1c65db4347ba3930f2db9d1d87e35b3ab840e41739b3f0260e4ebabd230dc81"
+    }
+   ],
+   "textureFormats": [
+    "BC7"
+   ],
+   "pma": false,
+   "pmaMeasure": {
+    "stay": 0.51,
+    "over": 0.22
+   },
+   "idle": "Idle",
+   "animations": {
+    "Idle": 6.667,
+    "Interact": 26,
+    "Special": 17.333
+   },
+   "bounds": {
+    "x": -750.176,
+    "y": -148.84,
+    "width": 1565.498,
+    "height": 1502.837
+   },
+   "frames": {
+    "avatar": {
+     "x": -80.161,
+     "y": 451.404,
+     "width": 119.931,
+     "height": 119.931
+    },
+    "portrait": {
+     "x": -75.91,
+     "y": 361.504,
+     "width": 109.156,
+     "height": 218.312
+    }
+   }
+  }
+ }
+}

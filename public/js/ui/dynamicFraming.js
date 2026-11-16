@@ -10,6 +10,8 @@
 //     owner, 2026-11-04): every look has one — a static portrait (精二, 精一, a skin without a 动态立绘) is framed in its own
 //     picture (pictureBounds); a skin with one in its skeleton bounds, and its static portrait (the official crop's rect
 //     there) is placed by the same transform (pictureBox), so the two frame alike and a 动态立绘 that fails shows the same.
+//     A 精二 动态立绘 (e2Dynamic, 2026-11-16) is framed in its 立绘's space mapped into the skeleton (the official crop ↔
+//     portraitBoxE2), so a frame saved on the static 精二 shows the same part of it live.
 
 import { appearanceEntry } from './skinAssets.js';
 import { skinIdFor } from '../../../shared/skins.js';
@@ -97,12 +99,13 @@ export function moveArt(bw, bh, b, art, dx, dy, factor = 1, zoomMax = ART_LIMITS
 
 /**
  * The transform for one embedded view: `framing` { rect, posX?, posY? } (a crop), { focusX?, focusY, zoom? } (the whole
- * bounds, the 名片), or { art } (a seat; null art = { rect, posX, posY } fallback given as `rect`).
+ * bounds, the 名片), or { art, space? } (a seat; null art = { rect, posX, posY } fallback given as `rect`; `space`: the
+ * rect the art is relative to when it is not the bounds — a 精二 动态立绘 framed in its 立绘's space, ui/seatLive.js).
  * @param {number} bw @param {number} bh @param {{ x: number, y: number, width: number, height: number }} bounds
  * @param {any} framing
  */
 export function framingLayout(bw, bh, bounds, framing) {
-  if (framing?.art) return rectLayout(bw, bh, seatRect(bw, bh, bounds, framing.art));
+  if (framing?.art) return rectLayout(bw, bh, seatRect(bw, bh, framing.space || bounds, framing.art));
   if (framing?.rect) return rectLayout(bw, bh, framing.rect, framing.posX ?? 50, framing.posY ?? 50);
   return rectLayout(bw, bh, bounds, framing?.focusX ?? 50, framing?.focusY ?? 50, framing?.zoom ?? 1);
 }
@@ -125,12 +128,34 @@ const playable = (rec) => {
   const d = rec?.dynamic;
   return d && typeof d.skel === 'string' && !isCollabUrl(d.skel) && !isCollabUrl(rec.illustration) && !isCollabUrl(rec.avatar) ? d : null;
 };
-/** The dynamic record of the skin `charId` wears in a skins choice map (ui/skins.js), or null. */
-export function dynamicOf(m, charId, skins) { return playable(appearanceEntry(m, charId, skinIdFor(skins, charId))); }
-/** The dynamic record of a card look (room.card look / avatarLook: a skin id of `charId`), or null. */
+/**
+ * The 精二 动态立绘 of an operator (2026-11-16, the owner: 「有一部分干员精英II立绘也是动态的」 — the official default
+ * 精二 look, skin_table charSkins[<charId>#2].dynIllustId; data/assets.json chars[id].dynamicE2, the same record as a skin's
+ * `dynamic`), or null: only where the operator's own 精二 pictures are shown (avatarE2 / portraitE2), never a collab one.
+ * @param {any} m @param {string} charId
+ */
+export function e2Dynamic(m, charId) {
+  const c = typeof charId === 'string' && m?.chars && typeof m.chars === 'object' && Object.hasOwn(m.chars, charId) ? m.chars[charId] : null;
+  const d = c?.dynamicE2;
+  return d && typeof d.skel === 'string' && (c.avatarE2 || c.portraitE2) && ![d.skel, c.avatarE2, c.portraitE2, c.illustrationE2].some(isCollabUrl) ? d : null;
+}
+/**
+ * The dynamic record of the skin `charId` wears in a skins choice map (ui/skins.js), or null. `elite`: the box shows the
+ * operator's 精锐 (精二) pictures when no skin is worn (干员调配 / 自选's detail: `golden || chess`) — its 精二 动态立绘 then.
+ */
+export function dynamicOf(m, charId, skins, elite = false) {
+  const skin = appearanceEntry(m, charId, skinIdFor(skins, charId));
+  return skin ? playable(skin) : elite ? e2Dynamic(m, charId) : null;
+}
+/**
+ * The dynamic record of a card look (room.card look / avatarLook), or null: a skin id of `charId` — its skin's; 'e1' —
+ * none; '' (精二, the default) or a skin this client does not have (its static pictures fall back to 精二 too,
+ * ui/seatArt.js lookUrl) — the 精二 one.
+ */
 export function lookDynamic(m, charId, look) {
-  if (!look || look === 'e1' || !charId) return null;
-  return playable(appearanceEntry(m, charId, look));
+  if (look === 'e1' || !charId) return null;
+  const skin = look ? appearanceEntry(m, charId, look) : null;
+  return skin ? playable(skin) : e2Dynamic(m, charId);
 }
 /** A crop framing ({ rect, posX, posY }) of a record's official `kind` ('avatar' | 'portrait'), or null without one. */
 export function cropFraming(dyn, kind, posX = 50, posY = 50) {

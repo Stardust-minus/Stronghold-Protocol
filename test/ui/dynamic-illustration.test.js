@@ -5,9 +5,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { illustrationLayout, LOAD_TIMEOUT_MS } from '../../public/js/ui/dynamicIllustration.js';
-import { rectLayout, seatRect, artOfRect, moveArt, cardArt, framingLayout, cropFraming, lookDynamic, ART_LIMITS } from '../../public/js/ui/dynamicFraming.js';
+import { rectLayout, seatRect, artOfRect, moveArt, cardArt, framingLayout, cropFraming, lookDynamic, dynamicOf, e2Dynamic, ART_LIMITS } from '../../public/js/ui/dynamicFraming.js';
 import { packPages, PAGE, MAX_STEP } from '../../public/js/ui/dynamicStage.js';
-import { visibleRect } from '../../public/js/ui/seatLive.js';
+import { visibleRect, seatSpace, sceneSpaceMoved, illustrationBox, staticBox, boxRect } from '../../public/js/ui/seatLive.js';
 import { namecardDynamic, namecardOf } from '../../public/js/ui/namecards.js';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 
@@ -237,4 +237,100 @@ test('official dynamic avatars: the spine layer framed as its 180 box (the stati
     if (seq) { sequences++; assert.match(seq.src, /\.webp$/); }
   }
   assert.deepEqual([spines, sequences], [6, 2]);
+});
+
+// ---- the operators' own 精二 动态立绘 (2026-11-16, the owner: 「有一部分干员精英II立绘也是动态的…例如塔露拉」) ----------------
+
+const E2DYN = { skel: '/assets/char/dynamic/char_1012_skadi2_2/d.skel', atlas: '/assets/char/dynamic/char_1012_skadi2_2/d.atlas',
+  textures: ['/assets/char/dynamic/char_1012_skadi2_2/d.webp'], pma: false, anims: { idle: 'Idle' }, animations: { Idle: 4 },
+  bounds: { x: -900, y: -100, width: 1800, height: 1700 }, frames: { avatar: { x: -80, y: 900, width: 200, height: 200 }, portrait: { x: -90, y: 760, width: 180, height: 360 } } };
+const SKIN_DYN = { ...E2DYN, skel: '/assets/skins/char_1012_skadi2_iteration_2/dynamic/s.skel' };
+const e2m = () => ({
+  chars: {
+    char_1012_skadi2: { avatar: '/a1', avatarE2: '/a2', portrait: '/p1', portraitE2: '/p2', dynamicE2: E2DYN },
+    char_1028_texas2: { avatar: '/t1', portrait: '/tp1', dynamicE2: { ...E2DYN } }, // no 精二 pictures: nothing to play over
+    char_4247_oxi: { avatarE2: '/assets/collab/x.png', dynamicE2: { ...E2DYN } }, // a collab picture: never
+  },
+  skins: {
+    char_1012_skadi2_iteration_2: { charId: 'char_1012_skadi2', avatar: '/sa', portrait: '/sp', illustration: '/si', dynamic: SKIN_DYN },
+    char_1012_skadi2_boc_4: { charId: 'char_1012_skadi2', avatar: '/sa4', portrait: '/sp4', illustration: '/si4' }, // a static skin here
+  },
+});
+
+test('精二 动态立绘: plays wherever the operator\'s own 精二 pictures show — the default card look, a 精锐 record without a skin', () => {
+  const m = e2m();
+  assert.equal(e2Dynamic(m, 'char_1012_skadi2'), E2DYN);
+  assert.equal(e2Dynamic(m, 'char_1028_texas2'), null, 'no avatarE2 / portraitE2');
+  assert.equal(e2Dynamic(m, 'char_4247_oxi'), null, 'collab');
+  assert.equal(e2Dynamic(m, 'char_nope'), null);
+  assert.equal(e2Dynamic(null, 'char_1012_skadi2'), null);
+  // card looks (room.card look / avatarLook)
+  assert.equal(lookDynamic(m, 'char_1012_skadi2', ''), E2DYN, '精二, the default look');
+  assert.equal(lookDynamic(m, 'char_1012_skadi2', 'e1'), null, '精一');
+  assert.equal(lookDynamic(m, 'char_1012_skadi2', 'char_1012_skadi2_iteration_2'), SKIN_DYN, 'a skin with its own');
+  assert.equal(lookDynamic(m, 'char_1012_skadi2', 'char_1012_skadi2_boc_4'), null, 'a static skin: its static picture, never the 精二 one');
+  assert.equal(lookDynamic(m, 'char_1012_skadi2', 'char_1013_chen2_boc_6'), E2DYN, 'not this operator\'s skin: the pictures fall back to 精二 (seatArt lookUrl)');
+  assert.equal(lookDynamic({ chars: m.chars }, 'char_1012_skadi2', 'char_1012_skadi2_iteration_2'), E2DYN, 'a skin not installed: 精二 too');
+  assert.equal(lookDynamic(m, '', ''), null);
+  // a skins choice map (干员调配 / 自选): `elite` = the box shows the 精锐 record
+  assert.equal(dynamicOf(m, 'char_1012_skadi2', {}), null, 'the 精一 / normal record: no 精二 art there');
+  assert.equal(dynamicOf(m, 'char_1012_skadi2', {}, true), E2DYN, 'the 精锐 record');
+  assert.equal(dynamicOf(m, 'char_1012_skadi2', { char_1012_skadi2: 'char_1012_skadi2_iteration_2' }, true), SKIN_DYN);
+  assert.equal(dynamicOf(m, 'char_1012_skadi2', { char_1012_skadi2: 'char_1012_skadi2_boc_4' }, true), null, 'a static skin worn');
+});
+
+test('精二 动态立绘 in a seat: framed in its 立绘\'s space (the static 精二\'s), so a saved frame shows the same part live', () => {
+  // the static 精二: an 1800 × 1700 立绘, its portrait box; the skeleton holds the same 立绘 at scale 0.8, offset
+  const BOX = [520 / 1800, 110 / 1700, 720 / 1800, 1440 / 1700], size = [1800, 1700];
+  const pic = { src: '/p2', hd: null, illustration: '/i2', box: BOX, size, scene: true };
+  const ill = { x: -700, y: -50, width: 1800 * 0.8, height: 1700 * 0.8 };
+  const crop = boxRect(ill, BOX);
+  const dyn = { ...E2DYN, frames: { ...E2DYN.frames, portrait: crop } };
+  const st = seatSpace(null, null, pic), e2 = seatSpace(dyn, null, pic, null, true), skin = seatSpace(dyn, null, pic);
+  assert.deepEqual(skin.bounds, dyn.bounds, 'a skin: its skeleton bounds, as before');
+  for (const k of ['x', 'y', 'width', 'height']) assert.ok(near(e2.bounds[k], ill[k], 1e-6), `the 立绘 in the skeleton: ${k}`);
+  for (const [bw, bh] of [[223, 478], [120, 240], [300, 200]]) {
+    for (const art of [null, { x: 500, y: 300, zoom: 300 }, { x: 120, y: 900, zoom: 150 }, { x: 900, y: 50, zoom: 2000 }]) {
+      const a = illustrationBox(bw, bh, st, art), b = illustrationBox(bw, bh, e2, art);
+      for (const k of ['left', 'top', 'width', 'height']) assert.ok(near(a[k], b[k], 1e-6), `${bw}×${bh} ${JSON.stringify(art)}: the 立绘 lands alike (${k})`);
+      const s1 = staticBox(bw, bh, st, art), s2 = staticBox(bw, bh, e2, art);
+      for (const k of ['left', 'top', 'width', 'height']) assert.ok(near(s1[k], s2[k], 1e-6), `${bw}×${bh}: the 180×360 alike (${k})`);
+      // the live layer: framingLayout with the seat's space puts the skeleton where the 立绘 is
+      if (art) {
+        const l = framingLayout(bw, bh, dyn.bounds, { art, space: e2.bounds });
+        assert.ok(near(l.x + ill.x * l.scale, b.left, 1e-6) && near(l.y - (ill.y + ill.height) * l.scale, b.top, 1e-6), 'live over the 立绘');
+      }
+    }
+  }
+  assert.equal(sceneSpaceMoved(dyn, pic, true), true, 'a pre-rel31 frame of the static scene 精二 is still dropped');
+  assert.equal(sceneSpaceMoved(dyn, pic), false, 'a skin\'s: unchanged');
+});
+
+test('data: every 精二 动态立绘 complete, its crops inside its bounds, a framing the seat can store; only operators with 精二 pictures', () => {
+  const recs = Object.entries(assets.chars).filter(([, c]) => c.dynamicE2);
+  assert.equal(recs.length, 27);
+  for (const [id, c] of recs) {
+    const d = c.dynamicE2, dir = `/assets/char/dynamic/${id}_2/`;
+    assert.ok(c.avatarE2 && c.portraitE2 && c.illustrationE2 && c.portraitBoxE2, `${id}: its static 精二`);
+    assert.match(d.skel, new RegExp(`^${dir}[^/]+\\.(skel|json)$`), id);
+    assert.ok(d.atlas.startsWith(dir) && d.atlas.endsWith('.atlas') && d.textures.length >= 1 && d.textures.every((u) => u.startsWith(dir) && u.endsWith('.webp')), id);
+    assert.equal(typeof d.pma, 'boolean');
+    assert.ok(Object.hasOwn(d.animations, d.anims.idle) && /^idle$/i.test(d.anims.idle), `${id}: a looping Idle`);
+    const { avatar, portrait } = d.frames, b = d.bounds;
+    assert.ok(Math.abs(avatar.width - avatar.height) < 0.01 && Math.abs(portrait.height - 2 * portrait.width) < 0.01, `${id}: shapes`);
+    for (const f of [avatar, portrait]) {
+      assert.ok(f.width > 20 && f.x >= b.x - 2 && f.x + f.width <= b.x + b.width + 2 && f.y >= b.y - 2 && f.y + f.height <= b.y + b.height + 2, `${id}: inside its bounds`);
+    }
+    for (const [w, h] of [[120, 240], [120, 290], [140, 230]]) {
+      const v = visibleRect(w, h, rectLayout(w, h, portrait, 50, 12)), art = artOfRect(w, h, b, v);
+      assert.ok(art.zoom >= ART_LIMITS.zoomMin && art.zoom * 2 <= ART_LIMITS.zoomMax, `${id} ${w}×${h}: ${art.zoom} %`);
+    }
+  }
+});
+
+test('installed: every file of every 精二 动态立绘 on disk', { skip: !existsSync(new URL('../../public/assets/char/dynamic/char_4247_oxi_2', import.meta.url)) && 'install the 精二 动态立绘 first' }, () => {
+  for (const [id, c] of Object.entries(assets.chars)) {
+    if (!c.dynamicE2) continue;
+    for (const u of [c.dynamicE2.skel, c.dynamicE2.atlas, ...c.dynamicE2.textures]) assert.ok(statSync(new URL(`../../public${u}`, import.meta.url)).size > 0, `${id}: ${u}`);
+  }
 });

@@ -392,7 +392,7 @@ export function DiyPickerView({ m, slot, picks, kitted, collab = false, onDone, 
             <div class="lo-dhead">
               <div class=${cx('lo-dhead__art', `lo-dhead__art--t${slot.tier}`)}>
                 <${Img} ...${chainProps(portraitChain(m, [ownAppearance(golden || base, { skins }), golden || base]))} fallback=${html`<b class="diy-pick__glyph">${[...(unit.name || '?')][0]}</b>`} />
-                <${LiveArt} m=${m} charId=${draft.charId} skins=${skins} kind="portrait" posY=${12} />
+                <${LiveArt} m=${m} charId=${draft.charId} skins=${skins} kind="portrait" posY=${12} elite=${!!golden} />
               </div>
               <div class="lo-dhead__info">
                 <div class="lo-dhead__chips"><${TierChip} tier=${slot.tier} size="md" /><${KindTag} proto=${ch.proto} /></div>

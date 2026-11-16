@@ -20,7 +20,10 @@
 //     ART_LIMITS). A scene look (`portraitScene*`) too, its scene drawn (rel31, the owner of 11-04: 「一直用整张原画」;
 //     rel30 drew a scene look's cut-out in the 180×360's space, which could neither zoom out nor get sharper);
 //   - a look with only `portraitHD`: the HD portrait in the 180×360's own space — the same framing values as without HD;
-//   - a skin with a 动态立绘 keeps its skeleton framing; under the live one goes its 立绘 by the box ↔ official-crop match.
+//   - a skin with a 动态立绘 keeps its skeleton framing; under the live one goes its 立绘 by the box ↔ official-crop match;
+//   - a 精二 动态立绘 (2026-11-16, ui/dynamicFraming.js e2Dynamic) keeps the static 精二's framing space — its 立绘 placed in
+//     the skeleton by that same match — so frames saved before it played (and pre-rel31 ones, dropped as above) keep
+//     their meaning.
 // A look without the HD fields frames as above (its 180×360 as the space).
 // A frame saved before rel31 (ui/playerCard.js: no space mark) on a static scene look was in the cut-out's space; one's own
 // seat drops it once (the default, sent to the room like 重置) instead of showing another part of the 立绘.
@@ -31,7 +34,7 @@
 import { useRef, useState, useEffect } from '../../vendor/hooks.module.js';
 import { html, Icon } from './components.js';
 import { DynamicIllustration } from './dynamicIllustration.js';
-import { lookDynamic, cropFraming, rectLayout, artOfRect, moveArt, seatRect, pictureBounds, pictureBox, ART_LIMITS, STATIC_ZOOM_MAX } from './dynamicFraming.js';
+import { lookDynamic, e2Dynamic, cropFraming, rectLayout, artOfRect, moveArt, seatRect, pictureBounds, pictureBox, ART_LIMITS, STATIC_ZOOM_MAX } from './dynamicFraming.js';
 import { t } from '../../../shared/i18n.js';
 
 const SETTLE_MS = 450;
@@ -67,15 +70,19 @@ const PORTRAIT = pictureBounds(180, 360);
  * @param {{ src?: string|null, hd?: string|null, illustration?: string|null, box?: number[]|null, size?: number[]|null,
  *   scene?: boolean }|null} [pic] the look's portrait source (ui/assetUrls.js portraitSourceOf)
  * @param {[number, number]|null} [illNat] the 立绘's natural size once loaded
+ * @param {boolean} [e2] `dyn` is the operator's 精二 动态立绘 (ui/dynamicFraming.js e2Dynamic): with its 立绘 it is framed in
+ *   that 立绘's space mapped into the skeleton (illustrationAround its official crop) — the space the static 精二 had, so a
+ *   frame saved on it shows the same part live (2026-11-16)
  */
-export function seatSpace(dyn, nat, pic = null, illNat = null) {
+export function seatSpace(dyn, nat, pic = null, illNat = null, e2 = false) {
   const whole = !!(pic?.illustration && pic.box);
   const cut = !whole && !!pic?.hd;
   if (dyn) {
     const crop = cropFraming(dyn, 'portrait', 50, 12)?.rect ?? null;
     if (!crop) return { bounds: dyn.bounds, pic: null, hdSrc: null, hd: null, crop: dyn.bounds, place: false, zoomMax: ART_LIMITS.zoomMax };
     const hd = whole ? illustrationAround(crop, pic.box) : cut ? crop : null;
-    return { bounds: dyn.bounds, pic: crop, hdSrc: whole ? pic.illustration : cut ? pic.hd : null, hd, crop, place: !!hd, zoomMax: ART_LIMITS.zoomMax };
+    return { bounds: e2 && whole ? union(hd, crop) : dyn.bounds, pic: crop, hdSrc: whole ? pic.illustration : cut ? pic.hd : null, hd, crop, place: !!hd,
+      zoomMax: ART_LIMITS.zoomMax };
   }
   if (whole) {
     // [W, H]: the manifest's (illustrationSize), else its natural size once loaded, else the contract's shape (1:2 box)
@@ -92,9 +99,10 @@ export function seatSpace(dyn, nat, pic = null, illNat = null) {
 /**
  * Whether a look's framing space moved in rel31: a static scene look with its 立绘 (rel30 framed its cut-out / 180×360).
  * A frame saved before then means another region now. @param {any} dyn lookDynamic() @param {any} pic portraitSourceOf
+ * @param {boolean} [e2] `dyn` is a 精二 动态立绘: framed in the 立绘's space like the static 精二 (seatSpace)
  */
-export function sceneSpaceMoved(dyn, pic) {
-  return !dyn && !!pic?.scene && !!(pic.illustration && pic.box);
+export function sceneSpaceMoved(dyn, pic, e2 = false) {
+  return (!dyn || e2) && !!pic?.scene && !!(pic.illustration && pic.box);
 }
 
 /** The default view (no framing) of a space as an art triple: its crop `cover` at 50% 12%. */
@@ -134,8 +142,9 @@ const boxStyle = (b, hidden) => (b ? `left:${px(b.left)};top:${px(b.top)};width:
  */
 export function SeatArt({ m, src, source = null, charId, look, art: savedArt, legacyArt = false, editable = false, onCommit, onError }) {
   const dyn = lookDynamic(m, charId, look);
+  const e2 = !!dyn && dyn === e2Dynamic(m, charId);
   // a pre-rel31 frame of a static scene look (sceneSpaceMoved): shown as the default, and on one's own seat dropped once
-  const stale = legacyArt && !!savedArt && sceneSpaceMoved(dyn, source);
+  const stale = legacyArt && !!savedArt && sceneSpaceMoved(dyn, source, e2);
   const art = stale ? null : savedArt;
   useEffect(() => { if (stale && editable) onCommit?.(null); }, [stale, editable]);
   const [nat, setNat] = useState(null);
@@ -162,7 +171,7 @@ export function SeatArt({ m, src, source = null, charId, look, art: savedArt, le
   }, []);
   // the HD picture (rel30) sets the framing space whenever the manifest has it, drawn or not (a failed load keeps the
   // framing's meaning: the 180×360 goes where the HD one would)
-  const space = seatSpace(dyn, nat, source, hdNat);
+  const space = seatSpace(dyn, nat, source, hdNat, e2);
   const drawHd = !!space?.hdSrc && !hdFailed;
   const shown = draft || art;
   const sb = space && box ? staticBox(box[0], box[1], space, shown) : null;
@@ -170,7 +179,9 @@ export function SeatArt({ m, src, source = null, charId, look, art: savedArt, le
   const imgStyle = boxStyle(sb, drawHd && hdReady);
   // a cut-out with no framing keeps its CSS cover (the same as the 180×360's); a placed one waits for the box's size
   const hdStyle = boxStyle(ib, !hdReady || (!ib && space?.place));
-  const framing = shown ? { art: shown } : dyn ? cropFraming(dyn, 'portrait', 50, 12) || { focusY: 12 } : null;
+  // the live layer frames in the seat's space (a 精二 动态立绘's is its 立绘's, not its skeleton bounds)
+  const framing = shown ? (space && dyn && space.bounds !== dyn.bounds ? { art: shown, space: space.bounds } : { art: shown })
+    : dyn ? cropFraming(dyn, 'portrait', 50, 12) || { focusY: 12 } : null;
   const size = () => { const el = pad.current || img.current?.parentElement; return [Math.max(1, el?.clientWidth || 1), Math.max(1, el?.clientHeight || 1)]; };
   /** the framing the box shows now, as an art triple (the default's, the first time) */
   const current = () => {
