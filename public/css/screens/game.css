@@ -153,7 +153,8 @@
 .gtop {
   position: absolute; left: 0; right: 0; top: 0;
   display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start;
-  padding: .2rem .3rem 0 .26rem; gap: .2rem; pointer-events: none;
+  --gtop-pt: .2rem; --gtop-pr: .3rem;
+  padding: var(--gtop-pt) var(--gtop-pr) 0 .26rem; gap: .2rem; pointer-events: none;
 }
 .gtop > * { pointer-events: auto; }
 .gtop__left { display: flex; align-items: center; gap: .16rem; }
@@ -1220,7 +1221,7 @@
   .gm__bonds { right: 4.6rem; }
 }
 @media (max-width: 600px) and (orientation: portrait) {
-  .gm--expanded .gtop { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "connection clock" "phase phase"; padding-inline: 16px; gap: .18rem; }
+  .gm--expanded .gtop { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "connection clock" "phase phase"; padding-inline: 16px; --gtop-pr: 16px; gap: .18rem; }
   .gm--expanded .gtop__left { grid-area: connection; min-width: 0; }
   .gm--expanded .gtop__center { grid-area: phase; justify-self: center; max-width: 100%; }
   .gm--expanded .gtop__right { grid-area: clock; }

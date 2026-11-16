@@ -476,6 +476,16 @@
 .gtop--pf .gtop__plus { display: none; }
 .gtop--pf .gtop__frame::before, .gtop--pf .gtop__frame::after { display: none; }
 .gtop__clock--pf { align-items: flex-start; }
+/* The pack's countdown (view_holder) and ready button (btn_ready) are anchored to the holder's top-right corner at (0, 0)
+   in the official HUD: the TV / the tubes sit in the screen's corner (themes/<id>/preview.webp), not inside the bar's
+   padding (the owner 2026-11-16 「可露希尔的右上角准备没有紧贴右上角」). The HUD layer is already inside the safe area. */
+.gtop__clock--pf { margin-top: calc(-1 * var(--gtop-pt, .2rem)); margin-right: calc(-1 * var(--gtop-pr, .3rem)); }
+/* The pack's corner is taller than the hand-made countdown (可露希尔's TV box is 2.95rem, 乌萨斯齐心团's ~2.3rem): the EFFECTS
+   column (game.css .gm__effects, 2.4rem) starts under it, so the ready button's key hint and the TV no longer sit on the
+   column's EFFECTS label and first icon. Both packs with the corner draw the top bar too (`gtop--pf`, the column's earlier
+   sibling; no :has() — Firefox ESR 115). */
+.gtop--pf ~ .gm__effects { top: 3rem; }
+.gm.has-readywhy .gtop--pf ~ .gm__effects { top: calc(3rem + max(.3rem, calc(16px * var(--ui)))); }
 .pfclock { display: block; line-height: 0; }
 .readybtn.readybtn--pf {
   position: relative; padding: 0; border: 0; background: none; box-shadow: none; min-width: 0; min-height: 0; height: auto;
