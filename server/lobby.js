@@ -276,6 +276,12 @@
 //     content 'ready'; CONTENT_NOT_READY otherwise), so the matched room (matchmadeRoom: that version, its base
 //     content, every seat's content 'ready') starts at once like a version room's start: in this process's version
 //     host, on a game node's in the cluster (ClusterLobby).
+//   * A lone ticket's own experimental options (the owner, 2026-11-16; server/matchmaking.js header): queue.join
+//     { rules: […, 'custom'], experimental } waits with those options (shared/experimental.js QUEUE_OPTION_KEYS) and
+//     meets only tickets / parties of the same ones, or lone tickets taking any changed rules; welcome.queueRules lists
+//     the rules this server takes (a page offers 'custom' only with it). The matched room plays the offer's options;
+//     allocateMatchmadeRoom (and the cluster's prepareMatchmadeRoom) check again that every unit takes them
+//     (Matchmaking.takes).
 
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover, afterReconcile } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
@@ -291,7 +297,7 @@ import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch, AFK_REMOVE_ROUNDS } from './match/Match.js';
 import { parseOfflineHoldMinutes } from './match/match/common.js';
 import { GameData } from './match/gamedata.js';
-import { Matchmaking } from './matchmaking.js';
+import { ASKED_RULES, Matchmaking } from './matchmaking.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
 import { isCollabPick } from '../shared/diy.js';
 import { NO_PHASES } from './phaseMetrics.js';
@@ -2585,7 +2591,9 @@ export class Lobby {
       if (!this.matchmakingAvailable(session, entry) || session.matchmakingVersion !== MATCHMAKING_VERSION
         || entry?.session !== session || entry.version !== MATCHMAKING_VERSION || entry.expiresAt <= now
         || (entry.key || null) !== (session.limitKey || null)
-        || !entry.accepted || entry.offerId !== offer.id || entry.difficulty !== difficulty || !offer.entries.includes(entry)) {
+        || !entry.accepted || entry.offerId !== offer.id || entry.difficulty !== difficulty || !offer.entries.includes(entry)
+        // every unit plays the offer's options: a party its room's, a lone ticket its own or a rule it takes
+        || !this.queue.takes(entry.party, offer.experimental)) {
         return fail(ERR.WRONG_PHASE, 'matchmaking participant unavailable');
       }
       // Never consume half a party, even if allocation is called with tampered offer membership.
@@ -2915,6 +2923,8 @@ export class Lobby {
       versions = list && list.map((e) => (this.versionQueueable(e.id) ? e : { ...e, queue: false }));
     } catch (e) { this.log.error('[lobby] the versions list failed', e); }
     if (versions) info.versions = versions;
+    // the rules queue.join takes (header "Matchmaking per version" … own options): a page offers 'custom' only with it
+    info.queueRules = ASKED_RULES;
     // Omitted when the switch is off, so a welcome from a normal server stays identical.
     if (this.testEnabled === true) info.testMode = true;
     return info;

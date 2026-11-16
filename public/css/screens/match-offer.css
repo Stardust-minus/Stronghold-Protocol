@@ -183,6 +183,23 @@
 .mo-chip--rules { white-space: normal; }
 .mo__link { padding: 0; font: inherit; color: var(--mo-mint); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; cursor: pointer; }
 
+/* ---- the rules panel: an offer with experimental options (ui/matchOffer.js header, rules) — the cards give it room ---- */
+.mo.has-rules { --rest: max(calc(var(--u) * 66), 380px); }
+.mo__rules { width: min(calc(var(--u) * 118), 100%); max-height: calc(var(--u) * 17); overflow: auto; padding: calc(var(--u) * .9) calc(var(--u) * 1.6);
+  text-align: left; font-size: max(calc(var(--u) * 1.5), 11px); background: rgba(40, 28, 6, .55); border: 1px solid rgba(255, 179, 71, .45);
+  border-left: 3px solid var(--mo-hot); animation: mo-fade 300ms ease-out 640ms backwards; }
+.mo__rules.is-others { background: rgba(48, 20, 8, .62); border-color: rgba(255, 140, 90, .55); border-left-color: #ff8c5a; }
+.mo__rules-head { display: flex; align-items: center; flex-wrap: wrap; gap: calc(var(--u) * .4) calc(var(--u) * 1.2); margin-bottom: calc(var(--u) * .5); }
+.mo__rules-head .icon { flex: none; width: 1.2em; height: 1.2em; color: var(--mo-hot); }
+.mo__rules-head b { font-size: 1.12em; font-weight: 900; letter-spacing: .04em; color: #fff1dc; }
+.mo__rules-from { padding: 0 calc(var(--u) * .7); font-size: .9em; color: #ffd9a6; border: 1px solid rgba(255, 179, 71, .4); }
+.mo__rules .expd { font-size: 1em; }
+.mo__rules .expd__k { color: #ffcf8c; }
+.mo__rules .expd__list li { color: #fff6ea; }
+.mo__rules .expd__list li::before { background: var(--mo-hot); }
+.mo__rules-out { margin: calc(var(--u) * .5) 0 0; font-size: .92em; color: #d9c6ab; }
+.mo-chip--rules.is-on { color: #ffd9a6; border-color: rgba(255, 179, 71, .5); }
+
 /* ---- the end states ---- */
 .mo.is-found .mo__block { background: linear-gradient(90deg, #8affdf, #effffa 50%, #8affdf); }
 .mo.is-found .mo-seat .mo-seat__body { animation: mo-wave 520ms ease-out calc(var(--i) * 45ms) backwards; }
@@ -223,6 +240,10 @@
   .mo__act { min-height: 0; gap: 2px 10px; }
   .mo__go.btn { min-width: calc(var(--u) * 44); min-height: 40px; font-size: 15px; }
   .mo__wait { min-height: 40px; }
+  .mo.has-rules { --rest: 262px; }
+  .mo__rules { max-height: 74px; padding: 4px 10px; font-size: 11px; }
+  .mo__rules-head { margin-bottom: 2px; }
+  .mo__rules-out { display: none; }
 }
 @media (max-aspect-ratio: 3/4) {
   .mo { --u: min(calc(100vw / 100), calc(100vh / 190)); --cols: var(--mo-cols-c); --rows: var(--mo-rows-c); --gap: calc(var(--u) * 2); --rest: calc(var(--u) * 84); }
@@ -234,6 +255,9 @@
   .mo__block { width: calc(var(--u) * 70); margin-left: calc(var(--u) * -35); }
   .mo__bar { width: calc(var(--u) * 50); }
   .mo__go.btn { min-width: calc(var(--u) * 70); }
+  .mo.has-rules { --rest: calc(var(--u) * 116); }
+  .mo__rules { max-height: calc(var(--u) * 30); font-size: max(calc(var(--u) * 3), 11px); padding: calc(var(--u) * 2) calc(var(--u) * 3); }
+  .mo__rules-head, .mo__rules-out { margin-bottom: calc(var(--u) * 1); }
 }
 
 /* ---- reduced motion: nothing moves; the bar follows the seconds ---- */

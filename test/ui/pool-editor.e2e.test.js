@@ -55,11 +55,18 @@ describe('手动指定卡池编组 (real server, headless Chrome)', { skip: !ENA
   const plan = (page) => page.evaluate(() => globalThis.__SP__.store.get().room?.experimental?.poolPlan ?? null);
   const planIs = (page, want) => page.waitForFunction((w) => JSON.stringify(globalThis.__SP__.store.get().room?.experimental?.poolPlan ?? null) === w, { timeout: 10000 }, JSON.stringify(want));
   const cards = (page) => page.$$eval('.pooled__card', (els) => els.length);
+  /** A page of the dialog: 同盟, or a group of 实验性功能 (the tab, then the group in its rail; ui/roomSettings.js). */
+  const openTab = async (page, tab) => {
+    if (tab === 'alliance') { await page.$eval('[data-testid="room-settings-alliance"]', (b) => b.click()); return; }
+    await page.$eval('[data-testid="room-settings-experimental"]', (b) => b.click());
+    await page.waitForSelector(`[data-testid="exp-group-${tab}"]`, { visible: true, timeout: 5000 });
+    await page.$eval(`[data-testid="exp-group-${tab}"]`, (b) => b.click());
+  };
   const dialog = async (page, tab) => {
     await page.waitForSelector('.rs-pill__gear', { visible: true, timeout: 30000 });
     await page.$eval('.rs-pill__gear', (b) => b.click());
     await page.waitForSelector('.room-settings-modal', { visible: true });
-    if (tab) await page.$eval(`[data-testid="room-settings-${tab}"]`, (b) => b.click());
+    if (tab) await openTab(page, tab);
     await new Promise((r) => setTimeout(r, 450)); // the dialog's entrance
   };
   /** The frame on screen, nothing wider than its box. */
@@ -77,18 +84,22 @@ describe('手动指定卡池编组 (real server, headless Chrome)', { skip: !ENA
     await dialog(host);
     await shot(host, 'alliance-1280');
 
-    // 同盟: twelve seats, by hand
+    // 实验性功能 · 同盟人数: twelve seats, by hand
+    await openTab(host, 'seats');
+    await host.waitForSelector('#experimental-multiplayer', { visible: true, timeout: 5000 });
     await host.click('#experimental-multiplayer');
     await host.waitForSelector('#experimental-capacity', { visible: true, timeout: 5000 });
     await host.select('#experimental-capacity', '12');
     await host.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.playerCapacity === 12, { timeout: 10000 });
 
-    // the listed switch of a twelve-seat room (the owner's report: 无效的目标)
+    // the listed switch of a twelve-seat room (the owner's report: 无效的目标), on 同盟
+    await openTab(host, 'alliance');
+    await host.waitForSelector('[data-testid="room-opt-listed"]', { visible: true, timeout: 5000 });
     await host.click('[data-testid="room-opt-listed"]');
     await host.waitForFunction(() => globalThis.__SP__.store.get().room?.listed === true, { timeout: 10000 });
 
     // 卡池: on, from the automatic rule
-    await host.$eval('[data-testid="room-settings-pools"]', (b) => b.click());
+    await openTab(host, 'pools');
     await host.waitForSelector('#experimental-pools-manual', { visible: true });
     assert.equal(await host.$('.pooled'), null, 'off: no editor');
     await host.click('#experimental-pools-manual');
@@ -205,10 +216,10 @@ describe('手动指定卡池编组 (real server, headless Chrome)', { skip: !ENA
       fit = await fits(page);
       assert.equal(fit.onScreen, true, `20: ${JSON.stringify(fit)}`);
       assert.equal(fit.wide, 0, `20: ${JSON.stringify(fit)}`);
-      await page.$eval('[data-testid="room-settings-rules"]', (b) => b.click());
+      await openTab(page, 'enemy');
       await new Promise((r) => setTimeout(r, 150));
       await shot(page, `rules-${name}`);
-      await page.$eval('[data-testid="room-settings-alliance"]', (b) => b.click());
+      await openTab(page, 'alliance');
       await new Promise((r) => setTimeout(r, 150));
       await shot(page, `alliance-${name}`);
       assert.equal((await fits(page)).onScreen, true);
@@ -222,12 +233,12 @@ describe('手动指定卡池编组 (real server, headless Chrome)', { skip: !ENA
       await dialog(page, 'pools');
       await page.waitForSelector('.pooled', { visible: true, timeout: 5000 });
       await shot(page, `pools-${lang}-${w}`);
-      for (const tab of ['pools', 'rules', 'alliance']) {
-        await page.$eval(`[data-testid="room-settings-${tab}"]`, (b) => b.click());
+      for (const tab of ['pools', 'seats', 'team', 'bonds', 'enemy', 'special', 'alliance']) {
+        await openTab(page, tab);
         await new Promise((r) => setTimeout(r, 120));
         const fit = await page.evaluate(() => ({
           box: (() => { const r = document.querySelector('.room-settings-modal').getBoundingClientRect(); return r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1; })(),
-          cut: [...document.querySelectorAll('.rset__tab, .rset__page strong, .rset__page small, .pooled__total, .btn__label, .pooled__head b')]
+          cut: [...document.querySelectorAll('.rset__tab, .expp__name, .rset__page strong, .rset__page small, .pooled__total, .btn__label, .pooled__head b')]
             .filter((el) => el.getClientRects().length && el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent.slice(0, 40)),
           wide: document.querySelector('.rset__page').scrollWidth > document.querySelector('.rset__page').clientWidth + 1,
         }));

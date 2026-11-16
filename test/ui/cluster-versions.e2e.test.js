@@ -155,7 +155,9 @@ test('同盟设置 of a twelve-seat room: the 公开 switch works, the pool plan
     });
     assert.deepEqual(rooms.map((r) => r.capacity), [12]);
 
-    await c.page.$eval('[data-testid="room-settings-pools"]', (b) => b.click());
+    await c.page.$eval('[data-testid="room-settings-experimental"]', (b) => b.click());
+    await c.page.waitForSelector('[data-testid="exp-group-pools"]', { visible: true, timeout: 5000 });
+    await c.page.$eval('[data-testid="exp-group-pools"]', (b) => b.click());
     await c.page.waitForSelector('#experimental-pools-manual', { visible: true, timeout: 5000 });
     await c.page.click('#experimental-pools-manual');
     await c.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.poolPlan?.length === 12, { timeout: 10000 });

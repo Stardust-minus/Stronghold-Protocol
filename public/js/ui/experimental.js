@@ -1,8 +1,16 @@
-import { html } from './components.js';
+// ui/experimental.js — a room's experimental options (实验性功能) and a 多人匹配 ticket's own: the rows that edit them, the
+// texts that name them. Every option sits in one of the groups of shared/experimental.js EXPERIMENTAL_GROUPS (the owner,
+// 2026-11-16: 「实验性功能需要拆分成多个分类」): groupRows builds a group's rows for a place — a private co-op room, a
+// matchmade room (source 'matchmaking': no seat count, no 联动干员 / 调控台), a solo room (no teammates, no pools), a
+// 多人匹配 ticket (source 'queue', ui/matchmaking.js: the rules of the game only, QUEUE_OPTION_KEYS) — and optionGroups
+// the groups a place has. experimentalItems lists what is on, by group: the room's 实验性功能 badge and its 浮窗
+// (ExperimentalBadge), 确认入场 (ui/matchOffer.js) and the ticket's summary all read it (ExperimentalDetails).
+import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { html, Icon } from './components.js';
 import { t, tc, tParts } from '../../../shared/i18n.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
 import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
-import { ENEMY_HP_PLAN_MAX, ENEMY_MULTIPLIERS, canonicalEnemyHpPlan, enemyHpMulAt, isEnemyHpPlan, isEnemyMultiplier } from '../../../shared/experimental.js';
+import { ENEMY_HP_PLAN_MAX, ENEMY_MULTIPLIERS, EXPERIMENTAL_GROUPS, canonicalEnemyHpPlan, enemyHpMulAt, isEnemyHpPlan, isEnemyMultiplier } from '../../../shared/experimental.js';
 import { autoPoolPlan, canonicalPoolPlan, isPoolPlan, poolCount } from '../../../shared/poolPlan.js';
 import { confirmCollab } from './collab.js';
 import { confirmConsole } from './consoleRoom.js';
@@ -51,6 +59,119 @@ export function experimentalOptions(input) {
     ...(input?.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}) };
 }
 
+/**
+ * A 多人匹配 ticket's own options as the page keeps them (queue.join `experimental`, server/matchmaking.js header): the
+ * rules of the game only — no seat count, no 卡池编组, no 联动干员 / 调控台 — and 禁用鸭爵策略 as asked (it counts in a pool
+ * above four seats only: shared/experimental.js queueOptionsAt).
+ */
+export function queueConfig(input) {
+  const { playerCapacity, poolPlan, collabOps, console: off, disableDuckLord, ...rules } = experimentalOptions({ ...(input || {}), playerCapacity: undefined, poolPlan: undefined });
+  return { ...rules, ...(input?.disableDuckLord === true ? { disableDuckLord: true } : {}) };
+}
+
+/**
+ * What is on, by group (shared/experimental.js EXPERIMENTAL_GROUPS order): `{ group, key, text }` for each option that
+ * differs from a standard room's. `mode` 'solo' leaves out the teammates' rules (a solo room has none to rescue or to
+ * pair). A ticket's own options (queueConfig) read the same; their 禁用鸭爵策略 is named with its condition.
+ * @param {any} input experimental options @param {{ mode?: string, queue?: boolean }} [opts]
+ */
+export function experimentalItems(input, { mode = 'coop', queue = false, omit = null } = {}) {
+  const options = queue ? queueConfig(input) : experimentalOptions(input);
+  const solo = mode === 'solo';
+  const texts = {
+    playerCapacity: !solo && options.playerCapacity ? t('{n} 人模式', { n: options.playerCapacity }) : null,
+    revivalEnabled: !solo && options.revivalEnabled ? t('队友复活') : null,
+    uniteHumansFirst: !solo && options.uniteHumansFirst ? t('AI 联防置后') : null,
+    disableLayerCap: options.disableLayerCap ? t('禁用层数上限') : null,
+    disableDuckLord: options.disableDuckLord ? (queue ? t('禁用鸭爵策略（多人同盟）') : t('禁用鸭爵策略')) : null,
+    enemyHpMul: options.enemyHpMul ? t('敌人生命 ×{n}', { n: options.enemyHpMul }) : null,
+    enemyHpPlan: options.enemyHpPlan ? t('敌人生命 {plan}', { plan: enemyHpPlanText(options.enemyHpPlan) }) : null,
+    enemyAtkMul: options.enemyAtkMul ? t('敌人攻击 ×{n}', { n: options.enemyAtkMul }) : null,
+    disableHitLimit: options.disableHitLimit ? t('禁用单次伤害上限') : null,
+    disableSharedPool: !solo && options.disableSharedPool ? t('禁用共享卡池') : null,
+    poolPlan: !solo && options.poolPlan ? t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }) : null,
+    collabOps: options.collabOps ? t('联动干员') : null,
+    console: options.console ? t('调控台') : null,
+  };
+  return EXPERIMENTAL_GROUPS.flatMap((group) => group.keys.filter((key) => texts[key] && !omit?.includes(key)).map((key) => ({ group: group.id, key, text: texts[key] })));
+}
+
+/** The items of experimentalItems, grouped: `[{ id, label, items }]`, only the groups that have some. */
+export function experimentalByGroup(input, opts) {
+  const items = experimentalItems(input, opts);
+  return EXPERIMENTAL_GROUPS.map((group) => ({ id: group.id, label: group.label, items: items.filter((x) => x.group === group.id) })).filter((g) => g.items.length);
+}
+
+/** 「实验性功能：已开启 n 项」 / 「实验性功能：未开启」 (the room's badge, the ticket's summary). @param {number} n */
+export const experimentalCountText = (n) => (n > 0 ? t('已开启 {n} 项', { n }) : t('未开启'));
+
+/**
+ * What is on, by group, as a list (the badge's 浮窗, 确认入场, the ticket's summary): one block per group with its items,
+ * or `empty` (default 全部规则保持原样) when nothing is.
+ * `omit`: option fields left out (确认入场 names the seat count elsewhere).
+ * @param {{ value: any, mode?: string, queue?: boolean, omit?: string[]|null, empty?: any, class?: string, testid?: string }} props
+ */
+export function ExperimentalDetails({ value, mode = 'coop', queue = false, omit = null, empty = null, class: cls = '', testid = 'experimental-details' }) {
+  const groups = experimentalByGroup(value, { mode, queue, omit });
+  if (!groups.length) return html`<p class=${`expd expd--empty ${cls}`} data-testid=${testid}>${empty ?? t('全部规则保持原样')}</p>`;
+  return html`<div class=${`expd ${cls}`} data-testid=${testid}>
+    ${groups.map((g) => html`<section key=${g.id} class="expd__group" data-group=${g.id}>
+      <h4 class="expd__k">${t(g.label)}</h4>
+      <ul class="expd__list">${g.items.map((x) => html`<li key=${x.key} data-key=${x.key}>${x.text}</li>`)}</ul>
+    </section>`)}
+  </div>`;
+}
+
+/**
+ * The room's 实验性功能 badge (screens/room.js, the owner 2026-11-16: 「默认房间内不再显示详细开启了什么实验性策略，而是只
+ * 显示开启与否，具体信息鼠标放上去给一个浮窗查看，或点击查看」): 实验性功能 and 已开启 n 项 / 未开启; with a hover or the
+ * keyboard's focus a 浮窗 lists them by group (ExperimentalDetails). A press opens the room's dialog on its first
+ * experimental group (`onOpen`); on a touch screen the first tap opens the 浮窗 instead, which carries 查看全部设置.
+ * `queue`: a ticket's own options (多人匹配, ui/matchmaking.js) under `label`.
+ * @param {{ value: any, mode?: string, queue?: boolean, label?: string|null, disabled?: boolean, onOpen?: () => void, testid?: string, class?: string }} props
+ */
+export function ExperimentalBadge({ value, mode = 'coop', queue = false, label = null, disabled = false, onOpen = null, testid = 'room-experimental', class: cls = '' }) {
+  const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const box = useRef(null);
+  const n = experimentalItems(value, { mode, queue }).length;
+  const name = label || t('实验性功能');
+  useEffect(() => {
+    if (!pinned) return undefined;
+    const away = (e) => { if (!box.current?.contains(e.target)) { setPinned(false); setOpen(false); } };
+    const esc = (e) => { if (e.key === 'Escape') { setPinned(false); setOpen(false); } };
+    document.addEventListener('pointerdown', away, true);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', esc); };
+  }, [pinned]);
+  const touch = (e) => e?.pointerType === 'touch' || e?.pointerType === 'pen';
+  const pointer = useRef(null);
+  const press = () => {
+    // a tap shows the list first (no hover on a touch screen); a click, Enter or a second tap opens the dialog
+    const tapped = pointer.current === 'touch';
+    pointer.current = null;
+    if (tapped && !pinned) { setPinned(true); setOpen(true); return; }
+    setPinned(false); setOpen(false);
+    onOpen?.();
+  };
+  const shown = open || pinned;
+  return html`<span class=${`expb${n ? ' is-on' : ''}${shown ? ' is-open' : ''}${cls ? ` ${cls}` : ''}`} ref=${box}
+      onPointerEnter=${(e) => { if (!touch(e)) setOpen(true); }} onPointerLeave=${(e) => { if (!touch(e) && !pinned) setOpen(false); }}>
+    <button type="button" class=${`rs-exp${n ? ' is-on' : ''}`} data-testid=${testid} data-count=${n} disabled=${disabled}
+        aria-haspopup="dialog" aria-expanded=${shown ? 'true' : 'false'} aria-describedby=${shown ? `${testid}-pop` : undefined}
+        onPointerDown=${(e) => { pointer.current = touch(e) ? 'touch' : 'mouse'; }} onFocus=${(e) => { if (focusVisible(e.currentTarget)) setOpen(true); }} onBlur=${() => { if (!pinned) setOpen(false); }}
+        onClick=${press}>
+      <${Icon} name="edit" /><span><b>${name}</b><small>${experimentalCountText(n)}</small></span>
+    </button>
+    ${shown ? html`<div class="expb__pop" role="tooltip" id=${`${testid}-pop`} data-testid=${`${testid}-pop`}>
+      <header class="expb__head"><b>${name}</b><span class="num">${experimentalCountText(n)}</span></header>
+      <${ExperimentalDetails} value=${value} mode=${mode} queue=${queue} empty=${queue ? t('尚未开启任何功能') : null} />
+      ${pinned && onOpen && !disabled ? html`<button type="button" class="expb__more" data-testid=${`${testid}-open`} onClick=${() => { setPinned(false); setOpen(false); onOpen(); }}>
+        <${Icon} name="edit" />${queue ? t('设置') : t('查看全部设置')}</button>` : null}
+    </div>` : null}
+  </span>`;
+}
+
 /** Whether any option differs from a standard room's (the room's 实验性选项 button is then marked). */
 export function experimentalChanged(input) {
   const options = experimentalOptions(input);
@@ -78,23 +199,26 @@ export function switchRow({ id, title, note, checked, disabled, onChange, testid
   </label>`;
 }
 
-/** A setter for the room's options: the whole object goes to the server, and only from a host who may change it. */
-function optionsEditor({ value, editable, busy, onChange }) {
-  const options = experimentalOptions(value), locked = !editable || busy;
+/**
+ * A setter for the room's options: the whole object goes to the server, and only from a host who may change it. A
+ * ticket's (source 'queue') keeps its own form (queueConfig) and goes to the page's state.
+ */
+function optionsEditor({ value, editable, busy, onChange, source = 'private' }) {
+  const options = source === 'queue' ? queueConfig(value) : experimentalOptions(value), locked = !editable || busy;
   return { options, locked, send: next => { if (!locked) onChange?.(next); } };
 }
 
 /** 扩展同盟人数 and its seat count. The pool layout cannot outlive a seat count: a new one starts from the automatic rule. */
 export function capacityRows({ value, mode = 'coop', source = 'private', seats = [], ...rest }) {
-  const { options, locked, send } = optionsEditor({ value, ...rest });
+  const { options, locked, send } = optionsEditor({ value, source, ...rest });
   const capacity = roomCapacity(mode, options);
   const setCapacity = next => {
-    if (locked || mode !== 'coop' || source === 'matchmaking' || !isPlayerCapacity(next)) return;
+    if (locked || mode !== 'coop' || source !== 'private' || !isPlayerCapacity(next)) return;
     const { playerCapacity, poolPlan, disableDuckLord, ...rules } = options;
     send({ ...rules, ...(next === MAX_SEATS ? {} : { playerCapacity: next, ...(disableDuckLord ? { disableDuckLord } : {}) }),
       ...(poolPlan ? { poolPlan: autoPoolPlan(next, { seats }) } : {}) });
   };
-  if (mode !== 'coop' || source === 'matchmaking') return null;
+  if (mode !== 'coop' || source !== 'private') return null;
   return [
     switchRow({ id: 'experimental-multiplayer', title: t('扩展同盟人数'), note: t('可直接开局，或整队匹配相同人数模式的房间。所有成员需更新页面，人数较多时等待与演算时间可能增加。'),
       checked: capacity > MAX_SEATS, disabled: locked, onChange: on => setCapacity(on ? 8 : MAX_SEATS) }),
@@ -107,12 +231,20 @@ export function capacityRows({ value, mode = 'coop', source = 'private', seats =
   ];
 }
 
-/** 禁用鸭爵策略: expanded co-op rooms only. */
-export function duckLordRow({ value, mode = 'coop', ...rest }) {
-  const { options, locked, send } = optionsEditor({ value, ...rest });
-  if (mode !== 'coop' || roomCapacity(mode, options) <= MAX_SEATS) return null;
-  return switchRow({ id: 'experimental-ducklord', title: t('禁用鸭爵策略'), note: t('勾选后，本局无法选择鸭爵策略；不影响其他策略。'), checked: options.disableDuckLord === true,
-    disabled: locked, onChange: on => send({ ...options, disableDuckLord: on }) });
+/**
+ * 禁用鸭爵策略: expanded co-op rooms only; a ticket (source 'queue') that also waits for 多人同盟 (`multi`), where it counts
+ * in those sizes only.
+ */
+export function duckLordRow({ value, mode = 'coop', source = 'private', multi = false, ...rest }) {
+  const { options, locked, send } = optionsEditor({ value, source, ...rest });
+  if (mode !== 'coop' || (source === 'queue' ? !multi : roomCapacity(mode, options) <= MAX_SEATS)) return null;
+  return switchRow({ id: 'experimental-ducklord', title: t('禁用鸭爵策略'), checked: options.disableDuckLord === true,
+    note: source === 'queue' ? t('只在多人同盟中生效：本局无法选择鸭爵策略；不影响其他策略。') : t('勾选后，本局无法选择鸭爵策略；不影响其他策略。'),
+    disabled: locked, onChange: (on) => {
+      if (source !== 'queue') { send({ ...options, disableDuckLord: on }); return; }
+      const { disableDuckLord, ...rules } = options;
+      send(on ? { ...rules, disableDuckLord: true } : rules);
+    } });
 }
 
 /**
@@ -149,9 +281,9 @@ export function consoleRow({ value, source = 'private', ...rest }) {
     } });
 }
 
-/** The battle rules: 规则 in a co-op room, the single page of a solo room (no teammate to rescue there). */
-export function ruleRows({ value, mode = 'coop', source = 'private', ...rest }) {
-  const { options, locked, send } = optionsEditor({ value, ...rest });
+/** The battle rules' rows by option (ruleRows, groupRows); a solo room has no teammate to rescue or to pair. */
+function ruleRowMap({ value, mode = 'coop', source = 'private', ...rest }) {
+  const { options, locked, send } = optionsEditor({ value, source, ...rest });
   const setEnemyMul = (field, next) => {
     if (!isEnemyMultiplier(next)) return;
     const { [field]: previous, ...rules } = options;
@@ -191,24 +323,84 @@ export function ruleRows({ value, mode = 'coop', source = 'private', ...rest }) 
         onClick=${() => sendPlan([...segs, [last[0] + 1, stepUp(last[1], 1)]])}>${t('添加阶段')}</button>` : null}
     </div>`;
   };
-  return [
-    mode === 'solo' ? null : switchRow({ id: 'experimental-revival', title: t('队友复活'), note: t('队友生命耗尽时，任意存活队友可支付 10 生命抵消这次死亡（自己至少要有 11 生命），每人每局最多被救一次。'), checked: options.revivalEnabled,
+  return {
+    revival: mode === 'solo' ? null : switchRow({ id: 'experimental-revival', title: t('队友复活'), note: t('队友生命耗尽时，任意存活队友可支付 10 生命抵消这次死亡（自己至少要有 11 生命），每人每局最多被救一次。'), checked: options.revivalEnabled,
       disabled: locked, onChange: on => send({ ...options, revivalEnabled: on }) }),
-    switchRow({ id: 'experimental-layer-cap', title: t('禁用层数上限'), note: t('盟约层数不再停在 999 层。'), checked: options.disableLayerCap === true,
+    layerCap: switchRow({ id: 'experimental-layer-cap', title: t('禁用层数上限'), note: t('盟约层数不再停在 999 层。'), checked: options.disableLayerCap === true,
       disabled: locked, onChange: on => send({ ...options, disableLayerCap: on }) }),
-    switchRow({ id: 'experimental-hit-limit', title: t('禁用单次伤害上限'), note: t('对敌方领袖的单次伤害达到 30 万及以上时不再被取消。'), checked: options.disableHitLimit === true,
+    hitLimit: switchRow({ id: 'experimental-hit-limit', title: t('禁用单次伤害上限'), note: t('对敌方领袖的单次伤害达到 30 万及以上时不再被取消。'), checked: options.disableHitLimit === true,
       disabled: locked, onChange: on => send({ ...options, disableHitLimit: on }) }),
-    multiplier('enemyHpMul', 'experimental-enemy-hp', t('敌人生命倍率'), t('全部敌人的生命上限，包含敌方领袖的共享生命值。'), !!plan),
-    switchRow({ id: 'experimental-enemy-hp-plan', title: t('按回合设置敌人生命倍率'), note: t('从指定回合起改用新的倍率，前期不加血、后期再加，难度循序渐进。'), checked: !!plan,
+    enemyHp: [multiplier('enemyHpMul', 'experimental-enemy-hp', t('敌人生命倍率'), t('全部敌人的生命上限，包含敌方领袖的共享生命值。'), !!plan),
+      switchRow({ id: 'experimental-enemy-hp-plan', title: t('按回合设置敌人生命倍率'), note: t('从指定回合起改用新的倍率，前期不加血、后期再加，难度循序渐进。'), checked: !!plan,
       disabled: locked, onChange: setPlan, testid: 'experimental-enemy-hp-plan-switch' }),
-    plan ? planEditor() : null,
-    multiplier('enemyAtkMul', 'experimental-enemy-atk', t('敌人攻击倍率'), t('全部敌人的攻击力，包含敌方领袖。')),
-    mode === 'solo' ? null : switchRow({ id: 'experimental-unite-humans', title: t('AI 联防置后'), note: t('联防先按原有排序从真人博士中挑选，AI 队友和 AI 托管中的博士排在所有真人之后。'),
+      plan ? planEditor() : null],
+    enemyAtk: multiplier('enemyAtkMul', 'experimental-enemy-atk', t('敌人攻击倍率'), t('全部敌人的攻击力，包含敌方领袖。')),
+    unite: mode === 'solo' ? null : switchRow({ id: 'experimental-unite-humans', title: t('AI 联防置后'), note: t('联防先按原有排序从真人博士中挑选，AI 队友和 AI 托管中的博士排在所有真人之后。'),
       checked: options.uniteHumansFirst === true, disabled: locked, onChange: on => send({ ...options, uniteHumansFirst: on }) }),
-    collabRow({ value, source, ...rest }),
-    consoleRow({ value, source, ...rest }),
-  ];
+    collab: collabRow({ value, source, ...rest }),
+    console: consoleRow({ value, source, ...rest }),
+  };
 }
+
+/** Every battle rule's row, in the order of the former single 规则 page (tests; the groups: groupRows). */
+export function ruleRows(props) {
+  const r = ruleRowMap(props);
+  return [r.revival, r.layerCap, r.hitLimit, ...r.enemyHp, r.enemyAtk, r.unite, r.collab, r.console];
+}
+
+/**
+ * The rows of one group (shared/experimental.js EXPERIMENTAL_GROUPS) in a place (the header): `props` as the rows' —
+ * `value`, `mode`, `source` ('private' | 'matchmaking' | 'queue'), `seats`, `editable`, `busy`, `onChange`, and for a
+ * ticket `multi` (it also waits for 多人同盟). Null entries are rows the place does not have.
+ * @param {string} id @param {any} props
+ */
+export function groupRows(id, props) {
+  if (id === 'seats') return capacityRows(props);
+  if (id === 'pools') return props.mode === 'solo' ? null : poolRows(props);
+  if (id === 'bonds') return [ruleRowMap(props).layerCap, duckLordRow(props)];
+  const r = ruleRowMap(props);
+  if (id === 'team') return [r.revival, r.unite];
+  if (id === 'enemy') return [...r.enemyHp, r.enemyAtk, r.hitLimit];
+  if (id === 'special') return [r.collab, r.console];
+  return null;
+}
+
+/**
+ * The groups of a place and the rows of the one shown (the room's dialog, 多人匹配's options): a rail of groups — each
+ * group's name and how many of its options are on — beside the group's rows; a narrow screen turns the rail into a row of
+ * chips above them (css/screens/experimental.css). `after(group)`: what follows a group's rows (the room's pool editor);
+ * `focus`: the shown group's tab takes the dialog's first focus (a dialog without tabs of its own).
+ * No hooks: a dialog calls it as a function, so its rows are part of the dialog's tree.
+ * @param {{ groups: string[], group: string, onGroup: (id: string) => void, counts?: Record<string, number>, rows: any,
+ *   after?: ((id: string) => any) | null, label?: string, focus?: boolean }} props
+ */
+export function ExperimentalPanel({ groups, group, onGroup, counts = {}, rows, after = null, label = '', focus = false }) {
+  const shown = groups.includes(group) ? group : groups[0];
+  return html`<div class="expp" data-testid="experimental-panel">
+    <div class="expp__rail" role="tablist" aria-label=${label || t('实验性功能')} aria-orientation="vertical">
+      ${groups.map((id) => {
+        const on = id === shown, n = counts[id] || 0;
+        return html`<button key=${id} type="button" role="tab" id=${`expp-tab-${id}`} aria-selected=${on ? 'true' : 'false'} aria-controls="expp-rows"
+            data-autofocus=${focus && on ? true : undefined} class=${`expp__tab${on ? ' is-on' : ''}${n ? ' is-set' : ''}`} data-testid=${`exp-group-${id}`} onClick=${() => onGroup(id)}>
+          <span class="expp__name">${t(GROUP_LABEL[id])}</span>${n ? html`<b class="expp__n num" title=${t('已开启 {n} 项', { n })}>${n}</b>` : null}</button>`;
+      })}
+    </div>
+    <div class="expp__body">
+      <div class="expp__rows rset__rows" id="expp-rows" role="tabpanel" aria-labelledby=${`expp-tab-${shown}`} data-group=${shown}>${shown ? groupRows(shown, rows) : null}</div>
+      ${after && shown ? after(shown) : null}
+    </div>
+  </div>`;
+}
+const GROUP_LABEL = Object.fromEntries(EXPERIMENTAL_GROUPS.map((g) => [g.id, g.label]));
+
+/** The keyboard's focus (not a click's, not a dialog handing it back): the 浮窗 opens for it. */
+function focusVisible(el) {
+  try { return !!el?.matches?.(':focus-visible'); } catch { return false; }
+}
+
+const present = (rows) => (Array.isArray(rows) ? rows.flat(Infinity) : [rows]).some(Boolean);
+/** The groups a place has (groupRows not empty), in order. @param {any} props */
+export const optionGroups = (props) => EXPERIMENTAL_GROUPS.filter((g) => present(groupRows(g.id, props))).map((g) => g.id);
 
 /** 禁用共享卡池 and 手动指定卡池编组. The plan names every seat's pool, so it stands in for the first; it starts from the automatic rule. */
 export function poolRows({ value, seats = [], ...rest }) {
@@ -218,6 +410,10 @@ export function poolRows({ value, seats = [], ...rest }) {
     const { poolPlan, ...rules } = options;
     send(on ? { ...rules, disableSharedPool: false, poolPlan: autoPoolPlan(roomCapacity('coop', options), { seats, independent: options.disableSharedPool }) } : rules);
   };
+  if (rest.source === 'queue') {
+    return [switchRow({ id: 'experimental-pool', title: t('禁用共享卡池'), note: t('每位博士使用独立卡池，不再争用同一干员库存。'), checked: options.disableSharedPool,
+      disabled: locked, onChange: on => send({ ...options, disableSharedPool: on }) })];
+  }
   return [
     switchRow({ id: 'experimental-pool', title: t('禁用共享卡池'), note: manual ? t('已由手动编组决定。') : t('每位博士使用独立卡池，不再争用同一干员库存。'), checked: options.disableSharedPool,
       disabled: locked || manual, onChange: on => send({ ...options, disableSharedPool: on }) }),

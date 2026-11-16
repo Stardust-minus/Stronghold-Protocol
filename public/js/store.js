@@ -92,6 +92,8 @@ export const initialState = Object.freeze({
   room: null,
   presence: null,
   queue: { state: 'idle', ticketId: null },
+  // welcome.queueRules: the rules this server's queue.join takes (null: an older server)
+  queueRules: null,
   // welcome.testMode (DESIGN §34.8). The server omits the key when the switch is off; the client cannot set it.
   testMode: false,
   match: emptyMatch(),

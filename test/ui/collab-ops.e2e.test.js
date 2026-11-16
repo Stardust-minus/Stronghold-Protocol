@@ -31,6 +31,9 @@ const collabFx = (c) => c.page.evaluate(async () => {
   return { layer: !!cosmetics.collab, has: lib.has('ash_buff_01_hit'), unit: !!idx?.units?.char_456_ash, desc: !!desc };
 });
 
+/** A group of 同盟设置's 实验性功能 (ui/roomSettings.js), the dialog open. */
+const group = (c, id) => c.click(`[data-testid="exp-group-${id}"]`);
+
 describe('联动干员 (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public/assets)' }, () => {
   test('warning with a 5 s hold → notices for everybody → the pack loads → a collab pick in 自选; off again', { timeout: 5 * 60 * 1000 }, async () => {
     const srv = await startRealServer({});
@@ -59,6 +62,8 @@ describe('联动干员 (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome
 
       // 规则: the switch, its warning; 不开启 keeps it off
       await host.click('.rs-exp');
+      await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
+      await group(host, 'special');
       await host.page.waitForSelector('#experimental-collab', { visible: true, timeout: 10000 });
       await host.page.click('#experimental-collab');
       await host.page.waitForSelector('[data-testid="collab-warning"]', { visible: true, timeout: 5000 });
@@ -130,6 +135,8 @@ describe('联动干员 (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome
 
       // off: at once, no warning; the notice goes, the picker no longer lists her
       await host.click('.rs-exp');
+      await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
+      await group(host, 'special');
       await host.page.waitForSelector('#experimental-collab', { visible: true, timeout: 10000 });
       await host.page.click('#experimental-collab');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.collabOps !== true, { timeout: 8000 });

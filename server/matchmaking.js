@@ -21,9 +21,17 @@
 // entry, cs)` (the lobby's) says whether queue.accept may count, else CONTENT_NOT_READY and the ticket stays unconfirmed.
 // `syncAllocation(versionId)`: an offer of that version takes the synchronous allocate even when asyncAllocate is set
 // (the cluster's coordinator fallback for another version, SP_VERSION_PLACEMENT=coordinator).
+// A lone ticket's own options (the owner, 2026-11-16: 「匹配玩家也支持调整实验性功能，然后带着这个实验性功能配置进入匹配」):
+// `rules` may also name 'custom' with `experimental` — options of shared/experimental.js QUEUE_OPTION_KEYS that change a
+// rule in every size the ticket waits for. party.config holds them (queueOptions), party.rules keeps only the wildcards
+// ('standard' / 'experimental'), party.asked what the page asked. In a pool such a ticket brings its options at the pool's
+// size (queueOptionsAt) exactly as a party brings its room's: it merges with tickets and parties of the same options
+// (experimentalKey), and with the lone tickets that take any changed rules ('experimental'); its 'standard' / 'experimental'
+// wildcards keep their meaning beside it. A ticket of other options, or of standard rules only, never meets it. The offer's
+// options are those of the ticket or party that brings them (ownOptions), so 确认入场 shows what will be played.
 import { randomBytes } from 'node:crypto';
 import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/constants.js';
-import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, experimentalRuleChanged, sameExperimental } from '../shared/experimental.js';
+import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, experimentalRuleChanged, queueOptions, queueOptionsAt, sameExperimental } from '../shared/experimental.js';
 import { PLAYER_CAPACITY_VERSION, isPlayerCapacity, roomCapacity } from '../shared/playerCapacity.js';
 import { NO_PHASES } from './phaseMetrics.js';
 import { portraitSeed } from '../shared/protocol.js';
@@ -39,8 +47,14 @@ const LEGACY_OPTIONS = Object.freeze([false, true].flatMap(revivalEnabled => [fa
   .map(disableSharedPool => ({ revivalEnabled, disableSharedPool }))));
 /** Which rules a ticket can ask for, in the order a snapshot lists them; a ticket asking none takes both. */
 export const QUEUE_RULES = Object.freeze(['standard', 'experimental']);
+/** The rule a lone ticket names for its own options (header), beside QUEUE_RULES; `queue.join.experimental` carries them. */
+export const CUSTOM_RULE = 'custom';
+/** Every rule queue.join may name, in the order a snapshot lists them (welcome.queueRules). */
+export const ASKED_RULES = Object.freeze([...QUEUE_RULES, CUSTOM_RULE]);
 const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 const ruleOf = ruled => (ruled ? 'experimental' : 'standard');
+/** Two tickets' own options (queueOptions; null: none) are the same. */
+const sameOwn = (a, b) => (!a || !b ? a === b : sameExperimental(a, b) && (a.disableDuckLord === true) === (b.disableDuckLord === true));
 /** The bucket of a ticket without a room (the wildcards of pumpPools) that takes these rules. */
 const wildcard = rules => `*${rules.join('+')}`;
 
@@ -148,7 +162,9 @@ export class Matchmaking {
       ...(waiting ? { waitingCount: Math.max(...waiting) } : {}),
       ...(several ? { difficulties: [...e.party.difficulties], ...(waiting ? { waitingCounts: waiting } : {}) } : {}),
       ...(e.party.capacities.length > 1 ? { capacities: [...e.party.capacities] } : {}),
-      ...(e.party.rules.length < QUEUE_RULES.length ? { rules: [...e.party.rules] } : {}),
+      ...(!sameList(e.party.asked, QUEUE_RULES) ? { rules: [...e.party.asked] } : {}),
+      // the ticket's own options (header), queued and offered: the page compares them with an offer's
+      ...(e.party.config ? { config: { ...e.party.config } } : {}),
       ...(e.reason ? { reason: e.reason } : {}),
       ...(offer ? { offerId: offer.id, accepted: e.accepted, experimental: { ...offer.experimental }, acceptedCount: offer.entries.filter((x) => x.accepted).length,
         acceptedCards: offer.acceptOrder.filter((x) => x !== e).map((x) => offerCard(x.session)),
@@ -206,14 +222,16 @@ export class Matchmaking {
     timer?.unref?.();
   }
 
-  join(session, { difficulty, difficulties, capacities, rules, version, party = false }) {
+  join(session, { difficulty, difficulties, capacities, rules, version, experimental: asks, party = false }) {
     this.refresh(session);
     if (this.closed) return fail(ERR.WRONG_PHASE, 'matchmaking is closed');
     if (this.paused()) return fail(ERR.MAINTENANCE);
     if (!DIFFICULTIES.includes(difficulty) || typeof party !== 'boolean'
       || (difficulties !== undefined && (!Array.isArray(difficulties) || difficulties.some((d) => !DIFFICULTIES.includes(d))))
       || (capacities !== undefined && (!Array.isArray(capacities) || !capacities.length || !capacities.every(isPlayerCapacity)))
-      || (rules !== undefined && (!Array.isArray(rules) || !rules.length || rules.some((r) => !QUEUE_RULES.includes(r))))
+      || (rules !== undefined && (!Array.isArray(rules) || !rules.length || rules.some((r) => !ASKED_RULES.includes(r))))
+      // a ticket's own options come with 'custom', and 'custom' only with them (header)
+      || (asks !== undefined) !== (rules?.includes(CUSTOM_RULE) === true)
       || (version !== undefined && typeof version !== 'string')) return fail(ERR.BAD_MSG, 'invalid matchmaking request');
     if (session.matchmakingVersion !== MATCHMAKING_VERSION) return fail(ERR.BAD_MSG, 'matchmaking version required; refresh the page');
     /** the pools of this ticket: `difficulty` first, then the others in the order asked */
@@ -221,6 +239,10 @@ export class Matchmaking {
     /** its room sizes, smallest first, and the rules it takes; a request naming neither waits as an older page's does */
     const sizes = capacities ? [...new Set(capacities)].sort((a, b) => a - b) : null;
     const taken = rules ? QUEUE_RULES.filter((r) => rules.includes(r)) : QUEUE_RULES;
+    const asked = rules ? ASKED_RULES.filter((r) => rules.includes(r)) : QUEUE_RULES;
+    /** the ticket's own options (header): canonical, or null */
+    const own = asks === undefined ? null : queueOptions(asks);
+    if (asks !== undefined && !own) return fail(ERR.BAD_MSG, 'invalid matchmaking experimental options');
     const previous = this.entries.get(session.playerId);
     if (previous) {
       if (!sameList(previous.party.difficulties, wanted)) return fail(ERR.QUEUED, 'cancel before changing difficulty');
@@ -228,7 +250,8 @@ export class Matchmaking {
       if ((version ?? (previous.party.roomCode ? previous.party.versionId : DEFAULT_VERSION)) !== previous.party.versionId) {
         return fail(ERR.QUEUED, 'cancel before changing the version');
       }
-      if (!sameList(previous.party.capacities, sizes || [previous.party.required]) || !sameList(previous.party.rules, rules ? taken : previous.party.rules)) {
+      if (!sameList(previous.party.capacities, sizes || [previous.party.required]) || !sameList(previous.party.asked, rules ? asked : previous.party.asked)
+        || (rules && !sameOwn(previous.party.config, own))) {
         return fail(ERR.QUEUED, 'cancel before changing the scope');
       }
       this.push(previous);
@@ -240,13 +263,15 @@ export class Matchmaking {
     /** the official version of the ticket's pools (header): the lobby's answer, else the asked one */
     const versionId = typeof group.version === 'string' ? group.version : version ?? DEFAULT_VERSION;
     if (wanted.length > 1 && (party || group.roomCode)) return fail(ERR.BAD_MSG, 'a party queues at its room\'s difficulty');
-    if ((capacities !== undefined || rules !== undefined) && (party || group.roomCode)) return fail(ERR.BAD_MSG, 'a party queues with its room\'s size and rules');
+    if ((capacities !== undefined || rules !== undefined || asks !== undefined) && (party || group.roomCode)) return fail(ERR.BAD_MSG, 'a party queues with its room\'s size and rules');
     let experimental = null;
     try { if (group.roomCode) experimental = experimentalOptions(group.experimental ?? EXPERIMENTAL_DEFAULTS); }
     catch { return fail(ERR.BAD_MSG, 'invalid party experimental options'); }
     // Room inspection owns the mode; a lobby solo waits in the sizes it asked for, else the ordinary four-player pool.
     const fixed = roomCapacity('coop', experimental);
     const pools = sizes || [fixed], required = pools[0], largest = pools[pools.length - 1];
+    // own options that change nothing in one of its sizes (禁用鸭爵策略 alone at four seats) would make a standard game there
+    if (own && !pools.every((n) => experimentalRuleChanged(queueOptionsAt(own, n)))) return fail(ERR.BAD_MSG, 'the experimental options change no rule at one of these sizes');
     const sessions = group.sessions;
     if (!Array.isArray(sessions) || sessions.length < 1 || sessions.length > required
       || sessions.some(member => !member || typeof member.playerId !== 'string')
@@ -268,7 +293,8 @@ export class Matchmaking {
     }
     const now = this.now();
     const unit = { id: id(), roomCode: group.roomCode || null, leaderId: group.leaderId || session.playerId, versionId,
-      experimental, required, capacities: pools, rules: taken, difficulties: wanted, sequence: ++this.sequence, entries: [] };
+      experimental, required, capacities: pools, rules: taken, asked, config: own, configAt: new Map(),
+      difficulties: wanted, sequence: ++this.sequence, entries: [] };
     unit.entries = sessions.map((member) => ({
       session: member, key: member.limitKey, ticketId: id(), difficulty, version: member.matchmakingVersion, party: unit,
       joinedAt: now, expiresAt: now + this.opts.waitMs, sequence: unit.sequence, offerId: null, accepted: false, revivalVote: null,
@@ -399,7 +425,7 @@ export class Matchmaking {
           && e.offerId === allocation.offerId && e.party === saved.party && this.parties.get(e.party.id) === e.party
           && e.difficulty === saved.difficulty && e.expiresAt === saved.expiresAt && e.sequence === saved.sequence
           && e.party.required === allocation.required && e.party.versionId === allocation.versionId && e.party.experimental === saved.experimental
-          && (!e.party.experimental || sameExperimental(e.party.experimental, offer.experimental))
+          && this.takes(e.party, offer.experimental)
           && (allocation.required <= MAX_SEATS || e.session.playerCapacityVersion === PLAYER_CAPACITY_VERSION)
           && e.accepted === true && e.revivalVote === saved.revivalVote && e.expiresAt > now
           && e.session.matchmakingVersion === saved.version && (e.session.limitKey || null) === (e.key || null)
@@ -531,29 +557,37 @@ export class Matchmaking {
       pool.sort((a, b) => a.sequence - b.sequence);
       const unused = new Set(pool);
       const buckets = new Map();
+      const bucket = (key, party) => {
+        if (!buckets.has(key)) buckets.set(key, { parties: [], cursor: 0 });
+        buckets.get(key).parties.push(party);
+      };
       /** every option set of this pool → whether it changes a rule */
       const optionKeys = new Map(LEGACY_OPTIONS.map((options) => [experimentalKey(options), experimentalRuleChanged(options)]));
       for (const party of pool) {
-        if (party.experimental) optionKeys.set(experimentalKey(party.experimental), experimentalRuleChanged(party.experimental));
-        const key = `${party.entries.length}:${party.experimental ? experimentalKey(party.experimental) : wildcard(party.rules)}`;
-        if (!buckets.has(key)) buckets.set(key, { parties: [], cursor: 0 });
-        buckets.get(key).parties.push(party);
+        // a party's room options or a lone ticket's own at this size (header), and a lone ticket's wildcards beside them
+        const own = this.ownKey(party, required);
+        if (own !== null) {
+          optionKeys.set(own, experimentalRuleChanged(this.ownOptions(party, required)));
+          bucket(`${party.entries.length}:${own}`, party);
+        }
+        if (!party.experimental && party.rules.length) bucket(`${party.entries.length}:${wildcard(party.rules)}`, party);
       }
       for (const leader of pool) {
         if (!unused.has(leader)) continue;
         const remaining = required - leader.entries.length;
         if (remaining < 0) continue;
-        let rest = null;
-        // Solos are wildcards of the rules they take; fixed-option parties only merge with compatible parties.
+        let rest = null, restKey = null;
+        const leaderOwn = this.ownKey(leader, required);
+        // Solos are wildcards of the rules they take; option sets (a party's, a ticket's own) only merge with compatible units.
         // Capacity/flag buckets bound the fit to at most twenty slots, independently of queue length.
-        const leaderKeys = leader.experimental ? [experimentalKey(leader.experimental)] : optionKeys.keys();
+        const leaderKeys = leader.experimental ? [leaderOwn] : optionKeys.keys();
         for (const optionKey of leaderKeys) {
-          const ruled = optionKeys.get(optionKey), rule = ruleOf(ruled);
-          if (!leader.experimental && !leader.rules.includes(rule)) continue;
-          // Changed rules come from a party: lone tickets alone have none to play by.
-          const needsParty = ruled && !leader.experimental;
+          const ruled = optionKeys.get(optionKey), rule = ruleOf(ruled), brings = optionKey === leaderOwn;
+          if (!brings && !leader.rules.includes(rule)) continue;
+          // Changed rules come from a party or a ticket's own options: lone wildcards alone have none to play by.
+          const needsParty = ruled && !brings;
           const keys = [wildcard(QUEUE_RULES), wildcard([rule]), optionKey];
-          const candidates = [];
+          const candidates = [], listed = new Set();
           for (let size = 1; size <= remaining; size++) for (const key of keys) {
             const bucket = buckets.get(`${size}:${key}`);
             if (!bucket) continue;
@@ -561,18 +595,20 @@ export class Matchmaking {
             while (bucket.cursor < list.length && (list[bucket.cursor].sequence <= leader.sequence || !unused.has(list[bucket.cursor]))) bucket.cursor++;
             let taken = 0;
             for (let i = bucket.cursor; i < list.length && taken < Math.floor(remaining / size); i++) {
-              if (unused.has(list[i])) { candidates.push(list[i]); taken++; }
+              // a ticket with own options and wildcards sits in two buckets: one candidate
+              if (unused.has(list[i]) && !listed.has(list[i])) { candidates.push(list[i]); listed.add(list[i]); taken++; }
             }
           }
           candidates.sort((a, b) => a.sequence - b.sequence);
           // Suffix reachability preserves the earliest feasible FIFO combination without
           // exponential backtracking when larger rooms have many incompatible party sizes.
-          // `withParty`: the same, using at least one party that has rules of its own (needsParty).
+          // `withParty`: the same, using at least one unit that brings these options (needsParty).
           const reachable = Array.from({ length: candidates.length + 1 }, () => new Uint8Array(remaining + 1));
           const withParty = Array.from({ length: candidates.length + 1 }, () => new Uint8Array(remaining + 1));
+          const bringers = candidates.map((party) => this.ownKey(party, required) === optionKey);
           reachable[candidates.length][0] = 1;
           for (let i = candidates.length - 1; i >= 0; i--) {
-            const size = candidates[i].entries.length, own = !!candidates[i].experimental;
+            const size = candidates[i].entries.length, own = bringers[i];
             for (let slots = 0; slots <= remaining; slots++) {
               reachable[i][slots] = reachable[i + 1][slots] || (slots >= size && reachable[i + 1][slots - size]);
               withParty[i][slots] = withParty[i + 1][slots] || (slots >= size && (own ? reachable : withParty)[i + 1][slots - size]);
@@ -583,19 +619,20 @@ export class Matchmaking {
             found = [];
             let slots = remaining, have = !needsParty;
             for (let i = 0; i < candidates.length && slots; i++) {
-              const size = candidates[i].entries.length, now = have || !!candidates[i].experimental;
+              const size = candidates[i].entries.length, now = have || bringers[i];
               if (size <= slots && (now ? reachable : withParty)[i + 1][slots - size]) { found.push(candidates[i]); slots -= size; have = now; }
             }
           }
           if (found && (!rest || found.some((party, i) => party.sequence !== rest[i]?.sequence
-            && found.slice(0, i).every((p, j) => p === rest[j]) && party.sequence < (rest[i]?.sequence ?? Infinity)))) rest = found;
+            && found.slice(0, i).every((p, j) => p === rest[j]) && party.sequence < (rest[i]?.sequence ?? Infinity)))) { rest = found; restKey = optionKey; }
         }
         if (!rest) continue; // never split a party; an unfillable older unit does not block later fits
         const parties = [leader, ...rest];
         const entries = parties.flatMap((party) => party.entries);
-        // Lone tickets make an ordinary game of the pool's size.
-        const experimental = parties.find(party => party.experimental)?.experimental
-          ?? (required === MAX_SEATS ? EXPERIMENTAL_DEFAULTS : experimentalOptions({ ...EXPERIMENTAL_DEFAULTS, playerCapacity: required }));
+        // The options of the unit that brings the fit's set; lone wildcards alone make an ordinary game of the pool's size.
+        const bringer = parties.find((party) => this.ownKey(party, required) === restKey);
+        const experimental = bringer ? this.ownOptions(bringer, required)
+          : (required === MAX_SEATS ? EXPERIMENTAL_DEFAULTS : experimentalOptions({ ...EXPERIMENTAL_DEFAULTS, playerCapacity: required }));
         const offer = { id: id(), experimental, required, versionId,
           deadline: Math.min(this.now() + this.opts.acceptMs, ...entries.map((e) => e.expiresAt)), entries, acceptOrder: [] };
         this.offers.set(offer.id, offer);
@@ -604,6 +641,39 @@ export class Matchmaking {
         this.pushAll(entries);
       }
     }
+  }
+
+  /**
+   * The option set a unit brings to a pool of `required` seats (pumpPools): its room's (a party), its own options at that
+   * size (a lone ticket's, header), else null — a lone ticket of wildcards only.
+   */
+  ownKey(party, required) {
+    if (party.experimental) return experimentalKey(party.experimental);
+    return party.config ? this.ownAt(party, required).key : null;
+  }
+  /** The options of ownKey. */
+  ownOptions(party, required) { return party.experimental || (party.config ? this.ownAt(party, required).options : null); }
+  /** A lone ticket's own options at a size, computed once per size. */
+  ownAt(party, required) {
+    let at = party.configAt.get(required);
+    if (!at) {
+      const options = queueOptionsAt(party.config, required);
+      at = { options, key: experimentalKey(options) };
+      party.configAt.set(required, at);
+    }
+    return at;
+  }
+
+  /**
+   * Whether a unit plays a game of `experimental` (an offer's options; the allocation's checks): a party only its room's,
+   * a lone ticket its own options at that size or any game of a rule it takes (header).
+   */
+  takes(party, experimental) {
+    if (!party || !experimental) return false;
+    if (party.experimental) return sameExperimental(party.experimental, experimental);
+    const size = roomCapacity('coop', experimental);
+    if (party.config && sameExperimental(this.ownAt(party, size).options, experimental)) return true;
+    return party.rules.includes(ruleOf(experimentalRuleChanged(experimental)));
   }
 
   stale(e, now) {

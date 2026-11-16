@@ -242,6 +242,8 @@ function onWelcome(msg) {
     testMode: msg.testMode === true,
     // the official versions the server enables (protocol §2; absent: the switch is off — versions.js)
     versions: sanitizeVersions(msg.versions),
+    // the rules queue.join takes (absent: an older server — 我的实验性 is not offered, ui/matchmaking.js queueTakesCustom)
+    queueRules: Array.isArray(msg.queueRules) ? msg.queueRules.filter((r) => typeof r === 'string') : null,
   });
   welcomeAt = Date.now();
   // The server rebound this tab's session: until its match state (or a room outside a match) arrives, a match screen

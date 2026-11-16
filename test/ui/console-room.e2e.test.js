@@ -37,6 +37,8 @@ async function run(c) {
 /** Host: 实验性选项 → 调控台 → wait out the 5 s hold → 开启 (`snap`: screenshots of the switch and the warning). */
 async function turnOn(host, snap = null) {
   await host.click('.rs-exp');
+  await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
+  await group(host, 'special');
   await host.page.waitForSelector('#experimental-console', { visible: true, timeout: 10000 });
   if (snap) {
     await host.page.$eval('#experimental-console', (e) => e.scrollIntoView({ block: 'center' }));
@@ -107,6 +109,20 @@ const layout = (c) => c.page.evaluate(() => {
 const testLog = (c) => c.page.evaluate(() => globalThis.__SP__.store.get().match.public?.testLog || []);
 const logLines = (c) => c.page.$$eval('[data-testid="console-log"] li', (list) => list.map((li) => li.textContent.trim()));
 
+/** The room's 实验性功能 badge: its count, and the 浮窗's list (a hover; ui/experimental.js ExperimentalBadge). */
+async function badge(c) {
+  await c.page.mouse.move(2, 2);
+  const pt = await c.point('[data-testid="room-experimental"]');
+  await c.page.mouse.move(pt.x, pt.y);
+  await c.page.waitForSelector('[data-testid="room-experimental-pop"]', { visible: true, timeout: 5000 });
+  const out = await c.page.evaluate(() => ({ count: document.querySelector('[data-testid="room-experimental"]').dataset.count,
+    small: document.querySelector('.rs-exp small').textContent, list: document.querySelector('[data-testid="room-experimental-pop"]').textContent }));
+  await c.page.mouse.move(2, 2);
+  return out;
+}
+/** A group of 同盟设置's 实验性功能 (ui/roomSettings.js), the dialog open. */
+const group = (c, id) => c.click(`[data-testid="exp-group-${id}"]`);
+
 describe('调控台 (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public/assets)' }, () => {
   test('co-op: 5 s warning → notices → every player has the panel for their own seat, no match-wide controls', { timeout: 6 * 60 * 1000 }, async () => {
     const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 2 } });
@@ -127,8 +143,7 @@ describe('调控台 (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + 
 
       await turnOn(host, 'coop');
       for (const c of [host, guest]) await c.page.waitForSelector('.rs-collab [data-testid="console-notice"]', { visible: true, timeout: 8000 });
-      const summary = await host.page.$eval('.rs-exp small', (el) => el.textContent);
-      assert.match(summary, /调控台/);
+      assert.match((await badge(host)).list, /特殊功能.*调控台/);
       await shot(guest, 'coop-room-notice');
 
       await guest.roomReady({ timeout: 20000 });

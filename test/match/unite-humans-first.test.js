@@ -47,10 +47,10 @@ test('the option: optional key, absent when off; its own matchmaking key; a rule
     enemyHpPlan: [[1, 1], [6, 2]], enemyAtkMul: 2, poolPlan: [0, 0, 0, 0, 1, 1, 1, 1], collabOps: true, console: true, uniteHumansFirst: true })), true);
 });
 
-test('client: the summary, the changed mark, the 规则 page (co-op only)', () => {
+test('client: the summary, the changed mark, the 队友协作 group (co-op only)', () => {
   assert.match(experimentalSummary(rules({ uniteHumansFirst: true })), /AI 联防置后/);
   assert.equal(experimentalChanged(rules({ uniteHumansFirst: true })), true);
-  assert.equal(changedPages({ experimental: rules({ uniteHumansFirst: true }) }).rules, true);
+  assert.equal(changedPages({ mode: 'coop', source: 'private', experimental: rules({ uniteHumansFirst: true }) }).team, true);
   const sent = [];
   const rows = (mode) => ruleRows({ value: rules(), mode, editable: true, onChange: (v) => sent.push(v) }).flat(Infinity).filter(Boolean);
   const find = (mode) => {

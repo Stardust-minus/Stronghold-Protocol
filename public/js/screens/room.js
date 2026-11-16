@@ -4,11 +4,12 @@
 // level, the 服主 mark — room.state seats[].card / .owner, ui/playerCard.js, ui/ownerName.js), the host's 移出; an AI seat
 // names the strategy it takes in the draft (AI 指定策略: room.setBotBand; seats[].band, null = 自动选择 — the host's chip
 // opens the picker, a strategy set for another AI is greyed out) and the host's ✕ removes it; an empty seat is 邀请
-// (copies the alliance key) and, for the host, 添加 AI 队友. Expanded rooms (8–20 seats, 实验性选项) scroll sideways.
+// (copies the alliance key) and, for the host, 添加 AI 队友. Expanded rooms (8–20 seats, 实验性功能) scroll sideways.
 // Top: leave, the time waited, latency with the service load (ui/serverStatus.js), 统计 / 设置 / 玩法说明, the alliance
-// key with 复制 / 链接. Bottom: 实验性选项 (left, as in the earlier room; marked when an option is changed), the status
-// line, the difficulty | ⚙ pill (the host picks the difficulty in 选择模拟协议 over the room; ⚙ and 实验性选项 open the
-// one dialog of the room's options, ui/roomSettings.js, on 同盟 and on 规则), 组队匹配 (host: the whole party joins the public
+// key with 复制 / 链接. Bottom: 实验性功能 (left: only 已开启 n 项 / 未开启 — the owner, 2026-11-16 — and the list by group in
+// a 浮窗 on hover, or on a first tap: ui/experimental.js ExperimentalBadge), the status line, the difficulty | ⚙ pill (the
+// host picks the difficulty in 选择模拟协议 over the room; ⚙ and 实验性功能 open the one dialog of the room's options,
+// ui/roomSettings.js, on 同盟 and on the first experimental group with something on), 组队匹配 (host: the whole party joins the public
 // queue — queue.join { party: true }, in the pool of the room's version (this fork, one pool per version; a room with
 // gameplay plugins, a version the server cannot queue, or a seat still loading the version's data cannot: partyQueueReason);
 // everybody sees the queue, ui/matchmaking.js QueueFlow) and 开始模拟 (host) or 准备就绪.
@@ -78,7 +79,7 @@ import { OwnerBadge, isOwnerSeat } from '../ui/ownerName.js';
 import { difficultyInfo, modeInfo, ProtoCard, LadderList } from './lobby.js';
 import { ProtocolScene } from '../ui/protocolScene.js';
 import { usePresence, useRise, afterLeave } from '../ui/transitions.js';
-import { experimentalChanged, experimentalSummary } from '../ui/experimental.js';
+import { ExperimentalBadge } from '../ui/experimental.js';
 import { CollabNotice } from '../ui/collab.js';
 import { ConsoleNotice } from '../ui/consoleRoom.js';
 import { isCollabRoom, isConsoleRoom } from '../../../shared/experimental.js';
@@ -744,9 +745,7 @@ export function RoomScreen() {
 
     <footer class="rs-foot">
       <div class="rs-foot__left">
-        <button type="button" class=${`rs-exp${experimentalChanged(room.experimental) ? ' is-on' : ''}`} disabled=${!!busy || queued} onClick=${() => setSettings(settingsPage(room, 'rules'))}
-          aria-haspopup="dialog" title=${experimentalSummary(room.experimental)}>
-          <${Icon} name="edit" /><span><b>${t('实验性选项')}</b><small>${experimentalSummary(room.experimental)}</small></span></button>
+        <${ExperimentalBadge} value=${room.experimental} mode=${room.mode} disabled=${!!busy || queued} onOpen=${() => setSettings(settingsPage(room, 'experimental'))} />
       </div>
       <div class="rs-foot__center">
         <p class="rs-hint">${coop ? html`<span class="rs-ready num" title=${t('已就绪')}>${facts.humans.map((s) => html`<${Icon} key=${s.playerId} name="user" class=${facts.isReady(s) ? 'is-on' : ''} />`)}<b>${facts.readyHumans}</b>/${facts.humans.length}</span>` : null}${statusLine}</p>

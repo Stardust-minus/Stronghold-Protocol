@@ -132,6 +132,8 @@ test('topmost modal traps and restores focus and compact matching explains room-
   assert.match(matching, /\$\{t\(MATCHING_RULES\)\}<\/p><p class="modal__text">\$\{t\(EXPERIMENTAL_RULES\)\}/);
   assert.match(matching, /未完成确认者不自动回队/); assert.match(matching, /单人默认只进标准规则的对局/);
   assert.doesNotMatch(matching, /revivalVote|开启复活并确认|赞成开启/);
-  assert.match(source('../../public/js/screens/room.js'), /<b>\$\{t\('实验性选项'\)\}<\/b>/); assert.match(experimental, /revivalEnabled/); assert.match(experimental, /disableSharedPool/);
+  // the room's footer names 实验性功能 and how many are on, the list by group in its 浮窗 (the owner, 2026-11-16)
+  assert.match(source('../../public/js/screens/room.js'), /<\$\{ExperimentalBadge\} value=\$\{room\.experimental\}/);
+  assert.match(experimental, /const name = label \|\| t\('实验性功能'\)/); assert.match(experimental, /revivalEnabled/); assert.match(experimental, /disableSharedPool/);
   assert.match(revival, /me\.lp >= 11/); assert.match(revival, /至少 11 生命的存活队友可支付 10 点救援/);
 });

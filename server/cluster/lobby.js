@@ -337,7 +337,7 @@ export class ClusterLobby extends Lobby {
         || session.matchmakingVersion !== MATCHMAKING_VERSION || entry?.session !== session || entry.version !== MATCHMAKING_VERSION
         || entry.expiresAt <= now || (entry.key || null) !== (session.limitKey || null) || !entry.accepted
         || entry.offerId !== offer.id || entry.difficulty !== difficulty
-        || (entry.party.experimental && !sameExperimental(entry.party.experimental, offer.experimental))
+        || !this.queue.takes(entry.party, offer.experimental)
         || !offer.entries.includes(entry) || entry.party.entries.some(member => !offer.entries.includes(member))) invalid();
       if (entry.party.roomCode) oldRooms.add(this.roomOf(session));
     }

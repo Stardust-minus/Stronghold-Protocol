@@ -26,6 +26,20 @@ const replica = (c) => c.page.evaluate(() => {
     e: e ? { replica: !!e.replica, dropped: !!e.dropped, replay: !!e.replay, synced: e.synced ?? 0 } : null };
 });
 
+/** The room's 实验性功能 badge: its count, and the 浮窗's list (a hover; ui/experimental.js ExperimentalBadge). */
+async function badge(c) {
+  await c.page.mouse.move(2, 2);
+  const pt = await c.point('[data-testid="room-experimental"]');
+  await c.page.mouse.move(pt.x, pt.y);
+  await c.page.waitForSelector('[data-testid="room-experimental-pop"]', { visible: true, timeout: 5000 });
+  const out = await c.page.evaluate(() => ({ count: document.querySelector('[data-testid="room-experimental"]').dataset.count,
+    small: document.querySelector('.rs-exp small').textContent, list: document.querySelector('[data-testid="room-experimental-pop"]').textContent }));
+  await c.page.mouse.move(2, 2);
+  return out;
+}
+/** A group of 同盟设置's 实验性功能 (ui/roomSettings.js), the dialog open. */
+const group = (c, id) => c.click(`[data-testid="exp-group-${id}"]`);
+
 describe('enemy multipliers (server-run combat, real server + Worker)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public/assets)' }, () => {
   test('both lists reach the Worker and the replica: multiplied enemies, digests agree, no stream fallback', { timeout: 6 * 60 * 1000 }, async () => {
     const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 2, startRound: 'boss', autoPlace: true, kits: [YAN], botChess: BOT_KIT },
@@ -39,6 +53,7 @@ describe('enemy multipliers (server-run combat, real server + Worker)', { skip: 
       for (let i = 0; i < 3; i++) { await host.click('button', '添加 AI 队友'); await sleep(500); }
       await host.click('.rs-exp');
       await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
+      await group(host, 'enemy');
       await host.shot('options-off');
       await host.page.select('#experimental-enemy-hp', '2');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.enemyHpMul === 2, { timeout: 10000 });
@@ -48,7 +63,9 @@ describe('enemy multipliers (server-run combat, real server + Worker)', { skip: 
       await host.click('.room-settings-modal .modal__actions button');
       await host.page.waitForSelector('.room-settings-modal', { hidden: true, timeout: 10000 });
       await host.shot('room');
-      assert.match(await host.page.$eval('.rs-exp small', (el) => el.textContent), /敌人生命 ×2 · 敌人攻击 ×3/);
+      const summary = await badge(host);
+      assert.match(summary.small, /已开启 2 项/);
+      assert.match(summary.list, /敌人生命 ×2.*敌人攻击 ×3/);
       await host.roomStart({ timeout: 20000 });
       await host.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
       await host.settled('.brief-go');

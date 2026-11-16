@@ -23,6 +23,10 @@
 // a version the server cannot queue (welcome.versions `queue: false`) leaves the start button off with
 // 「{version}」暂不开放多人匹配. The search names the version (QueueFlow's tag, the hub's line); the version chip is locked while
 // a ticket waits (ui/versionPicker.js), so the ticket and the lobby show the same version.
+// The pool's chip in 选择模拟协议 opens the version picker too (the owner, 2026-11-16: 「多人匹配界面可以切换匹配的版本」; a pick
+// is the lobby's version); its 规则 row adds 我的实验性 — the ticket's own experimental options, edited by group in 我的实验性
+// 功能 (ui/matchmaking.js MatchOptionsDialog, `lobby.matchExperimental`) — beside 标准规则 and 任意实验性. Both dialogs hang on
+// the lobby, not inside the full-screen 选择模拟协议.
 // 规程·序列Ⅰ (upstream 0.4.0, the lobby's default version there — shared/versions.js LOBBY_DEFAULT_VERSION): the title reads
 // 卫戍协议·规程, and 独立模拟's 选择模拟协议 picks one of its laddered official modes — 极速模拟 or 规程等级 1–20 (LadderList,
 // versions.js ladderModes; room.create `modeId`, remembered as `lobby.ladderMode`) — instead of the four difficulties.
@@ -53,9 +57,9 @@ import { html, Button, Icon, MicroLabel, TextField, PingPill, AvatarFrame, Toolt
 import { AnnouncementBoard, announcementRevision, announcementDismissed, dismissAnnouncement, announcementBanner, parseAnnouncements } from '../ui/announcements.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { SiteBoards } from '../ui/siteBoards.js';
-import { VersionSwitch } from '../ui/versionPicker.js';
+import { VersionPicker, VersionSwitch } from '../ui/versionPicker.js';
 import { contentSet, retryContentSet } from '../content.js';
-import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, ladderModes, ladderPick, seasonOf, soloTimedOf, versionLabel, versionQueueable, REGULATION_SEASON } from '../versions.js';
+import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, ladderModes, ladderPick, seasonOf, serverDefaultVersion, setLobbyVersion, soloTimedOf, versionLabel, versionQueueable, REGULATION_SEASON } from '../versions.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { openStats } from './stats.js';
@@ -74,7 +78,8 @@ import { useLeave } from '../ui/transitions.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, getConfig, getMode, getStage, useData, localAsset } from '../data.js';
-import { EXPERIMENTAL_RULES, MATCH_SCOPE_DEFAULT, QueueFlow, matchScope, matchScopeRequest, multiSeats, queueActive, queueDifficulties, queueScope, queueVersion, toggleMatchScope } from '../ui/matchmaking.js';
+import { EXPERIMENTAL_RULES, MATCH_SCOPE_DEFAULT, MatchOptionsDialog, QueueFlow, customProblem, matchConfig, matchScope, matchScopeRequest, multiSeats, queueActive, queueDifficulties, queueScope, queueTakesCustom, queueVersion, toggleMatchScope } from '../ui/matchmaking.js';
+import { ExperimentalBadge, experimentalItems } from '../ui/experimental.js';
 import { RoomListDialog } from '../ui/roomList.js';
 import { queueCancellation } from '../queueCancellation.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
@@ -540,9 +545,13 @@ function matchHint(scope) {
     : t('{n} 名真人 · 不自动补 AI · 集齐后 30 秒内确认入场', { n: MAX_SEATS });
 }
 
-/** 多人匹配's scope, under the difficulties: the room sizes and the rules this ticket takes (ui/matchmaking.js). */
-function MatchScope({ scope, onToggle, disabled }) {
-  const row = (axis, label, options) => html`<div class="proto-scope__row" role="group" aria-label=${label}>
+/**
+ * 多人匹配's scope, under the difficulties: the room sizes and the rules this ticket takes (ui/matchmaking.js) — 标准规则,
+ * 我的实验性 (the ticket's own options, `own`: while the server takes them) and 任意实验性. With 我的实验性 on, the line under
+ * the rows names how many of its options are on (a 浮窗 lists them by group) and opens their dialog (`own.onEdit`).
+ */
+function MatchScope({ scope, onToggle, disabled, own = null }) {
+  const row = (axis, label, options) => html`<div class=${`proto-scope__row${options.length > 2 ? ' is-three' : ''}`} role="group" aria-label=${label}>
     <span class="proto-scope__k">${label}</span>
     ${options.map(({ id, name, note, why }) => {
       const on = scope[axis].includes(id);
@@ -559,8 +568,13 @@ function MatchScope({ scope, onToggle, disabled }) {
     ])}
     ${row('rules', t('规则'), [
       { id: 'standard', name: t('标准规则'), why: t('所有规则保持原样的同盟') },
-      { id: 'experimental', name: t('实验性规则'), why: t('小队房主改过规则的同盟，如复活、敌人倍率；确认入场前可以看到具体规则') },
+      ...(own ? [{ id: 'custom', name: t('我的实验性'), note: own.count ? String(own.count) : null, why: t('按我设置的实验性功能匹配，只和设置完全相同的博士或小队组队') }] : []),
+      { id: 'experimental', name: own ? t('任意实验性') : t('实验性规则'), why: t('其他博士或小队开启了实验性功能的同盟，如复活、敌人倍率；确认入场前可以看到具体内容，不想玩可以退出') },
     ])}
+    ${own && scope.rules.includes('custom') ? html`<div class="proto-scope__own" data-testid="match-own">
+      <${ExperimentalBadge} value=${own.value} queue=${true} label=${t('我的实验性功能')} disabled=${disabled} onOpen=${own.onEdit} testid="match-own-options" class="proto-own" />
+      ${own.problem ? html`<span class="proto-scope__warn" role="status">${own.problem === 'size' ? t('所选人数下没有生效的功能') : t('尚未开启任何功能')}</span>` : null}
+    </div>` : null}
   </div>`;
 }
 
@@ -610,7 +624,7 @@ function ProtocolArt({ d, regArt = false }) {
  */
 function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, onClose, online, maint, busy, queue, onCreate, onQueue, chained = false,
   difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, picks = null, onPick = null, scope = null, onScope = null,
-  ladder = null, modeId = null, onMode = null, season = null, look = false, pool = null }) {
+  ladder = null, modeId = null, onMode = null, season = null, look = false, pool = null, own = null }) {
   const [leaving, leave] = useLeave(onClose);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
@@ -649,6 +663,7 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
   const closed = match && pool?.off === true;
   const hint = !online ? t('正在连接服务器…') : maint ? t('服务器即将维护，暂停开启新的模拟')
     : closed ? t('「{version}」暂不开放多人匹配', { version: pool.label })
+    : match && own?.problem ? t('请先在「我的实验性」中开启至少一项在所选人数下生效的功能')
     : match ? matchHint(scope)
     : roomMode === 'solo' ? t('独自调配阵容，按自己的节奏开始模拟') : t('创建后可邀请好友或添加 AI 队友');
   const working = busy === 'create' || busy === 'queue';
@@ -679,18 +694,21 @@ function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, on
             : difficulties.map((x) => html`<${ProtoCard} key=${x} roomMode=${roomMode} difficulty=${x} selected=${match && picks ? picks.includes(x) : d === x} onSelect=${match && onPick ? onPick : onDifficulty} disabled=${working || loading} />`)}
         </div>
         <div class=${`proto-foot${match ? ' proto-foot--match' : ''}`}>
-          ${match && scope ? html`<${MatchScope} scope=${scope} onToggle=${onScope} disabled=${working} />` : null}
-          ${match ? html`<div class="proto-opts"><span class="proto-mode-chip"><${Icon} name="search" />${t('多人匹配')}</span>${pool ? html`<span class="proto-mode-chip" data-testid="match-version"
-            title=${t('只和选择同一版本的博士匹配；匹配中不能切换版本')}><${Icon} name="book" />${pool.label}</span>` : null}<${MatchRules} /></div>` : null}
+          ${match && scope ? html`<${MatchScope} scope=${scope} onToggle=${onScope} disabled=${working} own=${own} />` : null}
+          ${match ? html`<div class="proto-opts"><span class="proto-mode-chip"><${Icon} name="search" />${t('多人匹配')}</span>${pool ? (pool.onPick
+            ? html`<button type="button" class="proto-mode-chip proto-mode-chip--pick" data-testid="match-version" aria-haspopup="dialog" disabled=${working}
+                title=${t('只和选择同一版本的博士匹配；点击切换匹配的版本')} onClick=${pool.onPick}><${Icon} name="book" />${pool.label}<${Icon} name="chevronRight" class="proto-mode-chip__go" /></button>`
+            : html`<span class="proto-mode-chip" data-testid="match-version" title=${t('只和选择同一版本的博士匹配；匹配中不能切换版本')}><${Icon} name="book" />${pool.label}</span>`) : null}<${MatchRules} /></div>` : null}
           ${soloTime ? html`<label class="create-box__test" data-testid="solo-unlimited">
             <input type="checkbox" role="switch" checked=${soloTime.on} onChange=${(e) => soloTime.onToggle(e.target.checked)} />
             <span>${t('不限时')}</span>
             <em class="t-dim">${t('关闭本局休整与机变的计时。官方为休整期每轮 300 秒、机变 150 秒。')}</em>
           </label>` : null}
-          ${match && picks ? html`<p class="proto-hint" data-testid="match-picks">${scope && !scope.rules.includes('standard') ? t('只加入改过规则的小队：没有这样的小队时会一直等待')
+          ${match && picks ? html`<p class="proto-hint" data-testid="match-picks">${scope && !scope.rules.includes('standard') ? (scope.rules.includes('experimental')
+              ? t('只加入开启了实验性功能的对局：没有这样的对局时会一直等待') : t('只和实验性功能设置完全相同的博士或小队匹配：没有时会一直等待'))
             : picks.length > 1 ? t('已选 {k} 个难度，任一难度集齐即开局', { k: picks.length }) : t('可多选难度，任一难度集齐即开局')}</p>` : null}
           <p class="proto-hint">${hint}</p>
-          <button type="button" class="proto-start" disabled=${!online || maint || working || loading || closed} onClick=${match ? onQueue : onCreate}>
+          <button type="button" class="proto-start" disabled=${!online || maint || working || loading || closed || (match && !!own?.problem)} onClick=${match ? onQueue : onCreate}>
             <span class="proto-start__mark" aria-hidden="true"><span class="proto-start__rook"><i>[</i><${Icon} name="rook" /><i>]</i></span><small>STRONGHOLD<br />PROTOCOL</small></span>
             <span class="proto-start__label">${working ? html`<${Spinner} size="sm" />` : null}${label}</span>
             <span class="proto-start__deco" aria-hidden="true"></span>
@@ -895,6 +913,10 @@ export function LobbyScreen() {
     return Array.isArray(saved) ? saved.filter((d) => DIFFICULTIES.includes(d)) : [];
   });
   const [matchRange, setMatchRange] = useState(() => matchScope(loadPref('lobby.matchScope', MATCH_SCOPE_DEFAULT)));
+  // 多人匹配's own experimental options (ui/matchmaking.js header), remembered; offered while the server takes them
+  const [matchOpts, setMatchOpts] = useState(() => matchConfig(loadPref('lobby.matchExperimental', null)));
+  const [optsOpen, setOptsOpen] = useState(false);
+  const takesCustom = useStore(queueTakesCustom);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -998,11 +1020,23 @@ export function LobbyScreen() {
     const next = toggleMatchScope(matchRange, axis, value);
     setMatchRange(next);
     savePref('lobby.matchScope', next);
+    // 我的实验性 turned on with nothing set: its options open at once
+    if (axis === 'rules' && value === 'custom' && next.rules.includes('custom') && !experimentalItems(matchOpts, { queue: true }).length) setOptsOpen(true);
   };
+  const putMatchOpts = (next) => { const v = matchConfig(next); setMatchOpts(v); savePref('lobby.matchExperimental', v); };
+  // the scope as this server takes it: without 'custom' (an older server) 我的实验性 is neither shown nor sent
+  const shownRange = takesCustom ? matchRange : (() => { const rules = matchRange.rules.filter((r) => r !== 'custom'); return { ...matchRange, rules: rules.length ? rules : ['standard'] }; })();
+  const own = takesCustom ? { value: matchOpts, count: experimentalItems(matchOpts, { queue: true }).length, problem: customProblem(shownRange, matchOpts),
+    editing: optsOpen, onEdit: () => setOptsOpen(true), onDone: () => setOptsOpen(false), onChange: putMatchOpts } : null;
   // the pool of the lobby's version (welcome.versions present: protocol `version`; without it 第二期下半's, as before)
-  const pool = versions ? { label: versionLabel(version), off: !versionQueueable({ versions }, version) } : null;
+  // 多人匹配's version (the owner, 2026-11-16: 「多人匹配界面可以切换匹配的版本」): the pool's chip opens the version picker
+  // when there is more than one; a pick is the lobby's version (setLobbyVersion), whose difficulties and data follow
+  const [verOpen, setVerOpen] = useState(false);
+  const serverDefault = useStore(serverDefaultVersion);
+  const pool = versions ? { label: versionLabel(version), off: !versionQueueable({ versions }, version),
+    onPick: versions.length > 1 && !queued ? () => setVerOpen(true) : null } : null;
   const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty: matchFocus, ...(picks.length > 1 ? { difficulties: picks } : {}),
-    ...matchScopeRequest(matchRange), ...(versions ? { version } : {}) }).catch((err) => {
+    ...matchScopeRequest(shownRange, matchOpts, takesCustom), ...(versions ? { version } : {}) }).catch((err) => {
     // a version this server cannot queue right now (its data, its match host): say which, not the room's wording
     if (err?.code === ERR.VERSION_UNSUPPORTED || err?.code === ERR.VERSION_UNKNOWN) { toast(t('「{version}」暂不开放多人匹配', { version: versionLabel(version) }), 'warn'); return; }
     throw err;
@@ -1117,7 +1151,7 @@ export function LobbyScreen() {
     </main>
 
     ${sheet ? html`<${ProtocolSelect} card=${sheetCard} purpose=${sheet === 'match' ? 'match' : 'create'} difficulty=${sheet === 'match' ? matchFocus : shownSolo}
-      picks=${sheet === 'match' ? picks : null} onPick=${pressPick} scope=${sheet === 'match' ? matchRange : null} onScope=${pressScope}
+      picks=${sheet === 'match' ? picks : null} onPick=${pressPick} scope=${sheet === 'match' ? shownRange : null} onScope=${pressScope} own=${sheet === 'match' ? own : null}
       onDifficulty=${pickDifficulty} onClose=${() => setSheet(null)} online=${online} maint=${maint} busy=${busy} queue=${queue}
       difficulties=${sheet === 'match' ? coop : solo} loading=${versionLoading} failed=${versionFailed} pool=${sheet === 'match' ? pool : null}
       soloTime=${sheet !== 'match' && soloTimed === true ? { on: soloFree, onToggle: setSoloFreePref } : null}
@@ -1127,6 +1161,10 @@ export function LobbyScreen() {
     ${allyOpen ? html`<${AllianceSelect} onClose=${() => setAllyOpen(false)} code=${code} onCode=${(v) => setCode(normalizeCode(v))} codeOk=${codeOk}
       recent=${recent} online=${online} maint=${maint} busy=${busy} queued=${queued} difficulty=${shownCoop}
       onCreate=${() => create('coop')} onJoin=${() => join()} onList=${() => setListOpen(true)} onSpectate=${() => spectate()} onMatch=${openMatch} />` : null}
+    ${verOpen && sheet === 'match' && Array.isArray(versions) && !queued ? html`<${VersionPicker} mode="lobby" versions=${versions} current=${version} serverDefault=${serverDefault} roomMode="coop"
+      note=${t('多人匹配只和选择同一版本的博士匹配。切换后大厅也使用该版本，难度列表随版本更新。')}
+      onPick=${(id) => { setLobbyVersion(id); setVerOpen(false); }} onClose=${() => setVerOpen(false)} />` : null}
+    ${own?.editing && sheet === 'match' && !queued ? html`<${MatchOptionsDialog} value=${own.value} multi=${shownRange.seats.includes('multi')} onChange=${own.onChange} onClose=${own.onDone} />` : null}
     ${listOpen && allyOpen ? html`<${RoomListDialog} online=${online} queued=${queued} busy=${busy} onJoin=${(c) => join(c)} onClose=${() => setListOpen(false)} />` : null}
 
     <${HubDialog} open=${joinOpen} micro="JOIN WITH ALLIANCE KEY" title=${t('密钥加入')} onClose=${() => setJoinOpen(false)}>
