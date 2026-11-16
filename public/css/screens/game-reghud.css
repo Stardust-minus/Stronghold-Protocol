@@ -515,7 +515,23 @@
 .gm.has-readywhy .gtop--pf ~ .gm__effects { top: calc(3rem + max(.3rem, calc(16px * var(--ui)))); }
 /* …and so does the right detail card (a shop card's first tap opens it): at the usual 2.1rem it covered the TV and the
    ready button while the player read the card. */
-.gtop--pf ~ .dpanel--right { top: 3rem; }
+.gtop--pf ~ .dpanel--right, .gtop--pf ~ .bpop--right { top: 3rem; }
+.gtop--pf ~ .bpop--right { max-height: calc(100% - 3.3rem); }
+/* 可露希尔's 已就绪 line on its plate ends just under 3rem (a phone's type floor: ~3.1rem): the column starts a little lower. */
+.gtop[data-corner="ac_s_closur"] ~ .gm__effects { top: calc(2.8rem + max(.3rem, calc(20px * var(--ui)))); }
+.gm.has-readywhy .gtop[data-corner="ac_s_closur"] ~ .gm__effects { top: calc(2.8rem + max(.3rem, calc(20px * var(--ui))) + max(.3rem, calc(16px * var(--ui)))); }
+/* 卫戍协议终端's corner (its own panel_countdown and panel_prep_ready since the 2026-11-16 overhaul, under the hand-made top
+   bar): the 已就绪 line ends about 2.4rem down (a phone's type floor: ~2.6rem); the EFFECTS column, the right card and the
+   bond popup docked right start under it (ui/gameLogic/panel.js CORNER_TOP 2.6). */
+.gtop[data-corner="ac_n_initial"] ~ .gm__effects { top: calc(2.3rem + max(.3rem, calc(20px * var(--ui)))); }
+.gm.has-readywhy .gtop[data-corner="ac_n_initial"] ~ .gm__effects { top: calc(2.3rem + max(.3rem, calc(20px * var(--ui))) + max(.3rem, calc(16px * var(--ui)))); }
+.gtop[data-corner="ac_n_initial"] ~ .dpanel--right,
+.gtop[data-corner="ac_n_initial"] ~ .bpop--right { top: calc(2.3rem + max(.3rem, calc(20px * var(--ui)))); }
+.gtop[data-corner="ac_n_initial"] ~ .bpop--right { max-height: calc(100% - 2.6rem - max(.3rem, calc(20px * var(--ui)))); }
+/* The hand-made corner keeps 2.4rem (the right card 2.1rem) on a desktop; on a phone its 已就绪 line, now on a plate at a
+   readable size, ends ~2.4rem down: the column starts under it. */
+.gtop[data-corner="hand"] ~ .gm__effects { top: max(2.4rem, calc(2rem + 32px * var(--ui))); }
+.gm.has-readywhy .gtop[data-corner="hand"] ~ .gm__effects { top: calc(max(2.4rem, calc(2rem + 32px * var(--ui))) + max(.3rem, calc(16px * var(--ui)))); }
 .pfclock { display: block; line-height: 0; }
 .readybtn.readybtn--pf {
   position: relative; padding: 0; border: 0; background: none; box-shadow: none; min-width: 0; min-height: 0; height: auto;

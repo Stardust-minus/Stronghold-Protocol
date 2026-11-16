@@ -96,7 +96,7 @@ import { Danmaku } from '../ui/danmaku.js';
 import { DamageBoard, uniteDamageOwners, bossDamageOwners } from '../ui/damageBoard.js';
 import { ShopBar } from '../ui/shopBar.js';
 import { BondPlanDialog, bondPlanOpen, shopPlanMarks } from '../ui/bondPlan.js';
-import { regLook } from '../ui/regHud.js';
+import { regLook, cornerKind } from '../ui/regHud.js';
 import { selectedBondTimers } from '../ui/bondTimers.js';
 import { DetailPanel, resolveDetail } from '../ui/detailPanel.js';
 import { RewardOverlay } from '../ui/rewardOverlay.js';
@@ -138,7 +138,7 @@ import {
   snapHud, shortcutFor, pieceSpot, staleHotkeySale, shortcutBlocked, prepShortcutsSuspended, closesOnFieldPress, phaseTotalSeconds, homeFieldId, ownFieldId, normalizeSp, normalizePersonalChoice, draftMyTurn, sortedPlayers,
   terrainInfo, deviceInfo, deviceTipAt, noteDeviceUnits, deviceUnitsForEntry,
   countdownState, shopBlockReason, stageOverrides, effectiveStage, watchTarget, dropFailureReason,
-  previewEnemyKey, prepCamera, prepCameraFor, foldCamera, deployFieldOf, fieldTile, panelSide, panelSlots, bondPopupPlace, unitLoadout, deployedRecord,
+  previewEnemyKey, prepCamera, prepCameraFor, foldCamera, deployFieldOf, fieldTile, panelSide, panelSlots, PANEL_RIGHT_MIN_PX, bondPopupPlace, unitLoadout, deployedRecord,
   mergeTarget, mergeProgress, modeOffBonds, readyFundsPrompt, readyCommandPrompt, readyPrompt, readyShopFold, ownerBandId, ownDiyRecord, ownStandIn, roundStartReplay, heldDraftPub,
 } from '../ui/gameLogic.js';
 import { toast } from '../ui/toasts.js';
@@ -289,6 +289,8 @@ function MatchScreen() {
   const pfPack = themePf;
   // the 规程 look (its shop, layout and bond row under the top bar): 规程, or a theme with the 规程 interface (regLook)
   const regView = regLook(data.get('config'), data.get('local')?.groups, playerSettings.uiTheme);
+  // whose corner sits top right: the right card and the bond popup docked right start under it (TopBar data-corner)
+  const corner = cornerKind(data.get('local')?.groups, playerSettings.uiTheme);
   const pfBanners = packBanners(pfPack);
   const pfStill = playerSettings.themeMotion === false;
   const pfSpine = pfPack ? themePack(playerSettings.uiTheme)?.character || null : null;
@@ -2030,12 +2032,12 @@ function MatchScreen() {
   const dSide = (() => {
     if (ufShown) {
       const { rem, vp } = panelFrame();
-      return panelSide(underframeRect(ufGeo, rem), panelSlots(vp, rem, { shopOpen, reg: regView }));
+      return panelSide(underframeRect(ufGeo, rem), panelSlots(vp, rem, { shopOpen, reg: regView, corner }), { minRight: PANEL_RIGHT_MIN_PX });
     }
     if (mergeGeo && resolved) {
       const { rem, vp } = panelFrame();
       const half = (mergeGeo.s > 0 ? mergeGeo.s : 64) * 1.05; // the tile diamond's box (underframeRect's)
-      return panelSide({ left: mergeGeo.x - half, right: mergeGeo.x + half, top: mergeGeo.y - half, bottom: mergeGeo.y + half }, panelSlots(vp, rem, { shopOpen, reg: regView }));
+      return panelSide({ left: mergeGeo.x - half, right: mergeGeo.x + half, top: mergeGeo.y - half, bottom: mergeGeo.y + half }, panelSlots(vp, rem, { shopOpen, reg: regView, corner }), { minRight: PANEL_RIGHT_MIN_PX });
     }
     return 'left';
   })();
@@ -2043,7 +2045,7 @@ function MatchScreen() {
   const bpPlace = (() => {
     if (!bondOpen) return 'left';
     const { rem, vp } = panelFrame();
-    return bondPopupPlace(ufShown ? underframeRect(ufGeo, rem) : null, vp, rem, resolved ? dSide : null);
+    return bondPopupPlace(ufShown ? underframeRect(ufGeo, rem) : null, vp, rem, resolved ? dSide : null, { corner });
   })();
   // the player's own operators (and the shop / bond member cards) show the loadout's skill / module (DESIGN §16);
   // a teammate's unit (前往查看 in prep, 联防 / 最终攻势 fields, an observed battle) shows ITS owner's choice, carried by
