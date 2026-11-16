@@ -144,7 +144,7 @@ physical-device compatibility, full-match correctness or deployment. Entrance ch
 
 ```bash
 npm install          # also vendors pixi / pixi-spine / preact / htm / three / acorn / ses (tools/vendor.mjs; pixi-spine
-                     # 4.0.6 gets two Spine 3.7 / 3.8 runtime fixes, patchPixiSpine, history §36.18; three.js is fetched
+                     # 4.0.6 gets Spine 3.7 / 3.8 runtime fixes, patchPixiSpine, history §36.18 / §37.240; three.js is fetched
                      # by browsers only when data/local-assets.json lists the board atlas — the 3D board, DESIGN §15)
 npm run assets       # = node tools/vendor.mjs && node tools/fetch-assets.mjs
 ```

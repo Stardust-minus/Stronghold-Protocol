@@ -2,7 +2,9 @@
 // ui/dynamicStage.js; the owner's decisions of 2026-11-02 / 11-03): the player's own 名片 plate in a room animates its
 // skin's dynamic illustration (耀骑士临光「复现荣光」, its background and foreground layers too); 干员调配's art box
 // animates the chosen appearance's (凛御银灰「雪覆伦城」, extracted from the client in rel26) in its official portrait crop;
-// one renderer for all; animated under prefers-reduced-motion too (the owner's decision of 2026-11-03).
+// one renderer for all; animated under prefers-reduced-motion too (the owner's decision of 2026-11-03). 「查看立绘」 opens the
+// whole illustration on its own renderer, plays, switches its clip and pauses without crashing 干员调配 (rel27 lost a </span>
+// there: two roots, and the screen crashed as soon as it loaded; feedback #168).
 //
 //   SP_E2E=1 node --test test/ui/dynamic-illustration.e2e.test.js
 //
@@ -62,6 +64,36 @@ describe('动态立绘 on 名片 and the operator page (real server)', { skip: !
       const s1 = await sig(c, ART); await sleep(1500); const s2 = await sig(c, ART);
       assert.notEqual(s1, s2, 'reduced motion: animated all the same (not honoured, the owner\'s decision)');
       assert.deepEqual(c.problems.filter((p) => p.startsWith('pageerror:')), []);
+    } finally {
+      await c.close();
+      await srv.stop();
+    }
+  });
+  test('「查看立绘」: the whole illustration loads, switches its clip and pauses, and 干员调配 stays up', { timeout: 3 * 60 * 1000 }, async () => {
+    const srv = await startRealServer({});
+    const P = (await import('puppeteer-core')).default;
+    const c = new Client(P, srv.base, 'dyn', { prefix: 'dynillust-preview', prefs: { 'loadout.view': 'list', skins: { v: 1, choices: { [OP_CHAR]: OP_SKIN } } } });
+    try {
+      await c.open();
+      await c.enter('查看立绘');
+      await c.createCoop('标准模拟');
+      await c.click('.rs-loadout');
+      await c.page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
+      await c.page.$eval(`.lo-card[data-chess="${OP}"]`, (e) => { e.scrollIntoView({ block: 'center' }); e.click(); });
+      await c.page.waitForFunction((id) => document.querySelector('.lo-card.is-sel')?.dataset.chess === id, { timeout: 5000 }, OP);
+      await c.page.$eval('[data-testid="skins-preview"]', (e) => { e.scrollIntoView({ block: 'center' }); e.click(); });
+      const FULL = '.modal [data-testid="dynamic-illustration"]';
+      await c.page.waitForSelector(`${FULL}[data-state="ready"]`, { timeout: 60000 });
+      assert.ok(await c.page.$(`${FULL} > .lo-dynamic__stage canvas`), 'one root: the stage and its canvas inside the illustration');
+      const clips = await c.page.$$eval('#operator-illustration-animation option', (o) => o.map((x) => x.value));
+      assert.ok(clips.length > 1, 'its clips listed');
+      await c.page.select('#operator-illustration-animation', clips[clips.length - 1]);
+      await sleep(800);
+      await c.page.click('[data-testid="dynamic-pause"]');
+      await c.page.waitForFunction((sel) => /已暂停|paused/i.test(document.querySelector(`${sel} [role="status"]`)?.textContent || ''), { timeout: 5000 }, FULL);
+      await c.shot('preview');
+      assert.ok(await c.page.$('.lo .lo-card'), '干员调配 still up');
+      assert.deepEqual(c.problems.filter((p) => p.startsWith('pageerror:') || /screen crashed/.test(p)), []);
     } finally {
       await c.close();
       await srv.stop();

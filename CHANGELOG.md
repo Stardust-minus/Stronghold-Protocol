@@ -44,7 +44,8 @@
 - 修正 15 套动态立绘边缘发暗、脸上出现虚线（如归溟幽灵鲨「生而为一」）：这些贴图是预乘 alpha，原先按直通 alpha 绘制；其中 11 套另换修过接缝的贴图，其余 56 套和战斗模型不变。放大很多时年、异客等仍能看到很淡的小点（§36.20，rel37）。
 - 匹配成功的「确认入场」改为全屏画面，带动效和代码合成的音效（切到别的标签页时也能听到），未确认时最后 5 秒倒计时变为琥珀色；开启减少动态效果时不播放动画。rel36 起卡片按立绘比例放大（1080p 的 4 人局从 110×270 变为约 300×600），博士确认后显示他的名片干员，皮肤、取景和动态立绘与房间座位卡相同；确认前仍是自己的名片和其他人的剪影，匹配阶段依然看不出是谁（维护者 2026-11-05、11-06，§36.14、§36.19，rel34、rel36）。
 - 商店和晋升奖励的干员卡在对应的盟约标签上标出预选：我的主盟约薄荷绿实底、副盟约薄荷绿框，同卡池存活队友预选的为浅蓝虚线框加人形图标，不显示是哪位队友；「设置」里可分别关闭「商店标出我的预选盟约」「商店标出队友的预选盟约」（默认开启）。rel34 的整卡描边和队友小头像在 rel35 去掉，卡的边框只留给可晋升和选中（反馈 #152，§36.11、§36.17，rel34、rel35）。
-- 修正 pixi-spine 4.0.6 的 Spine 3.7／3.8 运行时与官方运行时不同的两处（chain 转动模式的路径约束、NoRotationOrReflection 骨骼），动态立绘和战斗模型的姿势更接近官方，如锏「暗月的影子」缩小后腿部扭曲；另有 10 套动态立绘仍有偏差，原因未查（反馈 #148，§36.18，rel35）。
+- 修正 pixi-spine 4.0.6 的 Spine 3.7／3.8 运行时与官方运行时不同的两处（chain 转动模式的路径约束、NoRotationOrReflection 骨骼），动态立绘和战斗模型的姿势更接近官方，如锏「暗月的影子」缩小后腿部扭曲；另有 10 套动态立绘的偏差在 §37.240 修正（反馈 #148，§36.18，rel35）。
+- 再修 pixi-spine 4.0.6 的 Spine 3.7／3.8 运行时与官方不同的三处（IK 在 y 朝下画面里的换算、chain scale 下的百分比路径间距、父骨骼缩放为 0 时 NoScale 骨骼的翻转）：18 套动态立绘的姿势改为与官方一致，如引星棘刺「无际之帆」的右肩、缪尔赛思「漫步于黄金之梦」互动动作里的腿，§36.18 留下的 10 套也都对上；对局里 18 个战斗模型同样更接近官方。修复 rel27 起「查看立绘」一载入动态立绘，干员调配界面就崩溃（反馈 #168，§37.240，2026-11-16）。
 - 确认本局信息改为两列，选择策略的策略墙按可用空间选尺寸和列数，常见电脑屏幕上两页都不用滚动；放不下时只在列内或顺序列表内滚动（如扩容房 8 人以上）。本局信息弹窗在宽屏上加宽（维护者 2026-11-05，§36.12，rel34）。
 - 塔露拉三技能、维什戴尔二技能、号角三技能的技能条分两段，第二段（过载）为红色，总时长和触发时间不变（官方术语「过载」，§36.9，rel33）。
 - 服主的金色名字标记显示在对局内所有出现名字的地方，包括房间座位、选择策略的顺序和重刷投票（rel32、rel32-h1）。
@@ -76,7 +77,7 @@
 ### 工具与开发
 
 - 默认数据钉在 ArknightsGameData `fe7d8d05`（2026-10-24；合并原作 0.4.0 后改用原作的钉法：其余表 `17759cc8`、干员表 `08ba2aea`，见 docs/DATA.md "Profiles"）：`08ba2aea`（客户端 2.7.91）删除了 `AUTOCHESS_SEASON`，master 不能再构建本模式。晚于钉住提交的干员由 profile 的 `lateOperators` 单独读取（模组和召唤物一并并入），历史版本的 profile 可用 `diyBonds`／`diyTalentNotes` 改自选盟约（docs/DATA.md "Profiles"，rel25、rel26）。
-- 素材工具：`tools/vendor.mjs` 的 `patchPixiSpine` 在复制 pixi-spine 时打两处补丁（§36.18）；`tools/fix-dynamic-edges.py` 修动态立绘的接缝，`tools/prepare-operator-skins.mjs` 的 `PREMULTIPLIED_DYNAMIC` 只把 15 套动态立绘当作预乘（§36.20）；高清立绘由 `tools/assets/hd-art` 和 `tools/assets/illustrations.mjs` 生成（`data/assets.json` 的 `portraitHD` 等字段，rel30）；官方动态头像由 `tools/local-extract/avatars.py` 提取（`--only ui/avatar_dyn`，rel27）；名片可选的干员表 `shared/card-roster.js` 由 `tools/build-card-roster.mjs` 生成（rel22）。
+- 素材工具：`tools/vendor.mjs` 的 `patchPixiSpine` 在复制 pixi-spine 时给它的 Spine 3.7／3.8 运行时打补丁（§36.18、§37.240）；`tools/fix-dynamic-edges.py` 修动态立绘的接缝，`tools/prepare-operator-skins.mjs` 的 `PREMULTIPLIED_DYNAMIC` 只把 15 套动态立绘当作预乘（§36.20）；高清立绘由 `tools/assets/hd-art` 和 `tools/assets/illustrations.mjs` 生成（`data/assets.json` 的 `portraitHD` 等字段，rel30）；官方动态头像由 `tools/local-extract/avatars.py` 提取（`--only ui/avatar_dyn`，rel27）；名片可选的干员表 `shared/card-roster.js` 由 `tools/build-card-roster.mjs` 生成（rel22）。
 - 浏览器测试：`SP_E2E_GPU=1` 让 e2e 的 Chrome 用 GPU（ANGLE over EGL）绘制 WebGL，默认仍用 SwiftShader（rel25）；e2e 改为针对本 fork 的大厅、房间和设置，只适用于原作界面的套件默认跳过，`SP_E2E_UPSTREAM_UI=1` 时运行（rel22）。
 
 ## 0.4.0 — 2026-11-15
