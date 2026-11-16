@@ -420,6 +420,39 @@ test('天马之枪 is only the ATK bonus; 天马之耀 adds true damage and rege
   close(hp3 - e3.hp, 1000 + u3.s.atk * glory.atk_scale, 'glory extra');
 });
 
+// One 100-arts hit of an 奥术 member (薇薇安娜) carrying 天马之耀, 奥术 active: 奥术's rider is an ADDITION and answered
+// 天马之耀's true damage, and 天马之耀 answered the rider, until the hook-depth guard cut them (63 damage instances, ~25×
+// the damage, 4 guard errors). 天马之耀 now skips additions like 伊比利亚骨刺刀: the hit, 奥术 on it, 天马之耀 on it, 奥术
+// on 天马之耀's damage.
+test('天马之耀 does not answer 奥术\'s addition: one hit stays four damage instances, no guard error', () => {
+  const OP = 'chess_char_5_11_a';
+  const data = { ...V3, enemies: { ...V3.enemies, rep_dummy: enemyRec({ key: 'rep_dummy', hp: 1e7, def: 0, res: 0, atk: 0, speed: 0 }) } };
+  const run = (items, arcane) => {
+    setGameData(data);
+    try {
+      const h = makeBattle({
+        seed: 1, data, timeLimit: 90, autoFinish: false, modeId: 'mode_single_12', round: 14, logger: QUIET, verbose: false,
+        players: [{ playerId: 'p1', seat: 0, side: 'L', colOffset: 0,
+          bonds: arcane ? { arcaneShip: { count: 2, active: true, tier: 1, layers: 0 } } : {},
+          units: [{ uid: 1, kind: 'chess', chessId: OP, row: 10, col: 4, items }] }],
+      });
+      h.step();
+      const u = h.unit(OP);
+      const e = h.spawn('rep_dummy', { pos: [10, 5] });
+      const seen = [];
+      h.b.on('damaged', (c) => { if (c.target === e) seen.push((c.dmg?.tags ?? []).join('+') || 'hit'); }, { priority: 1000 });
+      const errors = h.b.errorCount;
+      h.b.dealDamage(u, e, { amount: 100, type: 'arts' });
+      return { seen: seen.sort(), errors: h.b.errorCount - errors };
+    } finally { setGameData(V3); }
+  };
+  const both = run([A('6_12')], true);
+  assert.equal(both.errors, 0);
+  assert.deepEqual(both.seen, ['addition+bond:arcane', 'addition+bond:arcane', 'hit', 'item+item:pegasus']);
+  assert.deepEqual(run([], true), { seen: ['addition+bond:arcane', 'hit'], errors: 0 });
+  assert.deepEqual(run([A('6_12')], false), { seen: ['hit', 'item+item:pegasus'], errors: 0 });
+});
+
 test('防暴装备 spreads control while the skill is on; 卫护系统 attracts on skill start', () => {
   const riot = bb(A('6_05'), 'act3autochess_equip_acarm145_ability');
   const h = fight({
