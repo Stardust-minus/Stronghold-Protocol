@@ -379,9 +379,12 @@ h1, h2, h3, h4, p { margin: 0; }
   animation: boot-spin 1.4s linear infinite;
   background: linear-gradient(135deg, transparent 45%, rgba(78, 216, 175, .35) 50%, transparent 55%);
 }
-.boot__text { font-family: var(--font-display); font-size: .13rem; letter-spacing: .4em; color: var(--mint-700); }
+/* the label fades in (2026-11-16): the access gate's last frame is this screen with the hex alone at rest
+   (deploy/stardust/auth gate.css .game-handover), so the page swap shows nothing but the label arriving, whatever font */
+.boot__text { font-family: var(--font-display); font-size: .13rem; letter-spacing: .4em; color: var(--mint-700); animation: boot-label-in .45s .05s ease-out both; }
 .boot__err { max-width: 6rem; text-align: center; color: var(--text-lo); font-size: .16rem; }
 @keyframes boot-spin { to { transform: rotate(360deg); } }
+@keyframes boot-label-in { from { opacity: 0; } }
 
 /* ---- rotate-device hint (portrait phones/tablets) ------------------------------------------- */
 .rotate-hint {

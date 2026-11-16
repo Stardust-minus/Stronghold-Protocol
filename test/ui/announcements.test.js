@@ -96,10 +96,12 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   const rel40 = entries[0].paragraphs.join('\n');
   for (const phrase of ['私人运行', '待休赛期再对外开放', 'github.com/sganggs/Stronghold-Protocol/releases/tag/v0.4.0', '只列本服自己的调整',
     '「规程·序列Ⅰ」', '第二期下半', '「选择自编」', '「自选四选二」', '按版本分池', '「多人匹配」', '「组队匹配」', '3 条连接', '1.5 秒',
-    '「大厅背景」', '「规程」主题', '红色的无法出现干员数', '「设置 → 界面主题」', '“全能的”可露希尔', '「点击进入」', '「更新说明」弹窗不加',
+    '「大厅背景」', '「规程」主题', '红色的无法出现干员数', '「设置 → 界面主题」', '“全能的”可露希尔', '「更新说明」弹窗不加',
     '39 套时装', '寰宇独奏', '54 名干员', '15 套动态立绘', '漫步于黄金之梦', 'Touch', '歌利亚', '「反馈板」', '雨千代chiyo', 'xinhai-ai',
     // 2026-11-16 the owner: the fixes that followed go into this notice (「完成之后最新公告合入这些修改」)
-    '「载入中…」', '「加载中」', '18 套动态立绘', '「查看立绘」', '泥岩二技能', '不计入挂机', '选择自编也算作操作', '「收起」', '「余 n」', '「天马之耀」', '【验算】', '以服务器结果为准', '帧率很低的问题已修正'])
+    '「载入中…」', '「加载中」', '18 套动态立绘',
+    // 2026-11-16 the owner: 「开场动画去掉点击进入，直接自动播放进入就行了，然后看看auth页完成之后能不能做一些转场切换」
+    '自动播放', '过渡到游戏的载入画面', '「连接终端」', '无声播放', '大厅音乐从头开始', '「查看立绘」', '泥岩二技能', '不计入挂机', '选择自编也算作操作', '「收起」', '「余 n」', '「天马之耀」', '【验算】', '以服务器结果为准', '帧率很低的问题已修正'])
     assert.ok(rel40.includes(phrase), phrase);
   assert.doesNotMatch(rel40, /ModelScope|OpenI|签名|nginx|Worker|WebSocket|lanes|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理/i);
   // the 10-06 introduction stays untouched (the owner: 「10-06的不能动」)

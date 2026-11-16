@@ -1,6 +1,6 @@
 // 规程·序列Ⅰ's opening before the title screen (DESIGN §37.147). A 规程 start (versions.js startupVersion: the first
 // start, or a lobby set to 规程) plays the client's own season entry where a 盟约 start plays 盟约's film
-// (ui/entryFilm.js runs both: the 点击进入 card, the skip, the cue and the music hold are the same): the activity's
+// (ui/entryFilm.js runs both, by itself: the cover, the skip, the cue and the music hold are the same): the activity's
 // panel_act3autochess_on_entry with its legacy clip autochess_entry_season_on (3.17 s: a black cover lifts off a red
 // "loading" screen — four ID cards, the map with its lines, the percent counter to 100 % and COMPLETE —, the season
 // emblem breaks out between expanding rings, then the season ground zooms in under the title art) and the cards'
