@@ -218,7 +218,9 @@ on the coordinator in a cluster, which holds the rooms). A row carries no player
   `avatar` (the operator whose official avatar stands for the player): `''` or an operator charId
   (`/^char_[0-9a-z_]+$/`, ≤ 48) that the server's game data knows (a chess record's `charId` or the 自选 owned pool, else
   `BAD_MSG`); `bg`: `''` or a namecard-background id (`/^[a-z0-9][a-z0-9_:\-\/]*$/i`, ≤ 48; format only, the client maps
-  it to art); `trophies`: integer 0–1 000 000, self-reported and cosmetic only. A field left out keeps its stored value,
+  it to art: `loading:` / `camp:` / `skin:<skin id>`, and since 2026-11-16 `char:<charId>_1` / `char:<charId>_2`, an
+  operator's own 默认 / 精二 立绘 — the official skin id with `#` as `_`, because `#` is outside this format and an older
+  server would refuse the whole message; a page that does not know an id draws no card for it); `trophies`: integer 0–1 000 000, self-reported and cosmetic only. A field left out keeps its stored value,
   `''` / `0` clears it. Stored on the session (it follows the player into every room and survives a resume, not a new
   session) and copied to the player's seat; `room.state seats[].card {charId?, avatar?, bg?, trophies?}` on human seats that have
   one (absent otherwise, never on AI seats or spectators). A change is broadcast; more than 6 changes per 10 s per session

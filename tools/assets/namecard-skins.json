@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "source": "the local CN client (hot update 26-11-06-12-42-25): skin_table charSkins of 阿米娅 (charId char_002_amiya) by tmplId — 立绘 from skinpack/<tmplId>.ab (a 2048 main texture with its 1024 alpha merged, as the published outfits; 2560 ones carry their alpha), half-body art from spritepack/char_portrait_*.ab (180×360), the 动态立绘 from arts/dynchars/<skin id>.ab (Spine 3.8.99, lossless WebP page, pma by the §36.20 measure, bounds of the Idle at t = 0, frames matched against the official avatar / portrait in an official spine-webgl 3.8 render); portraitBox by tools/assets/hd-art portrait_box.py (2026-11-16)",
+  "skins": {
+    "char_002_amiya_winter_1": {
+      "officialId": "char_002_amiya@winter#1",
+      "tmplId": "char_002_amiya",
+      "form": "caster",
+      "name": "报童",
+      "brand": "忒斯特收藏",
+      "illustration": {
+        "name": "illustration.png",
+        "bytes": 1536632,
+        "sha256": "2e84a073a0976f93664640de1b15f42cabfd42fd3149375e144ff41db55d1e4a",
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      "portrait": {
+        "name": "portrait.png",
+        "bytes": 128998,
+        "sha256": "18b7ebc844216e822593f16745f4f724b3bd48b43142d25de3f015f55127c59b"
+      },
+      "portraitBox": [
+        0.430664,
+        0.098145,
+        0.158203,
+        0.316406
+      ],
+      "clientSources": [
+        "local client skinpack/char_002_amiya.ab (hot update hash cd0c3320915ec05ae9e5d01b4540a112, packaged copy = active list)",
+        "local client spritepack/char_portrait_0.ab (hot update hash 587788d6f09482beeff1df5386ca5b11, packaged copy = active list)"
+      ]
+    },
+    "char_002_amiya_epoque_4": {
+      "officialId": "char_002_amiya@epoque#4",
+      "tmplId": "char_002_amiya",
+      "form": "caster",
+      "name": "见习联结者",
+      "brand": "忒斯特收藏",
+      "illustration": {
+        "name": "illustration.png",
+        "bytes": 2145326,
+        "sha256": "d742ecc4f147b6efa841638358bd41001b4d6f52eb906ba81f8662985aac7604",
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      "portrait": {
+        "name": "portrait.png",
+        "bytes": 119332,
+        "sha256": "2f11f735b1bf135152e469e6bb8f686a1dfe25c454bd716542effdf5963f9a06"
+      },
+      "portraitBox": [
+        0.418945,
+        0.106934,
+        0.135254,
+        0.270508
+      ],
+      "clientSources": [
+        "local client skinpack/char_002_amiya.ab (hot update hash cd0c3320915ec05ae9e5d01b4540a112, packaged copy = active list)",
+        "local client spritepack/char_portrait_0.ab (hot update hash 587788d6f09482beeff1df5386ca5b11, packaged copy = active list)"
+      ]
+    },
+    "char_002_amiya_test_1": {
+      "officialId": "char_002_amiya@test#1",
+      "tmplId": "char_002_amiya",
+      "form": "caster",
+      "name": "播种者",
+      "brand": "忒斯特收藏",
+      "illustration": {
+        "name": "illustration.png",
+        "bytes": 2566156,
+        "sha256": "550b7d0e5681c7005d04fa9eb3c526fa120ecb91e0d5a2dcb248af875349671e",
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      "portrait": {
+        "name": "portrait.png",
+        "bytes": 130477,
+        "sha256": "44d9f5cf7ed0ad13a3fbd0b22d81e0bdaf6c3e85875fd70831f13d6b2d29527c"
+      },
+      "portraitBox": [
+        0.470215,
+        0.123047,
+        0.145996,
+        0.291992
+      ],
+      "clientSources": [
+        "local client skinpack/char_002_amiya.ab (hot update hash cd0c3320915ec05ae9e5d01b4540a112, packaged copy = active list)",
+        "local client spritepack/char_portrait_0.ab (hot update hash 587788d6f09482beeff1df5386ca5b11, packaged copy = active list)"
+      ]
+    },
+    "char_1001_amiya2_sale_16": {
+      "officialId": "char_1001_amiya2@sale#16",
+      "tmplId": "char_1001_amiya2",
+      "form": "guard",
+      "name": "于万千宇宙之中",
+      "brand": "忒斯特收藏",
+      "illustration": {
+        "name": "illustration.png",
+        "bytes": 6052453,
+        "sha256": "34c11f930544df3ce9748b17763972f1dfe4b17e1298d487099430d8ff4c0883",
+        "size": [
+          2560,
+          2560
+        ]
+      },
+      "portrait": {
+        "name": "portrait.png",
+        "bytes": 157323,
+        "sha256": "9a519be3c3ec9f1591f4fb3640b66d29eba6897efe6040ac8c57f6c77c2fd238"
+      },
+      "portraitBox": [
+        0.529297,
+        0.271484,
+        0.05625,
+        0.1125
+      ],
+      "dynamic": {
+        "skel": {
+          "name": "dynamic/dyn_illust_char_1001_amiya2_sale__16.skel",
+          "bytes": 497731,
+          "sha256": "6e67f4d743929029c63df648bcf3508f784aaa874d33c51a977e2d119ecfa6fc"
+        },
+        "atlas": {
+          "name": "dynamic/dyn_illust_char_1001_amiya2_sale__16.atlas",
+          "bytes": 41239,
+          "sha256": "32f6babf81d8f75890c0c11cb454585b59167d9284ff6a734acf7b5929407ad9"
+        },
+        "textures": [
+          {
+            "name": "dynamic/dyn_illust_char_1001_amiya2_sale_16.webp",
+            "bytes": 5185548,
+            "sha256": "261f5475ad7d7905cc62e0861de9980f7120e21d7c8fe9af9daa459dc9e560bf"
+          }
+        ],
+        "pma": false,
+        "idle": "Idle",
+        "animations": {
+          "Default": 0,
+          "Idle": 8.267
+        },
+        "bounds": {
+          "x": -1096.823,
+          "y": 15.18,
+          "width": 2061.033,
+          "height": 1683.484
+        },
+        "frames": {
+          "avatar": {
+            "x": 47.51,
+            "y": 1250.544,
+            "width": 132.407,
+            "height": 132.407
+          },
+          "portrait": {
+            "x": 50.149,
+            "y": 1145.139,
+            "width": 125.008,
+            "height": 250.017
+          }
+        }
+      },
+      "clientSources": [
+        "local client arts/dynchars/char_1001_amiya2_sale#16.ab (hot update hash 04842d3dde6691b05d9e8ea811dfeb43, packaged copy = active list)",
+        "local client skinpack/char_1001_amiya2.ab (hot update hash 384283453b5404bc3fdf4d7da9ab8eb4, packaged copy = active list)",
+        "local client spritepack/char_portrait_12.ab (hot update hash ef1dae3ea687b4960ac9963080ec4ef5, downloaded hot update)"
+      ]
+    },
+    "char_1001_amiya2_casc_1": {
+      "officialId": "char_1001_amiya2@casc#1",
+      "tmplId": "char_1001_amiya2",
+      "form": "guard",
+      "name": "触及星辰",
+      "brand": "合作款",
+      "illustration": {
+        "name": "illustration.png",
+        "bytes": 4628512,
+        "sha256": "8653262331d5f8697332db32b8f37ff6ecc448575769d2853ccd3be8feb6cd3b",
+        "size": [
+          2560,
+          2560
+        ]
+      },
+      "portrait": {
+        "name": "portrait.png",
+        "bytes": 138215,
+        "sha256": "fd1ce3a5abe58386aac5ea3b01100440ed3c824ca9e185c27148002698188c1c"
+      },
+      "portraitBox": [
+        0.469531,
+        0.304688,
+        0.072266,
+        0.144531
+      ],
+      "clientSources": [
+        "local client skinpack/char_1001_amiya2.ab (hot update hash 384283453b5404bc3fdf4d7da9ab8eb4, packaged copy = active list)",
+        "local client spritepack/char_portrait_0.ab (hot update hash 587788d6f09482beeff1df5386ca5b11, packaged copy = active list)"
+      ]
+    }
+  }
+}

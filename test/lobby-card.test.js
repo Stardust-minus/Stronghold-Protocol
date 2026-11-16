@@ -335,3 +335,21 @@ test('artX / artY / artZoom (rel27): the seat card\'s framing of the look\'s 动
   assert.equal(a.card.artX, undefined, 'no 名片干员 picked: no framing');
   assert.deepEqual(f.states(b).at(-1).seats.find((s) => s?.playerId === a.playerId).card?.artX, undefined, 'and the room sees none');
 });
+
+test('2026-11-16: an operator\'s own 默认 / 精二 card (char:<charId>_1|2) and a 名片-only skin are kept and shown like a skin card', (t) => {
+  // format only, as since rel28: the ids fit the bg format (no '#'), so an older server keeps them too
+  for (const bg of ['char:char_4247_oxi_1', 'char:char_4247_oxi_2', 'skin:char_1001_amiya2_sale_16']) {
+    assert.equal(validateC2S({ t: 'room.card', bg }), null, bg);
+  }
+  assert.equal(validateC2S({ t: 'room.card', bg: 'char:char_4247_oxi#2' }), 'bad field bg', "'#' was never in the format");
+  const f = fixture(t);
+  const a = f.player(), b = f.player();
+  const code = f.lobby.onMessage(a, { t: 'room.create', mode: 'coop' }).code ?? f.states(a).at(-1).code;
+  assert.ok(f.lobby.onMessage(b, { t: 'room.join', code }).ok !== false);
+  assert.deepEqual(f.card(a, { charId: AMIYA, bg: 'char:char_4247_oxi_2', bgX: 40, bgY: 30, bgZoom: 150 }), { ok: true });
+  const seen = () => f.states(b).at(-1).seats.find((s) => s?.playerId === a.playerId).card;
+  assert.deepEqual({ ...seen() }, { charId: AMIYA, bg: 'char:char_4247_oxi_2', bgX: 40, bgY: 30, bgZoom: 150 }, 'the teammate sees the card and its framing');
+  f.clock.time += CARD_WINDOW_MS;
+  assert.deepEqual(f.card(a, { bg: 'skin:char_1001_amiya2_sale_16', bgX: -1, bgY: -1, bgZoom: -1 }), { ok: true });
+  assert.deepEqual({ ...seen() }, { charId: AMIYA, bg: 'skin:char_1001_amiya2_sale_16' });
+});

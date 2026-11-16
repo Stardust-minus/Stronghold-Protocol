@@ -2710,8 +2710,30 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .nc-pick__theme--skins { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .nc-pick__search { flex: 0 1 200px; min-width: 0; height: 26px; padding: 0 8px; font: inherit; font-size: 13px; font-weight: 400; color: #e6ecea;
   background: rgba(0, 0, 0, .4); border: 1px solid rgba(255, 255, 255, .18); outline: none; }
+/* 干员立绘 (2026-11-16, ui/namecards.js namecardArtGroups): one group per operator — 默认, 精二, its skins — on the grid's
+   columns; a group off screen is neither laid out nor painted (content-visibility, its last size remembered), so the
+   ~860 tiles open as fast as the old skins-only list; the section's head (the search) stays on top while they scroll */
+.nc-pick__theme--skins { position: sticky; top: -10px; z-index: 2; margin: 8px -14px 0; padding: 8px 14px 6px; background: #0d1211;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .06); }
+.nc-pick__op { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); grid-auto-rows: max-content; gap: 8px;
+  content-visibility: auto; contain-intrinsic-size: auto 96px; }
+.nc-pick__op-name { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 6px; margin: 4px 0 -2px; font-size: 12px; font-weight: 700; color: #cfd8d5; }
+.nc-pick__op-star { font-size: 10px; font-weight: 800; color: #8c9894; }
+.nc-pick__op-star.r6 { color: #ffcf5a; } .nc-pick__op-star.r5 { color: #f2e06b; }
+/* the official form of a tile in a group that mixes them (医疗阿米娅's: 医疗 / 术师 / 近卫), a 动态立绘 */
+.nc-pick__form { display: inline-block; margin-right: 4px; padding: 0 4px; font-size: 10px; font-weight: 800; line-height: 14px; vertical-align: 1px; color: #06231b; background: #9fd8c8; border-radius: 2px; }
+.nc-pick__art--skin img.is-broken { visibility: hidden; }
+.nc-pick__dyn { position: absolute; right: 4px; top: 4px; padding: 0 5px; font-size: 10px; font-weight: 700; line-height: 15px; color: #e6ecea;
+  background: rgba(0, 0, 0, .6); border: 1px solid rgba(255, 255, 255, .28); border-radius: 2px; pointer-events: none; }
+.nc-pick__empty { grid-column: 1 / -1; margin: 6px 0; font-size: 13px; color: #9aa6a2; }
+@media (max-width: 560px), (max-height: 520px) {
+  .nc-pick__op { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+  /* a phone's tile is ~130 px: the 动态立绘 mark shrinks to a ▶ in the corner, clear of a long name */
+  .nc-pick__dyn { width: 16px; height: 16px; padding: 0; font-size: 0; }
+  .nc-pick__dyn::before { content: ""; position: absolute; left: 5px; top: 3px; border-left: 7px solid #e6ecea; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+}
 .nc-layer--skin .nc-layer__pic { background-position: var(--nc-x, 50%) var(--nc-y, 24%); transform-origin: var(--nc-x, 50%) var(--nc-y, 24%); }
-.nc-layer--skin::after { background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .45) 50%, rgba(8, 11, 11, .1))); }
+.nc-layer--skin::after, .nc-layer--char::after { background: var(--nc-shade, linear-gradient(90deg, rgba(8, 11, 11, .86), rgba(8, 11, 11, .45) 50%, rgba(8, 11, 11, .1))); }
 /* 调整位置和缩放 (feedback #61, #129): the plate follows the pointer, the wheel / a pinch / the slider zoom; the shape of a
    room seat's name plate */
 .nc-adjust { display: flex; flex-direction: column; gap: 10px; padding: 12px; overflow: auto; }

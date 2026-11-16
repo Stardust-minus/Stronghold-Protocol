@@ -30,7 +30,7 @@ import { sentText } from '../ui/lang.js';
 import { TrophyBadge } from '../ui/trophies.js';
 import { reducedMotion } from '../ui/device.js';
 import { recordId, selfRowOf, peekStatsRecords, recordsOfSeason } from '../ui/stats.js';
-import { NameCardLayer } from '../ui/namecards.js';
+import { NameCardLayer, hasNamecard } from '../ui/namecards.js';
 import { useMyCard } from '../ui/playerCard.js';
 import { appearanceRecord } from '../ui/skinAssets.js';
 import { VersionTag } from '../ui/pluginTag.js';
@@ -453,7 +453,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext, onDetail = null, versi
       <${BossDamageBrief} entries=${self.damage} lineup=${self.lineup} gd=${gd} onDetail=${onDetail} />
       <div class="splate">
         <${PlayerAvatar} player=${self} self=${true} class="splate__ava" />
-        <div class=${cx('splate__info', card.bg && 'has-nc')}>
+        <div class=${cx('splate__info', hasNamecard(card.bg) && 'has-nc')}>
           <${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />
           <b class="splate__name">${self.name}</b>
           <span class="splate__rank" title=${t('累计奖杯')}><${TrophyBadge} count=${prog.trophies} /><small><${Icon} name="crown" />${prog.trophies}</small></span>
@@ -531,7 +531,7 @@ function TeamCard({ p, i, gd, self, victory, raw, like = null, likeBusy = false,
         <${Img} src=${title.icon} class="tcard__ticon" fallback=${html`<${Icon} name="crown" class="tcard__ticon" />`} /><b>${title.name}</b></div>` : null}
       <div class="tcard__rounds"><span>${t('通过回合')}</span><b class="num">${p.roundsPassed}</b></div>
     </div>
-    <div class=${cx('tcard__plate', !p.isBot && card?.bg && 'has-nc')}>
+    <div class=${cx('tcard__plate', !p.isBot && hasNamecard(card?.bg) && 'has-nc')}>
       ${p.isBot ? null : html`<${NameCardLayer} card=${card?.bg} y=${card?.bgY} x=${card?.bgX} zoom=${card?.bgZoom} />`}
       ${self ? html`<i class="tcard__me" aria-hidden="true"><${Icon} name="user" /></i>` : null}
       <${PlayerAvatar} player=${p} self=${self} class="tcard__ava" />

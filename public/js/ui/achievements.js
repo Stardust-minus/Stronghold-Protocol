@@ -40,7 +40,7 @@ import { shownVersion, seasonOf, versionLabel } from '../versions.js';
 import { VERSIONS, versionById } from '../../../shared/versions.js';
 import { TrophyBadge } from './trophies.js';
 import { TITLE_FULL_COUNT, hexWedges, titleTableFamily } from './titleHexagon.js';
-import { NameCardLayer, NameCardPicker } from './namecards.js';
+import { NameCardLayer, NameCardPicker, hasNamecard } from './namecards.js';
 import { useMyCard, trophyTotal, setCardBackground, setCardBackgroundFrame, setCardAvatar, setAvatarLook } from './playerCard.js';
 import { cardOperators, cardAvatarUrl, lookOptions } from './seatArt.js';
 import { AvatarPicker } from './opPicker.js';
@@ -416,7 +416,7 @@ function Plate({ me, card, s, trophies, lv, done, total, gd, onAvatar, onBg }) {
   // 头像 (room.card avatar), else the 名片干员's avatar, else the name's first letter
   const face = cardAvatarUrl(card.avatar, gd.m, card.avatarLook) || (opRec ? chessAvatarUrl(gd.m, opRec) : null);
   return html`<div class="ach-plate">
-    <div class=${cx('ach-card', card.bg && 'has-nc')}>
+    <div class=${cx('ach-card', hasNamecard(card.bg) && 'has-nc')}>
       <${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />
       <button type="button" class="ach-card__ava" onClick=${onAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>
         <${Img} src=${face} alt="" fallback=${html`<span class="ach-card__glyph">${[...(me?.name || '?')][0]}</span>`} />

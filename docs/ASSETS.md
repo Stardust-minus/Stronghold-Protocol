@@ -101,6 +101,17 @@ Idle at t = 0, as for skins) and `frames` (the official 精二 avatar / 180×360
 render of the Idle at t = 0); `node tools/prepare-operator-dynamic-e2.mjs --assets <dir> [--check]` writes the field,
 and `tools/fetch-assets.mjs` keeps it on a rebuild while the files are on disk (`tools/assets/dynamic-e2.mjs`).
 
+**Name-card-only skins** (2026-11-16): five skins of 阿米娅's forms this game does not field — 术师 (skin_table tmplId
+`char_002_amiya`: 报童, 见习联结者, 播种者) and 近卫 (`char_1001_amiya2`: 于万千宇宙之中 with its 动态立绘, 触及星辰); the official
+charId of all five is `char_002_amiya` — are a 名片底图 only. They are never in `shared/skin-catalogue.js` (no one wears
+them in a match): their records are the manifest's own `namecardSkins[key]` section (the `skins[key]` fields the 名片
+reads: `illustration`, `illustrationSize`, `portrait`, `portraitBox?`, `dynamic?`), keyed by the official skin id with `@` /
+`#` as `_` (`char_1001_amiya2_sale_16`), files under `skins/<key>/` like an outfit's. Unpacked from the local client (the
+outfits' 立绘 / half-body art and the 动态立绘 as above); the committed registry `tools/assets/namecard-skins.json` holds the
+file sizes and hashes; `node tools/prepare-namecard-skins.mjs --assets <dir> [--check]` writes the section, and
+`tools/fetch-assets.mjs` keeps it on a rebuild while the files are on disk (`tools/assets/namecard-skins.mjs`).
+`public/js/ui/namecards.js NAMECARD_SKINS` lists the ids the picker offers, in 医疗阿米娅's group with their form.
+
 Display skeleton copies remove only editor image/audio root paths. Their manifest `atlas` path remains authoritative:
 when it differs from the skeleton-derived filename, the client passes `spineAtlasFile` to the Pixi loader instead of
 requesting a nonexistent `.display.atlas`. Original source files and animation data remain unchanged.
@@ -730,6 +741,8 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                        dynamic?: Spine & { frames: { avatar, portrait }, background?, foreground? } } }
            // the official outfits ("Targeted skin battle preparation"), keyed by their shared/skin-catalogue.js id:
            // written by tools/prepare-operator-skins.mjs, kept by fetch-assets while their files are complete
+  namecardSkins?: { [key]: { illustration, illustrationSize, portrait, portraitBox?, dynamic?: Spine & { frames? } } }
+           // 名片-only skins (2026-11-16, "Name-card-only skins"): tools/prepare-namecard-skins.mjs, kept by fetch-assets
 }
 ```
 
