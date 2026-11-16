@@ -74,7 +74,7 @@ import { StatsHost, useStatsOpen } from './screens/stats.js';
 import { CoveredVersionVote } from './ui/versionVote.js';
 import { installRehearsal } from './battle/rehearsal.js';
 import { installVerify } from './battle/verify.js';
-import { recordResult, recordQuit, installStatsRecorder } from './ui/stats.js';
+import { recordResult, recordQuit, recordLikes, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync, installPlayerCardSync, installSettingsViews, loadoutStore } from './ui/loadoutSync.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { acceptDamageSnapshot } from './ui/damageBoard.js';
@@ -450,6 +450,11 @@ function wireNet() {
     const s = store.get();
     const likes = applyLikes(s.match.likes, msg, s.me.playerId);
     if (likes !== s.match.likes) store.patch('match', { likes });
+    // 已获赞 (ui/stats.js recordLikes): my count goes into the stored record of the settlement on screen
+    const mine = likes?.counts?.[s.me.playerId];
+    if (mine && s.match.result) {
+      try { recordLikes(s.match.result, s.me.playerId, mine); } catch (err) { console.warn('[stats] likes record failed', err); }
+    }
     const text = likedToast(s, msg);
     if (text) toast(text, 'success', { ttl: 3500 });
   });

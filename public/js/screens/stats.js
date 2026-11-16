@@ -4,7 +4,9 @@
 // @2321Robin; reworked for 0.2.2 in the grammar of 干员调配 (top bar with tabs, a note line, a scrolling body).
 //
 //   总览      – games, wins, win rate, hidden-core reaches / clears, best round; the difficulties; the six
-//               评语 (titles) with their counts; what counts and what was left out
+//               评语 (titles) with their counts — 规程's six kinds by points (ui/titleHexagon.js hexWedges, the table of
+//               the filter's version) —, 已获赞, 绝境突破 = the successful defences on 绝境 / 终极 (ui/stats.js
+//               HARD_CLEAR_DIFFICULTIES; the Hidden Core clears have their own card); what counts and what was left out
 //   盟约&策略 – top three most used active settlement alliances and strategies; per strategy: games / passed / rate
 //   战斗累计  – time played; the player's summed combat bookkeeping of the settled matches
 //   对局记录  – every stored match, newest first. A settled row re-views that match's settlement screen (the record is
@@ -27,28 +29,34 @@
 // of its own version: a peak of another version (the filter on another version or 全部版本, or 成就统计's other half of
 // the season) shows its alliance and layers, and 切换到「X」查看 in place of the operators and gear — chess and item ids
 // are reused across versions for other operators and items (第一期下半: 100 chess ids, 72 item ids; review fix).
+// Strategy and alliance names (2026-11-16): ids keep their meaning across versions, but the page holds only the shown
+// version's data, so every tab looks them up over every version the listed records played (ui/recordLookups.js — 规程
+// renamed every strategy, and 盟约's 华法琳 / 娜仁图亚 printed as band_bldsk / band_narant on a 规程 page); a strategy the
+// shown version lacks carries its version's tag.
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { html, Icon, MicroLabel, Spinner, Button, Modal, confirmDialog } from '../ui/components.js';
-import { useGameData, makeLookups, BandIcon, BondGlyph, Img } from '../ui/gameComponents.js';
+import { useGameData, makeLookups, BandIcon, BondGlyph, Img, LocalSprite } from '../ui/gameComponents.js';
 import { data, useData } from '../data.js';
 import { fmtNum, diyRecordFor, cardStandIn } from '../ui/gameLogic.js';
 import { useDocClass } from '../ui/device.js';
 import { uiUrl, chessAvatarUrl, portraitChain, itemIconUrl, medalIconUrl } from '../ui/assetUrls.js';
 import { identity } from '../net.js';
-import { TITLE_HEX_SECTORS, titleSectorClip } from '../ui/titleHexagon.js';
+import { TITLE_FULL_COUNT, hexWedges, titleSectorClip, titleTableFamily } from '../ui/titleHexagon.js';
 import { store, createStore, useStore, selectRoute } from '../store.js';
 import { ResultView } from './result.js';
 import { toast, toastError } from '../ui/toasts.js';
 import {
   loadStats, peekStatsRecords, saveStats, emptyStats, importStats, exportStats, aggregateStats, countsTowardStats, selfRowOf, roundsOf, isModdedRecord,
   recordToResult, MAX_RECORDS, FULL_KEEP, IMPORT_MAX_CHARS,
-  trophyMedalOf, strategyBadgeIds, bondMemberChess, highestBondRecord, achievementRecords, recordVersion, recordsOfVersion, recordsOfSeason,
+  trophyMedalOf, strategyBadgeIds, strategyMasterIds, strategyClearCounts, MASTER_VICTOR_COUNT, bondMemberChess, highestBondRecord, achievementRecords,
+  recordVersion, recordsOfVersion, recordsOfSeason,
 } from '../ui/stats.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { VersionTag } from '../ui/pluginTag.js';
+import { useRecordLookups, useTitleTable } from '../ui/recordLookups.js';
 import { contentSet, retryContentSet } from '../content.js';
 import { DEFAULT_VERSION, roomPluginCs, shownVersion, seasonOf, versionContentStatus, versionLabel, welcomeVersion } from '../versions.js';
 import { VERSIONS } from '../../../shared/versions.js';
@@ -158,9 +166,13 @@ function ModdedSwitch({ agg }) {
   </label>`;
 }
 
-/** The doctor's line (name, trophies), the solo / co-op rows and the six titles: 总览 and the lobby's 成就统计. */
-function ProfileBlock({ agg, gd, nickname }) {
-  const titles = (Array.isArray(gd.config?.titles) ? gd.config.titles : []).map((x) => ({ ...x, count: agg.titles[x.id]?.count || 0 }));
+/**
+ * The doctor's line (name, trophies, 已获赞), the solo / co-op rows and the six titles: 总览 and the lobby's 成就统计. `table`:
+ * the 评语 table the hexagon draws (useTitleTable; the shown data's by default) — its family's records only.
+ */
+function ProfileBlock({ agg, gd, nickname, table = gd.config?.titles }) {
+  const list = Array.isArray(table) ? table : [];
+  const wedges = list.length ? hexWedges(list, agg.titlesByFamily?.[titleTableFamily(list)] || {}) : [];
   // records whose room mode is unknown (`roomMode` null) count in the total but in neither mode row
   const unknownMode = Math.max(0, agg.count - agg.byMode.solo.games - agg.byMode.coop.games);
   return html`<div class="st-overview-details">
@@ -172,6 +184,10 @@ function ProfileBlock({ agg, gd, nickname }) {
               class="st-profile__medal" fallback=${html`<${Icon} name="crown" />`} />
             <div><span>${t('获得奖杯')}</span><b class="num">${fmtNum(agg.trophies)}</b></div>
           </div>
+          <div class="st-profile__likes" title=${t('同盟模拟结算时队友给你的点赞')} data-testid="stats-likes">
+            <svg class="st-profile__thumb" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 10h4v11H2zm6 11V10l5-8 1.2.6c.9.5 1.3 1.5 1.1 2.5L14.6 9H20a2 2 0 0 1 2 2.3l-1.4 8A2 2 0 0 1 18.6 21z" /></svg>
+            <div><span>${t('已获赞')}</span><b class="num">${fmtNum(agg.likes || 0)}</b></div>
+          </div>
         </div>
       <table class="st-modegrid"><tbody>
         ${[['solo', N_('独立模拟')], ['coop', N_('联合模拟')]].map(([mode, label]) => {
@@ -179,7 +195,7 @@ function ProfileBlock({ agg, gd, nickname }) {
           const metrics = [
             { value: v.games, label: N_('总模拟数') },
             { value: v.wins, label: N_('成功卫戍') },
-            { value: v.hiddenCleared, label: N_('绝境突破') },
+            { value: v.hardWins, label: N_('绝境突破') },
           ];
           return html`<tr key=${mode} class="st-modegrid__row">
             <th scope="row" class="st-modegrid__mode">
@@ -195,8 +211,8 @@ function ProfileBlock({ agg, gd, nickname }) {
       </tbody></table>
       ${unknownMode > 0 ? html`<p class="st-mode-unknown">${t('另有 {n} 局战绩没有记录模式，只计入总局数', { n: fmtNum(unknownMode) })}</p>` : null}
       </div>
-      ${titles.length ? html`<div class="st-title-panel">
-        <${TitleHexagon} titles=${titles} manifest=${gd.m} /></div>` : null}
+      ${wedges.length ? html`<div class="st-title-panel">
+        <${TitleHexagon} wedges=${wedges} manifest=${gd.m} /></div>` : null}
     </div>`;
 }
 
@@ -204,7 +220,9 @@ function ProfileBlock({ agg, gd, nickname }) {
  * 总览: cards, the per-difficulty table, the six titles, and the line about what counts. `records`: the ones the
  * achievement blocks read (ui/stats.js achievementRecords — no gameplay-plugin match unless 「含插件对局」).
  */
-function Overview({ agg, gd, nickname, records }) {
+function Overview({ agg, gd, nickname, records, version = null }) {
+  // the 评语 table of the filter's version (全部版本: the shown data's) — 盟约 and 规程 reuse comment_N for other titles
+  const table = useTitleTable(gd, version && version !== 'all' ? version : null);
   useData('chess', 'items', 'backups');
   const rows = DIFFICULTIES.filter((d) => agg.byDifficulty[d]).concat(Object.keys(agg.byDifficulty).filter((d) => !DIFFICULTIES.includes(d)));
   const fonts = uiUrl(gd.m, 'statistics/fontStyles');
@@ -212,7 +230,7 @@ function Overview({ agg, gd, nickname, records }) {
     <${ModdedSwitch} agg=${agg} />
     ${agg.test > 0 ? html`<p class="t-dim" data-testid="stats-test-excluded">${t('测试对局不计入统计。')}</p>` : null}
     ${fonts ? html`<link rel="stylesheet" href=${fonts} />` : null}
-    <${ProfileBlock} agg=${agg} gd=${gd} nickname=${nickname} />
+    <${ProfileBlock} agg=${agg} gd=${gd} nickname=${nickname} table=${table} />
     <div class="st-cards">
       <${StatCard} micro="GAMES" value=${fmtNum(agg.count)} label=${t('总局数')} />
       <${StatCard} micro="WINS" value=${fmtNum(agg.wins)} label=${t('胜场')} tone="mint" />
@@ -309,9 +327,8 @@ export function BondAchievement({ peak, gd }) {
   </div>`;
 }
 
-/** The official statistics view fills and highlights counts at 20 awards. */
-function TitleHexagon({ titles, manifest }) {
-  const byId = new Map(titles.map((x) => [x.id, x]));
+/** The official statistics view fills and highlights counts at 20 awards (`wedges`: ui/titleHexagon.js hexWedges). */
+function TitleHexagon({ wedges, manifest }) {
   const mask = uiUrl(manifest, 'statistics/titleMask');
   const glow = uiUrl(manifest, 'statistics/countGlow');
   const [loadedArt, setLoadedArt] = useState([]);
@@ -328,9 +345,9 @@ function TitleHexagon({ titles, manifest }) {
   return html`<div class=${cx('st-titlehex', mask && loadedArt.includes(mask) && 'has-reference-mask')} role="group" aria-label=${t('称号')}
     style=${{ '--st-title-mask': mask ? `url("${mask}")` : undefined, '--st-title-glow': glow && loadedArt.includes(glow) ? `url("${glow}")` : undefined }}>
     <div class="st-titlehex__graphic" aria-hidden="true">
-      ${TITLE_HEX_SECTORS.map(([id, angle]) => {
-        const clip = titleSectorClip(byId.get(id)?.count || 0);
-        return html`<div key=${id} class="st-titlehex__wedge"
+      ${wedges.map(({ key, angle, count }) => {
+        const clip = titleSectorClip(count);
+        return html`<div key=${key} class="st-titlehex__wedge"
           style=${{ '--sector-angle': `${angle}deg`, '--texture-angle': `${-angle}deg` }}>
           <div class="st-titlehex__base"></div>
           ${clip ? html`<div class="st-titlehex__active"><div class="st-titlehex__sector" style=${{ clipPath: clip }}>
@@ -341,12 +358,10 @@ function TitleHexagon({ titles, manifest }) {
       <${Img} src=${uiUrl(manifest, 'statistics/decoration')} class="st-titlehex__decoration" />
     </div>
     <ul class="st-titlehex__labels">
-      ${TITLE_HEX_SECTORS.map(([id], i) => {
-        const x = byId.get(id);
-        return x ? html`<li key=${id} class=${cx('st-titlehex__label', `st-titlehex__label--${i}`)} title=${x.text || ''}>
-          <b class=${cx('st-titlehex__count num', x.count >= 20 && 'is-bright')}>${fmtNum(x.count)}</b><span class="st-titlehex__name">${x.name}</span>
-        </li>` : null;
-      })}
+      ${wedges.map((x, i) => (x.titles.length ? html`<li key=${x.key} class=${cx('st-titlehex__label', `st-titlehex__label--${i}`)}
+          title=${x.kind ? x.titles.map((r) => `${r.name} ×${r.awards}`).join(' · ') : x.titles[0].text}>
+          <b class=${cx('st-titlehex__count num', x.count >= TITLE_FULL_COUNT && 'is-bright')}>${fmtNum(x.count)}</b><span class="st-titlehex__name">${x.kind ? t(x.kind) : x.name}</span>
+        </li>` : null))}
     </ul>
   </div>`;
 }
@@ -372,6 +387,7 @@ function MatchRecords({ maxima, manifest }) {
 function BondRecords({ agg, gd }) {
   useData('chess');
   const bonds = Object.entries(agg.bonds).sort((a, b) => (b[1].games - a[1].games) || a[0].localeCompare(b[0]));
+  // the shown version's operators of TOP1 (none when TOP1 is another version's alliance: no heading over an empty row)
   const members = bondMemberChess(gd.list('chess'), bonds[0]?.[0]);
   return html`<${RecordHeading} title=${t('盟约记录')} manifest=${gd.m} />
     <h4 class="st-sub st-favorites__heading">${t('最常使用的盟约')}</h4>
@@ -390,7 +406,7 @@ function BondRecords({ agg, gd }) {
         </div>`;
       })}
     </div>` : html`<p class="st-hint">${t('暂无盟约使用记录')}</p>`}
-    ${bonds.length ? html`<h4 class="st-sub st-bond-members__heading">${t('盟约下干员为：')}</h4>
+    ${members.length ? html`<h4 class="st-sub st-bond-members__heading">${t('盟约下干员为：')}</h4>
       <ul class="st-bond-members">
         ${members.map((chess) => html`<li key=${`${chess.charId}#${chess.tier}`} class="st-bond-member" title=${chess.name}
           style=${`background-image:url(${uiUrl(gd.m, 'statistics/memberFrame')})`}>
@@ -400,9 +416,25 @@ function BondRecords({ agg, gd }) {
       </ul>` : null}`;
 }
 
+/**
+ * The version a strategy comes from when the page's data does not have it (ui/recordLookups.js foreign) — 第二期下半's
+ * too, unlike VersionTag, so 盟约's 华法琳 and 规程's are told apart on a 规程 page; nothing for the shown version's own.
+ * @param {any} gd @param {string} bandId
+ */
+function foreignTag(gd, bandId) {
+  const v = gd.foreign?.('bands', bandId);
+  return v ? html`<span class="vertag vertag--compact st-foreign" data-version=${v}><span class="vertag__label">${versionLabel(v)}</span></span>` : null;
+}
+
 /** 策略记录: the three most used strategies and the ones with the special mark (`records`: ui/stats.js achievementRecords). */
 function StrategyRecords({ agg, gd, records }) {
-  const badges = strategyBadgeIds(records, data.get('bands'));
+  useData('local'); // the client's corner badges (data/local-assets.json ui/outer): re-render once the manifest is in
+  // every version's strategies (ui/recordLookups.js bands()): a mark earned in a version the page does not show counts too
+  const bands = gd.bands ? gd.bands() : data.get('bands');
+  const clears = strategyClearCounts(records);
+  const badges = strategyBadgeIds(records, bands, clears);
+  // 规程's colourful badge in place of the gold one at masterVictorCount (6; the strategy draft's rule, every season alike)
+  const masters = new Set(strategyMasterIds(records, bands, clears));
   const rows = Object.entries(agg.bands).sort((a, b) => (b[1].games - a[1].games) || (b[1].wins - a[1].wins));
   return html`<${RecordHeading} title=${t('策略记录')} manifest=${gd.m} class="st-record-heading--strategy" />
     ${rows.length ? html`<h4 class="st-sub st-strategies__heading">${t('最常使用的策略')}</h4>
@@ -416,7 +448,7 @@ function StrategyRecords({ agg, gd, records }) {
               <span class="st-top-strategy__rank">${t('TOP{n}', { n: index + 1 })}</span>
             </div>
             <div class="st-top-strategy__text">
-              <span class="st-top-strategy__name" title=${name}>${name}</span>
+              <span class="st-top-strategy__name" title=${name}>${name}</span>${foreignTag(gd, bandId)}
               <div class="st-top-strategy__count num" title=${t('使用局数')}><span aria-hidden="true">x</span><b>${fmtNum(v.games)}</b></div>
             </div>
           </div>`;
@@ -426,13 +458,18 @@ function StrategyRecords({ agg, gd, records }) {
     ${badges.length ? html`<ul class="st-strategy-badges">
       ${badges.map((bandId) => {
         const name = gd.band(bandId)?.name || bandId;
-        return html`<li key=${bandId} class="st-strategy-badge">
+        const master = masters.has(bandId);
+        return html`<li key=${bandId} class=${cx('st-strategy-badge', master && 'is-master')} data-tier=${master ? 'master' : 'victor'}
+          title=${master ? t('用同一策略成功卫戍 {n} 次：彩色标识', { n: MASTER_VICTOR_COUNT }) : null}>
           <div class="st-strategy-badge__art">
             <${Img} src=${uiUrl(gd.m, 'statistics/strategyBadgeFrame')} class="st-strategy-frame" />
             <${BandIcon} bandId=${bandId} />
-            <${Img} src=${uiUrl(gd.m, 'statistics/strategyBadge')} class="st-strategy-badge__mark" />
+            ${master ? html`<${LocalSprite} group="ui/outer" name="team_list_master_team_bg" class="st-strategy-badge__master-bg" />
+              <${LocalSprite} group="ui/outer" name="team_list_master_team" class="st-strategy-badge__master"
+                fallback=${html`<${Img} src=${uiUrl(gd.m, 'statistics/strategyBadge')} class="st-strategy-badge__mark" />`} />`
+              : html`<${Img} src=${uiUrl(gd.m, 'statistics/strategyBadge')} class="st-strategy-badge__mark" />`}
           </div>
-          <span class="st-strategy-badge__name" title=${name}>${name}</span>
+          <span class="st-strategy-badge__name" title=${name}>${name}</span>${foreignTag(gd, bandId)}
         </li>`;
       })}
     </ul>` : html`<p class="st-hint">${t('暂无获得特殊标识的策略')}</p>`}`;
@@ -454,7 +491,7 @@ function Bands({ agg, gd, records }) {
           const band = gd.band(bandId);
           const rate = v.games > 0 ? Math.round((v.wins / v.games) * 100) : 0;
           return html`<tr key=${bandId}>
-            <td><span class="st-band">${band?.name || bandId}</span></td>
+            <td><span class="st-band">${band?.name || bandId}</span>${foreignTag(gd, bandId)}</td>
             <td class="num">${fmtNum(v.games)}</td>
             <td class="num">${fmtNum(v.wins)}</td>
             <td class="num st-rate"><span class="st-bar" aria-hidden="true"><i style=${`width:${rate}%`}></i></span><b>${pct(v.wins, v.games)}</b></td>
@@ -614,7 +651,7 @@ function clearReplayVersion() {
 /** The overlay, rendered while open (its data hooks run only then). */
 function StatsScreen({ tab }) {
   const ready = useData('config', 'bands', 'bonds', 'assets');
-  const gd = useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
+  const shownGd = useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
   const [stats, setStats] = useState(() => loadStats());
   const [replay, setReplay] = useState(null);
   const boxRef = useRef(null);
@@ -644,6 +681,9 @@ function StatsScreen({ tab }) {
   const picked = useStore((s) => s.version, Object.is, statsStore);
   const versionPick = picked || shown;
   const recs = useMemo(() => recordsOfVersion(stats.records, versionPick), [stats, versionPick]);
+  // strategies and alliances of every version the listed records played (ui/recordLookups.js: 规程 renamed every
+  // strategy, and the page holds the shown version's data only)
+  const gd = useRecordLookups(shownGd, recs);
   const agg = useMemo(() => aggregateStats(recs, { modded: withModded }), [recs, withModded]);
   // 卫戍成就's peak and the strategy marks follow the same 「含插件对局」 switch as the tallies (the history lists them all)
   const achRecords = useMemo(() => achievementRecords(recs, withModded), [recs, withModded]);
@@ -740,7 +780,7 @@ function StatsScreen({ tab }) {
             : tab === 'bands' ? html`<${Bands} agg=${agg} gd=${gd} records=${achRecords} />`
               : tab === 'totals' ? html`<${CombatSums} agg=${agg} />`
                 : tab === 'history' ? html`<${History} records=${recs} gd=${gd} onOpen=${openRecord} />`
-                  : html`<${Overview} agg=${agg} gd=${gd} nickname=${nickname} records=${achRecords} />`}
+                  : html`<${Overview} agg=${agg} gd=${gd} nickname=${nickname} records=${achRecords} version=${versionPick} />`}
     </main>
   </div>`;
 }
@@ -757,10 +797,11 @@ function StatsScreen({ tab }) {
  */
 export function AchievementDialog({ onClose }) {
   const ready = useData('config', 'bands', 'bonds', 'assets', 'chess', 'items', 'backups');
-  const gd = useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
+  const shownGd = useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
   // the season of the version shown (DESIGN §35.23), like the lobby's card
   const season = useStore((s) => seasonOf(shownVersion(s)));
   const records = useMemo(() => recordsOfSeason(peekStatsRecords(), season), [season]);
+  const gd = useRecordLookups(shownGd, records);
   const agg = useMemo(() => aggregateStats(records), [records]);
   const official = useMemo(() => achievementRecords(records), [records]);
   // a title in an alphabetic script (English …): ": " between its halves, as on the hub and the title screen

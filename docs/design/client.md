@@ -855,6 +855,25 @@ Title-count display uses the following 20-award boundary, confirmed in the offic
 | Exactly 20 | Full fill and count highlight. |
 | Above 20 | Full fill and count highlight; the number continues to show the actual count. |
 
+规程's 评语 table (`config.titles` with the official `type` / `rank` / `point`) is six kinds × three ranks, so its hexagon
+scores a kind, not a title: each wedge is one kind (盟约层数, 击败数, 装备配发, 消耗资金, 晋升次数, 领袖伤害 — the table's
+order clockwise from the top [ASSUMED]) and counts the official points of its 评语 received (rank 1 and 2 one each, rank 0
+none), with the same 20-point fill; its tooltip lists the three 评语 and their awards (`ui/titleHexagon.js hexWedges`). A
+hexagon counts only the records of its table's family (`aggregateStats().titlesByFamily`); a table of the other family
+than the page's data is downloaded once (`ui/recordLookups.js useTitleTable`). 评语收藏家 counts 盟约's six titles or
+规程's six kinds by a scoring 评语. How the server awards them: [META](../META.md) "Titles".
+
+成就统计 by season (the owner's decision of 2026-11-16): the panel shows the season of the version shown and switches to any
+other season with records; its title follows the season (卫戍协议：盟约 / ALLIANCE, 卫戍协议：规程 / REGULATION — the official
+activity names). The name plate, the mode table, the hexagon, 卫戍成就, the single-match bests, 盟约纪录 and 策略纪录 read that
+season's records; the 成就 list keeps counting every season (规程's medal levels 6–8 add three trophy achievements: 150 /
+200 / 300). 名片 and the lobby card count the trophies of the season shown (`ui/playerCard.js trophyTotal`), as the
+settlement's LV bar does. 绝境突破 is a successful defence on 绝境 or 终极 in both views (`HARD_CLEAR_DIFFICULTIES`; 统计数据
+counted the Hidden Core clears, which keep their own card). 已获赞 sums the likes each settled row kept: room.likes counts on
+that match's settlement written into my row (`recordLikes`; an optional row field, absent = 0). 统计数据's 已获得特殊标识的策略
+and 成就统计's 策略纪录 show 规程's colourful badge in place of the gold one at `masterVictorCount` (6, every season alike), as
+the strategy draft does.
+
 Community UI and recovery (§29.6): DIY reuses roster stats and skill previews; Swire's coins and, with 设置「显示弹药与能量数量」 on, a 秘术师's stored attack energies (GitHub #633, PR #636) show current/cap. The lobby player chip opens statistics and the responsive header keeps optional controls from overlapping its title. Settlement's summary scrolls separately from Return. Failed board art can retry, and failed three.js imports use two bounded fresh URLs. Failed engine initialization can remount on online/visibility, at most twice consecutively, cleaning up each previous view; explicit fallback/2D stays selected.
 
 0.3.2 (§35.17, PR #664): a page reopened directly into a match can exceed the 12 s engine-import

@@ -2229,6 +2229,19 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .ach__titles { position: relative; display: flex; flex-direction: column; line-height: 1.05; }
 .ach__titles i { font-family: var(--font-display); font-style: normal; font-size: .3rem; letter-spacing: .06em; color: transparent; -webkit-text-stroke: 1px rgba(30, 22, 12, .6); }
 .ach__titles b { font-size: .38rem; font-weight: 900; color: #16110a; white-space: nowrap; }
+/* the season switch (2026-11-16): the season on view; the title above follows it */
+.ach__seasons { position: relative; z-index: 1; align-self: center; flex: none; display: flex; gap: .04rem; margin-left: .5rem; padding: .05rem;
+  background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1px rgba(220, 230, 226, .14); }
+.ach__season { min-width: 1.1rem; height: .5rem; padding: 0 .2rem; border: 0; background: none; font: inherit; font-size: .24rem; font-weight: 700; color: #a7b0ad; white-space: nowrap; cursor: pointer; }
+.ach__season:hover, .ach__season:focus-visible { color: #f4f7f6; outline: none; box-shadow: inset 0 0 0 1px rgba(74, 242, 196, .55); }
+.ach__season.is-on { color: #06231b; background: var(--mint-400); }
+@media (pointer: coarse) { .ach__season { min-height: max(.5rem, 32px); padding: 0 max(.2rem, 10px); font-size: max(.24rem, 12px); } }
+/* 规程: the band in the season's red (the lobby's 规程 look) */
+.ach__box.is-regulation .ach__band { background: linear-gradient(90deg, transparent, rgba(160, 26, 36, .82) 24%, #c42f39 60%, #d6434a); }
+.ach__box.is-regulation .ach__dunes path { fill: rgba(70, 0, 8, .32); }
+.ach__box.is-regulation .ach__dunes path.is-far { fill: rgba(255, 180, 176, .16); }
+.ach__box.is-regulation .ach__titles i { -webkit-text-stroke-color: rgba(255, 236, 232, .6); }
+.ach__box.is-regulation .ach__titles b { color: #fff6f4; text-shadow: 0 .02rem .06rem rgba(60, 0, 6, .45); }
 .ach__body { position: relative; z-index: 1; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .1rem .7rem .5rem .66rem; scrollbar-width: thin; scrollbar-color: rgba(220, 230, 226, .45) transparent; }
 .ach__body::-webkit-scrollbar { width: .07rem; }
 .ach__body::-webkit-scrollbar-thumb { background: rgba(220, 230, 226, .45); border-radius: .04rem; }
@@ -2270,6 +2283,16 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .ach-counts__row small { display: inline-flex; align-items: center; gap: .04rem; font-size: .22rem; color: #b9c2bf; white-space: nowrap; }
 .ach-counts__row small .icon { width: .18rem; height: .18rem; }
 .ach-counts__row b { font-family: var(--font-display); font-size: .3rem; color: #f4f7f6; }
+/* a portrait phone: the box is narrower than the header's logo + switch + band and than the name card with its counts —
+   the band (the season's title) takes the first line and the switch the second; the counts go under the card */
+@media (max-width: 640px) {
+  .ach__head { height: auto; flex-wrap: wrap; }
+  .ach__logo { display: none; }
+  .ach__band { width: 100%; height: 1.27rem; margin-left: 0; padding-left: .5rem; padding-right: .7rem; }
+  .ach__seasons { order: 1; margin: .1rem .3rem; }
+  .ach-plate { flex-wrap: wrap; row-gap: .16rem; }
+  .ach-counts { grid-template-columns: repeat(3, auto auto); }
+}
 .ach-modes { margin-top: .3rem; background: rgba(22, 32, 30, .55); }
 .ach-modes__row { display: grid; grid-template-columns: 1.75rem repeat(3, minmax(0, 1fr)); align-items: center; height: 1.8rem; }
 .ach-modes__row + .ach-modes__row .ach-modes__cell { border-top: 1px solid rgba(220, 230, 226, .1); }
@@ -2283,6 +2306,18 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 /* the reference's hexagon: six solid mint triangles, dark gaps, a ruler inside each outer edge, a dark hub, a soft glow */
 .ach-hex__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 .14rem rgba(74, 242, 196, .3)); }
 .ach-hex__seg polygon { fill: #5cd3b2; stroke: rgba(225, 255, 246, .32); stroke-width: 1.5; stroke-linejoin: round; }
+/* each triangle fills from the hub with its 评语's count (full at 20, the official statistics view; achievements.js hexFill):
+   a dim plate under it, the count brightening once full */
+.ach-hex__seg .ach-hex__base { fill: rgba(92, 211, 178, .17); stroke: rgba(225, 255, 246, .22); }
+.ach-hex__seg .ach-hex__fill { stroke: none; transform: scale(var(--k, 0)); transform-box: view-box; transform-origin: 0 0;
+  animation: ach-fill 640ms var(--ease-out) calc(220ms + var(--i) * 50ms) both; }
+.ach-hex__seg.is-full .ach-hex__base { stroke: rgba(225, 255, 246, .42); }
+.ach-hex__seg.is-full .ach-hex__fill { fill: #74f0cc; }
+@keyframes ach-fill { from { transform: scale(0); } }
+.ach-hex__label.is-none b { color: rgba(218, 255, 244, .55); text-shadow: none; }
+.ach-hex__label.is-none b::before { opacity: .35; }
+.ach-hex__label.is-full b { color: #fff; text-shadow: 0 0 .1rem rgba(116, 240, 204, 1), 0 0 .22rem rgba(74, 242, 196, .7); }
+.ach-hex__label.is-full b::before { background: rgba(74, 242, 196, .45); }
 .ach-hex__ticks line { stroke: rgba(8, 48, 38, .34); stroke-width: 2; }
 .ach-hex__hub { fill: #0b100f; stroke: rgba(8, 48, 38, .7); stroke-width: 5; }
 .ach-hex__seg { animation: ach-seg 380ms var(--ease-out) calc(60ms + var(--i) * 50ms) both; transform-origin: 0 0; }
@@ -2366,6 +2401,14 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .ach-top--band .bandicon, .ach-mark__frame .bandicon { width: 1.6rem; height: 1.6rem; }
 .ach-top--band .bandicon img, .ach-mark__frame .bandicon img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 .08rem rgba(74, 242, 196, .45)); }
 .ach-top__side { display: flex; flex-direction: column; gap: .06rem; }
+/* a strategy of another version than the one shown (ui/recordLookups.js): that version's name under its own */
+.ach-ver { align-self: flex-start; padding: .02rem .1rem; font-size: .2rem; line-height: 1.3; color: #ffcf8a; white-space: nowrap;
+  background: rgba(255, 154, 42, .12); box-shadow: inset 0 0 0 1px rgba(255, 173, 58, .45); }
+.ach-mark > .ach-ver { align-self: center; margin-top: -.06rem; }
+/* 战果纪录 of another version: its lineup is not drawn with the shown version's operators */
+.ach-best__rows { position: relative; }
+.ach-best__other { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; padding: .08rem .24rem; font-size: .24rem;
+  color: #ffcf8a; white-space: nowrap; background: rgba(12, 16, 15, .88); box-shadow: inset 0 0 0 1px rgba(255, 173, 58, .5); pointer-events: none; }
 .ach-top__count { display: flex; align-items: baseline; gap: .02rem; }
 .ach-top__count small { font-size: .28rem; color: #eef3f1; }
 .ach-top__count b { font-family: var(--font-display); font-size: .44rem; line-height: 1; color: #4af2c4; font-weight: 500; }
@@ -2383,8 +2426,14 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
   background: repeating-linear-gradient(135deg, rgba(74, 242, 196, .08) 0 .04rem, transparent .04rem .12rem), rgba(18, 40, 36, .7); box-shadow: inset 0 0 0 1px rgba(74, 242, 196, .3); }
 .ach-mark__badge { position: absolute; right: .06rem; top: .06rem; width: .3rem; height: .3rem; display: grid; place-items: center; background: #1c1206; border: 2px solid #ff9a2a; color: #ffad3a; }
 .ach-mark__badge svg { width: .2rem; height: .2rem; }
+/* the corner badge of a marked strategy, placed as the strategy draft places it (css/screens/draft.css .dband__badge):
+   gold team_list_victor_team; 规程's colourful team_list_master_team over team_list_master_team_bg at masterVictorCount */
+.ach-mark__tier { position: absolute; inset: 0; pointer-events: none; }
+.ach-mark__victor { position: absolute; left: 13.3%; top: -5.4%; width: 92.1%; height: 94.3%; object-fit: fill; }
+.ach-mark__master-bg { position: absolute; left: 8.9%; top: 7.9%; width: 82.1%; height: 84.3%; object-fit: fill; mix-blend-mode: screen; }
+.ach-mark__master-icon { position: absolute; left: 60.1%; top: -4.9%; width: 45%; height: 45.7%; object-fit: contain; filter: drop-shadow(0 0 .04rem rgba(0, 0, 0, .6)); }
 @media (prefers-reduced-motion: reduce) {
-  .ach, .ach__box, .ach-hex__seg, .ach-hex__label, .ach-top, .ach__loader i, .ach__loader b { animation: none !important; }
+  .ach, .ach__box, .ach-hex__seg, .ach-hex__fill, .ach-hex__label, .ach-top, .ach__loader i, .ach__loader b { animation: none !important; }
 }
 /* a guest's panel: the login block */
 .ach-gate { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; padding: .3rem 1rem; text-align: center; }

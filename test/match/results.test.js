@@ -1,7 +1,9 @@
 // RESULT: titles (评语) assignment, per-player rows, trophies, rewards.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assignTitles } from '../../server/match/results.js';
+import { assignTitles, regulationTitles, regulationRank, regulationValues, regulationProgress, isRegulationTable } from '../../server/match/results.js';
+import { REGULATION_TITLE_CUTOFFS } from '../../server/match/titleCutoffs.js';
+import { getVersionData } from '../../server/data.js';
 import { GameData } from '../../server/match/gamedata.js';
 import { PHASE } from '../../shared/constants.js';
 import { DATA, makeMatch } from './harness.js';
@@ -125,4 +127,64 @@ test('co-op trophies / victory follow each player\'s OWN rounds passed: a teamma
   assert.equal(row('p_1').victory, false, 'eliminated before the boss round: the clear is not its own');
   assert.equal(res.victory, true, 'the team result is still a win');
   m.dispose();
+});
+
+// 规程's 评语 (the owner's decision of 2026-11-16): six kinds × three ranks of playerTitleDataDict, each player rated on the
+// kinds' tier lines (server/match/titleCutoffs.js) and given the 评语 of its best one.
+const ACT3 = getVersionData('act3autochess@V3_1', { log: { warn() {}, error() {}, info() {} } });
+
+test('规程 config.titles: the official table — six kinds × ranks 0–2, rank 0 scores nothing, each kind names its stat', () => {
+  const titles = new GameData(ACT3, 'mode_multi_hard').titles;
+  assert.equal(titles.length, 18);
+  assert.equal(isRegulationTable(titles), true);
+  assert.equal(isRegulationTable(gd.titles), false, '盟约 keeps its six titles');
+  const kinds = { BOND: 'activatedLayers', KILL: 'kills', EQUIP: 'itemsEquipped', COIN: 'fundsSpent', CHAR: 'merges', DAMAGE: 'bossDamage' };
+  for (const [kind, stat] of Object.entries(kinds)) {
+    const own = titles.filter((x) => x.type === kind);
+    assert.deepEqual(own.map((x) => [x.rank, x.point, x.stat]), [[0, 0, stat], [1, 1, stat], [2, 1, stat]], kind);
+    for (const x of own) assert.ok(x.name && x.picId && x.text, x.id);
+  }
+  // data/tuning.json's 坚若磐石 override names comment_3, which is 不朽盟约 (BOND rank 2) here: not applied
+  assert.equal(titles.find((x) => x.id === 'comment_3').stat, 'activatedLayers');
+  for (const k of Object.keys(kinds)) {
+    const [a, b] = REGULATION_TITLE_CUTOFFS[k];
+    assert.ok(Number.isInteger(a) && Number.isInteger(b) && a >= 1 && b > a, `${k} lines ${a} < ${b}`);
+  }
+});
+
+test('规程 评语: the best rank over the kinds, then the value furthest past its line; rank 0 is the closest kind; teammates may share one', () => {
+  const titles = new GameData(ACT3, 'mode_multi_hard').titles;
+  const lines = { BOND: [100, 200], KILL: [100, 200], EQUIP: [4, 6], COIN: [100, 150], CHAR: [5, 8], DAMAGE: [1000, 5000] };
+  const p = (seat, { layers = 0, kills = 0, items = 0, gold = 0, merges = 0, boss = 0 } = {}) => ({
+    playerId: `p${seat}`, seat, alive: true, lp: 10, creditedKills: kills, activatedLayers: () => layers,
+    stats: { bossDamage: boss, merges, itemsEquipped: items, gold, kills: 0 },
+  });
+  const players = [
+    p(0, { layers: 250, kills: 150, gold: 160 }), // BOND 2 (250/200) vs COIN 2 (160/150): BOND is further past its line
+    p(1, { layers: 120, kills: 180 }), // BOND 1 (1.2) vs KILL 1 (1.8): KILL
+    p(2, { items: 3, merges: 4, gold: 30 }), // nothing ranked: the closest to a first line is CHAR (0.8)
+    p(3, { layers: 300, kills: 150, gold: 160 }), // the same 评语 as seat 0
+    p(4), // nothing at all: the first kind's consolation
+  ];
+  const got = regulationTitles(titles, players, lines);
+  const name = (id) => titles.find((x) => x.id === got.get(id)?.id)?.name;
+  assert.equal(name('p0'), '不朽盟约');
+  assert.equal(name('p1'), '可靠后盾');
+  assert.equal(name('p2'), '孤胆先锋');
+  assert.equal(name('p3'), '不朽盟约', 'absolute lines: two teammates can both reach 不朽盟约');
+  assert.equal(name('p4'), '百花齐放');
+  assert.equal(regulationRank(4, lines.EQUIP), 1);
+  assert.equal(regulationRank(6, lines.EQUIP), 2);
+  assert.equal(regulationRank(3, lines.EQUIP), 0);
+  // assignTitles takes 规程's path on its data (the shipped lines), whatever the outcome
+  const live = assignTitles(new GameData(ACT3, 'mode_multi_hard'), players, false);
+  assert.equal(live.size, players.length, 'every player gets one 评语');
+  for (const t of live.values()) assert.ok(t.id && t.name && t.picId && t.text);
+  assert.deepEqual(regulationValues(titles, players[0]), { BOND: 250, KILL: 150, EQUIP: 0, COIN: 160, CHAR: 0, DAMAGE: 0 });
+  // within a rank the measure is the band, not value / line: a long-tailed kind (领袖伤害) does not crowd out a narrow one
+  const both = p(5, { gold: 190, boss: 7000 }); // COIN 2: (190 − 150) / 50 = 0.8; DAMAGE 2: (7000 − 5000) / 4000 = 0.5
+  assert.equal(titles.find((x) => x.id === regulationTitles(titles, [both], lines).get('p5').id).name, '挥金如土');
+  assert.equal(regulationProgress(190, lines.COIN, 2), 0.8);
+  assert.equal(regulationProgress(125, lines.COIN, 1), 0.5);
+  assert.equal(regulationProgress(50, lines.COIN, 0), 0.5);
 });

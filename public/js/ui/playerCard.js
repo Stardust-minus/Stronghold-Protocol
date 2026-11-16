@@ -1,15 +1,17 @@
 // 名片 (2026-10-14, the owner's decision; the room design by 雨千代chiyo): what a doctor shows on the room's seat card —
 // 名片干员 (an operator's art, ui/seatArt.js CARD_PREF), 头像 (an operator's official avatar, AVATAR_PREF), 名片底图
-// (ui/namecards.js NAMECARD_PREF) and the trophy level (ui/trophies.js) of the cumulative trophies this browser's 统计数据
-// recorded (ui/stats.js); the looks of the portrait and the avatar (精二 / 精一 / a skin: CARD_LOOK_PREF, AVATAR_LOOK_PREF;
+// (ui/namecards.js NAMECARD_PREF) and the trophy level (ui/trophies.js) of the trophies this browser's 统计数据 recorded in
+// the season of the version shown (ui/stats.js; each activity counts its own, as the settlement does: the owner's decision of
+// 2026-11-16); the looks of the portrait and the avatar (精二 / 精一 / a skin: CARD_LOOK_PREF, AVATAR_LOOK_PREF;
 // feedback #9 / #24). All kept in the browser;
 // sent as room.card where the server takes it (shared/protocol.js) so teammates see the same card. The trophy count is
 // the player's own claim — display only, the server just bounds it — and a server without room.card (an older build)
 // leaves the card visible to its owner only.
 import { useEffect } from '../../vendor/hooks.module.js';
-import { createStore, loadPref, savePref, useStore, shallowEqual } from '../store.js';
+import { createStore, loadPref, savePref, useStore, shallowEqual, store as appStore } from '../store.js';
 import { useData } from '../data.js';
-import { peekStatsRecords, selfRowOf } from './stats.js';
+import { peekStatsRecords, selfRowOf, recordsOfSeason } from './stats.js';
+import { shownVersion, seasonOf } from '../versions.js';
 import { CARD_PREF, cardAvatarUrl } from './seatArt.js';
 import { NAMECARD_PREF, NAMECARD_Y_PREF, NAMECARD_X_PREF, NAMECARD_ZOOM_PREF, namecardOf, namecardY, namecardX, namecardZoom } from './namecards.js';
 import { C2S } from '../../../shared/protocol.js';
@@ -20,10 +22,14 @@ export const CARD_SYNC = !!C2S && Object.hasOwn(C2S, 'room.card');
 
 const str = (v) => (typeof v === 'string' ? v : '');
 
-/** The cumulative trophies of a stats envelope's records (each settled match's own row; ui/stats.js). */
-export function trophyTotal(records) {
+/**
+ * The trophies of a stats envelope's records (each settled match's own row; ui/stats.js): of one season's records when
+ * `season` is given (an activity id — screens/settle.js levelProgress counts the same), of every record otherwise.
+ * @param {any[]} records @param {string|null} [season]
+ */
+export function trophyTotal(records, season = null) {
   let n = 0;
-  for (const rec of Array.isArray(records) ? records : []) {
+  for (const rec of recordsOfSeason(records, season)) {
     const v = selfRowOf(rec)?.trophies;
     if (Number.isSafeInteger(v) && v > 0) n += v;
   }
@@ -59,10 +65,13 @@ export const cardStore = createStore({
   trophies: null, // read from the stats on first use
 });
 
-/** Re-read the trophy total (a match just ended, stats were imported). */
-export function refreshTrophies() {
+/** The season whose trophies the card shows: the version the page shows (the lobby's pick, a room's, a match's). */
+const shownSeason = (s) => seasonOf(shownVersion(s));
+
+/** Re-read the trophy total (a match just ended, stats were imported, the version shown changed season). */
+export function refreshTrophies(season = shownSeason(appStore.get())) {
   let n;
-  try { n = trophyTotal(peekStatsRecords()); } catch { n = 0; }
+  try { n = trophyTotal(peekStatsRecords(), season); } catch { n = 0; }
   if (cardStore.get().trophies !== n) cardStore.set({ trophies: n });
 }
 
@@ -105,9 +114,10 @@ export function setCardBackground(bg) {
   savePref(NAMECARD_PREF, id); cardStore.set({ bg: id });
 }
 
-/** One's card, the trophies re-read when a component that shows it mounts. */
+/** One's card, the trophies re-read when a component that shows it mounts and when the season shown changes. */
 export function useMyCard() {
-  useEffect(() => { refreshTrophies(); }, []);
+  const season = useStore(shownSeason);
+  useEffect(() => { refreshTrophies(season); }, [season]);
   return useStore((s) => s, shallowEqual, cardStore);
 }
 

@@ -49,6 +49,7 @@ import { mergeTile, pieceDir, canPlace, placeClass } from './board.js';
 import { bossPoolHp, hiddenEligible } from './finalAssault.js';
 import { helperOrder } from './unite.js';
 import { BAND_TURN_SECONDS } from './Match.js';
+import { isRegulationTable } from './results.js';
 
 /**
  * @param {import('./Match.js').Match} m
@@ -499,8 +500,9 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
       const r = m.lastResultMsg;
       if (!r) { fail('no m.result'); return; }
       const titles = r.players.map((p) => p.title && p.title.id).filter(Boolean);
-      if (new Set(titles).size !== titles.length) fail(`a title was given twice: ${titles}`);
       const cfg = Array.isArray(gd.config.titles) ? gd.config.titles : [];
+      // 盟约 gives each title once per match; 规程's are rated on absolute tier lines, teammates may share one (results.js)
+      if (!isRegulationTable(cfg) && new Set(titles).size !== titles.length) fail(`a title was given twice: ${titles}`);
       for (const p of r.players) {
         const t = p.title && cfg.find((x) => x.id === p.title.id);
         if (t && t.onlyOnWin && !r.victory) fail(`${p.playerId}: win-only title ${t.id} on a defeat`);

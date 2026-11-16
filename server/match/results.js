@@ -11,9 +11,12 @@
 // ranked low → high (the eliminated lost everything). Candidates are ranked by the player's rank for that stat
 // (0 = best), then by closeness to the best value, then title order, then seat; greedy assignment gives each player
 // ≤ 1 title and uses each title ≤ once (config.titleRule [ASSUMED]).
+// 规程 (config.titles with the official `type` / `rank` / `point`, act3autochess playerTitleDataDict): 18 评语 = six kinds
+// (BOND 盟约层数, KILL 击败数, EQUIP 装备配发, COIN 消耗资金, CHAR 晋升次数, DAMAGE 领袖伤害) × three ranks — regulationTitles.
 
 import { bondList } from './bondsMeta.js';
 import { boardOrder } from './board.js';
+import { REGULATION_TITLE_CUTOFFS } from './titleCutoffs.js';
 
 const STAT_OF = {
   bossDamage: (ps) => ps.stats.bossDamage,
@@ -23,10 +26,83 @@ const STAT_OF = {
   merges: (ps) => ps.stats.merges,
   itemsEquipped: (ps) => ps.stats.itemsEquipped,
   fundsSpent: (ps) => ps.stats.gold,
+  // 击败数 as 统计数据 counts it: the enemies the player's operators and summons defeated, 联防 included (creditedKills)
+  kills: (ps) => (Number.isFinite(ps.creditedKills) ? ps.creditedKills : ps.stats.kills),
 };
+
+/** Is this config's 评语 table 规程's: titles of an official kind (playerTitleDataDict `type`)? @param {any[]} titles */
+export const isRegulationTable = (titles) => Array.isArray(titles) && titles.some((t) => t && typeof t.type === 'string');
+
+/**
+ * One player's value of each 规程 评语 kind — the stat its titles name (config.titles[].stat), a whole number ≥ 0.
+ * Shared with tools/title-cutoffs.mjs, which measures the tier lines of server/match/titleCutoffs.js on these values.
+ * @param {any[]} titles config.titles (gd.titles) @param {any} ps a PlayerState
+ * @returns {Record<string, number>} kind → value
+ */
+export function regulationValues(titles, ps) {
+  const out = {};
+  for (const t of titles) {
+    if (!t || typeof t.type !== 'string' || Object.hasOwn(out, t.type) || !Object.hasOwn(STAT_OF, t.stat)) continue;
+    out[t.type] = Math.max(0, Math.round(Number(STAT_OF[t.stat](ps)) || 0));
+  }
+  return out;
+}
+
+/**
+ * The rank (0 / 1 / 2) a value reaches on a kind's tier lines `[rank1, rank2]` (the least value of each rank).
+ * @param {number} value @param {readonly number[]|undefined} lines
+ */
+export function regulationRank(value, lines) {
+  if (!Array.isArray(lines)) return 0;
+  return value >= lines[1] ? 2 : value >= lines[0] ? 1 : 0;
+}
+
+/**
+ * How far into its rank a value is, comparable across kinds: rank 0 the way to the rank-1 line, rank 1 the way from it to
+ * the rank-2 line, rank 2 past that line in widths of the rank-1 band. (A plain value / line would favour the kinds with a
+ * long tail — 领袖伤害 — over the narrow ones — 消耗资金: measured on tools/title-cutoffs.mjs's samples.)
+ * @param {number} value @param {readonly number[]} lines @param {number} rank
+ */
+export function regulationProgress(value, lines, rank) {
+  const band = Math.max(1, lines[1] - lines[0]);
+  if (rank === 2) return (value - lines[1]) / band;
+  if (rank === 1) return (value - lines[0]) / band;
+  return value / Math.max(1, lines[0]);
+}
+
+/**
+ * 规程's 评语 (the owner's decision of 2026-11-16): every player rated on the six kinds, each against its tier lines
+ * (server/match/titleCutoffs.js: the server's own play, rank 1 = the top half, rank 2 = the top 15 %), and given the 评语
+ * of its best: the highest rank, then the furthest into that rank (regulationProgress), then the official table order.
+ * Rank 0 is the consolation 评语 of the kind closest to its first line (point 0: the statistics' hexagon does not count it). [ASSUMED] one 评语 per player per match, as 盟约's (research 06 §10.5), and
+ * teammates may share one — the lines are absolute, not a ranking among teammates; the official rule is unpublished.
+ * @param {any[]} titles config.titles with `type` / `rank` @param {any[]} players PlayerStates
+ * @param {Record<string, readonly number[]>} [cutoffs] kind → [rank1, rank2] (REGULATION_TITLE_CUTOFFS)
+ * @returns {Map<string, { id: string, name: string, picId: string, text: string }>}
+ */
+export function regulationTitles(titles, players, cutoffs = REGULATION_TITLE_CUTOFFS) {
+  const kinds = [];
+  for (const t of titles) if (t && typeof t.type === 'string' && !kinds.includes(t.type) && cutoffs[t.type]) kinds.push(t.type);
+  const out = new Map();
+  for (const ps of players) {
+    const values = regulationValues(titles, ps);
+    let best = null;
+    for (const kind of kinds) {
+      const lines = cutoffs[kind];
+      const v = values[kind] ?? 0;
+      const rank = regulationRank(v, lines);
+      const rel = regulationProgress(v, lines, rank);
+      if (!best || rank > best.rank || (rank === best.rank && rel > best.rel)) best = { kind, rank, rel };
+    }
+    const t = best && titles.find((x) => x && x.type === best.kind && x.rank === best.rank);
+    if (t) out.set(ps.playerId, { id: t.id, name: t.name, picId: t.picId, text: t.text });
+  }
+  return out;
+}
 
 export function assignTitles(gd, players, victory) {
   const titles = Array.isArray(gd.titles) ? gd.titles : Array.isArray(gd.config.titles) ? gd.config.titles : [];
+  if (isRegulationTable(titles)) return regulationTitles(titles, players);
   const cands = [];
   titles.forEach((t, ti) => {
     if (!t || typeof t.stat !== 'string' || !Object.hasOwn(STAT_OF, t.stat)) return;

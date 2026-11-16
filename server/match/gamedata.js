@@ -188,12 +188,15 @@ export class GameData {
     return bossPoolShareOf(this.mode.bossHpScale, this.config.bossHpScale, this.isSolo, aliveCount);
   }
 
-  /** config.titles with the tuning overrides (stat / rule per title id) merged in. */
+  /**
+   * config.titles with the tuning overrides (stat / rule per title id) merged in. The overrides are 盟约's (data/tuning.json:
+   * 坚若磐石 is comment_3); a title of an official kind (规程's `type`: comment_3 is 不朽盟约 there) keeps its own stat.
+   */
   get titles() {
     const list = Array.isArray(this.config.titles) ? this.config.titles : [];
     const ov = this.tuning.titles && typeof this.tuning.titles === 'object' ? this.tuning.titles : {};
     return list.map((t) => {
-      if (!t || typeof t.id !== 'string' || !Object.hasOwn(ov, t.id) || !ov[t.id] || typeof ov[t.id] !== 'object') return t;
+      if (!t || typeof t.id !== 'string' || typeof t.type === 'string' || !Object.hasOwn(ov, t.id) || !ov[t.id] || typeof ov[t.id] !== 'object') return t;
       const o = ov[t.id];
       const out = { ...t };
       if (typeof o.stat === 'string') out.stat = o.stat;
