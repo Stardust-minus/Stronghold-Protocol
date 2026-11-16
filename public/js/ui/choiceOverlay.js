@@ -23,11 +23,11 @@ import { useSettings } from './settings.js';
 import { usePrefabPack } from './prefab/view.js';
 import { RegDeadlineCountdown } from './prefab/hud.js';
 import { html, Icon, TierChip, Countdown, Button } from './components.js';
-import { Img, RichText, PlayerAvatar, GIcon } from './gameComponents.js';
+import { Img, RichText, PlayerAvatar, GIcon, LocalSprite } from './gameComponents.js';
 import { itemIconUrl, enemyIconUrl, uiUrl } from './assetUrls.js';
 import { richTextPlain } from './richText.js';
 import { sortedPlayers, draftMyTurn } from './gameLogic.js';
-import { data } from '../data.js';
+import { data, localAsset } from '../data.js';
 import { t, tc, tName } from '../../../shared/i18n.js';
 import { sentText } from './lang.js';
 import { MatchName } from './ownerName.js';
@@ -133,30 +133,48 @@ export function armedCard(armed, sp, o) {
 }
 
 /**
+ * 收起 / 展开 of one pending choice (feedback #162: 「…那个界面会挡住商店和这回合的怪…加个隐藏，这样能看一眼商店和怪再选」):
+ * hidden only while the stored key is the current choice's, so a new choice — another key — opens expanded again without
+ * an effect. The key names the choice (screens/game.js: the round and family of a 机变 draft, a 教鞭 / 更换指令 id).
+ * @param {string|null} key
+ * @returns {[boolean, (hidden: boolean) => void]}
+ */
+export function usePeek(key) {
+  const [hiddenKey, setHiddenKey] = useState(null);
+  return [!!key && hiddenKey === key, (hidden) => setHiddenKey(hidden && key ? key : null)];
+}
+
+/**
  * The overlay: keeps the two-tap selection and renders ChoiceView. `onPick(idx)` sends the confirmed card (g.choice).
- * @param {{ pub:any, sp:any, myId:string, solo:boolean, personal?:boolean, onPick:(idx:number)=>void, busyIdx?:number|null, total?:number|null }} props
+ * `collapsed` / `onCollapsedChange` (screens/game.js usePeek): 收起 hands the screen back — the shop, the board and its
+ * enemy preview, the top bar with 敌方情报, the bond strip — while the countdown runs on in the 展开 button; the choice stays
+ * pending and the selected card stays selected. Without them the overlay keeps its own state.
+ * @param {{ pub:any, sp:any, myId:string, solo:boolean, personal?:boolean, onPick:(idx:number)=>void, busyIdx?:number|null, total?:number|null,
+ *   collapsed?: boolean, onCollapsedChange?: (collapsed: boolean) => void }} props
  */
 export function ChoiceOverlay(props) {
-  const { sp, myId, solo, personal = false, busyIdx = null, onPick } = props;
+  const { pub, sp, myId, solo, personal = false, busyIdx = null, total = null, onPick, onCollapsedChange = null } = props;
   const [sel, setSel] = useState(null);
   const orderRef = useRef(null);
-  // 收起 (the official 机密商店 has it at the right edge, BV13LWM6BEvY match 9 29:44): the board shows through until 展开;
-  // a new draft opens expanded again
-  const [collapsed, setCollapsed] = useState(false);
-  const draftKey = sp ? `${sp.family}|${sp.round ?? ''}|${sp.cards?.length ?? 0}` : '';
-  useEffect(() => { setCollapsed(false); }, [draftKey]);
+  // 收起 (the official 机变 panel's btn_close — autochess_battle_effect_choose_panel, its part_close / part_show states; the
+  // 机密商店 at the right edge, BV13LWM6BEvY match 9 29:44): the board shows through until 展开; a new draft opens expanded
+  const [ownCollapsed, setOwnCollapsed] = usePeek(sp ? `${personal ? 'p' : 's'}|${sp.id ?? ''}|${sp.family}|${sp.cards?.length ?? 0}` : null);
+  const controlled = typeof onCollapsedChange === 'function';
+  const collapsed = controlled ? props.collapsed === true : ownCollapsed;
+  const setCollapsed = controlled ? onCollapsedChange : setOwnCollapsed;
   const armed = armedCard(sel, sp, { myId, solo, busyIdx });
   useEffect(() => {
     orderRef.current?.querySelector('.is-cur')?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }, [sp?.turnPid]);
   // a selection whose card cannot be picked any more (taken, the turn moved on, a pick in flight) is dropped
   useEffect(() => { if (sel != null && armed == null) setSel(null); }, [sel, armed]);
+  // (while hidden, Esc belongs to the screen — closing 敌方情报 or a detail card — and the selection is kept)
   useEffect(() => {
-    if (armed == null) return undefined;
+    if (armed == null || collapsed) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') setSel(null); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [armed]);
+  }, [armed, collapsed]);
   // The pack also draws its official 机变 countdown. The shared your-turn cue is owned by screens/game.js so a theme
   // banner and its sound are emitted once from the same place.
   const settings = useSettings();
@@ -168,26 +186,48 @@ export function ChoiceOverlay(props) {
     setSel(r.armed);
     if (r.pick != null) onPick(r.pick);
   };
-  if (collapsed) return html`<${ChoicePill} sp=${sp} myId=${myId} solo=${solo} onExpand=${() => setCollapsed(false)} />`;
+  // the 展开 button carries the choice's own clock: a timed draft's (pub.deadline), a 教鞭 choice's prep deadline
+  const timed = personal ? pub?.deadline > 0 : !solo && !sp.untimed;
+  if (collapsed) {
+    return html`<${ChoicePill} sp=${sp} myId=${myId} solo=${solo} personal=${personal} deadline=${timed ? pub?.deadline : null} total=${total}
+      armed=${armed != null} onExpand=${() => setCollapsed(false)} />`;
+  }
   return html`<${ChoiceView} ...${props} orderRef=${orderRef} armed=${armed} onTap=${tap} pfPack=${pack} pfStill=${settings?.themeMotion === false}
-    onConfirm=${() => { if (armed != null) tap(armed); }} onDisarm=${() => setSel(null)} onCollapse=${() => { setSel(null); setCollapsed(true); }} />`;
+    onConfirm=${() => { if (armed != null) tap(armed); }} onDisarm=${() => setSel(null)} onCollapse=${() => setCollapsed(true)} />`;
 }
 
 /**
- * The collapsed draft: one button at the right edge that opens it again, with the family's name; it glows while it is
- * the viewer's turn. [ASSUMED] the official collapsed state was not on screen in the recordings.
- * @param {{ sp: any, myId: string, solo: boolean, onExpand: () => void }} props
+ * The 展开 button of a hidden choice (PeekPill): the official part_show — the mint btn_open square with its glow — at the
+ * right edge, with the choice's name, its countdown and 展开; it pulses while the viewer still has to choose (`turn`).
+ * `armed`: a card is still selected (「已选中」 under the name). [ASSUMED] the official hidden state was not on screen in
+ * the recordings; its prefab keeps btn_close at the panel's right of centre and dims the field (group_hide), which we do
+ * not: the player hid the panel to look at the shop.
+ * @param {{ name: string, turn?: boolean, deadline?: number|null, total?: number|null, armed?: boolean, onExpand: () => void, testId?: string }} props
  */
-export function ChoicePill({ sp, myId, solo, onExpand }) {
+export function PeekPill({ name, turn = false, deadline = null, total = null, armed = false, onExpand, testId = 'sp-expand' }) {
+  return html`<button type="button" class=${cx('spov-pill', 'tapx', turn && 'is-turn')} data-testid=${testId} onClick=${onExpand}
+      aria-label=${t('展开{name}', { name })} title=${t('展开{name}', { name })}>
+    <span class="spov-pill__art"><${LocalSprite} name="btn_open" class="spov-pill__img"
+      fallback=${html`<span class="spov-pill__box" aria-hidden="true"><${Icon} name="expand" /></span>`} /><b class="spov-pill__act">${t('展开')}</b></span>
+    <span class="spov-pill__meta">
+      <span class="spov-pill__name">${name}</span>
+      ${armed ? html`<span class="spov-pill__armed" data-testid="sp-armed-kept">${t('已选中')}</span>` : null}
+      ${deadline > 0 ? html`<${Countdown} deadline=${deadline} total=${total ?? undefined} size="sm" label=${null} gauge=${false} class="spov-pill__clock" />` : null}
+    </span>
+  </button>`;
+}
+
+/**
+ * The collapsed draft (PeekPill): the family's name; it pulses while it is the viewer's turn and they have not picked.
+ * @param {{ sp: any, myId: string, solo: boolean, personal?: boolean, deadline?: number|null, total?: number|null, armed?: boolean, onExpand: () => void }} props
+ */
+export function ChoicePill({ sp, myId, solo, personal = false, deadline = null, total = null, armed = false, onExpand }) {
   if (!sp) return null;
   const fam = data.get('choices')?.families?.[sp.family] || null;
   const rawFam = data.getRaw('choices')?.families?.[sp.family] || null;
-  const name = sentText(sp.name, rawFam?.name, fam?.name) || fam?.name || t('机变');
-  const myTurn = (solo || sp.turnPid === myId) && !sp.pickOf?.has?.(myId);
-  return html`<button type="button" class=${cx('spov-pill', myTurn && 'is-turn')} data-testid="sp-expand" onClick=${onExpand}
-      aria-label=${t('展开{name}', { name })}>
-    <${Icon} name="expand" /><span class="spov-pill__name">${name}</span><b>${t('展开')}</b>
-  </button>`;
+  const name = personal ? sp.name || t('教鞭选择') : sentText(sp.name, rawFam?.name, fam?.name) || fam?.name || t('机变');
+  const myTurn = (personal || solo || sp.turnPid === myId || sp.concurrent === true) && !sp.pickOf?.has?.(myId);
+  return PeekPill({ name, turn: myTurn, deadline, total, armed, onExpand }); // a plain call: the pill is the button (test/ui renders it)
 }
 
 /**
@@ -277,8 +317,8 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
           </div>`;
         })}
       </div>` : null}
-      ${onCollapse ? html`<button type="button" class="spov__collapse" data-testid="sp-collapse" onClick=${onCollapse} title=${t('收起，查看战场')}>
-        <${Icon} name="collapse" /><span>${t('收起')}</span></button>` : null}
+      ${onCollapse ? html`<button type="button" class=${cx('spov__collapse', 'tapx', localAsset('ui/battle', 'btn_close') && 'has-art')} data-testid="sp-collapse" onClick=${onCollapse} title=${t('收起，查看战场')}>
+        <span class="spov__cart" aria-hidden="true"><${LocalSprite} name="btn_close" class="spov__cimg" fallback=${html`<${Icon} name="collapse" />`} /></span><span>${t('收起')}</span></button>` : null}
       <div class=${cx('spov__grid', sp.cards.length <= 3 && 'spov__grid--3', onCollapse && 'spov__grid--collapse')}>
         ${sp.cards.map((card) => {
           const r = resolveSpCard(card, sp.family);

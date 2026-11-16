@@ -699,6 +699,8 @@ export class Match {
     this._lastPubJson = '';
     /** @type {Set<PlayerState>} */
     this._privDirty = new Set();
+    /** 卡池剩余 (feedback #160): pool group id → the counts last flushed (messaging.js _poolPeers) */
+    this._poolCountSigs = new Map();
     this.errors = [];
     this.errorCount = 0;
     this.simErrors = 0;

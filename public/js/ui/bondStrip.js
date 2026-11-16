@@ -45,6 +45,7 @@ import { data } from '../data.js';
 import { appearanceRecord, ownAppearance } from './skinAssets.js';
 import { t, tc, tParts, tName } from '../../../shared/i18n.js';
 import { OwnerMark } from './ownerName.js';
+import { poolLeftOf, PoolTag } from './poolCount.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -242,9 +243,11 @@ export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null
  *   activates). It keeps the effect and the members, and says 「{name}：该核心盟约的干员无法出现，同属其他亮着的核心盟约的除外」.
  *   An add-on stays on `off`.
  *   `entry.harmony` (the server's bond views: the +1 调和 added to `count`): 在场 n（含调和 +1） and the 调和 row;
- *   `forecast`: the own m.private.layerForecast in PREP (the 预计叠层 block), else null
+ *   `forecast`: the own m.private.layerForecast in PREP (the 预计叠层 block), else null;
+ *   `poolCounts`: 设置「显示卡池剩余张数」 — each member's copies left in the own shared stock (m.private poolLeft, ui/poolCount.js)
+ *   under its portrait, never on a watched teammate's card
  */
-export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember, place = null, over = false, beside = null, owner = null, off = false, coreAbsent = false, forecast = null, morphMode = 'official', modal = false }) {
+export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember, place = null, over = false, beside = null, owner = null, off = false, coreAbsent = false, forecast = null, morphMode = 'official', modal = false, poolCounts = false }) {
   const base = data.lookup('bonds', bondId);
   const b = bondEffectRecord(base, data.lookup('effects', entry?.effectId || base?.effectId), entry?.layers ?? 0);
   if (!b) return null;
@@ -325,6 +328,8 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
           const name = si ? si.name : mb.name;
           const items = mb.granted && Array.isArray(mb.items) ? mb.items : null;
           const record = si || mb.rec || getChess(mb.id);
+          // 卡池剩余 (feedback #160): the own shared stock's count under the portrait (never on a watched teammate's card)
+          const left = poolCounts && !owner && !mb.banned ? poolLeftOf(priv, 'chess', mb.id) : null;
           const visible = [...(priv?.board || []), ...(priv?.hand || []), ...(priv?.temp || [])].find(p => p && (p.id === mb.id || rawChess(p.id)?.baseId === mb.id));
           const art = visible?.skinId ? appearanceRecord(record, visible.skinId) : ownAppearance(record, priv);
           // no onMember (the preparation callers of MatchBondDialog, #915): the member grid stays informational
@@ -335,6 +340,7 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
               data-granted=${mb.granted ? '1' : null} data-standin=${si ? si.charId : null} data-diy=${mb.diy ? mb.rec?.charId || '1' : null}
               title=${`${name}${si ? t('（{note}）', { note: standInForText(mb.name) }) : ''}${mb.granted ? t('（变形同构体：视为本盟约成员）') : ''}${mb.banned ? t('（本局禁用）') : mb.onBoard ? t('（在场）') : mb.owned ? t('（整备区）') : ''}`}>
             <${UnitThumb} kind="chess" id=${mb.id} size="sm" dim=${!mb.owned || mb.banned} rec=${art} title=${name} />
+            <${PoolTag} n=${left} where="member" />
             <span class="bpop__mname">${name}</span>
             ${mb.banned ? html`<span class="bpop__ban"><${Icon} name="close" /></span>` : null}
             ${mb.granted ? html`<span class="bpop__iso" aria-hidden="true">${t('同构')}</span>` : null}

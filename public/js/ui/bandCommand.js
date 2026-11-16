@@ -7,6 +7,7 @@ import { toast } from './toasts.js';
 import { data, localAsset } from '../data.js';
 import { t } from '../../../shared/i18n.js';
 import { GEO } from '../../../shared/constants.js';
+import { PeekPill } from './choiceOverlay.js';
 
 export function commandUnlock(c) {
   const [n, count] = c.unlockParam || [];
@@ -225,9 +226,20 @@ export function BandCommand({ command: c, priv, view, editable }) {
   <//>`;
 }
 
-export function CommandDraft({ draft }) {
+/**
+ * 更换指令 (投机骰子 / skill_change, 规程): pick one of the offered commands. 收起 (feedback #162; screens/game.js usePeek —
+ * `collapsed` / `onCollapsedChange`) hides the dialog to look at the shop and the board; the draft stays pending (it still
+ * blocks Ready, and the prep's end picks for the player) and comes back from the 展开 button, which shows the prep's
+ * countdown (`deadline` / `total`). [ASSUMED] the official 投机骰子 choice is the 机变 panel (autochess_battle_effect_choose_panel,
+ * the only choose panel of the battle UI bundle), whose btn_close hides it.
+ */
+export function CommandDraft({ draft, collapsed = false, onCollapsedChange = null, deadline = null, total = null }) {
   const [busy, setBusy] = useState(false);
-  return html`<${Modal} open=${true} title=${t('更换指令')} closeOnBackdrop=${false} width="min(92vw, 48rem)">
+  if (collapsed && onCollapsedChange) {
+    return html`<${PeekPill} name=${t('更换指令')} turn=${true} deadline=${deadline} total=${total} testId="command-expand" onExpand=${() => onCollapsedChange(false)} />`;
+  }
+  return html`<${Modal} open=${true} title=${t('更换指令')} closeOnBackdrop=${false} width="min(92vw, 48rem)"
+      actions=${onCollapsedChange ? html`<${Button} size="md" icon="collapse" data-testid="command-collapse" title=${t('收起，查看战场')} onClick=${() => onCollapsedChange(true)}>${t('收起')}<//>` : null}>
     <div class="command-draft">${draft.cards.map((c, idx) => html`<div class="command-draft__card" key=${c.effectId}>
       <${RichText} as="p" text=${commandText(c)} /><p>${t('消耗 {n}', { n: c.cost })}</p>
       <${Button} disabled=${busy} onClick=${async () => { setBusy(true); await actions.commandChoice(draft.id, idx); setBusy(false); }}>${t('选择')}</${Button}>

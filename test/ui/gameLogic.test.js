@@ -800,7 +800,7 @@ describe('keyboard & settings', () => {
   test('sanitizeSettings', () => {
     assert.deepEqual(sanitizeSettings(null), { ...DEFAULT_SETTINGS });
     assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
-      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', voiceNative: false, voiceOverrides: {}, muted: false, damageNumbers: false, officialDamageNumbers: false, ammoEnergyCount: false, fullscreenWakeLock: false, bondTimers: false, planMarkMine: true, planMarkMates: true, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, deploySnap: false, textSize: 'sm', uiScale: 'auto', uiTheme: '', themeMotion: true, keys: { ...DEFAULT_SETTINGS.keys }, bgmPrep: 'official', bgmCombat: 'official' },
+      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', voiceNative: false, voiceOverrides: {}, muted: false, damageNumbers: false, officialDamageNumbers: false, ammoEnergyCount: false, fullscreenWakeLock: false, bondTimers: false, planMarkMine: true, planMarkMates: true, poolCount: true, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, deploySnap: false, textSize: 'sm', uiScale: 'auto', uiTheme: '', themeMotion: true, keys: { ...DEFAULT_SETTINGS.keys }, bgmPrep: 'official', bgmCombat: 'official' },
       'a saved profile without `keys` (before 0.2.0) gets the default key map (test/ui/feedback5-hotkeys.test.js)');
     // 主题动画 (§37.144): on by default; only `false` turns the official packs' tweens still
     assert.equal(DEFAULT_SETTINGS.themeMotion, true);

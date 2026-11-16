@@ -290,6 +290,22 @@ export class SharedItemPool {
     }
     return count;
   }
+  /** held() of every base item at once (one pass over the group's pieces): base id → copies held. */
+  heldCounts() {
+    const out = new Map();
+    const add = id => { const base = this.gd.baseIdOf(id); out.set(base, (out.get(base) || 0) + this.need(id)); };
+    const see = p => {
+      if (!p) return;
+      if (p.kind === 'item') add(p.id);
+      for (const item of p.items || []) add(item.id);
+    };
+    for (const ps of this.players()) {
+      for (const p of ps.hand) see(p);
+      for (const p of ps.temp) see(p);
+      for (const p of ps.board.values()) see(p);
+    }
+    return out;
+  }
   /** Signed cap − held. Infinity when the item has no shop cap. */
   rawLeft(id) { const cap = this.cap(id); return cap == null ? Infinity : cap - this.held(id); }
   left(id) { const raw = this.rawLeft(id); return raw === Infinity ? Infinity : Math.max(0, raw); }
@@ -337,4 +353,38 @@ export function createItemPools(gd, groups, playerOf) {
     for (const id of g.playerIds) out.set(id, pool);
   }
   return out;
+}
+
+/**
+ * 卡池剩余 (feedback #160, a fork addition: the official cards and bond dialog show no count): the copies left in the
+ * stock a seat shares with the other seats of its chess-pool group (createPoolGroups) — `chess` every base chess of the
+ * group's pool (visible, not banned; the signed deficit of an overdrawn card clamped to 0, as left() does) and `items`
+ * every shop equipment with a stock cap (SharedItemPool: cap − held, clamped). Null when nothing is shared: a group of
+ * one seat — 单人, 独立卡池 (`disableSharedPool`), a one-seat 手动指定卡池编组 group; AI seats count, they buy from the
+ * same stock. Effect-only equipment (no cap) and a player's private 自选 stock are never listed.
+ * @param {any} m the Match (poolGroups, poolFor, itemPoolFor, gd)
+ * @param {any} ps a seat of it
+ * @returns {{ chess: Record<string, number>, items: Record<string, number> } | null}
+ */
+export function poolCountsView(m, ps) {
+  const group = poolGroupOf(m, ps);
+  if (!group || group.playerIds.length < 2) return null;
+  const chess = {};
+  for (const [id, e] of m.poolFor(ps).entries) chess[id] = Math.max(0, e.left);
+  const items = {};
+  const stock = m.itemPoolFor(ps);
+  const held = stock.heldCounts();
+  for (const tier of Object.keys(m.gd.shopItemsByTier).sort()) {
+    for (const id of m.gd.shopItemsByTier[tier]) {
+      const cap = stock.cap(id);
+      if (cap != null) items[id] = Math.max(0, cap - (held.get(id) || 0));
+    }
+  }
+  return { chess, items };
+}
+
+/** The chess-pool group (createPoolGroups) a seat belongs to, or null (no groups yet, or not a seat). */
+export function poolGroupOf(m, ps) {
+  const id = typeof ps === 'string' ? ps : ps?.playerId;
+  return (Array.isArray(m?.poolGroups) && m.poolGroups.find((g) => g.playerIds.includes(id))) || null;
 }

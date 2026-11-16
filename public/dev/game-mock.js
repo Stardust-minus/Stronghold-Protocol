@@ -158,6 +158,15 @@ function refreshPrivate() {
       bonds: Object.fromEntries(act.map((b, i) => [b.bondId, { n: i ? 2 : 3, sources: [{ kind: 'bond', id: 'deputShip', n: 2 },
         ...(i ? [] : [{ kind: 'garrison', id: p.board.find((x) => x && x.kind === 'chess')?.id || 'x', n: 1 }])] }])) };
   }
+  // ?variant=pool — 卡池剩余 (feedback #160, server/match/pool.js poolCountsView): a shared pool's counts for every visible
+  // operator and shop equipment, the first shop card's at 0 (the red tab)
+  if (VARIANTS.has('pool')) {
+    const first = p.shop.slots.find((x) => x && x.kind === 'chess')?.id;
+    p.poolLeft = {
+      chess: Object.fromEntries(visibleChess().map((c, i) => [c.chessId, c.chessId === first ? 0 : 1 + (i * 7) % 24])),
+      items: Object.fromEntries(shopItems().map((it, i) => [it.id, (i * 3) % 7])),
+    };
+  }
   p.canReady = !p.personalChoice && !p.temp.some(Boolean);
   const upg = [5, 8, 11, 12, 13];
   p.shop.maxLevel = 6;

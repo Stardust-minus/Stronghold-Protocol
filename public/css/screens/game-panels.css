@@ -321,6 +321,9 @@ button.bpop__member:hover { border-color: var(--line-2); background: rgba(255, 2
 .bpop__mname { font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); color: var(--text-lo); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bpop__member.is-on .bpop__mname { color: var(--mint-400); }
 .bpop__member.is-owned .bpop__mname { color: var(--text-hi); }
+/* 卡池剩余 (feedback #160, ui/poolCount.js): the member's copies left in the shared stock on its portrait's bottom-right corner
+   (the marks above sit at the top right: ✕, 同构, 自选) */
+.bpop__member > .pooltag--member { position: absolute; z-index: 1; left: calc(50% + .3rem); top: calc(.04rem + .54rem - .17rem); transform: translateX(-75%); }
 .bpop__ban { position: absolute; top: .02rem; right: .1rem; width: .2rem; height: .2rem; display: grid; place-items: center; background: var(--red); color: #fff; border-radius: 50%; }
 .bpop__ban .icon { width: .14rem; height: .14rem; }
 /* a member through 变形同构体 (the item pairing, not the operator's own bond): a gold 同构 tag on the portrait */
@@ -458,19 +461,53 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .gm.has-spdraft .spov__inner { top: .3rem; }
 /* 收起 at the overlay's right edge (official 机密商店) and the collapsed draft's 展开 button in its place */
 /* its width is set from its parts (2 × .12rem padding, the border, 「收起」 at .15 × --t ≈ .3 × --t) so the grid can keep clear of
-   it (spov__grid--collapse): it covered the third column's edge, more with a larger 文字大小 (the owner's 悬赏决策, 2026-11-15) */
+   it (spov__grid--collapse): it covered the third column's edge, more with a larger 文字大小 (the owner's 悬赏决策, 2026-11-15).
+   --spov-cw is that width (a phone's 44 px floor below, feedback #162: it was 17 px wide on a 360×800 phone) */
+.spov, .spov-pill { --spov-cw: calc(.32 * var(--t) + .24rem + 2px); }
 .spov__collapse { position: absolute; right: -.42rem; top: 50%; transform: translateY(-50%); z-index: 2; display: flex; flex-direction: column; align-items: center;
-  box-sizing: border-box; width: calc(.32 * var(--t) + .24rem + 2px);
+  box-sizing: border-box; width: var(--spov-cw); min-height: var(--spov-cw);
   gap: .05rem; padding: .14rem .12rem; border: 1px solid rgba(255, 255, 255, .35); border-radius: .03rem; font: inherit; font-size: calc(.15 * var(--t));
   font-weight: 700; color: var(--text-hi, #fff); background: rgba(20, 24, 24, .88); cursor: pointer; }
 .spov__collapse .icon { width: calc(.26 * var(--t)); height: calc(.26 * var(--t)); }
 .spov__collapse:hover { border-color: var(--mint-400); }
+/* feedback #162: the official 机变 panel's toggle (autochess_battle_effect_choose_panel btn_close: part_close while the panel
+   is up, part_show — btn_open with its glow — while it is hidden). The local-client sprites (ui/battle btn_close 130×142,
+   btn_open 133×148) draw the square, the arrow and the glow; each is laid over the button's square by where its own square
+   sits (btn_close: 72 px at (34, 31); btn_open: 81 px at (33, 29)), and the label sits in the square's lower part as the
+   prefab's text does (y −17 in the 100 px button). Without the art (no local client) the CSS square and icon stay. */
+.spov__cart, .spov-pill__art { position: relative; display: block; flex: none; }
+.spov__cart .lsprite, .spov-pill__art .lsprite { position: absolute; max-width: none; pointer-events: none; }
+.spov__collapse.has-art { height: var(--spov-cw); padding: 0 0 calc(var(--spov-cw) * .1); gap: 0; justify-content: flex-end; border: 0; border-radius: 0; background: none; }
+.spov__collapse.has-art .spov__cart { position: absolute; inset: 0; }
+.spov__collapse.has-art .spov__cimg { left: calc(var(--spov-cw) * -34 / 72); top: calc(var(--spov-cw) * -31 / 72); width: calc(var(--spov-cw) * 130 / 72); height: calc(var(--spov-cw) * 142 / 72); }
+.spov__collapse.has-art > span:last-child { position: relative; font-size: max(calc(.13 * var(--t)), calc(var(--spov-cw) * .2)); line-height: 1.15; white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .9); }
+.spov__collapse.has-art:hover .spov__cimg, .spov__collapse.has-art:focus-visible .spov__cimg { filter: brightness(1.25) drop-shadow(0 0 .06rem rgba(23, 249, 183, .7)); }
 .spov-pill { position: absolute; right: .12rem; top: 50%; transform: translateY(-50%); z-index: 20; display: flex; flex-direction: column; align-items: center;
-  gap: .05rem; max-width: 1rem; padding: .14rem .12rem; border: 1px solid rgba(255, 255, 255, .35); border-radius: .03rem; font: inherit;
-  font-size: calc(.15 * var(--t)); color: var(--text-hi, #fff); background: rgba(20, 24, 24, .9); cursor: pointer; }
-.spov-pill .icon { width: calc(.26 * var(--t)); height: calc(.26 * var(--t)); }
-.spov-pill__name { font-size: calc(.12 * var(--t)); color: var(--text-md); text-align: center; }
-.spov-pill.is-turn { border-color: var(--mint-400); box-shadow: 0 0 .12rem rgba(23, 249, 183, .45); }
+  gap: .04rem; max-width: 1.3rem; padding: .07rem .07rem .08rem; border: 1px solid rgba(23, 249, 183, .45); border-radius: .03rem; font: inherit;
+  font-size: calc(.15 * var(--t)); color: var(--text-hi, #fff); background: rgba(8, 16, 14, .9); box-shadow: 0 0 .12rem rgba(23, 249, 183, .25); cursor: pointer; }
+.spov-pill__art { width: var(--spov-cw); height: var(--spov-cw); }
+.spov-pill__img { left: calc(var(--spov-cw) * -33 / 81); top: calc(var(--spov-cw) * -29 / 81); width: calc(var(--spov-cw) * 133 / 81); height: calc(var(--spov-cw) * 148 / 81); }
+.spov-pill__box { position: absolute; inset: 0; display: grid; place-items: start center; padding-top: calc(var(--spov-cw) * .12); box-sizing: border-box;
+  background: rgba(23, 249, 183, .55); border: 2px solid var(--mint-400); box-shadow: 0 0 .1rem rgba(23, 249, 183, .6); }
+.spov-pill__box .icon { width: calc(var(--spov-cw) * .42); height: calc(var(--spov-cw) * .42); color: #fff; }
+.spov-pill__act { position: absolute; left: 0; right: 0; bottom: calc(var(--spov-cw) * .1); text-align: center; font-size: max(calc(.13 * var(--t)), calc(var(--spov-cw) * .2));
+  line-height: 1.15; white-space: nowrap; text-shadow: 0 1px 2px rgba(0, 0, 0, .9); }
+.spov-pill__meta { display: flex; flex-direction: column; align-items: center; gap: .03rem; min-width: 0; }
+.spov-pill__name { font-size: max(calc(.12 * var(--t)), calc(10px * var(--ui))); color: var(--text-md); text-align: center; line-height: 1.25; }
+.spov-pill__armed { font-size: max(calc(.11 * var(--t)), calc(10px * var(--ui))); color: var(--mint-400); line-height: 1.25; }
+.spov-pill.is-turn { border-color: var(--mint-400); animation: spov-pill-turn 1.6s ease-in-out infinite; }
+.spov-pill:hover, .spov-pill:focus-visible { border-color: var(--mint-400); }
+@keyframes spov-pill-turn { 0%, 100% { box-shadow: 0 0 .1rem rgba(23, 249, 183, .3); } 50% { box-shadow: 0 0 .24rem rgba(23, 249, 183, .7); } }
+@media (prefers-reduced-motion: reduce) { .spov-pill.is-turn { animation: none; box-shadow: 0 0 .2rem rgba(23, 249, 183, .55); } }
+@media (max-height: 600px) and (pointer: coarse), (max-width: 767px) {
+  .spov, .spov-pill { --spov-cw: max(calc(.32 * var(--t) + .24rem + calc(2px * var(--ui))), calc(46px * var(--ui))); }
+  .spov__collapse { font-size: max(calc(.15 * var(--t)), calc(11px * var(--ui))); }
+  /* a row on phones (the art, then the name, 已选中 and the clock): the column was as tall as the space between the
+     effects column and the shop's 剩余可放置角色 line at 800×360, and covered the line */
+  .spov-pill { flex-direction: row; top: 46%; max-width: none; gap: calc(4px * var(--ui)); padding: calc(3px * var(--ui)) calc(6px * var(--ui)) calc(3px * var(--ui)) calc(3px * var(--ui)); }
+  .spov-pill__meta { align-items: flex-start; gap: calc(2px * var(--ui)); }
+}
 .spov__head { display: flex; align-items: center; justify-content: space-between; gap: .3rem; }
 /* 「悬赏决策 |」 then the description over the timing line, beside the bar; a faint bracket behind the title */
 .spov__titles { position: relative; display: grid; grid-template-columns: auto auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: .16rem; row-gap: .02rem;
@@ -538,7 +575,7 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .spov__grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: .2rem; }
 /* the part of 收起 that is not in the .42rem it hangs out (its 2 px: the borders), plus a gap — the cards and this fork's
    decision-order row (8–20 seats: it may reach the button's height) keep clear of it; --t is at least 1rem, never negative */
-.spov__grid.spov__grid--collapse, .spov__order.spov__order--collapse { margin-right: calc(.32 * var(--t) + .24rem + 2px - .42rem + .06rem); }
+.spov__grid.spov__grid--collapse, .spov__order.spov__order--collapse { margin-right: calc(var(--spov-cw) - .42rem + .06rem); }
 @media (min-height: 432px) {
   .gm.has-spdraft .spov__inner { right: 1.5rem; bottom: .62rem; }
   .gm.has-spdraft .spov__grid { gap: .46rem .6rem; padding: .14rem .1rem 0 .06rem; }

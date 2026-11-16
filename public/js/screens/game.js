@@ -103,7 +103,7 @@ import { RewardOverlay } from '../ui/rewardOverlay.js';
 import { FinalAssaultPlate, HiddenCorePlate, EndPlate, preloadBossPlateArt, bossPlateArtReady, finalPlateRows, endPlateOf } from '../ui/bossPlates.js';
 import { DownedPlate, downedDue, preloadDownedArt, downedArtReady } from '../ui/downedPlate.js';
 import { OfferOverlay, offerBlocksPrep } from '../ui/offerOverlay.js';
-import { ChoiceOverlay, spMarks } from '../ui/choiceOverlay.js';
+import { ChoiceOverlay, spMarks, usePeek } from '../ui/choiceOverlay.js';
 import { TurnPopup, preloadTurnPopupArt, turnPopupArtReady, TURN_CUE_WAIT_MS, TURN_CUE_PLATE_WAIT_MS } from '../ui/turnPopup.js';
 import { EnemyDrawer } from '../ui/enemyDrawer.js';
 import { MatchBondDialog, matchInfoModel, regulationCoreAbsent } from '../ui/matchInfo.js';
@@ -431,6 +431,13 @@ function MatchScreen() {
   const layersDisabled = phase === PHASE.UNITE || isBossPhase(phase);
   // (a concurrent 机变 draft: the cards my own equipment stock cannot give are sold out for me — m.private spBlocked)
   const sp = phase === PHASE.SP_DRAFT ? normalizeSp(pub?.sp, players, priv?.spBlocked) : null;
+  // 收起 / 展开 of the pending choices (feedback #162, ui/choiceOverlay.js usePeek): the 机变 draft (its round and family), a
+  // 教鞭 choice and 规程's 更换指令 (their ids). While one is hidden the screen is the normal prep screen — the top bar with
+  // 敌方情报 and the enemy preview, the bond strip, the shop — and the choice waits in its 展开 button, its clock running.
+  const [spHidden, setSpHidden] = usePeek(sp ? `sp|${pub?.round ?? ''}|${sp.family}|${sp.cards.length}` : null);
+  const [personalHidden, setPersonalHidden] = usePeek(personalChoice ? `pc|${personalChoice.id}` : null);
+  const commandDraft = priv?.commandDraft && !spectator ? priv.commandDraft : null;
+  const [commandHidden, setCommandHidden] = usePeek(commandDraft ? `cmd|${commandDraft.id}` : null);
   const total = phaseTotalSeconds(pub, gd.config, myId);
   // solo pause: offered in the own battle; while m.public.paused every HUD clock stops at the pause moment
   const paused = isPaused(pub);
@@ -2084,7 +2091,7 @@ function MatchScreen() {
     bonds: data.list('bonds'), chess: (id) => data.lookup('chess', id), mode: getMode(pub?.modeId),
   }) : null;
 
-  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, regView && 'gm--reg', isBossPhase(phase) && 'is-boss', pub?.playerCapacity > 4 && 'gm--expanded', drag && 'is-dragging', collapsed && 'is-collapsed', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', pen && 'is-pen', readyWhy && 'has-readywhy')}
+  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, regView && 'gm--reg', isBossPhase(phase) && 'is-boss', pub?.playerCapacity > 4 && 'gm--expanded', drag && 'is-dragging', collapsed && 'is-collapsed', ((sp && !spHidden) || (hasPersonalChoice && !personalHidden) || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && !spHidden && 'has-spdraft', (spHidden || personalHidden || commandHidden) && 'is-peek', pen && 'is-pen', readyWhy && 'has-readywhy')}
       data-camera=${pen ? 'pen' : camKind}>
     <div class="gm__field" ref=${hostRef} onContextMenu=${(e) => e.preventDefault()}></div>
     ${viewKind === 'loading' ? html`<div class="gm__loading"><${Spinner} label="LOADING FIELD" /></div>` : null}
@@ -2195,6 +2202,7 @@ function MatchScreen() {
 
       ${bondPop ? html`<${bondOpen?.from === 'info' ? MatchBondDialog : BondPopup} bondId=${bondPop.bondId} entry=${bondPop.entry} priv=${bondPop.priv} banned=${pub?.bannedChess || []} owner=${bondPop.name} ownerId=${bondPop.ownerId}
         off=${offBonds.has(bondPop.bondId)} coreAbsent=${regulationCoreAbsent(bondInfo, bondPop.bondId)} forecast=${bondPop.ownerId === myId ? ownForecast : null} morphMode=${morphMode}
+        poolCounts=${playerSettings.poolCount !== false && bondPop.ownerId === myId}
         place=${bpPlace} over=${!!resolved && bpPlace === dSide}
         onClose=${() => setBondOpen(null)} onMember=${(id, items, standInFor, diy, skinId) => {
           if (bondOpen?.from === 'info') { setBondOpen(null); setDrawer(null); }
@@ -2213,11 +2221,14 @@ function MatchScreen() {
         onRetreat=${retreatSel} onSell=${sellSel} onDestroy=${sellSel} />` : null}
     </div>
 
-    ${showPrep && priv?.commandDraft && !spectator ? html`<${CommandDraft} key=${priv.commandDraft.id} draft=${priv.commandDraft} />` : null}
+    ${showPrep && commandDraft ? html`<${CommandDraft} key=${commandDraft.id} draft=${commandDraft} collapsed=${commandHidden} onCollapsedChange=${setCommandHidden}
+      deadline=${pub?.deadline > 0 ? pub.deadline : null} total=${total} />` : null}
     ${hasOffers && !sp && !personalChoice ? html`<${OfferOverlay} pub=${pub} myId=${myId} readOnly=${spectator || !alive} onAction=${actions.offer} />` : null}
     ${sp ? html`<${ChoiceOverlay} pub=${pub} sp=${sp} myId=${myId} solo=${solo} busyIdx=${spBusy} total=${total}
+      collapsed=${spHidden} onCollapsedChange=${setSpHidden}
       onPick=${async (i) => { setSpBusy(i); await actions.choice(i); setSpBusy(null); }} />` : null}
     ${personalChoice ? html`<${ChoiceOverlay} key=${personalChoice.id} pub=${pub} sp=${personalChoice} myId=${myId} solo=${solo} personal=${true}
+      collapsed=${personalHidden} onCollapsedChange=${setPersonalHidden}
       busyIdx=${personalBusy?.choiceId === personalChoice.id ? personalBusy.idx : null} total=${total}
       onPick=${async (i) => {
         const choiceId = personalChoice.id;
