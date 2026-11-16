@@ -456,6 +456,24 @@ class AssetsTest(unittest.TestCase):
         with self.assertRaisesRegex(tool.ToolError, "non-art-json"):
             self.plan()
 
+    def test_dynamic_illustration_json_skeletons_accepted_only_at_their_paths(self):
+        # A Spine skeleton exported as JSON: a skin's dynamic illustration or an operator's own 精二 one (2026-11-16).
+        for path in ["assets/skins/char_4058_pepe_1/dynamic/dyn_illust_char_4058_pepe.json",
+                     "assets/char/dynamic/char_4058_pepe_2/dyn_illust_char_4058_pepe.json"]:
+            self.add_file(path, b"{}")
+            self.save_manifest()
+            with self.subTest(path=path):
+                entry = {e["requestPath"]: e for e in self.plan().manifest["entries"]}["/" + path]
+                self.assertEqual(entry["mime"], "application/json")
+        for path in ["assets/char/dynamic/char_4058_pepe_2/extra/x.json", "assets/char/dynamic/x.json",
+                     "assets/char/char_4058_pepe_2/x.json"]:
+            self.add_file(path, b"{}")
+            self.save_manifest()
+            with self.subTest(path=path), self.assertRaisesRegex(tool.ToolError, "non-art-json"):
+                self.plan()
+            self.manifest["files"].pop()
+            (self.source / path).unlink()
+
     def test_duplicate_path_and_unmapped_alias_refused(self):
         self.manifest["files"].append(self.manifest["files"][0].copy())
         self.save_manifest()
