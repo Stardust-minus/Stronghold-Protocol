@@ -94,6 +94,8 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     }
     await page.click('.lobby-screen [data-testid="settings-btn"]');
     await page.waitForSelector('.modal .set-list', { timeout: 5000 });
+    await page.click('[data-testid="set-tab-display"]'); // 文字大小 is on the 画面 page (the paged 设置, 2026-11-16)
+    await page.waitForSelector('[data-testid="text-size"]', { timeout: 5000 });
     await sleep(200);
 
     const small = await modalMetrics(page);
@@ -139,7 +141,7 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
       if (announcement) { await announcement.click(); await page.waitForSelector('.announcement-board', { hidden: true }); }
     }
     await page.click('.lobby-screen [data-testid="settings-btn"]');
-    await page.waitForSelector('.modal .set-list', { timeout: 5000 });
+    await page.waitForSelector('[data-testid="text-size"]', { timeout: 5000 }); // 设置 reopens on the page last open: 画面
     const again = await modalMetrics(page);
     assert.equal(again.step, '特大', 'the choice survives a reload');
     assert.equal(again.root, 40);

@@ -1085,18 +1085,6 @@
    recorded-error count in the figure face of the slider values (amber once there is one); the report box only when the
    clipboard refused it, styled like 干员调配's 导出 box (screens/loadout.css .lo-io__text) */
 .set-diag { display: flex; flex-direction: column; gap: .08rem; padding-top: .1rem; border-top: 1px solid var(--line); }
-/* 素材下载 (ui/assetSection.js): the head with its button, the two tiers, the progress and the notes */
-.set-assets { display: flex; flex-direction: column; gap: .08rem; padding-top: .1rem; border-top: 1px solid var(--line); }
-.set-seg.set-assets__tier { grid-column: auto; align-self: stretch; }
-/* two lines each: never the touch layout's fixed button height (devices.css); type no smaller than the phone hints' */
-.set-seg.set-assets__tier button { display: flex; flex-direction: column; align-items: flex-start; gap: .02rem; height: auto; padding: .08rem .12rem; text-align: left; }
-.set-assets__tier button b { font-size: max(calc(.16 * var(--t)), calc(13px * var(--ui))); }
-.set-assets__tier button small { font-size: max(calc(.12 * var(--t)), calc(11px * var(--ui))); font-weight: 400; opacity: .85; }
-.set-assets__tier button:disabled { cursor: default; }
-.set-assets__tier button:disabled:not(.is-on) { opacity: .55; }
-.set-assets .set-hint { margin-top: 0; }
-.set-assets .pbar__label, .set-assets .set-keys__note { font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); }
-.set-assets .set-hint.is-warn { color: var(--amber); }
 .set-diag__meta { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .04rem .2rem; }
 .set-diag__stat { display: inline-flex; align-items: baseline; gap: .1rem; font-size: calc(.14 * var(--t)); color: var(--text-lo); }
 .set-diag__count { font-family: var(--font-num); font-size: calc(.2 * var(--t)); line-height: 1; color: var(--mint-400); }

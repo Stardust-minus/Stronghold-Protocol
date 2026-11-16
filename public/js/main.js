@@ -68,7 +68,6 @@ import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport, useFullscreen, useScreenWakeLock } from './ui/device.js';
 import { isCombatPhase } from './ui/gameLogic/phases.js';
 import { registerImportedAssetWorker } from './assetCache.js';
-import { installAssetHints } from './ui/assetSection.js';
 import { codeSource } from './codeSource.js';
 import { LoadoutHost } from './screens/loadout.js';
 import { StatsHost, useStatsOpen } from './screens/stats.js';
@@ -597,8 +596,6 @@ async function boot() {
   // Hashed art a player imported, and — with the release's material profile (/code-source.json) — the art this page
   // fetches, kept by path across the provider's rotating signed redirects. HTTPS or localhost only; never stops boot.
   void codeSource.get().then((source) => registerImportedAssetWorker(undefined, undefined, source?.material ?? null));
-  // a slow material load suggests 设置 → 素材下载 once per session (fork: ui/assetSection.js)
-  installAssetHints();
   // A page restored from the back/forward cache has a dead socket and a stale token choice: start over.
   window.addEventListener('pageshow', (ev) => { if (ev.persisted) location.reload(); });
   // Pick this tab's reconnect token (asks other live tabs; ≤150 ms) while fonts load.

@@ -40,6 +40,8 @@ describe('异形屏适配 (headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     if (fit) await page.evaluateOnNewDocument((f) => { try { localStorage.setItem('sp.pref.screenFit', JSON.stringify(f)); } catch { /* ignore */ } }, fit);
+    // 异形屏适配 is on 设置's 画面 page (the paged 设置, 2026-11-16): the mock's gear reopens the page last open
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sp.pref.settingsPage', JSON.stringify('display')); } catch { /* ignore */ } });
     await skipEntryFilm(page);
     await page.goto(`${base}/dev/game-mock.html?shot=1&${query}`, { waitUntil: 'networkidle0', timeout: 60000 });
     return { page, problems };

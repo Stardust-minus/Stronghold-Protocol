@@ -126,8 +126,7 @@ redirects/signatures or holds an account token. A frontend-only change cannot fo
 
 Each attempt has 8 s (`MATERIAL_TIMEOUT_MS`) for a first sign of life, an `<img>` (no progress events) 15 s; a load
 that keeps receiving bytes may go on until 20 s pass without one or 120 s in all. When both sources fail transiently
-(a timeout, a network error, 408/425/429/5xx — never a 404) the pair is tried again after about 2 s and 6 s; a timeout
-also suggests 设置 → 素材下载 once per session. Network/CORS, HTTP errors, stalled bodies and decode/parse failures
+(a timeout, a network error, 408/425/429/5xx — never a 404) the pair is tried again after about 2 s and 6 s; Network/CORS, HTTP errors, stalled bodies and decode/parse failures
 are handled inside the attempt. Caller cancellation never retries; explicit OpenI requests cannot recurse. Missing
 OpenI resources retain the existing glyph/optional-art/silent-audio behavior. DOM images use `ui/materialImage.js`;
 offscreen lazy images do not start their timeout until visible. New URLs and unmounted components cannot inherit
@@ -1063,17 +1062,14 @@ warning (docs/EXPERIMENTAL-MULTIPLAYER.md), so they never ship with the normal p
 
 ## Player-initiated predownload
 
-设置 → **素材下载** (`public/js/ui/assetSection.js`, queue in `public/js/assetDownload.js`; this fork has no title
-screen, so upstream's 下载资源管理 — `public/js/ui/resourceManager.js` with its 干员语音, 下载素材
-(`public/js/ui/assetDownload.js`), 导入素材包 and 检查资源 sections — is not mounted) downloads the unique art/font
+Not offered in this fork: 设置 → 素材下载 (2026-10-17) was removed on 2026-11-16 (the owner), and as there is no title
+screen, upstream's 下载资源管理 — `public/js/ui/resourceManager.js` with its 干员语音, 下载素材
+(`public/js/ui/assetDownload.js`), 导入素材包 and 检查资源 sections — is not mounted either; the art loads when a screen
+needs it. What follows describes upstream's queue (`public/js/assetDownload.js`). It downloads the unique art/font
 URLs in the server's current `assets.json` and optional `local-assets.json` / `local-fx.json`, including Spine
-skeletons, atlases, pages, scene files, and audio — models and images first. Two tiers (`selectAssetTier`):
-**对局素材** leaves out the outfits (`/assets/skins/`, each fetched when worn) and the dubs this player does not hear
-(the Chinese lines, the selected dub and, with 本土语言 on, the own-language lines stay); **全部素材** takes everything.
-The sizes shown (`ASSET_TIER_GB`: about 0.8 / 2.6 GB) are the 0.3.0 material set's. Audio uses the same `/media/`
-URLs as playback. Four concurrent requests consume complete response bodies without decoding them or retaining all
-files in memory. The queue goes on while the settings are closed, pauses itself when a match starts and goes on in the
-lobby or a room.
+skeletons, atlases, pages, scene files, and audio — models and images first. Audio uses the same `/media/` URLs as
+playback. Four concurrent requests consume complete response bodies without decoding them or retaining all files in
+memory.
 In a secure context (HTTPS or localhost) each complete body of a content-hashed URL is also kept in the import cache
 (Cache Storage `sp-imported-assets-v1`, `assetCache.js openDownloadStore`) and added to its index, so `public/sw.js`
 answers it from there and a later check counts it ready without a request (upstream GitHub #725: Chrome keeps at most

@@ -62,10 +62,18 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
     await page.waitForSelector('.modal', { timeout: 5000 });
     const text = await modalText(page);
     assert.match(text, /设置/);
-    assert.match(text, /背景音乐/);
-    assert.match(text, /快捷键/);
+    // the paged 设置 (2026-11-16): a tab per page, one page shown; 背景音乐 is on 声音, 快捷键 on 操作
+    const tabs = await page.$$eval('.modal [role="tab"]', (els) => els.map((e) => e.dataset.page));
+    assert.deepEqual(tabs, ['game', 'display', 'audio', 'language', 'controls', 'theme', 'plugins', 'other']);
+    let optionLabels = '';
+    for (const id of tabs) {
+      await page.click(`[data-testid="set-tab-${id}"]`);
+      await page.waitForSelector(`.modal .set-page[data-page="${id}"]`);
+      optionLabels += ` ${await page.$$eval('.modal .set-row__label', (nodes) => nodes.map((n) => n.textContent).join(' '))}`;
+      if (id === 'audio') assert.match(await modalText(page), /背景音乐/);
+      if (id === 'controls') assert.match(await modalText(page), /快捷键/);
+    }
     // The text-size hint mentions the unchanged board scale; the declined options concern controls, not help copy.
-    const optionLabels = await page.$$eval('.modal .set-row__label', (nodes) => nodes.map((n) => n.textContent).join(' '));
     assert.doesNotMatch(optionLabels, /棋盘/, 'no board-style option (declined)');
     assert.doesNotMatch(optionLabels, /后台/, 'no background-music option (declined)');
     await page.keyboard.press('Escape');
@@ -87,7 +95,9 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
     assert.ok(await settingsBeforeGuide(page, '.room-screen .rs-tools', 'room-guide'), '设置 sits right before 玩法说明 in the room\'s top bar');
     await page.click('.room-screen [data-testid="settings-btn"]');
     await page.waitForSelector('.modal', { timeout: 5000 });
-    assert.match(await modalText(page), /背景音乐/);
+    // the same modal, back on the page last open in the lobby (其他)
+    assert.ok(await page.$('.modal .set-page[data-page="other"]'), 'reopens on the page last open');
+    assert.match(await modalText(page), /问题反馈/);
     // #888: seat controls must stay below both the settings box and its backdrop.
     for (const [width, height] of [[1600, 900], [1280, 720]]) {
       await page.setViewport({ width, height });

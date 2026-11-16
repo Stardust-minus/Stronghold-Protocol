@@ -65,8 +65,8 @@ function buildStoredZip(files) {
   return out;
 }
 
-// Not in this fork (the v0.4.0 merge, 2026-11-15): this fork opens on the lobby (2d4cd59a, no title screen): no title-page resource manager or 导入素材包 — the download is 设置 → 素材下载 (ui/assetSection.js, test/ui/asset-section.test.js), a different flow.
-const FORK_SKIP = 'this fork opens on the lobby (2d4cd59a, no title screen): no title-page resource manager or 导入素材包 — the download is 设置 → 素材下载 (ui/assetSection.js, test/ui/asset-section.test.js), a different flow';
+// Not in this fork (the v0.4.0 merge, 2026-11-15): this fork opens on the lobby (2d4cd59a, no title screen): no title-page resource manager or 导入素材包 — and no art download ahead at all (设置 → 素材下载 was removed on 2026-11-16, the owner).
+const FORK_SKIP = 'this fork opens on the lobby (2d4cd59a, no title screen): no title-page resource manager or 导入素材包 — and no art download ahead at all (设置 → 素材下载 was removed on 2026-11-16, the owner)';
 
 test('import has its own dialog that requests nothing on opening; imported art is not fetched again; plain HTTP explains why import is off', {
   skip: FORK_SKIP || process.env.SP_E2E !== '1' || !hasChrome(), timeout: 90000,

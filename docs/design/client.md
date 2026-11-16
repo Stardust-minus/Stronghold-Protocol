@@ -520,9 +520,9 @@ Audio: autochess BGM per phase — 休整期 and 作战 the player's own pick fr
 
 ## 13. Local-client art (optional, host-side)
 
-Asset download (downstream request, 2026-10-14, PR #628; in this fork 设置 → **素材下载**, `ui/assetSection.js`, as there
-is no title screen — upstream's 下载资源管理, `ui/resourceManager.js`, is not mounted) explicitly predownloads the
-server's manifest-listed models, textures, audio and optional local art in two tiers (对局素材 / 全部素材) — in a
+Asset download (downstream request, 2026-10-14, PR #628; not offered in this fork: its 设置 → 素材下载 was removed on
+2026-11-16, and upstream's 下载资源管理, `ui/resourceManager.js`, is not mounted as there is no title screen) explicitly
+predownloads the server's manifest-listed models, textures, audio and optional local art — in a
 secure context also into the import's Cache Storage for content-hashed URLs (served by `public/sw.js`, counted ready
 by later checks; GitHub #725: the HTTP cache is too small for a whole art set), and through the material profile's
 cache where that service worker runs, else into the browser's HTTP cache, with a note that a reload may download
