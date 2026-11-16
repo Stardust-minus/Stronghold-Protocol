@@ -296,5 +296,5 @@ test('§21.26 docs: DESIGN (the subsection and the normative lines), META, PLAYI
   assert.match(v011, /盟约详情写明「含调和 \+1」/);
   assert.match(v011, /人机不再选择围绕本局禁用盟约的策略（标准模拟下的潘格尼尼、克莱门莎、玛恩纳）/);
   assert.match(v011, /选择策略时，围绕本局禁用盟约的策略（标准模拟下的潘格尼尼、克莱门莎、玛恩纳）标出「本局禁用」并在详情里说明，仍可选择/);
-  assert.match(META, /The strategy draft marks the same bands for humans \(still selectable\): 「<bond>盟约禁用」 on the card/);
+  assert.match(META, /The strategy draft marks the same bands for humans \(still selectable\): the client's red corner mark since 2026-11-16 \(§36\.25\), 「<bond>盟约禁用」 from rel34/);
 });

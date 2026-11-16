@@ -194,12 +194,21 @@ export function cornerOffset(pack) {
   const ready = pack?.doc?.prefabs?.panel_prep_ready;
   if (!cd || !ready) return null;
   const skip = (n) => !!n.fx;
-  const a = layoutPrefab(cd, { skip, pose: buildPose(pack, cd, { status: countdownStatus({ remain: 1, ready: false }), hide: CD_HIDE }) }).bounds;
+  const la = layoutPrefab(cd, { skip, pose: buildPose(pack, cd, { status: countdownStatus({ remain: 1, ready: false }), hide: CD_HIDE }) });
   let on = null;
   for (const s of ready.scripts || []) if (s?.anims?._animationLocation?.on != null) on = s.anims._animationLocation.on;
-  const b = layoutPrefab(ready, { skip, pose: buildPose(pack, ready, { poses: [{ on, clip: 'btn_ready_switch', at: 'start' }] }) }).bounds;
+  const lb = layoutPrefab(ready, { skip, pose: buildPose(pack, ready, { poses: [{ on, clip: 'btn_ready_switch', at: 'start' }] }) });
+  // PrefabView draws a sized root's own box and a zero-size root's drawn bounds (view.js); both hang from the holder's
+  // top-right corner, which is the root's own top-right corner (a zero-size root: the point itself). 卫戍协议终端's countdown
+  // root is sized (180×100, anchored top right) and its glows reach far past it: its bounds put the button 2 rem low.
+  const frame = (l) => (l.box.w > 0 && l.box.h > 0 ? l.box : l.bounds);
+  const corner = (l) => ({ x: l.box.left + l.box.w, y: l.box.top });
+  const a = frame(la);
+  const b = frame(lb);
+  const ca = corner(la);
+  const cb = corner(lb);
   const rem = (u) => `${Number(((u * OFFICIAL_SCALE) / 100).toFixed(4))}rem`;
-  return { x: rem(b.left - a.left), y: rem(b.top - a.top) };
+  return { x: rem((b.left - cb.x) - (a.left - ca.x)), y: rem((b.top - cb.y) - (a.top - ca.y)) };
 }
 
 /**
@@ -213,6 +222,48 @@ export function RegDeadlineCountdown({ pack, deadline = null, total = null, stil
   return html`<div class="pfclock" role="timer" aria-label=${t('剩余{remain}秒', { remain })}>
     <${RegCountdown} pack=${pack} remain=${remain} total=${total} still=${still} prefabKey=${prefabKey} />
   </div>`;
+}
+
+/**
+ * The plate under the 已就绪 n/m line: the pack's ready-panel player strip (panel_prep_ready … panel_player/bg: a dark bar
+ * fading out at both ends — 卫戍协议终端's 69×41 three-slice, 乌萨斯齐心团's 163×41, 可露希尔's 163×40), the official
+ * backing of the seat list under the ready button. Its caps at half the official size, as the line is about half the strip's
+ * height. Null without one (the hand-made line keeps the CSS plate, game.css .readywrap__count).
+ * @param {any} pack
+ * @returns {Record<string, string> | null}
+ */
+export function readyCountPlate(pack) {
+  if (!pack || typeof pack !== 'object') return null;
+  if (plateCache.has(pack)) return plateCache.get(pack) ?? null;
+  const plate = countPlateOf(pack);
+  plateCache.set(pack, plate);
+  return plate;
+}
+const plateCache = new WeakMap();
+
+/** @param {any} pack */
+function countPlateOf(pack) {
+  const prefab = pack?.doc?.prefabs?.panel_prep_ready;
+  const find = (n, name) => {
+    if (!n) return null;
+    if (n.name === name) return n;
+    for (const c of n.children || []) {
+      const hit = find(c, name);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const strip = find(prefab, 'panel_player');
+  const bg = (strip?.children || []).find((c) => c?.name === 'bg' && c.image?.sprite);
+  const url = bg && typeof pack.sprite === 'function' ? pack.sprite(bg.image.sprite, bg.image.file) : '';
+  if (!url) return null;
+  const slice = bg.image.type === 'sliced' && Array.isArray(bg.image.slice) && bg.image.slice.length === 4 ? bg.image.slice.map((v) => Math.max(0, Number(v) || 0)) : [0, 0, 0, 0];
+  const cap = (v) => `${Number(((v * OFFICIAL_SCALE) / 200).toFixed(4))}rem`;
+  return {
+    '--rc-plate': `url("${url}")`,
+    '--rc-slice': slice.join(' '),
+    '--rc-cap': `0 ${cap(slice[1])} 0 ${cap(slice[3])}`,
+  };
 }
 
 /** Whether a pack draws these pieces. @param {any} pack */

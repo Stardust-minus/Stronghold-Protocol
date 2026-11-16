@@ -55,13 +55,19 @@ test('the other event screens at a big 文字大小: 成就统计\'s banner, the
   assert.match(block(brief, '@media (max-height: 640px) {'), /:root\[data-text="xl"\] \.stephead__micro \{ display: none; \}/);
   assert.match(readFileSync(path.join(ROOT, 'public/js/ui/matchEnemies.js'), 'utf8'), /<b>\$\{slashBreaks\(name\)\}<\/b>/);
   const draft = block(css('public/css/screens/draft.css'), '@media (max-height: 520px) {');
-  assert.match(draft, /\.dband__taken \{ white-space: nowrap;[^}]*font-size: min\(calc\(\.21 \* var\(--t\)\), calc\(12px \+ var\(--t-step\) \/ 2\)\); \}/);
-  assert.match(draft, /\.dband__name \{[^}]*text-wrap: balance;[^}]*-webkit-line-clamp: 2;/);
+  // 2026-11-16 (the owner: 「不要出现省略号」): 已被选择 and a strategy's name are sized off the tile (--dtile, no container query) at every height —
+  // 已被选择 on one line, the name wrapping, balanced, never clamped or cut with an ellipsis
+  const draftBase = css('public/css/screens/draft.css');
+  assert.match(draftBase, /\n\.dband__taken \{[^}]*font-size: max\(9px, min\(calc\(\.21 \* var\(--t\)\), calc\(var\(--dtile, 1\.9rem\) \* \.17\)\)\);[^}]*white-space: nowrap;/);
+  assert.match(draftBase, /\n\.dband__name \{[^}]*white-space: normal; text-wrap: balance; overflow-wrap: anywhere;[^}]*font-size: max\(9px, calc\(var\(--dname-k, 1\) \* var\(--dtile, 1\.9rem\) \* \.145\)\);/);
+  assert.doesNotMatch(draftBase, /line-clamp/);
+  for (const rule of draftBase.match(/\n\.dband[^{]*\{[^}]*\}/g)) assert.doesNotMatch(rule, /ellipsis/, `no ellipsis on a strategy card: ${rule.slice(0, 60)}`);
   assert.match(draft, /\.draft\.has-status \.stephead__name \{ display: none; \}/);
   assert.match(draft, /\.draft-skip \{[^}]*white-space: nowrap;/);
-  // the review: Japanese names by the line-breaking rules, Korean names on one line; the header's status wraps beside 2/2
-  assert.match(draft, /\.dband__name:lang\(ja\) \{ line-break: strict; \}/);
-  assert.match(draft, /\.dband__name:lang\(ko\) \{ display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; \}/);
+  // the review: Japanese names by the line-breaking rules; Korean names break between words (no longer one line with an
+  // ellipsis, 2026-11-16); the header's status wraps beside 2/2
+  assert.match(draftBase, /\.dband__name:lang\(ja\) \{ line-break: strict; \}/);
+  assert.match(draftBase, /\.dband__name:lang\(ko\) \{ word-break: keep-all; \}/);
   const draftAll = css('public/css/screens/draft.css');
   assert.match(draftAll, /\.draft \.stephead__right \{ flex: 1 1 0;/);
   assert.match(draftAll, /\.draft \.dturn__go b \{ white-space: normal; text-wrap: balance;/);

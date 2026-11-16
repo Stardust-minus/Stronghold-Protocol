@@ -97,6 +97,50 @@ html[data-sp-slot~="img_check_enemy"] .enemybtn {
 /* the theme's own picture at its own aspect (uiTheme.js ASPECT_SLOTS measures it): same height, the width follows */
 html[data-sp-slot~="img_check_player"] .gtop__iconbtn.has-sprite { width: auto; aspect-ratio: var(--sp-ar-img_check_player, 35 / 29); }
 html[data-sp-slot~="img_check_enemy"] .enemybtn.has-sprite { width: auto; aspect-ratio: var(--sp-ar-img_check_enemy, 35 / 29); }
+/* …and the picture is the whole button: its own magnifier and ▶▶ (all three packs). Without the local battle sprites
+   (ui/hud.js CheckBtn: no `has-sprite`) our CSS look-alike — frame, 🔍 icon, ▶▶ — was drawn over it, a second icon in a
+   box; game.css's hover (the `background` shorthand at a higher weight) wiped the picture off the enemy button. */
+html[data-sp-slot~="img_check_player"] .gtop__iconbtn:not(.has-sprite),
+html[data-sp-slot~="img_check_enemy"] .enemybtn:not(.has-sprite) {
+  min-width: 0; padding: 0; border-color: transparent; border-radius: 0; box-shadow: none; background-color: transparent;
+}
+html[data-sp-slot~="img_check_player"] .gtop__iconbtn:not(.has-sprite) { width: auto; aspect-ratio: var(--sp-ar-img_check_player, 82 / 45); }
+html[data-sp-slot~="img_check_enemy"] .enemybtn:not(.has-sprite) { width: auto; aspect-ratio: var(--sp-ar-img_check_enemy, 82 / 45); }
+html[data-sp-slot~="img_check_player"] .gtop__iconbtn:not(.has-sprite) > *,
+html[data-sp-slot~="img_check_enemy"] .enemybtn:not(.has-sprite) > * { visibility: hidden; }
+html[data-sp-slot~="img_check_player"] .gtop__iconbtn:is(:hover, .is-on) {
+  background-image: var(--sp-img-img_check_player); background-size: 100% 100%; background-repeat: no-repeat;
+  background-color: transparent; filter: brightness(1.15);
+}
+html[data-sp-slot~="img_check_enemy"] .enemybtn:hover:not(.is-grey) {
+  background-image: var(--sp-img-img_check_enemy); background-size: 100% 100%; background-repeat: no-repeat;
+  background-color: transparent; box-shadow: none; filter: brightness(1.15);
+}
+html[data-sp-slot~="img_check_enemy"] .enemybtn.is-grey { background-color: transparent; filter: grayscale(1) brightness(.75); }
+/* 卫戍协议终端's pictures carry their own bracket frame ([🔍], [🔍▶▶]): the bar's bracket frames around them drew a second pair */
+html[data-sp-slot~="img_check_player"] .gtop__frame--l::before, html[data-sp-slot~="img_check_player"] .gtop__frame--l::after,
+html[data-sp-slot~="img_check_enemy"] .gtop__frame--r::before, html[data-sp-slot~="img_check_enemy"] .gtop__frame--r::after { display: none; }
+/* The official packs' buttons at their own size: each pack's RectTransform (themes/<id>/layout.json img_check_*: 73×41 in
+   卫戍协议终端 and 乌萨斯齐心团, 100×68 / 88×56 in 可露希尔), one prefab unit .0144rem, as the bar's band — the hand-made
+   .46rem box drew them at 60–80 % (the owner 2026-11-16). Their frames grow with them and the band stays centred between
+   them; on a phone the tap floor below (26 px) keeps the pack's proportions. A custom theme keeps the .46rem box. */
+html[data-sp-theme="ac_n_initial"][data-sp-slot~="img_check_player"] .gtop__iconbtn,
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="img_check_player"] .gtop__iconbtn,
+html[data-sp-theme="ac_n_initial"][data-sp-slot~="img_check_enemy"] .enemybtn,
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="img_check_enemy"] .enemybtn { --chk-w: 73; --chk-h: 41; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="img_check_player"] .gtop__iconbtn { --chk-w: 100; --chk-h: 68; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="img_check_enemy"] .enemybtn { --chk-w: 88; --chk-h: 56; }
+html:is([data-sp-theme="ac_n_initial"], [data-sp-theme="ac_n_iron"], [data-sp-theme="ac_s_closur"])[data-sp-slot~="img_check_player"] .gtop .gtop__iconbtn,
+html:is([data-sp-theme="ac_n_initial"], [data-sp-theme="ac_n_iron"], [data-sp-theme="ac_s_closur"])[data-sp-slot~="img_check_enemy"] .gtop .enemybtn {
+  width: auto; min-width: 0; height: calc(var(--chk-h) * .0144rem); aspect-ratio: var(--chk-w) / var(--chk-h);
+}
+html[data-sp-slot~="img_check_player"] .gtop__frame--l, html[data-sp-slot~="img_check_enemy"] .gtop__frame--r { height: auto; min-height: .64rem; }
+@media (max-height: 600px) and (pointer: coarse), (max-height: 600px) and (any-pointer: coarse) {
+  html:is([data-sp-theme="ac_n_initial"], [data-sp-theme="ac_n_iron"], [data-sp-theme="ac_s_closur"])[data-sp-slot~="img_check_player"] .gtop .gtop__iconbtn,
+  html:is([data-sp-theme="ac_n_initial"], [data-sp-theme="ac_n_iron"], [data-sp-theme="ac_s_closur"])[data-sp-slot~="img_check_enemy"] .gtop .enemybtn {
+    height: max(calc(var(--chk-h) * .0144rem), calc(26px * var(--ui)));
+  }
+}
 /* the countdown plates keep their aspect: a box about 1.4 : 1 squeezed 卫戍协议终端's 216×87 plate (its STRONGHOLD PROTOCOL
    type) and 乌萨斯齐心团's 694×134 wedge (§37.204) */
 html[data-sp-slot~="countdown"] .gtop__right .countdown {
@@ -199,19 +243,33 @@ html[data-sp-slot~="detail_panel"] .dpanel {
   background-image: var(--sp-img-detail_panel);
   background-size: 100% 100%; background-repeat: no-repeat;
 }
+/* (a colour is not an <image>: `rgba()` as the second layer made the whole declaration invalid and dropped the picture) */
 html[data-sp-slot~="prep_ready"]:not([data-sp-slice~="prep_ready"]) .readybtn:not(.readybtn--pf) {
-  background-image: var(--sp-img-prep_ready), rgba(10, 14, 12, .9);
+  background-image: var(--sp-img-prep_ready), linear-gradient(rgba(10, 14, 12, .9), rgba(10, 14, 12, .9));
   background-size: 100% 100%, auto; background-repeat: no-repeat;
 }
 
-/* 9-slice. No fill keyword: the centre stays the element's own background. */
+/* 9-slice, its centre filled from the picture: 卫戍协议终端's ready_bg is a solid plate (48×49, 23-unit slices, a teal centre).
+   Without `fill` the centre showed the button's dark background — a black band across 准备就绪 wherever the button is
+   taller than its two slices (1920×1080 and up). The filled plate is a frame on ::before as the other sliced boxes' (§37.204:
+   only a ::before frame fills), behind the label, reaching out over the button's transparent border (border-image-outset).
+   (卫戍协议终端 itself draws its pack's panel_prep_ready since the 2026-11-16 overhaul: this is a pack without prefabs.json, or
+   a custom theme.) */
 html[data-sp-slice~="prep_ready"] .readybtn:not(.readybtn--pf) {
-  border-style: solid;
-  border-width: var(--sp-slice-px-prep_ready);
+  position: relative; isolation: isolate;
+  border-style: solid; border-width: var(--sp-slice-px-prep_ready); border-color: transparent;
+  background: transparent; box-shadow: none;
+}
+html[data-sp-slice~="prep_ready"] .readybtn:not(.readybtn--pf)::before {
+  content: ''; position: absolute; inset: 0; width: auto; height: auto; transform: none; z-index: -1; pointer-events: none;
+  border: 0 solid transparent;
   border-image-source: var(--sp-img-prep_ready);
-  border-image-slice: var(--sp-slice-prep_ready);
+  border-image-slice: var(--sp-slice-prep_ready) fill;
+  border-image-width: var(--sp-slice-px-prep_ready);
+  border-image-outset: var(--sp-slice-px-prep_ready);
   border-image-repeat: stretch;
 }
+html[data-sp-slice~="prep_ready"] .readybtn:not(.readybtn--pf):hover:not(:disabled) { background: transparent; filter: brightness(1.08); }
 html[data-sp-slice~="chess_frame_normal"] .scard.scard--t1,
 html[data-sp-slice~="chess_frame_normal"] .scard.scard--t2,
 html[data-sp-slice~="chess_frame_normal"] .scard.scard--t3,
@@ -483,6 +541,15 @@ html[data-sp-slot~="chess_frame_level_five"] .scard.scard--reg.scard--t5 {
 html[data-sp-slot~="chess_frame_level_six"] .scard.scard--reg.scard--t6 {
   background-image: var(--sp-img-chess_frame_level_six), var(--scard-under, linear-gradient(180deg, #1a2422, #101614));
 }
+/* The portrait stays inside the face sprite's opaque part (game-reghud.css .scard__artbox): 乌萨斯齐心团's face (174×200)
+   leaves 1 % at the top and 6.9 % on the right transparent; 可露希尔's (164×212) 3 % on the right, and its top edge right
+   of the folder tab is 13 / 15 units down (6.1 % / 7.1 % for tiers 5–6). */
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_frame_normal"] .scard.scard--reg:is(.scard--t1, .scard--t2, .scard--t3, .scard--t4),
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_frame_level_five"] .scard.scard--reg.scard--t5,
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_frame_level_six"] .scard.scard--reg.scard--t6 { --art-clip-t: 1%; --art-clip-r: 6.9%; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_frame_normal"] .scard.scard--reg:is(.scard--t1, .scard--t2, .scard--t3, .scard--t4) { --art-clip-t: 6.1%; --art-clip-r: 3%; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_frame_level_five"] .scard.scard--reg.scard--t5,
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_frame_level_six"] .scard.scard--reg.scard--t6 { --art-clip-t: 7.1%; --art-clip-r: 3%; }
 /* 盟约 cards with those two face sprites: the face full-bleed under the card's art and text as well. The hollow slice above
    cut an 8 px ring out of a face (no Unity border) and read as stray strips off the card (the owner, 2026-11-14
    「新的主题在盟约版本用有bug」, §37.205); ac_n_initial keeps its hollow frame. The card's own dark face layer steps aside;
@@ -564,6 +631,10 @@ html[data-sp-slot~="shop_frozen_lock"] .shopbar--reg .toolbtn--ice:disabled {
   background-color: transparent; background-image: var(--sp-img-shop_frozen_lock);
   background-size: 100% 100%; background-repeat: no-repeat;
 }
+/* hovered, the plate keeps no colour box behind it (game-reghud.css's hover colours are for the CSS plates) */
+html[data-sp-slot~="shop_refresh"] .shopbar--reg .toolbtn--amber:hover:not(:disabled),
+html[data-sp-slot~="shop_frozen"] .shopbar--reg .toolbtn--ice:not(.is-on):hover:not(:disabled),
+html[data-sp-slot~="shop_frozen_on"] .shopbar--reg .toolbtn--ice.is-on:hover:not(:disabled) { background-color: transparent; }
 html[data-sp-slot~="shop_money"] .shopbar--reg .funds__badge {
   background-image: var(--sp-img-shop_money);
   background-size: 100% 100%; background-repeat: no-repeat;

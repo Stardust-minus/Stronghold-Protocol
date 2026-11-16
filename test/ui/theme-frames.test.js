@@ -171,7 +171,7 @@ test('the 规程 look in 盟约 too (§37.206): a 规程 version, or 乌萨斯�
   const game = read('public/js/screens/game.js');
   assert.match(game, /const regView = regLook\(data\.get\('config'\), data\.get\('local'\)\?\.groups, playerSettings\.uiTheme\);/);
   assert.match(game, /regView && 'gm--reg'/);
-  assert.equal((game.match(/panelSlots\(vp, rem, \{ shopOpen, reg: regView \}\)/g) || []).length, 2);
+  assert.equal((game.match(/panelSlots\(vp, rem, \{ shopOpen, reg: regView, corner \}\)/g) || []).length, 2);
   for (const f of ['public/js/ui/hud.js', 'public/js/ui/choiceOverlay.js']) {
     const src = read(f);
     assert.match(src, /const pack = usePrefabPack\(data\.get\('local'\)\?\.groups, settings\?\.uiTheme\);/, f);

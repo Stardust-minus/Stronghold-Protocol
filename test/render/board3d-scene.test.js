@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
-import { BoardScene, sceneGroupVisible, LIGHTING } from '../../public/js/render/board3d/scene.js';
+import { BoardScene, sceneGroupVisible, LIGHTING, sceneBackdropPlan, planarUvFit, SCENE_BACKDROP_FRAME } from '../../public/js/render/board3d/scene.js';
 import { parseObj } from '../../public/js/render/board3d/obj.js';
 import { TILE_H } from '../../public/js/render/style.js';
 import { AREAS } from '../../public/js/render/board3d/layout.js';
@@ -1068,6 +1068,56 @@ describe('BoardScene with an official scene (stub renderer)', () => {
     assert.equal(board.sceneRes.size, 1);
     board.destroy();
     assert.equal(board.sceneRes.size, 0, 'scene resources disposed');
+  });
+
+  test('a scene without a backdrop gets one under it: its unused picture, its untextured land, or its background sheet tiled (2026-11-16 黑色缺损)', () => {
+    const quad = (material, x0, y0, z = 0, group = '') => ({ material, group, bounds: [x0, y0, z, x0 + 1, y0 + 1, z] });
+    const mats = {
+      M: { kind: 'lit', map: 'TX_A' },
+      MT_metro_BG: { kind: 'lit', shader: 'Torappu/Scene/Unlit Texture', map: 'TX_BG' },
+      MT_LAND: { kind: 'lit', shader: null, colors: { _Color: [0.78, 0.86, 0.95, 1] } },
+      MT_sand2: { kind: 'lit', map: 'TX_Sand_background_A' },
+    };
+    // act2 m01 keeps its own 80-tile square: nothing added
+    assert.equal(sceneBackdropPlan({ materials: mats }, [quad('M', 0, 0), { material: 'MT_metro_BG', group: '', bounds: [-27.55, -29.94, -2.26, 52.09, 49.7, -2.26] }]), null);
+    // act3 m05: the unused …_BG picture on the act2 m01 square, at the base's lowest point when that is lower
+    const pic = sceneBackdropPlan({ materials: mats }, [quad('M', 0, 0, -0.8), quad('M', 3, 3, -4, 'HIDDEN@1')]);
+    assert.deepEqual([pic.kind, pic.material, pic.map, pic.z], ['picture', 'MT_metro_BG', 'TX_BG', SCENE_BACKDROP_FRAME.z]);
+    assert.equal(+sceneBackdropPlan({ materials: mats }, [quad('M', 0, 0, -10.6)]).z.toFixed(3), -10.7);
+    // act3 m09: no picture, an untextured land colour
+    const { MT_metro_BG: _bg, ...noPic } = mats;
+    const land = sceneBackdropPlan({ materials: noPic }, [quad('M', 0, 0, -2)]);
+    assert.deepEqual([land.kind, land.material, land.map, +land.z.toFixed(3)], ['colour', 'MT_LAND', null, -2.1]);
+    // the sand maps: the base's background sheet, tiled
+    const { MT_LAND: _land, ...sheetOnly } = noPic;
+    const sheet = sceneBackdropPlan({ materials: sheetOnly }, [quad('M', 0, 0), { material: 'MT_sand2', group: '', bounds: [-11.9, -11, -3.9, 32.6, 37.5, 1.1] }]);
+    assert.deepEqual([sheet.kind, sheet.material, +sheet.z.toFixed(3)], ['sheet', 'MT_sand2', -3.95]);
+    assert.equal(sceneBackdropPlan({ materials: { M: mats.M } }, [quad('M', 0, 0)]), null, 'nothing fits: no backdrop');
+    // the sheet's texel density carries over (u = 0.134 x − 0.9, v = 0.1 y − 1.2, a little noise)
+    const pts = [[0, 0], [10, 0], [0, 10], [10, 10], [5, 3]];
+    const fit = planarUvFit({ position: pts.flatMap(([x, y]) => [x, y, 0]), uv: pts.flatMap(([x, y], i) => [0.134 * x - 0.9 + (i === 4 ? 0.01 : 0), 0.1 * y - 1.2]) });
+    assert.ok(Math.abs(fit.u[0] - 0.134) < 0.002 && Math.abs(fit.v[1] - 0.1) < 0.002 && fit.rms < 0.01, JSON.stringify(fit));
+    assert.equal(planarUvFit({ position: [0, 0, 0, 1, 0, 0], uv: [0, 0, 1, 0] }), null, 'too few points');
+
+    // the board draws it as meshes.backdrop, under the scene, with the act2 m01 square's UV
+    const { doc, bin } = fakeScene(PARTS);
+    doc.materials.MT_x_BG = { shader: 'Torappu/Scene/Unlit Texture', keywords: [], colors: {}, floats: {}, textures: {}, kind: 'lit', map: 'TX_BG' };
+    const chunks = parseSceneChunks(doc, bin);
+    const img = { width: 4, height: 4 };
+    const board = new BoardScene(THREE, fakePack(), { renderer: stubRenderer() });
+    board.setScenePack(stage.id, { key: 'backdrop', stage: stage.id, doc, chunks, groups: sceneGroupRects(chunks), images: { tex: { TX_A: img, TX_BG: img }, lm: [img] } });
+    board.setStage(stage);
+    const bd = board.meshes.backdrop;
+    assert.ok(bd, Object.keys(board.meshes).join());
+    assert.ok(!sceneMeshes(board).includes(bd), 'not counted as a scene part');
+    const pos = bd.geometry.getAttribute('position').array;
+    assert.deepEqual([pos[0], pos[1], pos[2]], [SCENE_BACKDROP_FRAME.x0, SCENE_BACKDROP_FRAME.y0, SCENE_BACKDROP_FRAME.z].map((v) => Math.fround(v)));
+    assert.deepEqual([...bd.geometry.getAttribute('uv').array].map((v) => +v.toFixed(3)), [1, 0, 1, 1, 0, 1, 0, 0]);
+    assert.ok(bd.renderOrder < Math.min(...sceneMeshes(board).map((m) => m.renderOrder)), 'drawn first');
+    assert.ok(bd.material.uniforms.uMap.value, 'its picture');
+    board.setArea(AREAS.boss);
+    assert.ok(board.meshes.backdrop, 'kept through the area switch');
+    board.destroy();
   });
 
   test('inactive shadow planes stay hidden through boss prep, enemy preview and battle area switches (xinhai-ai 5320d66)', () => {

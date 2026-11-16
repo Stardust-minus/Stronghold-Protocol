@@ -16,7 +16,19 @@
 // match's drawn set D, the briefing's grey bonds: the owner's 「选择策略阶段也可以标注一下本家盟约被禁用的策略」) reads 「X盟约禁用」
 // on its card (本局禁用 until rel34 — the owner: 「不应该显示本局禁用，可能导致歧义」, it read as the strategy's own) and is
 // explained in the detail pane (BandOffTag / BandOffNote, DESIGN §21.26, §21.7's look); it stays selectable —
-// information only.
+// information only. Since 2026-11-16 (the owner: 「把xxx盟约禁用简化为一个红色角标」) the card carries the client's own red
+// corner mark instead of that text (AutoChessBandChooseBandItemView _panelBannedMark: team_list_banned_icon in the
+// portrait's top-left corner); which bond is off is the card's tooltip and the detail pane's note, drawn as the client's
+// banned tip (bg_banned_tips + icon_banned).
+// Corner badges (the client's _panelVictorMark / _panelMasterMark, from this browser's records — ui/stats.js): gold
+// (team_list_victor_team) once the strategy's clears reach its victorCount (3), the colourful one 规程 added
+// (team_list_master_team_bg + team_list_master_team) in its place at masterVictorCount (6); the detail pane's
+// 已通过模拟 N 次 takes the matching plate (pass_time_back + pass_time_icon / master_title_bg).
+// Search (2026-11-16, 「再加一个搜索框，可以输入搜索对应策略」): a box in the step header, over the wall, filters it by name,
+// effect name, bond and, in Chinese, pinyin initials (ui/bandSearch.js); the wall keeps its size while it filters.
+// Size (「策略整体放大一点，不要出现省略号」): a narrower order column and tighter gaps give the portraits about a tenth more;
+// a name wraps at a size taken from its tile, never ending in an ellipsis. A doctor's name in the order is whole too (「Doctor…」
+// once the detail pane narrowed the list): the client's best fit on its line to a readable floor, then wrapped (fitNameBox).
 // 本局信息 (GitHub #8 item 1 and #484): the step header's entry beside the difficulty opens the briefing's leader, battlefield,
 // special enemies (ui/matchEnemies.js), bond rows, legend and 本局禁用干员 again, read-only (MatchInfoDialog).
 // The draft runs on underneath: its status line repeats the current turn and the countdown (draftInfoStatus),
@@ -46,12 +58,12 @@
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, useTicker, secondsLeft } from '../ui/components.js';
-import { useGameData, BandIcon, RichText, PlayerAvatar, Sprite } from '../ui/gameComponents.js';
+import { useGameData, BandIcon, RichText, PlayerAvatar, Sprite, LocalSprite } from '../ui/gameComponents.js';
 import { StepHeader, ExitModal } from '../ui/matchChrome.js';
 import { bondPlanOpen, playerPlan, planLine, BondPlanTags, BondPlanDialog } from '../ui/bondPlan.js';
 import { MatchInfoDialog, matchInfoModel, MatchBondDialog, regulationCoreAbsent } from '../ui/matchInfo.js';
 import { useRise } from '../ui/transitions.js';
-import { useFitBox, fitTileBox, fitRowBox } from '../ui/fitGrid.js';
+import { useFitBox, fitTileBox, fitRowBox, fitNameBox } from '../ui/fitGrid.js';
 import { NameCardLayer } from '../ui/namecards.js';
 import { MatchName } from '../ui/ownerName.js';
 import { TrophyBadge } from '../ui/trophies.js';
@@ -63,12 +75,14 @@ import { StageMiniMap } from '../ui/stagePreview.js';
 import { actions, act } from '../ui/gameActions.js';
 import { normalizeDraft, sortedPlayers, draftMyTurn, pregameStepCount, pregameStepIndex } from '../ui/gameLogic.js';
 import { useStore } from '../store.js';
-import { data } from '../data.js';
+import { data, useData, localAsset } from '../data.js';
+import { uiUrl } from '../ui/assetUrls.js';
 import { audio } from '../audio.js';
 import { TurnBanner, TURN_BANNER_LATE_MS } from '../ui/turnBanner.js';
 import { onBootArt, preloadBootArt } from '../ui/protocolBoot.js';
 import { reducedMotion } from '../ui/device.js';
-import { aggregateStats, peekStatsRecords, strategyBadgeIds } from '../ui/stats.js';
+import { aggregateStats, peekStatsRecords, strategyBadgeIds, strategyMasterIds, strategyClearCounts } from '../ui/stats.js';
+import { bandSearchIndex, searchBands } from '../ui/bandSearch.js';
 import { matchOffBonds, bandOffBonds, bandOffLine } from '../ui/gameLogic.js';
 import { t, tParts, tName, N_ } from '../../../shared/i18n.js';
 
@@ -82,17 +96,69 @@ const BAND_SECTIONS = Object.freeze({
 
 
 /**
- * 「拉特兰盟约禁用」 on a strategy card whose bonds `names` are off this match (bandOffBonds); nothing otherwise. When the card is
- * too narrow for one line the tag wraps between the name and 盟约禁用 (卡西米尔 / 盟约禁用), never inside either: both stay whole.
+ * The red corner mark on a strategy card whose bonds `names` are off this match (bandOffBonds; the owner, 2026-11-16:
+ * 「把xxx盟约禁用简化为一个红色角标」): the client's team_list_banned_icon in the portrait's top-left corner, as its
+ * AutoChessBandChooseBandItemView draws it when the band's relateBondList holds a bond banned for the player
+ * (_HasBannedBond). No text on it — which bond is off is its label, the card's tooltip and the detail pane's note.
+ * Without the local art: a red corner with the bond glyph. Nothing when no bond is off.
  */
 export function BandOffTag({ names = [] }) {
-  return names.length ? html`<span class="dband__off" title=${bandOffLine(names)}>${tParts('{names}盟约禁用', { names: html`<span class="dband__offname">${names.join('、')}</span><wbr />` })}</span>` : null;
+  if (!names.length) return null;
+  const line = bandOffLine(names);
+  return html`<span class="dband__off" role="img" aria-label=${line} title=${line} data-testid="band-off">
+    <${LocalSprite} group="ui/outer" name="team_list_banned_icon" class="dband__off-art"
+      fallback=${html`<span class="dband__off-mark"><${Icon} name="users" /></span>`} /></span>`;
 }
 
-/** The detail pane's note for such a strategy: "本局禁用【拉特兰】盟约，此策略效果可能无法发挥" (the bond names struck through). */
+/**
+ * The detail pane's note for such a strategy: "本局禁用【拉特兰】盟约，此策略效果可能无法发挥" (the bond names struck
+ * through) on the client's banned tip — the red bg_banned_tips with icon_banned (its img_banned_tips; the client's own
+ * line 「对应盟约无法组成完整阵容」 names no bond, and the card no longer does).
+ */
 export function BandOffNote({ names = [] }) {
   if (!names.length) return null;
-  return html`<p class="draft-detail__off" role="note" aria-label=${bandOffLine(names)}><${Icon} name="info" /><span>${tParts('本局禁用{names}盟约，此策略效果可能无法发挥', { names: names.map((n, i) => html`<span key=${i}>${tParts('【{name}】', { name: html`<s class="draft-detail__offname">${n}</s>` })}</span>`) })}</span></p>`;
+  const bg = localAsset('ui/outer', 'bg_banned_tips');
+  return html`<p class=${cx('draft-detail__off', bg && 'has-art')} role="note" aria-label=${bandOffLine(names)} style=${bg ? `--off-bg:url("${bg}")` : undefined}>
+    <${LocalSprite} group="ui/outer" name="icon_banned" class="draft-detail__off-icon" fallback=${html`<${Icon} name="info" />`} />
+    <span>${tParts('本局禁用{names}盟约，此策略效果可能无法发挥', { names: names.map((n, i) => html`<span key=${i}>${tParts('【{name}】', { name: html`<s class="draft-detail__offname">${n}</s>` })}</span>`) })}</span></p>`;
+}
+
+/**
+ * The corner badge a strategy earned in this browser's records (draftRecords): 'victor' — the client's gold
+ * team_list_victor_team (its clears reached victorCount); 'master' — 规程's colourful one in its place,
+ * team_list_master_team_bg over the portrait and team_list_master_team in the corner (masterVictorCount). Placed as the
+ * client's band item places them on its 140-px tile (css/screens/draft.css). Without the local art the gold one falls
+ * back to the stats page's sprite, then to a rook in a box.
+ * @param {{ tier: 'victor'|'master'|null }} props
+ */
+export function BandBadge({ tier }) {
+  if (tier === 'master') {
+    return html`<span class="dband__badge dband__badge--master" data-testid="band-badge" data-tier="master" aria-hidden="true">
+      <${LocalSprite} group="ui/outer" name="team_list_master_team_bg" class="dband__master-bg" />
+      <${LocalSprite} group="ui/outer" name="team_list_master_team" class="dband__master-icon"
+        fallback=${html`<span class="dband__medal dband__medal--master"><${Icon} name="rook" /></span>`} /></span>`;
+  }
+  if (tier === 'victor') {
+    return html`<span class="dband__badge" data-testid="band-badge" data-tier="victor" aria-hidden="true">
+      <${LocalSprite} group="ui/outer" name="team_list_victor_team" class="dband__badge-art"
+        fallback=${html`<${Sprite} k="statistics/strategyBadge" class="dband__badge-web" fallback=${html`<span class="dband__medal"><${Icon} name="rook" /></span>`} />`} /></span>`;
+  }
+  return null;
+}
+
+/**
+ * 已通过模拟 N 次 in the detail pane on the client's plate for the badge: the gold pass_time_back with pass_time_icon
+ * (group_win_times, orange text), the colourful master_title_bg at masterVictorCount (group_master, white text).
+ * @param {{ n: number, tier: 'victor'|'master'|null }} props
+ */
+function BandMedal({ n, tier }) {
+  if (!n) return null;
+  const m = data.get('assets');
+  const art = tier === 'master' ? localAsset('ui/outer', 'master_title_bg') : uiUrl(m, 'bandChoose/pass_time_back');
+  return html`<span class=${cx('draft-detail__medal', tier === 'master' ? 'is-master' : 'is-victor', art && 'has-art')} data-tier=${tier || 'won'}
+      style=${art ? `--medal-bg:url("${art}")` : undefined}>
+    ${tier === 'master' ? null : html`<${Sprite} k="bandChoose/pass_time_icon" class="draft-detail__medal-icon" fallback=${null} />`}
+    <span>${t('已通过模拟{n}次', { n })}</span></span>`;
 }
 
 /**
@@ -108,10 +174,14 @@ export function allowedBands(bands, modeType, disableDuckLord = false) {
 }
 
 /**
- * The wall's portrait size (rem): the design's 1.9 at most, as small as .9 before the wall scrolls (ui/fitGrid.js);
- * 规程's section headers (BAND_SECTIONS) take their own rows and are no tiles.
+ * The wall's portrait size (rem): 2.3 at most, as small as .96 before the wall scrolls (ui/fitGrid.js); 规程's section
+ * headers (BAND_SECTIONS) take their own rows and are no tiles. 2026-11-16 (the owner: 「策略整体放大一点」): 1.9 / .9
+ * before, with a wider order column and wider gaps around the wall (css/screens/draft.css).
  */
-export const DRAFT_TILE_REM = Object.freeze({ min: 0.9, max: 1.9, head: '.draft-grid__sec' });
+export const DRAFT_TILE_REM = Object.freeze({ min: 0.96, max: 2.3, head: '.draft-grid__sec' });
+/** … on a short screen (≤ 520 px tall: a landscape phone, where 1rem is 40 px): 1.12rem (45 px) at least, then it scrolls. */
+export const DRAFT_TILE_REM_SHORT = Object.freeze({ ...DRAFT_TILE_REM, min: 1.12 });
+const shortScreen = () => !!globalThis.matchMedia?.('(max-height: 520px)').matches;
 /** An order row's height (rem): the design's 1.26 at most; .96 keeps its three lines (name, state, 预选盟约). */
 export const DRAFT_ROW_REM = Object.freeze({ rowSel: '.dorder', min: 0.96, max: 1.26 });
 
@@ -268,23 +338,30 @@ export function freeBandAction({ sel, myHold = null, myPick = null, taken, draft
 }
 
 /** Nothing known yet (before the records are read, or none). */
-const NO_RECORDS = Object.freeze({ won: Object.freeze({}), badges: new Set(), trophies: 0 });
+const NO_RECORDS = Object.freeze({ won: Object.freeze({}), badges: new Set(), masters: new Set(), trophies: 0 });
 
 /**
  * What the wall shows from this browser's records (ui/stats.js): `won` bandId → runs won with it (the detail pane's
  * 已通过模拟 N 次), `badges` the strategies with the official corner badge — strategyBadgeIds, the stats page's rule: the
  * band's own victorCount (3 for all 40 in activity_table / data/bands.json) of clears, quit, test and 入门协议 runs left
- * out — and `trophies` for the name card's medal.
+ * out —, `masters` those whose clears also reached masterVictorCount (规程's colourful badge, which replaces the gold one:
+ * strategyMasterIds) and `trophies` for the name card's medal.
  * @param {any[]} records peekStatsRecords()
  * @param {Record<string, any>|any[]} bands data.get('bands')
- * @returns {{ won: Record<string, number>, badges: Set<string>, trophies: number }}
+ * @returns {{ won: Record<string, number>, badges: Set<string>, masters: Set<string>, trophies: number }}
  */
 export function draftRecords(records, bands) {
   try {
     const agg = aggregateStats(records);
     const won = Object.fromEntries(Object.entries(agg.bands || {}).map(([id, b]) => [id, b.wins | 0]).filter(([, n]) => n > 0));
-    return { won, badges: new Set(strategyBadgeIds(records, bands)), trophies: agg.trophies || 0 };
+    const clears = strategyClearCounts(records);
+    return { won, badges: new Set(strategyBadgeIds(records, bands, clears)), masters: new Set(strategyMasterIds(records, bands, clears)), trophies: agg.trophies || 0 };
   } catch { return NO_RECORDS; }
+}
+
+/** A strategy's corner badge from draftRecords: 'master' (the colourful one), 'victor' (gold) or null. */
+export function badgeTier(local, bandId) {
+  return local?.masters?.has(bandId) ? 'master' : local?.badges?.has(bandId) ? 'victor' : null;
 }
 
 /** 「【effect】 description」 of a strategy (the data's description usually opens with the 【effect】 already). */
@@ -307,13 +384,18 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek, held =
   // a free draft: the doctor's choice not locked yet (my own opens its detail pane, a teammate's is peeked)
   const hband = !picked && held ? gd.band(held) : null;
   const nc = !p.isBot && card?.bg ? card.bg : null;
+  // the name whole (the owner, 2026-11-16: no ellipsis): best-fit on its line, past a readable floor wrapped (ui/fitGrid.js
+  // fitNameBox; the column's resize re-fits it — the detail pane narrowing the list, 文字大小)
+  const textRef = useRef(null);
+  const shown = p.name || t('博士');
+  useFitBox(textRef, fitNameBox, [shown, Number.isSafeInteger(card?.trophies), !!p.isBot]);
   return html`<div class=${cx('dorder', cur && 'is-cur', picked && 'is-done', self && 'is-self', flash && 'is-flash')} style=${`--i:${i}`}>
     <div class=${cx('dorder__card', nc && 'has-nc')}>
       ${nc ? html`<${NameCardLayer} card=${nc} y=${card?.bgY} x=${card?.bgX} zoom=${card?.bgZoom} />` : null}
       ${art && !nc ? html`<span class="dorder__art" style=${`background-image:url("${art}")`} aria-hidden="true"></span>` : null}
       <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
-      <div class="dorder__text">
-        <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<${MatchName} player=${p} name=${p.name || t('博士')} />${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
+      <div class="dorder__text" ref=${textRef}>
+        <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<span class="dorder__nm"><${MatchName} player=${p} name=${p.name || t('博士')} /></span>${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
         <span class="dorder__state">${picked ? html`<span class="t-mint">${pband?.name || t('已选择')}</span>`
           : hband ? html`<span class="t-gold">${t('{name} · 未锁定', { name: hband.name })}</span>`
           : cur ? html`<span class="t-gold">${t('决策中')}</span>` : html`<span class="t-dim">${t('等待中')}</span>`}</span>
@@ -352,7 +434,9 @@ export function BandDraftScreen({ held = null } = {}) {
   const roomSolo = useStore((s) => s.room?.mode === 'solo');
   const roomSeats = useStore((s) => s.room?.seats);
   const gd = useGameData();
+  useData('local'); // the client's corner marks and plates (data/local-assets.json ui/outer): re-render once the manifest is in
   const [sel, setSel] = useState(null);
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);   // the detail pane: only once a portrait (or a row's pick) is tapped
   const [peek, setPeek] = useState(null);    // a teammate's / my own pick opened from its row (read-only)
   const [busy, setBusy] = useState(null);
@@ -368,6 +452,9 @@ export function BandDraftScreen({ held = null } = {}) {
   const solo = roomSolo || mode?.type === 'SINGLE' || String(pub?.modeId || '').includes('single');
   const disableDuckLord = !solo && pub?.playerCapacity > 4 && pub?.experimental?.disableDuckLord === true;
   const bands = useMemo(() => allowedBands(gd.list('bands'), mode?.type || (solo ? 'SINGLE' : 'MULTI'), disableDuckLord), [gd.ready, mode?.type, solo, disableDuckLord, data.locale(), data.contentId()]);
+  // the search box (ui/bandSearch.js): names, effect names, bonds, and in Chinese their pinyin initials
+  const searchIndex = useMemo(() => bandSearchIndex(bands, (id) => gd.bond(id)?.name || null, { pinyin: /^zh/i.test(data.locale() || 'zh') }), [bands, gd]);
+  const found = useMemo(() => searchBands(searchIndex, query), [searchIndex, query]);
   const players = sortedPlayers(pub);
   const draft = normalizeDraft(pub?.draft, players);
   // an expanded room's draft: every seat picks at once (server MatchPhases.concurrentDraft) — no turn, no skip
@@ -477,6 +564,17 @@ export function BandDraftScreen({ held = null } = {}) {
     setBusy(null);
   };
   const pickTile = (id) => { setSel(id); setOpen(true); setPeek(null); audio.sfx('tab', { volume: 0.5 }); };
+  // the search box's keys: Enter closes the keyboard (and opens the one strategy found), Esc clears the query, then leaves
+  const onSearchKey = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault(); e.stopPropagation();
+      if (query) setQuery(''); else e.currentTarget.blur();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+      if (found && found.ids.size === 1) pickTile([...found.ids][0]);
+    }
+  };
   const peekBand = (id) => { setPeek(id); setOpen(true); audio.sfx('tab', { volume: 0.5 }); };
   const turnName = players.find((p) => p.playerId === draft.turnPid)?.name;
   useTicker(clock ? 250 : 0);
@@ -547,11 +645,35 @@ export function BandDraftScreen({ held = null } = {}) {
     : concurrent ? html`<div class="dturn"><span class="dturn__txt"><b>${t('所有博士同时选择')}</b><span>${t('等待其他博士…')}</span></span><${Icon} name="hourglass" class="dturn__glass" /></div>`
     : null;
 
+  // the search box (ui/bandSearch.js) in the step header's status, over the wall, while the wall is up: it takes no row
+  // from the portraits
+  const searchBox = view === 'done' || held ? null : html`<div class=${cx('draft-search', query && 'has-q')} role="search">
+      <${Icon} name="search" class="draft-search__icon" />
+      <input type="search" class="draft-search__input" data-testid="band-search" value=${query} enterkeyhint="search" autocomplete="off" spellcheck=${false}
+        placeholder=${t('搜索策略或盟约')} aria-label=${t('搜索策略')} title=${t('可输入策略名、效果名、盟约名或拼音首字母')}
+        onInput=${(e) => setQuery(e.currentTarget.value)} onKeyDown=${onSearchKey} />
+      ${query ? html`<button type="button" class="draft-search__clear" data-testid="band-search-clear" aria-label=${t('清除搜索')} title=${t('清除搜索')}
+          onClick=${() => setQuery('')}><${Icon} name="close" /></button>` : null}
+      ${found ? html`<span class=${cx('draft-search__count', !found.ids.size && 'is-none')} data-testid="band-search-count" aria-live="polite">${found.ids.size
+        ? html`${found.byDesc ? html`<small>${t('按效果描述')}</small>` : null}<b class="num">${found.ids.size}</b><span class="num">/${bands.length}</span>`
+        : t('没有找到相关策略')}</span>` : null}
+    </div>`;
+
   // no scrolling (the owner, 2026-11-05): the wall's portraits and the order rows take the size that shows them all in
-  // the space they have (ui/fitGrid.js; css/screens/draft.css --dcols / --dtile, --drh); the grid only before the pick
+  // the space they have (ui/fitGrid.js; css/screens/draft.css --dcols / --dtile, --drh); the grid only before the pick.
+  // A short screen (a landscape phone) keeps the portraits a little larger and scrolls 规程's 61 instead
+  // (DRAFT_TILE_REM_SHORT).
   const gridRef = useRef(null);
   const rowsRef = useRef(null);
-  useFitBox(gridRef, (el) => fitTileBox(el, DRAFT_TILE_REM), [view === 'done', bands.length]);
+  useFitBox(gridRef, (el) => fitTileBox(el, shortScreen() ? DRAFT_TILE_REM_SHORT : DRAFT_TILE_REM), [view === 'done', bands.length]);
+  // a tapped strategy stays in view when the detail pane narrows the wall (规程's 61 scroll then), and what a search finds
+  // shows from the top
+  useEffect(() => {
+    if (view !== 'detail' || peek || !sel) return undefined;
+    let id = requestAnimationFrame(() => { id = requestAnimationFrame(() => gridRef.current?.querySelector(`[data-band="${sel}"]`)?.scrollIntoView?.({ block: 'nearest' })); });
+    return () => cancelAnimationFrame(id);
+  }, [view, sel, peek]);
+  useEffect(() => { if (gridRef.current) gridRef.current.scrollTop = 0; }, [query]);
   useFitBox(rowsRef, (el) => fitRowBox(el, DRAFT_ROW_REM), [rows.length, pools ? pools.length : 0]);
 
   // held after the draft (the server is already in BATTLE_CHECK): only to look at — 离开, 本局信息 and the 🔍 boxes would
@@ -563,7 +685,7 @@ export function BandDraftScreen({ held = null } = {}) {
       total=${clock ? clock.total : null} onExit=${() => setExit(true)}
       extra=${html`<button type="button" class="stephead__info" data-testid="match-info-open" aria-haspopup="dialog" onClick=${() => setInfoOpen(true)}
         title=${t('本局信息')}><${Icon} name="search" /><span>${t('本局信息')}</span></button>`}
-      status=${head} />
+      status=${searchBox ? html`<div class="draft-headbar">${searchBox}${head}</div>` : head} />
     <main class="draft__main">
       <aside class="draft-order">
         <div class="draft-order__deco" aria-hidden="true"><i></i><i></i><span>STRONGHOLD PROTOCOL<br />${solo ? 'SINGLE OPERATOR' : 'COLLABORATIVE SYSTEM'}</span></div>
@@ -602,28 +724,30 @@ export function BandDraftScreen({ held = null } = {}) {
           <p class="draft-detail__status t-mint"><${Icon} name="check" />${t('已选择「{name}」', { name: mine?.name || '' })}${!solo && !allPicked ? t('，等待其他博士') : ''}</p>
         </section>`;
       })() : html`
-        <section class="draft-grid" ref=${gridRef} role="listbox" aria-label=${t('策略')}>
+        <section class=${cx('draft-grid', found && 'is-search')} ref=${gridRef} role="listbox" aria-label=${t('策略')}>
           ${bands.flatMap((b, i) => {
             // 规程 sorts its strategies into 泛用型策略 (bandType GENERAL) and 盟约型策略 (BONDRELEVANT), each under a header,
             // as the official draft shows them (BV11NW869ELq part 4 0:28, BV13LWM6BEvY match 1 1:36); a version without
-            // bandType has no header
+            // bandType has no header. A search hides what it does not find (the header too when its section has nothing
+            // left) but keeps it in the wall, so the portraits keep their size (ui/fitGrid.js counts them all).
             const sec = BAND_SECTIONS[b.bandType];
             const head = sec && bands[i - 1]?.bandType !== b.bandType
-              ? [html`<div key=${`sec-${b.bandType}`} class="draft-grid__sec" role="presentation" data-testid=${`band-section-${sec.id}`}><${Icon} name=${sec.icon} /><span>${t(sec.name)}</span></div>`] : [];
+              ? [html`<div key=${`sec-${b.bandType}`} class="draft-grid__sec" role="presentation" data-testid=${`band-section-${sec.id}`}
+                  hidden=${found && !bands.some((x) => x.bandType === b.bandType && found.ids.has(x.bandId)) ? true : undefined}><${Icon} name=${sec.icon} /><span>${t(sec.name)}</span></div>`] : [];
             const who = pickers.get(b.bandId) || [];
             const isTaken = taken.has(b.bandId);
             const isReserved = isTaken && reserved.has(b.bandId) && !draft.picks.has(reserved.get(b.bandId));
             const offNames = bandOffBonds(b, offBonds).map((id) => gd.bond(id)?.name || id); // 本局禁用 (still selectable)
             const on = view === 'detail' && !peek && sel === b.bandId;
-            const badged = local.badges.has(b.bandId); // (the count is the detail pane's 已通过模拟 N 次)
+            const tier = badgeTier(local, b.bandId); // (the count is the detail pane's 已通过模拟 N 次)
             return [...head, html`<button key=${b.bandId} type="button" role="option" aria-selected=${on ? 'true' : 'false'} data-band=${b.bandId}
+                hidden=${found && !found.ids.has(b.bandId) ? true : undefined}
                 aria-disabled=${isTaken ? 'true' : 'false'} title=${isReserved ? t('已指定给 AI 队友') : isTaken ? t('已被选择') : offNames.length ? bandOffLine(offNames) : b.name}
-                class=${cx('dband', on && 'is-sel', (myPick === b.bandId || myHold === b.bandId) && 'is-mine', isTaken && 'is-taken', offNames.length && 'is-off')} style=${`--n:${Math.min(i, 15)}`}
+                class=${cx('dband', on && 'is-sel', (myPick === b.bandId || myHold === b.bandId) && 'is-mine', isTaken && 'is-taken', offNames.length && 'is-off', tier && `has-${tier}`)} style=${`--n:${Math.min(i, 15)}`}
                 onClick=${() => pickTile(b.bandId)}>
               <span class="dband__frame"><${BandIcon} bandId=${b.bandId} size="lg" /></span>
               <span class="dband__name">${b.name}</span>
-              ${badged ? html`<span class="dband__badge" data-testid="band-badge" aria-hidden="true">
-                <${Sprite} k="statistics/strategyBadge" class="dband__badge-art" fallback=${html`<span class="dband__medal"><${Icon} name="rook" /></span>`} /></span>` : null}
+              <${BandBadge} tier=${tier} />
               <${BandOffTag} names=${offNames} />
               ${who.length ? html`<span class="dband__who" title=${who.map((p) => p.name).join('、')}>${who.slice(0, 4).map((p) => html`<${PlayerAvatar} key=${p.playerId} player=${p} size="sm" />`)}${who.length > 4 ? html`<span class="dband__more num">+${who.length - 4}</span>` : null}</span>` : null}
               ${isTaken ? html`<span class="dband__taken">${isReserved ? t('AI 已指定') : t('已被选择')}</span>` : null}
@@ -634,7 +758,7 @@ export function BandDraftScreen({ held = null } = {}) {
         ${view === 'detail' && shownBand ? html`<aside class="draft-detail" key="detail">
           <div class="draft-detail__body" key=${shownBand.bandId}>
             <div class="draft-detail__art"><${BandIcon} bandId=${shownBand.bandId} size="xl" /></div>
-            ${local.won[shownBand.bandId] ? html`<span class="draft-detail__medal">${t('已通过模拟{n}次', { n: local.won[shownBand.bandId] })}</span>` : null}
+            <${BandMedal} n=${local.won[shownBand.bandId] || 0} tier=${badgeTier(local, shownBand.bandId)} />
             <div class="draft-detail__hp">${t('初始生命值')}<b class="num">${shownBand.totalHp ?? '--'}</b></div>
             <span class="draft-tag">STRATEGY</span>
             <h2 class="draft-detail__name">${shownBand.name}</h2>

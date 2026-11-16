@@ -94,6 +94,18 @@ export function prefabTheme(groups, themeId) {
 }
 
 /**
+ * Whose corner sits top right (ui/hud.js TopBar data-corner): an installed official pack's countdown and ready button —
+ * all three packs, 卫戍协议终端 too since the 2026-11-16 overhaul (the owner) — else the hand-made countdown ('hand'). The
+ * EFFECTS column, the right card and the bond popup docked right start under it (ui/gameLogic/panel.js CORNER_TOP).
+ * @param {Record<string, any>|null|undefined} groups @param {string|null|undefined} themeId
+ * @returns {string}
+ */
+export function cornerKind(groups, themeId) {
+  const theme = officialThemeById(themeId);
+  return theme?.group && groups?.[theme.group]?.['prefabs.json'] ? theme.group.replace(/^themes\//, '') : 'hand';
+}
+
+/**
  * The 规程 look — its shop, top bar, banners and layout: a 规程 version, or any version with such a theme (the owner,
  * 2026-11-14: 「规程版本官方出的那几个主题全量覆盖到盟约版本」, §37.206). The rules stay with regulationFamily (the commands,
  * the core groups, the briefing, the sweep's fourth tab).
@@ -443,6 +455,16 @@ export function regShopCardFaceModel(pack, opts = {}) {
     box: viBox,
     style: boxCss({ ...viBox, left: viBox.left - badge.left, top: viBox.top - badge.top }, badge),
   } : null;
+  // the portrait where the pack's char_portrait sits, in % of this pack's card (game-reghud.css .scard__artbox: 72.3 % wide,
+  // 6.1 % past the right edge, 15.8 % above the top on the 155×187 cards; 可露希尔's 157×207 card puts the same 112×224
+  // box 71.3 % / 5.4 % / 9.4 %)
+  const portrait = kind === 'chess' ? part(['root', 'panel_main', 'btn_card', 'group_char', 'root_char', 'char_portrait'], card) : null;
+  const pct = (v) => `${Number((v * 100).toFixed(4))}%`;
+  const art = portrait && portrait.w > 0 ? {
+    '--art-w': pct(portrait.w / card.w),
+    '--art-r': pct((card.w - portrait.left - portrait.w) / card.w),
+    '--art-t': pct(portrait.top / card.h),
+  } : null;
   // the pack's own look only (§37.237): a theme that borrows ac_n_initial's card prefab keeps our dark face
   const backing = opts.backing === false ? null : cardBacking(boxAt(boxes, ['root', 'panel_main', 'btn_card', 'bkg'], card), card, pack);
   const layers = [];
@@ -510,6 +532,7 @@ export function regShopCardFaceModel(pack, opts = {}) {
     item,
     layers,
     backing,
+    art,
   };
 }
 

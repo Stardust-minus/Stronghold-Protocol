@@ -27,23 +27,30 @@
    our bottom-left controls at five slots. The scale is a transform, so the deploy fold's scale(.7) still applies. */
 .shopbar--reg .shopbar__cluster {
   display: flex; flex-direction: column; align-items: flex-end;
-  max-width: 100%; pointer-events: none;
+  max-width: none; pointer-events: none;
   --reg-k-max: 1.3;
   transform: scale(var(--reg-k, var(--reg-k-max))); transform-origin: bottom right;
 }
 .shopbar--reg .shopbar__row {
-  width: max-content; max-width: 100%;
+  width: max-content; max-width: none;
   align-items: flex-end; justify-content: center;
   gap: .06rem; padding: 0;
   background: transparent; border: 0; box-shadow: none;
 }
 .shopbar--reg .shopbar__row::before { display: none; }
 .shopbar--reg .shopbar__cards { gap: .06rem; }
+/* A narrow window (a desktop window in portrait under 480 px; a phone's portrait shows 请横屏): two rows instead of one row
+   squeezed to half size — ui/shopBar.js useRegFit sets the row's width so the rows balance (twoRowWidth), right-aligned,
+   the character card bottom right; the rows keep clear of each other's price hexes and 可露希尔's taller faces. */
+.shopbar--reg .shopbar__cluster.is-2row .shopbar__row { flex-wrap: wrap; justify-content: flex-end; row-gap: .26rem; }
+.shopbar--reg .shopbar__cluster.is-2row .shopbar__cards { display: contents; }
 .shopbar--reg .shopbar__item { padding-left: .06rem; border-left: 0; }
 .shopbar--reg.is-frozen .shopbar__row { border-color: transparent; }
 
 /* Freeze (blue) and refresh (gold) sit on the right end of the group. */
 .shopbar--reg .shopbar__tools { gap: .06rem .08rem; }
+/* 刷新's price hex rides 62 % above its plate (root_cost on the plate's top edge): the 剩余可放置角色 line keeps clear of it */
+.shopbar--reg .shopbar__remain { margin-bottom: .1rem; }
 .shopbar--reg .toolbtn {
   position: relative; overflow: visible;
   justify-content: center; gap: .04rem;
@@ -96,6 +103,15 @@
 .shopbar--reg .toolbtn--amber:disabled {
   background-image: var(--reg-refresh-lock, var(--reg-refresh, none));
   filter: grayscale(.35);
+}
+/* Hover and press keep the plate as it is drawn at rest: game-shop.css's `.toolbtn:hover` / `:active` set the `background`
+   shorthand and a box glow, which outweigh `.shopbar--reg .toolbtn` and reset the plate's size and repeat — the sprite
+   drew at its own pixel size, cropped below a 1920 px wide window and tiled above it — and ringed the transparent plate
+   with a rectangle (the owner 2026-11-16 「所有主题把鼠标放到冻结/刷新上时都会出现异常现象」). The plate's own
+   brightness lift above stays the hover. */
+.shopbar.shopbar--reg .toolbtn:hover:not(:disabled),
+.shopbar.shopbar--reg .toolbtn:active:not(:disabled) {
+  background-size: 100% 100%; background-repeat: no-repeat; box-shadow: none;
 }
 .shopbar--reg .toolbtn--amber .hex,
 .shopbar--reg .toolbtn__free {
@@ -196,6 +212,17 @@
 .shopbar--reg .scard {
   width: 1.55rem; height: 1.87rem;
 }
+/* 可露希尔's card prefab is 157×207, the slot the other packs' 155×187 (ui/shopBar.js faceBoxStyle): its face keeps its own
+   proportions, centred on the slot — 10 units past its top and bottom edges, 1 past its sides — instead of being squeezed
+   10 % flat into it; the negative margins keep the row's layout (the owner 2026-11-16). */
+.shopbar .scard.scard--reg.has-facebox,
+.gm .shopbar .scard.scard--reg.has-facebox {
+  width: var(--face-w); height: var(--face-h);
+  margin: calc((1.87rem - var(--face-h)) / 2) calc((1.55rem - var(--face-w)) / 2);
+}
+/* …which reach 10 units past the slot's bottom edge: 可露希尔's row stands that much higher, so the bottom of its cards
+   (「CLOSURE × SOPL SYSTEM」) stays on screen. */
+.shopbar--reg[data-reg-theme="ac_s_closur"] .shopbar__row { padding-bottom: .1rem; }
 .scard.scard--reg {
   /* not clipped: the portrait's overhang (§37.139), the repeat glow (§37.201), 乌萨斯齐心团's tier icon and the TV reach past the box */
   box-sizing: border-box; padding: 0; overflow: visible;
@@ -230,6 +257,23 @@
   object-fit: cover; object-position: 50% 0;
   -webkit-mask-image: linear-gradient(180deg, #000 46%, transparent 68%);
   mask-image: linear-gradient(180deg, #000 46%, transparent 68%);
+}
+/* …and inside the card's frame, as the official card shows it (themes/<id>/preview.webp: the portrait is cut by the frame's
+   top edge, the face right of centre). The prefab's char_portrait is 112×224 with its top-right corner at (87, 123) from
+   the 155×187 card's centre: 72.3 % of the card's width, its right edge 6.1 % past the card and its top 15.8 % above it —
+   the face sits in the card's upper half, clear of the bonds and the name bar. The box clips it to the card, and to the
+   theme's frame where the frame sprite has a transparent margin (--art-clip-*, ui-theme.css). The covenant card's
+   centring transform (game-shop.css) is dropped: it pulled the portrait half its width to the left, over the tier and the
+   bonds, and past the left edge (the owner 2026-11-16 「人物立绘会跳出卡面的框」). */
+.scard.scard--reg .scard__artbox {
+  position: absolute; inset: 0; display: block; pointer-events: none;
+  clip-path: inset(var(--art-clip-t, 0) var(--art-clip-r, 0) 0 0);
+}
+.scard.scard--reg .scard__artbox > .scard__art {
+  right: var(--art-r, -6.1%); top: var(--art-t, -15.8%); width: var(--art-w, 72.3%);
+  transform: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 52%, transparent 76%);
+  mask-image: linear-gradient(180deg, #000 52%, transparent 76%);
 }
 .scard.scard--reg .scard__itemart { top: .34rem; width: .84rem; height: .84rem; }
 .scard.scard--reg .scard__namebar {
@@ -381,11 +425,11 @@
 
 /* 展开 sits where the shop folded away: the right edge, as the covenant tab does. */
 
-/* The right detail card ends above the 规程 shop: its top (剩余可放置角色 included) is 4.36rem up at the full 1.3×, 2.84rem on a
-   short landscape phone (gameLogic/panel.js PANEL_RIGHT_BOTTOM_SHOP_REG / _SHORT). It used to stop at the 盟约 bar's 3.78rem, so the
-   armed card's raised bar covered the card's stats and the 冻结 / 刷新 buttons sat on it. */
-.gm.gm--reg .dpanel--right.is-shop { bottom: 4.44rem; }
-@media (max-height: 430px) { .gm.gm--reg .dpanel--right.is-shop { bottom: 2.92rem; } }
+/* The right detail card ends above the 规程 shop: its top (剩余可放置角色 and the room under it for 刷新's price included) is
+   ~4.5rem up at the full 1.3× — on a phone too, which now keeps the prefab sizes and scale (gameLogic/panel.js
+   PANEL_RIGHT_BOTTOM_SHOP_REG). It used to stop at the 盟约 bar's 3.78rem, so the armed card's raised bar covered the card's
+   stats and the 冻结 / 刷新 buttons sat on it. */
+.gm.gm--reg .dpanel--right.is-shop { bottom: 4.6rem; }
 
 /* Bond discs under the middle of the top bar. The discs stay the hit targets. */
 .gm.gm--reg .gm__bonds {
@@ -394,24 +438,34 @@
   transform: translateX(-50%);
 }
 
-/* Short landscape (844×390 → 1rem = 40px). One row of 1.55rem cards is 62px and fits;
-   wrap is the overflow safety. Touch targets stay at least --tap-min. */
-@media (max-width: 900px) {
-  .shopbar--reg .shopbar__cluster { width: 100%; --reg-k-max: 1; }
-  .shopbar--reg .shopbar__row,
-  .shopbar--reg .shopbar__cards,
-  .shopbar--reg .shopbar__rwcards { flex-wrap: wrap; justify-content: center; }
-  .shopbar--reg .shopbar__row { width: 100%; }
-}
-@media (max-height: 430px) {
+/* Narrow or short screens: no growth past the prefab size; useRegFit shrinks the one row to the room right of the corner
+   (it used to wrap and scroll inside 46vh, and still slid under the corner buttons). */
+@media (max-width: 900px), (max-height: 430px) {
   .shopbar--reg .shopbar__cluster { --reg-k-max: 1; }
-  .shopbar--reg .shopbar__row {
-    max-height: 46vh; overflow-x: hidden; overflow-y: auto;
-  }
-  .shopbar--reg .scard { width: 1.2rem; height: 1.45rem; }
-  /* the upgrade stage at the cards' height (1.45 / 1.9) */
-  .shopbar--reg .lvcard.lvcard--up { --up-k: .763; }
-  .shopbar--reg .funds.funds--reg { --fw: 1.4rem; --fh: 1.6rem; }
+}
+/* Phones (css/devices.css's phone block: a short touch screen, or narrower than 768 px). That block sizes the covenant
+   shop — 80 × 112 px cards, a 56 px funds column, a bar narrowed and kept clear of the corner by its max-width — and its
+   rules reached the 规程 shop as well: the cards took the covenant card's 5 : 7 (the prefab layers are laid on 155 × 187,
+   so the frame, the name bar and the bonds stretched apart), the character card shrank to a stub with 收起 over the
+   character, and the bar, anchored left, put the level box under the bottom-left buttons (the owner 2026-11-16 UI 大修).
+   Here the 规程 shop keeps the desktop's prefab sizes and scale: up to 1.3× (a card ~64 px wide at the phone's 32 px
+   root, as wide as the covenant card), shrunk by useRegFit to the room right of the corner. */
+@media (max-height: 600px) and (pointer: coarse), (max-width: 767px) {
+  .gm .shopbar.shopbar--reg { max-width: none; }
+  .gm .shopbar--reg .shopbar__cluster { --reg-k-max: 1.3; }
+  .gm .shopbar--reg .shopbar__row { gap: .06rem; padding: 0; max-height: none; overflow: visible; }
+  .gm .shopbar--reg .shopbar__cards,
+  .gm .shopbar--reg .shopbar__rwcards { gap: .06rem; padding: 0; overflow: visible; flex-wrap: nowrap; }
+  .gm .shopbar--reg .shopbar__item { gap: 0; padding-left: .06rem; }
+  .gm .shopbar .scard.scard--reg { width: 1.55rem; height: 1.87rem; }
+  .gm .shopbar--reg .funds.funds--reg { align-self: auto; }
+  .gm .shopbar--reg .shopbar__remain { margin-bottom: .14rem; }
+  /* the prefab's text sizes are rem (char_name 16 units, the bonds 10.5): about 5 px and 3.5 px at the phone's 32 px root,
+     unreadable; the covenant card's phone floors, a little smaller for the narrower name box (the name's size is inline) */
+  .gm .scard.scard--reg .scard__name { font-size: max(.16rem, calc(11px * var(--ui))) !important; }
+  .gm .scard.scard--reg .scard__bond { font-size: max(.105rem, calc(8px * var(--ui))); }
+  .gm .scard.scard--reg .scard__bond .bglyph { width: max(.13rem, calc(9px * var(--ui))); height: max(.13rem, calc(9px * var(--ui))); }
+  .gm .scard.scard--reg .scard__bonds { overflow: visible; }
 }
 .sp-coarse .shopbar--reg .toolbtn,
 .sp-coarse .shopbar--reg .funds__collapse,
@@ -450,6 +504,39 @@
 .gtop--pf .gtop__plus { display: none; }
 .gtop--pf .gtop__frame::before, .gtop--pf .gtop__frame::after { display: none; }
 .gtop__clock--pf { align-items: flex-start; }
+/* The pack's countdown (view_holder) and ready button (btn_ready) are anchored to the holder's top-right corner at (0, 0)
+   in the official HUD: the TV / the tubes sit in the screen's corner (themes/<id>/preview.webp), not inside the bar's
+   padding (the owner 2026-11-16 「可露希尔的右上角准备没有紧贴右上角」). The HUD layer is already inside the safe area. */
+.gtop__clock--pf { margin-top: calc(-1 * var(--gtop-pt, .2rem)); margin-right: calc(-1 * var(--gtop-pr, .3rem)); }
+/* The hand-made countdown (the default look, a custom theme, a package without the packs) hugs the corner too (the owner
+   2026-11-16 「默认主题也改成贴角」): out of the bar's padding, keeping a hair of its own for its glow; the ready button and
+   the 已就绪 count follow it up, at the bar's right inset. */
+.gtop[data-corner="hand"] .gtop__clock { margin-top: calc(.08rem - var(--gtop-pt, .2rem)); margin-right: calc(.1rem - var(--gtop-pr, .3rem)); }
+/* The pack's corner is taller than the hand-made countdown (可露希尔's TV box is 2.95rem, 乌萨斯齐心团's ~2.3rem): the EFFECTS
+   column (game.css .gm__effects, 2.4rem) starts under it, so the ready button's key hint and the TV no longer sit on the
+   column's EFFECTS label and first icon. Both packs with the corner draw the top bar too (`gtop--pf`, the column's earlier
+   sibling; no :has() — Firefox ESR 115). */
+.gtop--pf ~ .gm__effects { top: 3rem; }
+.gm.has-readywhy .gtop--pf ~ .gm__effects { top: calc(3rem + max(.3rem, calc(16px * var(--ui)))); }
+/* …and so does the right detail card (a shop card's first tap opens it): at the usual 2.1rem it covered the TV and the
+   ready button while the player read the card. */
+.gtop--pf ~ .dpanel--right, .gtop--pf ~ .bpop--right { top: 3rem; }
+.gtop--pf ~ .bpop--right { max-height: calc(100% - 3.3rem); }
+/* 可露希尔's 已就绪 line on its plate ends just under 3rem (a phone's type floor: ~3.1rem): the column starts a little lower. */
+.gtop[data-corner="ac_s_closur"] ~ .gm__effects { top: calc(2.8rem + max(.3rem, calc(20px * var(--ui)))); }
+.gm.has-readywhy .gtop[data-corner="ac_s_closur"] ~ .gm__effects { top: calc(2.8rem + max(.3rem, calc(20px * var(--ui))) + max(.3rem, calc(16px * var(--ui)))); }
+/* 卫戍协议终端's corner (its own panel_countdown and panel_prep_ready since the 2026-11-16 overhaul, under the hand-made top
+   bar): the 已就绪 line ends about 2.4rem down (a phone's type floor: ~2.6rem); the EFFECTS column, the right card and the
+   bond popup docked right start under it (ui/gameLogic/panel.js CORNER_TOP 2.6). */
+.gtop[data-corner="ac_n_initial"] ~ .gm__effects { top: calc(2.3rem + max(.3rem, calc(20px * var(--ui)))); }
+.gm.has-readywhy .gtop[data-corner="ac_n_initial"] ~ .gm__effects { top: calc(2.3rem + max(.3rem, calc(20px * var(--ui))) + max(.3rem, calc(16px * var(--ui)))); }
+.gtop[data-corner="ac_n_initial"] ~ .dpanel--right,
+.gtop[data-corner="ac_n_initial"] ~ .bpop--right { top: calc(2.3rem + max(.3rem, calc(20px * var(--ui)))); }
+.gtop[data-corner="ac_n_initial"] ~ .bpop--right { max-height: calc(100% - 2.6rem - max(.3rem, calc(20px * var(--ui)))); }
+/* The hand-made corner keeps 2.4rem (the right card 2.1rem) on a desktop; on a phone its 已就绪 line, now on a plate at a
+   readable size, ends ~2.4rem down: the column starts under it. */
+.gtop[data-corner="hand"] ~ .gm__effects { top: max(2.4rem, calc(2rem + 32px * var(--ui))); }
+.gm.has-readywhy .gtop[data-corner="hand"] ~ .gm__effects { top: calc(max(2.4rem, calc(2rem + 32px * var(--ui))) + max(.3rem, calc(16px * var(--ui)))); }
 .pfclock { display: block; line-height: 0; }
 .readybtn.readybtn--pf {
   position: relative; padding: 0; border: 0; background: none; box-shadow: none; min-width: 0; min-height: 0; height: auto;

@@ -12,7 +12,7 @@ import { fitTiles, fitRowHeight } from '../../public/js/ui/fitGrid.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (p) => readFileSync(path.join(ROOT, p), 'utf8');
-const { DRAFT_TILE_REM, DRAFT_ROW_REM } = await import('../../public/js/screens/bandDraft.js');
+const { DRAFT_TILE_REM, DRAFT_TILE_REM_SHORT, DRAFT_ROW_REM } = await import('../../public/js/screens/bandDraft.js');
 
 // a fit is valid when every tile is in the box
 function inBox({ cols, tile }, count, w, h, gx, gy) {
@@ -65,7 +65,8 @@ test('fitRowHeight: rows share what the pool heads and gaps leave, within the de
   assert.equal(fitRowHeight(2, 900, 2 * 109 + 20, 109, 83, 109), 109, 'never above the design');
   assert.equal(fitRowHeight(20, 470, 20 * 109 + 300, 109, 83, 109), 83, 'twenty seats: the floor (the list scrolls)');
   assert.equal(fitRowHeight(0, 470, 0, 109, 83, 109), 109);
-  assert.deepEqual([DRAFT_ROW_REM.min, DRAFT_ROW_REM.max, DRAFT_TILE_REM.max], [0.96, 1.26, 1.9]);
+  // 2026-11-16 (the owner: 「策略整体放大一点」): the portraits up to 2.3rem (1.9 before), .96 at least (.9; a short screen 1.12)
+  assert.deepEqual([DRAFT_ROW_REM.min, DRAFT_ROW_REM.max, DRAFT_TILE_REM.min, DRAFT_TILE_REM.max, DRAFT_TILE_REM_SHORT.min], [0.96, 1.26, 0.96, 2.3, 1.12]);
 });
 
 test('the wiring: the wall and the rows read the fitted sizes, the design sizes as their fallbacks', () => {
@@ -75,9 +76,9 @@ test('the wiring: the wall and the rows read the fitted sizes, the design sizes 
   assert.match(css, /\n\.dorder \{[^}]*height: var\(--drh, 1\.26rem\);/);
   assert.match(css, /\n\.draft-order__rows \{[^}]*overflow-y: auto/, 'past the floor the list scrolls');
   const js = read('public/js/screens/bandDraft.js');
-  assert.match(js, /<section class="draft-grid" ref=\$\{gridRef\}/);
+  assert.match(js, /<section class=\$\{cx\('draft-grid', found && 'is-search'\)\} ref=\$\{gridRef\}/);
   assert.match(js, /<div class="draft-order__rows" ref=\$\{rowsRef\}>/);
-  assert.match(js, /useFitBox\(gridRef, \(el\) => fitTileBox\(el, DRAFT_TILE_REM\)/);
+  assert.match(js, /useFitBox\(gridRef, \(el\) => fitTileBox\(el, shortScreen\(\) \? DRAFT_TILE_REM_SHORT : DRAFT_TILE_REM\)/);
 });
 
 test('the briefing: two columns that scroll on their own, never the page; the dock in the foot\'s row', () => {

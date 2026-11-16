@@ -191,9 +191,13 @@ prefabs (`group_hud`, `panel_countdown`, `panel_prep_ready`), drawn layer by lay
 decision of 2026-11-14), `ui/regHud.js regLook`: the 规程 shop (its chrome, card faces, character plate), the top bar, the
 round, result, 联防 and 轮到你选 banners, the bond rings and avatar badges, and the 规程 layout (`.gm--reg`: the bond row
 under the top bar, the detail panel above the shop). What follows the rules stays with the version (`regulationFamily`):
-the 规程 commands, the core groups and their briefing, the sweep's fourth tab. ac_n_initial, a custom theme and a pack
-without `prefabs.json` (an asset pack extracted before 0.4.0) keep today's top bar (PR #643 / #827), countdown, ready
-button. Shop cards use `autochess_shop_card_item` from `prefabs.json` when available, including ac_n_initial; a custom
+the 规程 commands, the core groups and their briefing, the sweep's fourth tab. ac_n_initial keeps today's top bar
+(PR #643 / #827) but, since the 2026-11-16 overhaul, wears its own `panel_countdown` and `panel_prep_ready` in the corner
+as the other two packs do; a custom theme and a pack without `prefabs.json` (an asset pack extracted before 0.4.0) keep
+the hand-made countdown and ready button, which hug the screen's corner too. The EFFECTS column, the right detail card
+and a bond popup docked right start under whichever corner is drawn (`TopBar` `data-corner`, `CORNER_TOP`); 已就绪 n/m
+sits on the pack's seat strip (`panel_player` bg) or a CSS bar in its likeness. The packs' 🔍 buttons are drawn at their
+`layout.json` size (73×41, 可露希尔 100×68 / 88×56). Shop cards use `autochess_shop_card_item` from `prefabs.json` when available, including ac_n_initial; a custom
 theme or an older local pack without that prefab keeps the CSS card fallback.
 
 ## 规程 shop card faces
@@ -231,7 +235,9 @@ the open shop of either kind (盟约 too: the default look and other themes get 
 collapsed tab; the deploy fold's scale on the shop leaves it whole. The empty cards are translucent and sit on it as in the
 official shop.
 
-The three themes keep their own card dimensions and name colours. ac_n_initial has a hollow frame and no level-frame
+The three themes keep their own card dimensions and name colours: 可露希尔's 157×207 card is drawn at that size over the
+shop's 155×187 slot, centred (10 units past its top and bottom, the row standing 10 units higher), not squeezed into it;
+its portrait is the pack's own `char_portrait` box (`art` of the face model). ac_n_initial has a hollow frame and no level-frame
 prefabs; 乌萨斯齐心团's name sits at Unity y=32 with `#EFEBDF`; 可露希尔's name sits at y=42.5 with black ink. 可露希尔's
 level-five/six frame pictures carry a static colour band but no TV and no footer text: the card draws frame_lv2_obj /
 frame_lv3_obj's own layers (the scrolling bottom ramp, the TV, its front and 「CLOSURE × RHODES ISLAND」), as the official card does.

@@ -346,15 +346,21 @@ describe('§21.26 4 — the strategy draft marks a strategy built around a bond 
     }
   });
 
-  test('the card\'s tag and the detail pane\'s note: "本局禁用【拉特兰】盟约，此策略效果可能无法发挥", the bond struck through; nothing without one', async () => {
+  test('the card\'s red corner mark and the detail pane\'s note: "本局禁用【拉特兰】盟约，此策略效果可能无法发挥", the bond struck through; nothing without one', async () => {
     const { BandOffTag, BandOffNote } = await import('../../public/js/screens/bandDraft.js');
     assert.equal(bandOffLine(['拉特兰']), '本局禁用【拉特兰】盟约，此策略效果可能无法发挥');
     assert.equal(bandOffLine(['拉特兰', '阿戈尔']), '本局禁用【拉特兰】【阿戈尔】盟约，此策略效果可能无法发挥');
     assert.equal(bandOffLine([]), '');
+    // 2026-11-16 (the owner: 「把xxx盟约禁用简化为一个红色角标」): the client's team_list_banned_icon, no text on the card;
+    // which bond is off is its label and tooltip
     const tag = BandOffTag({ names: ['拉特兰'] });
     assert.ok(hasClass(tag, 'dband__off'));
-    assert.equal(textOf(tag), '拉特兰盟约禁用');
+    assert.equal(textOf(tag), '');
+    assert.equal(tag.props.role, 'img');
+    assert.equal(tag.props['aria-label'], '本局禁用【拉特兰】盟约，此策略效果可能无法发挥');
     assert.equal(tag.props.title, '本局禁用【拉特兰】盟约，此策略效果可能无法发挥');
+    const art = [...walk(tag)].find((v) => v?.props?.name === 'team_list_banned_icon');
+    assert.ok(art && art.props.group === 'ui/outer', 'the client sprite (data/local-assets.json ui/outer)');
     const note = BandOffNote({ names: ['拉特兰'] });
     assert.ok(hasClass(note, 'draft-detail__off'));
     assert.equal(note.props.role, 'note');
