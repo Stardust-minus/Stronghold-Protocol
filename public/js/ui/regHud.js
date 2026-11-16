@@ -10,7 +10,7 @@
 import { officialAssetUrl, officialThemeById, themeCharacterKey } from '../../../shared/uiTheme.js';
 import { createPose } from './prefab/anim.js';
 import { layoutPrefab } from './prefab/layout.js';
-import { imageStyle } from './prefab/view.js';
+import { imageStyle, translateLoop } from './prefab/view.js';
 
 const INITIAL_GROUP = 'themes/ac_n_initial';
 
@@ -295,11 +295,50 @@ export function regMaterialStyle(image, box, pack, { unitRemX = 0.01, unitRemY =
     const duration = 1 / Math.max(Math.abs(speed[0]), Math.abs(speed[1]));
     const dx = -speed[0] * duration * (box.w / tile[0]) * unitRemX;
     const dy = speed[1] * duration * (box.h / tile[1]) * unitRemY;
-    style['--reg-prefab-bg-from'] = style.backgroundPosition;
-    style['--reg-prefab-bg-to'] = `${Number((start[0] + dx).toFixed(5))}rem ${Number((start[1] + dy).toFixed(5))}rem`;
-    style.animation = `reg-prefab-bg-scroll ${Number(duration.toFixed(3))}s linear infinite`;
+    return scrollingTexture(style, { dx, dy, duration, start, tile });
   }
   return style;
+}
+
+/** A rem length, five decimals. @param {number} v */
+const rem5 = (v) => `${Number(v.toFixed(5))}rem`;
+
+/**
+ * A material layer whose texture scrolls by (dx, dy) rem every `duration` seconds: the texture (image, tile size, start
+ * phase, tint) moves to the layer's ::before (css game-reghud.css, `--rs-*`), which is one period larger on the side the
+ * texture comes in from and slides by a transform loop with literal keyframes, so the compositor runs it. The layer keeps
+ * its mask and opacity; the mask, or else a clip, hides what slides past it. It looks the same as animating background-position, which had the browser
+ * restyle, repaint and re-raster every card with a frame or a VI tier every frame (可露希尔, the owner 2026-11-16: the
+ * frame rate fell with 主题动画 on).
+ * @param {Record<string, string>} style  regMaterialStyle's still layer
+ * @param {{ dx: number, dy: number, duration: number, start: number[], tile: number[] }} scroll
+ */
+function scrollingTexture(style, { dx, dy, duration, start, tile }) {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  const { backgroundImage, backgroundColor } = style;
+  const rest = { ...style };
+  for (const k of ['backgroundImage', 'backgroundColor', 'backgroundSize', 'backgroundRepeat', 'backgroundPosition', 'backgroundBlendMode']) delete rest[k];
+  /** @type {Record<string, string>} */
+  const out = {
+    ...rest,
+    '--rs-on': '""',
+    '--rs-l': rem5(-Math.max(dx, 0)),
+    '--rs-t': rem5(-Math.max(dy, 0)),
+    '--rs-w': `calc(100% + ${rem5(ax)})`,
+    '--rs-h': `calc(100% + ${rem5(ay)})`,
+    '--rs-img': backgroundImage,
+    // the tile is still the layer's size / tile: the ::before's 100% less the period it is wider by
+    '--rs-size': `calc((100% - ${rem5(ax)}) / ${tile[0]}) calc((100% - ${rem5(ay)}) / ${tile[1]})`,
+    // the start phase from the layer's corner, which sits max(d, 0) into the ::before
+    '--rs-pos': `${rem5(start[0] + Math.max(dx, 0))} ${rem5(start[1] + Math.max(dy, 0))}`,
+    '--rs-anim': translateLoop(dx, dy, duration),
+  };
+  if (backgroundColor) { out['--rs-color'] = backgroundColor; out['--rs-blend'] = 'multiply'; }
+  // a mask (no-repeat, the layer's size) already hides what slides past the layer; a clip under the card's rotation
+  // (the stars, the VI) would cost an offscreen pass of its own every frame
+  if (!rest.maskImage) out.overflow = 'hidden';
+  return out;
 }
 
 function layerFrom(box, card, pack, { still = false, unitRemX = 0.01, unitRemY = 0.01 } = {}) {

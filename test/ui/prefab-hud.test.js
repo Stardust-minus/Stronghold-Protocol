@@ -5,9 +5,9 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { layoutPrefab, applySliders, scriptRef } from '../../public/js/ui/prefab/layout.js';
 import { createPose, evalKeys, evalVecKeys, clipTime, resolvePath, clipPose, applyStatuses } from '../../public/js/ui/prefab/anim.js';
-import { buildPose, imageStyle, makePack, indexIds, effectStyle, effectScroll } from '../../public/js/ui/prefab/view.js';
+import { buildPose, imageStyle, makePack, indexIds, effectStyle, effectScrollLayers } from '../../public/js/ui/prefab/view.js';
 import { hudStatus, hudBinds, countdownStatus, cornerOffset } from '../../public/js/ui/prefab/hud.js';
-import { sampleClip, nodeKeyframes } from '../../public/js/ui/prefab/player.js';
+import { sampleClip, nodeKeyframes, dropIdleTracks } from '../../public/js/ui/prefab/player.js';
 import { clipPeak, scriptAnim } from '../../public/js/ui/prefab/banners.js';
 
 const R = (size, pos = [0, 0], extra = {}) => ({ anchors: { min: [0.5, 0.5], max: [0.5, 0.5] }, pivot: [0.5, 0.5], sizeDelta: size, anchoredPosition: pos, ...extra });
@@ -188,11 +188,25 @@ describe('effect materials', () => {
     assert.equal(imageStyle(img, () => ''), null, 'without textures it stays undrawn');
   });
 
-  test('the base texture\'s UV scroll is a mask-position loop of one tile', () => {
-    const sc = effectScroll({ base: 'f', speed: [-1, 0], tile: [0.6, 1] }, { w: 30, h: 20 });
-    assert.equal(sc.animation, `${sc.name} 1s linear infinite`);
-    assert.match(sc.body, /to \{ -webkit-mask-position: 0\.5rem 0rem; mask-position: 0\.5rem 0rem; \}/, 'u −1 a second moves one 50-unit tile right');
-    assert.equal(effectScroll({ base: 'f' }, { w: 30, h: 20 }), null);
+  test('the base texture\'s UV scroll slides one tile per period on the compositor (可露希尔帧率)', () => {
+    const texture = (n) => `/t/${n}`;
+    const m = { name: 'mat_ready_arrow', fx: 1, base: 'f', mask: 'k', tile: [0.6, 1], speed: [-1, 0] };
+    const st = effectStyle({ type: 'simple', color: '#FFFFFF80', sprite: null, material: m }, null, texture);
+    const fx = effectScrollLayers(st, m, { w: 30, h: 20 });
+    // the outer keeps the blend, the opacity and the fixed mask; the inner carries the colour through the base texture
+    assert.deepEqual([fx.outer.mixBlendMode, fx.outer.opacity, fx.outer.maskImage, fx.outer.maskSize, fx.outer.overflow], ['screen', '0.502', 'url("/t/k")', '100% 100%', undefined]);
+    assert.equal(fx.inner.backgroundColor, st.backgroundColor);
+    assert.equal(fx.inner.maskImage, 'url("/t/f")');
+    // u −1 a second moves one 50-unit tile right: the inner reaches 0.5rem past the left edge, the tile stays 30 / 0.6
+    assert.equal(fx.inner.animation, 'pf-tl_0p5_0 1s linear infinite');
+    assert.deepEqual([fx.inner.left, fx.inner.top, fx.inner.width, fx.inner.height], ['-0.5rem', '0rem', 'calc(100% + 0.5rem)', 'calc(100% + 0rem)']);
+    assert.equal(fx.inner.maskSize, 'calc((100% - 0.5rem) / 0.6) calc((100% - 0rem) / 1)');
+    assert.equal(fx.inner.maskPosition, '0.5rem 0rem');
+    // without a material mask the outer clips the slide
+    const bare = { ...m, mask: undefined };
+    const fx2 = effectScrollLayers(effectStyle({ type: 'simple', color: '#FFFFFF', sprite: null, material: bare }, null, texture), bare, { w: 30, h: 20 });
+    assert.deepEqual([fx2.outer.overflow, fx2.outer.maskImage, fx2.inner.maskImage], ['hidden', undefined, 'url("/t/f")']);
+    assert.equal(effectScrollLayers(st, { base: 'f' }, { w: 30, h: 20 }), null, 'no speed: no scroll');
   });
 });
 
@@ -322,6 +336,24 @@ describe('clip playback and banners', () => {
     assert.equal(kf.gfx[0].opacity, '0');
     assert.equal(kf.gfx[0].backgroundColor, 'rgb(0 0 255)');
     assert.equal(kf.gfx[frames].backgroundColor, 'rgb(255 0 255)');
+  });
+
+  test('a track that holds what the element already shows is left out; nothing left, no animation (可露希尔帧率)', () => {
+    // 可露希尔's wireline glow: loop_wireline moves only the glow's colour (drawn untinted) — its opacity keyframes all
+    // repeat the drawn alpha (0.502), and that idle animation kept a blended, masked layer composited every frame
+    const root = { name: 'w', children: [{ name: 'g' }] };
+    const clip = { len: 1, wrap: 2, curves: [['g', 'img.g', [[0, 0.9, 0, 0], [1, 0.2, 0, 0]]]] };
+    const { frames, tracks } = sampleClip(clip, root);
+    const kf = nodeKeyframes(tracks.get(root.children[0]), frames, { pos: [0, 0], size: [1, 1], scale: [1, 1], rot: 0, alpha: 1, color: '#FFFFFF80', tinted: false, text: false });
+    assert.ok(kf.gfx.every((k) => k.opacity === kf.gfx[0].opacity && !('backgroundColor' in k)));
+    const near = (v) => Math.abs(Number(v) - 0.502) < 0.002;
+    assert.equal(dropIdleTracks(kf.gfx, (p, v) => p === 'opacity' && near(v)), null);
+    assert.equal(dropIdleTracks(kf.gfx, () => false), kf.gfx, 'not idle: kept as it was');
+    // a moving track stays; only the idle one goes
+    const keys = [{ offset: 0, opacity: '1', transform: 'a' }, { offset: 1, opacity: '1', transform: 'b' }];
+    assert.deepEqual(dropIdleTracks(keys, (p) => p === 'opacity'), [{ offset: 0, transform: 'a' }, { offset: 1, transform: 'b' }]);
+    assert.deepEqual(dropIdleTracks(keys, (p) => p === 'transform'), keys, 'a changing value is never idle');
+    assert.equal(dropIdleTracks(null, () => true), null);
   });
 
   test('a banner lays out at its show clip\'s peak: the end of an in clip, the middle of one that comes and goes', () => {

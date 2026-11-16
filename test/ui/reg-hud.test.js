@@ -520,9 +520,9 @@ test('regulation card faces follow each theme prefab, including star angles and 
   const viStyle = regTierViImageStyle(closure6, pack);
   // the VI glyph is the material's colour ramp (the base texture's own colours) cut by mask_text_vi, scrolled at its speed
   assert.match(viStyle.WebkitMaskImage, /mask_text_vi\.webp/);
-  assert.match(viStyle.backgroundImage, /url\(/);
+  assert.match(viStyle['--rs-img'], /url\(/, 'the scrolling ramp is the ::before\'s');
   assert.equal(viStyle.mixBlendMode, undefined, 'drawn in its colours, not screened white');
-  assert.equal(Number.parseFloat(/reg-prefab-bg-scroll ([\d.]+)s/.exec(viStyle.animation)[1]), 7.692);
+  assert.equal(Number.parseFloat(/^pf-tl_\S+ ([\d.]+)s linear infinite$/.exec(viStyle['--rs-anim'])[1]), 7.692);
 
   const item = regShopCardFaceModel(pack, { tier: 3, kind: 'item' });
   assert.ok(item.item.watermark);
@@ -741,14 +741,35 @@ test('a card material draws its base texture in its own colours, tinted, masked 
   const pack = { texture: (n) => `/t/${n}.webp` };
   const box = { w: 116, h: 17 };
   // frame_lv2_obj bottom_grad: an opaque orange ramp (fx_gradcolor_4), white Image, tile 0.5 × 1, scrolling left
+  const still = regMaterialStyle({ color: '#FFFFFF', material: { base: 'fx_gradcolor_4', tile: [0.5, 1], speed: [-0.25, 0] } }, box, pack, { still: true });
+  assert.equal(still.backgroundImage, 'url("/t/fx_gradcolor_4.webp")');
+  assert.equal(still.backgroundSize, '200% 100%');
+  assert.equal(still.backgroundColor, undefined, 'a white Image keeps the ramp colours');
+  assert.equal(still.maskImage, undefined);
+  assert.equal(still.mixBlendMode, undefined);
+  assert.equal(still['--rs-on'], undefined, 'still: no scrolling ::before');
+  // scrolling: the texture is the layer's ::before, one period (box / tile prefab units at .01rem) wider on the side it
+  // comes in from, slid by a transform loop the compositor runs (可露希尔帧率 2026-11-16: background-position repainted
+  // every card every frame); the tile stays the layer's size / tile and the start phase stays at the layer's corner
   const grad = regMaterialStyle({ color: '#FFFFFF', material: { base: 'fx_gradcolor_4', tile: [0.5, 1], speed: [-0.25, 0] } }, box, pack);
-  assert.equal(grad.backgroundImage, 'url("/t/fx_gradcolor_4.webp")');
-  assert.equal(grad.backgroundSize, '200% 100%');
-  assert.equal(grad.backgroundColor, undefined, 'a white Image keeps the ramp colours');
-  assert.equal(grad.maskImage, undefined);
-  assert.equal(grad.mixBlendMode, undefined);
-  assert.match(grad.animation, /^reg-prefab-bg-scroll 4s linear infinite$/);
-  assert.equal(grad['--reg-prefab-bg-to'], '2.32rem 0rem', 'one period: box / tile prefab units at .01rem');
+  assert.equal(grad.backgroundImage, undefined);
+  assert.equal(grad.animation, undefined);
+  assert.equal(grad.overflow, 'hidden');
+  assert.equal(grad['--rs-img'], 'url("/t/fx_gradcolor_4.webp")');
+  assert.equal(grad['--rs-size'], 'calc((100% - 2.32rem) / 0.5) calc((100% - 0rem) / 1)');
+  assert.deepEqual([grad['--rs-l'], grad['--rs-t'], grad['--rs-w'], grad['--rs-h']], ['-2.32rem', '0rem', 'calc(100% + 2.32rem)', 'calc(100% + 0rem)']);
+  assert.equal(grad['--rs-pos'], '2.32rem 0rem');
+  assert.equal(grad['--rs-color'], undefined);
+  assert.equal(grad['--rs-anim'], 'pf-tl_2p32_0 4s linear infinite');
+  // scrolling up (v > 0 runs up in Unity): the ::before reaches below the layer, a tint goes with the texture
+  const up = regMaterialStyle({ color: '#FF000080', material: { base: 'b', mask: 'm', tile: [1, 0.7], speed: [0, -0.15], offset: [0, 0.37] } }, { w: 49, h: 49 }, pack);
+  assert.equal(up.opacity, '0.502');
+  assert.equal(up.maskImage, 'url("/t/m.webp")', 'the mask stays on the layer');
+  assert.equal(up.overflow, undefined, 'the mask hides the slide: no clip (an offscreen pass under a rotated card layer)');
+  assert.equal(up['--rs-color'], 'rgb(255 0 0)');
+  assert.equal(up['--rs-blend'], 'multiply');
+  assert.deepEqual([up['--rs-l'], up['--rs-t'], up['--rs-h'], up['--rs-pos']], ['0rem', '0rem', 'calc(100% + 0.7rem)', '0rem 0.259rem']);
+  assert.match(up['--rs-anim'], /^pf-tl_0_m0p7 6\.667s linear infinite$/);
   // a tinted, translucent layer with a mask
   const tinted = regMaterialStyle({ color: '#F8507F33', material: { base: 'fx_gradcolor_1', mask: 'mask_tv2', tile: [1, 1] } }, box, pack, { still: true });
   assert.equal(tinted.backgroundColor, 'rgb(248 80 127)');
