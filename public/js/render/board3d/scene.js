@@ -94,6 +94,90 @@ export function sceneGroupVisible(rect, areas, group = '') {
   return (areas || []).some((a) => cx >= a.c0 - 0.5 && cx <= a.c1 + 0.5 && cy >= a.r0 - 0.5 && cy <= a.r1 + 0.5);
 }
 
+/**
+ * act2autochess_m01's backdrop: one 79.64-tile square picture (MT_Syracuse_metro_BG, "Unlit Texture", z −2.26) under
+ * the whole scene, u running down the rows and v along the columns. The frame a missing backdrop is rebuilt in.
+ */
+export const SCENE_BACKDROP_FRAME = Object.freeze({ x0: -27.55, x1: 52.09, y0: -29.94, y1: 49.7, z: -2.26 });
+
+/** A chunk record whose bounds already reach past the frame a camera can show (the act2 m01 square). */
+const coversFrame = (b) => Array.isArray(b) && b.length >= 6 && b[0] <= -15 && b[1] <= -15 && b[3] >= 35 && b[4] >= 34;
+
+/**
+ * What to draw under an official scene whose extract left no backdrop (the owner 2026-11-16 「地图周边会出现一些黑色缺损」):
+ * the 规程 battlefields are three sub-prefabs stitched into the 19 × 21 board (tools/local-extract/regulation_scenes.py),
+ * and their backdrop did not come along — act3 m05's MT_Syracuse_metro_BG square (act2 m01 has it), m10 / m12's
+ * MT_church_tower_background, m09 / m11's MT_LAND (no texture, a light ice colour) — or came in pieces (the sand maps'
+ * background sheet). Without it the clear colour (near black) showed through between the rocks, past the cliffs and at
+ * a wide or a phone screen's edges. In order:
+ *   picture — a material no chunk uses with its own picture, named …_BG / …_background or drawn "Unlit Texture": the
+ *             act2 m01 square at the lowest point of the base (or z −2.26 when that is higher);
+ *   colour  — an unused untextured land / ground material with a _Color: the same square in that colour;
+ *   sheet   — the base's biggest chunk whose map is a background picture: its texture tiled on the square at the
+ *             sheet's own texel density, just under its lowest point.
+ * Null when a chunk already covers the frame, or nothing fits. [ASSUMED] the client draws those materials as one flat
+ * square under the board as act2 m01 does (their meshes are not in the extract).
+ * @param {any} doc scene.json @param {any[]} chunks pack.chunks (parseSceneChunks: records with typed arrays)
+ * @returns {{ kind: 'picture'|'colour'|'sheet', material: string, info: any, map: string|null, z: number, chunk?: any }|null}
+ */
+export function sceneBackdropPlan(doc, chunks) {
+  const list = Array.isArray(chunks) ? chunks : [];
+  if (!list.length || list.some((c) => coversFrame(c?.bounds))) return null;
+  const mats = doc && typeof doc.materials === 'object' && doc.materials ? doc.materials : {};
+  const used = new Set(list.map((c) => c?.material));
+  const base = list.filter((c) => !c?.group && Array.isArray(c?.bounds) && c.bounds.length >= 6);
+  const low = base.length ? Math.min(...base.map((c) => c.bounds[2])) : 0;
+  const entries = Object.entries(mats).filter(([name, info]) => !used.has(name) && info && typeof info === 'object');
+  for (const [name, info] of entries) {
+    if (typeof info.map !== 'string' || !info.map) continue;
+    if (!/_bg$|_background$/i.test(name) && !/unlit texture/i.test(String(info.shader || ''))) continue;
+    return { kind: 'picture', material: name, info, map: info.map, z: Math.min(SCENE_BACKDROP_FRAME.z, low - 0.1) };
+  }
+  for (const [name, info] of entries) {
+    if (info.map || !Array.isArray(info.colors?._Color) || !/land|ground|floor|background/i.test(name)) continue;
+    return { kind: 'colour', material: name, info, map: null, z: low - 0.1 };
+  }
+  const area = (b) => (b[3] - b[0]) * (b[4] - b[1]);
+  const sheet = base.filter((c) => /background/i.test(String(mats[c.material]?.map || ''))).sort((a, b) => area(b.bounds) - area(a.bounds))[0];
+  if (sheet) return { kind: 'sheet', material: sheet.material, info: mats[sheet.material], map: mats[sheet.material].map, z: sheet.bounds[2] - 0.05, chunk: sheet };
+  return null;
+}
+
+/**
+ * The planar UV of a chunk as u = a·x + b·y + c and v = d·x + e·y + f (least squares over its vertices) and the fit's
+ * RMS residual, or null for a degenerate chunk. A background sheet tiles its texture: the 规程 sand sheet is several
+ * pieces with their own offsets (m01: RMS ≈ 0.29, ~0.13 UV per tile both ways), and only the density carries over.
+ * @param {{ position: ArrayLike<number>, uv: ArrayLike<number> }} chunk
+ */
+export function planarUvFit(chunk) {
+  const p = chunk?.position, t = chunk?.uv;
+  const n = p && t ? Math.min(Math.floor(p.length / 3), Math.floor(t.length / 2)) : 0;
+  if (n < 3) return null;
+  let sx = 0, sy = 0, sxx = 0, sxy = 0, syy = 0, su = 0, sv = 0, sxu = 0, syu = 0, sxv = 0, syv = 0;
+  for (let i = 0; i < n; i++) {
+    const x = p[i * 3], y = p[i * 3 + 1], u = t[i * 2], v = t[i * 2 + 1];
+    sx += x; sy += y; sxx += x * x; sxy += x * y; syy += y * y; su += u; sv += v; sxu += x * u; syu += y * u; sxv += x * v; syv += y * v;
+  }
+  // normal equations [[sxx sxy sx] [sxy syy sy] [sx sy n]] · [a b c] = [sxu syu su] (Cramer)
+  const det3 = (m) => m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]);
+  const M = [sxx, sxy, sx, sxy, syy, sy, sx, sy, n];
+  const D = det3(M);
+  if (!(Math.abs(D) > 1e-9)) return null;
+  const solve = (r0, r1, r2) => [
+    det3([r0, sxy, sx, r1, syy, sy, r2, sy, n]) / D,
+    det3([sxx, r0, sx, sxy, r1, sy, sx, r2, n]) / D,
+    det3([sxx, sxy, r0, sxy, syy, r1, sx, sy, r2]) / D,
+  ];
+  const U = solve(sxu, syu, su), V = solve(sxv, syv, sv);
+  let err = 0;
+  for (let i = 0; i < n; i++) {
+    const x = p[i * 3], y = p[i * 3 + 1];
+    err += (U[0] * x + U[1] * y + U[2] - t[i * 2]) ** 2 + (V[0] * x + V[1] * y + V[2] - t[i * 2 + 1]) ** 2;
+  }
+  if (![...U, ...V].every(Number.isFinite) || !(Math.abs(U[0]) + Math.abs(U[1]) > 1e-4) || !(Math.abs(V[0]) + Math.abs(V[1]) > 1e-4)) return null;
+  return { u: U, v: V, rms: Math.sqrt(err / n) };
+}
+
 const areaKey = (list) => (list || []).map((a) => `${a.r0},${a.r1},${a.c0},${a.c1}`).sort().join(';');
 
 const mergeInto = (list) => {
@@ -489,7 +573,46 @@ export class BoardScene {
       this.root.add(mesh);
       this.meshes[`scene${n++}`] = mesh;
     }
+    if (n > 0) this._buildSceneBackdrop(pack, res);
     return n > 0;
+  }
+
+  /** The backdrop sceneBackdropPlan picks for a scene without one, as `meshes.backdrop` (one quad, under everything). */
+  _buildSceneBackdrop(pack, res) {
+    const plan = sceneBackdropPlan(pack.doc, pack.chunks);
+    if (!plan) return;
+    const T = this.THREE;
+    const F = SCENE_BACKDROP_FRAME;
+    const fit = plan.kind === 'sheet' ? planarUvFit(plan.chunk) : null;
+    if ((plan.kind === 'sheet' && !fit) || (plan.map && !res.tex[plan.map])) return;
+    const corners = [[F.x0, F.y0], [F.x1, F.y0], [F.x1, F.y1], [F.x0, F.y1]];
+    const uvAt = ([x, y]) => (fit ? [fit.u[0] * x + fit.u[1] * y + fit.u[2], fit.v[0] * x + fit.v[1] * y + fit.v[2]]
+      : [(F.y1 - y) / (F.y1 - F.y0), (x - F.x0) / (F.x1 - F.x0)]);
+    const g = new T.BufferGeometry();
+    g.setAttribute('position', new T.BufferAttribute(new Float32Array(corners.flatMap(([x, y]) => [x, y, plan.z])), 3));
+    g.setAttribute('normal', new T.BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
+    g.setAttribute('uv', new T.BufferAttribute(new Float32Array(corners.flatMap(uvAt)), 2));
+    g.setAttribute('aLm', new T.BufferAttribute(new Float32Array(8), 2));
+    g.setAttribute('aColor', new T.BufferAttribute(new Uint8Array(16).fill(255), 4, true));
+    g.setIndex(new T.BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1));
+    g.computeBoundingSphere();
+    const key = `backdrop:${plan.kind}:${plan.material}`;
+    let mat = res.mats.get(key);
+    if (!mat) {
+      // no lightmap page: the scene's key light and the ambient term, like act2 m01's square
+      mat = sceneMaterial(T, {
+        map: plan.map ? res.tex[plan.map] || null : null, lightMap: null, info: plan.info,
+        light: pack.doc?.light || null, lightRange: pack.doc?.lightRange, lightEncoding: pack.doc?.lightEncoding,
+      }, this.focus);
+      mat.side = T.DoubleSide;
+      res.mats.set(key, mat);
+    }
+    const mesh = new T.Mesh(g, mat);
+    mesh.castShadow = false; mesh.receiveShadow = false;
+    mesh.renderOrder = -5;
+    mesh.matrixAutoUpdate = false; mesh.updateMatrix();
+    this.root.add(mesh);
+    this.meshes.backdrop = mesh;
   }
 
   _buildDevices(board) {
