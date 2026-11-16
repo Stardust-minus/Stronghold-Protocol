@@ -83,8 +83,8 @@ const watchRemovals = (h) => {
 test('the substantive intents are exactly the ones named by the rule, all of them real C2S intents', () => {
   assert.equal(AFK_REMOVE_ROUNDS, 2);
   assert.equal(LOBBY_DEFAULTS.afkRemoveRounds, AFK_REMOVE_ROUNDS, 'real rooms get the default');
-  assert.deepEqual([...AFK_ACTIONS].sort(), ['g.band', 'g.bandCancel', 'g.bandHold', 'g.bandLock', 'g.bandSkip', 'g.buy', 'g.choice', 'g.command', 'g.destroy',
-    'g.diyBring', 'g.equip', 'g.freeze', 'g.levelUp', 'g.move', 'g.refresh', 'g.revive', 'g.reward', 'g.sell']);
+  assert.deepEqual([...AFK_ACTIONS].sort(), ['g.band', 'g.bandCancel', 'g.bandHold', 'g.bandLock', 'g.bandSkip', 'g.buy', 'g.choice', 'g.command', 'g.commandChoice',
+    'g.destroy', 'g.diyBring', 'g.equip', 'g.freeze', 'g.levelUp', 'g.move', 'g.refresh', 'g.revive', 'g.reward', 'g.sell']);
   for (const t of AFK_ACTIONS) assert.ok(Object.hasOwn(C2S, t), t);
   for (const t of ['g.ready', 'g.emote', 'g.watch', 'g.unitStats', 'g.pause', 'g.infoReady', 'g.art', 'g.bandFocus', 'g.autoplay',
     'g.rerollVote', 'g.kickVote', 'g.kickBallot', 'g.bondPlan', 'g.leave', 'b.progress', 'b.result']) assert.ok(!AFK_ACTIONS.has(t), t);

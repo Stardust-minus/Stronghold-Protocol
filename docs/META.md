@@ -285,7 +285,7 @@ A `choice:<effectId>` registry handler overrides the default application (§2.4)
   left it ends as `'eliminated'`.
 * 挂机移出 (this fork's rule, `afkRemoveRounds`, default `AFK_REMOVE_ROUNDS` 2; matches that started with ≥ 2 humans):
   as each prep ends (`_checkIdle`), an online human seat with no accepted `AFK_ACTIONS` intent since the last check
-  (规程's `g.command` and `g.diyBring` among them, the owner 2026-11-16) gains an idle round — warned one short of the
+  (规程's `g.command`, `g.commandChoice` and `g.diyBring` among them, the owner 2026-11-16) gains an idle round — warned one short of the
   limit, removed like `onLeave` at it (`m.removed {reason:'afk'}`); an intent, AI 托管 or being offline resets it. A
   seat that could not have made such an intent (`PlayerState.afkCanAct`: no funds for a card, a refresh or a level-up,
   no free refresh, nothing on the board, in the hand or in 暂存, no offer or personal choice, no 规程 指令 it could use
