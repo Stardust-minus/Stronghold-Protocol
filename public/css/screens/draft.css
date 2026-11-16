@@ -217,14 +217,27 @@
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .16) 0 1px, transparent 1px 3px), radial-gradient(circle at 50% 46%, transparent 48%, rgba(4, 10, 9, .78) 74%),
     linear-gradient(180deg, rgba(60, 230, 185, .1), rgba(60, 230, 185, .2)); }
 .dband__name { position: absolute; left: .07rem; right: .07rem; bottom: .07rem; padding: .5em .06em .12em; text-align: center; pointer-events: none;
-  /* the whole name, never an ellipsis (the owner, 2026-11-16): it wraps, balanced (「伊奥莱塔·/罗素」, 「“变形者/集群”」),
-     at a size taken from the tile — about six characters a line — with a readable floor; a word longer than the tile
-     breaks as a last resort. 文字大小 scales it (--dname-k). */
+  /* the whole name, never an ellipsis (the owner, 2026-11-16): its size is taken from the tile — about six characters a
+     line — with a readable floor, then fitted (below: one line, shrunk; past its floor wrapped between words). Unmeasured
+     it wraps, balanced (「伊奥莱塔·/罗素」, 「“变形者/集群”」), a word longer than the tile broken as a last resort.
+     文字大小 scales it (--dname-k). */
   white-space: normal; text-wrap: balance; overflow-wrap: anywhere; line-height: 1.12;
   font-size: max(9px, calc(var(--dname-k, 1) * var(--dtile, 1.9rem) * .145)); font-weight: 700; color: rgba(232, 244, 240, .9); text-shadow: 0 1px 2px #000;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .55) 32%, rgba(0, 0, 0, .78)); }
 .dband__name:lang(ja) { line-break: strict; }
 .dband__name:lang(ko) { word-break: keep-all; }
+/* Measured (bandDraft.js, ui/fitGrid.js fitBandNames; the owner, 2026-11-16: Korean names were broken inside a word on a
+   phone, 「에르망가|르드」): the best fit of a doctor's name — data-fit="one", shrunk by --bk on one line to a readable floor
+   (72 % of its size or 11 px, never above its size: a phone's 9 px keeps it); "wrap" past the floor, at the floor, between
+   words only (Korean keep-all; Japanese keep-all too, at its ・ — 「イオレッタ・/ラッセル」, not 「イオレッ/タ・ラッセル」 —
+   strict); "break" only for a word wider than the tile at the floor (anywhere, as unmeasured; Japanese then between its
+   kana, strict). measure / measure-line / measure-word: the fit's own passes (its size, one line, the widest piece). */
+.dband__name[data-fit] { font-size: calc(var(--bk, 1) * max(9px, calc(var(--dname-k, 1) * var(--dtile, 1.9rem) * .145))); }
+.dband__name:is([data-fit="one"], [data-fit="measure"], [data-fit="measure-line"]) { white-space: nowrap; }
+.dband__name:is([data-fit="wrap"], [data-fit="measure-word"]) { overflow-wrap: normal; }
+.dband__name:lang(ja):is([data-fit="wrap"], [data-fit="measure-word"]) { word-break: keep-all; }
+.dband__name:is([data-fit="measure-line"], [data-fit="measure-word"]) { right: auto; width: max-content; }
+.dband__name[data-fit="measure-word"] { width: min-content; }
 :root[data-text="md"] .draft { --dname-k: 1.08; }
 :root[data-text="lg"] .draft { --dname-k: 1.18; }
 :root[data-text="xl"] .draft { --dname-k: 1.3; }

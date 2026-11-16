@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fitNameScale, NAME_FIT } from '../../public/js/ui/fitGrid.js';
+import { fitNameScale, fitBandNameScale, NAME_FIT } from '../../public/js/ui/fitGrid.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (p) => readFileSync(path.join(ROOT, p), 'utf8');
@@ -74,3 +74,51 @@ test('the order row measures its name and the stylesheet never cuts it', () => {
   assert.match(css, /\.dorder__name:lang\(ja\) \{ line-break: strict; \}/);
   assert.match(css, /\.dorder__name:lang\(ko\) \{ word-break: keep-all; \}/);
 });
+
+// A strategy's name on its tile (the owner, 2026-11-16: Korean names broke inside a word on a phone, 「에르망가|르드」; the
+// whole name, no ellipsis): the same best fit — one line shrunk to the floor —, past it wrapped at the floor between words;
+// a word breaks inside only when it alone is wider than the tile at the floor. The browser check: mock.e2e 「选择策略 on
+// 640×360 / 667×375 phones」 (test/e2e/text-fit.mjs wordWider).
+test('fitBandNameScale: one line shrunk to the floor, then wrapped between words; a word breaks only past the floor', () => {
+  // 1920 (a 122 px name box, 21.2 px, .06em paddings): a name that fits keeps its size on one line
+  assert.deepEqual(fitBandNameScale({ box: 122, pad: 2.5, line: 100, word: 100, base: 21.2 }), { scale: 1, mode: 'one' });
+  // a little too long: shrunk on its line, a pixel to spare (its paddings shrink with it)
+  const s = fitBandNameScale({ box: 122, pad: 2.5, line: 140, word: 70, base: 21.2 });
+  near(s.scale, 121 / 142.5, 'one line');
+  assert.equal(s.mode, 'one');
+  // past the floor (72 % of 21.2 px): wrapped at the floor, words whole
+  assert.deepEqual(fitBandNameScale({ box: 122, pad: 2.5, line: 200, word: 90, base: 21.2 }), { scale: 0.72, mode: 'wrap' });
+  // 1366 (15.1 px): the floor is 11 px (72 % would be 10.9); a word wider than the box even there breaks
+  const r = fitBandNameScale({ box: 87, pad: 1.8, line: 200, word: 60, base: 15.1 });
+  near(r.scale * 15.1, 11, '1366 floor');
+  assert.equal(r.mode, 'wrap');
+  assert.equal(fitBandNameScale({ box: 87, pad: 1.8, line: 200, word: 130, base: 15.1 }).mode, 'break');
+  // a phone's 9 px tile (39 px box): 11 px is above its size, so it keeps 9 px — 「클레멘티아」 (41 px) breaks, two short
+  // words wrap between them; a word a pixel too wide runs into its padding rather than break
+  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 41, word: 41, base: 9 }), { scale: 1, mode: 'break' });
+  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 60, word: 30, base: 9 }), { scale: 1, mode: 'wrap' });
+  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 60, word: 38.9, base: 9 }), { scale: 1, mode: 'wrap' });
+  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 60, word: 39, base: 9 }), { scale: 1, mode: 'break' });
+  // half a pixel into the padding is no overflow
+  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 38.4, base: 9 }), { scale: 1, mode: 'one' });
+});
+
+test('the wall fits its names after its tiles, again on a language, search, 已被选择, 文字大小 or font change; the stylesheet never cuts them', () => {
+  const draft = read('public/js/screens/bandDraft.js');
+  const tiles = draft.indexOf('useFitBox(gridRef, (el) => fitTileBox(');
+  const names = draft.indexOf("useFitBox(gridRef, fitBandNames, [view === 'done', bands.length, nameKey, lang, query, takenKey, textSize], { fonts: true });");
+  assert.ok(tiles > 0 && names > tiles, 'the names observed after the tiles');
+  assert.match(draft, /<span class="dband__name">\$\{b\.name\}<\/span>/);
+  const css = read('public/css/screens/draft.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  // measured: the tile-sized font times --bk; one line, or wrapped with words whole; unmeasured it wraps as before
+  assert.match(css, /\n\.dband__name\[data-fit\] \{ font-size: calc\(var\(--bk, 1\) \* max\(9px, calc\(var\(--dname-k, 1\) \* var\(--dtile, 1\.9rem\) \* \.145\)\)\); \}/);
+  assert.match(css, /\.dband__name:is\(\[data-fit="one"\], \[data-fit="measure"\], \[data-fit="measure-line"\]\) \{ white-space: nowrap; \}/);
+  assert.match(css, /\.dband__name:is\(\[data-fit="wrap"\], \[data-fit="measure-word"\]\) \{ overflow-wrap: normal; \}/);
+  assert.match(css, /\.dband__name:lang\(ko\) \{ word-break: keep-all; \}/);
+  // Japanese wrapped at the floor: between its words (at ・), kana breaks only for a word wider than the tile
+  assert.match(css, /\.dband__name:lang\(ja\):is\(\[data-fit="wrap"\], \[data-fit="measure-word"\]\) \{ word-break: keep-all; \}/);
+  const rules = css.match(/[^{}]*\.dband__name[^{}]*\{[^}]*\}/g) || [];
+  for (const rule of rules) assert.doesNotMatch(rule, /ellipsis|line-clamp|overflow: hidden/, `no cut on a strategy's name: ${rule.trim().slice(0, 70)}`);
+  assert.match(read('public/js/ui/fitGrid.js'), /fontSet\?\.addEventListener\?\.\('loadingdone', later\);/);
+});
+

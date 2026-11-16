@@ -990,8 +990,12 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
   }
 
   // §35.51 review: on short phones a strategy's name takes two lines — Japanese never starts one with a small kana, ー or a
-  // closing mark (「ワルフ|ァリン」), a Korean name stays whole on one line or ends in an ellipsis (「에르망|가르드」 broke
-  // between syllables) — and the header's status no longer runs over 2/2; the team and the solo draft, 中 – 特大
+  // closing mark (「ワルフ|ァリン」), a Korean name breaks between words (「에르망|가르드」 broke between syllables) — and the
+  // header's status no longer runs over 2/2; the team and the solo draft, 中 – 特大.
+  // 2026-11-16 (the owner: the whole name, never an ellipsis — §35.51's one Korean line with an ellipsis is gone): every
+  // name is fitted (ui/fitGrid.js fitBandNames: one line shrunk to its floor, then wrapped between words), and a word breaks
+  // inside only when it alone is wider than its tile at that floor — on a phone's 9 px tile 「에르망가르드」 (50 px in 38) and
+  // 「클레멘티아」 (41 in 38) are (text-fit.mjs wordWider: such a break is allowed, no other one)
   test('选择策略 on 640×360 / 667×375 phones in Japanese and Korean at 中 – 特大: the names break by the rules, the header\'s status clear of 2/2', { timeout: 300000 }, async () => {
     const bad = [];
     for (const variant of ['', '&variant=solo']) for (const lang of ['ja', 'ko']) for (const textSize of ['md', 'lg', 'xl']) for (const [w, h] of [[640, 360], [667, 375]]) {
@@ -1010,6 +1014,9 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
       assert.deepEqual(await page.evaluate(() => [document.documentElement.lang, document.documentElement.dataset.text]), [lang, textSize]);
       const found = (await page.evaluate(textProblems, '.draft'))
         .filter((p) => /dband__name/.test(p) && /line starts with|inside a word/.test(p) || /^over: .*(b\.num|span\.num)/.test(p));
+      // every shown name measured: one line, wrapped between words, or (a word wider than the tile) broken
+      found.push(...(await page.$$eval('.dband__name', (els) => els.filter((el) => el.checkVisibility() && !/^(one|wrap|break)$/.test(el.dataset.fit || ''))
+        .map((el) => `not fitted (${el.dataset.fit || '-'}): ${el.textContent}`))));
       for (const p of found) bad.push(`${variant ? 'solo' : 'team'} ${lang} ${textSize} ${w}×${h}: ${p}`);
       await page.close();
     }

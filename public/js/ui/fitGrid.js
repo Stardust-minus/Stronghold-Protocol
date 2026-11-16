@@ -9,7 +9,9 @@
 //     up per section; the headers' own height the caller takes off `h` (fitTileBox `head`).
 //   * fitRowHeight: `n` rows in a column whose other content (pool heads, gaps, paddings) keeps its height.
 //   * fitNameScale: a doctor's name on its order row, whole (the owner, 2026-11-16: no ellipsis) — the client's best fit.
-// Used by screens/bandDraft.js (.draft-grid: --dcols / --dtile; .draft-order__rows: --drh; .dorder__name: --nk).
+//   * fitBandNameScale: a strategy's name on its tile, the same best fit; past its floor it wraps between words.
+// Used by screens/bandDraft.js (.draft-grid: --dcols / --dtile; .dband__name: --bk; .draft-order__rows: --drh;
+// .dorder__name: --nk).
 
 import { useEffect } from '../../vendor/hooks.module.js';
 
@@ -125,6 +127,58 @@ export function fitNameBox(el) {
 }
 
 /**
+ * The scale of a strategy's name on its tile (pure; the owner, 2026-11-16: the whole name, never an ellipsis — and a Korean
+ * name not broken inside a word, 「에르망가|르드」 on a phone): the best fit of a doctor's name (fitNameScale, NAME_FIT) —
+ * on one line, shrunk to a readable floor (72 % of its size or 11 px, never above its size: a phone's 9 px keeps its
+ * size); past the floor it wraps, at the floor, between words only (Korean keep-all, Japanese at its ・: css/screens/draft.css);
+ * only a word wider than the tile at the floor may break inside ('break'). px in, at the name's own size `base`: `box`, the
+ * name box's width (it spans the tile); `pad`, its side paddings (in em: they scale with it); `line`, the name on one line;
+ * `word`, its widest piece that may not break (the min-content width under the language's rules).
+ * @param {{ box: number, pad?: number, line: number, word?: number, base: number }} m
+ * @returns {{ scale: number, mode: 'one'|'wrap'|'break' }}
+ */
+export function fitBandNameScale({ box, pad = 0, line, word = line, base }) {
+  // half a pixel of rounding is no overflow (it runs into the padding)
+  if (!(line > box - pad + 0.5) || !(box > 0) || !(base > 0)) return { scale: 1, mode: 'one' };
+  const floor = Math.max(NAME_FIT.k * base, Math.min(base, NAME_FIT.floorPx)) / base;
+  // the scale that puts the line and its paddings in the box with a pixel to spare (the widths are rounded)
+  const one = (box - 1) / (line + pad);
+  if (one >= floor) return { scale: Math.min(1, one), mode: 'one' };
+  // a word may run a pixel into its padding rather than break (less than that is the widths' rounding)
+  return { scale: floor, mode: word * floor > box - pad * floor + 1 ? 'break' : 'wrap' };
+}
+
+/**
+ * Fit the names of a wall's tiles (.dband__name, fitBandNameScale): each gets --bk (its scale) and data-fit "one" (one
+ * line), "wrap" (at the floor, words whole) or "break" (a word wider than the tile at the floor breaks inside, as the
+ * unmeasured CSS does). Measured in three passes over all of them — a layout each, not one per tile —, from computed
+ * widths (the tiles' entry animation scales them: rectangles would be off): the box at its size on one line ("measure"),
+ * the line ("measure-line", max-content) and the widest piece ("measure-word", min-content, words whole). A hidden name
+ * (a search, 已被选择) is skipped; the caller fits again when it shows.
+ * @param {HTMLElement} wall
+ */
+export function fitBandNames(wall) {
+  const names = [...wall.querySelectorAll('.dband__name')].filter((n) => n.getClientRects().length);
+  if (!names.length) return;
+  const width = (n) => px(getComputedStyle(n).width);
+  for (const n of names) { n.style.removeProperty('--bk'); n.dataset.fit = 'measure'; }
+  const m = names.map((n) => {
+    const cs = getComputedStyle(n);
+    const pad = px(cs.paddingLeft) + px(cs.paddingRight);
+    return { box: px(cs.width) + pad, pad, base: px(cs.fontSize), line: 0, word: 0 };
+  });
+  for (const n of names) n.dataset.fit = 'measure-line';
+  names.forEach((n, i) => { m[i].line = width(n); });
+  for (const n of names) n.dataset.fit = 'measure-word';
+  names.forEach((n, i) => { m[i].word = width(n); });
+  names.forEach((n, i) => {
+    const { scale, mode } = fitBandNameScale(m[i]);
+    if (scale < 1) n.style.setProperty('--bk', scale.toFixed(4));
+    n.dataset.fit = mode;
+  });
+}
+
+/**
  * Size a wall of square tiles (the element's children) to its box: sets --dcols and --dtile (px) on `el`. Children that
  * match `head` (full-row section headers: bandDraft.js .draft-grid__sec) are no tiles: each starts a section, and its
  * row (its height, margins and one row gap) is taken off the box.
@@ -177,18 +231,23 @@ export function fitRowBox(el, { rowSel, min, max }) {
 
 /**
  * Run `fit(el)` now and whenever the element's box changes size (ResizeObserver, one per animation frame); `deps`
- * re-run it (e.g. the number of children). Nothing where ResizeObserver is missing: the CSS fallbacks stay.
+ * re-run it (e.g. the number of children). `fonts`: also when web fonts finish loading (a fit that measures text).
+ * Nothing where ResizeObserver is missing: the CSS fallbacks stay.
  * @param {{ current: HTMLElement|null }} ref @param {(el: HTMLElement) => void} fit @param {any[]} deps
+ * @param {{ fonts?: boolean }} [opts]
  */
-export function useFitBox(ref, fit, deps) {
+export function useFitBox(ref, fit, deps, { fonts = false } = {}) {
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver !== 'function') return undefined;
     let raf = 0;
     const run = () => { raf = 0; if (el.isConnected) fit(el); };
-    const ro = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(run); });
+    const later = () => { if (!raf) raf = requestAnimationFrame(run); };
+    const ro = new ResizeObserver(later);
     ro.observe(el);
+    const fontSet = fonts ? globalThis.document?.fonts : null;
+    fontSet?.addEventListener?.('loadingdone', later);
     run();
-    return () => { ro.disconnect(); if (raf) cancelAnimationFrame(raf); };
+    return () => { ro.disconnect(); fontSet?.removeEventListener?.('loadingdone', later); if (raf) cancelAnimationFrame(raf); };
   }, deps);
 }

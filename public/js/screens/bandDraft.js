@@ -27,8 +27,10 @@
 // Search (2026-11-16, 「再加一个搜索框，可以输入搜索对应策略」): a box in the step header, over the wall, filters it by name,
 // effect name, bond and, in Chinese, pinyin initials (ui/bandSearch.js); the wall keeps its size while it filters.
 // Size (「策略整体放大一点，不要出现省略号」): a narrower order column and tighter gaps give the portraits about a tenth more;
-// a name wraps at a size taken from its tile, never ending in an ellipsis. A doctor's name in the order is whole too (「Doctor…」
-// once the detail pane narrowed the list): the client's best fit on its line to a readable floor, then wrapped (fitNameBox).
+// a name is sized from its tile and never ends in an ellipsis. A doctor's name in the order is whole too (「Doctor…」 once the
+// detail pane narrowed the list): the client's best fit on its line to a readable floor, then wrapped (fitNameBox); a
+// strategy's name on its tile likewise, wrapped between words only — a word breaks only when it alone is wider than the
+// tile at the floor (fitBandNames; Korean 「에르망가|르드」 on a phone, mock.e2e).
 // 本局信息 (GitHub #8 item 1 and #484): the step header's entry beside the difficulty opens the briefing's leader, battlefield,
 // special enemies (ui/matchEnemies.js), bond rows, legend and 本局禁用干员 again, read-only (MatchInfoDialog).
 // The draft runs on underneath: its status line repeats the current turn and the countdown (draftInfoStatus),
@@ -63,7 +65,7 @@ import { StepHeader, ExitModal } from '../ui/matchChrome.js';
 import { bondPlanOpen, playerPlan, planLine, BondPlanTags, BondPlanDialog } from '../ui/bondPlan.js';
 import { MatchInfoDialog, matchInfoModel, MatchBondDialog, regulationCoreAbsent } from '../ui/matchInfo.js';
 import { useRise } from '../ui/transitions.js';
-import { useFitBox, fitTileBox, fitRowBox, fitNameBox } from '../ui/fitGrid.js';
+import { useFitBox, fitTileBox, fitRowBox, fitNameBox, fitBandNames } from '../ui/fitGrid.js';
 import { NameCardLayer } from '../ui/namecards.js';
 import { MatchName } from '../ui/ownerName.js';
 import { TrophyBadge } from '../ui/trophies.js';
@@ -75,6 +77,8 @@ import { StageMiniMap } from '../ui/stagePreview.js';
 import { actions, act } from '../ui/gameActions.js';
 import { normalizeDraft, sortedPlayers, draftMyTurn, pregameStepCount, pregameStepIndex } from '../ui/gameLogic.js';
 import { useStore } from '../store.js';
+import { settingsStore } from '../ui/settingsStore.js';
+import { useLang } from '../ui/lang.js';
 import { data, useData, localAsset } from '../data.js';
 import { uiUrl } from '../ui/assetUrls.js';
 import { audio } from '../audio.js';
@@ -455,6 +459,9 @@ export function BandDraftScreen({ held = null } = {}) {
   // the search box (ui/bandSearch.js): names, effect names, bonds, and in Chinese their pinyin initials
   const searchIndex = useMemo(() => bandSearchIndex(bands, (id) => gd.bond(id)?.name || null, { pinyin: /^zh/i.test(data.locale() || 'zh') }), [bands, gd]);
   const found = useMemo(() => searchBands(searchIndex, query), [searchIndex, query]);
+  const nameKey = useMemo(() => bands.map((b) => b.name).join('\n'), [bands]);
+  const textSize = useStore((s) => s.textSize, Object.is, settingsStore); // 文字大小 (<html data-text>): the names' size
+  const lang = useLang(); // <html lang>: the names' line-breaking rules (css/screens/draft.css :lang)
   const players = sortedPlayers(pub);
   const draft = normalizeDraft(pub?.draft, players);
   // an expanded room's draft: every seat picks at once (server MatchPhases.concurrentDraft) — no turn, no skip
@@ -666,6 +673,11 @@ export function BandDraftScreen({ held = null } = {}) {
   const gridRef = useRef(null);
   const rowsRef = useRef(null);
   useFitBox(gridRef, (el) => fitTileBox(el, shortScreen() ? DRAFT_TILE_REM_SHORT : DRAFT_TILE_REM), [view === 'done', bands.length]);
+  // the names on the tiles, fitted after the tiles (the same resize, observed second; ui/fitGrid.js fitBandNames: one line,
+  // shrunk to a floor, then wrapped between words): again when they change (the language), when hidden ones show (a
+  // search cleared, 已被选择 given back), in another language (its line-breaking rules: a name without a translation is the
+  // same text), at another 文字大小 and once web fonts arrive
+  useFitBox(gridRef, fitBandNames, [view === 'done', bands.length, nameKey, lang, query, takenKey, textSize], { fonts: true });
   // a tapped strategy stays in view when the detail pane narrows the wall (规程's 61 scroll then), and what a search finds
   // shows from the top
   useEffect(() => {

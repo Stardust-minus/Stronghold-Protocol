@@ -5,7 +5,8 @@
  * In the page: the text problems under `rootSel`. Each visible text node's line boxes (a glyph box's middle ± half the line
  * height) against every ancestor up to the root that clips (overflow) or draws a box (background, border, a button) —
  * 2 px of slack for hairlines —, an ancestor that scrolls on that axis ending the climb; the viewport; the other labels'
- * text as it shows (clipped by its clipping ancestors); a line break inside a word (but in a player's name) (not at a space, a hyphen — unless a digit follows it — or between
+ * text as it shows (clipped by its clipping ancestors); a line break inside a word (but in a player's name, or a word wider
+ * than its picker / strategy tile) (not at a space, a hyphen — unless a digit follows it — or between
  * CJK / kana; Korean puts spaces between its words, so a break between two Hangul syllables — or a syllable and a latin
  * letter or digit — is inside a word too, keep-all or not: under word-break: keep-all such a break is the overflow-wrap
  * fallback of a word too long for its box); a line that starts with a small kana, ー, an iteration mark or a closing
@@ -110,8 +111,10 @@ export function textProblems(rootSel, extraEllipsis = '') {
             const at = `${n.textContent.slice(Math.max(0, i - 6), i)}|${n.textContent.slice(i, i + 6)}`;
             // (a player's name is any string: on a phone its second line may start inside a long word — §35.51; a picker's
             // operator name breaks inside a word only when that word alone is wider than the tile: overflow-wrap
-            // break-word, English 「Thunderbringer」)
-            if (!breakOk(p, c) && !el.closest('.seat__name') && !(el.closest('.cardpick__name') && wordWider(n, i, el.closest('.cardpick__name')))) {
+            // break-word, English 「Thunderbringer」; so does a strategy's name on the draft's wall, a word wider than its
+            // tile at the fit's floor — the owner's rule of 2026-11-16, Korean 「에르망가르드」 on a phone's 9 px tile)
+            const tile = el.closest('.cardpick__name, .dband__name');
+            if (!breakOk(p, c) && !el.closest('.seat__name') && !(tile && wordWider(n, i, tile))) {
               out.push(`broken inside a word (${at}): ${label}`); break;
             }
             if (noStart.test(c)) { out.push(`a line starts with ${c} (${at}): ${label}`); break; }
