@@ -397,7 +397,7 @@ still uses the legacy prep adapter; a trusted strategy must explicitly select th
 80 forced games per band, shrunk toward the mean, to the 6th power; §37.46); a band whose mechanic rides on a bond the mode switches off weighs 0 — `GameData.bandBondIds` (bands.json
 `bondIds`, built by shared/bandBonds.js: the bond names in <…> of its text, the bond ids / bond pools of its blackboards)
 ∩ `modeInactiveBonds`: 标准's 潘格尼尼, 克莱门莎, 玛恩纳 — and with every offered band excluded it takes the default band;
-one rng draw per pick (DESIGN §21.26). The strategy draft marks the same bands for humans (still selectable): 「<bond>盟约禁用」 on the card since rel34, 本局禁用 before.
+one rng draw per pick (DESIGN §21.26). The strategy draft marks the same bands for humans (still selectable): the client's red corner mark since 2026-11-16 (§36.25), 「<bond>盟约禁用」 from rel34, 本局禁用 before.
 In a co-op 终极 draft a seat the AI drafts for takes Touch (外勤医疗: a reserve medic on every player's field, kept after
 its holder falls, §30.14) × 1000 once another player holds 歌利亚 and nobody else holds Touch (§37.63; a plugin strategy
 built on either counts by its effectRef). A co-op seat gone before its pick (a human who left during INFO_CHECK or

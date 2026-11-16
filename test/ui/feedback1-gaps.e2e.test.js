@@ -155,12 +155,15 @@ describe('0.1.1 gaps: 变形同构体 pairings and 调和\'s +1 (mock harness, h
         const t = c.querySelector('.dband__off');
         const r = c.getBoundingClientRect();
         const q = t ? t.getBoundingClientRect() : null;
-        return { id: c.getAttribute('data-band'), off: c.classList.contains('is-off'), tag: t ? t.textContent : null, title: c.title || null,
-          font: t ? parseFloat(getComputedStyle(t).fontSize) : null, inside: !q || (q.left >= r.left - 0.5 && q.right <= r.right + 0.5 && q.bottom <= r.bottom + 0.5) };
+        // the client's red corner mark (2026-11-16): no text, the line in its label; in the portrait's top-left corner
+        return { id: c.getAttribute('data-band'), off: c.classList.contains('is-off'), tag: t ? t.getAttribute('aria-label') : null, text: t ? t.textContent.trim() : null,
+          title: c.title || null, size: q ? Math.round(q.width) : null, corner: !q || (q.left - r.left < r.width * 0.2 && q.top - r.top < r.height * 0.2),
+          inside: !q || (q.left >= r.left - 0.5 && q.right <= r.right + 0.5 && q.bottom <= r.bottom + 0.5) };
       }));
       assert.ok(cards.length >= 30, `${cards.length} strategies on offer`);
       assert.deepEqual(cards.filter((c) => c.tag).map((c) => c.id), ['band_paganini', 'band_clementia', 'band_mlynar'], 'only the three');
-      assert.ok(cards.filter((c) => c.tag).every((c) => c.off && /^(拉特兰|阿戈尔|卡西米尔)盟约禁用$/.test(c.tag) && c.inside && c.font >= (touch ? 8 : 11.5)), JSON.stringify(cards.filter((c) => c.tag)));
+      assert.ok(cards.filter((c) => c.tag).every((c) => c.off && /^本局禁用【(拉特兰|阿戈尔|卡西米尔)】盟约，此策略效果可能无法发挥$/.test(c.tag) && c.text === ''
+        && c.inside && c.corner && c.size >= 14), JSON.stringify(cards.filter((c) => c.tag)));
       assert.equal(cards.find((c) => c.id === 'band_paganini').title, '本局禁用【拉特兰】盟约，此策略效果可能无法发挥');
       await page.screenshot({ path: path.join(OUT, `fb1-gaps-draft-${name}.png`) });
       // its detail pane: the note, inside the pane; 确认选择 stays enabled (information only)

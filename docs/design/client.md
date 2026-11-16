@@ -478,7 +478,7 @@ not measurements of the official client.
 
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 
-A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one, or around a bond of the match's drawn set D, carries a red 「X盟约禁用」 tag on its dimmed card in the strategy draft and the detail's note 本局禁用【X】盟约，此策略效果可能无法发挥, and stays selectable (bands.json `bondIds`, §21.26, `gameLogic matchOffBonds` / `bandOffBonds`, §36.11).
+A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one, or around a bond of the match's drawn set D, carries the client's red corner mark (`team_list_banned_icon`, top-left, no text; the bond in its label and the card's tooltip) on its dimmed card in the strategy draft and the detail's note 本局禁用【X】盟约，此策略效果可能无法发挥 on the client's banned tip, and stays selectable (bands.json `bondIds`, §21.26, `gameLogic matchOffBonds` / `bandOffBonds`, §36.11, §36.25). The draft's search box (`ui/bandSearch.js`, in the step header's status) filters the wall by name, effect name, bond and pinyin initials, by description only when no name matches; hidden tiles keep the wall's size.
 
 预选盟约 (`ui/bondPlan.js`, §36.11): a 主盟约 (a core bond) and up to four 副盟约 (`BOND_PLAN_SUB_MAX`; any bond with a member), shown on the draft's order rows and the team panel (the main glyph first); the picker marks 盟约禁用 on the static (不会激活) and the drawn bonds (N 名干员无法出现) and is opened from the draft (预选盟约) or, the whole match while alive, from the viewer's own team-panel row. The shop and promotion-reward cards mark the plans on the card's own bond chips, never on its frame (§36.17; `bondPlan.js shopPlanMarks` / `cardPlanMarks`, `ui/shopBar.js`): my 主盟约 solid mint, a 副盟约 mint-outlined, a bond an alive pool teammate planned dash-outlined in ice with the people icon (which teammate is not shown; `poolGroups` decide the pool, nobody with the shared pool off). 设置「商店标出我的预选盟约」/「商店标出队友的预选盟约」 (`planMarkMine` / `planMarkMates`, on by default, kept with the settings) switch each kind off. A change after the draft toasts on the others' screens (`m.notice bondPlan`).
 
@@ -821,7 +821,8 @@ The trophies icon uses the existing asset manifest. Compaction and export/import
 
 A strategy earns its corner badge after 3 successful defenses (`bands.victorCount`; [research 01](../research/01-core-rules.md)).
 The stats page, the lobby's achievement dialog and the strategy draft's wall (`screens/bandDraft.js` draftRecords) all read
-`strategyBadgeIds`, so the three never disagree.
+`strategyBadgeIds`, so the three never disagree. The draft shows 规程's colourful badge in its place at `masterVictorCount`
+clears (`strategyMasterIds`; 6, the client's `_panelMasterMark`, §36.25); both are the client's sprites (`ui/outer`).
 
 [ASSUMED] Alliance usage means active in the local player's final settlement: once per match, independent of layers;
 inactive bonds retaining layers, teammates and partial quit snapshots do not count. The 0.3.0 storage version (v2, the

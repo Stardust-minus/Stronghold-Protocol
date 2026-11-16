@@ -874,8 +874,25 @@ function usedBondIdsOf(player) {
   return [...new Set(ids.filter((id) => typeof id === 'string' && id.length).map((id) => id.slice(0, 64)))].slice(0, MAX_BONDS);
 }
 
-/** Strategy corner badges use official band victorCount thresholds; training awards no progress. */
-export function strategyBadgeIds(records, bands) {
+/**
+ * 规程's second, colourful corner badge on a strategy (client: AutoChessBandChooseBandItemView _panelMasterMark, sprites
+ * team_list_master_team_bg + team_list_master_team): the clears of the gold one (victorCount, 3) up to the band's
+ * masterVictorCount — 6 for all 61 strategies and the 4 training ones in 规程's activity_table. The earlier seasons'
+ * tables have no such field (and data/ does not carry it): their strategies take the 规程 bar.
+ */
+export const MASTER_VICTOR_COUNT = 6;
+
+/** A band's bar for the colourful badge (masterVictorCount, else MASTER_VICTOR_COUNT). @param {any} band */
+export function masterVictorCountOf(band) {
+  return Number.isInteger(band?.masterVictorCount) && band.masterVictorCount > 0 ? band.masterVictorCount : MASTER_VICTOR_COUNT;
+}
+
+/**
+ * Clears toward the strategy corner badges, bandId → count: runs the player won with that strategy themself (the client's
+ * per-band passCnt) — quits, test and training runs and an AI-taken-over seat award no progress.
+ * @param {any[]} records @returns {Map<string, number>}
+ */
+export function strategyClearCounts(records) {
   const clears = new Map();
   for (const rec of Array.isArray(records) ? records : []) {
     if (!rec || rec.end === 'quit' || rec.test === true || rec.difficulty === 'TRAINING' || rec.modeId === 'mode_training_1') continue;
@@ -883,9 +900,24 @@ export function strategyBadgeIds(records, bands) {
     if (!self?.bandId || Number.isInteger(self.aiTakeoverRound) || !selfWon(rec, self)) continue;
     clears.set(self.bandId, (clears.get(self.bandId) || 0) + 1);
   }
+  return clears;
+}
+
+const bandOrder = (a, b) => (a.sortId || 0) - (b.sortId || 0) || a.bandId.localeCompare(b.bandId);
+
+/** Strategy corner badges use official band victorCount thresholds; training awards no progress. */
+export function strategyBadgeIds(records, bands, clears = strategyClearCounts(records)) {
   return Object.values(bands || {}).filter((band) => Number.isInteger(band.victorCount) && band.victorCount > 0
     && (clears.get(band.bandId) || 0) >= band.victorCount)
-    .sort((a, b) => (a.sortId || 0) - (b.sortId || 0) || a.bandId.localeCompare(b.bandId))
+    .sort(bandOrder)
+    .map((band) => band.bandId);
+}
+
+/** The strategies whose clears reached their masterVictorCount (the colourful badge, shown instead of the gold one). */
+export function strategyMasterIds(records, bands, clears = strategyClearCounts(records)) {
+  return Object.values(bands || {}).filter((band) => Number.isInteger(band.victorCount) && band.victorCount > 0
+    && (clears.get(band.bandId) || 0) >= Math.max(band.victorCount, masterVictorCountOf(band)))
+    .sort(bandOrder)
     .map((band) => band.bandId);
 }
 
