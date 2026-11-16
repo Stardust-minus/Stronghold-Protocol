@@ -1,0 +1,1463 @@
+{
+ "version": 1,
+ "source": "the local CN client (hot update 26-11-06-12-42-25-70182449): each dyn_illust prefab of arts/dynchars/*.ab — DynIllust._cameraSize, the root transform; frame = the camera square in y-up skeleton space: x/y = (−offset − cameraSize) × 100 / rootScale, side = 2 × cameraSize × 100 / rootScale",
+ "skins": {
+  "char_003_kalts_boc_6": {
+   "dynIllustId": "dyn_illust_char_003_kalts_boc#6",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.18,
+    -6.03
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1118.0,
+    "y": -497.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_003_kalts_sale_14": {
+   "dynIllustId": "dyn_illust_char_003_kalts_sale#14",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.42,
+    -5.04
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1042.0,
+    "y": -496.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1012_skadi2_boc_4": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_boc#4",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -6.87
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -313.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1012_skadi2_iteration_2": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_iteration#2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.17,
+    -9.22
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1017.0,
+    "y": -78.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1013_chen2_boc_6": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_boc#6",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.53,
+    -9.29
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1203.0,
+    "y": -221.0,
+    "width": 2300.0,
+    "height": 2300.0
+   }
+  },
+  "char_1013_chen2_summer_20": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_summer#20",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    0.0,
+    -7.94
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1030.0,
+    "y": -236.0,
+    "width": 2060.0,
+    "height": 2060.0
+   }
+  },
+  "char_1014_nearl2_epoque_17": {
+   "dynIllustId": "dyn_illust_char_1014_nearl2_epoque#17",
+   "cameraSize": 13.0,
+   "rootOffset": [
+    -0.4,
+    -9.21
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1260.0,
+    "y": -379.0,
+    "width": 2600.0,
+    "height": 2600.0
+   }
+  },
+  "char_1016_agoat2_epoque_34": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_epoque#34",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -8.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -250.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_1016_agoat2_epoque_57": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_epoque#57",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.0,
+    -8.74
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -276.0,
+    "width": 2300.0,
+    "height": 2300.0
+   }
+  },
+  "char_1019_siege2_epoque_50": {
+   "dynIllustId": "dyn_illust_char_1019_siege2_epoque#50",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.31,
+    -9.77
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1081.0,
+    "y": -73.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_1020_reed2_epoque_30": {
+   "dynIllustId": "dyn_illust_char_1020_reed2_epoque#30",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.55,
+    -6.66
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -945.0,
+    "y": -334.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1020_reed2_summer_17": {
+   "dynIllustId": "dyn_illust_char_1020_reed2_summer#17",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -1.46,
+    -6.53
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -904.0,
+    "y": -397.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_1023_ghost2_boc_6": {
+   "dynIllustId": "dyn_illust_char_1023_ghost2_boc#6",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.09,
+    -9.14
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -991.0,
+    "y": -86.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1026_gvial2_summer_12": {
+   "dynIllustId": "dyn_illust_char_1026_gvial2_summer#12",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.26,
+    -6.14
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1024.0,
+    "y": -436.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_1028_texas2_epoque_36": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_epoque#36",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.29,
+    -9.51
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1079.0,
+    "y": -99.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_1028_texas2_iteration_1": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_iteration#1",
+   "cameraSize": 10.4,
+   "rootOffset": [
+    0.0,
+    -8.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1040.0,
+    "y": -240.0,
+    "width": 2080.0,
+    "height": 2080.0
+   }
+  },
+  "char_1032_excu2_sale_12": {
+   "dynIllustId": "dyn_illust_char_1032_excu2_sale#12",
+   "cameraSize": 10.4,
+   "rootOffset": [
+    0.0,
+    -8.1
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1040.0,
+    "y": -230.0,
+    "width": 2080.0,
+    "height": 2080.0
+   }
+  },
+  "char_1035_wisdel_sale_14": {
+   "dynIllustId": "dyn_illust_char_1035_wisdel_sale#14",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -5.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -450.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1037_amiya3_sale_13": {
+   "dynIllustId": "dyn_illust_char_1037_amiya3_sale#13",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    -1.09,
+    -9.76
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -921.0,
+    "y": -54.0,
+    "width": 2060.0,
+    "height": 2060.0
+   }
+  },
+  "char_1038_whitw2_sale_15": {
+   "dynIllustId": "dyn_illust_char_1038_whitw2_sale#15",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -7.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -300.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_1039_thorn2_marthe_9": {
+   "dynIllustId": "dyn_illust_char_1039_thorn2_marthe#9",
+   "cameraSize": 10.4,
+   "rootOffset": [
+    -1.0,
+    -5.8
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -940.0,
+    "y": -460.0,
+    "width": 2080.0,
+    "height": 2080.0
+   }
+  },
+  "char_1041_angel2_iteration_6": {
+   "dynIllustId": "dyn_illust_char_1041_angel2_iteration#6",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.59,
+    -9.8
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1159.0,
+    "y": -120.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_1042_phatm2_sightseer_4": {
+   "dynIllustId": "dyn_illust_char_1042_phatm2_sightseer#4",
+   "cameraSize": 12.708,
+   "rootOffset": [
+    0.029,
+    -9.834
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1273.688,
+    "y": -287.458,
+    "width": 2541.616,
+    "height": 2541.616
+   }
+  },
+  "char_1044_hsgma2_whirlwind_11": {
+   "dynIllustId": "dyn_illust_char_1044_hsgma2_whirlwind#11",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.238,
+    -8.879
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1123.78,
+    "y": -212.09,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_1045_svash2_sale_20": {
+   "dynIllustId": "dyn_illust_char_1045_svash2_sale#20",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.045,
+    -10.484
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1104.53,
+    "y": -51.6,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_1046_sbell2_ambienceSynesthesia_8": {
+   "dynIllustId": "dyn_illust_char_1046_sbell2_ambienceSynesthesia#8",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.305,
+    -8.741
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1080.52,
+    "y": -175.93,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_113_cqbw_epoque_7": {
+   "dynIllustId": "dyn_illust_char_113_cqbw_epoque#7",
+   "cameraSize": 12.5,
+   "rootOffset": [
+    1.37,
+    -6.45
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1387.0,
+    "y": -605.0,
+    "width": 2500.0,
+    "height": 2500.0
+   }
+  },
+  "char_172_svrash_ambienceSynesthesia_4": {
+   "dynIllustId": "dyn_illust_char_172_svrash_ambienceSynesthesia#4",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -9.06
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -94.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_179_cgbird_sightseer_1": {
+   "dynIllustId": "dyn_illust_char_179_cgbird_sightseer#1",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -250.0,
+    "width": 2300.0,
+    "height": 2300.0
+   }
+  },
+  "char_2014_nian_cfa_1": {
+   "dynIllustId": "dyn_illust_char_2014_nian_cfa#1",
+   "cameraSize": 10.65,
+   "rootOffset": [
+    0.0,
+    -4.65
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1065.0,
+    "y": -600.0,
+    "width": 2130.0,
+    "height": 2130.0
+   }
+  },
+  "char_2014_nian_nian_4": {
+   "dynIllustId": "dyn_illust_char_2014_nian_nian#4",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    -0.4,
+    -2.6
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1060.0,
+    "y": -840.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_2015_dusk_nian_12": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_nian#12",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -200.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_2015_dusk_nian_7": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_nian#7",
+   "cameraSize": 18.0,
+   "rootOffset": [
+    0.0,
+    -7.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1800.0,
+    "y": -1100.0,
+    "width": 3600.0,
+    "height": 3600.0
+   }
+  },
+  "char_2023_ling_ncg_1": {
+   "dynIllustId": "dyn_illust_char_2023_ling_ncg#1",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    0.0,
+    -9.22
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1030.0,
+    "y": -108.0,
+    "width": 2060.0,
+    "height": 2060.0
+   }
+  },
+  "char_2023_ling_nian_9": {
+   "dynIllustId": "dyn_illust_char_2023_ling_nian#9",
+   "cameraSize": 14.463,
+   "rootOffset": [
+    0.9,
+    -9.8
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1536.294,
+    "y": -466.294,
+    "width": 2892.589,
+    "height": 2892.589
+   }
+  },
+  "char_2024_chyue_cfa_1": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_cfa#1",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.4,
+    -8.8
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1010.0,
+    "y": -170.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_2024_chyue_nian_10": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_nian#10",
+   "cameraSize": 10.6,
+   "rootOffset": [
+    -0.6,
+    -10.15
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -45.0,
+    "width": 2120.0,
+    "height": 2120.0
+   }
+  },
+  "char_2025_shu_nian_11": {
+   "dynIllustId": "dyn_illust_char_2025_shu_nian#11",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -9.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -50.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_2025_shu_nlc_1": {
+   "dynIllustId": "dyn_illust_char_2025_shu_nlc#1",
+   "cameraSize": 11.993,
+   "rootOffset": [
+    0.0,
+    -9.72
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1199.309,
+    "y": -227.309,
+    "width": 2398.618,
+    "height": 2398.618
+   }
+  },
+  "char_2026_yu_nian_12": {
+   "dynIllustId": "dyn_illust_char_2026_yu_nian#12",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -200.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_202_demkni_ambienceSynesthesia_7": {
+   "dynIllustId": "dyn_illust_char_202_demkni_ambienceSynesthesia#7",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.5,
+    -8.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -300.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_245_cello_sale_12": {
+   "dynIllustId": "dyn_illust_char_245_cello_sale#12",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.15,
+    -8.11
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1065.0,
+    "y": -239.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_249_mlyss_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_ambienceSynesthesia#6",
+   "cameraSize": 11.3,
+   "rootOffset": [
+    0.0,
+    -11.27
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1130.0,
+    "y": -3.0,
+    "width": 2260.0,
+    "height": 2260.0
+   }
+  },
+  "char_249_mlyss_boc_8": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_boc#8",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    -0.05,
+    -9.58
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1095.0,
+    "y": -142.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_250_phatom_sale_4": {
+   "dynIllustId": "dyn_illust_char_250_phatom_sale#4",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -100.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_322_lmlee_witch_3": {
+   "dynIllustId": "dyn_illust_char_322_lmlee_witch#3",
+   "cameraSize": 12.0,
+   "rootOffset": [
+    0.0,
+    -4.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1200.0,
+    "y": -750.0,
+    "width": 2400.0,
+    "height": 2400.0
+   }
+  },
+  "char_332_archet_sale_14": {
+   "dynIllustId": "dyn_illust_char_332_archet_sale#14",
+   "cameraSize": 10.7,
+   "rootOffset": [
+    0.0,
+    -7.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1070.0,
+    "y": -320.0,
+    "width": 2140.0,
+    "height": 2140.0
+   }
+  },
+  "char_350_surtr_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_350_surtr_ambienceSynesthesia#6",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.3,
+    -6.4
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1030.0,
+    "y": -360.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_350_surtr_summer_9": {
+   "dynIllustId": "dyn_illust_char_350_surtr_summer#9",
+   "cameraSize": 10.6,
+   "rootOffset": [
+    -0.39,
+    -8.43
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1021.0,
+    "y": -217.0,
+    "width": 2120.0,
+    "height": 2120.0
+   }
+  },
+  "char_377_gdglow_summer_12": {
+   "dynIllustId": "dyn_illust_char_377_gdglow_summer#12",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.16,
+    -9.19
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1066.0,
+    "y": -131.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_391_rosmon_epoque_17": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_epoque#17",
+   "cameraSize": 10.2,
+   "rootOffset": [
+    0.0,
+    -6.4
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1020.0,
+    "y": -380.0,
+    "width": 2040.0,
+    "height": 2040.0
+   }
+  },
+  "char_391_rosmon_sale_16": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_sale#16",
+   "cameraSize": 10.8,
+   "rootOffset": [
+    0.28,
+    -9.48
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1108.0,
+    "y": -132.0,
+    "width": 2160.0,
+    "height": 2160.0
+   }
+  },
+  "char_4010_etlchi_winter_5": {
+   "dynIllustId": "dyn_illust_char_4010_etlchi_winter#5",
+   "cameraSize": 10.22,
+   "rootOffset": [
+    0.0,
+    -8.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1022.0,
+    "y": -172.0,
+    "width": 2044.0,
+    "height": 2044.0
+   }
+  },
+  "char_4055_bgsnow_wild_7": {
+   "dynIllustId": "dyn_illust_char_4055_bgsnow_wild#7",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.11,
+    -4.29
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1011.0,
+    "y": -571.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_4058_pepe_sightseer_2": {
+   "dynIllustId": "dyn_illust_char_4058_pepe_sightseer#2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -7.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -300.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_4064_mlynar_epoque_28": {
+   "dynIllustId": "dyn_illust_char_4064_mlynar_epoque#28",
+   "cameraSize": 11.11,
+   "rootOffset": [
+    0.0,
+    -10.6
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1111.0,
+    "y": -51.0,
+    "width": 2222.0,
+    "height": 2222.0
+   }
+  },
+  "char_4080_lin_nian_10": {
+   "dynIllustId": "dyn_illust_char_4080_lin_nian#10",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.48,
+    -7.87
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1048.0,
+    "y": -213.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_4080_lin_summer_19": {
+   "dynIllustId": "dyn_illust_char_4080_lin_summer#19",
+   "cameraSize": 10.1,
+   "rootOffset": [
+    0.0,
+    -6.2
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1010.0,
+    "y": -390.0,
+    "width": 2020.0,
+    "height": 2020.0
+   }
+  },
+  "char_4087_ines_ambienceSynesthesia_5": {
+   "dynIllustId": "dyn_illust_char_4087_ines_ambienceSynesthesia#5",
+   "cameraSize": 10.2,
+   "rootOffset": [
+    0.27,
+    -1.88
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1047.0,
+    "y": -832.0,
+    "width": 2040.0,
+    "height": 2040.0
+   }
+  },
+  "char_4087_ines_boc_8": {
+   "dynIllustId": "dyn_illust_char_4087_ines_boc#8",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.13,
+    -7.14
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1037.0,
+    "y": -336.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_4098_vvana_epoque_59": {
+   "dynIllustId": "dyn_illust_char_4098_vvana_epoque#59",
+   "cameraSize": 12.0,
+   "rootOffset": [
+    0.079,
+    -9.434
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1207.88,
+    "y": -256.58,
+    "width": 2400.0,
+    "height": 2400.0
+   }
+  },
+  "char_4116_blkkgt_witch_5": {
+   "dynIllustId": "dyn_illust_char_4116_blkkgt_witch#5",
+   "cameraSize": 11.3,
+   "rootOffset": [
+    -0.02,
+    -9.55
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1128.0,
+    "y": -175.0,
+    "width": 2260.0,
+    "height": 2260.0
+   }
+  },
+  "char_4121_zuole_nian_11": {
+   "dynIllustId": "dyn_illust_char_4121_zuole_nian#11",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.5,
+    -7.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -350.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_4132_ascln_iteration_4": {
+   "dynIllustId": "dyn_illust_char_4132_ascln_iteration#4",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.61,
+    -10.19
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -989.0,
+    "y": -31.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_4133_logos_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_4133_logos_ambienceSynesthesia#6",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    -0.91,
+    -8.11
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -939.0,
+    "y": -219.0,
+    "width": 2060.0,
+    "height": 2060.0
+   }
+  },
+  "char_4134_cetsyr_epoque_50": {
+   "dynIllustId": "dyn_illust_char_4134_cetsyr_epoque#50",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -7.2
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -330.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_4179_monstr_boc_11": {
+   "dynIllustId": "dyn_illust_char_4179_monstr_boc#11",
+   "cameraSize": 10.55,
+   "rootOffset": [
+    0.08,
+    -8.06
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1063.0,
+    "y": -249.0,
+    "width": 2110.0,
+    "height": 2110.0
+   }
+  },
+  "char_4202_haruka_iteration_6": {
+   "dynIllustId": "dyn_illust_char_4202_haruka_iteration#6",
+   "cameraSize": 11.39,
+   "rootOffset": [
+    0.61,
+    -8.18
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1200.0,
+    "y": -321.0,
+    "width": 2278.0,
+    "height": 2278.0
+   }
+  },
+  "char_437_mizuki_sale_7": {
+   "dynIllustId": "dyn_illust_char_437_mizuki_sale#7",
+   "cameraSize": 12.0,
+   "rootOffset": [
+    0.0,
+    -8.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1200.0,
+    "y": -400.0,
+    "width": 2400.0,
+    "height": 2400.0
+   }
+  },
+  "char_450_necras_summer_20": {
+   "dynIllustId": "dyn_illust_char_450_necras_summer#20",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1030.0,
+    "y": -30.0,
+    "width": 2060.0,
+    "height": 2060.0
+   }
+  },
+  "char_472_pasngr_epoque_17": {
+   "dynIllustId": "dyn_illust_char_472_pasngr_epoque#17",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -150.0,
+    "width": 2300.0,
+    "height": 2300.0
+   }
+  }
+ },
+ "chars": {
+  "char_1012_skadi2": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -6.6
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -440.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_1013_chen2": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -100.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1014_nearl2": {
+   "dynIllustId": "dyn_illust_char_1014_nearl2_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    1.6,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1160.0,
+    "y": -100.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1015_aglna2": {
+   "dynIllustId": "dyn_illust_char_1015_aglna2_2",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.069,
+    -9.913
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1156.86,
+    "y": -158.74,
+    "width": 2300.0,
+    "height": 2300.0
+   }
+  },
+  "char_1016_agoat2": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    -0.58,
+    -6.42
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1042.0,
+    "y": -458.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_1023_ghost2": {
+   "dynIllustId": "dyn_illust_char_1023_ghost2_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -7.75
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -225.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1026_gvial2": {
+   "dynIllustId": "dyn_illust_char_1026_gvial2_2",
+   "cameraSize": 13.0,
+   "rootOffset": [
+    1.5,
+    -10.3
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1450.0,
+    "y": -270.0,
+    "width": 2600.0,
+    "height": 2600.0
+   }
+  },
+  "char_1028_texas2": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_2",
+   "cameraSize": 8.89,
+   "rootOffset": [
+    0.0,
+    -2.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -889.0,
+    "y": -689.0,
+    "width": 1778.0,
+    "height": 1778.0
+   }
+  },
+  "char_1035_wisdel": {
+   "dynIllustId": "dyn_illust_char_1035_wisdel_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.96,
+    -7.4
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -904.0,
+    "y": -260.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_1038_whitw2": {
+   "dynIllustId": "dyn_illust_char_1038_whitw2_2",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    -0.18,
+    -4.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1012.0,
+    "y": -630.0,
+    "width": 2060.0,
+    "height": 2060.0
+   }
+  },
+  "char_1041_angel2": {
+   "dynIllustId": "dyn_illust_char_1041_angel2_2",
+   "cameraSize": 10.4,
+   "rootOffset": [
+    0.0,
+    -9.55
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1040.0,
+    "y": -85.0,
+    "width": 2080.0,
+    "height": 2080.0
+   }
+  },
+  "char_1044_hsgma2": {
+   "dynIllustId": "dyn_illust_char_1044_hsgma2_2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.11,
+    -8.05
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1039.0,
+    "y": -245.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_1045_svash2": {
+   "dynIllustId": "dyn_illust_char_1045_svash2_2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -9.05
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -145.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_1052_kalts2": {
+   "dynIllustId": "dyn_illust_char_1052_kalts2_2",
+   "cameraSize": 11.01,
+   "rootOffset": [
+    -0.33,
+    -5.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1068.0,
+    "y": -601.0,
+    "width": 2202.0,
+    "height": 2202.0
+   }
+  },
+  "char_113_cqbw": {
+   "dynIllustId": "dyn_illust_char_113_cqbw_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.7,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -930.0,
+    "y": -100.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_2014_nian": {
+   "dynIllustId": "dyn_illust_char_2014_nian_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -6.65
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -335.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_2015_dusk": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -100.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_2023_ling": {
+   "dynIllustId": "dyn_illust_char_2023_ling_2",
+   "cameraSize": 12.5,
+   "rootOffset": [
+    1.0,
+    -10.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1350.0,
+    "y": -200.0,
+    "width": 2500.0,
+    "height": 2500.0
+   }
+  },
+  "char_2024_chyue": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.3,
+    -9.79
+   ],
+   "rootScale": 0.923,
+   "frame": {
+    "x": -1051.263,
+    "y": -22.759,
+    "width": 2167.552,
+    "height": 2167.552
+   }
+  },
+  "char_2025_shu": {
+   "dynIllustId": "dyn_illust_char_2025_shu_2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.1,
+    -9.75
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1040.0,
+    "y": -75.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_2026_yu": {
+   "dynIllustId": "dyn_illust_char_2026_yu_2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -150.0,
+    "width": 2100.0,
+    "height": 2100.0
+   }
+  },
+  "char_245_cello": {
+   "dynIllustId": "dyn_illust_char_245_cello_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.5,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -100.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_249_mlyss": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.67,
+    -8.75
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1067.0,
+    "y": -125.0,
+    "width": 2000.0,
+    "height": 2000.0
+   }
+  },
+  "char_391_rosmon": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_2",
+   "cameraSize": 13.5,
+   "rootOffset": [
+    -0.5,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1300.0,
+    "y": -450.0,
+    "width": 2700.0,
+    "height": 2700.0
+   }
+  },
+  "char_4058_pepe": {
+   "dynIllustId": "dyn_illust_char_4058_pepe_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -100.0,
+    "width": 2200.0,
+    "height": 2200.0
+   }
+  },
+  "char_4247_oxi": {
+   "dynIllustId": "dyn_illust_char_4247_oxi_2",
+   "cameraSize": 11.615,
+   "rootOffset": [
+    -0.533,
+    -5.132
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1108.27,
+    "y": -648.36,
+    "width": 2323.1,
+    "height": 2323.1
+   }
+  }
+ }
+}

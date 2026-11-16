@@ -5,6 +5,8 @@
 // one renderer for all; animated under prefers-reduced-motion too (the owner's decision of 2026-11-03). 「查看立绘」 opens the
 // whole illustration on its own renderer, plays, switches its clip and pauses without crashing 干员调配 (rel27 lost a </span>
 // there: two roots, and the screen crashed as soon as it loaded; feedback #168).
+// 2026-11-16 (the owner): the plate draws the illustration's background / foreground in the official camera frame (a
+// backdrop view of the shared renderer), the art box (a 干员调配 crop) none; 「查看立绘」 shows the frame whole.
 //
 //   SP_E2E=1 node --test test/ui/dynamic-illustration.e2e.test.js
 //
@@ -39,6 +41,8 @@ describe('动态立绘 on 名片 and the operator page (real server)', { skip: !
       await c.createCoop('标准模拟');
       await c.page.waitForSelector(`${PLATE}[data-state="ready"]`, { timeout: 60000 });
       assert.deepEqual(await drawn(c, PLATE), { state: 'ready', canvas: true }, 'the plate animates');
+      assert.equal(await c.page.$eval(PLATE, (el) => el.dataset.backdrop), 'on', 'the 名片 with its background / foreground');
+      assert.ok(await c.page.evaluate(() => import('/js/ui/dynamicStage.js').then((m) => m.dynamicStage.backdrops)) >= 1, 'drawn with them');
       await sleep(1500);
       await c.shot('namecard');
 
@@ -50,6 +54,7 @@ describe('动态立绘 on 名片 and the operator page (real server)', { skip: !
       assert.deepEqual(await drawn(c, ART), { state: 'ready', canvas: true }, 'the art box animates');
       assert.equal(await contexts(c), 1, 'the plate and the art box on one shared renderer');
       assert.ok(JSON.parse(await c.page.$eval(ART, (el) => el.dataset.frame)).rect, 'the art box in its official portrait crop');
+      assert.equal(await c.page.$eval(ART, (el) => el.dataset.backdrop ?? null), null, 'a 干员调配 crop: no backdrop');
       await sleep(1500);
       await c.shot('operator');
 
@@ -85,6 +90,9 @@ describe('动态立绘 on 名片 and the operator page (real server)', { skip: !
       const FULL = '.modal [data-testid="dynamic-illustration"]';
       await c.page.waitForSelector(`${FULL}[data-state="ready"]`, { timeout: 60000 });
       assert.ok(await c.page.$(`${FULL} > .lo-dynamic__stage canvas`), 'one root: the stage and its canvas inside the illustration');
+      assert.equal(await c.page.$eval(FULL, (el) => el.dataset.view), 'frame', 'the official camera frame, whole');
+      await sleep(600);
+      await c.shot('preview-frame');
       const clips = await c.page.$$eval('#operator-illustration-animation option', (o) => o.map((x) => x.value));
       assert.ok(clips.length > 1, 'its clips listed');
       await c.page.select('#operator-illustration-animation', clips[clips.length - 1]);

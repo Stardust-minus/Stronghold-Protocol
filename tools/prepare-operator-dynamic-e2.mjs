@@ -12,26 +12,32 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { contentHash } from './assets/manifest.mjs';
 import { applyDynamicE2, loadDynamicE2Registry, FIELD } from './assets/dynamic-e2.mjs';
+import { applyDynamicBackdrops, loadDynamicBackdrops } from './assets/dynamic-backdrops.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The files and bytes the 精二 动态立绘 of a body already name (by the registry), to move the stats by on a re-run. */
-function namedFiles(body, registry) {
+/** The files and bytes the 精二 动态立绘 of a body already name (by the registries), to move the stats by on a re-run. */
+function namedFiles(body, registry, backdrops) {
   const files = new Map();
   for (const [id, rec] of Object.entries(body?.chars || {})) {
     const d = rec?.[FIELD];
     if (!d) continue;
-    const R = registry.chars?.[id];
-    const size = (u) => [R?.skel, R?.atlas, ...(R?.textures || [])].find((f) => f && u.endsWith(`/${f.name}`))?.bytes ?? 0;
-    for (const u of [d.skel, d.atlas, ...(d.textures || [])]) if (typeof u === 'string') files.set(u, size(u));
+    const R = registry.chars?.[id], B = backdrops.chars?.[id];
+    const size = (u) => [R?.skel, R?.atlas, ...(R?.textures || []), B?.background, B?.foreground].find((f) => f && u.endsWith(`/${f.name}`))?.bytes ?? 0;
+    for (const u of [d.skel, d.atlas, ...(d.textures || []), d.background, d.foreground]) if (typeof u === 'string') files.set(u, size(u));
   }
   return files;
 }
 
-export function rewriteManifest(manifest, { registry, assetRoot }) {
+/** The registry's records, then their camera frame and backdrop layers (tools/assets/dynamic-backdrops.mjs). */
+export function rewriteManifest(manifest, { registry, assetRoot, backdrops = loadDynamicBackdrops() }) {
   const { version, hash, generator, stats, ...body } = manifest;
-  const before = namedFiles(body, registry);
-  const { body: next, files, bytes } = applyDynamicE2(body, { registry, assetRoot });
+  const before = namedFiles(body, registry, backdrops);
+  const e2 = applyDynamicE2(body, { registry, assetRoot });
+  const bd = applyDynamicBackdrops(e2.body, { registry: backdrops, assetRoot, kinds: ['chars'] });
+  const next = bd.body, files = new Set(e2.files);
+  let bytes = e2.bytes;
+  for (const [rel, n] of bd.files) if (rel.startsWith('char/dynamic/') && !files.has(rel)) { files.add(rel); bytes += n; }
   const old = [...before.values()].reduce((a, b) => a + b, 0);
   const out = { version, hash: null, generator, stats: { ...stats }, ...next };
   if (Number.isSafeInteger(stats?.files)) out.stats.files = stats.files - before.size + files.size;

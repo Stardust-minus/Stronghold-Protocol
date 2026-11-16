@@ -1,7 +1,8 @@
 // Original layered Spine illustrations (an appearance's official 动态立绘, data/assets.json skins[id].dynamic, and since
 // 2026-11-16 an operator's own 精二 one, chars[id].dynamicE2 — ui/dynamicFraming.js e2Dynamic). Two modes:
-//   full (the default): the 「查看立绘」 preview — opened explicitly, contain fit, play / pause and clip controls, its own
-//     Pixi.Application (one at a time).
+//   full (the default): the 「查看立绘」 preview — opened explicitly, the official camera frame whole (contain, clipped to
+//     it, as the game composes it; the bounds at 94 % for a record without a frame), play / pause and clip controls, its
+//     own Pixi.Application (one at a time).
 //   cover: embedded where an appearance's art already shows — 干员调配's cells (the list's avatar crop, the cards' portrait
 //     crop), its detail head, 自选's art box, player avatars, the room's seat cards (the player's own framing) and the 名片
 //     — drawn by ui/dynamicStage.js: ONE WebGL context for all of them, each box a 2D canvas of its CSS size ×
@@ -12,14 +13,18 @@
 // a 名片's background) is the same crop — the frames were matched against the official avatar / portrait — and is hidden
 // once the first live frame is drawn ([data-dyn="live"] on the parent), so two framings never show at once; any failure
 // leaves the static picture.
+// Backdrop (2026-11-16, the owner: 「查看立绘」, 名片 and seat card with it, the 干员调配 cells without): a record's
+// `background` / `foreground` (the scene's layers behind and in front of the character, one picture each) fill the official
+// camera frame (ui/dynamicFraming.js dynamicFrame). The preview and DynamicIllustration's cover mode draw them; LiveArt
+// (the cells' crops, avatars) does not. They load with the skeleton, before the first frame.
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button } from './components.js';
 // not ./gameComponents.js (Img): it imports ./playerCard.js, which imports ./namecards.js, which imports this module —
 // a cycle that left NAMECARD_PREF uninitialised when namecards.js was loaded first
 import { MaterialImage } from './materialImage.js';
 import { ensurePixi } from '../render/app/pixi.js';
-import { startView, stopView, touchView, acquireSpine, fixStaleClips } from './dynamicStage.js';
-import { dynamicOf, lookDynamic, cropFraming } from './dynamicFraming.js';
+import { startView, stopView, touchView, acquireSpine, fixStaleClips, backdropSprite } from './dynamicStage.js';
+import { dynamicOf, lookDynamic, cropFraming, dynamicFrame } from './dynamicFraming.js';
 import { t } from '../../../shared/i18n.js';
 
 /** How long a dynamic illustration may take to load before its static picture stays. */
@@ -27,11 +32,12 @@ export const LOAD_TIMEOUT_MS = 20000;
 
 const env = () => globalThis;
 /**
- * Where the illustration's bounds go in a box: `contain` (the preview: whole, 94 %) or `cover` (fills the box, the
- * horizontal centre and the `focusY` percent line of the art on the same line of the box). Pixi container coordinates:
- * the bounds rect spans x b.x…b.x+w and y −(b.y+h)…−b.y (pixi-spine's y-down skeleton).
+ * Where the illustration's rect goes in a box: `frame` (the preview with the official camera frame: whole, edge to edge),
+ * `contain` (the preview of a record without one: its bounds whole, 94 %) or `cover` (fills the box, the horizontal centre
+ * and the `focusY` percent line of the art on the same line of the box). Pixi container coordinates: the rect spans
+ * x b.x…b.x+w and y −(b.y+h)…−b.y (pixi-spine's y-down skeleton).
  * @param {number} width @param {number} height @param {{ x: number, y: number, width: number, height: number }} b
- * @param {'contain'|'cover'} fit @param {number} [focusY] 0–100
+ * @param {'frame'|'contain'|'cover'} fit @param {number} [focusY] 0–100
  */
 export function illustrationLayout(width, height, b, fit, focusY = 50) {
   if (fit === 'cover') {
@@ -39,7 +45,7 @@ export function illustrationLayout(width, height, b, fit, focusY = 50) {
     const f = Math.min(100, Math.max(0, focusY)) / 100;
     return { scale, x: width / 2 - (b.x + b.width / 2) * scale, y: f * height + (b.y + b.height - f * b.height) * scale };
   }
-  const scale = Math.min(width / b.width, height / b.height) * 0.94;
+  const scale = Math.min(width / b.width, height / b.height) * (fit === 'frame' ? 1 : 0.94);
   return { scale, x: width / 2 - (b.x + b.width / 2) * scale, y: height / 2 + (b.y + b.height / 2) * scale };
 }
 
@@ -52,7 +58,7 @@ const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new E
  *   whole bounds at `focusY` (the 名片)
  */
 export function DynamicIllustration(props) {
-  return props.mode === 'cover' ? html`<${CoverIllustration} ...${props} />` : html`<${FullIllustration} ...${props} />`;
+  return props.mode === 'cover' ? html`<${CoverIllustration} ...${props} backdrop=${props.backdrop !== false} />` : html`<${FullIllustration} ...${props} />`;
 }
 
 /**
@@ -69,8 +75,8 @@ export function LiveArt({ m, charId, skins = null, look = null, kind, posX = 50,
   return framing ? html`<${CoverIllustration} entry=${dyn} framing=${framing} />` : null;
 }
 
-/** An embedded illustration on the shared stage (ui/dynamicStage.js). */
-export function CoverIllustration({ entry, focusY = 50, framing = null, playing = true }) {
+/** An embedded illustration on the shared stage (ui/dynamicStage.js); `backdrop`: with the record's background / foreground. */
+export function CoverIllustration({ entry, focusY = 50, framing = null, playing = true, backdrop = false }) {
   const box = useRef(null), canvas = useRef(null), view = useRef(null);
   const [state, setState] = useState('idle');
   const [onScreen, setOnScreen] = useState(false);
@@ -111,7 +117,7 @@ export function CoverIllustration({ entry, focusY = 50, framing = null, playing 
     if (!entry || !onScreen || !canvas.current) return undefined;
     setState('loading');
     let timer = setTimeout(() => setState((s) => (s === 'loading' ? 'fallback' : s)), LOAD_TIMEOUT_MS);
-    const v = startView({ canvas: canvas.current, entry, framing: frame, playing,
+    const v = startView({ canvas: canvas.current, entry, framing: frame, playing, backdrop,
       onState: (next) => { clearTimeout(timer); timer = null; setState(next); } });
     view.current = v;
     return () => { clearTimeout(timer); stopView(v); view.current = null; setState('idle'); };
@@ -126,7 +132,8 @@ export function CoverIllustration({ entry, focusY = 50, framing = null, playing 
     return () => { delete parent.dataset.dyn; };
   }, [state]);
 
-  return html`<span class="dyn-cover" ref=${box} data-testid="dynamic-cover" data-state=${state} data-frame=${frameKey} aria-hidden="true">
+  const layered = backdrop && !!(entry?.background || entry?.foreground);
+  return html`<span class="dyn-cover" ref=${box} data-testid="dynamic-cover" data-state=${state} data-frame=${frameKey} data-backdrop=${layered ? 'on' : undefined} aria-hidden="true">
     <canvas class="dyn-cover__canvas" ref=${canvas} hidden=${state !== 'ready'}></canvas>
   </span>`;
 }
@@ -174,17 +181,22 @@ function FullIllustration({ entry, staticSrc }) {
           b = { x: lb.x, y: -(lb.y + lb.height), width: lb.width, height: lb.height };
           if (!(b.width > 0 && b.height > 0)) throw new Error('Dynamic illustration bounds missing');
         }
+        // the official camera frame: the backdrop's square, the preview's view of the scene and its clip (as in the game)
+        const frame = dynamicFrame(entry), space = frame || b;
         const container = new P.Container(); container.addChild(actor); app.stage.addChild(container);
+        if (frame) {
+          const clip = new P.Graphics().beginFill(0xffffff).drawRect(frame.x, -frame.y - frame.height, frame.width, frame.height).endFill();
+          container.addChild(clip); container.mask = clip;
+        }
         const layer = async (url, foreground) => {
           if (!url) return;
           const image = await assets.image(url);
           if (disposed) return;
           if (!image) throw new Error('Dynamic illustration layer unavailable');
-          const sprite = new P.Sprite(P.Texture.from(image));
-          sprite.width = b.width; sprite.height = b.height; sprite.x = b.x; sprite.y = -b.y - b.height;
+          const sprite = backdropSprite(P, image, space);
           if (foreground) container.addChild(sprite); else container.addChildAt(sprite, 0);
         };
-        await layer(entry.background, false); await layer(entry.foreground, true);
+        await Promise.all([layer(entry.background, false), layer(entry.foreground, true)]);
         if (disposed) return;
         actor.state.setAnimation(0, entry.anims?.idle || clips[0], true);
         actor.update(0);
@@ -193,7 +205,7 @@ function FullIllustration({ entry, staticSrc }) {
           const width = Math.max(1, host.current.clientWidth), height = Math.max(1, host.current.clientHeight);
           app.renderer.resolution = env().devicePixelRatio || 1;
           app.renderer.resize(width, height);
-          const l = illustrationLayout(width, height, b, 'contain');
+          const l = illustrationLayout(width, height, space, frame ? 'frame' : 'contain');
           container.scale.set(l.scale);
           container.position.set(l.x, l.y);
           app.render();
@@ -229,7 +241,7 @@ function FullIllustration({ entry, staticSrc }) {
     actor.state.setAnimation(0, clip, true); actor.update(0); appRef.current?.render();
   }, [clip, state]);
 
-  return html`<div class="lo-dynamic" data-testid="dynamic-illustration" data-state=${state}>
+  return html`<div class="lo-dynamic" data-testid="dynamic-illustration" data-state=${state} data-view=${dynamicFrame(entry) ? 'frame' : 'bounds'}>
     <div class="lo-dynamic__stage">
       ${state !== 'ready' && staticSrc ? html`<${MaterialImage} src=${staticSrc} class="lo-dynamic__fallback" alt="" draggable=${false} />` : null}
       <div class="lo-dynamic__canvas" ref=${host} hidden=${state === 'fallback'}></div>

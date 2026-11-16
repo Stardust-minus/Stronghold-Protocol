@@ -4,8 +4,10 @@
 //   - rectLayout: a skeleton rect into a box like CSS `object-fit: cover; object-position: posX% posY%` — the official
 //     avatar / portrait crops (skins[id].dynamic.frames, matched offline against the official pictures), so the live
 //     picture frames exactly like the static one under it;
-//   - the 名片: the whole bounds, cover × its stored zoom, its stored x / y as the position (ui/namecards.js, #129: the
-//     static plate's CSS rule — the bounds' x% y% point on the box's x% y% point);
+//   - the 名片: the official camera frame (dynamicFrame; the bounds for a record without one), cover × its stored zoom,
+//     its stored x / y as the position (ui/namecards.js, #129: the static plate's CSS rule — the frame's x% y% point on
+//     the box's x% y% point). The plate's static picture is the skin's 立绘, which shows about that same square (2026-11-16:
+//     the backdrop fills the plate, and the switch from the static picture to the live one no longer jumps);
 //   - a room seat: the player's own framing (room.card artX / artY / artZoom, seatRect), else the portrait crop. rel30 (the
 //     owner, 2026-11-04): every look has one — a static portrait (精二, 精一, a skin without a 动态立绘) is framed in its own
 //     picture (pictureBounds); a skin with one in its skeleton bounds, and its static portrait (the official crop's rect
@@ -98,16 +100,42 @@ export function moveArt(bw, bh, b, art, dx, dy, factor = 1, zoomMax = ART_LIMITS
 }
 
 /**
- * The transform for one embedded view: `framing` { rect, posX?, posY? } (a crop), { focusX?, focusY, zoom? } (the whole
- * bounds, the 名片), or { art, space? } (a seat; null art = { rect, posX, posY } fallback given as `rect`; `space`: the
- * rect the art is relative to when it is not the bounds — a 精二 动态立绘 framed in its 立绘's space, ui/seatLive.js).
- * @param {number} bw @param {number} bh @param {{ x: number, y: number, width: number, height: number }} bounds
- * @param {any} framing
+ * The official camera frame of a 动态立绘 (2026-11-16), or null: the square its prefab's camera shows — side
+ * 2 × DynIllust._cameraSize, centred on the root's offset reversed, in y-up skeleton space (skins[id].dynamic.frame,
+ * chars[id].dynamicE2.frame; tools/assets/dynamic-backdrops.json). The `background` / `foreground` pictures are exactly
+ * this square; the 「查看立绘」 preview shows it whole; nothing of the scene outside it is ever on screen in the game.
+ * @param {any} entry a `dynamic` record
+ * @returns {{ x: number, y: number, width: number, height: number }|null}
  */
-export function framingLayout(bw, bh, bounds, framing) {
+export function dynamicFrame(entry) {
+  const f = entry?.frame;
+  return f && ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(f[k])) && f.width > 0 && f.height > 0 ? f : null;
+}
+
+/**
+ * The transform for one embedded view: `framing` { rect, posX?, posY? } (a crop), { focusX?, focusY, zoom? } (the whole
+ * frame — the official camera square, `frame`, else the bounds —, the 名片), or { art, space? } (a seat; null art =
+ * { rect, posX, posY } fallback given as `rect`; `space`: the rect the art is relative to when it is not the bounds — a
+ * 精二 动态立绘 framed in its 立绘's space, ui/seatLive.js).
+ * @param {number} bw @param {number} bh @param {{ x: number, y: number, width: number, height: number }} bounds
+ * @param {any} framing @param {{ x: number, y: number, width: number, height: number }|null} [frame] dynamicFrame()
+ */
+export function framingLayout(bw, bh, bounds, framing, frame = null) {
   if (framing?.art) return rectLayout(bw, bh, seatRect(bw, bh, framing.space || bounds, framing.art));
   if (framing?.rect) return rectLayout(bw, bh, framing.rect, framing.posX ?? 50, framing.posY ?? 50);
-  return rectLayout(bw, bh, bounds, framing?.focusX ?? 50, framing?.focusY ?? 50, framing?.zoom ?? 1);
+  return rectLayout(bw, bh, frame || bounds, framing?.focusX ?? 50, framing?.focusY ?? 50, framing?.zoom ?? 1);
+}
+
+/**
+ * The part of a bw × bh box a backdrop view may draw in: the box ∩ the official frame under the transform `l` (the game
+ * never shows the scene outside its camera square), as box pixels { x, y, w, h } (w or h 0: nothing shows).
+ * @param {number} bw @param {number} bh @param {{ scale: number, x: number, y: number }} l
+ * @param {{ x: number, y: number, width: number, height: number }} frame
+ */
+export function frameClip(bw, bh, l, frame) {
+  const f = pictureBox(l, frame);
+  const x0 = Math.max(0, f.left), y0 = Math.max(0, f.top), x1 = Math.min(bw, f.left + f.width), y1 = Math.min(bh, f.top + f.height);
+  return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
 }
 
 
