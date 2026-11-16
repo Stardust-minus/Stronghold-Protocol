@@ -5,6 +5,8 @@
               narrow dialog the rail is a row of chips above the rows
      .expb  — the room's 实验性功能 badge (已开启 n 项 / 未开启) and its 浮窗; 多人匹配's 我的实验性功能 line
      .expd  — what is on, by group (the 浮窗, 确认入场's panel: css/screens/match-offer.css .mo__rules)
+     .rlist__exp — 公开同盟's rows (js/ui/roomList.js): the same badge, small, under the host's name; its 浮窗 floats
+              (.expb__pop--float: fixed, placed by the script above the badge, below it when the top has no room)
    No :has(), container queries, @layer or nesting (ESR 115 / older Safari).
    ========================================================================================== */
 
@@ -72,8 +74,29 @@
   .expb .rs-exp > span { flex-direction: row; align-items: baseline; gap: .5em; }
   .expb .rs-exp small { display: inline; }
 }
+/* a floating 浮窗 (`float`): fixed, the script sets left / top and data-place; the arrow points at the badge's middle
+   (--expb-arrow); it only fades in, so the box the script measures is where it stays */
+.expb__pop--float { position: fixed; left: 0; top: 0; bottom: auto; z-index: var(--z-tooltip, 60); max-height: min(60vh, 7rem, calc(100vh - 16px));
+  animation-name: expb-fade; }
+@keyframes expb-fade { from { opacity: 0; } }
+/* over a list's rows (dense text) the box is opaque: no ghost of the row beneath */
+.expb__pop--float, .expb__pop--float::after { background: #0a0e0d; }
+.expb__pop--float::after { left: calc(var(--expb-arrow, 20px) - 5px); }
+.expb__pop--float[data-place="bottom"]::after { top: -6px; bottom: auto; transform: rotate(225deg); }
 @media (prefers-reduced-motion: reduce) { .expb__pop { animation: none; } }
 .sp-reduced-motion .expb__pop { animation: none; }
+
+/* ---- 公开同盟: a row's badge, a small chip under the host's name (no dialog behind it: the info icon) ---- */
+.rlist__exp { align-self: flex-start; margin-top: 3px; }
+.rlist__exp > .rs-exp { min-height: 26px; gap: 6px; padding: 2px 10px 2px 7px; font-size: max(calc(.13 * var(--t)), 12px); background: rgba(12, 15, 15, .55);
+  border-color: rgba(255, 255, 255, .14); }
+.rlist__exp > .rs-exp > span { flex-direction: row; align-items: baseline; gap: .5em; }
+.rlist__exp > .rs-exp b { font-weight: 600; color: var(--text-md); }
+.rlist__exp > .rs-exp small { display: inline; font-size: 1em; }
+.rlist__exp > .rs-exp.is-on { border-color: var(--mint-a35); }
+.rlist__exp.is-open > .rs-exp { border-color: var(--mint-400); background: rgba(20, 30, 28, .9); }
+/* a touch screen: the chip is a comfortable target */
+@media (pointer: coarse) { .rlist__exp > .rs-exp { min-height: 32px; } }
 
 /* ---- what is on, by group ---- */
 .expd { display: flex; flex-direction: column; gap: .07rem; margin: 0; font-size: max(calc(.14 * var(--t)), 12px); }

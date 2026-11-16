@@ -34,7 +34,7 @@ const CUES = ['offer:arrive', 'offer:peer', 'offer:mine', 'offer:tick', 'offer:a
 
 describe('确认入场 takeover with real offers (real server, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv, browser;
-  const errors = [], clients = [];
+  const errors = [], clients = [], pages = [];
   before(async () => {
     const { startServer } = await import('../../server/index.js');
     const puppeteer = (await import('puppeteer-core')).default;
@@ -48,6 +48,7 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
   async function open(name, viewport) {
     const ctx = await browser.createBrowserContext();
     const page = await ctx.newPage();
+    pages.push(page);
     await page.setViewport(viewport);
     page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
     // a doctor with a picked avatar and 名片 (ui/playerCard.js): the takeover's own slot shows them
@@ -96,8 +97,15 @@ describe('确认入场 takeover with real offers (real server, headless Chrome)'
     await page.waitForSelector('[data-testid="match-scope"]', { visible: true, timeout: 15000 });
     await settle(page);
   };
-  /** The earlier tests' lone tickets leave the queue (a failed test must not hand its leftovers to the next one). */
-  const dropClients = async () => { for (const c of clients.splice(0)) c.ws.terminate(); await wait(300); };
+  /**
+   * The earlier tests' lone tickets and pages leave the queue (a failed test must not hand its leftovers to the next one:
+   * since 2026-11-16 a doctor who had not confirmed waits again when someone else leaves, so a page left open stays queued).
+   */
+  const dropClients = async () => {
+    for (const c of clients.splice(0)) c.ws.terminate();
+    for (const p of pages.splice(0)) if (!p.isClosed()) await p.close().catch(() => {});
+    await wait(300);
+  };
   /** a scripted lone ticket in the pool of `version` (the page's ticket's: queue.state `version`, absent = 第二期下半) */
   const lone = async (name, difficulty, capacities = [4], version = undefined) => {
     const c = await TestClient.connect(`ws://127.0.0.1:${srv.port}/ws`, { timeout: 15000 });

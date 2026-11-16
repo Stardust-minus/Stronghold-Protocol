@@ -3905,7 +3905,7 @@
   "与你的设置相同": "Same as yours",
   "好友小队的同盟设置": "Your party's Alliance settings",
   "由其他博士或小队设置": "Set by other Doctors or a party",
-  "不想玩可以选择「退出本次匹配」": "Not for you? Choose “Leave this match”",
+  "不想玩可以选择「退出本次匹配」": "Not for you? Choose “Leave this match offer”",
   "实验性功能 · {n} 项": "Experimental · {n}",
   "不限规则": "Any rules",
   "我的或任意实验性": "My or any experimental",
@@ -3917,5 +3917,9 @@
   "同盟人数": "Alliance size",
   "队友协作": "Teammates",
   "盟约与策略": "Bonds & strategies",
-  "特殊功能": "Special"
+  "特殊功能": "Special",
+  "有队友退出了本次匹配，已保留排队位置，继续等待": "A teammate left this match offer. Your place in the queue is kept; continuing to wait.",
+  "有队友连接中断，已保留排队位置，继续等待": "A teammate disconnected. Your place in the queue is kept; continuing to wait.",
+  "有队友已离开本次匹配，已保留排队位置，继续等待": "A teammate is no longer available for this match offer. Your place in the queue is kept; continuing to wait.",
+  "集齐后有 30 秒确认时间，全部确认后直接开局。超时未确认的博士退出匹配；有人退出时，其余博士保留排队位置继续等待。最多等待 10 分钟，可随时取消。": "Once a group is assembled, you have 30 seconds to confirm. The match starts when everyone confirms. Players who do not confirm in time leave matchmaking; when someone leaves, the others keep their place in the queue. Wait up to 10 minutes and cancel at any time."
 }

@@ -332,11 +332,13 @@ test('actual HTTP/WS twenty-mode queues two rooms, cancels intact, then commits 
   const offered = await a[0].waitFor('queue.state', m => m.state === 'offered'); assert.equal(offered.required, 20);
   const cancel = await a[8].waitFor('queue.state', m => m.state === 'offered');
   assert.equal((await a[8].request({ t: 'queue.cancel', ticketId: cancel.ticketId })).t, 'ok');
-  for (const p of members) await p.waitFor('queue.state', m => m.state === 'idle' && ['cancelled', 'unconfirmed'].includes(m.reason));
+  // the canceller's party leaves; the other party, unconfirmed, waits again in its place (the owner, 2026-11-16)
+  for (const p of a) await p.waitFor('queue.state', m => m.state === 'idle' && m.reason === 'cancelled');
+  for (const p of b) await p.waitFor('queue.state', m => m.state === 'queued' && m.reason === 'peer_cancelled');
   const response = await fetch(`http://127.0.0.1:${srv.port}/`);
   assert.equal(response.status, 200); assert.ok((await response.text()).includes('<html'));
   assert.ok(srv.lobby.rooms.has(codeA)); assert.ok(srv.lobby.rooms.has(codeB));
-  assert.equal(srv.lobby.queue.size, 0);
+  assert.equal(srv.lobby.queue.size, b.length);
   assert.equal((await join(a[0])).t, 'ok'); assert.equal((await join(b[0])).t, 'ok');
   for (const p of members) {
     const offer = await p.waitFor('queue.state', m => m.state === 'offered' && m.offerId !== offered.offerId);
@@ -349,8 +351,10 @@ test('actual HTTP/WS twenty-mode queues two rooms, cancels intact, then commits 
     assert.equal(room.seats.length, 20); assert.equal(room.experimental.playerCapacity, 20);
     const own = await p.waitFor('m.private'); assert.equal(own.playerId, p.welcome.playerId);
   }
+  // B waited again in its place, older than A's new ticket: B's eleven sit first, A's nine after them, the last in seat 19
   const room = members[19].log.findLast(m => m.t === 'room.state' && m.inMatch);
-  assert.equal(room.seats[19].playerId, members[19].welcome.playerId);
+  assert.deepEqual(room.seats.map(s => s.playerId), [...b, ...a].map(p => p.welcome.playerId));
+  assert.equal(room.seats[19].playerId, a[8].welcome.playerId);
 });
 
 test('actual local HTTP/WS late observer confirms with the consumed party code and receives only canonical public state', async t => {

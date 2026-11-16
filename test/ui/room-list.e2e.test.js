@@ -1,6 +1,7 @@
 // Browser E2E of 公开同盟 (feedback #30) and of several difficulties in 多人匹配 (feedback #87), real server, headless Chrome.
 // A host of an eight-seat room lists it from 同盟设置, a second room of an older version is listed too; another doctor sees both
-// under 选择同盟方式 → 公开同盟 (also on a phone, in Japanese) and joins by pressing the row. In 选择模拟协议 of 多人匹配 two
+// under 选择同盟方式 → 公开同盟 (also on a phone, in Japanese) and joins by pressing the row. A row's 实验性功能 badge says how
+// many options are on; a hover, a click or a tap shows them by group in a 浮窗 inside the screen. In 选择模拟协议 of 多人匹配 two
 // difficulties are picked; the queue shows both with their counts, three doctors of one difficulty fill it, the offer stands
 // at that difficulty and the room starts there — in the pool of the lobby version (规程, the default; this fork's pool per
 // version), so the others queue in it and confirm with its data.
@@ -124,6 +125,35 @@ describe('公开同盟 and several difficulties (real server, headless Chrome)',
     const text = await seeker.$eval('[data-testid="room-list"]', (el) => el.textContent);
     assert.match(text, /公开房主/);
     assert.match(text, /旧版本房主/);
+    // a row names how many experimental options are on — the room's badge; the list by group floats out of the list's clip
+    // on a hover, and a click pins it (the owner, 2026-11-16: 已开启 n 项 + 悬停浮窗 / 点按浮窗)
+    const olderCode = await older.evaluate(() => globalThis.__SP__.store.get().room.code);
+    const badge = (c) => `[data-testid="room-row"][data-code="${c}"] [data-testid="room-row-experimental"]`;
+    const POP = '[data-testid="room-row-experimental-pop"]';
+    const floats = (page, sel) => page.evaluate((s, p) => {
+      const pop = document.querySelector(p), at = document.querySelector(s);
+      if (!pop || !at) return null;
+      const a = pop.getBoundingClientRect(), b = at.getBoundingClientRect();
+      return { inside: a.left >= 0 && a.right <= innerWidth && a.top >= 0 && a.bottom <= innerHeight && a.height > 20,
+        apart: a.bottom <= b.top + 1 || a.top >= b.bottom - 1, text: pop.textContent, at: document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2)?.closest(p) === pop };
+    }, sel, POP);
+    assert.equal(await seeker.$eval(badge(code), (el) => el.dataset.count), '1', '8 人模式');
+    assert.equal(await seeker.$eval(badge(olderCode), (el) => el.dataset.count), '2', '8 人模式 and 队友复活');
+    assert.match(await seeker.$eval(badge(olderCode), (el) => el.textContent), /实验性功能.*已开启 2 项/);
+    await seeker.hover(badge(olderCode));
+    await seeker.waitForSelector(POP, { visible: true, timeout: 5000 });
+    const hovered = await floats(seeker, badge(olderCode));
+    assert.ok(hovered.inside && hovered.apart && hovered.at, JSON.stringify(hovered));
+    assert.match(hovered.text, /同盟人数.*8 人模式/); assert.match(hovered.text, /队友协作.*队友复活/);
+    await new Promise((r) => setTimeout(r, 300));
+    await shot(seeker, 'desktop-experimental');
+    await seeker.click(badge(olderCode));
+    await seeker.mouse.move(4, 4);
+    await new Promise((r) => setTimeout(r, 200));
+    assert.ok(await seeker.$(POP), 'a click pins the 浮窗');
+    await seeker.click(badge(olderCode));
+    await seeker.mouse.move(4, 4);
+    await seeker.waitForSelector(POP, { hidden: true, timeout: 5000 });
 
     const phone = await open('手机寻找', { w: 844, h: 390, touch: true, lang: 'ja' });
     await openAlliance(phone);
@@ -132,6 +162,14 @@ describe('公开同盟 and several difficulties (real server, headless Chrome)',
     await settle(phone);
     await new Promise((r) => setTimeout(r, 500));
     await shot(phone, 'phone-ja');
+    await phone.tap('[data-testid="room-row-experimental"]');
+    await phone.waitForSelector(POP, { visible: true, timeout: 5000 });
+    const tapped = await floats(phone, '[data-testid="room-row-experimental"]');
+    assert.ok(tapped.inside && tapped.apart && tapped.at, JSON.stringify(tapped));
+    await new Promise((r) => setTimeout(r, 300));
+    await shot(phone, 'phone-ja-experimental');
+    await phone.tap('[data-testid="room-row-experimental"]');
+    await phone.waitForSelector(POP, { hidden: true, timeout: 5000 });
     const narrow = await open('窄手机', { w: 390, h: 844, touch: true });
     await openAlliance(narrow);
     await narrow.tap('[data-testid="room-list-open"]');
@@ -140,8 +178,16 @@ describe('公开同盟 and several difficulties (real server, headless Chrome)',
     await new Promise((r) => setTimeout(r, 500));
     await shot(narrow, 'phone-portrait');
     assert.ok((await inView(narrow, '.rlist__row')).every(Boolean), 'the rows stay inside a narrow screen');
+    await narrow.tap('[data-testid="room-row-experimental"]');
+    await narrow.waitForSelector(POP, { visible: true, timeout: 5000 });
+    const narrowPop = await floats(narrow, '[data-testid="room-row-experimental"]');
+    assert.ok(narrowPop.inside && narrowPop.apart && narrowPop.at, JSON.stringify(narrowPop));
+    await new Promise((r) => setTimeout(r, 300));
+    await shot(narrow, 'phone-portrait-experimental');
+    await narrow.tap('.rlist-dialog .modal__text');
+    await narrow.waitForSelector(POP, { hidden: true, timeout: 5000 });
 
-    await seeker.click(`[data-testid="room-row"][data-code="${code}"] button`);
+    await seeker.click(`[data-testid="room-row"][data-code="${code}"] .rlist__join`);
     await seeker.waitForFunction((c) => globalThis.__SP__.store.get().room?.code === c, { timeout: 20000 }, code);
     await host.waitForFunction(() => globalThis.__SP__.store.get().room.seats.filter(Boolean).length === 2, { timeout: 10000 });
     assert.deepEqual(errors, []);

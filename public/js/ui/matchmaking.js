@@ -169,10 +169,13 @@ export const REASONS = {
   confirmation_timeout: N_('确认时间已结束，未确认的博士已退出本次匹配'), unavailable: N_('匹配条件或可用容量已变化，请重新匹配'),
   shutdown: N_('匹配服务已停止'),
   expired: N_('等待时间已满，请重新加入匹配'), offer_timeout: N_('有人未及时确认，继续等待队友'),
-  declined: N_('队友取消了确认，继续等待'), peer_cancelled: N_('队友取消了确认，继续等待'),
-  peer_disconnected: N_('队友连接中断，继续等待'), capacity: N_('房间容量暂满，请稍后重试'),
+  // an offer fell apart and this ticket waits again in its place, confirmed or not (server/matchmaking.js breakOffer)
+  declined: N_('有队友退出了本次匹配，已保留排队位置，继续等待'), peer_cancelled: N_('有队友退出了本次匹配，已保留排队位置，继续等待'),
+  peer_disconnected: N_('有队友连接中断，已保留排队位置，继续等待'), peer_left: N_('有队友已离开本次匹配，已保留排队位置，继续等待'),
+  capacity: N_('房间容量暂满，请稍后重试'),
   allocation_failed: N_('本次分配未完成，继续等待；原好友队伍保留'),
   allocation_timeout: N_('游戏节点准备超时，继续等待；原好友队伍保留'),
+  // an older server: the unconfirmed left whatever broke the offer
   unconfirmed: N_('你或同队成员未完成确认，已退出本次匹配；请重新开始匹配'),
   maintenance: N_('服务器即将维护，匹配已暂停'),
 };
@@ -196,7 +199,7 @@ export function queuePopulation(q, online, cancelling = false) {
     ? q.waitingCount : null;
 }
 
-export const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。');
+export const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。超时未确认的博士退出匹配；有人退出时，其余博士保留排队位置继续等待。最多等待 10 分钟，可随时取消。');
 export const EXPERIMENTAL_RULES = N_('好友小队沿用房间的实验性功能。单人默认只进标准规则的对局；选择「我的实验性」并设置后，只和设置完全相同的博士或小队匹配；选择「任意实验性」后可加入其他博士或小队开启的实验性对局。确认入场前可以看到本局开启了哪些实验性功能，不想玩可以退出本次匹配。');
 
 export function MatchmakingPanel({ queue, difficulty, experimental, online, onJoin, joining = false, compact = false }) {

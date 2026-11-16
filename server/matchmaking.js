@@ -29,6 +29,12 @@
 // (experimentalKey), and with the lone tickets that take any changed rules ('experimental'); its 'standard' / 'experimental'
 // wildcards keep their meaning beside it. A ticket of other options, or of standard rules only, never meets it. The offer's
 // options are those of the ticket or party that brings them (ownOptions), so 确认入场 shows what will be played.
+// An offer that falls apart (the owner, 2026-11-16, on 确认入场's 退出本次匹配): the party of whoever left — 退出本次匹配, a
+// disconnect, a member no longer available — leaves the queue; every other party of the offer, whether it had confirmed or
+// not, waits again in its place (its ticket, sequence, joinedAt and expiresAt; a friend party keeps its room) with the
+// reason peer_cancelled / peer_disconnected / peer_left. Only a confirmation timeout drops the unconfirmed: the parties of
+// every member that had not confirmed leave with confirmation_timeout, the confirmed wait again. (Before: every party
+// that had not confirmed left with `unconfirmed`, whatever broke the offer; an older page still knows that reason.)
 import { randomBytes } from 'node:crypto';
 import { ERR, MAX_SEATS, DIFFICULTIES, MATCHMAKING_VERSION } from '../shared/constants.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, experimentalKey, experimentalRuleChanged, queueOptions, queueOptionsAt, sameExperimental } from '../shared/experimental.js';
@@ -57,6 +63,12 @@ const ruleOf = ruled => (ruled ? 'experimental' : 'standard');
 const sameOwn = (a, b) => (!a || !b ? a === b : sameExperimental(a, b) && (a.disableDuckLord === true) === (b.disableDuckLord === true));
 /** The bucket of a ticket without a room (the wildcards of pumpPools) that takes these rules. */
 const wildcard = rules => `*${rules.join('+')}`;
+/**
+ * Why a party that waits again after an offer fell apart (breakOffer) waits again: someone of the offer left
+ * (退出本次匹配, a room change), lost the connection, or stopped being available (another page, its ticket ran out).
+ * Other reasons (confirmation_timeout, allocation_failed, allocation_timeout) are told as they are.
+ */
+const PEER_REASONS = Object.freeze({ cancelled: 'peer_cancelled', disconnected: 'peer_disconnected', expired: 'peer_disconnected', unavailable: 'peer_left' });
 
 /**
  * What the others see of a doctor who confirmed an offer (queue.state acceptedCards, ui/matchOffer.js): its seat card's
@@ -503,15 +515,17 @@ export class Matchmaking {
     for (const e of party.entries) if (this.entries.delete(e.session.playerId)) this.idle(e, reason);
   }
 
+  /**
+   * An offer falls apart (header "An offer that falls apart"): the parties of `removed` leave with `reason`; every other
+   * party — confirmed or not — waits again with its ticket, its place (sequence, joinedAt, expiresAt) and, a friend
+   * party, its room, and is told why (PEER_REASONS). A confirmation timeout puts every unconfirmed member in `removed`.
+   */
   breakOffer(offer, removed, reason) {
     if (!offer || this.offers.get(offer.id) !== offer) return;
     this.offers.delete(offer.id);
     const removedParties = new Set([...removed].map((e) => e.party));
-    // Only parties whose every human accepted THIS offer may continue automatically. Capture before
-    // clearing acceptance: allocation failures arrive fully accepted and must retain their tickets/rooms.
-    const unconfirmedParties = new Set(offer.entries.filter((e) => !e.accepted).map((e) => e.party));
     this.cancelAllocation(offer.allocation);
-    for (const party of new Set([...removedParties, ...unconfirmedParties])) {
+    for (const party of removedParties) {
       if (this.parties.get(party.id) === party) this.parties.delete(party.id);
     }
     const retained = [];
@@ -520,13 +534,13 @@ export class Matchmaking {
       e.offerId = null;
       e.accepted = false;
       e.revivalVote = null;
-      if (removedParties.has(e.party) || unconfirmedParties.has(e.party)) {
+      if (removedParties.has(e.party)) {
         this.entries.delete(e.session.playerId);
-        this.idle(e, removedParties.has(e.party) ? reason : 'unconfirmed');
+        this.idle(e, reason);
       } else {
         e.difficulty = e.party.difficulties[0]; // back in every pool of its ticket (the header)
         e.party.required = e.party.capacities[0];
-        e.reason = reason === 'cancelled' ? 'peer_cancelled' : reason === 'disconnected' ? 'peer_disconnected' : reason;
+        e.reason = PEER_REASONS[reason] || reason;
         retained.push(e);
       }
     }

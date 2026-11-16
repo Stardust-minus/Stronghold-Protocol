@@ -78,7 +78,7 @@ import { useLeave } from '../ui/transitions.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, getConfig, getMode, getStage, useData, localAsset } from '../data.js';
-import { EXPERIMENTAL_RULES, MATCH_SCOPE_DEFAULT, MatchOptionsDialog, QueueFlow, customProblem, matchConfig, matchScope, matchScopeRequest, multiSeats, queueActive, queueDifficulties, queueScope, queueTakesCustom, queueVersion, toggleMatchScope } from '../ui/matchmaking.js';
+import { EXPERIMENTAL_RULES, MATCHING_RULES, MATCH_SCOPE_DEFAULT, MatchOptionsDialog, QueueFlow, customProblem, matchConfig, matchScope, matchScopeRequest, multiSeats, queueActive, queueDifficulties, queueScope, queueTakesCustom, queueVersion, toggleMatchScope } from '../ui/matchmaking.js';
 import { ExperimentalBadge, experimentalItems } from '../ui/experimental.js';
 import { RoomListDialog } from '../ui/roomList.js';
 import { queueCancellation } from '../queueCancellation.js';
@@ -591,7 +591,7 @@ function MatchRules() {
         </header>
         <div class="hub-dialog__body">
           <p class="modal__text">${t('按相同人数模式和难度匹配真人，不自动补 AI；好友小队保持整队。')}</p>
-          <p class="modal__text">${t('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。')}</p>
+          <p class="modal__text">${t(MATCHING_RULES)}</p>
           <p class="modal__text">${t(EXPERIMENTAL_RULES)}</p>
           <p class="modal__text">${t('单人匹配可同时选择多个难度和人数：最先集齐的组合开局，其余随之退出等待。好友小队按同盟当前的难度和人数匹配。')}</p>
         </div>

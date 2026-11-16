@@ -126,7 +126,7 @@ sending, and close/clear cancels it. Offline/new-socket clients show unknown unt
 several difficulties, `difficulty` first; a party keeps its room's one difficulty (`BAD_MSG` otherwise) and an old client's
 join is unchanged. The ticket counts in each pool. The first pool to fill makes the offer at that difficulty: the ticket has
 one `offerId`, so it cannot be in two offers, and `queue.state.difficulty` is the offered one until the match starts. A
-broken offer that keeps a confirmed ticket puts it back in all its pools with its first difficulty. `queue.state` of such a
+broken offer that keeps a ticket puts it back in all its pools with its first difficulty. `queue.state` of such a
 ticket adds `difficulties` and, while queued, `waitingCounts` (one per difficulty); `waitingCount` is the fullest pool.
 Changing the list needs a cancel (`QUEUED`). `MATCHMAKING_VERSION` did not change: the new fields are optional both ways.
 
@@ -160,8 +160,12 @@ meet it. The offer plays the options of the unit that brings them (`ownOptions`)
 unit takes them (`Matchmaking.takes`, in `allocateMatchmadeRoom` and the cluster's `collectMatchmade`), and a matchmade room
 never has more than a room could. `queue.state` names what was asked (`rules`, now also when 'custom' is among them) and,
 queued and offered, the ticket's own options (`config`), so 确认入场 tells the player's own options from someone else's.
-Declining an offer is `queue.cancel` as before: the decliner's party leaves, parties that had confirmed wait again with their
-place (`peer_cancelled`), parties that had not confirmed leave (`unconfirmed`), a timeout drops the unconfirmed. `welcome.
+Declining an offer is `queue.cancel`: the decliner's party leaves, and every other party of the offer — confirmed or not
+(the owner, 2026-11-16) — waits again with its ticket and its place (sequence, `joinedAt`, `expiresAt`; a friend party
+keeps its room), `queue.state.reason` `peer_cancelled`; the same after a disconnect (`peer_disconnected`) or a member no
+longer available (`peer_left`, new: an older page shows only 本次匹配未成立). Only the confirmation timeout drops the
+unconfirmed (`confirmation_timeout`; the confirmed wait again). An older server dropped the unconfirmed on any break
+(`unconfirmed`, which the page still names). `welcome.
 queueRules` lists the rules this server takes (`['standard', 'experimental', 'custom']`): a page offers 我的实验性 only with
 it. An older page's tickets are unchanged — 'experimental' (实验性规则) now also fills a game a lone ticket's options make,
 which it sees before confirming. `MATCHMAKING_VERSION` did not change: the new fields are optional both ways.

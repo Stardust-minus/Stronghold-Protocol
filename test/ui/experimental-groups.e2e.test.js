@@ -5,7 +5,9 @@
 //   match  — 选择模拟协议 of 多人匹配: 我的实验性 opens its options at once when none is set, 开始多人匹配 waits for one that
 //            counts, queue.join carries them; the version chip opens the picker and a pick changes the pool;
 //   offer  — two lone tickets of the page's options and two taking any changed rules: 确认入场 lists the options by group
-//            (与你的设置相同); a page taking any sees 由其他博士或小队设置 and leaves with 退出本次匹配.
+//            (与你的设置相同); another doctor leaves before the page confirms: it waits again in its place (本次匹配未成立
+//            and why) and meets the next one of its options; a page taking any sees 由其他博士或小队设置 and leaves with
+//            退出本次匹配.
 //
 //   SP_E2E=1 node --test test/ui/experimental-groups.e2e.test.js
 //
@@ -125,6 +127,19 @@ describe('实验性功能 by group, 多人匹配 with own options (real server)'
       assert.match(await me.page.$eval('[data-testid="offer-rules-chip"]', (el) => el.textContent), /实验性功能 · 2 项/);
       await sleep(1500);
       await me.shot('offer-own');
+      // another doctor leaves before I confirmed (the owner, 2026-11-16): I wait again in my place, with my options, and
+      // 本次匹配未成立 says why; then the same three meet a newcomer of my options again
+      const leaver = bots.at(-1), left = await leaver.waitFor('queue.state', (m) => m.state === 'offered');
+      assert.equal((await leaver.request({ t: 'queue.cancel', ticketId: left.ticketId })).t, 'ok');
+      await me.page.waitForSelector('.mo.is-broken', { timeout: 10000 });
+      assert.match(await me.page.$eval('[data-testid="offer-reason"]', (el) => el.textContent), /有队友退出了本次匹配，已保留排队位置/);
+      await sleep(450);
+      await me.shot('offer-peer-left-unconfirmed');
+      await me.page.waitForFunction((t) => { const s = globalThis.__SP__.store.get().queue; return s.state === 'queued' && s.joinedAt === t; }, { timeout: 10000 }, q.joinedAt);
+      assert.deepEqual(await me.page.evaluate(() => globalThis.__SP__.store.get().queue.config), MINE);
+      await lone('BotSame2', { rules: ['custom'], experimental: MINE });
+      await me.page.waitForSelector('[data-testid="offer-rules"]', { visible: true, timeout: 20000 });
+      assert.equal(await me.page.$eval('[data-testid="offer-rules"]', (el) => el.dataset.origin), 'own');
       await me.click('[data-testid="offer-cancel"]');
       await me.page.waitForFunction(() => globalThis.__SP__.store.get().queue.state === 'idle', { timeout: 10000 });
       for (const b of bots.splice(0)) b.ws.terminate();

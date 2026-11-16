@@ -1,8 +1,11 @@
 // A lone ticket's own experimental options (the owner, 2026-11-16: 「匹配玩家也支持调整实验性功能，然后带着这个实验性功能配置
 // 进入匹配」; server/matchmaking.js header): queue.join { rules: […, 'custom'], experimental } waits with those options and
 // meets only tickets / parties of the same ones, or lone tickets that take any changed rules ('experimental'); the offer
-// plays them, 确认入场 shows them (queue.state experimental / config), a decline follows the existing rules. Local and
-// cluster (ClusterLobby: the game-node prepare path) alike.
+// plays them, 确认入场 shows them (queue.state experimental / config). Someone leaving 确认入场 (the owner, 2026-11-16:
+// 「有人主动退出时，未确认的人也保留原排队位置回到队列……超时没确认的人仍然踢出」): the leaver's party leaves, everyone else —
+// confirmed or not, a lone ticket of standard rules, of its own options or of any changed rules, a friend party — waits
+// again in its place; a confirmation timeout still drops the unconfirmed. Local and cluster (ClusterLobby: the game-node
+// prepare path) alike.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Lobby } from '../server/lobby.js';
@@ -17,6 +20,8 @@ import { validateC2S } from '../shared/protocol.js';
 const MULTI = [8, 12, 16, 20];
 const rules = (o = {}) => ({ revivalEnabled: false, disableSharedPool: false, ...o });
 const REVIVE = rules({ revivalEnabled: true }), HP2 = rules({ enemyHpMul: 2 });
+/** queue.state.config holds these options (canonical: the same fields) */
+const sameConfig = (config, options) => !!config && experimentalKey(config) === experimentalKey(options);
 
 class RecordingMatch {
   constructor(opts) { this.opts = opts; RecordingMatch.made.push(opts); }
@@ -181,24 +186,92 @@ test('expanded pools: the options at the pool\'s size, 禁用鸭爵策略 among 
   assert.deepEqual(s.experimental, { ...rules({ revivalEnabled: true }), playerCapacity: 8, disableDuckLord: true });
 });
 
-test('declining a game of experimental options: the decliner\'s ticket ends, confirmed others wait again, unconfirmed others leave', (t) => {
-  const f = fixture(t);
-  const list = [f.own(HP2), f.lone({ rules: ['experimental'] }), f.lone({ rules: ['experimental'] }), f.lone({ rules: ['experimental'] })];
-  assert.ok(f.offered(list));
-  const offers = list.map(f.state);
-  const joinedAt = offers[0].joinedAt;
-  assert.deepEqual(f.queue.accept(list[0], offers[0]), { ok: true });
-  assert.deepEqual(f.queue.cancel(list[1], offers[1]), { ok: true }, '退出本次匹配 after looking at the options');
-  assert.equal(f.state(list[1]).state, 'idle');
-  assert.equal(f.state(list[0]).state, 'queued');
-  assert.equal(f.state(list[0]).reason, 'peer_cancelled');
-  assert.equal(f.state(list[0]).joinedAt, joinedAt, 'its place in the queue kept');
-  assert.deepEqual(f.state(list[0]).config, HP2);
-  for (const p of list.slice(2)) {
-    assert.equal(f.state(p).state, 'idle');
-    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'unconfirmed');
+/** Each of `list` waits again in its place after a broken offer: its ticket, sequence, joinedAt and expiresAt (`before`). */
+function waitsAgain(f, list, before, reason = 'peer_cancelled') {
+  for (const [i, p] of list.entries()) {
+    const s = f.state(p), e = f.queue.entries.get(p.playerId);
+    assert.equal(s.state, 'queued', `${i} queued`);
+    assert.equal(s.reason, reason, `${i} reason`);
+    for (const key of ['ticketId', 'sequence', 'joinedAt', 'expiresAt']) assert.equal(e[key], before[i][key], `${i} ${key}`);
+    assert.equal(e.accepted, false);
   }
-  assert.equal(f.lobby.rooms.size, 0);
+}
+const saved = (f, list) => list.map((p) => ({ ...f.queue.entries.get(p.playerId) }));
+
+// 退出本次匹配 before everyone confirmed, one test per kind of the doctors left behind
+const LEAVE_CASES = {
+  // 标准规则: four lone standard tickets; the next standard ticket completes the game again
+  standard: (f) => {
+    const list = Array.from({ length: 4 }, () => f.lone({ rules: ['standard'] }));
+    return { list, confirms: list[0], leaves: list[1], next: () => f.lone({ rules: ['standard'] }), plays: rules() };
+  },
+  // 我的实验性: the same options only — another set never fills the place, the same does
+  own: (f) => {
+    const list = Array.from({ length: 4 }, () => f.own(HP2));
+    return { list, confirms: list[0], leaves: list[1], plays: HP2,
+      next: () => { const other = f.own(REVIVE); assert.equal(f.state(other).state, 'queued', 'other options never meet them'); return f.own(HP2); } };
+  },
+  // 任意实验性: the one who brought the options leaves; the rest wait (alone they make no game) and take the next options
+  any: (f) => {
+    const bringer = f.own(HP2), list = [bringer, ...Array.from({ length: 3 }, () => f.lone({ rules: ['experimental'] }))];
+    return { list, confirms: list[1], leaves: bringer, plays: REVIVE, next: () => { assert.equal(f.queue.offers.size, 0, 'no options to play by'); return f.own(REVIVE); } };
+  },
+  // 好友小队: an unconfirmed party waits again as one, with its room
+  party: (f) => {
+    const members = f.party(2, { enemyHpMul: 2 }), mine = f.own(HP2), any = f.lone({ rules: ['experimental'] });
+    return { list: [...members, mine, any], confirms: mine, leaves: any, plays: HP2, members, next: () => f.lone({ rules: ['experimental'] }) };
+  },
+};
+for (const [kind, make] of Object.entries(LEAVE_CASES)) test(`someone leaves 确认入场 (${kind}): the leaver's ticket ends, everyone else waits again in place, confirmed or not`, (t) => {
+  const f = fixture(t), c = make(f);
+  assert.ok(f.offered(c.list));
+  const offers = c.list.map(f.state), stay = c.list.filter((p) => p !== c.leaves), before = saved(f, stay);
+  assert.deepEqual(f.queue.accept(c.confirms, f.state(c.confirms)), { ok: true });
+  assert.deepEqual(f.queue.cancel(c.leaves, f.state(c.leaves)), { ok: true }, '退出本次匹配 after looking at the options');
+  assert.equal(f.state(c.leaves).state, 'idle');
+  assert.equal(c.leaves.messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'cancelled');
+  assert.equal(f.queue.has(c.leaves), false);
+  waitsAgain(f, stay, before);
+  for (const p of stay) {
+    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'peer_cancelled');
+    assert.equal(f.queue.accept(p, offers[c.list.indexOf(p)]).error, ERR.BAD_TARGET, 'the broken offer cannot be confirmed');
+  }
+  if (kind === 'own') assert.ok(stay.every((p) => sameConfig(f.state(p).config, HP2)), 'own options kept');
+  if (c.members) {
+    const room = f.lobby.roomOf(c.members[0]);
+    assert.ok(room && room.match === null && !room.disposed);
+    assert.ok(c.members.every((p) => f.lobby.roomOf(p) === room && f.state(p).partySize === 2));
+    assert.equal(f.lobby.roomQueued(room), true);
+  }
+  assert.equal(f.lobby.rooms.size, c.members ? 1 : 0);
+  const newcomer = c.next();
+  const group = [...stay, newcomer];
+  assert.ok(f.offered(group), 'the survivors and the newcomer');
+  for (const p of group) assert.deepEqual(f.state(p).experimental, c.plays);
+  for (const p of group) assert.deepEqual(f.queue.accept(p, f.state(p)), { ok: true });
+  assert.ok(group.every((p) => f.state(p).state === 'matched'));
+  assert.deepEqual(RecordingMatch.made.at(-1).experimental, c.plays);
+});
+
+test('a confirmation timeout still drops whoever had not confirmed; the confirmed wait again', (t) => {
+  const f = fixture(t);
+  const members = f.party(2, { enemyHpMul: 2 }), mine = f.own(HP2), any = f.lone({ rules: ['experimental'] });
+  assert.ok(f.offered([...members, mine, any]));
+  const before = saved(f, [mine]);
+  assert.deepEqual(f.queue.accept(mine, f.state(mine)), { ok: true });
+  assert.deepEqual(f.queue.accept(members[0], f.state(members[0])), { ok: true }, 'the party only half confirmed');
+  f.advance(29_999); f.queue.sweep();
+  assert.ok([...members, mine, any].every((p) => f.state(p).state === 'offered'));
+  f.advance(1); f.queue.sweep();
+  waitsAgain(f, [mine], before, 'confirmation_timeout');
+  assert.ok(sameConfig(f.state(mine).config, HP2));
+  for (const p of [...members, any]) {
+    assert.equal(f.state(p).state, 'idle');
+    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'confirmation_timeout');
+  }
+  const room = f.lobby.roomOf(members[0]);
+  assert.ok(room && !room.disposed && room.match === null, 'the party is back in its room');
+  assert.equal(f.lobby.roomQueued(room), false);
 });
 
 test('the allocation checks every unit takes the offer\'s options', (t) => {
@@ -221,7 +294,8 @@ test('welcome names the rules this server takes', (t) => {
   assert.deepEqual([...ASKED_RULES], ['standard', 'experimental', 'custom']);
 });
 
-test('cluster: four tickets of the same options start on a game node with them', async (t) => {
+/** A ClusterLobby whose game-node platform records every prepare (the game-node path of a matchmade room). */
+function clusterFixture(t) {
   const clock = { time: 10_000 }, calls = [];
   const registry = new SessionRegistry({ now: () => clock.time });
   const platform = {
@@ -237,28 +311,72 @@ test('cluster: four tickets of the same options start on a game node with them',
   const lobby = new ClusterLobby({ registry, platform, options: {}, getData: () => ({}), now: () => clock.time,
     log: { info() {}, warn() {}, error() {}, debug() {} }, seedFn: () => 123456, MatchClass: ForbiddenLocalMatch });
   t.after(() => lobby.shutdown());
-  const player = (i) => {
-    const s = registry.create(`ClusterOwn${i}`); s.messages = []; s.connected = true; s.limitKey = null;
+  let count = 0;
+  const player = () => {
+    const s = registry.create(`ClusterOwn${++count}`); s.messages = []; s.connected = true; s.limitKey = null;
     s.matchmakingVersion = MATCHMAKING_VERSION; s.playerCapacityVersion = PLAYER_CAPACITY_VERSION;
     s.ws = { readyState: 1, bufferedAmount: 0, send(data, cb) { s.messages.push(JSON.parse(data)); cb?.(); } };
     lobby.onHello(s, { resumed: false, repeat: false });
     return s;
   };
+  const join = (fields) => { const p = player(); assert.deepEqual(lobby.queue.join(p, { difficulty: 'NORMAL', capacities: [4], ...fields }), { ok: true }); return p; };
+  const settle = async () => { for (let i = 0; i < 40; i++) await Promise.resolve(); await new Promise((resolve) => setImmediate(resolve)); };
+  return { lobby, queue: lobby.queue, calls, player, join, settle, state: (p) => lobby.queue.state(p), advance: (ms) => { clock.time += ms; } };
+}
+
+test('cluster: four tickets of the same options start on a game node with them', async (t) => {
+  const f = clusterFixture(t), { lobby, calls } = f;
   const opts = rules({ enemyHpMul: 2, enemyAtkMul: 1.5, uniteHumansFirst: true });
-  const people = Array.from({ length: 4 }, (_, i) => player(i));
-  const stray = player(9);
-  assert.deepEqual(lobby.queue.join(stray, { difficulty: 'NORMAL', capacities: [4], rules: ['custom'], experimental: REVIVE }), { ok: true });
-  people.forEach((p, i) => assert.deepEqual(lobby.queue.join(p, { difficulty: 'NORMAL', capacities: [4], ...(i === 3 ? { rules: ['experimental'] } : { rules: ['custom'], experimental: opts }) }), { ok: true }));
-  assert.ok(people.every((p) => lobby.queue.state(p).state === 'offered'));
-  assert.equal(lobby.queue.state(stray).state, 'queued');
-  for (const p of people) assert.deepEqual(lobby.queue.accept(p, lobby.queue.state(p)), { ok: true });
-  for (let i = 0; i < 40; i++) await Promise.resolve();
-  await new Promise((resolve) => setImmediate(resolve));
+  const stray = f.join({ rules: ['custom'], experimental: REVIVE });
+  const people = [0, 1, 2, 3].map((i) => f.join(i === 3 ? { rules: ['experimental'] } : { rules: ['custom'], experimental: opts }));
+  assert.ok(people.every((p) => f.state(p).state === 'offered'));
+  assert.equal(f.state(stray).state, 'queued');
+  for (const p of people) assert.deepEqual(lobby.queue.accept(p, f.state(p)), { ok: true });
+  await f.settle();
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].spec.experimental, opts);
   const room = lobby.roomOf(people[0]);
   assert.deepEqual(room.experimental, opts);
   assert.ok(room.match);
-  assert.ok(people.every((p) => lobby.queue.state(p).state === 'matched'));
-  assert.deepEqual(lobby.queue.state(people[3]).experimental, opts);
+  assert.ok(people.every((p) => f.state(p).state === 'matched'));
+  assert.deepEqual(f.state(people[3]).experimental, opts);
+});
+
+test('cluster: someone leaves 确认入场, the unconfirmed wait again in place; a timeout drops the unconfirmed; the next offer starts on a game node', async (t) => {
+  const f = clusterFixture(t), { lobby, calls } = f;
+  const opts = rules({ enemyHpMul: 2, enemyAtkMul: 1.5, uniteHumansFirst: true });
+  const mine = [0, 1, 2].map(() => f.join({ rules: ['custom'], experimental: opts }));
+  const any = f.join({ rules: ['experimental'] });
+  assert.ok([...mine, any].every((p) => f.state(p).state === 'offered'));
+  const before = mine.map((p) => ({ ...lobby.queue.entries.get(p.playerId) }));
+  assert.deepEqual(lobby.queue.accept(mine[0], f.state(mine[0])), { ok: true });
+  assert.deepEqual(lobby.queue.cancel(any, f.state(any)), { ok: true });
+  assert.equal(f.state(any).state, 'idle');
+  for (const [i, p] of mine.entries()) {
+    const s = f.state(p), e = lobby.queue.entries.get(p.playerId);
+    assert.equal(s.state, 'queued'); assert.equal(s.reason, 'peer_cancelled');
+    for (const key of ['ticketId', 'sequence', 'joinedAt', 'expiresAt']) assert.equal(e[key], before[i][key], `${i} ${key}`);
+    assert.ok(sameConfig(s.config, opts));
+  }
+  // a second offer: one of them lets the time run out
+  const late = f.join({ rules: ['experimental'] });
+  const second = [...mine, late];
+  const offerId = f.state(mine[0]).offerId;
+  assert.ok(offerId && second.every((p) => f.state(p).offerId === offerId));
+  for (const p of [mine[0], mine[1], late]) assert.deepEqual(lobby.queue.accept(p, f.state(p)), { ok: true });
+  f.advance(30_000); lobby.queue.sweep();
+  assert.equal(f.state(mine[2]).state, 'idle');
+  assert.equal(mine[2].messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'confirmation_timeout');
+  for (const p of [mine[0], mine[1], late]) { assert.equal(f.state(p).state, 'queued'); assert.equal(f.state(p).reason, 'confirmation_timeout'); }
+  await f.settle();
+  assert.equal(calls.length, 0, 'no broken offer reached a game node');
+  // the third fills and starts with the options
+  const last = f.join({ rules: ['custom'], experimental: opts });
+  const third = [mine[0], mine[1], late, last];
+  for (const p of third) assert.deepEqual(lobby.queue.accept(p, f.state(p)), { ok: true });
+  await f.settle();
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].spec.experimental, opts);
+  assert.ok(third.every((p) => f.state(p).state === 'matched'));
+  assert.ok(lobby.roomOf(mine[0]).match);
 });

@@ -5,8 +5,8 @@
 // 多人匹配 ticket (source 'queue', ui/matchmaking.js: the rules of the game only, QUEUE_OPTION_KEYS) — and optionGroups
 // the groups a place has. experimentalItems lists what is on, by group: the room's 实验性功能 badge and its 浮窗
 // (ExperimentalBadge), 确认入场 (ui/matchOffer.js) and the ticket's summary all read it (ExperimentalDetails).
-import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { html, Icon } from './components.js';
+import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { html, Icon, placeTooltip } from './components.js';
 import { t, tc, tParts } from '../../../shared/i18n.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
 import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
@@ -127,15 +127,24 @@ export function ExperimentalDetails({ value, mode = 'coop', queue = false, omit 
  * 显示开启与否，具体信息鼠标放上去给一个浮窗查看，或点击查看」): 实验性功能 and 已开启 n 项 / 未开启; with a hover or the
  * keyboard's focus a 浮窗 lists them by group (ExperimentalDetails). A press opens the room's dialog on its first
  * experimental group (`onOpen`); on a touch screen the first tap opens the 浮窗 instead, which carries 查看全部设置.
- * `queue`: a ticket's own options (多人匹配, ui/matchmaking.js) under `label`.
- * @param {{ value: any, mode?: string, queue?: boolean, label?: string|null, disabled?: boolean, onOpen?: () => void, testid?: string, class?: string }} props
+ * Without `onOpen` (公开同盟's rows, ui/roomList.js: a room one is not in) a click or a tap pins the 浮窗 and the next one
+ * closes it.
+ * `queue`: a ticket's own options (多人匹配, ui/matchmaking.js) under `label`. `float`: the 浮窗 is placed in the viewport
+ * (fixed, above the badge or below when there is no room: components.js placeTooltip), out of a scrolling list's clip.
+ * `popId`: the 浮窗's id when several badges share a page (default `${testid}-pop`).
+ * @param {{ value: any, mode?: string, queue?: boolean, label?: string|null, disabled?: boolean, onOpen?: () => void, testid?: string, class?: string,
+ *   icon?: string, float?: boolean, popId?: string|null }} props
  */
-export function ExperimentalBadge({ value, mode = 'coop', queue = false, label = null, disabled = false, onOpen = null, testid = 'room-experimental', class: cls = '' }) {
+export function ExperimentalBadge({ value, mode = 'coop', queue = false, label = null, disabled = false, onOpen = null, testid = 'room-experimental', class: cls = '',
+  icon = 'edit', float = false, popId = null }) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
   const box = useRef(null);
+  const button = useRef(null);
+  const pop = useRef(null);
   const n = experimentalItems(value, { mode, queue }).length;
   const name = label || t('实验性功能');
+  const id = popId || `${testid}-pop`;
   useEffect(() => {
     if (!pinned) return undefined;
     const away = (e) => { if (!box.current?.contains(e.target)) { setPinned(false); setOpen(false); } };
@@ -147,23 +156,43 @@ export function ExperimentalBadge({ value, mode = 'coop', queue = false, label =
   const touch = (e) => e?.pointerType === 'touch' || e?.pointerType === 'pen';
   const pointer = useRef(null);
   const press = () => {
-    // a tap shows the list first (no hover on a touch screen); a click, Enter or a second tap opens the dialog
+    // a tap shows the list first (no hover on a touch screen); a click, Enter or a second tap opens the dialog — or, with
+    // no dialog to open, pins the list and closes it again
     const tapped = pointer.current === 'touch';
     pointer.current = null;
-    if (tapped && !pinned) { setPinned(true); setOpen(true); return; }
+    if ((tapped || !onOpen) && !pinned) { setPinned(true); setOpen(true); return; }
     setPinned(false); setOpen(false);
     onOpen?.();
   };
   const shown = open || pinned;
-  return html`<span class=${`expb${n ? ' is-on' : ''}${shown ? ' is-open' : ''}${cls ? ` ${cls}` : ''}`} ref=${box}
+  // `float`: measured where the containing block puts left/top 0 (a dialog's backdrop filter or an opening dialog's
+  // transform may hold the fixed box), then moved to the viewport point placeTooltip picks; again on a scroll or a resize
+  useLayoutEffect(() => {
+    if (!float || !shown) return undefined;
+    const place = () => {
+      const el = pop.current, at = button.current;
+      if (!el || !at) return;
+      el.style.left = '0px'; el.style.top = '0px';
+      const origin = el.getBoundingClientRect(), r = at.getBoundingClientRect();
+      const p = placeTooltip(r, { width: origin.width, height: origin.height }, { placement: 'top', vw: window.innerWidth, vh: window.innerHeight, m: 8 });
+      el.style.left = `${Math.round(p.left - origin.left)}px`; el.style.top = `${Math.round(p.top - origin.top)}px`;
+      el.dataset.place = p.place;
+      el.style.setProperty('--expb-arrow', `${Math.round(Math.max(10, Math.min(origin.width - 10, r.left + r.width / 2 - p.left)))}px`);
+    };
+    place();
+    window.addEventListener('resize', place);
+    document.addEventListener('scroll', place, true);
+    return () => { window.removeEventListener('resize', place); document.removeEventListener('scroll', place, true); };
+  }, [float, shown, n, value]);
+  return html`<span class=${`expb${n ? ' is-on' : ''}${shown ? ' is-open' : ''}${float ? ' expb--float' : ''}${cls ? ` ${cls}` : ''}`} ref=${box}
       onPointerEnter=${(e) => { if (!touch(e)) setOpen(true); }} onPointerLeave=${(e) => { if (!touch(e) && !pinned) setOpen(false); }}>
-    <button type="button" class=${`rs-exp${n ? ' is-on' : ''}`} data-testid=${testid} data-count=${n} disabled=${disabled}
-        aria-haspopup="dialog" aria-expanded=${shown ? 'true' : 'false'} aria-describedby=${shown ? `${testid}-pop` : undefined}
+    <button type="button" ref=${button} class=${`rs-exp${n ? ' is-on' : ''}`} data-testid=${testid} data-count=${n} disabled=${disabled}
+        aria-haspopup="dialog" aria-expanded=${shown ? 'true' : 'false'} aria-describedby=${shown ? id : undefined}
         onPointerDown=${(e) => { pointer.current = touch(e) ? 'touch' : 'mouse'; }} onFocus=${(e) => { if (focusVisible(e.currentTarget)) setOpen(true); }} onBlur=${() => { if (!pinned) setOpen(false); }}
         onClick=${press}>
-      <${Icon} name="edit" /><span><b>${name}</b><small>${experimentalCountText(n)}</small></span>
+      <${Icon} name=${icon} /><span><b>${name}</b><small>${experimentalCountText(n)}</small></span>
     </button>
-    ${shown ? html`<div class="expb__pop" role="tooltip" id=${`${testid}-pop`} data-testid=${`${testid}-pop`}>
+    ${shown ? html`<div class=${`expb__pop${float ? ' expb__pop--float' : ''}`} ref=${pop} role="tooltip" id=${id} data-testid=${`${testid}-pop`}>
       <header class="expb__head"><b>${name}</b><span class="num">${experimentalCountText(n)}</span></header>
       <${ExperimentalDetails} value=${value} mode=${mode} queue=${queue} empty=${queue ? t('尚未开启任何功能') : null} />
       ${pinned && onOpen && !disabled ? html`<button type="button" class="expb__more" data-testid=${`${testid}-open`} onClick=${() => { setPinned(false); setOpen(false); onOpen(); }}>
