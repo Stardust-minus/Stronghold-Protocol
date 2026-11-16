@@ -30,7 +30,9 @@ export class FxGL {
     this.textures = new Map();     // `${key}|${half}` → { tex, bytes }
     this.meshes = new Map();       // mesh key → { vao, vbo, ibo, sub: [{ first, count }], type }
     this.defaults = {};
-    this.stats = { draws: 0, programs: 0, textures: 0, texBytes: 0, quads: 0, meshes: 0, tris: 0 };
+    this.stats = { draws: 0, programs: 0, textures: 0, texBytes: 0, quads: 0, meshes: 0, tris: 0, grabs: 0 };
+    this.grabTex = null; this.grabW = 0; this.grabH = 0;
+    this.grabRect = [0, 0, 1, 1];    // the copied target rect (GrabPass family's u_GrabRect)
     this.hasDepth = !!(gl.getContextAttributes && gl.getContextAttributes()?.depth);
     this._init();
   }
@@ -145,9 +147,9 @@ export class FxGL {
       if (nm === '_vp' || nm === '_Time' || nm === '_WorldSpaceCameraPos') continue;
       if (u.unit >= 0) {
         const t = mat.textures.find((x) => x.name === nm);
-        p.tex.push({ loc: u.loc, unit: u.unit, key: t && t.key ? t.key : null, fallback: this.defaults[t?.def || 'white'] || this.defaults.white, glTex: null });
+        p.tex.push({ loc: u.loc, unit: u.unit, name: nm, key: t && t.key ? t.key : null, fallback: this.defaults[t?.def || 'white'] || this.defaults.white, glTex: null });
       } else if (u.type === gl.FLOAT) p.f.push({ loc: u.loc, name: nm, value: mat.floats[nm] ?? UNIFORM_DEFAULTS[nm] ?? 0 });
-      else if (u.type === gl.FLOAT_VEC4) p.v.push({ loc: u.loc, name: nm, value: mat.vecs[nm] || (nm.endsWith('_ST') ? ST1 : nm.startsWith('_Rotation') ? ROT1 : V0) });
+      else if (u.type === gl.FLOAT_VEC4) p.v.push({ loc: u.loc, name: nm, value: nm === '_GrabRect' ? this.grabRect : mat.vecs[nm] || (nm.endsWith('_ST') ? ST1 : nm.startsWith('_Rotation') ? ROT1 : V0) });
     }
     rec.plans.set(mat, p);
     return p;
@@ -303,8 +305,10 @@ export class FxGL {
       const plan = this._plan(rec, mat);
       // textures first: a draw whose texture is still loading is skipped (no white flash)
       let ready = true;
+      // GrabPass (spike/dyn-fx-20261116): the target as it is now, copied before each such draw
+      if (mat.family === 'grab') { this._grab(); lastMat = null; }
       for (const e of plan.tex) {
-        e.glTex = e.key ? this.texture(e.key, frame.half) : e.fallback;
+        e.glTex = e.name === '_GrabTexture' ? this.grabTex : e.key ? this.texture(e.key, frame.half) : e.fallback;
         if (!e.glTex) { ready = false; break; }
       }
       if (!ready) continue;
@@ -401,6 +405,28 @@ export class FxGL {
     gl.frontFace(gl.CCW);
   }
 
+  /** Copy the bound target's viewport into the grab texture (GrabPass); the copied rect goes to u_GrabRect. */
+  _grab() {
+    const gl = this.gl;
+    const vp = gl.getParameter(gl.VIEWPORT);
+    const w = Math.max(1, vp[2]), h = Math.max(1, vp[3]);
+    if (!this.grabTex) this.grabTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.grabTex);
+    if (this.grabW !== w || this.grabH !== h) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.grabW = w; this.grabH = h;
+    }
+    gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, vp[0], vp[1], w, h);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    this.grabRect[0] = vp[0]; this.grabRect[1] = vp[1]; this.grabRect[2] = w; this.grabRect[3] = h;
+    this.stats.grabs++;
+  }
+
   /** Render state of a material pass (see the header for the alpha factors). */
   _state(st, family) {
     const gl = this.gl;
@@ -410,6 +436,9 @@ export class FxGL {
       src = gl.ZERO; dst = gl.SRC_COLOR; srcA = gl.ONE; dstA = gl.ONE_MINUS_SRC_ALPHA;
     } else if (st.dst === BLEND.OneMinusSrcAlpha || st.dst === BLEND.Zero) { srcA = gl.ONE; dstA = gl.ONE_MINUS_SRC_ALPHA; }
     else { srcA = gl.ZERO; dstA = gl.ONE; }
+    // Mask/Erase (spike/dyn-fx-20261116): the client keeps transmittance in the target's alpha (One, OneMinusSrcAlpha
+    // raises it); in this canvas's coverage that takes coverage away: (Zero, OneMinusSrcAlpha)
+    if (family === 'erase') { srcA = gl.ZERO; dstA = gl.ONE_MINUS_SRC_ALPHA; }
     gl.blendFuncSeparate(src, dst, srcA, dstA);
     const op = st.op === 'Sub' ? gl.FUNC_SUBTRACT : st.op === 'RevSub' ? gl.FUNC_REVERSE_SUBTRACT : st.op === 'Min' ? gl.MIN : st.op === 'Max' ? gl.MAX : gl.FUNC_ADD;
     gl.blendEquationSeparate(op, gl.FUNC_ADD);

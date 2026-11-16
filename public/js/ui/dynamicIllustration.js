@@ -26,6 +26,8 @@ import { t } from '../../../shared/i18n.js';
 export const LOAD_TIMEOUT_MS = 20000;
 
 const env = () => globalThis;
+/** SPIKE (spike/dyn-fx-20261116): the official scene's effects (ui/dynFx.js) when ?dynfx=1. */
+const dynFxOn = () => { try { return !!env().__dynfx || /[?&]dynfx=1(?:&|$)/.test(env().location?.search || ''); } catch { return false; } };
 /**
  * Where the illustration's bounds go in a box: `contain` (the preview: whole, 94 %) or `cover` (fills the box, the
  * horizontal centre and the `focusY` percent line of the art on the same line of the box). Pixi container coordinates:
@@ -146,7 +148,7 @@ function FullIllustration({ entry, staticSrc }) {
     if (!entry) return undefined;
     // the asset store (../assets.js, also behind render/app/host.js) loads with the first opened illustration, not with
     // the lobby (a vanilla page loads it only when needed — test/ui/plugins-client.test.js)
-    let disposed = false, release = null, assets = null, releaseGl = null, app = null, actor = null, watcher = null;
+    let disposed = false, release = null, assets = null, releaseGl = null, app = null, actor = null, watcher = null, scene = null;
     const stop = () => { if (app) app.stop(); };
     const visibility = () => { if (env().document?.hidden) stop(); else if (playingRef.current) app?.start(); };
     setState('loading');
@@ -184,7 +186,20 @@ function FullIllustration({ entry, staticSrc }) {
           sprite.width = b.width; sprite.height = b.height; sprite.x = b.x; sprite.y = -b.y - b.height;
           if (foreground) container.addChild(sprite); else container.addChildAt(sprite, 0);
         };
-        await layer(entry.background, false); await layer(entry.foreground, true);
+        if (dynFxOn()) {
+          // the official scene instead of the PRTS layers: framed by its camera square, clipped to it like the client's
+          const fxm = await import('./dynFx.js');
+          const sd = await fxm.loadScene(fxm.sceneKeyOf(entry));
+          if (disposed) return;
+          if (sd) {
+            scene = new fxm.DynScene(P, sd, actor);
+            container.addChild(scene.view);
+            b = scene.frame;
+            const clip = new P.Graphics().beginFill(0xffffff).drawRect(b.x, -b.y - b.height, b.width, b.height).endFill();
+            container.addChild(clip); container.mask = clip;
+          }
+        }
+        if (!scene) { await layer(entry.background, false); await layer(entry.foreground, true); }
         if (disposed) return;
         actor.state.setAnimation(0, entry.anims?.idle || clips[0], true);
         actor.update(0);
@@ -201,7 +216,7 @@ function FullIllustration({ entry, staticSrc }) {
         relayout.current = resize;
         resize();
         watcher = new ResizeObserver(resize); watcher.observe(host.current);
-        app.ticker.add(() => actor.update(Math.min(0.25, app.ticker.deltaMS / 1000)));
+        app.ticker.add(() => { const dt = Math.min(0.25, app.ticker.deltaMS / 1000); actor.update(dt); scene?.update(dt); });
         env().document?.addEventListener('visibilitychange', visibility);
         if (playingRef.current && !env().document?.hidden) app.start(); else app.render();
         setState('ready');
@@ -214,6 +229,7 @@ function FullIllustration({ entry, staticSrc }) {
     return () => {
       disposed = true; watcher?.disconnect(); env().document?.removeEventListener('visibilitychange', visibility);
       appRef.current = null; actorRef.current = null; relayout.current = null;
+      try { scene?.destroy(); } catch { /* its stage is gone */ }
       try { if (app?.renderer) releaseGl?.(app.renderer); app?.destroy(true, { children: true, texture: false, baseTexture: false }); } catch { /* a lost context is already gone */ }
       release?.();
     };

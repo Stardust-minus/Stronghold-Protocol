@@ -397,6 +397,79 @@ void main() {
   },
   // Multiply: lerp(1, texture × colour, texture alpha × colour alpha) (blend DstColor Zero — gl.js maps it for the
   // transparent canvas: darkening by the luminance)
+  // ---- the 动态立绘 scenes' L2D shaders the battle set does not use (spike/dyn-fx-20261116; formulas from the client's
+  // D3D11 bytecode as decoded for the runtime developer, kept outside the repository) ----
+  // Disturb2 (AlphaBlend / Add): the main UV pushed by two scrolled noise lookups of one texture (R, G) × Noise*Param.zw;
+  // `_DisturbMode` Glow mixes _MainColor by R and _GlowColor by G instead (vertex colour unused)
+  disturb2: {
+    tex: ['_MainTex', '_DisturTex'],
+    src: (d) => `${S(['_MainTex', '_DisturTex'])}
+${U4(['_MainTex_ST', '_MainColor', '_GlowColor', '_Noise1Param', '_Noise2Param'])}
+void main() {
+  vec2 uvM = st(v_uv, u_MainTex_ST);
+  vec2 n1uv = vec2(uvM.x * u_Noise1Param.x + fract(u_Noise1Param.y * u_Time.x), uvM.y * u_Noise1Param.x);
+  vec2 n2uv = vec2(uvM.x * u_Noise2Param.x + fract(u_Noise2Param.y * u_Time.x), uvM.y * u_Noise2Param.x);
+  float n1 = ${d.lite ? '0.0' : 'texture(u_DisturTex, n1uv).r'}, n2 = ${d.lite ? '0.0' : 'texture(u_DisturTex, n2uv).g'};
+  vec4 m = texture(u_MainTex, uvM + 0.1 * (n1 * u_Noise1Param.zw + n2 * u_Noise2Param.zw));
+  ${d.glow ? 'o_col = clamp(m.r * u_MainColor + m.g * u_GlowColor, 0.0, 1.0);'
+    : d.add ? 'o_col = clamp(vec4(m.a * m.rgb * u_MainColor.rgb, m.a * u_MainColor.a * v_col.a), 0.0, 1.0);'
+      : 'o_col = clamp(vec4(m.rgb * u_MainColor.rgb, m.a * u_MainColor.a * v_col.a), 0.0, 1.0);'}
+}`,
+  },
+  // Dissolve AB / Add Double edge: Dissolve Double whose dissolve edge (width _Edgecolor.a) blends to _Edgecolor.rgb
+  // by (1 − smoothstep)^_pow
+  dissolveDoubleEdge: {
+    tex: ['_MainTex', '_DissolveTex_01', '_DissolveTex_02'],
+    src: (d) => `${S(['_MainTex', '_DissolveTex_01', '_DissolveTex_02'])}
+${U4(['_MainTex_ST', '_DissolveTex_01_ST', '_DissolveTex_02_ST', '_TintColor', '_Edgecolor'])}
+${U1(['_Amount_01', '_BorderWidth_01', '_Amount_02', '_BorderWidth_02', '_pow'])}
+void main() {
+  float k1 = dissolveMask(texture(u_DissolveTex_01, st(v_uv, u_DissolveTex_01_ST)).r, u_Amount_01, u_BorderWidth_01);
+  float k2 = dissolveMask(texture(u_DissolveTex_02, st(v_uv, u_DissolveTex_02_ST)).r, u_Amount_02, u_BorderWidth_02);
+  vec4 c = 2.0 * v_col * u_TintColor * texture(u_MainTex, st(v_uv, u_MainTex_ST));
+  float kk = k1 * k2;
+  ${d.add ? `float s = clamp(kk / max(u_Edgecolor.a, 1e-4), 0.0, 1.0);
+  float e = pow(max(1.0 - s * s * (3.0 - 2.0 * s), 0.0), u_pow);`
+    : `float s = clamp((kk + 0.001) / (u_Edgecolor.a + 0.001), 0.0, 1.0);
+  float e = max(pow(max(1.0 - s * s * (3.0 - 2.0 * s), 0.0), u_pow), 0.001);`}
+  o_col = vec4(mix(c.rgb, u_Edgecolor.rgb, e), clamp(kk * c.a * mix(1.0, u_Edgecolor.a, e), 0.0, 1.0));
+}`,
+  },
+  // Mask/Erase: black by (1 − R) × _Strength — with its alpha factors (render/vfx/gl.js) it takes coverage away
+  erase: {
+    tex: ['_MainTex'],
+    src: () => `${S(['_MainTex'])}
+${U4(['_MainTex_ST'])}
+${U1(['_Strength'])}
+void main() {
+  o_col = vec4(0.0, 0.0, 0.0, clamp((1.0 - texture(u_MainTex, st(v_uv, u_MainTex_ST)).r) * u_Strength, 0.0, 1.0));
+}`,
+  },
+  // Disturb GrabPass: the picture under it (render/vfx/gl.js copies the target into u_GrabTexture before the draw),
+  // read at the fragment's own screen position pushed by a scrolled noise × the direction mode × _Intensity × the
+  // vertex R (optional mask texture, plain or polar). Directional / Center modes (1, 2: object-space directions) are
+  // drawn as Directional_UV [ASSUMED approximation: they need the object-space projection of the displaced vertex]
+  grab: {
+    tex: ['_DisturTex', '_MaskTex', '_GrabTexture'],
+    src: (d) => `${S(['_DisturTex', '_MaskTex', '_GrabTexture'])}
+${U4(['_DisturTex_ST', '_MaskTex_ST', '_NoiseSpeed', '_MaskSpeed', '_DisturbDirUV', '_DisturbCenterUV', '_GrabRect'])}
+${U1(['_Intensity', '_DirMode', '_Mask', '_MaskIntensity', '_PolarCoord', '_PolarRadius', '_DisturbInvert'])}
+void main() {
+  vec2 nOff = vec2(0.0), mOff = vec2(0.0); vec2 iScale = vec2(1.0); float mI = 1.0;
+  ${d.cvs ? 'nOff = v_t0; iScale = v_t1.xy; mOff = v_t1.zw; mI = v_t2.x;' : ''}
+  float r = 2.0 * length(v_uv - 0.5) * u_PolarRadius - u_MaskSpeed.x * u_Time.y;
+  float m1 = texture(u_MaskTex, vec2(r) + u_MaskTex_ST.zw + mOff.x).r;
+  float m2 = texture(u_MaskTex, v_uv * u_MaskTex_ST.xy - u_MaskSpeed.xy * u_Time.y + u_MaskTex_ST.zw + mOff).r;
+  float n = texture(u_DisturTex, st(v_uv, u_DisturTex_ST) + fract(u_NoiseSpeed.xy * u_Time.x) + nOff).r;
+  vec2 dir = -(u_DisturbDirUV.xy * 0.1);
+  if (u_DirMode > 3.5 && u_DirMode < 4.5) dir = (u_DisturbInvert * 2.0 - 1.0) * normalize(v_uv - u_DisturbCenterUV.xy + 1e-6) * 0.1;
+  float mask = u_Mask > 0.0 ? clamp(mI * u_MaskIntensity, 0.0, 1.0) * ((u_PolarCoord > 0.0 ? m1 : m2) - 1.0) + 1.0 : 1.0;
+  vec2 off = mask * n * dir * u_Intensity * v_col.r * iScale;
+  // the client's grab texture runs top-down (D3D): its V offset points down the screen
+  vec2 suv = (gl_FragCoord.xy - u_GrabRect.xy) / u_GrabRect.zw + vec2(off.x, -off.y);
+  o_col = texture(u_GrabTexture, suv);
+}`,
+  },
   multiply: {
     tex: ['_MainTex'],
     src: () => `${S(['_MainTex'])}
