@@ -240,6 +240,23 @@
   -webkit-mask-image: linear-gradient(180deg, #000 46%, transparent 68%);
   mask-image: linear-gradient(180deg, #000 46%, transparent 68%);
 }
+/* …and inside the card's frame, as the official card shows it (themes/<id>/preview.webp: the portrait is cut by the frame's
+   top edge, the face right of centre). The prefab's char_portrait is 112×224 with its top-right corner at (87, 123) from
+   the 155×187 card's centre: 72.3 % of the card's width, its right edge 6.1 % past the card and its top 15.8 % above it —
+   the face sits in the card's upper half, clear of the bonds and the name bar. The box clips it to the card, and to the
+   theme's frame where the frame sprite has a transparent margin (--art-clip-*, ui-theme.css). The covenant card's
+   centring transform (game-shop.css) is dropped: it pulled the portrait half its width to the left, over the tier and the
+   bonds, and past the left edge (the owner 2026-11-16 「人物立绘会跳出卡面的框」). */
+.scard.scard--reg .scard__artbox {
+  position: absolute; inset: 0; display: block; pointer-events: none;
+  clip-path: inset(var(--art-clip-t, 0) var(--art-clip-r, 0) 0 0);
+}
+.scard.scard--reg .scard__artbox > .scard__art {
+  right: -6.1%; top: -15.8%; width: 72.3%;
+  transform: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 52%, transparent 76%);
+  mask-image: linear-gradient(180deg, #000 52%, transparent 76%);
+}
 .scard.scard--reg .scard__itemart { top: .34rem; width: .84rem; height: .84rem; }
 .scard.scard--reg .scard__namebar {
   position: absolute; z-index: 4; display: block; margin: 0; min-height: 0;

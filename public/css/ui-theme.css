@@ -483,6 +483,15 @@ html[data-sp-slot~="chess_frame_level_five"] .scard.scard--reg.scard--t5 {
 html[data-sp-slot~="chess_frame_level_six"] .scard.scard--reg.scard--t6 {
   background-image: var(--sp-img-chess_frame_level_six), var(--scard-under, linear-gradient(180deg, #1a2422, #101614));
 }
+/* The portrait stays inside the face sprite's opaque part (game-reghud.css .scard__artbox): 乌萨斯齐心团's face (174×200)
+   leaves 1 % at the top and 6.9 % on the right transparent; 可露希尔's (164×212) 3 % on the right, and its top edge right
+   of the folder tab is 13 / 15 units down (6.1 % / 7.1 % for tiers 5–6). */
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_frame_normal"] .scard.scard--reg:is(.scard--t1, .scard--t2, .scard--t3, .scard--t4),
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_frame_level_five"] .scard.scard--reg.scard--t5,
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_frame_level_six"] .scard.scard--reg.scard--t6 { --art-clip-t: 1%; --art-clip-r: 6.9%; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_frame_normal"] .scard.scard--reg:is(.scard--t1, .scard--t2, .scard--t3, .scard--t4) { --art-clip-t: 6.1%; --art-clip-r: 3%; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_frame_level_five"] .scard.scard--reg.scard--t5,
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_frame_level_six"] .scard.scard--reg.scard--t6 { --art-clip-t: 7.1%; --art-clip-r: 3%; }
 /* 盟约 cards with those two face sprites: the face full-bleed under the card's art and text as well. The hollow slice above
    cut an 8 px ring out of a face (no Unity border) and read as stray strips off the card (the owner, 2026-11-14
    「新的主题在盟约版本用有bug」, §37.205); ac_n_initial keeps its hollow frame. The card's own dark face layer steps aside;
