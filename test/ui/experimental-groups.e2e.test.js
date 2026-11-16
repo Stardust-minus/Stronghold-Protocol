@@ -8,6 +8,11 @@
 //            (与你的设置相同); another doctor leaves before the page confirms: it waits again in its place (本次匹配未成立
 //            and why) and meets the next one of its options; a page taking any sees 由其他博士或小队设置 and leaves with
 //            退出本次匹配.
+// The server's budget of resend-heavy intents per connection (server/net.js NET_DEFAULTS heavyBurst 6, refilled at
+// heavyPerSec 2; HEAVY_TYPES) is shared by queue.join and the lobby settings a page sends on its hello and again as
+// 多人匹配 opens (room.loadout, room.ownership, room.diy, room.skins, room.card): a 开始多人匹配 right after them is answered
+// RATE「queue.join too often」. The page says so (its toast, 操作过于频繁, and it stays idle: checked once on purpose); each
+// real start waits until the budget is whole again (HEAVY_REFILL_MS) — the test does not change the server's limits.
 //
 //   SP_E2E=1 node --test test/ui/experimental-groups.e2e.test.js
 //
@@ -18,8 +23,11 @@ import { Client, hasChrome, startRealServer, problemsOf, sleep } from '../e2e/cl
 import { TestClient } from '../helpers/wsClient.js';
 import { MATCHMAKING_VERSION } from '../../shared/constants.js';
 import { PLAYER_CAPACITY_VERSION } from '../../shared/playerCapacity.js';
+import { NET_DEFAULTS } from '../../server/net.js';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome();
+// a whole heavy budget again after any use (6 / 2 per s = 3 s), with a margin for a slow machine
+const HEAVY_REFILL_MS = Math.ceil((1000 * NET_DEFAULTS.heavyBurst) / NET_DEFAULTS.heavyPerSec) + 500;
 const R = (o = {}) => ({ revivalEnabled: false, disableSharedPool: false, ...o });
 const ROOM = R({ revivalEnabled: true, enemyHpMul: 2, enemyAtkMul: 1.5, disableSharedPool: true });
 const MINE = R({ revivalEnabled: true, disableLayerCap: true });
@@ -113,10 +121,22 @@ describe('实验性功能 by group, 多人匹配 with own options (real server)'
       await me.page.keyboard.press('Escape');
       await me.page.waitForSelector('[data-testid="version-picker"]', { hidden: true });
 
+      // ---- a start the server refuses for rate: the page says so and stays idle ----
+      // (the budget spent on purpose: heavyBurst room.list in the same task as the click, so queue.join comes right after)
+      await me.page.evaluate((n) => {
+        for (let i = 0; i < n; i++) globalThis.__SP__.net.request('room.list').catch(() => {});
+        document.querySelector('.proto-start').click();
+      }, NET_DEFAULTS.heavyBurst);
+      await me.page.waitForFunction(() => [...document.querySelectorAll('.toast .toast__text')].some((el) => el.textContent === '操作过于频繁'), { timeout: 5000 });
+      assert.equal(await me.page.evaluate(() => globalThis.__SP__.store.get().queue.state), 'idle');
+      assert.equal(await me.page.$eval('.proto-start', (el) => el.disabled), false, 'the start is offered again');
+      await me.shot('match-rate');
+
       // ---- 确认入场: my options ----
       await lone('BotSame', { rules: ['custom'], experimental: MINE });
       await lone('BotAny1', { rules: ['experimental'] });
       await lone('BotAny2', { rules: ['standard', 'experimental'] });
+      await sleep(HEAVY_REFILL_MS);
       await me.click('.proto-start', '开始多人匹配');
       await me.page.waitForSelector('[data-testid="offer-rules"]', { visible: true, timeout: 20000 });
       const q = await me.page.evaluate(() => globalThis.__SP__.store.get().queue);
@@ -152,6 +172,7 @@ describe('实验性功能 by group, 多人匹配 with own options (real server)'
       await lone('BotOther', { rules: ['custom'], experimental: OTHERS });
       await lone('BotAny3', { rules: ['experimental'] });
       await lone('BotAny4', { rules: ['experimental'] });
+      await sleep(HEAVY_REFILL_MS);
       await me.click('.proto-start', '开始多人匹配');
       await me.page.waitForSelector('[data-testid="offer-rules"]', { visible: true, timeout: 20000 });
       assert.equal(await me.page.$eval('[data-testid="offer-rules"]', (el) => el.dataset.origin), 'others');
