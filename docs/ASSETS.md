@@ -92,6 +92,15 @@ optional layers behind and over it. Their pages are straight alpha except the 15
 after an import: it writes `<page>.edge.<ext>` and `<stem>.edge.atlas`, which the manifest names; the old files stay
 for older clients.
 
+**精二 dynamic illustrations** (2026-11-16): 27 operators' own default 精二 look is animated in the client (skin_table
+`charSkins[<charId>#2].dynIllustId`; 塔露拉, 缪尔赛思, 浊心斯卡蒂 …). Their records are `chars[id].dynamicE2`, the same shape
+as a skin's `dynamic`, unpacked from the local client's `arts/dynchars/<charId>_2.ab` to `char/dynamic/<charId>_2/`
+(Spine 3.8.99, one JSON skeleton; lossless WebP pages; four premultiplied pages, `pma: true`). The committed registry
+`tools/assets/char-dynamic-e2.json` holds the file sizes and hashes, the clips, `bounds` (the skeleton header's, else the
+Idle at t = 0, as for skins) and `frames` (the official 精二 avatar / 180×360 portrait matched in an official spine-webgl
+render of the Idle at t = 0); `node tools/prepare-operator-dynamic-e2.mjs --assets <dir> [--check]` writes the field,
+and `tools/fetch-assets.mjs` keeps it on a rebuild while the files are on disk (`tools/assets/dynamic-e2.mjs`).
+
 Display skeleton copies remove only editor image/audio root paths. Their manifest `atlas` path remains authoritative:
 when it differs from the skeleton-derived filename, the client passes `spineAtlasFile` to the Pixi loader instead of
 requesting a nonexistent `.display.atlas`. Original source files and animation data remain unchanged.
@@ -144,7 +153,8 @@ physical-device compatibility, full-match correctness or deployment. Entrance ch
 
 ```bash
 npm install          # also vendors pixi / pixi-spine / preact / htm / three / acorn / ses (tools/vendor.mjs; pixi-spine
-                     # 4.0.6 gets Spine 3.7 / 3.8 runtime fixes, patchPixiSpine, history §36.18 / §37.240; three.js is fetched
+                     # 4.0.6 gets Spine 3.7 / 3.8 runtime fixes and the two-colour tint, patchPixiSpine, history §36.18 /
+                     # §37.240 / §37.242; three.js is fetched
                      # by browsers only when data/local-assets.json lists the board atlas — the 3D board, DESIGN §15)
 npm run assets       # = node tools/vendor.mjs && node tools/fetch-assets.mjs
 ```
@@ -331,6 +341,7 @@ languages, including their references in the prune set.
 | Organisation emblems and official player avatars (feedback #89, #100) | the local client's `spritepack/ui_camp_logo_0.ab` and `spritepack/ui_player_avatar_list_h2_0.ab` (names: `handbook_team_table`, `display_meta_table`) | `ui/campLogo/logo_*.png`, `ui/playerAvatar/avatar_*.png` |
 | Official dynamic player avatars (rel27: the eight `avatar_dyn_01`…`08`; six Spine skeletons, two frame sequences) | the local client's `arts/dynavatars_0.ab` (`tools/local-extract/extract.py --only ui/avatar_dyn`, opt-in; `tools/local-extract/avatars.py`); without them the static avatar picture stays | `local/ui/avatar_dyn/{avatarId}/avatar.json` with its skeleton, atlas and page, or `{avatarId}.webp` (listed in `data/local-assets.json`) |
 | Operator outfits (时装: avatar, portrait, 立绘, battle Spine, 72 dynamic illustrations; "Targeted skin battle preparation") | not fetched by this tool: `tools/prepare-operator-skins.mjs` (PRTS), 61 dynamic illustrations from the local client's `arts/dynchars`; a run keeps every installed outfit whose files are complete (`retainInstalledSkins`) | `skins/{skinId}/{avatar,portrait,illustration,portrait_hd}.png`, `skins/{skinId}/{front,back,dynamic}/…` |
+| Operators' 精二 dynamic illustrations (27, `chars[id].dynamicE2`) | not fetched by this tool: unpacked from the local client's `arts/dynchars/<charId>_2.ab`, written by `tools/prepare-operator-dynamic-e2.mjs` from `tools/assets/char-dynamic-e2.json`; kept on a rebuild while the files are on disk | `char/dynamic/{charId}_2/…` |
 | HD static 立绘 of every operator look (rel30, "HD static art") | not fetched by this tool: the PRTS 立绘 through `tools/assets/hd-art/`, written into the manifest by `tools/prepare-operator-illustrations.mjs`; a run keeps the fields whose files are on disk | `char/illustration/{charId}_{1,2}.png`, `char/portrait_hd/{charId}_{1,2}.png` |
 | SFX (UI, battle, per unit) | AA2 `voice` `audio/sound_beta_2/**`, mapped from `audio_data.json` banks | `audio/sfx/{same sub-path}.mp3` |
 | 干员战斗语音 | AA2 `voice` `audio/sound_beta_2/voice_cn/{charId}/cn_nn.mp3` (Chinese, `audio.voice`), `voice/{charId}/cn_nn.mp3` (Japanese, `audio.voiceJp`), `voice_en/` (English, `audio.voiceEn`), `voice_kr/` (Korean, `audio.voiceKr`) and `voice_custom/<wordkey lowercase>/` (the operator's own-language dub, `audio.voiceNative`: charword `voiceLangDict` entries whose `voiceLangTypeDict` `groupType` is `CUSTOM` — Italian, Russian, Spanish, Chinese dialect, German, French; the first such dub when there are several). Same file names. `--voice-lang=jp|en|kr` fills `audio.voice` from `voice/`, `voice_en/`, `voice_kr/` instead. `--no-optional-voice` skips the three extra trees. | `audio/voice/cn/{charId}/{cn_nn}.mp3`, `audio/voice/jp/…`, `audio/voice/en/…`, `audio/voice/kr/…`, `audio/voice/native/<wordkey>/{cn_nn}.mp3` |
@@ -618,6 +629,8 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                          // where the area is ≥ 180 px wide (never coarser than the portrait); skins[id] take
                          // illustrationSize, portraitBox, portraitHD, portraitHDSize and portraitScene (the 立绘 has a
                          // scene behind the character; portraitHD is then a cut-out with the portrait's silhouette)
+                         // dynamicE2?: Spine & { frames: { avatar, portrait } } — the operator's own 精二 动态立绘
+                         // (2026-11-16, tools/assets/dynamic-e2.mjs), the shape of skins[id].dynamic below
   enemies: { [enemyId]: { icon, spine?: Spine, spineAliasOf?: enemyId,
                           spineLocal?: { group, skel, atlas, textures, …Spine } } },
                           // spineLocal: an optional local-client model; file names in a data/local-assets.json group,

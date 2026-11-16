@@ -1,4 +1,5 @@
-// Original layered Spine illustrations (an appearance's official 动态立绘, data/assets.json skins[id].dynamic). Two modes:
+// Original layered Spine illustrations (an appearance's official 动态立绘, data/assets.json skins[id].dynamic, and since
+// 2026-11-16 an operator's own 精二 one, chars[id].dynamicE2 — ui/dynamicFraming.js e2Dynamic). Two modes:
 //   full (the default): the 「查看立绘」 preview — opened explicitly, contain fit, play / pause and clip controls, its own
 //     Pixi.Application (one at a time).
 //   cover: embedded where an appearance's art already shows — 干员调配's cells (the list's avatar crop, the cards' portrait
@@ -57,10 +58,13 @@ export function DynamicIllustration(props) {
 /**
  * The live 动态立绘 over a box's static avatar / portrait — the official crop, framed as the <img> under it
  * (object-fit: cover at posX% posY%) — when the worn skin (a skins choice map, or a card `look`) has one; nothing otherwise.
- * @param {{ m: any, charId: string, skins?: any, look?: string, kind: 'avatar'|'portrait', posX?: number, posY?: number }} props
+ * `elite`: with no skin worn the box shows the operator's 精二 pictures (a 精锐 record), whose 动态立绘 then plays
+ * (ui/dynamicFraming.js e2Dynamic, 2026-11-16).
+ * @param {{ m: any, charId: string, skins?: any, look?: string, kind: 'avatar'|'portrait', posX?: number, posY?: number,
+ *   elite?: boolean }} props
  */
-export function LiveArt({ m, charId, skins = null, look = null, kind, posX = 50, posY = 50 }) {
-  const dyn = look != null ? lookDynamic(m, charId, look) : dynamicOf(m, charId, skins);
+export function LiveArt({ m, charId, skins = null, look = null, kind, posX = 50, posY = 50, elite = false }) {
+  const dyn = look != null ? lookDynamic(m, charId, look) : dynamicOf(m, charId, skins, elite);
   const framing = cropFraming(dyn, kind, posX, posY);
   return framing ? html`<${CoverIllustration} entry=${dyn} framing=${framing} />` : null;
 }

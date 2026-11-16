@@ -228,7 +228,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
     <div class="lo-dhead">
       <div class=${cx('lo-dhead__art', `lo-dhead__art--t${chess.tier}`)}>
         <${Img} ...${chainProps(portraitChain(m, [ownAppearance(golden || chess, { skins }), golden || chess]))} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
-        <${LiveArt} m=${m} charId=${chess.charId} skins=${skins} kind="portrait" posY=${12} />
+        <${LiveArt} m=${m} charId=${chess.charId} skins=${skins} kind="portrait" posY=${12} elite=${!!golden} />
       </div>
       <div class="lo-dhead__info">
         <div class="lo-dhead__chips"><${TierChip} tier=${chess.tier} size="md" />

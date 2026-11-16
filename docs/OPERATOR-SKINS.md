@@ -25,6 +25,8 @@
 
 动态立绘（rel26，2026-11-02 用户决定）：72 套有官方动态立绘的时装全部带上（11 套来自 PRTS，61 套由本地客户端 `arts/dynchars` 解包，含 0.4.0 医疗阿米娅的「寰宇独奏」，图集页为无损 WebP，逐像素 RGBA 与 PNG 一致）。图集页多为直通 alpha；15 套是预乘 alpha，在 `data/assets.json` 标 `pma: true`（`tools/prepare-operator-skins.mjs` 的 `PREMULTIPLIED_DYNAMIC`），其中 11 套的接缝由 `tools/fix-dynamic-edges.py` 修过，用另存的 `<页>.edge.<扩展名>` 与 `.edge.atlas`（rel37）。除「查看立绘」外，rel27 起（2026-11-03 用户决定）凡显示这些时装立绘的地方都实时播放（`public/js/ui/dynamicIllustration.js` 的 cover 模式）：干员调配的列表头像（官方头像取景）、卡片视图和详情立绘（官方半身像取景）、自选立绘框、玩家头像（大厅、同盟座位、成就；对局界面内仍为静态）、名片底图（任意宽度），以及同盟座位卡（默认官方半身像取景）。取景框由离线比对官方头像／半身像与动态立绘静帧得到，存于 `data/assets.json` 的 `skins[id].dynamic.frames`，与下面的静态图同一裁切；第一帧画出后静态图隐藏，任何失败都留静态图。所有立绘共用一个 WebGL 上下文（`public/js/ui/dynamicStage.js`：每帧把屏幕上的立绘排进一张离屏画布，一次绘制后拷到各自的 2D 画布），不限个数、不限帧率（跟随显示器刷新）、分辨率为框的 CSS 尺寸 × devicePixelRatio；离开屏幕的不加载也不绘制；不理会 `prefers-reduced-motion`。比图集本身更细的清晰度只是插值，是素材的上限。客户端里环绕骨骼的 Unity 粒子与网格背景不是 Spine，不在此列。联动时装没有动态立绘。
 
+精二动态立绘（2026-11-16 用户：「有一部分干员精英II立绘也是动态的，现在没有显示动态，例如塔露拉」）：客户端里 27 名干员的默认精二外观带动态立绘（skin_table `charSkins[<charId>#2].dynIllustId`），由本地客户端 `arts/dynchars/<charId>_2.ab` 解包，记为 `data/assets.json` 的 `chars[id].dynamicE2`（与时装的 `dynamic` 同一格式，登记表 `tools/assets/char-dynamic-e2.json`）。凡显示该干员精二图的地方都实时播放，规则与时装相同：干员调配和自选的详情立绘（精锐形态、未穿时装时）、精二名片干员的座位卡（取景空间沿用静态精二立绘，以前存的取景不变）、选了精二头像的玩家头像（大厅、同盟座位、成就、对局内），以及「查看立绘」（未穿时装时也可打开，显示精二立绘，可切换静态）。精一和普通形态仍为静态。
+
 高清静态立绘（rel30）：`data/assets.json`（联动干员在 `data/assets-collab.json`）的干员精一／精二与时装带 PRTS 原画的 `illustration`／`portraitHD`／`portraitBox`／`portraitScene` 等字段（`tools/prepare-operator-illustrations.mjs`，素材重建见 `tools/assets/hd-art/README.md`）；干员调配、自选、结算、成就统计与对局内详情画高清裁切，同盟座位卡画整张立绘（含场景）。玩家可在自己的座位上「调整立绘」拖动、缩放，精一／精二、静态和动态时装都可以；取景随 room.card 的 artX／artY／artZoom 同步给全房间。名片底图另有「调整位置和缩放」（bgX／bgY／bgZoom）。
 
 ## 同步与安全边界
