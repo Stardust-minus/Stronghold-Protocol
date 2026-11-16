@@ -444,6 +444,12 @@
   .gm .shopbar .scard.scard--reg { width: 1.55rem; height: 1.87rem; }
   .gm .shopbar--reg .funds.funds--reg { align-self: auto; }
   .gm .shopbar--reg .shopbar__remain { margin-bottom: .14rem; }
+  /* the prefab's text sizes are rem (char_name 16 units, the bonds 10.5): about 5 px and 3.5 px at the phone's 32 px root,
+     unreadable; the covenant card's phone floors, a little smaller for the narrower name box (the name's size is inline) */
+  .gm .scard.scard--reg .scard__name { font-size: max(.16rem, calc(11px * var(--ui))) !important; }
+  .gm .scard.scard--reg .scard__bond { font-size: max(.105rem, calc(8px * var(--ui))); }
+  .gm .scard.scard--reg .scard__bond .bglyph { width: max(.13rem, calc(9px * var(--ui))); height: max(.13rem, calc(9px * var(--ui))); }
+  .gm .scard.scard--reg .scard__bonds { overflow: visible; }
 }
 .sp-coarse .shopbar--reg .toolbtn,
 .sp-coarse .shopbar--reg .funds__collapse,
