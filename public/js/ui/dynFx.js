@@ -148,7 +148,7 @@ export class DynScene {
     /** The official camera square in skeleton px (y-up), like a dynamic entry's `bounds`. */
     this.frame = { x: (cx - camS) * k, y: (cy - camS) * k, width: 2 * camS * k, height: 2 * camS * k };
     this.basis = { right: [1, 0, 0], up: [0, 1, 0], fwd: [0, 0, 1], pos: [cx, cy, -scene.rootPos[2] - FAR], h: 1, tanHalf: camS / FAR };
-    this.stats = { fxDraws: 0, spineParts: 0, items: 0, particles: 0, updateMs: 0, renderMs: 0, grabs: 0 };
+    this.stats = { fxDraws: 0, spineParts: 0, items: 0, particles: 0, updateMs: 0, buildMs: 0, renderMs: 0, grabs: 0 };
     this.view = new P.Container();
     this.view._render = (r) => this.render(r);
     this.filter = null;
@@ -287,6 +287,7 @@ export class DynScene {
     }
     const st = this.stats;
     st.items = items.length; st.fxDraws = 0; st.spineParts = 0;
+    st.buildMs = performance.now() - t0;   // CPU: gather, sort, particle / mesh geometry (JS)
     const d0 = c.glr.stats.draws, g0 = c.glr.stats.grabs || 0;
     try { c.glr.upload(fd); } finally { resetPixi(renderer); }
     let run = [];
