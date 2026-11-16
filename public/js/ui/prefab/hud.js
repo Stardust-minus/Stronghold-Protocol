@@ -233,6 +233,16 @@ export function RegDeadlineCountdown({ pack, deadline = null, total = null, stil
  * @returns {Record<string, string> | null}
  */
 export function readyCountPlate(pack) {
+  if (!pack || typeof pack !== 'object') return null;
+  if (plateCache.has(pack)) return plateCache.get(pack) ?? null;
+  const plate = countPlateOf(pack);
+  plateCache.set(pack, plate);
+  return plate;
+}
+const plateCache = new WeakMap();
+
+/** @param {any} pack */
+function countPlateOf(pack) {
   const prefab = pack?.doc?.prefabs?.panel_prep_ready;
   const find = (n, name) => {
     if (!n) return null;

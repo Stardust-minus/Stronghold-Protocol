@@ -380,7 +380,8 @@ export function ReadyToggle({ priv, onToggle, busy, readyCount, total, pack = nu
   const why = !ready && (choice || temp.count > 0);
   // 规程 with an official pack: its panel_prep_ready face (ui/prefab/hud.js); the words stay for screen readers
   const face = pack && packHud(pack).ready;
-  const plate = useMemo(() => (face ? readyCountPlate(pack) : null), [pack, face]);
+  // no hook here: the button is also called as a plain function (test/ui/playtest3.test.js); the plate is cached per pack
+  const plate = face ? readyCountPlate(pack) : null;
   const btn = html`<button type="button" class=${cx('readybtn', 'tapx', ready && 'is-on', busy && 'is-busy', face && 'readybtn--pf')} disabled=${!!reason || busy}
       aria-pressed=${ready ? 'true' : 'false'} aria-describedby=${why ? 'readywrap-why' : undefined} onClick=${() => onToggle(!ready)}>
     ${face ? html`<${RegReadyFace} pack=${pack} ready=${ready} still=${settingsStill()} />` : html`<span class="readybtn__box">${ready ? html`<${Icon} name="check" />` : null}</span>`}
