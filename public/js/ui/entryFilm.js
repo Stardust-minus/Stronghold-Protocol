@@ -262,15 +262,16 @@ function run(allowed, films, first, budget) {
   const skipLabel = el.querySelector('.spa-entry__skip');
   const card = document.createElement('div');
   card.className = 'spa-entry__gate';
-  /** The card's line; the Latin one under it is a decoration under a CJK prompt (a Latin translation already says it). */
+  /** The card's line, already translated (t() at the call: the i18n extractor reads only literal t() calls); the Latin
+   * one under it is a decoration under a CJK prompt (a Latin translation already says it). */
   const say = (text, latin) => {
     card.innerHTML = `<b></b><i>${latin}</i>`;
-    card.firstChild.textContent = t(text);
-    if (scriptOf(t(text)) === 'alphabetic') card.lastChild.remove();
+    card.firstChild.textContent = text;
+    if (scriptOf(text) === 'alphabetic') card.lastChild.remove();
   };
   // the art is not in yet: the card says 加载中 until the film mounts, with the skip label under it
   const waiting = () => {
-    say('加载中', 'LOADING');
+    say(t('加载中'), 'LOADING');
     card.className = 'spa-entry__gate spa-entry__gate--wait';
     el.append(card);
     skipLabel.style.opacity = '';
@@ -278,7 +279,7 @@ function run(allowed, films, first, budget) {
   let gate = Promise.resolve(), gateKey = null;
   if (locked) {
     skipLabel.style.opacity = '0';
-    say('点击进入', 'TAP TO START');
+    say(t('点击进入'), 'TAP TO START');
     el.append(card);
     gate = new Promise((resolve) => {
       const go = () => {
