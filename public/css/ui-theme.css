@@ -120,6 +120,27 @@ html[data-sp-slot~="img_check_enemy"] .enemybtn.is-grey { background-color: tran
 /* 卫戍协议终端's pictures carry their own bracket frame ([🔍], [🔍▶▶]): the bar's bracket frames around them drew a second pair */
 html[data-sp-slot~="img_check_player"] .gtop__frame--l::before, html[data-sp-slot~="img_check_player"] .gtop__frame--l::after,
 html[data-sp-slot~="img_check_enemy"] .gtop__frame--r::before, html[data-sp-slot~="img_check_enemy"] .gtop__frame--r::after { display: none; }
+/* The official packs' buttons at their own size: each pack's RectTransform (themes/<id>/layout.json img_check_*: 73×41 in
+   卫戍协议终端 and 乌萨斯齐心团, 100×68 / 88×56 in 可露希尔), one prefab unit .0144rem, as the bar's band — the hand-made
+   .46rem box drew them at 60–80 % (the owner 2026-11-16). Their frames grow with them and the band stays centred between
+   them; on a phone the tap floor below (26 px) keeps the pack's proportions. A custom theme keeps the .46rem box. */
+html[data-sp-theme="ac_n_initial"][data-sp-slot~="img_check_player"] .gtop__iconbtn,
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="img_check_player"] .gtop__iconbtn,
+html[data-sp-theme="ac_n_initial"][data-sp-slot~="img_check_enemy"] .enemybtn,
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="img_check_enemy"] .enemybtn { --chk-w: 73; --chk-h: 41; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="img_check_player"] .gtop__iconbtn { --chk-w: 100; --chk-h: 68; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="img_check_enemy"] .enemybtn { --chk-w: 88; --chk-h: 56; }
+html:is([data-sp-theme="ac_n_initial"], [data-sp-theme="ac_n_iron"], [data-sp-theme="ac_s_closur"])[data-sp-slot~="img_check_player"] .gtop .gtop__iconbtn,
+html:is([data-sp-theme="ac_n_initial"], [data-sp-theme="ac_n_iron"], [data-sp-theme="ac_s_closur"])[data-sp-slot~="img_check_enemy"] .gtop .enemybtn {
+  width: auto; min-width: 0; height: calc(var(--chk-h) * .0144rem); aspect-ratio: var(--chk-w) / var(--chk-h);
+}
+html[data-sp-slot~="img_check_player"] .gtop__frame--l, html[data-sp-slot~="img_check_enemy"] .gtop__frame--r { height: auto; min-height: .64rem; }
+@media (max-height: 600px) and (pointer: coarse), (max-height: 600px) and (any-pointer: coarse) {
+  html:is([data-sp-theme="ac_n_initial"], [data-sp-theme="ac_n_iron"], [data-sp-theme="ac_s_closur"])[data-sp-slot~="img_check_player"] .gtop .gtop__iconbtn,
+  html:is([data-sp-theme="ac_n_initial"], [data-sp-theme="ac_n_iron"], [data-sp-theme="ac_s_closur"])[data-sp-slot~="img_check_enemy"] .gtop .enemybtn {
+    height: max(calc(var(--chk-h) * .0144rem), calc(26px * var(--ui)));
+  }
+}
 /* the countdown plates keep their aspect: a box about 1.4 : 1 squeezed 卫戍协议终端's 216×87 plate (its STRONGHOLD PROTOCOL
    type) and 乌萨斯齐心团's 694×134 wedge (§37.204) */
 html[data-sp-slot~="countdown"] .gtop__right .countdown {
