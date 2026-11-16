@@ -2283,6 +2283,18 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 /* the reference's hexagon: six solid mint triangles, dark gaps, a ruler inside each outer edge, a dark hub, a soft glow */
 .ach-hex__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 .14rem rgba(74, 242, 196, .3)); }
 .ach-hex__seg polygon { fill: #5cd3b2; stroke: rgba(225, 255, 246, .32); stroke-width: 1.5; stroke-linejoin: round; }
+/* each triangle fills from the hub with its 评语's count (full at 20, the official statistics view; achievements.js hexFill):
+   a dim plate under it, the count brightening once full */
+.ach-hex__seg .ach-hex__base { fill: rgba(92, 211, 178, .17); stroke: rgba(225, 255, 246, .22); }
+.ach-hex__seg .ach-hex__fill { stroke: none; transform: scale(var(--k, 0)); transform-box: view-box; transform-origin: 0 0;
+  animation: ach-fill 640ms var(--ease-out) calc(220ms + var(--i) * 50ms) both; }
+.ach-hex__seg.is-full .ach-hex__base { stroke: rgba(225, 255, 246, .42); }
+.ach-hex__seg.is-full .ach-hex__fill { fill: #74f0cc; }
+@keyframes ach-fill { from { transform: scale(0); } }
+.ach-hex__label.is-none b { color: rgba(218, 255, 244, .55); text-shadow: none; }
+.ach-hex__label.is-none b::before { opacity: .35; }
+.ach-hex__label.is-full b { color: #fff; text-shadow: 0 0 .1rem rgba(116, 240, 204, 1), 0 0 .22rem rgba(74, 242, 196, .7); }
+.ach-hex__label.is-full b::before { background: rgba(74, 242, 196, .45); }
 .ach-hex__ticks line { stroke: rgba(8, 48, 38, .34); stroke-width: 2; }
 .ach-hex__hub { fill: #0b100f; stroke: rgba(8, 48, 38, .7); stroke-width: 5; }
 .ach-hex__seg { animation: ach-seg 380ms var(--ease-out) calc(60ms + var(--i) * 50ms) both; transform-origin: 0 0; }
@@ -2366,6 +2378,14 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .ach-top--band .bandicon, .ach-mark__frame .bandicon { width: 1.6rem; height: 1.6rem; }
 .ach-top--band .bandicon img, .ach-mark__frame .bandicon img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 .08rem rgba(74, 242, 196, .45)); }
 .ach-top__side { display: flex; flex-direction: column; gap: .06rem; }
+/* a strategy of another version than the one shown (ui/recordLookups.js): that version's name under its own */
+.ach-ver { align-self: flex-start; padding: .02rem .1rem; font-size: .2rem; line-height: 1.3; color: #ffcf8a; white-space: nowrap;
+  background: rgba(255, 154, 42, .12); box-shadow: inset 0 0 0 1px rgba(255, 173, 58, .45); }
+.ach-mark > .ach-ver { align-self: center; margin-top: -.06rem; }
+/* 战果纪录 of another version: its lineup is not drawn with the shown version's operators */
+.ach-best__rows { position: relative; }
+.ach-best__other { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; padding: .08rem .24rem; font-size: .24rem;
+  color: #ffcf8a; white-space: nowrap; background: rgba(12, 16, 15, .88); box-shadow: inset 0 0 0 1px rgba(255, 173, 58, .5); pointer-events: none; }
 .ach-top__count { display: flex; align-items: baseline; gap: .02rem; }
 .ach-top__count small { font-size: .28rem; color: #eef3f1; }
 .ach-top__count b { font-family: var(--font-display); font-size: .44rem; line-height: 1; color: #4af2c4; font-weight: 500; }
@@ -2384,7 +2404,7 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .ach-mark__badge { position: absolute; right: .06rem; top: .06rem; width: .3rem; height: .3rem; display: grid; place-items: center; background: #1c1206; border: 2px solid #ff9a2a; color: #ffad3a; }
 .ach-mark__badge svg { width: .2rem; height: .2rem; }
 @media (prefers-reduced-motion: reduce) {
-  .ach, .ach__box, .ach-hex__seg, .ach-hex__label, .ach-top, .ach__loader i, .ach__loader b { animation: none !important; }
+  .ach, .ach__box, .ach-hex__seg, .ach-hex__fill, .ach-hex__label, .ach-top, .ach__loader i, .ach__loader b { animation: none !important; }
 }
 /* a guest's panel: the login block */
 .ach-gate { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; padding: .3rem 1rem; text-align: center; }

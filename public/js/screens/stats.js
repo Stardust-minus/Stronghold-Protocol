@@ -27,6 +27,10 @@
 // of its own version: a peak of another version (the filter on another version or 全部版本, or 成就统计's other half of
 // the season) shows its alliance and layers, and 切换到「X」查看 in place of the operators and gear — chess and item ids
 // are reused across versions for other operators and items (第一期下半: 100 chess ids, 72 item ids; review fix).
+// Strategy and alliance names (2026-11-16): ids keep their meaning across versions, but the page holds only the shown
+// version's data, so every tab looks them up over every version the listed records played (ui/recordLookups.js — 规程
+// renamed every strategy, and 盟约's 华法琳 / 娜仁图亚 printed as band_bldsk / band_narant on a 规程 page); a strategy the
+// shown version lacks carries its version's tag.
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
@@ -49,6 +53,7 @@ import {
 import { t, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { VersionTag } from '../ui/pluginTag.js';
+import { useRecordLookups } from '../ui/recordLookups.js';
 import { contentSet, retryContentSet } from '../content.js';
 import { DEFAULT_VERSION, roomPluginCs, shownVersion, seasonOf, versionContentStatus, versionLabel, welcomeVersion } from '../versions.js';
 import { VERSIONS } from '../../../shared/versions.js';
@@ -372,6 +377,7 @@ function MatchRecords({ maxima, manifest }) {
 function BondRecords({ agg, gd }) {
   useData('chess');
   const bonds = Object.entries(agg.bonds).sort((a, b) => (b[1].games - a[1].games) || a[0].localeCompare(b[0]));
+  // the shown version's operators of TOP1 (none when TOP1 is another version's alliance: no heading over an empty row)
   const members = bondMemberChess(gd.list('chess'), bonds[0]?.[0]);
   return html`<${RecordHeading} title=${t('盟约记录')} manifest=${gd.m} />
     <h4 class="st-sub st-favorites__heading">${t('最常使用的盟约')}</h4>
@@ -390,7 +396,7 @@ function BondRecords({ agg, gd }) {
         </div>`;
       })}
     </div>` : html`<p class="st-hint">${t('暂无盟约使用记录')}</p>`}
-    ${bonds.length ? html`<h4 class="st-sub st-bond-members__heading">${t('盟约下干员为：')}</h4>
+    ${members.length ? html`<h4 class="st-sub st-bond-members__heading">${t('盟约下干员为：')}</h4>
       <ul class="st-bond-members">
         ${members.map((chess) => html`<li key=${`${chess.charId}#${chess.tier}`} class="st-bond-member" title=${chess.name}
           style=${`background-image:url(${uiUrl(gd.m, 'statistics/memberFrame')})`}>
@@ -400,9 +406,20 @@ function BondRecords({ agg, gd }) {
       </ul>` : null}`;
 }
 
+/**
+ * The version a strategy comes from when the page's data does not have it (ui/recordLookups.js foreign) — 第二期下半's
+ * too, unlike VersionTag, so 盟约's 华法琳 and 规程's are told apart on a 规程 page; nothing for the shown version's own.
+ * @param {any} gd @param {string} bandId
+ */
+function foreignTag(gd, bandId) {
+  const v = gd.foreign?.('bands', bandId);
+  return v ? html`<span class="vertag vertag--compact st-foreign" data-version=${v}><span class="vertag__label">${versionLabel(v)}</span></span>` : null;
+}
+
 /** 策略记录: the three most used strategies and the ones with the special mark (`records`: ui/stats.js achievementRecords). */
 function StrategyRecords({ agg, gd, records }) {
-  const badges = strategyBadgeIds(records, data.get('bands'));
+  // every version's strategies (ui/recordLookups.js bands()): a mark earned in a version the page does not show counts too
+  const badges = strategyBadgeIds(records, gd.bands ? gd.bands() : data.get('bands'));
   const rows = Object.entries(agg.bands).sort((a, b) => (b[1].games - a[1].games) || (b[1].wins - a[1].wins));
   return html`<${RecordHeading} title=${t('策略记录')} manifest=${gd.m} class="st-record-heading--strategy" />
     ${rows.length ? html`<h4 class="st-sub st-strategies__heading">${t('最常使用的策略')}</h4>
@@ -416,7 +433,7 @@ function StrategyRecords({ agg, gd, records }) {
               <span class="st-top-strategy__rank">${t('TOP{n}', { n: index + 1 })}</span>
             </div>
             <div class="st-top-strategy__text">
-              <span class="st-top-strategy__name" title=${name}>${name}</span>
+              <span class="st-top-strategy__name" title=${name}>${name}</span>${foreignTag(gd, bandId)}
               <div class="st-top-strategy__count num" title=${t('使用局数')}><span aria-hidden="true">x</span><b>${fmtNum(v.games)}</b></div>
             </div>
           </div>`;
@@ -432,7 +449,7 @@ function StrategyRecords({ agg, gd, records }) {
             <${BandIcon} bandId=${bandId} />
             <${Img} src=${uiUrl(gd.m, 'statistics/strategyBadge')} class="st-strategy-badge__mark" />
           </div>
-          <span class="st-strategy-badge__name" title=${name}>${name}</span>
+          <span class="st-strategy-badge__name" title=${name}>${name}</span>${foreignTag(gd, bandId)}
         </li>`;
       })}
     </ul>` : html`<p class="st-hint">${t('暂无获得特殊标识的策略')}</p>`}`;
@@ -454,7 +471,7 @@ function Bands({ agg, gd, records }) {
           const band = gd.band(bandId);
           const rate = v.games > 0 ? Math.round((v.wins / v.games) * 100) : 0;
           return html`<tr key=${bandId}>
-            <td><span class="st-band">${band?.name || bandId}</span></td>
+            <td><span class="st-band">${band?.name || bandId}</span>${foreignTag(gd, bandId)}</td>
             <td class="num">${fmtNum(v.games)}</td>
             <td class="num">${fmtNum(v.wins)}</td>
             <td class="num st-rate"><span class="st-bar" aria-hidden="true"><i style=${`width:${rate}%`}></i></span><b>${pct(v.wins, v.games)}</b></td>
@@ -614,7 +631,7 @@ function clearReplayVersion() {
 /** The overlay, rendered while open (its data hooks run only then). */
 function StatsScreen({ tab }) {
   const ready = useData('config', 'bands', 'bonds', 'assets');
-  const gd = useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
+  const shownGd = useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
   const [stats, setStats] = useState(() => loadStats());
   const [replay, setReplay] = useState(null);
   const boxRef = useRef(null);
@@ -644,6 +661,9 @@ function StatsScreen({ tab }) {
   const picked = useStore((s) => s.version, Object.is, statsStore);
   const versionPick = picked || shown;
   const recs = useMemo(() => recordsOfVersion(stats.records, versionPick), [stats, versionPick]);
+  // strategies and alliances of every version the listed records played (ui/recordLookups.js: 规程 renamed every
+  // strategy, and the page holds the shown version's data only)
+  const gd = useRecordLookups(shownGd, recs);
   const agg = useMemo(() => aggregateStats(recs, { modded: withModded }), [recs, withModded]);
   // 卫戍成就's peak and the strategy marks follow the same 「含插件对局」 switch as the tallies (the history lists them all)
   const achRecords = useMemo(() => achievementRecords(recs, withModded), [recs, withModded]);
@@ -757,10 +777,11 @@ function StatsScreen({ tab }) {
  */
 export function AchievementDialog({ onClose }) {
   const ready = useData('config', 'bands', 'bonds', 'assets', 'chess', 'items', 'backups');
-  const gd = useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
+  const shownGd = useMemo(() => makeLookups(ready), [ready, data.locale(), data.contentId()]);
   // the season of the version shown (DESIGN §35.23), like the lobby's card
   const season = useStore((s) => seasonOf(shownVersion(s)));
   const records = useMemo(() => recordsOfSeason(peekStatsRecords(), season), [season]);
+  const gd = useRecordLookups(shownGd, records);
   const agg = useMemo(() => aggregateStats(records), [records]);
   const official = useMemo(() => achievementRecords(records), [records]);
   // a title in an alphabetic script (English …): ": " between its halves, as on the hub and the title screen
