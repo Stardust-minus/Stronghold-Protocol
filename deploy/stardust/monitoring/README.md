@@ -135,6 +135,8 @@ recording rules（`prometheus/rules.yml`，面板只读这些和少量 gauge，�
 - Prometheus 保留 30 天或 5 GB（先到者生效），数据在命名卷 `ark-monitor_prometheus-data`；Grafana 数据库
   （含公开仪表盘 token）在 `ark-monitor_grafana-data`。**不要运行 `down -v`**。升级镜像前备份这两个卷。
 - 修改面板：编辑 `grafana/dashboards/stronghold-status.json`，Grafana 每 60 秒重新读取；界面上的改动不会保存。
+  说明栏里指向本站路径的链接要写成 `<a href="/monitor/net" target="_self">`：不带 target 的链接（包括 markdown 链接）会被
+  Grafana 前端接管，去掉 `/monitor` 后在页面内跳转，显示「找不到Page」，请求根本不到 Nginx。
 - 修改规则或采集配置后重启 Prometheus（未开启 lifecycle API）：`docker compose ... restart prometheus`。
 - 网卡不再按名字固定：node-exporter 只排除 lo 和 Docker 的虚拟网卡，带宽面板汇总隧道 `ark-*` 以外的网卡，换机器、
   网卡名变了不用改配置。
