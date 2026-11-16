@@ -57,7 +57,7 @@ test('dashboard: a public-dashboard-compatible, Chinese, dark, 1 min / 6 h board
   assert.deepEqual(dashboard.annotations, { list: [] });
   assert.equal(dashboard.editable, false);
   assert.match(ini, /^default_theme = dark$/m);
-  assert.deepEqual(dashboard.panels.filter((p) => p.type === 'row').map((p) => p.title), ['玩家', '游戏服务', '济南入口']);
+  assert.deepEqual(dashboard.panels.filter((p) => p.type === 'row').map((p) => p.title), ['玩家', '游戏服务', '重庆入口']);
   const ids = dashboard.panels.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length, 'unique panel ids');
   for (const p of dashboard.panels) {

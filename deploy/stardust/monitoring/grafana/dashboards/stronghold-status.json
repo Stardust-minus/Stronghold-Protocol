@@ -1,7 +1,7 @@
 {
   "uid": "sp-status",
   "title": "卫戍协议 · 服务器状态",
-  "description": "卫戍协议服务器的公开运行状况（玩家、游戏服务、济南入口）。",
+  "description": "卫戍协议服务器的公开运行状况（玩家、游戏服务、重庆入口）。",
   "tags": [
     "stronghold"
   ],
@@ -1632,7 +1632,7 @@
     {
       "id": 20,
       "type": "row",
-      "title": "济南入口",
+      "title": "重庆入口",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1646,7 +1646,7 @@
       "id": 21,
       "type": "timeseries",
       "title": "出口 / 入口带宽",
-      "description": "济南入口服务器公网网卡的带宽。出口：发给玩家的数据；入口：玩家发来的数据。",
+      "description": "重庆入口服务器公网网卡的带宽。出口：发给玩家的数据；入口：玩家发来的数据。",
       "datasource": {
         "type": "prometheus",
         "uid": "sp-prometheus"
@@ -1782,7 +1782,7 @@
       "id": 22,
       "type": "timeseries",
       "title": "CPU 使用率",
-      "description": "济南入口服务器全部 CPU 核心的平均使用率。",
+      "description": "重庆入口服务器全部 CPU 核心的平均使用率。",
       "datasource": {
         "type": "prometheus",
         "uid": "sp-prometheus"
@@ -1878,7 +1878,7 @@
       "id": 23,
       "type": "timeseries",
       "title": "内存使用率",
-      "description": "济南入口服务器已用内存占总内存的比例（可回收的缓存不算已用）。",
+      "description": "重庆入口服务器已用内存占总内存的比例（可回收的缓存不算已用）。",
       "datasource": {
         "type": "prometheus",
         "uid": "sp-prometheus"
