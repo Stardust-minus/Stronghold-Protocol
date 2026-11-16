@@ -85,7 +85,8 @@ export function regulationPictures(pack) {
 }
 
 /**
- * Load every picture within `ms`: true when all of them loaded (a film with a missing picture does not play).
+ * Load every picture within `ms`: true when all of them loaded (a film with a missing picture does not play). They are
+ * fetched ahead of other pictures (fetchPriority high): ui/entryFilm.js loads 盟约's film, the fallback, alongside.
  * @param {any} pack @param {number} ms @returns {Promise<boolean>}
  */
 export function preloadRegulation(pack, ms) {
@@ -93,13 +94,15 @@ export function preloadRegulation(pack, ms) {
   if (!urls.length) return Promise.resolve(false);
   const one = (u) => new Promise((resolve) => {
     const img = new Image();
+    img.fetchPriority = 'high';
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
     img.src = u;
   });
+  let timer;
   return Promise.race([
-    Promise.all(urls.map(one)).then((all) => all.every(Boolean)),
-    new Promise((resolve) => setTimeout(() => resolve(false), ms)),
+    Promise.all(urls.map(one)).then((all) => { clearTimeout(timer); return all.every(Boolean); }),
+    new Promise((resolve) => { timer = setTimeout(() => resolve(false), ms); }),
   ]);
 }
 
