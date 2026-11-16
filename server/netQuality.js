@@ -116,7 +116,11 @@ export function ispTable(doc) {
 
 /** Read the ISP table file; a missing or bad file classifies everything as 'unknown' (logged once). */
 export function loadIspTable(file, log = console) {
-  if (!file) return ispTable(null);
+  if (!file) {
+    // stated once, like the table's size: on a cluster the coordinator sums the reports and needs the table (11-16)
+    log.info?.('[netq] no ISP table (SP_ISP_FILE unset): reports count as isp=unknown, province xx');
+    return ispTable(null);
+  }
   try {
     const table = ispTable(JSON.parse(fs.readFileSync(file, 'utf8')));
     log.info?.(`[netq] ISP table: ${table.size} ranges, ${table.provinces} provinces`);
