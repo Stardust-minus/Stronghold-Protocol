@@ -77,6 +77,7 @@ import { retainInstalledSkins } from './prepare-operator-skins.mjs';
 import { applyIllustrations } from './assets/illustrations.mjs';
 import { applyDynamicE2 } from './assets/dynamic-e2.mjs';
 import { applyNamecardSkins } from './assets/namecard-skins.mjs';
+import { applyDynamicBackdrops } from './assets/dynamic-backdrops.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { statsTemplateJobs } from './assets/stats-template.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
@@ -563,6 +564,10 @@ async function main() {
   const ncSkins = applyNamecardSkins(body, { assetRoot: ASSETS });
   body = ncSkins.body;
   for (const rel of ncSkins.files) resolved.files.add(rel);
+  // every 动态立绘's official camera frame and its baked backdrop layers (2026-11-16, tools/assets/dynamic-backdrops.mjs)
+  const backdrops = applyDynamicBackdrops(body, { assetRoot: ASSETS });
+  body = backdrops.body;
+  for (const rel of backdrops.files.keys()) resolved.files.add(rel);
   const importedVoices = retainManifestVoices(current?.audio, body.audio, ASSETS);
   body.audio = importedVoices.audio;
   for (const rel of importedVoices.files) resolved.files.add(rel);

@@ -10,8 +10,14 @@
 // Off-screen boxes (IntersectionObserver, ui/dynamicIllustration.js) are not views at all: nothing loads or draws for them.
 // Always animated (the owner's decision of 2026-11-03: prefers-reduced-motion is not honoured here). A lost context pauses
 // the drawing — the 2D canvases keep their last frame — and Pixi re-uploads on restore.
+// A view with `backdrop` (the 名片 and the seat card; 2026-11-16, the owner: the 干员调配 cells' avatar / half-body crops
+// stay without) draws the record's `background` behind the skeleton and its `foreground` over it, each the official camera
+// frame's square (ui/dynamicFraming.js dynamicFrame; the bounds for a record without one), and nothing outside that frame.
+// Both pictures load before the view's first frame, so the static picture gives way to skeleton and backdrop at once
+// ([data-dyn="live"]). A 2048² RGBA texture is 16 MB of GPU memory: a view with both layers adds ~32 MB (one texture per
+// picture, shared by every view of it).
 import { ensurePixi } from '../render/app/pixi.js';
-import { framingLayout } from './dynamicFraming.js';
+import { framingLayout, dynamicFrame, frameClip } from './dynamicFraming.js';
 
 /** The largest side of the shared canvas (a GPU's own limit is applied when lower). */
 export const PAGE = 4096;
@@ -129,15 +135,19 @@ async function load(v) {
       b = { x: lb.x, y: -(lb.y + lb.height), width: lb.width, height: lb.height };
       if (!(b.width > 0 && b.height > 0)) throw new Error('Dynamic illustration bounds missing');
     }
+    const frame = dynamicFrame(v.entry);
     const container = new P.Container(); container.addChild(actor);
-    for (const [url, front] of [[v.entry.background, false], [v.entry.foreground, true]]) {
-      if (!url) continue;
-      const image = await assets.image(url);
-      if (v.gone) return;
-      if (!image) throw new Error('Dynamic illustration layer unavailable');
-      const sprite = new P.Sprite(P.Texture.from(image));
-      sprite.width = b.width; sprite.height = b.height; sprite.x = b.x; sprite.y = -b.y - b.height;
-      if (front) container.addChild(sprite); else container.addChildAt(sprite, 0);
+    let layers = 0;
+    if (v.backdrop) {
+      for (const [url, front] of [[v.entry.background, false], [v.entry.foreground, true]]) {
+        if (!url) continue;
+        const image = await assets.image(url);
+        if (v.gone) return;
+        if (!image) throw new Error('Dynamic illustration layer unavailable');
+        const sprite = backdropSprite(P, image, frame || b);
+        if (front) container.addChild(sprite); else container.addChildAt(sprite, 0);
+        layers++;
+      }
     }
     const clips = actor.spineData.animations.map((a) => a.name);
     const idle = v.entry.anims?.idle;
@@ -146,11 +156,21 @@ async function load(v) {
     const mask = new P.Graphics();
     container.mask = mask;
     stage.addChild(container, mask);
-    Object.assign(v, { actor, container, mask, bounds: b, dirty: true, cell: null });
+    Object.assign(v, { actor, container, mask, bounds: b, frame, layers, dirty: true, cell: null });
     schedule();
   } catch (e) {
     if (!v.gone) v.onState?.('fallback', e);
   } finally { v.loading = false; }
+}
+
+/**
+ * A backdrop picture as a sprite over `rect` (y-up skeleton space; pixi-spine draws y-down): the official frame's square.
+ * @param {any} P Pixi @param {any} image @param {{ x: number, y: number, width: number, height: number }} rect
+ */
+export function backdropSprite(P, image, rect) {
+  const sprite = new P.Sprite(P.Texture.from(image));
+  sprite.width = rect.width; sprite.height = rect.height; sprite.x = rect.x; sprite.y = -rect.y - rect.height;
+  return sprite;
 }
 
 function tick(now) {
@@ -171,10 +191,12 @@ function tick(now) {
       const shown = [];
       for (const c of page.cells) {
         const v = draw[c.index];
-        const l = framingLayout(c.w, c.h, v.bounds, v.framing);
+        const l = framingLayout(c.w, c.h, v.bounds, v.framing, v.frame);
         v.container.scale.set(l.scale); v.container.position.set(c.x + l.x, c.y + l.y); v.container.visible = true;
-        const key = `${c.x},${c.y},${c.w},${c.h}`;
-        if (v.cell !== key) { v.mask.clear().beginFill(0xffffff).drawRect(c.x, c.y, c.w, c.h).endFill(); v.cell = key; }
+        // a backdrop view draws inside the official frame only (the box's part outside it stays clear)
+        const k = v.backdrop && v.frame ? frameClip(c.w, c.h, l, v.frame) : { x: 0, y: 0, w: c.w, h: c.h };
+        const key = `${c.x + k.x},${c.y + k.y},${k.w},${k.h}`;
+        if (v.cell !== key) { v.mask.clear().beginFill(0xffffff).drawRect(c.x + k.x, c.y + k.y, k.w, k.h).endFill(); v.cell = key; }
         shown.push([v, c]);
       }
       renderer.render(stage, { clear: true });
@@ -196,7 +218,8 @@ function schedule() {
 
 /**
  * Start drawing a view: { canvas (the box's 2D canvas, sized by the caller), entry (skins[id].dynamic), framing
- * (ui/dynamicFraming.js framingLayout), playing?, onState(state: 'ready'|'fallback') }. Returns the view; stopView ends it.
+ * (ui/dynamicFraming.js framingLayout), backdrop? (draw the entry's background / foreground, in its frame), playing?,
+ * onState(state: 'ready'|'fallback') }. Returns the view; stopView ends it.
  */
 export function startView(view) {
   const v = Object.assign(view, { gone: false, drawn: false, dirty: true });
@@ -222,10 +245,11 @@ export function stopView(v) {
   if (!views.size) last = 0;
 }
 
-/** Test hooks: views alive, drawn, WebGL contexts this stage created (one, whatever the number of views). */
+/** Test hooks: views alive, drawn, drawn with a backdrop layer, WebGL contexts this stage created (one, whatever the number of views). */
 export const dynamicStage = Object.freeze({
   get views() { return views.size; },
   get drawn() { return [...views].filter((v) => v.drawn).length; },
+  get backdrops() { return [...views].filter((v) => v.drawn && v.layers > 0).length; },
   get contexts() { return contexts; },
   get page() { return limit; },
 });

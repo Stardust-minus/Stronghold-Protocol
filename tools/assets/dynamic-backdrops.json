@@ -1,0 +1,2592 @@
+{
+ "version": 1,
+ "source": "the local CN client (hot update 26-11-06-12-42-25-70182449): each dyn_illust prefab of arts/dynchars/*.ab — DynIllust._cameraSize, the root transform; frame = the camera square in y-up skeleton space: x/y = (−offset − cameraSize) × 100 / rootScale, side = 2 × cameraSize × 100 / rootScale",
+ "skins": {
+  "char_003_kalts_boc_6": {
+   "dynIllustId": "dyn_illust_char_003_kalts_boc#6",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.18,
+    -6.03
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1118.0,
+    "y": -497.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_003_kalts_boc#6.ab",
+   "clientHash": "5bb2f4da0745252e2554d720935a7e50",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 320654,
+    "sha256": "465166cb365295d2d2bceb919c688717a3aa3f95e90a2db3522251b1e01f6320",
+    "width": 2200,
+    "height": 2200
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 119398,
+    "sha256": "6248222c6bb73ae710b77e6770bf60071117cd86ea79fc8bff252bd8ca53c977",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_003_kalts_sale_14": {
+   "dynIllustId": "dyn_illust_char_003_kalts_sale#14",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.42,
+    -5.04
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1042.0,
+    "y": -496.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_003_kalts_sale#14.ab",
+   "clientHash": "3bb46f56eedf02c2bcdb4a41eec8a069"
+  },
+  "char_1012_skadi2_boc_4": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_boc#4",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -6.87
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -313.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1012_skadi2_boc#4.ab",
+   "clientHash": "2a74517ed887b41274c2ebdfb7223362",
+   "prts": "kept",
+   "note": "PRTS kept: 浊心斯卡蒂「升华」：构图与官方近似一致，PRTS 图还带着粒子的微光，烘焙图没有粒子"
+  },
+  "char_1012_skadi2_iteration_2": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_iteration#2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.17,
+    -9.22
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1017.0,
+    "y": -78.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1012_skadi2_iteration#2.ab",
+   "clientHash": "4eee987ff5e73b2dc1c1828aa7d8a56c",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 301356,
+    "sha256": "17657e101e69a7b53f161fdf20fd4ab5dc1a3133793bb8392427501c9daee626",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 26570,
+    "sha256": "266610ac4cc713ea1f141a194bb312e9cd3cfe4925e04239262aac6af54b98fb",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_1013_chen2_boc_6": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_boc#6",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.53,
+    -9.29
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1203.0,
+    "y": -221.0,
+    "width": 2300.0,
+    "height": 2300.0
+   },
+   "bundle": "arts/dynchars/char_1013_chen2_boc#6.ab",
+   "clientHash": "d7e6851bf4d932313b6a78bbb0acb13c",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 340466,
+    "sha256": "e50a1238451c4faf1520e1a4f7730a809d93a49ea8e116d1519d316c78d9e26b",
+    "width": 2300,
+    "height": 2300
+   }
+  },
+  "char_1013_chen2_summer_20": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_summer#20",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    0.0,
+    -7.94
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1030.0,
+    "y": -236.0,
+    "width": 2060.0,
+    "height": 2060.0
+   },
+   "bundle": "arts/dynchars/char_1013_chen2_summer#20.ab",
+   "clientHash": "8d65d3c52b0dcc0e5959201ad3575452",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 199108,
+    "sha256": "576af18e37149d2c5f3785b66bee3cd309671ece9d6411c38097ac1f10c7beff",
+    "width": 2060,
+    "height": 2060
+   }
+  },
+  "char_1014_nearl2_epoque_17": {
+   "dynIllustId": "dyn_illust_char_1014_nearl2_epoque#17",
+   "cameraSize": 13.0,
+   "rootOffset": [
+    -0.4,
+    -9.21
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1260.0,
+    "y": -379.0,
+    "width": 2600.0,
+    "height": 2600.0
+   },
+   "bundle": "arts/dynchars/char_1014_nearl2_epoque#17.ab",
+   "clientHash": "929f9ad9c7f3b909ab3b2faf13c1f817",
+   "prts": "kept",
+   "note": "PRTS kept: 耀骑士临光「复现荣光」：PRTS 图有完整一圈漂浮画框和闪光（粒子/动画元素），烘焙图缺"
+  },
+  "char_1016_agoat2_epoque_34": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_epoque#34",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -8.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -250.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1016_agoat2_epoque#34.ab",
+   "clientHash": "401ed3a9844b581f867b5efebed1e48c",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 183538,
+    "sha256": "49ef138c3439cd2c32e2a4961d8b9e13586db86669e6afbd04a071679aa7e5a2",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_1016_agoat2_epoque_57": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_epoque#57",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.0,
+    -8.74
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -276.0,
+    "width": 2300.0,
+    "height": 2300.0
+   },
+   "bundle": "arts/dynchars/char_1016_agoat2_epoque#57.ab",
+   "clientHash": "219cfed3c629d1214ad776ac5d2a44f5",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 354602,
+    "sha256": "04b888d538e1f48ec84eb05a9d2c0bc6aa4f53af18213056fc799cac15b60961",
+    "width": 2300,
+    "height": 2300
+   }
+  },
+  "char_1019_siege2_epoque_50": {
+   "dynIllustId": "dyn_illust_char_1019_siege2_epoque#50",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.31,
+    -9.77
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1081.0,
+    "y": -73.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1019_siege2_epoque#50.ab",
+   "clientHash": "fff089cc76a0a125a2e281722a7867dd"
+  },
+  "char_1020_reed2_epoque_30": {
+   "dynIllustId": "dyn_illust_char_1020_reed2_epoque#30",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.55,
+    -6.66
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -945.0,
+    "y": -334.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1020_reed2_epoque#30.ab",
+   "clientHash": "fec9b0f5a1ebbd86566dd2324d752b38",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 212540,
+    "sha256": "486537766b93ba80a5ecf244c468ae7c194509f753c3944fb6b35fd029a34b02",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_1020_reed2_summer_17": {
+   "dynIllustId": "dyn_illust_char_1020_reed2_summer#17",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -1.46,
+    -6.53
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -904.0,
+    "y": -397.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1020_reed2_summer#17.ab",
+   "clientHash": "7b6c40dead291adae9399ccf1065a900",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 259168,
+    "sha256": "435d97559e825208ecf94f24a268ce683ab969ef24c8e6855eff16eb6f207a7a",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_1023_ghost2_boc_6": {
+   "dynIllustId": "dyn_illust_char_1023_ghost2_boc#6",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.09,
+    -9.14
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -991.0,
+    "y": -86.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1023_ghost2_boc#6.ab",
+   "clientHash": "266191d2f115a2f02ae0cd8cb559611d",
+   "prts": "kept",
+   "note": "PRTS kept: 归溟幽灵鲨「生而为一」：两者几乎相同，PRTS 图带着鱼群粒子"
+  },
+  "char_1026_gvial2_summer_12": {
+   "dynIllustId": "dyn_illust_char_1026_gvial2_summer#12",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.26,
+    -6.14
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1024.0,
+    "y": -436.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1026_gvial2_summer#12.ab",
+   "clientHash": "4b4fd2ff90dfeefb4ba6a2727cdce6d6",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 379078,
+    "sha256": "c20dacbf7d05859ca200c5abeb5b4db5bc965e066279e2a7209d32f6bf0a1b70",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 119876,
+    "sha256": "a2b712ad9d20f0705e2a8cb47027baee04411afdd86725e8ef13a5fb488fb35e",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_1028_texas2_epoque_36": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_epoque#36",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.29,
+    -9.51
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1079.0,
+    "y": -99.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1028_texas2_epoque#36.ab",
+   "clientHash": "8585392fb1cb029d5479981bf24430ab",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 358660,
+    "sha256": "4bd88120768a908f598643d607144c8ce49643bb6994aa166afcdfe050a631fa",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_1028_texas2_iteration_1": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_iteration#1",
+   "cameraSize": 10.4,
+   "rootOffset": [
+    0.0,
+    -8.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1040.0,
+    "y": -240.0,
+    "width": 2080.0,
+    "height": 2080.0
+   },
+   "bundle": "arts/dynchars/char_1028_texas2_iteration#1.ab",
+   "clientHash": "7061b3230fd2f2a1bb8ed65e612c9e31"
+  },
+  "char_1032_excu2_sale_12": {
+   "dynIllustId": "dyn_illust_char_1032_excu2_sale#12",
+   "cameraSize": 10.4,
+   "rootOffset": [
+    0.0,
+    -8.1
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1040.0,
+    "y": -230.0,
+    "width": 2080.0,
+    "height": 2080.0
+   },
+   "bundle": "arts/dynchars/char_1032_excu2_sale#12.ab",
+   "clientHash": "c3f64ed92b79197aca1242c67b8993a5",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 575852,
+    "sha256": "1135ffd6f2423ec811898da0e7df69fc8ee7022899dd91cf44cac4315b9d47c0",
+    "width": 2080,
+    "height": 2080
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 76304,
+    "sha256": "eb9cd64f8416d8cc00cd5118b0ac9bc4c2c6093ff924fb733696c5ac3465d7a7",
+    "width": 2080,
+    "height": 2080
+   }
+  },
+  "char_1035_wisdel_sale_14": {
+   "dynIllustId": "dyn_illust_char_1035_wisdel_sale#14",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -5.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -450.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1035_wisdel_sale#14.ab",
+   "clientHash": "1340eef9d95de96e18dc6cb9b80755e7",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 1060876,
+    "sha256": "70fffb10f1102e0a08fd640ef6968103f1a829b74dca020c3a897407483b6a91",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 176520,
+    "sha256": "7e26ac1589cf7ab46a8df4013355b07f31b1cbff853fe5d6ef1a352e2ce84daa",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_1037_amiya3_sale_13": {
+   "dynIllustId": "dyn_illust_char_1037_amiya3_sale#13",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    -1.09,
+    -9.76
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -921.0,
+    "y": -54.0,
+    "width": 2060.0,
+    "height": 2060.0
+   },
+   "bundle": "arts/dynchars/char_1037_amiya3_sale#13.ab",
+   "clientHash": "2a404f757a0b07b2fef005b95c9d4ae9",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 517566,
+    "sha256": "7473c8687d75ae20f563f448bf7b51c5284c3012aa4f1f246f6150cee65f93a7",
+    "width": 2060,
+    "height": 2060
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 53466,
+    "sha256": "18ade94295b6f1122fe083c52dded96ceb25becb54fb27f4a7d75c598e10ee71",
+    "width": 2060,
+    "height": 2060
+   }
+  },
+  "char_1038_whitw2_sale_15": {
+   "dynIllustId": "dyn_illust_char_1038_whitw2_sale#15",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -7.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -300.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1038_whitw2_sale#15.ab",
+   "clientHash": "1d3f1e4e06e8c6514749e39fff27b259",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 552992,
+    "sha256": "0b363e5405cd11e206ff44178a4641de0d07c19cfefcac49db2f92dc160da59d",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_1039_thorn2_marthe_9": {
+   "dynIllustId": "dyn_illust_char_1039_thorn2_marthe#9",
+   "cameraSize": 10.4,
+   "rootOffset": [
+    -1.0,
+    -5.8
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -940.0,
+    "y": -460.0,
+    "width": 2080.0,
+    "height": 2080.0
+   },
+   "bundle": "arts/dynchars/char_1039_thorn2_marthe#9.ab",
+   "clientHash": "d4880f8be2e180ced9d390cf2c116e0d",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 722106,
+    "sha256": "571f0383b59107f2fac8fefa3f6681685684522c0c97e55efcf683dabd1fb4b2",
+    "width": 2080,
+    "height": 2080
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 95714,
+    "sha256": "32f48ac8f171f4df5c23d41d3c8093abf4a37a775dd99d6f7000cb004da17453",
+    "width": 2080,
+    "height": 2080
+   }
+  },
+  "char_1041_angel2_iteration_6": {
+   "dynIllustId": "dyn_illust_char_1041_angel2_iteration#6",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.59,
+    -9.8
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1159.0,
+    "y": -120.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_1041_angel2_iteration#6.ab",
+   "clientHash": "19be6e67d6a8d7c9a5eff114f99b397a"
+  },
+  "char_1042_phatm2_sightseer_4": {
+   "dynIllustId": "dyn_illust_char_1042_phatm2_sightseer#4",
+   "cameraSize": 12.708,
+   "rootOffset": [
+    0.029,
+    -9.834
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1273.688,
+    "y": -287.458,
+    "width": 2541.616,
+    "height": 2541.616
+   },
+   "bundle": "arts/dynchars/char_1042_phatm2_sightseer#4.ab",
+   "clientHash": "f9948d7985958ce5c1d9ea47a12aeb9f",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 666538,
+    "sha256": "65599851a2d607241705dd778c60c9a1b9ee4658a173c663c8f33b955331485d",
+    "width": 2542,
+    "height": 2542
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 329752,
+    "sha256": "f1c6459a3d4e1827f7525d35441ee98241a96f007e2dbb1ed1e8c38bc1435dea",
+    "width": 2542,
+    "height": 2542
+   }
+  },
+  "char_1044_hsgma2_whirlwind_11": {
+   "dynIllustId": "dyn_illust_char_1044_hsgma2_whirlwind#11",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.238,
+    -8.879
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1123.78,
+    "y": -212.09,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_1044_hsgma2_whirlwind#11.ab",
+   "clientHash": "0089ebd51935734d2f98c7b362eaac61",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 495464,
+    "sha256": "6fda14fa37c325e1b05c150c82cb37afb18f472cafe426ec2343e7112c1bce68",
+    "width": 2200,
+    "height": 2200
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 85666,
+    "sha256": "bc7c1bed72ed87425fa9b681360c32d249b8393511bc9b309c8d6f1531caa276",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_1045_svash2_sale_20": {
+   "dynIllustId": "dyn_illust_char_1045_svash2_sale#20",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.045,
+    -10.484
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1104.53,
+    "y": -51.6,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_1045_svash2_sale#20.ab",
+   "clientHash": "a99291bb8bb5a73049c49ac370e27c5c"
+  },
+  "char_1046_sbell2_ambienceSynesthesia_8": {
+   "dynIllustId": "dyn_illust_char_1046_sbell2_ambienceSynesthesia#8",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.305,
+    -8.741
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1080.52,
+    "y": -175.93,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1046_sbell2_ambiencesynesthesia#8.ab",
+   "clientHash": "bf961d85ceb73d261f341db5b09014f5",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 640336,
+    "sha256": "b924268140e3a5d53c50984e34fc7fc07238f9a1f3e916edc0358e1d548816bc",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 303778,
+    "sha256": "e3880ef865010fd073deefa3cb81186c641e445c6f731fa83d69c12730d4584e",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_113_cqbw_epoque_7": {
+   "dynIllustId": "dyn_illust_char_113_cqbw_epoque#7",
+   "cameraSize": 12.5,
+   "rootOffset": [
+    1.37,
+    -6.45
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1387.0,
+    "y": -605.0,
+    "width": 2500.0,
+    "height": 2500.0
+   },
+   "bundle": "arts/dynchars/char_113_cqbw_epoque#7.ab",
+   "clientHash": "7bb406442ca4f5a8bd42af9214ad6ecc",
+   "prts": "kept",
+   "note": "PRTS kept: W「恍惚」：PRTS 图左侧雪景更完整、更亮，烘焙图左下有几块错位的玻璃碎片"
+  },
+  "char_172_svrash_ambienceSynesthesia_4": {
+   "dynIllustId": "dyn_illust_char_172_svrash_ambienceSynesthesia#4",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -9.06
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -94.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_172_svrash_ambiencesynesthesia#4.ab",
+   "clientHash": "c264695b32f19cb47b59a86ed22bed18",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 251324,
+    "sha256": "c5660822a1548eed53e1a815997d277ab922e70464c8d3b37d3aa5dbf4a2a24f",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 242512,
+    "sha256": "353950df7d98c0fc552a684ad8d242a55404edecc8b58f70f84494f31c0a3c9e",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_179_cgbird_sightseer_1": {
+   "dynIllustId": "dyn_illust_char_179_cgbird_sightseer#1",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -250.0,
+    "width": 2300.0,
+    "height": 2300.0
+   },
+   "bundle": "arts/dynchars/char_179_cgbird_sightseer#1.ab",
+   "clientHash": "a7f2099ba49f6fa04c0e36f39547f3c4",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 572150,
+    "sha256": "fec78e69cb3219faa9683c30a4f4a5b165befa1f287fb7feea28ff6868ad90ca",
+    "width": 2300,
+    "height": 2300
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 143642,
+    "sha256": "2942aaf931be2661065e6031a6f9a53e6f2a927e73a84d56c3e46e9f2ea8b344",
+    "width": 2300,
+    "height": 2300
+   }
+  },
+  "char_2014_nian_cfa_1": {
+   "dynIllustId": "dyn_illust_char_2014_nian_cfa#1",
+   "cameraSize": 10.65,
+   "rootOffset": [
+    0.0,
+    -4.65
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1065.0,
+    "y": -600.0,
+    "width": 2130.0,
+    "height": 2130.0
+   },
+   "bundle": "arts/dynchars/char_2014_nian_cfa#1.ab",
+   "clientHash": "28127eedf38faf8c4e5e6c20248eb5d8",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 115726,
+    "sha256": "132f3b16c5dbdd1f05928c6a2937f762966c4597d49c9f42c3ee1e14d6d619e8",
+    "width": 2130,
+    "height": 2130
+   }
+  },
+  "char_2014_nian_nian_4": {
+   "dynIllustId": "dyn_illust_char_2014_nian_nian#4",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    -0.4,
+    -2.6
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1060.0,
+    "y": -840.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_2014_nian_nian#4.ab",
+   "clientHash": "9fb4a69df3eb4c01523c206fbe6e0538"
+  },
+  "char_2015_dusk_nian_12": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_nian#12",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -200.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_2015_dusk_nian#12.ab",
+   "clientHash": "8ee740f4f604b18ed96e688f864adc5b",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 229832,
+    "sha256": "077dab4e2cdbb46e778f16ba875bebb8dba530f487498e829e491564c64383d4",
+    "width": 2200,
+    "height": 2200
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 452138,
+    "sha256": "edfdc302adc85f4cb9324424e13198a3da505ee4f037e5e190a92a53a6e353a1",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_2015_dusk_nian_7": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_nian#7",
+   "cameraSize": 18.0,
+   "rootOffset": [
+    0.0,
+    -7.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1800.0,
+    "y": -1100.0,
+    "width": 3600.0,
+    "height": 3600.0
+   },
+   "bundle": "arts/dynchars/char_2015_dusk_nian#7.ab",
+   "clientHash": "e95a2532b01fd99abbbcda91f28e0088",
+   "prts": "kept",
+   "note": "PRTS kept: 夕「染尘烟」：两者一致，保留原图"
+  },
+  "char_2023_ling_ncg_1": {
+   "dynIllustId": "dyn_illust_char_2023_ling_ncg#1",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    0.0,
+    -9.22
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1030.0,
+    "y": -108.0,
+    "width": 2060.0,
+    "height": 2060.0
+   },
+   "bundle": "arts/dynchars/char_2023_ling_ncg#1.ab",
+   "clientHash": "eff6274b4a518fa2feeb209add4a9c66",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 295450,
+    "sha256": "14357e0e9fd381a8f43430e437e734b6572d63240c193d4cd2f0187b58ce9da7",
+    "width": 2060,
+    "height": 2060
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 171900,
+    "sha256": "29b7976b31a0d4cd17ee1b6302e1775bff03ac1472ca96490e90ff211fa8c011",
+    "width": 2060,
+    "height": 2060
+   }
+  },
+  "char_2023_ling_nian_9": {
+   "dynIllustId": "dyn_illust_char_2023_ling_nian#9",
+   "cameraSize": 14.463,
+   "rootOffset": [
+    0.9,
+    -9.8
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1536.294,
+    "y": -466.294,
+    "width": 2892.589,
+    "height": 2892.589
+   },
+   "bundle": "arts/dynchars/char_2023_ling_nian#9.ab",
+   "clientHash": "b29163fc3113946f69cb61f18b59ff96",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 250272,
+    "sha256": "240ff14d87af6a86ea8574da9cbdd8b73803c962c1624032909e07ea8a6d3620",
+    "width": 2893,
+    "height": 2893
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 35342,
+    "sha256": "c4c0b62bf43a28580b72303cb09a1ae52d9cf48e8d0e8697e2349b0d1d47d959",
+    "width": 2893,
+    "height": 2893
+   }
+  },
+  "char_2024_chyue_cfa_1": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_cfa#1",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.4,
+    -8.8
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1010.0,
+    "y": -170.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_2024_chyue_cfa#1.ab",
+   "clientHash": "973d5af5715bc1d1cf73a6fb47488668"
+  },
+  "char_2024_chyue_nian_10": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_nian#10",
+   "cameraSize": 10.6,
+   "rootOffset": [
+    -0.6,
+    -10.15
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -45.0,
+    "width": 2120.0,
+    "height": 2120.0
+   },
+   "bundle": "arts/dynchars/char_2024_chyue_nian#10.ab",
+   "clientHash": "40da8f3d8b043b7be82d7f9e507a24b3",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 203688,
+    "sha256": "0046ddbdb4209274e2c4c786857961c02a49d68633aa54d8881ec1d803db469c",
+    "width": 2120,
+    "height": 2120
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 21640,
+    "sha256": "4e143a9231f90740990b59ef15ba8e56be6f0742566b583387ff831a678607f7",
+    "width": 2120,
+    "height": 2120
+   }
+  },
+  "char_2025_shu_nian_11": {
+   "dynIllustId": "dyn_illust_char_2025_shu_nian#11",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -9.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -50.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_2025_shu_nian#11.ab",
+   "clientHash": "696fe1b9dc1ea10984183527a28d3acd",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 318178,
+    "sha256": "661b4bcfe5d2568d7d2058e1b61873de64fc1eed38103bd5e38a0fabb4ce1211",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_2025_shu_nlc_1": {
+   "dynIllustId": "dyn_illust_char_2025_shu_nlc#1",
+   "cameraSize": 11.993,
+   "rootOffset": [
+    0.0,
+    -9.72
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1199.309,
+    "y": -227.309,
+    "width": 2398.618,
+    "height": 2398.618
+   },
+   "bundle": "arts/dynchars/char_2025_shu_nlc#1.ab",
+   "clientHash": "44ef3e80686b0cea0d468277493a8e4f",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 523906,
+    "sha256": "3518e6d3e1f6a88194a85c3f0f90355b06e8ce5002ec8c235a93a26ac1cfcf03",
+    "width": 2399,
+    "height": 2399
+   }
+  },
+  "char_2026_yu_nian_12": {
+   "dynIllustId": "dyn_illust_char_2026_yu_nian#12",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -200.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_2026_yu_nian#12.ab",
+   "clientHash": "d23e5790535ee7b50f821db6c41e9436",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 612722,
+    "sha256": "6ffcb00c905d4ad7f8998085c57a51e3d994db68c42c4039b9dc8953c3d67f0a",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_202_demkni_ambienceSynesthesia_7": {
+   "dynIllustId": "dyn_illust_char_202_demkni_ambienceSynesthesia#7",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.5,
+    -8.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -300.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_202_demkni_ambiencesynesthesia#7.ab",
+   "clientHash": "d244e3d037652bdee4a8308cd0ef0650",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 466388,
+    "sha256": "28124886473e192a4c3438e272d2bb4c9fccf985b1c91615865b70b8df139b9a",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_245_cello_sale_12": {
+   "dynIllustId": "dyn_illust_char_245_cello_sale#12",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.15,
+    -8.11
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1065.0,
+    "y": -239.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_245_cello_sale#12.ab",
+   "clientHash": "89b2c896d7a736f2d156d6055058d858",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 570430,
+    "sha256": "bf68d275f4ab5696ae98f57f7983dfd00111f60b3115fcc6b5bf0bf5dd10cfc6",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 348448,
+    "sha256": "8d471ca63a0c40dfe401c95fa16519d676f178a710b16db29b9574fcf7b80c0c",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_249_mlyss_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_ambienceSynesthesia#6",
+   "cameraSize": 11.3,
+   "rootOffset": [
+    0.0,
+    -11.27
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1130.0,
+    "y": -3.0,
+    "width": 2260.0,
+    "height": 2260.0
+   },
+   "bundle": "arts/dynchars/char_249_mlyss_ambiencesynesthesia#6.ab",
+   "clientHash": "f33b092f1c248660bf104710284bd2e3",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 237272,
+    "sha256": "94ce1eefbc051acbf1dde4674387d17c0a2fa2415b0bff01a0968a3498b0dcbb",
+    "width": 2260,
+    "height": 2260
+   }
+  },
+  "char_249_mlyss_boc_8": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_boc#8",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    -0.05,
+    -9.58
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1095.0,
+    "y": -142.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_249_mlyss_boc#8.ab",
+   "clientHash": "1699c587454feca61458811483dfcadd",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 509376,
+    "sha256": "342845994be032326264f474f8dd5b7e85967268b6bd782344fe96ec648d0ef4",
+    "width": 2200,
+    "height": 2200
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 175512,
+    "sha256": "e9e5e486ba8f71a19872245cc8c74edd33ccccf292e276790ada1850d0c87c2a",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_250_phatom_sale_4": {
+   "dynIllustId": "dyn_illust_char_250_phatom_sale#4",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -100.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_250_phatom_sale#4.ab",
+   "clientHash": "c4560ff94581d4fb1d9da0ba10216bee",
+   "prts": "kept",
+   "note": "PRTS kept: 傀影「焦点」：两者一致，保留原图"
+  },
+  "char_322_lmlee_witch_3": {
+   "dynIllustId": "dyn_illust_char_322_lmlee_witch#3",
+   "cameraSize": 12.0,
+   "rootOffset": [
+    0.0,
+    -4.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1200.0,
+    "y": -750.0,
+    "width": 2400.0,
+    "height": 2400.0
+   },
+   "bundle": "arts/dynchars/char_322_lmlee_witch#3.ab",
+   "clientHash": "769be9031e6e15d7fccffca5378ed04c"
+  },
+  "char_332_archet_sale_14": {
+   "dynIllustId": "dyn_illust_char_332_archet_sale#14",
+   "cameraSize": 10.7,
+   "rootOffset": [
+    0.0,
+    -7.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1070.0,
+    "y": -320.0,
+    "width": 2140.0,
+    "height": 2140.0
+   },
+   "bundle": "arts/dynchars/char_332_archet_sale#14.ab",
+   "clientHash": "8862b0b76cdaf321cdce54c09cb30164",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 494944,
+    "sha256": "028bdca1bc88c6e56db08f660a91ce53a92b56ce673ae3db58ca853d482f805a",
+    "width": 2140,
+    "height": 2140
+   }
+  },
+  "char_350_surtr_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_350_surtr_ambienceSynesthesia#6",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.3,
+    -6.4
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1030.0,
+    "y": -360.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_350_surtr_ambiencesynesthesia#6.ab",
+   "clientHash": "419b8e137d86ae141bd7ad67d875a97c",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 297704,
+    "sha256": "7495d4c8fc2d540774b5308e86ac8e8e85ee494862dbdc9db25fe4e9c86beae7",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 24306,
+    "sha256": "e81172a1969806afb20d8d1f17b70772fc6279fa53a4cb08330829f31805ceb7",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_350_surtr_summer_9": {
+   "dynIllustId": "dyn_illust_char_350_surtr_summer#9",
+   "cameraSize": 10.6,
+   "rootOffset": [
+    -0.39,
+    -8.43
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1021.0,
+    "y": -217.0,
+    "width": 2120.0,
+    "height": 2120.0
+   },
+   "bundle": "arts/dynchars/char_350_surtr_summer#9.ab",
+   "clientHash": "41e25f4d9ab124655de45c6316ab99d7",
+   "prts": "kept",
+   "note": "PRTS kept: 史尔特尔「缤纷奇境」：两者一致，保留原图"
+  },
+  "char_377_gdglow_summer_12": {
+   "dynIllustId": "dyn_illust_char_377_gdglow_summer#12",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.16,
+    -9.19
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1066.0,
+    "y": -131.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_377_gdglow_summer#12.ab",
+   "clientHash": "b05be0f8bc5e2cf37c54283e7ca24967",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 420156,
+    "sha256": "06436a4b2f60b4d2aab79428b427a0d9059d19665e2adc99bd964918cd845bab",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_391_rosmon_epoque_17": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_epoque#17",
+   "cameraSize": 10.2,
+   "rootOffset": [
+    0.0,
+    -6.4
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1020.0,
+    "y": -380.0,
+    "width": 2040.0,
+    "height": 2040.0
+   },
+   "bundle": "arts/dynchars/char_391_rosmon_epoque#17.ab",
+   "clientHash": "d15f83da45f9ba669f9c63d89bfc5114",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 308126,
+    "sha256": "0b36e979fff9faca19dd9f86df97c6d7e166531a397c93e733b63264991603e3",
+    "width": 2040,
+    "height": 2040
+   }
+  },
+  "char_391_rosmon_sale_16": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_sale#16",
+   "cameraSize": 10.8,
+   "rootOffset": [
+    0.28,
+    -9.48
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1108.0,
+    "y": -132.0,
+    "width": 2160.0,
+    "height": 2160.0
+   },
+   "bundle": "arts/dynchars/char_391_rosmon_sale#16.ab",
+   "clientHash": "17677e4280397ac2ca762770c56c9b44",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 320058,
+    "sha256": "6f8a238a55b14712bd10cd14d40610a72710f5c9ad37839bea1b88cfd10e74f2",
+    "width": 2160,
+    "height": 2160
+   }
+  },
+  "char_4010_etlchi_winter_5": {
+   "dynIllustId": "dyn_illust_char_4010_etlchi_winter#5",
+   "cameraSize": 10.22,
+   "rootOffset": [
+    0.0,
+    -8.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1022.0,
+    "y": -172.0,
+    "width": 2044.0,
+    "height": 2044.0
+   },
+   "bundle": "arts/dynchars/char_4010_etlchi_winter#5.ab",
+   "clientHash": "7b579254d57b814117f6309c8ba963d7"
+  },
+  "char_4055_bgsnow_wild_7": {
+   "dynIllustId": "dyn_illust_char_4055_bgsnow_wild#7",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.11,
+    -4.29
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1011.0,
+    "y": -571.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_4055_bgsnow_wild#7.ab",
+   "clientHash": "80bc9a3ea00076d63395f837f83149a0",
+   "prts": "kept",
+   "note": "PRTS kept: 鸿雪「字句中的雪原」：PRTS 图有极光和雪花粒子，烘焙图没有"
+  },
+  "char_4058_pepe_sightseer_2": {
+   "dynIllustId": "dyn_illust_char_4058_pepe_sightseer#2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -7.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -300.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_4058_pepe_sightseer#2.ab",
+   "clientHash": "e0815ca325165a7577dae34e21fb5100",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 452676,
+    "sha256": "d714bd5b97d09a116dd47833adcf5321a87d0fb1798fb5e66f8eab203c904110",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 80554,
+    "sha256": "2b82c31bb8b5ac5252e3d7009b0c1d4215a2e4749513bcc42cbdb3c69fb20cda",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_4064_mlynar_epoque_28": {
+   "dynIllustId": "dyn_illust_char_4064_mlynar_epoque#28",
+   "cameraSize": 11.11,
+   "rootOffset": [
+    0.0,
+    -10.6
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1111.0,
+    "y": -51.0,
+    "width": 2222.0,
+    "height": 2222.0
+   },
+   "bundle": "arts/dynchars/char_4064_mlynar_epoque#28.ab",
+   "clientHash": "5f0f8aaddcc0ea753a810bb7146a5530",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 505650,
+    "sha256": "e09c9a7f3505fe10bcd22e3083d37040bcee40707a8cd37f5535fb3ac91f8fbc",
+    "width": 2222,
+    "height": 2222
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 68108,
+    "sha256": "ebf711d5ffa1aabb988b91398a381f66bda0d390d19f2acd2a2ec571aa3caa76",
+    "width": 2222,
+    "height": 2222
+   }
+  },
+  "char_4080_lin_nian_10": {
+   "dynIllustId": "dyn_illust_char_4080_lin_nian#10",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.48,
+    -7.87
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1048.0,
+    "y": -213.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_4080_lin_nian#10.ab",
+   "clientHash": "927cf5f6c2e22d5493fc44ca74e7d459",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 737632,
+    "sha256": "8eafc4fe39c52bf2f5672bf2cad9592ad397e68bde41eec3aa424275987660e5",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 293778,
+    "sha256": "b6c50167445b220d93218df2eeb96ecd4cfc882084b4c7ebe852e2585d0304c8",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_4080_lin_summer_19": {
+   "dynIllustId": "dyn_illust_char_4080_lin_summer#19",
+   "cameraSize": 10.1,
+   "rootOffset": [
+    0.0,
+    -6.2
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1010.0,
+    "y": -390.0,
+    "width": 2020.0,
+    "height": 2020.0
+   },
+   "bundle": "arts/dynchars/char_4080_lin_summer#19.ab",
+   "clientHash": "263f82dc1b8fd479afc276d9fbc853f6",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 139942,
+    "sha256": "5f49de422bcb38e86923f674539381f51251223cd1b019952c2e7bdb2dfbe6b4",
+    "width": 2020,
+    "height": 2020
+   }
+  },
+  "char_4087_ines_ambienceSynesthesia_5": {
+   "dynIllustId": "dyn_illust_char_4087_ines_ambienceSynesthesia#5",
+   "cameraSize": 10.2,
+   "rootOffset": [
+    0.27,
+    -1.88
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1047.0,
+    "y": -832.0,
+    "width": 2040.0,
+    "height": 2040.0
+   },
+   "bundle": "arts/dynchars/char_4087_ines_ambiencesynesthesia#5.ab",
+   "clientHash": "904e84dcae31d7f1724476bc32ef25d0",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 654976,
+    "sha256": "14b0ccd5df214f64640c1994611779c22df47d20e8a38fdedd480c89a8fa2703",
+    "width": 2040,
+    "height": 2040
+   }
+  },
+  "char_4087_ines_boc_8": {
+   "dynIllustId": "dyn_illust_char_4087_ines_boc#8",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.13,
+    -7.14
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1037.0,
+    "y": -336.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_4087_ines_boc#8.ab",
+   "clientHash": "b12c4bfef9ff11911ea353a65c051016",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 889514,
+    "sha256": "4eeeb816298e179bb3bbce968fb8f8cec5568f3fc77b498db130982bcd7a3aca",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 177102,
+    "sha256": "c81c6e09fb09a32c0071d1c0bfb23c36cd02ed15d71dc2b44a35fd8cb66a450b",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_4098_vvana_epoque_59": {
+   "dynIllustId": "dyn_illust_char_4098_vvana_epoque#59",
+   "cameraSize": 12.0,
+   "rootOffset": [
+    0.079,
+    -9.434
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1207.88,
+    "y": -256.58,
+    "width": 2400.0,
+    "height": 2400.0
+   },
+   "bundle": "arts/dynchars/char_4098_vvana_epoque#59.ab",
+   "clientHash": "d2c646f8f6097ab4c27af4316d3c7e16",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 394786,
+    "sha256": "d92287da350a9927bba1b7bf84eeeeaeeb27e2ac3705a06d6d2dfa766dff923b",
+    "width": 2400,
+    "height": 2400
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 211178,
+    "sha256": "33a0189e5f4a5d824206b89626e2ad3ac831e1151b917f41088b82441f06132c",
+    "width": 2400,
+    "height": 2400
+   }
+  },
+  "char_4116_blkkgt_witch_5": {
+   "dynIllustId": "dyn_illust_char_4116_blkkgt_witch#5",
+   "cameraSize": 11.3,
+   "rootOffset": [
+    -0.02,
+    -9.55
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1128.0,
+    "y": -175.0,
+    "width": 2260.0,
+    "height": 2260.0
+   },
+   "bundle": "arts/dynchars/char_4116_blkkgt_witch#5.ab",
+   "clientHash": "2ae582760d0723484328fc1cf375fbd2",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 607076,
+    "sha256": "fe01ef7e6885ca886a40c788181c2392ad34de9b8adc4d7d946830f262580b27",
+    "width": 2260,
+    "height": 2260
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 470888,
+    "sha256": "c0d9d6143829ae2d8cce48109caa2c8dc9c3490a5b486919708bd3ac048df6e3",
+    "width": 2260,
+    "height": 2260
+   }
+  },
+  "char_4121_zuole_nian_11": {
+   "dynIllustId": "dyn_illust_char_4121_zuole_nian#11",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.5,
+    -7.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -350.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_4121_zuole_nian#11.ab",
+   "clientHash": "0f558ebbaf346e9072955786b3e57797",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 689152,
+    "sha256": "0ff4c4293af66d9caf8113ac4a319c812e5116b991a6b1916a70a2df89450bd8",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 127294,
+    "sha256": "ca9a2971c2262c3d95e4bd4174c2c890f1b292062f291d4fbf392a9b0f281fe8",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_4132_ascln_iteration_4": {
+   "dynIllustId": "dyn_illust_char_4132_ascln_iteration#4",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.61,
+    -10.19
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -989.0,
+    "y": -31.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_4132_ascln_iteration#4.ab",
+   "clientHash": "0b6bd9b7506e1cb6dc12e51dd6e4d545",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 49558,
+    "sha256": "47390bf3b0c5bf1ef0f1ae40384f06bbaa92b4e533816487d43b23142903db41",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_4133_logos_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_4133_logos_ambienceSynesthesia#6",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    -0.91,
+    -8.11
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -939.0,
+    "y": -219.0,
+    "width": 2060.0,
+    "height": 2060.0
+   },
+   "bundle": "arts/dynchars/char_4133_logos_ambiencesynesthesia#6.ab",
+   "clientHash": "12fa6f4aa4124e512075f3a5ce2b6848",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 585906,
+    "sha256": "6095afa840f6476df1a5b26743625e9719179beafda329d96e0ac96e857aad54",
+    "width": 2060,
+    "height": 2060
+   }
+  },
+  "char_4134_cetsyr_epoque_50": {
+   "dynIllustId": "dyn_illust_char_4134_cetsyr_epoque#50",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -7.2
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -330.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_4134_cetsyr_epoque#50.ab",
+   "clientHash": "9f65a07461c09355e0633f374177bf5c",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 565062,
+    "sha256": "20ff9d4785acf4aabd2e0715e5e23672d1880fff0a040b0705c41542b0e78922",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 100614,
+    "sha256": "30d7fd98e9735638b151fc3d7bc61a5e27831413dd3fb6811c8802cf18b74035",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_4179_monstr_boc_11": {
+   "dynIllustId": "dyn_illust_char_4179_monstr_boc#11",
+   "cameraSize": 10.55,
+   "rootOffset": [
+    0.08,
+    -8.06
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1063.0,
+    "y": -249.0,
+    "width": 2110.0,
+    "height": 2110.0
+   },
+   "bundle": "arts/dynchars/char_4179_monstr_boc#11.ab",
+   "clientHash": "484bc9c4b8e4c97df19ff0415e38b955",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 537078,
+    "sha256": "20648baeb7fcbfed25c944689fba235b404f9f86a2854cb100bee213f2912583",
+    "width": 2110,
+    "height": 2110
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 86114,
+    "sha256": "05e2eb5b161f4f883c1a8da29ecc7da0e3904a7a4df595082f1d52842b3b844c",
+    "width": 2110,
+    "height": 2110
+   }
+  },
+  "char_4202_haruka_iteration_6": {
+   "dynIllustId": "dyn_illust_char_4202_haruka_iteration#6",
+   "cameraSize": 11.39,
+   "rootOffset": [
+    0.61,
+    -8.18
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1200.0,
+    "y": -321.0,
+    "width": 2278.0,
+    "height": 2278.0
+   },
+   "bundle": "arts/dynchars/char_4202_haruka_iteration#6.ab",
+   "clientHash": "4a3ba11024e9bc18e8a1d46bd01888a7",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 477008,
+    "sha256": "00332cae0597baa347a22520d6dbb8a2840de8d384d5bd3af9472bef125c0f71",
+    "width": 2278,
+    "height": 2278
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 34082,
+    "sha256": "06c86a8d6a15c791d6df3e3480390b1131cc921139f02f465578f00efab0bb49",
+    "width": 2278,
+    "height": 2278
+   }
+  },
+  "char_437_mizuki_sale_7": {
+   "dynIllustId": "dyn_illust_char_437_mizuki_sale#7",
+   "cameraSize": 12.0,
+   "rootOffset": [
+    0.0,
+    -8.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1200.0,
+    "y": -400.0,
+    "width": 2400.0,
+    "height": 2400.0
+   },
+   "bundle": "arts/dynchars/char_437_mizuki_sale#7.ab",
+   "clientHash": "50336e3db5c278cd8a69ce9dacfb93e9",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 273820,
+    "sha256": "1de2d1be88546ab26013a6f669c23797e20d5a3ea8b72d587e617a2cec1e4347",
+    "width": 2400,
+    "height": 2400
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 170476,
+    "sha256": "e33ecea2b253ae918e599614aa589a73149bcb2ab907dc8df4d4d0e2980e4e54",
+    "width": 2400,
+    "height": 2400
+   }
+  },
+  "char_450_necras_summer_20": {
+   "dynIllustId": "dyn_illust_char_450_necras_summer#20",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1030.0,
+    "y": -30.0,
+    "width": 2060.0,
+    "height": 2060.0
+   },
+   "bundle": "arts/dynchars/char_450_necras_summer#20.ab",
+   "clientHash": "e9054220fb17fafdb320774ac2910a97",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 349132,
+    "sha256": "0d82df3b0688ae535e834d8e8bb1d46038f0fec14e15be008a911f1200b92b54",
+    "width": 2060,
+    "height": 2060
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 52902,
+    "sha256": "3e6f53c0da3ea19d6dcfb662ce95f8d08a3afd57b4c0c975e2f9656980f1d4fd",
+    "width": 2060,
+    "height": 2060
+   }
+  },
+  "char_472_pasngr_epoque_17": {
+   "dynIllustId": "dyn_illust_char_472_pasngr_epoque#17",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -150.0,
+    "width": 2300.0,
+    "height": 2300.0
+   },
+   "bundle": "arts/dynchars/char_472_pasngr_epoque#17.ab",
+   "clientHash": "01456058b6fa8e7a757df3d92dda0972",
+   "prts": "kept",
+   "note": "PRTS kept: 异客「今昔须臾之梦」：两者一致，保留原图"
+  }
+ },
+ "chars": {
+  "char_1012_skadi2": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -6.6
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -440.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_1012_skadi2_2.ab",
+   "clientHash": "9c7f62a42c0c588a32d12790ff32911c",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 139486,
+    "sha256": "c309fc17226fcde898cc908a4dd702345fc6052da499f3b5ba052abda34bd391",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_1013_chen2": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -100.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1013_chen2_2.ab",
+   "clientHash": "4215ec04ea03148b58441bba74ab318c",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 230358,
+    "sha256": "4a5b29420a44fc022b436b2d57b7f39985e8c350d0572c1afce3954dc1033184",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_1014_nearl2": {
+   "dynIllustId": "dyn_illust_char_1014_nearl2_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    1.6,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1160.0,
+    "y": -100.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1014_nearl2_2.ab",
+   "clientHash": "9640cc4fee845bd9f3e013d42494f84d",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 396366,
+    "sha256": "e0876635e4ca2335a7878587d0d857bd434fe3a0bbb9d2ee047743527cc68652",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 430504,
+    "sha256": "cb4ae629cd3dd04661a8885ae31c25a230f5a7a3a6703b1680ea76d332ef18ee",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_1015_aglna2": {
+   "dynIllustId": "dyn_illust_char_1015_aglna2_2",
+   "cameraSize": 11.5,
+   "rootOffset": [
+    0.069,
+    -9.913
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1156.86,
+    "y": -158.74,
+    "width": 2300.0,
+    "height": 2300.0
+   },
+   "bundle": "arts/dynchars/char_1015_aglna2_2.ab",
+   "clientHash": "a98bb9e3f3fc258b563fa239bb916c1c",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 873972,
+    "sha256": "1df74c9798e82d33636e952cca8904307a93a711ac354966360909d09178d78a",
+    "width": 2300,
+    "height": 2300
+   }
+  },
+  "char_1016_agoat2": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    -0.58,
+    -6.42
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1042.0,
+    "y": -458.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_1016_agoat2_2.ab",
+   "clientHash": "a8592ecfc8bf7350d0090750f7b0a010",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 347592,
+    "sha256": "10c7d214c73b172f5126a9b25486300afa7352f27412c04dff76bba1b86d8c0e",
+    "width": 2200,
+    "height": 2200
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 196204,
+    "sha256": "a4c3734483015eceb885d082ff9c6f2a18e67b1c2d985b5533fb5ef5b5205354",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_1023_ghost2": {
+   "dynIllustId": "dyn_illust_char_1023_ghost2_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -7.75
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -225.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1023_ghost2_2.ab",
+   "clientHash": "85528560997b6e59b15da0cbb5058bba",
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 312996,
+    "sha256": "02776151d1becd17ec45be59e942b6b81e9e5083ba3d01604019da2111003654",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_1026_gvial2": {
+   "dynIllustId": "dyn_illust_char_1026_gvial2_2",
+   "cameraSize": 13.0,
+   "rootOffset": [
+    1.5,
+    -10.3
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1450.0,
+    "y": -270.0,
+    "width": 2600.0,
+    "height": 2600.0
+   },
+   "bundle": "arts/dynchars/char_1026_gvial2_2.ab",
+   "clientHash": "9fba1215c5802b495edd01959b2107d4",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 398786,
+    "sha256": "9d426b343d3a81248ad58fe6da6128added79d7a62e914d8067363d925c2a229",
+    "width": 2600,
+    "height": 2600
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 574828,
+    "sha256": "5099f84e7e02fc2f69ea6953056be0e161df5443cd86ed268b1d5854e64fa1ad",
+    "width": 2600,
+    "height": 2600
+   }
+  },
+  "char_1028_texas2": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_2",
+   "cameraSize": 8.89,
+   "rootOffset": [
+    0.0,
+    -2.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -889.0,
+    "y": -689.0,
+    "width": 1778.0,
+    "height": 1778.0
+   },
+   "bundle": "arts/dynchars/char_1028_texas2_2.ab",
+   "clientHash": "f85ec5ec79805124d8fb701dc94b2205",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 199282,
+    "sha256": "01b31d678873d0f11104843fa828b8ca786c0963e0da4471ab106257db6f7d7c",
+    "width": 1778,
+    "height": 1778
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 65424,
+    "sha256": "8833ae87aa9b9bb3ec127d284a97037ec6bab98dafb58a283d7aa42c3daa4b16",
+    "width": 1778,
+    "height": 1778
+   }
+  },
+  "char_1035_wisdel": {
+   "dynIllustId": "dyn_illust_char_1035_wisdel_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.96,
+    -7.4
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -904.0,
+    "y": -260.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_1035_wisdel_2.ab",
+   "clientHash": "48265b0180a6bdf5af365656a83a5dbb",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 429122,
+    "sha256": "dd2a9aa9b4688d30b21fa694c322040b43fc01305ae5350c5721f8555864613e",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_1038_whitw2": {
+   "dynIllustId": "dyn_illust_char_1038_whitw2_2",
+   "cameraSize": 10.3,
+   "rootOffset": [
+    -0.18,
+    -4.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1012.0,
+    "y": -630.0,
+    "width": 2060.0,
+    "height": 2060.0
+   },
+   "bundle": "arts/dynchars/char_1038_whitw2_2.ab",
+   "clientHash": "d8e80d532650c81643f07f28c1223153",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 247094,
+    "sha256": "36945f30e2536055a6ea97cc16028bbcc0e91b6be022d8e026e8b8192f799031",
+    "width": 2060,
+    "height": 2060
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 83698,
+    "sha256": "d20920de48bd0dadfbe1f7428f8993f2c92f6975943485c5b7baa8431d28bae2",
+    "width": 2060,
+    "height": 2060
+   }
+  },
+  "char_1041_angel2": {
+   "dynIllustId": "dyn_illust_char_1041_angel2_2",
+   "cameraSize": 10.4,
+   "rootOffset": [
+    0.0,
+    -9.55
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1040.0,
+    "y": -85.0,
+    "width": 2080.0,
+    "height": 2080.0
+   },
+   "bundle": "arts/dynchars/char_1041_angel2_2.ab",
+   "clientHash": "aeb0df510faa84d65d4ea38ab70cddfc",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 320332,
+    "sha256": "42ba8007b1a7d0814d6383ee026ddc7d70f6d8c39e45808ef3c446893e0006b8",
+    "width": 2080,
+    "height": 2080
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 52740,
+    "sha256": "85f5ce2974a1dae2c76a7bfe4291bd23fcfb3588eb9c9f66c109200ca4064e9b",
+    "width": 2080,
+    "height": 2080
+   }
+  },
+  "char_1044_hsgma2": {
+   "dynIllustId": "dyn_illust_char_1044_hsgma2_2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.11,
+    -8.05
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1039.0,
+    "y": -245.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1044_hsgma2_2.ab",
+   "clientHash": "afd88a6e6b9efd2c159382f1e1b05166",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 166466,
+    "sha256": "8e4d81de1cde689f95c0e97b82038ef3156fbbcb1a731a8d6744018418977489",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 246680,
+    "sha256": "2e563a63913ffb6e6c2a1d56bad0985aa1ab8c7c658eb3a1cd88f48f25b2749d",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_1045_svash2": {
+   "dynIllustId": "dyn_illust_char_1045_svash2_2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -9.05
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -145.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_1045_svash2_2.ab",
+   "clientHash": "f7a4d58a261651a2bed75d3853b8a2b9",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 462214,
+    "sha256": "0e3887dbde14fdb25c79ed47400a06a59bf62c2e9584ba1fe2daa52c8b8dba70",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 83912,
+    "sha256": "ebe2bf4646542ede9a777f779d4d47b58b81a7ad447fd1dd290e2a9b4c14fffa",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_1052_kalts2": {
+   "dynIllustId": "dyn_illust_char_1052_kalts2_2",
+   "cameraSize": 11.01,
+   "rootOffset": [
+    -0.33,
+    -5.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1068.0,
+    "y": -601.0,
+    "width": 2202.0,
+    "height": 2202.0
+   },
+   "bundle": "arts/dynchars/char_1052_kalts2_2.ab",
+   "clientHash": "500630f3358e4292323f9b1b3b1e3399",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 1133782,
+    "sha256": "5b5472a187cdb8f38d4f77d73acd0e174676f6a5ecb5c22ca7df0ed4b5a9d2d1",
+    "width": 2202,
+    "height": 2202
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 52324,
+    "sha256": "c32a5f63e82c814a3afcab812f5c162853f173ff05c7a956ff0c62453a0182a2",
+    "width": 2202,
+    "height": 2202
+   }
+  },
+  "char_113_cqbw": {
+   "dynIllustId": "dyn_illust_char_113_cqbw_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.7,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -930.0,
+    "y": -100.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_113_cqbw_2.ab",
+   "clientHash": "383a65800406136086066333366fda78",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 600918,
+    "sha256": "94541038408bb05244dedb65d41e9dae5deb922251a3ea5a5a332ebcb891c126",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 125068,
+    "sha256": "f02a63213e14d19807469b3a0afac785530c482b86ad3000420a612eb07a4526",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_2014_nian": {
+   "dynIllustId": "dyn_illust_char_2014_nian_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.0,
+    -6.65
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1000.0,
+    "y": -335.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_2014_nian_2.ab",
+   "clientHash": "507039d8e3ae305fa5bd3265e6ad1533",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 341748,
+    "sha256": "7aac41c46a97b150c1658a3d0413665ff08f2e64951959d063f02102b0c609ae",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 232714,
+    "sha256": "e22f722eee05fe534446d271115a4c16f10f0c8533360bd25e94b070be21adca",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_2015_dusk": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -100.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_2015_dusk_2.ab",
+   "clientHash": "2973f6545ac33c589a199fb087b04808",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 371044,
+    "sha256": "17916ab0663410004e87f50982088873631cb3a1c302260684e7f4fda364c20a",
+    "width": 2200,
+    "height": 2200
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 375206,
+    "sha256": "77469714d2efbe218e07bea7032d640c5729f5e4d7c3b3b4469af86260740d31",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_2023_ling": {
+   "dynIllustId": "dyn_illust_char_2023_ling_2",
+   "cameraSize": 12.5,
+   "rootOffset": [
+    1.0,
+    -10.5
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1350.0,
+    "y": -200.0,
+    "width": 2500.0,
+    "height": 2500.0
+   },
+   "bundle": "arts/dynchars/char_2023_ling_2.ab",
+   "clientHash": "3fffdf3b42d51a07cc64eddba8aa981b",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 344410,
+    "sha256": "f419932a7c3b284771e4ee98ab34ce2781498f5272d198fe0b74f38aa7971bbb",
+    "width": 2500,
+    "height": 2500
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 95046,
+    "sha256": "c09aff1f72b75a4edc57298096cd13a4d145833c79d7fb45be90dc86328496d6",
+    "width": 2500,
+    "height": 2500
+   }
+  },
+  "char_2024_chyue": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    -0.3,
+    -9.79
+   ],
+   "rootScale": 0.923,
+   "frame": {
+    "x": -1051.263,
+    "y": -22.759,
+    "width": 2167.552,
+    "height": 2167.552
+   },
+   "bundle": "arts/dynchars/char_2024_chyue_2.ab",
+   "clientHash": "afb8fad2d5d3af0849f3771ccbfd23f2",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 200882,
+    "sha256": "aa5f717b27aaa4e50bb8041a6626d41df783302f744736e77be846b9daad29ef",
+    "width": 2168,
+    "height": 2168
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 390276,
+    "sha256": "ac19ece798f0959dcd40aecc9b3db92fdaadc041dad30367c0ce68d7cf100b7a",
+    "width": 2168,
+    "height": 2168
+   }
+  },
+  "char_2025_shu": {
+   "dynIllustId": "dyn_illust_char_2025_shu_2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    -0.1,
+    -9.75
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1040.0,
+    "y": -75.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_2025_shu_2.ab",
+   "clientHash": "83d837317d7f19290afbd990f6a0b608",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 432238,
+    "sha256": "dae0128969b8f738006ade88ddf1acbf75477d936cb088bfc1ff8e425e99b7ce",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 183706,
+    "sha256": "f4f015c419f08a3d7cf6fdcd06c1291674feb749f40bec5aebdbed0dfde414a7",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_2026_yu": {
+   "dynIllustId": "dyn_illust_char_2026_yu_2",
+   "cameraSize": 10.5,
+   "rootOffset": [
+    0.0,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1050.0,
+    "y": -150.0,
+    "width": 2100.0,
+    "height": 2100.0
+   },
+   "bundle": "arts/dynchars/char_2026_yu_2.ab",
+   "clientHash": "9896264c338494c00eae206b4130bb1f",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 337832,
+    "sha256": "b06b651a99e2717437c4faf4892fbde127d202fd5851d8f976287f56b9c8e2ad",
+    "width": 2100,
+    "height": 2100
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 231160,
+    "sha256": "3d25bcd17f029404d00b59836b714297aae3ea169ee9e186b26f61303d763a31",
+    "width": 2100,
+    "height": 2100
+   }
+  },
+  "char_245_cello": {
+   "dynIllustId": "dyn_illust_char_245_cello_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.5,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1150.0,
+    "y": -100.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_245_cello_2.ab",
+   "clientHash": "301987da05b1e456542f932f432bc61e",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 423214,
+    "sha256": "a1b37fb52ec15352a3a7aeafadd5a818965abe7302090a8fb1600a86e90bd44e",
+    "width": 2200,
+    "height": 2200
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 543558,
+    "sha256": "dc659a9858bc9d22078af201755c988ddc8334d662054a7f2bf94da2f298a3ae",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_249_mlyss": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_2",
+   "cameraSize": 10.0,
+   "rootOffset": [
+    0.67,
+    -8.75
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1067.0,
+    "y": -125.0,
+    "width": 2000.0,
+    "height": 2000.0
+   },
+   "bundle": "arts/dynchars/char_249_mlyss_2.ab",
+   "clientHash": "f0808e3e51f037e04cec27780d005861",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 380746,
+    "sha256": "d13906de4274e6ad3772dce7cea5aaa3e1c4d6b7f73d54a17cd63b810b61de85",
+    "width": 2000,
+    "height": 2000
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 261894,
+    "sha256": "402b1108e0b0b2b59df5a644c2e7968038b109eace31091773ea7750230fa286",
+    "width": 2000,
+    "height": 2000
+   }
+  },
+  "char_391_rosmon": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_2",
+   "cameraSize": 13.5,
+   "rootOffset": [
+    -0.5,
+    -9.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1300.0,
+    "y": -450.0,
+    "width": 2700.0,
+    "height": 2700.0
+   },
+   "bundle": "arts/dynchars/char_391_rosmon_2.ab",
+   "clientHash": "b71ff8de26ae42de792dcfe589de6538",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 266652,
+    "sha256": "48efab81e775c44daa43ff51a569936761f230ed95489aac5d4fde86feca6401",
+    "width": 2700,
+    "height": 2700
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 283848,
+    "sha256": "290167452cc01e90c714d9013d92bc4eaca05deadf9bd6cd48ca3a5671d1d98d",
+    "width": 2700,
+    "height": 2700
+   }
+  },
+  "char_4058_pepe": {
+   "dynIllustId": "dyn_illust_char_4058_pepe_2",
+   "cameraSize": 11.0,
+   "rootOffset": [
+    0.0,
+    -10.0
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1100.0,
+    "y": -100.0,
+    "width": 2200.0,
+    "height": 2200.0
+   },
+   "bundle": "arts/dynchars/char_4058_pepe_2.ab",
+   "clientHash": "46bf19af2abe0fc0a779c06bc46228cd",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 642456,
+    "sha256": "e7e1850b380ea8b5609e62fcf436aff00fe09db3f2bf61105fb316fec6952904",
+    "width": 2200,
+    "height": 2200
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 249390,
+    "sha256": "db220982ca8b28385595ac306e4e176346bedd79bf561347550b3ef2c5596fad",
+    "width": 2200,
+    "height": 2200
+   }
+  },
+  "char_4247_oxi": {
+   "dynIllustId": "dyn_illust_char_4247_oxi_2",
+   "cameraSize": 11.615,
+   "rootOffset": [
+    -0.533,
+    -5.132
+   ],
+   "rootScale": 1.0,
+   "frame": {
+    "x": -1108.27,
+    "y": -648.36,
+    "width": 2323.1,
+    "height": 2323.1
+   },
+   "bundle": "arts/dynchars/char_4247_oxi_2.ab",
+   "clientHash": "e0ac71a29efc04638bc1d3cbc51ab2c8",
+   "background": {
+    "name": "bg.webp",
+    "bytes": 391156,
+    "sha256": "5963a6cfea39a3eff9b4f204f659c73aaf1bbe29030ec432ad51c5b4e9ef1077",
+    "width": 2323,
+    "height": 2323
+   },
+   "foreground": {
+    "name": "fg.webp",
+    "bytes": 88696,
+    "sha256": "06aba2895fa691a848a18cc81a9253e7bc1692fe2074a1394105f468180d4e48",
+    "width": 2323,
+    "height": 2323
+   }
+  }
+ }
+}

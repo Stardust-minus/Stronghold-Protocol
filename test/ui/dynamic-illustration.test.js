@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { illustrationLayout, LOAD_TIMEOUT_MS } from '../../public/js/ui/dynamicIllustration.js';
-import { rectLayout, seatRect, artOfRect, moveArt, cardArt, framingLayout, cropFraming, lookDynamic, dynamicOf, e2Dynamic, ART_LIMITS } from '../../public/js/ui/dynamicFraming.js';
+import { rectLayout, seatRect, artOfRect, moveArt, cardArt, framingLayout, cropFraming, lookDynamic, dynamicOf, e2Dynamic, ART_LIMITS, dynamicFrame, frameClip, pictureBox } from '../../public/js/ui/dynamicFraming.js';
 import { packPages, PAGE, MAX_STEP } from '../../public/js/ui/dynamicStage.js';
 import { visibleRect, seatSpace, sceneSpaceMoved, illustrationBox, staticBox, boxRect } from '../../public/js/ui/seatLive.js';
 import { namecardDynamic, namecardOf } from '../../public/js/ui/namecards.js';
@@ -20,6 +20,50 @@ test('contain: the whole art, centred, at 94 % (the 查看立绘 preview as befo
   const l = illustrationLayout(600, 400, B, 'contain');
   assert.equal(l.scale, Math.min(600 / 1800, 400 / 2000) * 0.94);
   assert.ok(Math.abs(lineY(l, 0.5) - 200) < 1e-9 && Math.abs(lineX(l, 0.5) - 300) < 1e-9, 'centred');
+});
+
+test('frame: the 查看立绘 preview shows the official camera frame whole, edge to edge, centred (2026-11-16)', () => {
+  const F = { x: -1118, y: -497, width: 2200, height: 2200 };
+  for (const [w, h] of [[600, 400], [400, 600], [560, 560]]) {
+    const l = illustrationLayout(w, h, F, 'frame');
+    assert.equal(l.scale, Math.min(w, h) / 2200);
+    const p = pictureBox(l, F);
+    assert.ok(Math.abs(p.left + p.width / 2 - w / 2) < 1e-9 && Math.abs(p.top + p.height / 2 - h / 2) < 1e-9, 'centred');
+    assert.ok(Math.abs(Math.max(p.width / w, p.height / h) - 1) < 1e-9, 'touches the box on its tighter side, nothing cut');
+  }
+  assert.equal(dynamicFrame({ frame: F }), F);
+  for (const bad of [null, {}, { frame: { ...F, width: 0 } }, { frame: { ...F, x: NaN } }, { frame: 'x' }]) assert.equal(dynamicFrame(bad), null);
+});
+
+test('名片 framing in the official frame; crops and seat framings keep their spaces; a backdrop view draws inside the frame only', () => {
+  const F = { x: -1000, y: -300, width: 2000, height: 2000 }, Bd = { x: -3700, y: -260, width: 7000, height: 2350 };
+  const card = { focusX: 50, focusY: 24, zoom: 1 };
+  assert.deepEqual(framingLayout(640, 140, Bd, card, F), rectLayout(640, 140, F, 50, 24, 1), 'the 名片: the frame (its static plate, the 立绘, shows about that square)');
+  assert.deepEqual(framingLayout(640, 140, Bd, card), rectLayout(640, 140, Bd, 50, 24, 1), 'no frame: the bounds as before');
+  const crop = { rect: { x: -80, y: 900, width: 200, height: 200 }, posX: 50, posY: 50 };
+  assert.deepEqual(framingLayout(96, 96, Bd, crop, F), rectLayout(96, 96, crop.rect, 50, 50), 'a crop is a crop');
+  const art = { art: { x: 500, y: 300, zoom: 400 } };
+  assert.deepEqual(framingLayout(200, 300, Bd, art, F), rectLayout(200, 300, seatRect(200, 300, Bd, art.art)), 'a seat\'s stored framing: still the bounds');
+  // the clip: the box ∩ the frame's square under the transform
+  const l = rectLayout(400, 200, { x: -2000, y: -300, width: 4000, height: 2000 });
+  const k = frameClip(400, 200, l, F), p = pictureBox(l, F);
+  assert.deepEqual(k, { x: p.left, y: 0, w: p.width, h: 200 }, 'a wide box: the frame\'s columns, the full height');
+  assert.deepEqual(frameClip(100, 100, rectLayout(100, 100, F), F), { x: 0, y: 0, w: 100, h: 100 }, 'the frame covering the box: all of it');
+  assert.deepEqual(frameClip(100, 100, rectLayout(100, 100, { x: 5000, y: 0, width: 100, height: 100 }), F).w, 0, 'outside: nothing');
+});
+
+test('backdrop: 查看立绘 and DynamicIllustration\'s cover mode (名片, seat card) draw background / foreground in the frame; LiveArt (干员调配 cells, avatars) never', () => {
+  const src = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
+  const ill = src('public/js/ui/dynamicIllustration.js'), stage = src('public/js/ui/dynamicStage.js');
+  assert.match(ill, /export function CoverIllustration\(\{[^}]*backdrop = false[^}]*\}\)/, 'off unless asked');
+  assert.match(ill, /<\$\{CoverIllustration\} \.\.\.\$\{props\} backdrop=\$\{props\.backdrop !== false\} \/>/, 'DynamicIllustration cover: on');
+  assert.match(ill, /export function LiveArt[\s\S]*?<\$\{CoverIllustration\} entry=\$\{dyn\} framing=\$\{framing\} \/>/, 'LiveArt: not passed');
+  assert.doesNotMatch(src('public/js/ui/avatarLive.js'), /backdrop/, 'avatars: none');
+  for (const p of ['public/js/ui/namecards.js', 'public/js/ui/seatLive.js']) assert.match(src(p), /<\$\{DynamicIllustration\} mode="cover"/, `${p}: through DynamicIllustration`);
+  assert.match(stage, /if \(v\.backdrop\) \{/, 'the shared renderer loads the layers only for a backdrop view');
+  assert.match(stage, /backdropSprite\(P, image, frame \|\| b\)/, 'placed in the frame (the bounds without one)');
+  assert.match(ill, /backdropSprite\(P, image, space\)/);
+  assert.doesNotMatch(ill + stage, /sprite\.width = b\.width/, 'never stretched to the skeleton bounds again');
 });
 
 test('cover: fills the box; the focus line of the art sits on the same line of the box (background-position-y)', () => {
@@ -201,6 +245,22 @@ test('data: every skin with an official 动态立绘 ships it (72: 11 from PRTS,
     assert.ok(Math.abs(avatar.width - avatar.height) < 0.01 && Math.abs(portrait.height - 2 * portrait.width) < 0.01, `${id}: shapes`);
     for (const f of [avatar, portrait]) {
       assert.ok(f.width > 20 && f.x >= b.x - 2 && f.x + f.width <= b.x + b.width + 2 && f.y >= b.y - 2 && f.y + f.height <= b.y + b.height + 2, `${id}: inside its bounds`);
+    }
+  }
+});
+
+test('data: every 动态立绘 from the client has its official camera frame, a square holding its official avatar / portrait crops', () => {
+  const recs = [...Object.entries(assets.skins).map(([id, r]) => [id, r.dynamic]), ...Object.entries(assets.chars).map(([id, c]) => [id, c.dynamicE2])].filter(([, d]) => d);
+  const framed = recs.filter(([, d]) => d.frame);
+  // no client bundle for these two (令「方遒卷」, 望's 精二): no frame, the bounds stand in
+  assert.deepEqual(recs.filter(([, d]) => !d.frame).map(([id]) => id).sort(), ['char_2023_ling_nian_12', 'char_2027_wang']);
+  assert.equal(framed.length, 71 + 26);
+  for (const [id, d] of framed) {
+    const f = dynamicFrame(d);
+    assert.ok(f && Math.abs(f.width - f.height) < 0.01 && f.width >= 1500 && f.width <= 4000, `${id}: a square of the client's size`);
+    // 银灰「不融冰」 is a small bust at the foot of a tall scene: its half-body crop runs below the camera's view
+    for (const c of id === 'char_172_svrash_ambienceSynesthesia_4' ? [d.frames.avatar] : [d.frames.avatar, d.frames.portrait]) {
+      assert.ok(c.x >= f.x - 1 && c.x + c.width <= f.x + f.width + 1 && c.y >= f.y - 1 && c.y + c.height <= f.y + f.height + 1, `${id}: its official crops inside the camera's view`);
     }
   }
 });

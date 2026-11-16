@@ -86,8 +86,13 @@ a local browser. This does not claim complete original-game effects, summons, an
 
 **Dynamic illustrations** (动态立绘): 72 outfits carry theirs as `skins[id].dynamic`, a Spine object (11 from PRTS, 61
 unpacked from the local client's `arts/dynchars` with lossless WebP pages; three use JSON skeletons). `frames.avatar` /
-`frames.portrait` are the official avatar and half-body framing in skeleton space; `background` / `foreground` are the
-optional layers behind and over it. Their pages are straight alpha except the 15 of `PREMULTIPLIED_DYNAMIC` (history
+`frames.portrait` are the official avatar and half-body framing in skeleton space; `frame` is the official camera's square
+(side 2 × DynIllust._cameraSize, centred on the prefab root's offset reversed) and `background` / `foreground` are the
+optional layers behind and over the character, each a picture of exactly that square (`tools/assets/dynamic-backdrops.json`,
+written by `node tools/prepare-dynamic-backdrops.mjs --assets <dir> [--check]`; 精二 records get theirs from
+`tools/prepare-operator-dynamic-e2.mjs` too). Nine are PRTS's composites (`bg.png` / `fg.png`); the other 131 (`bg.webp` /
+`fg.webp`, 78 + 53, 43.2 MB, 2026-11-16) are baked from the client's always-on MeshRenderer layers with ports of its
+L2D shaders (history §37.246; the baker lives outside the repo, in the maintainer's work folder). Their pages are straight alpha except the 15 of `PREMULTIPLIED_DYNAMIC` (history
 §36.20). Eleven of those are lossy and need `python3 tools/fix-dynamic-edges.py <assets root> <out root> [skin id …]`
 after an import: it writes `<page>.edge.<ext>` and `<stem>.edge.atlas`, which the manifest names; the old files stay
 for older clients.
