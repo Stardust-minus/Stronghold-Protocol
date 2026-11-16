@@ -95,3 +95,26 @@ test('the 精二 tool keeps the frames and layers: its re-run over data/assets.j
   const e2 = applyDynamicE2(b, { registry: loadDynamicE2Registry() }).body;
   assert.ok(Object.values(e2.chars).every((c) => !c.dynamicE2?.frame), 'applyDynamicE2 alone: the 精二 registry\'s fields only');
 });
+
+test('the bake: PRTS\'s 9 composites kept (a reason each), every other layer the bake\'s own WebP in its record\'s folder', () => {
+  const kept = Object.entries(reg.skins).filter(([, R]) => R.prts === 'kept').map(([id]) => id).sort();
+  assert.deepEqual(kept, ['char_1012_skadi2_boc_4', 'char_1014_nearl2_epoque_17', 'char_1023_ghost2_boc_6', 'char_113_cqbw_epoque_7', 'char_2015_dusk_nian_7',
+    'char_250_phatom_sale_4', 'char_350_surtr_summer_9', 'char_4055_bgsnow_wild_7', 'char_472_pasngr_epoque_17']);
+  for (const id of kept) {
+    const R = reg.skins[id], d = assets.skins[id].dynamic;
+    assert.ok(!R.background && !R.foreground && /^PRTS kept: /.test(R.note), id);
+    assert.match(d.background, new RegExp(`^/assets/skins/${id}/dynamic/bg\\.png$`), `${id}: PRTS's background still named`);
+  }
+  let layers = 0;
+  for (const [kind, field] of [['skins', 'dynamic'], ['chars', 'dynamicE2']]) {
+    for (const [id, R] of Object.entries(reg[kind])) {
+      for (const k of ['background', 'foreground']) {
+        if (!R[k]) continue;
+        layers++;
+        assert.equal(assets[kind][id][field][k], `/assets/${backdropDir(kind, id)}/${R[k].name}`);
+        assert.ok(R[k].width === R[k].height && Math.abs(R[k].width - R.frame.width) <= 1, `${id}: ${k} is the frame's square at 1 px per unit`);
+      }
+    }
+  }
+  assert.equal(layers, 131, '78 backgrounds and 53 foregrounds baked');
+});
