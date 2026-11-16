@@ -58,6 +58,8 @@ describe('language switch in the lobby', { skip: !ENABLED && 'set SP_E2E=1 (Chro
         await page.waitForSelector('.announcement-board', { hidden: true });
       }
       await page.click('.lobby-settings');
+      await page.waitForSelector('[data-testid="set-tab-language"]'); // its own page (the paged 设置, 2026-11-16)
+      await page.click('[data-testid="set-tab-language"]');
       await page.waitForSelector('.modal [data-testid="lang-toggle"]');
     }
   };

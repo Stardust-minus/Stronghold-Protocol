@@ -248,13 +248,12 @@ server {
 
 https / wss 说明：页面通过 https 打开时客户端自动连接 `wss://同一域名/ws`；http 时用 `ws://`。服务器本身只提供 http，证书由代理 / 隧道负责。代理与服务器在同一台机器或内网时，`TRUST_PROXY=auto` 会信任它的 `X-Forwarded-For` / `X-Real-IP`；代理在公网另一台机器上时设 `TRUST_PROXY=1`（同时确保游戏端口只对代理开放）。
 
-### 2.5 玩家预先下载素材
+### 2.5 玩家这边的素材缓存
 
-本 fork 打开页面直接进入大厅，没有标题画面：上游 0.3.0 标题画面上的「下载完整素材」和「导入素材包」不显示，也不能导入素材包（导入的美术只对应带内容哈希的素材地址，本 fork 的部署模板用 `SP_ASSET_INDEX=0` 下发普通地址）。项目另外提供[资源完整性检查接口](ASSETS.md#client-resource-completeness-api)，方便希望节省服务器流量、让玩家自备素材包的站点定制资源检查流程。
+本 fork 打开页面直接进入大厅，没有标题画面：上游 0.3.0 标题画面上的「下载完整素材」和「导入素材包」不显示，也不能导入素材包（导入的美术只对应带内容哈希的素材地址，本 fork 的部署模板用 `SP_ASSET_INDEX=0` 下发普通地址）。2026-10-17 起的「设置 → 素材下载」（预先下载素材）已在 2026-11-16 删除：素材只在界面用到时加载。项目另外提供[资源完整性检查接口](ASSETS.md#client-resource-completeness-api)，方便希望节省服务器流量、让玩家自备素材包的站点定制资源检查流程。
 
-- 玩家可以在「设置 → 素材下载」把素材预先下载到浏览器，分两档：「对局素材」（不含皮肤，只含自己正在使用的配音）和「全部素材」（含全部皮肤和配音）。关闭设置后继续下载，进入对局时自动暂停，回到大厅或房间后继续；失败的文件可以重试。
-- 下载的是这台服务器素材清单里的同源地址：本机开服时字节从开服的电脑发出；本 fork 的部署模板把 `/assets/`、`/media/` 重定向到外部素材源（ModelScope 等）。
-- 只有页面的 Service Worker 带素材档案时（`/code-source.json` 的 `material`，由本 fork 的边缘节点给出，单机可用 `SP_CODE_SOURCE` 设置，见 `deploy/stardust/STUDIO-CODE-SOURCE.md`），文件才按路径保存在浏览器的 Cache Storage 里；没有档案时只靠浏览器的普通缓存，设置里会提示下载的素材可能不会保留。Service Worker 只在 **HTTPS** 或 **localhost** 页面上可用。带内容哈希的素材地址（`SP_ASSET_INDEX` 没关时）在 HTTPS 或 localhost 下还会像导入的素材一样存进站点存储（上游 #725）；`http://局域网IP` 只能放进浏览器的 HTTP 缓存（Windows 版 Chrome 最多约 320 MB），放不下完整素材，刷新后会重新下载。
+- 加载的是这台服务器素材清单里的同源地址：本机开服时字节从开服的电脑发出；本 fork 的部署模板把 `/assets/`、`/media/` 重定向到外部素材源（ModelScope 等）。
+- 只有页面的 Service Worker 带素材档案时（`/code-source.json` 的 `material`，由本 fork 的边缘节点给出，单机可用 `SP_CODE_SOURCE` 设置，见 `deploy/stardust/STUDIO-CODE-SOURCE.md`），加载过的文件才按路径保存在浏览器的 Cache Storage 里，下次直接从浏览器读取；没有档案时只靠浏览器的普通缓存。Service Worker 只在 **HTTPS** 或 **localhost** 页面上可用。
 
 ### 2.6 P2P 公共状态转发（可选，默认关闭）
 

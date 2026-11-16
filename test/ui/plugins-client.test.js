@@ -34,7 +34,7 @@ test('P9: active content names installed companion art only while it is off for 
   const play = { id: 'play-demo', class: 'content', optional: { 'look-demo': '1.0.0', missing: '*', ui: '*' } };
   const look = { id: 'look-demo', class: 'cosmetic', status: 'loaded', scope: ['personal', 'room'], version: '1.0.0', name: 'Look demo' };
   const entries = [play, look, { id: 'ui', class: 'ui', status: 'loaded' }];
-  assert.deepEqual(companionCosmeticHints(play, entries, new Set()), ['外观在『Look demo』（设置 → 外观插件）']);
+  assert.deepEqual(companionCosmeticHints(play, entries, new Set()), ['外观在『Look demo』（设置 → 皮肤与插件 → 外观插件）']);
   assert.deepEqual(companionCosmeticHints(play, entries, new Set(['look-demo'])), []);
   assert.deepEqual(companionCosmeticHints(play, [play, { ...look, status: 'blocked' }], new Set()), []);
   assert.deepEqual(companionCosmeticHints({ ...play, optional: undefined }, entries, new Set()), []);

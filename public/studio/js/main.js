@@ -361,7 +361,7 @@ function App({ info }) {
       <span class=${cx('st-live', events.on && 'is-on')} title=${t('插件文件一改，这里和游戏里几秒内就会跟着变')}>${events.on ? t('热重载：开') : t('热重载：未连接')}</span>
       <a class="st-top__link" href="/studio/console.html" data-testid="console-open">${t('测试控制台')}</a>
       <a class="st-top__link" href="/" target="_blank" rel="noopener">${t('打开游戏')}</a>
-      <a class="st-top__link" href="https://github.com/sganggs/Stronghold-Protocol/blob/master/docs/PLUGIN-GUIDE.md" target="_blank" rel="noopener">${t('新手指南')}</a>
+      <a class="st-top__link" href="https://github.com/Stardust-minus/Stronghold-Protocol/blob/master/docs/PLUGIN-GUIDE.md" target="_blank" rel="noopener">${t('新手指南')}</a>
       <${LangToggle} class="st-top__lang" />
     </header>
     ${keyState !== 'ok' ? html`<${KeyBar} state=${keyState} onKey=${useKey} />` : null}

@@ -965,7 +965,6 @@
     "test/ui/asset-import.browser.test.js": 0,
     "test/ui/asset-import.test.js": 557,
     "test/ui/asset-index-concurrency.browser.test.js": 0,
-    "test/ui/asset-section.test.js": 34,
     "test/ui/assetUrls.test.js": 10,
     "test/ui/audio-pools.test.js": 273,
     "test/ui/audio.test.js": 2590,

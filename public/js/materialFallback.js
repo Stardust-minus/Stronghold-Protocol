@@ -85,18 +85,6 @@ function attempt(url, load, { timeoutMs, idleMs = MATERIAL_IDLE_MS, totalMs = MA
   });
 }
 
-// Fork (2026-10-16): a material load that showed no sign of life in time is told to these listeners (ui/assetSection.js:
-// a hint, once, to download the art ahead in 设置 → 素材下载). A listener cannot change or fail the load.
-const slowListeners = new Set();
-/** @param {() => void} listener @returns {() => void} unsubscribe */
-export function onMaterialSlow(listener) {
-  slowListeners.add(listener);
-  return () => { slowListeners.delete(listener); };
-}
-function reportSlow() {
-  for (const listener of [...slowListeners]) { try { listener(); } catch { /* a hint only */ } }
-}
-
 /** A failure worth another round later: a timeout, a network error, or an HTTP status that may pass (never a 404). */
 export const transientMaterialError = (err) => err?.name !== 'AbortError'
   && (err?.timeout === true || err?.name === 'TypeError' || [408, 425, 429].includes(err?.status) || err?.status >= 500);
@@ -126,7 +114,6 @@ export async function withMaterialFallback(url, load, options = {}) {
     catch (primary) {
       err = primary;
       if (options.signal?.aborted || err?.name === 'AbortError') throw err;
-      if (err?.timeout === true) reportSlow();
       if (fallback && options.fallback !== false) {
         try { return await attempt(fallback, load, settings); }
         catch (second) { err = second; }

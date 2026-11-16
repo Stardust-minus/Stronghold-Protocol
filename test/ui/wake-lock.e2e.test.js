@@ -98,6 +98,9 @@ describe('App screen wake lock', { skip: !ENABLED && 'set SP_E2E=1 (and have Chr
   async function settings(page) {
     await page.click('.lobby-settings, .gm__gear');
     await page.waitForSelector('.modal');
+    await page.waitForSelector('[data-testid="set-tab-display"]'); // 画面 holds the switch (the paged 设置, 2026-11-16)
+    await page.click('[data-testid="set-tab-display"]');
+    await page.waitForSelector('[data-testid="wake-lock-hint"]');
   }
   async function toggle(page, on) {
     const handle = await page.evaluateHandle((sel) => [...document.querySelectorAll(sel)]

@@ -1413,3 +1413,91 @@
 .modal__box.setdlg .set-keys__head > .btn,
 .modal__box.setdlg .set-keys__head > .set-storage__actions,
 .modal__box.setdlg .set-keys__head > .theme-page__actions { margin-left: auto; }
+/* 设置's pages (ui/settings.js SETTINGS_PAGES; the owner's request of 2026-11-16, never one long scroll): the official
+   client's column of tabs on the left and one page beside it that scrolls alone. The box keeps one size, so a page switch
+   never resizes it. A tab is a plain line on the dark column; the open one is the light plate of the section glyphs
+   (.sw-sec__glyph) with a mint edge. Upright phones (STRIP_QUERY): the tabs become two rows of four over the page. A phone
+   on its side keeps the column, the title and the two buttons share one line. */
+.modal__box.setdlg { width: min(max(10.8rem, calc(640px * var(--ui))), 96vw); height: min(max(8.2rem, calc(500px * var(--ui))), 90vh); max-height: 90vh; }
+.modal__box.setdlg > .modal__body { flex: 1 1 auto; display: flex; min-height: 0; padding: 0; overflow: hidden; }
+.set-pages { flex: 1 1 auto; display: grid; grid-template-columns: max(2.3rem, calc(136px * var(--ui))) minmax(0, 1fr); min-width: 0; min-height: 0; }
+.set-tabs {
+  display: flex; flex-direction: column; gap: max(.03rem, calc(2px * var(--ui))); min-height: 0; padding: max(.14rem, calc(8px * var(--ui))) 0;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .36), rgba(0, 0, 0, .22)); border-right: 1px solid var(--line);
+}
+.set-tabs::-webkit-scrollbar { display: none; }
+.set-tab {
+  position: relative; flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center;
+  column-gap: max(.11rem, calc(8px * var(--ui))); min-height: max(.66rem, calc(42px * var(--ui))); padding: max(.05rem, calc(3px * var(--ui))) max(.14rem, calc(10px * var(--ui))) max(.05rem, calc(3px * var(--ui))) max(.22rem, calc(14px * var(--ui)));
+  border: 0; background: none; color: var(--text-md); font: inherit; text-align: left; cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.set-tab > .icon { grid-row: 1 / span 2; width: max(.24rem, calc(16px * var(--ui))); height: max(.24rem, calc(16px * var(--ui))); color: var(--text-lo); transition: color var(--t-fast); }
+.set-tab__name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: max(calc(.19 * var(--t)), calc(14px * var(--ui))); font-weight: 700; letter-spacing: .06em; line-height: 1.25;
+}
+.set-tab__micro.micro {
+  grid-column: 2; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: max(calc(.09 * var(--t)), calc(8px * var(--ui))); letter-spacing: .16em; line-height: 1.35; color: var(--text-dim);
+}
+.set-tab:hover { background: rgba(255, 255, 255, .05); color: var(--text-hi); }
+.set-tab:hover > .icon { color: var(--mint-400); }
+.set-tab.is-on { background: linear-gradient(90deg, #eef2f0, #d2d9d6); color: #141918; cursor: default; }
+.set-tab.is-on > .icon { color: #141918; }
+.set-tab.is-on .set-tab__micro { color: rgba(20, 25, 24, .6); }
+.set-tab.is-on::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: max(.05rem, calc(3px * var(--ui))); background: var(--mint-500); }
+.set-tab:focus-visible { outline: 2px solid var(--mint-400); outline-offset: -2px; }
+.modal__box.setdlg .set-page {
+  min-width: 0; min-height: 0; gap: max(.12rem, calc(8px * var(--ui))); padding: max(.18rem, calc(10px * var(--ui))) max(.3rem, calc(16px * var(--ui))) max(.26rem, calc(16px * var(--ui)));
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+}
+/* a page's first block draws no rule over itself (a section's own border-top separates it from what is above) */
+.set-page > :first-child { padding-top: 0; border-top: 0; }
+.set-item { display: flex; flex-direction: column; min-width: 0; }
+.set-item + .set-item { padding-top: max(.12rem, calc(8px * var(--ui))); border-top: 1px solid rgba(255, 255, 255, .05); }
+.set-item > .set-hint { margin-top: max(.02rem, calc(2px * var(--ui))); }
+.set-controls-tip { margin-top: 0; }
+/* 主题: the cards' type no smaller than the rows' on a phone (css/ui-theme.css sizes it from the layout root alone) */
+.setdlg .theme-card { grid-template-columns: max(.72rem, calc(48px * var(--ui))) minmax(0, 1fr); }
+.setdlg .theme-card__thumb { width: max(.72rem, calc(48px * var(--ui))); height: max(.72rem, calc(48px * var(--ui))); }
+.setdlg .theme-card__name { font-size: max(calc(.16 * var(--t)), calc(14px * var(--ui))); }
+.setdlg .theme-card__by { font-size: max(calc(.13 * var(--t)), calc(12px * var(--ui))); }
+.setdlg .theme-card__mark { font-size: max(calc(.12 * var(--t)), calc(11px * var(--ui))); }
+.setdlg .theme-card__using, .setdlg .theme-report { font-size: max(calc(.14 * var(--t)), calc(13px * var(--ui))); }
+.setdlg .theme-page__actions .btn, .setdlg .theme-card__actions .btn { font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); }
+.setdlg .theme-card__actions .btn { min-width: max(.8rem, calc(56px * var(--ui))); }
+.setdlg .theme-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, max(3.2rem, calc(240px * var(--ui)))), 1fr)); }
+@media (max-width: 767px) and (orientation: portrait) {
+  /* :root: over the lobby's own dialog padding (screens/lobby.css .lobby-screen .modal), safe areas kept */
+  :root .modal.setdlg-veil { place-items: stretch; padding: calc(10px + var(--sa-t, 0px)) calc(10px + var(--sa-r, 0px)) calc(10px + var(--sa-b, 0px)) calc(10px + var(--sa-l, 0px)); }
+  .modal__box.setdlg { width: auto; height: auto; max-height: none; min-height: 0; }
+  .set-pages { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  /* all eight tabs in view: two rows of four, the icon over the name */
+  .set-tabs {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 6px 8px; overflow: visible;
+    background: rgba(0, 0, 0, .32); border-right: 0; border-bottom: 1px solid var(--line);
+  }
+  .set-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 46px; padding: 4px 2px; text-align: center; }
+  .set-tab > .icon { width: 15px; height: 15px; }
+  .set-tab__name { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; font-size: max(calc(.16 * var(--t)), calc(13px * var(--ui))); letter-spacing: .02em; line-height: 1.15; }
+  .set-tab__micro.micro { display: none; }
+  .set-tab.is-on::before { top: auto; right: 0; width: auto; height: 3px; }
+  .modal__box.setdlg .set-page { padding: 12px 14px 16px; }
+}
+@media (max-height: 600px) and (orientation: landscape) {
+  :root .modal.setdlg-veil { place-items: stretch; padding: calc(6px + var(--sa-t, 0px)) calc(10px + var(--sa-r, 0px)) calc(6px + var(--sa-b, 0px)) calc(10px + var(--sa-l, 0px)); }
+  .modal__box.setdlg { position: relative; width: auto; height: auto; max-height: none; min-height: 0; }
+  .modal__box.setdlg .modal__head { flex-direction: row-reverse; justify-content: flex-end; align-items: baseline; gap: 10px; min-height: 42px; padding: 8px 16px 5px; }
+  .modal__box.setdlg .modal__title { font-size: max(calc(.24 * var(--t)), calc(17px * var(--ui))); }
+  .modal__box.setdlg .modal__actions { position: absolute; top: max(.05rem, calc(2px * var(--ui))); right: 0; gap: 8px; padding: 4px 12px; border-top: 0; background: none; }
+  .modal__box.setdlg .modal__actions .btn { min-height: 34px; }
+  .set-pages { grid-template-columns: 128px minmax(0, 1fr); }
+  .set-tabs { gap: 1px; padding: 3px 0; }
+  .set-tab { min-height: 32px; padding: 0 10px 0 14px; }
+  .set-tab > .icon { grid-row: auto; }
+  .set-tab__name { font-size: max(calc(.17 * var(--t)), calc(13px * var(--ui))); }
+  .set-tab__micro.micro { display: none; }
+  .modal__box.setdlg .set-page { padding: 10px 16px 14px; }
+}

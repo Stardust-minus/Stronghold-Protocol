@@ -768,21 +768,23 @@ function LobbyAnnouncements({ snapshot, onClose }) {
 }
 
 /** The design credit under the feedback group (the owner's request of 2026-10-14). */
-export const UI_CREDIT = Object.freeze({ author: '雨千代chiyo', site: 'Bilibili', qq: '374360968' }); // i18n-ignore: a person's name
+// The QQ contact is gone (the owner, 2026-11-16): front-end problems go to the 反馈板 like every other report.
+export const UI_CREDIT = Object.freeze({ author: '雨千代chiyo', site: 'Bilibili' }); // i18n-ignore: a person's name
 
 function DesignCredit() {
-  return html`<p class="hub-credit" title=${t('界面设计：{author}（{site}）。前端界面问题可加 QQ {qq} 反馈', UI_CREDIT)}>
-    ${t('界面设计')} <b>${UI_CREDIT.site}@${UI_CREDIT.author}</b><span class="hub-credit__sep" aria-hidden="true">·</span>${t('前端反馈 QQ')} <span class="num selectable">${UI_CREDIT.qq}</span>
+  return html`<p class="hub-credit" title=${t('界面设计：{author}（{site}）', UI_CREDIT)}>
+    ${t('界面设计')} <b>${UI_CREDIT.site}@${UI_CREDIT.author}</b>
   </p>`;
 }
 
 /**
- * The fan-work notice, the project repository and the version (the title screen's footer until 2026-10-15). Upstream
- * 0.4.0's 更新说明 (#603) is not taken (the owner, 2026-11-15): updates are announced on the 公告板.
+ * The fan-work notice, the project repository — this fork's, not upstream's (the owner, 2026-11-16) — and the version
+ * (the title screen's footer until 2026-10-15). Upstream 0.4.0's 更新说明 (#603) is not taken (the owner, 2026-11-15):
+ * updates are announced on the 公告板.
  */
 function HubFoot() {
   return html`<p class="hub-credit hub-foot">
-    <span>${t('非官方同人复刻 · 游戏素材版权归 上海鹰角网络 / Yostar 所有')}</span><span class="hub-credit__sep" aria-hidden="true">·</span><a class="hub-repo" href="https://github.com/sganggs/Stronghold-Protocol" target="_blank" rel="noopener noreferrer">${t('项目仓库')}</a><span class="hub-credit__sep" aria-hidden="true">·</span><span class="num">v${APP_VERSION}</span>
+    <span>${t('非官方同人复刻 · 游戏素材版权归 上海鹰角网络 / Yostar 所有')}</span><span class="hub-credit__sep" aria-hidden="true">·</span><a class="hub-repo" href="https://github.com/Stardust-minus/Stronghold-Protocol" target="_blank" rel="noopener noreferrer">${t('项目仓库')}</a><span class="hub-credit__sep" aria-hidden="true">·</span><span class="num">v${APP_VERSION}</span>
     ${DEV_BUILD ? html`<span class="hub-dev" role="note">${t('开发版 · 不稳定，请勿用于公开服务器')}</span>` : null}
   </p>`;
 }
@@ -899,8 +901,7 @@ export function LobbyScreen() {
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
 
-  const resourcesReady = useStore((s) => !s.session.preloadRequired || s.session.preloadReady);
-  const online = conn.status === 'online' && resourcesReady;
+  const online = conn.status === 'online';
   const codeOk = CODE_RE.test(code);
   // the server's maintenance switch (presence.state, server/lobby.js): no new rooms, matches or queue tickets
   const maint = online && presence?.maintenance === true;

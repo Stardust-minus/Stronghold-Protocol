@@ -30,11 +30,15 @@
 // uploaded. uiTheme.js must not import this file; the store is handed over with bindThemeSettings.
 // 部署时收起商店 (upstream #602, and its 0.4.0 middle level 适度缩小 #692) is not offered: this fork removed the deploy
 // fold (2026-10-16, the owner); the 0.4.0 sync leaves its three-level switch out too (to be confirmed by the owner).
+//
+// The modal is paged (the owner, 2026-11-16): a column of tabs — 游戏 / 画面 / 声音 / 语言 / 操作 / 主题 / 皮肤与插件 /
+// 其他 — and one page beside it, never one long scroll (SETTINGS_PAGES below). 素材下载, the art download ahead
+// (2026-10-17), is gone (the owner, 2026-11-16): the art loads when a screen needs it, as before that section.
 
 import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Modal, Button, Icon, MicroLabel, Tooltip, confirmDialog } from './components.js';
 import { GIcon } from './gameComponents.js';
-import { useStore, savePref, store } from '../store.js';
+import { useStore, loadPref, savePref, store } from '../store.js';
 import { settingsStore } from './settingsStore.js';
 export { settingsStore } from './settingsStore.js';
 import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, TEXT_SIZES, UI_SCALES, uiScaleStep } from './gameLogic.js';
@@ -50,7 +54,6 @@ import { copyText } from './clipboard.js';
 // 异形屏适配 (ui/screenFit.js): imported here, ahead of main.js's first render, so the stored offsets are on at boot
 import { ScreenFitSection } from './screenFit.js';
 import { OwnerKeySection } from './ownerName.js';
-import { AssetSection } from './assetSection.js';
 import { catalog, loadCatalog, cosmeticPlugins, installedCount, isPersonalCosmetic, personal, personalApplied, personalSet, pluginName, setPersonalPlugin } from '../content.js';
 import { resolveThemeVars, themeVarsOf } from '../../../shared/plugins/theme.js';
 import { setUiPlugin, uiPluginEntries, uiPlugins } from './uiPlugins.js';
@@ -411,10 +414,6 @@ function UiPluginSection() {
 }
 
 /**
- * Settings modal.
- * @param {{ open: boolean, onClose: Function }} props
- */
-/**
  * 素材存储: the 导入素材包 dialog asks for persistent storage once, as an import ends (ui/assetImport.js); this button asks
  * again whenever the player wants, and the line under it says what the browser answers now (navigator.storage.persisted).
  * Chrome and Edge decide silently from their own signals, Firefox asks the player; neither answer outlives a manual clear
@@ -484,7 +483,6 @@ function StorageSection() {
   </section>`;
 }
 
-/** The result screen's button plate. A missing sprite falls back to the same CSS wash. */
 /** A settings block title in the S.W.E.E.P. section-caption shape. `children` are the row's actions. */
 function SetHead({ id, title, micro, icon = null, children }) {
   return html`<div class="set-keys__head sw-sec__head">
@@ -494,11 +492,183 @@ function SetHead({ id, title, micro, icon = null, children }) {
   </div>`;
 }
 
-export function SettingsModal({ open, onClose }) {
+/**
+ * The pages of 设置 (the owner's request of 2026-11-16: 「换成多页的设计，而不是目前的一大页进行滚动」): a column of tabs
+ * with one page beside it — on a narrow screen held upright, two rows of tabs over the page —, the official client's
+ * 设置 layout (its tabs: 账号 / 游戏 / 音量 / 通知 / 其他). This game has no account or notification settings and many of
+ * its own, so the official 游戏 is split into 游戏 (what a match shows) and 画面 (quality and the interface's size), its
+ * 音量 is 声音, and 语言, 操作 (快捷键), 主题 and 皮肤与插件 have their own tabs; 其他 keeps 素材存储, 问题反馈 and 服主验证.
+ * The page last opened is remembered (`sp.pref.settingsPage`); a caller opens a given one with `page` (SettingsModal,
+ * SettingsButton) — the way to point at a setting from elsewhere.
+ */
+export const SETTINGS_PAGES = Object.freeze(['game', 'display', 'audio', 'language', 'controls', 'theme', 'plugins', 'other']);
+const PAGE_ICONS = { game: 'sword', display: 'eye', audio: 'music', language: 'book', controls: 'key', theme: 'edit', plugins: 'image', other: 'dots' };
+/** The page `id` names, or the first page (an unknown or missing id: an old remembered one, a typo). */
+export const settingsPageOf = (id) => (SETTINGS_PAGES.includes(id) ? id : SETTINGS_PAGES[0]);
+/** The tabs sit in rows over the page (css/components.css: the same query). */
+const STRIP_QUERY = '(max-width: 767px) and (orientation: portrait)';
+
+/**
+ * A tab's name and its micro line (literal msgids: a language switch reaches them). `skinsOnly`: the server has no
+ * plugins, so 皮肤与插件 holds the skins switch alone and says 皮肤.
+ * @param {string} id @param {boolean} skinsOnly @returns {[string, string]}
+ */
+function pageLabel(id, skinsOnly) {
+  switch (id) {
+    case 'game': return [tc('settings-page', '游戏'), 'GAME'];
+    case 'display': return [tc('settings-page', '画面'), 'DISPLAY'];
+    case 'audio': return [tc('settings-page', '声音'), 'AUDIO'];
+    case 'language': return [tc('settings-page', '语言'), 'LANGUAGE'];
+    case 'controls': return [tc('settings-page', '操作'), 'CONTROLS'];
+    case 'theme': return [tc('settings-page', '主题'), 'THEME'];
+    case 'plugins': return skinsOnly ? [tc('settings-page', '皮肤'), 'SKINS'] : [tc('settings-page', '皮肤与插件'), 'SKINS & PLUGINS'];
+    default: return [tc('settings-page', '其他'), 'OTHER'];
+  }
+}
+
+/** 游戏: what a match shows beyond the official interface, each switch with its note. */
+function GamePage({ s }) {
+  return html`
+    <div class="set-item"><${Toggle} label=${t('显示伤害数字')} micro="DAMAGE NUMBERS" value=${s.damageNumbers} onChange=${(v) => updateSettings({ damageNumbers: v })} /></div>
+    <div class="set-item"><${Toggle} label=${t('官方伤害数字')} micro="OFFICIAL NUMBERS" value=${s.officialDamageNumbers} onChange=${(v) => updateSettings({ officialDamageNumbers: v })} />
+      <p class="set-hint">${t('只显示达到官方暴击条件的红色数字。关闭时仍显示每一次命中。')}</p></div>
+    <div class="set-item"><${Toggle} label=${t('显示弹药与能量数量')} micro="AMMO & ENERGY" value=${s.ammoEnergyCount} onChange=${(v) => updateSettings({ ammoEnergyCount: v })} />
+      <p class="set-hint">${t('弹药类技能开启时，在弹药条下方显示剩余弹药 / 总弹药数（如 13/14）；秘术师的血条下方显示储存的攻击能量 / 上限（如 2/3）。官方界面没有这些数字。')}</p></div>
+    <div class="set-item"><${Toggle} label=${t('盟约效果剩余时间')} micro="BOND TIMERS" value=${s.bondTimers} onChange=${(v) => updateSettings({ bondTimers: v })} />
+      <p class="set-hint">${t('选中单位时显示叙拉古、萨尔贡效果的剩余时间，萨尔贡另显示层数。官方界面没有这些数字。')}</p></div>
+    <div class="set-item"><${Toggle} label=${t('商店标出我的预选盟约')} micro="MY BOND PLAN" value=${s.planMarkMine} onChange=${(v) => updateSettings({ planMarkMine: v })} />
+      <p class="set-hint">${t('商店和晋升奖励的干员卡上，你的主盟约显示为绿底，副盟约显示为绿框。')}</p></div>
+    <div class="set-item"><${Toggle} label=${t('商店标出队友的预选盟约')} micro="TEAM PLANS" value=${s.planMarkMates} onChange=${(v) => updateSettings({ planMarkMates: v })} />
+      <p class="set-hint">${t('共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。')}</p></div>
+    <div class="set-item"><${Toggle} label=${t('显示卡池剩余张数')} micro="POOL COUNT" value=${s.poolCount} onChange=${(v) => updateSettings({ poolCount: v })} />
+      <p class="set-hint">${t('和队友共用卡池时，在商店卡牌的价格右侧、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。')}</p></div>`;
+}
+
+/**
+ * 画面: 画面质量, 官方特效 (left out when no effects were extracted), 文字大小, 界面大小 (the step 'auto' resolves to on
+ * this device), 全屏时保持屏幕常亮 and 异形屏适配.
+ * @param {{ s: any, uiStep: string, fxOk: boolean, fxTier: string }} props
+ */
+function DisplayPage({ s, uiStep, fxOk, fxTier }) {
+  return html`
+    <div class="set-item"><div class="set-row">
+      <span class="set-row__label">${t('画面质量')}<${MicroLabel}>QUALITY<//></span>
+      <div class="set-seg" role="radiogroup">
+        ${QUALITY.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.quality === id ? 'true' : 'false'}
+          class=${s.quality === id ? 'is-on' : ''} onClick=${() => updateSettings({ quality: id })}>${t(label)}</button>`)}
+      </div>
+    </div></div>
+    ${fxOk ? html`<div class="set-item"><div class="set-row" data-testid="official-fx">
+      <span class="set-row__label">${t('官方特效')}<${MicroLabel}>OFFICIAL FX<//></span>
+      <div class="set-seg" role="radiogroup" aria-label=${t('官方特效')}>
+        ${OFFICIAL_FX.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${fxTier === id ? 'true' : 'false'}
+          class=${fxTier === id ? 'is-on' : ''} onClick=${() => updateSettings({ officialFx: id })}>${t(label)}</button>`)}
+      </div>
+    </div>
+    <p class="set-hint">${t('只在 3D 棋盘上显示。')}</p></div>` : null}
+    <div class="set-item"><div class="set-row">
+      <span class="set-row__label">${t('文字大小')}<${MicroLabel}>TEXT SIZE<//></span>
+      <div class="set-seg set-textsize" role="radiogroup" aria-label=${t('文字大小')} data-testid="text-size">
+        ${TEXT_SCALES.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.textSize === id ? 'true' : 'false'}
+          class=${s.textSize === id ? 'is-on' : ''} onClick=${() => updateSettings({ textSize: id })}>${t(label)}</button>`)}
+      </div>
+    </div>
+    <p class="set-hint set-textsize-note">${t('调整界面文字大小，棋盘保持原比例。')}</p></div>
+    <div class="set-item"><div class="set-row">
+      <span class="set-row__label">${t('界面大小')}<${MicroLabel}>UI SCALE<//></span>
+      <div class="set-seg set-uiscale" role="radiogroup" aria-label=${t('界面大小')} data-testid="ui-scale">
+        ${UI_STEPS.map((id) => html`<button key=${id} type="button" role="radio" aria-checked=${uiStep === id ? 'true' : 'false'}
+          class=${uiStep === id ? 'is-on' : ''} onClick=${() => updateSettings({ uiScale: id })}>${id}%</button>`)}
+      </div>
+    </div>
+    <p class="set-hint set-uiscale-note">${t('对局界面整体缩放：调小后棋盘更大，商店不用收起也能一边购买一边部署。默认手机 80%，电脑 100%。')}</p></div>
+    <div class="set-item"><${Toggle} label=${t('全屏时保持屏幕常亮')} micro="SCREEN WAKE LOCK" value=${s.fullscreenWakeLock} onChange=${(v) => updateSettings({ fullscreenWakeLock: v })} />
+      <p class="set-hint" data-testid="wake-lock-hint">${tParts(isIOS()
+        ? N_('全屏期间始终保持屏幕常亮（{support}）；iOS低电量模式下可能不生效。')
+        : N_('全屏期间始终保持屏幕常亮（{support}）。'), {
+        support: html`<${Tooltip} tap=${true} id="wake-lock-requirements" placement="bottom"
+          text=${t('需要 HTTPS 或可信的本地地址（如 localhost），浏览器支持 Screen Wake Lock API，且页面保持在前台。系统设置仍可能限制生效。')}>
+          <button type="button" class="set-hint__help" aria-describedby="wake-lock-requirements">${t('需要环境支持')}<${Icon} name="info" /></button>
+        <//>`,
+      })}</p></div>
+    <${ScreenFitSection} />`;
+}
+
+/** 声音: the three volumes (音效 plays a click as it moves, at most every 400 ms) and 静音. */
+function AudioPage({ s }) {
+  const tested = useRef(false);
+  const sfx = (v) => {
+    updateSettings({ sfx: v });
+    if (tested.current) return;
+    tested.current = true;
+    setTimeout(() => { tested.current = false; }, 400);
+    audio.sfx('click');
+  };
+  return html`
+    <div class="set-item"><${Slider} label=${t('背景音乐')} micro="BGM" icon="play" value=${s.bgm} onInput=${(v) => updateSettings({ bgm: v })} /></div>
+    <div class="set-item"><${Slider} label=${t('干员语音')} micro="VOICE" icon="mic" value=${s.voice} onInput=${(v) => updateSettings({ voice: v })} /></div>
+    <div class="set-item"><${Slider} label=${t('音效')} micro="SFX" icon="signal" value=${s.sfx} onInput=${sfx} /></div>
+    <div class="set-item"><${Toggle} label=${t('静音')} micro="MUTE" value=${s.muted} onChange=${(v) => updateSettings({ muted: v })} /></div>`;
+}
+
+/** 语言: the interface language and the operators' dub (ui/languageSettings.js), then 本土语言. */
+function LanguagePage({ s }) {
+  return html`
+    <${LanguageSettings} />
+    <div class="set-item"><${Toggle} label=${tc('voice-lang', '本土语言')} micro="NATIVE VOICE" value=${s.voiceNative} onChange=${(v) => updateSettings({ voiceNative: v })} />
+      <p class="set-hint">${t('有本土语言配音时使用')}</p></div>`;
+}
+
+/** 操作: 部署时按格子吸附, the shortcut keys, and how a unit's details open on this device. */
+function ControlsPage({ s, touchUi }) {
+  return html`
+    <div class="set-item"><${Toggle} label=${t('部署时按格子吸附')} micro="SNAP TO TILE" value=${s.deploySnap} onChange=${(v) => updateSettings({ deploySnap: v })} />
+      <p class="set-hint">${t('拖动干员时，干员站在目标格子上逐格移动，松手就落在这一格。关闭时干员跟随手指或鼠标自由移动。')}</p></div>
+    <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
+    <p class="set-hint set-controls-tip">${touchUi ? t('触屏操作：点击单位选中（撤退 / 出售）· 长按单位或卡牌查看详情 · 拖动部署后滑动选择朝向') : t('右键查看详情')}</p>`;
+}
+
+/** 主题: the interface themes (ui/themeSettings.js) and 主题动画. */
+function ThemePage({ s }) {
+  return html`
+    <${ThemeSection} activeId=${s.uiTheme || ''} />
+    <div class="set-item"><${Toggle} label=${t('主题动画')} micro="THEME MOTION" value=${s.themeMotion} onChange=${(v) => updateSettings({ themeMotion: v })} />
+      <p class="set-hint" data-testid="theme-motion-hint">${t('规程里乌萨斯齐心团、可露希尔主题界面的循环动画（倒计时与按钮的闪光等）。关闭后只显示静态画面，适合配置较低的设备；系统开启“减少动态效果”时也不播放。')}</p></div>`;
+}
+
+/**
+ * Settings modal: the tabs of SETTINGS_PAGES and the page chosen (only that page is mounted: a section's own checks —
+ * the plugin catalogue, the storage answer — run when its page opens). Arrow keys, Home and End move along the tabs.
+ * @param {{ open: boolean, onClose: Function, page?: string|null }} props `page`: open on this page (else the last one)
+ */
+export function SettingsModal({ open, onClose, page: asked = null }) {
   const s = useSettings();
-  const [tested, setTested] = useState(false);
   const [touchUi] = useState(() => detectFeatures().coarse && !detectFeatures().fine);
   const uiStep = uiScaleStep(s.uiScale, useMedia(PHONE_QUERY));
+  const strip = useMedia(STRIP_QUERY);
+  const skinsOnly = !useStore(installedCount);
+  const [page, setPage] = useState(() => settingsPageOf(asked ?? loadPref('settingsPage', null)));
+  // a caller that names a page opens on it, also when the modal stays mounted closed (the match's)
+  useEffect(() => { if (open && asked) setPage(settingsPageOf(asked)); }, [open, asked]);
+  const tabsRef = useRef(null);
+  const pageRef = useRef(null);
+  // a page opens at its top, its tab in view (the strip scrolls sideways)
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (pageRef.current) pageRef.current.scrollTop = 0;
+    tabsRef.current?.querySelector('.set-tab.is-on')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [open, page]);
+  const choose = (id) => { setPage(id); savePref('settingsPage', id); };
+  const onTabKey = (e) => {
+    const n = SETTINGS_PAGES.length;
+    const i = SETTINGS_PAGES.indexOf(page);
+    const to = { ArrowDown: i + 1, ArrowRight: i + 1, ArrowUp: i - 1, ArrowLeft: i - 1, Home: 0, End: n - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    const id = SETTINGS_PAGES[(to + n) % n];
+    choose(id);
+    tabsRef.current?.querySelector(`[data-page="${id}"]`)?.focus();
+  };
   const [fxOk, setFxOk] = useState(false);  // effects extracted from the local client: the 官方特效 row shows
   // only while it is open (the title page keeps the modal mounted, closed), and from the effects' own file list: the
   // asset store (assets.js) is not loaded before a match (test/ui/plugins.e2e.test.js). A Phase 1a extraction (0.3.0
@@ -512,87 +682,32 @@ export function SettingsModal({ open, onClose }) {
     return () => { live = false; off(); };
   }, [open]);
   const fxTier = resolveOfficialFx(s.officialFx, true);
-  return html`<${Modal} open=${open} onClose=${onClose} class="setdlg" title=${t('设置')} micro="SETTINGS" width="7.4rem"
+  const body = page === 'game' ? html`<${GamePage} s=${s} />`
+    : page === 'display' ? html`<${DisplayPage} s=${s} uiStep=${uiStep} fxOk=${fxOk} fxTier=${fxTier} />`
+      : page === 'audio' ? html`<${AudioPage} s=${s} />`
+        : page === 'language' ? html`<${LanguagePage} s=${s} />`
+          : page === 'controls' ? html`<${ControlsPage} s=${s} touchUi=${touchUi} />`
+            : page === 'theme' ? html`<${ThemePage} s=${s} />`
+              : page === 'plugins' ? html`<${CosmeticSection} /><${UiPluginSection} />`
+                : html`<${StorageSection} /><${DiagSection} /><${OwnerKeySection} />`;
+  return html`<${Modal} open=${open} onClose=${onClose} class="setdlg" veilClass="setdlg-veil" title=${t('设置')} micro="SETTINGS"
                         actions=${html`<${Button} variant="secondary" icon="book" class="set-guide" onClick=${() => openGuide(0)}>${t('玩法说明')}<//>
                         <${Button} variant="primary" icon="check" onClick=${onClose}>${t('完成')}<//>`}>
-    <div class="set-list">
-      <${SetHead} icon="book" title=${t('语言')} micro="LANGUAGE" />
-      <${LanguageSettings} />
-      <${Toggle} label=${tc('voice-lang', '本土语言')} micro="NATIVE VOICE" value=${s.voiceNative} onChange=${(v) => updateSettings({ voiceNative: v })} />
-      <p class="set-hint">${t('有本土语言配音时使用')}</p>
-      <${SetHead} icon="music" title=${t('声音')} micro="SOUND" />
-      <${Slider} label=${t('背景音乐')} micro="BGM" icon="play" value=${s.bgm} onInput=${(v) => updateSettings({ bgm: v })} />
-      <${Slider} label=${t('干员语音')} micro="VOICE" icon="mic" value=${s.voice} onInput=${(v) => updateSettings({ voice: v })} />
-      <${Slider} label=${t('音效')} micro="SFX" icon="signal" value=${s.sfx}
-                 onInput=${(v) => { updateSettings({ sfx: v }); if (!tested) { setTested(true); setTimeout(() => setTested(false), 400); audio.sfx('click'); } }} />
-      <${Toggle} label=${t('静音')} micro="MUTE" value=${s.muted} onChange=${(v) => updateSettings({ muted: v })} />
-      <${Toggle} label=${t('显示伤害数字')} micro="DAMAGE NUMBERS" value=${s.damageNumbers} onChange=${(v) => updateSettings({ damageNumbers: v })} />
-      <${Toggle} label=${t('官方伤害数字')} micro="OFFICIAL NUMBERS" value=${s.officialDamageNumbers} onChange=${(v) => updateSettings({ officialDamageNumbers: v })} />
-      <p class="set-hint">${t('只显示达到官方暴击条件的红色数字。关闭时仍显示每一次命中。')}</p>
-      <${Toggle} label=${t('显示弹药与能量数量')} micro="AMMO & ENERGY" value=${s.ammoEnergyCount} onChange=${(v) => updateSettings({ ammoEnergyCount: v })} />
-      <p class="set-hint">${t('弹药类技能开启时，在弹药条下方显示剩余弹药 / 总弹药数（如 13/14）；秘术师的血条下方显示储存的攻击能量 / 上限（如 2/3）。官方界面没有这些数字。')}</p>
-      <${Toggle} label=${t('盟约效果剩余时间')} micro="BOND TIMERS" value=${s.bondTimers} onChange=${(v) => updateSettings({ bondTimers: v })} />
-      <p class="set-hint">${t('选中单位时显示叙拉古、萨尔贡效果的剩余时间，萨尔贡另显示层数。官方界面没有这些数字。')}</p>
-      <${Toggle} label=${t('商店标出我的预选盟约')} micro="MY BOND PLAN" value=${s.planMarkMine} onChange=${(v) => updateSettings({ planMarkMine: v })} />
-      <p class="set-hint">${t('商店和晋升奖励的干员卡上，你的主盟约显示为绿底，副盟约显示为绿框。')}</p>
-      <${Toggle} label=${t('商店标出队友的预选盟约')} micro="TEAM PLANS" value=${s.planMarkMates} onChange=${(v) => updateSettings({ planMarkMates: v })} />
-      <p class="set-hint">${t('共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。')}</p>
-      <${Toggle} label=${t('显示卡池剩余张数')} micro="POOL COUNT" value=${s.poolCount} onChange=${(v) => updateSettings({ poolCount: v })} />
-      <p class="set-hint">${t('和队友共用卡池时，在商店卡牌的价格右侧、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。')}</p>
-      <${Toggle} label=${t('部署时按格子吸附')} micro="SNAP TO TILE" value=${s.deploySnap} onChange=${(v) => updateSettings({ deploySnap: v })} />
-      <p class="set-hint">${t('拖动干员时，干员站在目标格子上逐格移动，松手就落在这一格。关闭时干员跟随手指或鼠标自由移动。')}</p>
-      <${Toggle} label=${t('全屏时保持屏幕常亮')} micro="SCREEN WAKE LOCK" value=${s.fullscreenWakeLock} onChange=${(v) => updateSettings({ fullscreenWakeLock: v })} />
-      <p class="set-hint" data-testid="wake-lock-hint">${tParts(isIOS()
-        ? N_('全屏期间始终保持屏幕常亮（{support}）；iOS低电量模式下可能不生效。')
-        : N_('全屏期间始终保持屏幕常亮（{support}）。'), {
-        support: html`<${Tooltip} tap=${true} id="wake-lock-requirements" placement="bottom"
-          text=${t('需要 HTTPS 或可信的本地地址（如 localhost），浏览器支持 Screen Wake Lock API，且页面保持在前台。系统设置仍可能限制生效。')}>
-          <button type="button" class="set-hint__help" aria-describedby="wake-lock-requirements">${t('需要环境支持')}<${Icon} name="info" /></button>
-        <//>`,
-      })}</p>
-      <div class="set-row">
-        <span class="set-row__label">${t('画面质量')}<${MicroLabel}>QUALITY<//></span>
-        <div class="set-seg" role="radiogroup">
-          ${QUALITY.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.quality === id ? 'true' : 'false'}
-            class=${s.quality === id ? 'is-on' : ''} onClick=${() => updateSettings({ quality: id })}>${t(label)}</button>`)}
-        </div>
+    <div class="set-pages">
+      <div ref=${tabsRef} class="set-tabs" role="tablist" aria-label=${t('设置分类')} aria-orientation=${strip ? 'horizontal' : 'vertical'}
+        onKeyDown=${onTabKey}>
+        ${SETTINGS_PAGES.map((id) => {
+          const on = id === page;
+          const [name, micro] = pageLabel(id, skinsOnly);
+          return html`<button key=${id} type="button" role="tab" id=${`set-tab-${id}`} class=${cx('set-tab', on && 'is-on')}
+            aria-selected=${on ? 'true' : 'false'} aria-controls="set-page" tabIndex=${on ? 0 : -1} data-page=${id}
+            data-testid=${`set-tab-${id}`} onClick=${() => choose(id)}>
+            <${Icon} name=${PAGE_ICONS[id]} /><span class="set-tab__name">${name}</span><${MicroLabel} class="set-tab__micro">${micro}<//>
+          </button>`;
+        })}
       </div>
-      ${fxOk ? html`<div class="set-row" data-testid="official-fx">
-        <span class="set-row__label">${t('官方特效')}<${MicroLabel}>OFFICIAL FX<//></span>
-        <div class="set-seg" role="radiogroup" aria-label=${t('官方特效')}>
-          ${OFFICIAL_FX.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${fxTier === id ? 'true' : 'false'}
-            class=${fxTier === id ? 'is-on' : ''} onClick=${() => updateSettings({ officialFx: id })}>${t(label)}</button>`)}
-        </div>
-      </div>
-      <p class="set-hint">${t('只在 3D 棋盘上显示。')}</p>` : null}
-      <div class="set-row">
-        <span class="set-row__label">${t('文字大小')}<${MicroLabel}>TEXT SIZE<//></span>
-        <div class="set-seg set-textsize" role="radiogroup" aria-label=${t('文字大小')} data-testid="text-size">
-          ${TEXT_SCALES.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.textSize === id ? 'true' : 'false'}
-            class=${s.textSize === id ? 'is-on' : ''} onClick=${() => updateSettings({ textSize: id })}>${t(label)}</button>`)}
-        </div>
-      </div>
-      <p class="set-hint set-textsize-note">${t('调整界面文字大小，棋盘保持原比例。')}</p>
-      <div class="set-row">
-        <span class="set-row__label">${t('界面大小')}<${MicroLabel}>UI SCALE<//></span>
-        <div class="set-seg set-uiscale" role="radiogroup" aria-label=${t('界面大小')} data-testid="ui-scale">
-          ${UI_STEPS.map((id) => html`<button key=${id} type="button" role="radio" aria-checked=${uiStep === id ? 'true' : 'false'}
-            class=${uiStep === id ? 'is-on' : ''} onClick=${() => updateSettings({ uiScale: id })}>${id}%</button>`)}
-        </div>
-      </div>
-      <p class="set-hint set-uiscale-note">${t('对局界面整体缩放：调小后棋盘更大，商店不用收起也能一边购买一边部署。默认手机 80%，电脑 100%。')}</p>
-      <${AssetSection} voice=${s.voiceLang} native=${s.voiceNative} />
-      <${ThemeSection} activeId=${s.uiTheme || ''} />
-      <${Toggle} label=${t('主题动画')} micro="THEME MOTION" value=${s.themeMotion} onChange=${(v) => updateSettings({ themeMotion: v })} />
-      <p class="set-hint" data-testid="theme-motion-hint">${t('规程里乌萨斯齐心团、可露希尔主题界面的循环动画（倒计时与按钮的闪光等）。关闭后只显示静态画面，适合配置较低的设备；系统开启“减少动态效果”时也不播放。')}</p>
-      <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
-      <${ScreenFitSection} />
-      <${CosmeticSection} />
-      <${UiPluginSection} />
-      <${StorageSection} />
-      <${DiagSection} />
-      <${OwnerKeySection} />
-      <p class="set-hint">${touchUi ? t('触屏操作：点击单位选中（撤退 / 出售）· 长按单位或卡牌查看详情 · 拖动部署后滑动选择朝向') : t('右键查看详情')}</p>
+      <div ref=${pageRef} id="set-page" class="set-page set-list" role="tabpanel" aria-labelledby=${`set-tab-${page}`}
+        data-page=${page} data-testid="settings-page">${body}</div>
     </div>
   <//>`;
 }
@@ -601,14 +716,15 @@ export function SettingsModal({ open, onClose }) {
  * The 设置 button of the lobby and the room (GitHub #238 — before it the settings were reachable only from the title
  * screen and a running match): the twin of the 玩法说明 button (ui/guide.js GuideButton), with the settings modal behind it
  * (mounted only while open). The same modal as the title screen's and the match's: nothing in it is match-only.
- * `square`: the gear alone (the lobby's top bar), the name stays title / aria-label — like GuideButton's.
- * @param {{ class?: string, size?: 'sm'|'md'|'lg'|'xl', variant?: string, label?: string, square?: boolean }} props
+ * `square`: the gear alone (the lobby's top bar), the name stays title / aria-label — like GuideButton's. `page`: the
+ * page it opens on (SETTINGS_PAGES; else the one last opened).
+ * @param {{ class?: string, size?: 'sm'|'md'|'lg'|'xl', variant?: string, label?: string, square?: boolean, page?: string }} props
  */
-export function SettingsButton({ class: cls, size = 'sm', variant = 'ghost', label = t('设置'), square = false }) {
+export function SettingsButton({ class: cls, size = 'sm', variant = 'ghost', label = t('设置'), square = false, page = null }) {
   const [open, setOpen] = useState(false);
   return html`<${Button} variant=${variant} size=${size} square=${square} class=${cx('settings-btn', cls)} onClick=${() => setOpen(true)}
       title=${t('设置')} aria-label=${t('设置')} data-testid="settings-btn"><${GIcon} name="gear" class="btn__icon" />${square ? null : label}<//>
-    ${open ? html`<${SettingsModal} open=${true} onClose=${() => setOpen(false)} />` : null}`;
+    ${open ? html`<${SettingsModal} open=${true} page=${page} onClose=${() => setOpen(false)} />` : null}`;
 }
 
 // The official themes this browser imported (§37.232) join the local art manifest every screen reads

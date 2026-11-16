@@ -28,23 +28,6 @@ export function collectAssetUrls(...manifests) {
   return [...urls].sort((a, b) => Number(a.startsWith('/media/')) - Number(b.startsWith('/media/')) || a.localeCompare(b));
 }
 
-/**
- * Fork (2026-10-16, the owner's request for players on weak networks; 设置 → 素材下载, ui/assetSection.js): what a
- * download takes. 'all' is the upstream list; 'match' leaves out the operator skins (/assets/skins/, about 1.6 GB, each
- * fetched when it is worn) and the dub banks of the voice languages this player does not hear — the Chinese lines stay,
- * the other dubs fall back to them (voiceLanguage.js), and the native lines only with 本土语言 on.
- * @param {string[]} urls collectAssetUrls() @param {{ tier?: string, voice?: string, native?: boolean }} [selection]
- */
-export function selectAssetTier(urls, { tier = 'all', voice = 'cn', native = false } = {}) {
-  if (tier !== 'match') return urls;
-  const dubs = new Set(['cn', voice, native ? 'native' : null]);
-  return urls.filter((url) => { // plain paths, or content-hashed ones (/assets/~<16 hex>/…) when the server indexes them
-    if (/^\/assets\/(?:~[0-9a-f]{16}\/)?skins\//.test(url)) return false;
-    const dub = /^\/media\/(?:~[0-9a-f]{16}\/)?voice\/([^/]+)\//.exec(url);
-    return !dub || dubs.has(dub[1]);
-  });
-}
-
 /** Keep only the explicitly selected download dubs per operator; never mutate the served manifest. */
 export function selectVoiceAssets(manifest, settings) {
   const audio = manifest?.audio;
@@ -63,16 +46,13 @@ export function createAssetDownload({ fetch: doFetch = (...args) => globalThis.f
   // `storage`: where downloads are kept — 'site' (the import cache), 'http' (the HTTP cache only: no secure context or no
   // Cache Storage), 'full' (a write failed, e.g. over quota: the rest of this run goes to the HTTP cache only)
   let state = { phase: 'idle', total: 0, done: 0, bytes: 0, failures: [], localMissing: false, cached: 0, storage: null };
-  // listed: every file of the manifests (the dubs already cut to the voice download choice, selectVoiceAssets); urls: the
-  // selected tier of them (start({ tier, … }), selectAssetTier — this fork's 设置 → 素材下载)
-  let listed = null, urls = null, selection = {}, running = null, controller = null, paused = false, lastNotice = 0, keeper = null;
+  let urls = null, running = null, controller = null, paused = false, lastNotice = 0, keeper = null;
   let voiceKey = null, voiceSettings = null;
   const complete = new Set(), failures = new Map(), listeners = new Set();
-  const doneCount = () => (urls ? urls.reduce((n, url) => n + (complete.has(url) ? 1 : 0), 0) : complete.size);
   const emit = (force = false) => {
     if (!force && Date.now() - lastNotice < 100) return;
     lastNotice = Date.now();
-    state = { ...state, done: doneCount(), failures: [...failures.values()] };
+    state = { ...state, done: complete.size, failures: [...failures.values()] };
     for (const listener of listeners) listener(state);
   };
 
@@ -149,7 +129,7 @@ export function createAssetDownload({ fetch: doFetch = (...args) => globalThis.f
 
   async function run() {
     try {
-      if (!listed) {
+      if (!urls) {
         state = { ...state, phase: 'preparing', error: null };
         emit(true);
         // Sequential manifest reads keep cancellation simple and never leave a rejected sibling promise.
@@ -162,12 +142,10 @@ export function createAssetDownload({ fetch: doFetch = (...args) => globalThis.f
           || (fx !== null && (!fx || typeof fx !== 'object' || !fx.groups))) throw new Error('Invalid asset manifest');
         const list = collectAssetUrls(selectVoiceAssets(assets, voiceSettings), local, fx);
         if (!list.length) throw new Error('Empty asset manifest');
-        listed = list;
-        for (const url of complete) if (!list.includes(url)) complete.delete(url);
-        state = { ...state, localMissing: local === null };
+        urls = list;
+        for (const url of complete) if (!urls.includes(url)) complete.delete(url);
+        state = { ...state, total: urls.length, localMissing: local === null };
       }
-      urls = selectAssetTier(listed, selection);
-      state = { ...state, total: urls.length };
       if (paused) return;
       let imported = null;
       try { imported = await lookupImported(); } catch { imported = null; }
@@ -221,12 +199,10 @@ export function createAssetDownload({ fetch: doFetch = (...args) => globalThis.f
   return {
     get: () => state,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    /** @param {{ tier?: string, voice?: string, native?: boolean }} [choice] what to take (selectAssetTier) */
-    start(choice) {
+    start() {
       if (running) return running;
       paused = false;
       controller = new AbortController();
-      if (choice) selection = { ...choice };
       const nextSettings = readVoiceSettings();
       const nextKey = JSON.stringify(nextSettings);
       const changed = voiceKey !== nextKey;
@@ -234,10 +210,10 @@ export function createAssetDownload({ fetch: doFetch = (...args) => globalThis.f
       voiceSettings = nextSettings;
       // A new check after completion revalidates the manifest and all files through the HTTP cache.
       if (state.phase === 'complete' && !changed) {
-        listed = null; urls = null; complete.clear();
+        urls = null; complete.clear();
         state = { phase: 'idle', total: 0, done: 0, bytes: 0, failures: [], localMissing: false, cached: 0, storage: null };
       }
-      if (changed) { listed = null; urls = null; } // Reconcile URLs after rereading manifests; retain completed non-voice files.
+      if (changed) urls = null; // Reconcile URLs after rereading manifests; retain completed non-voice files.
       running = run().finally(() => { running = null; });
       return running;
     },

@@ -68,7 +68,7 @@ test('mobile lobby, same-pool count and every expanded roster seat remain operab
     await tap('.lobby-tools summary'); await tap('.lobby-announcements');
     await page.waitForSelector('.announcement-board'); await tap('.announcement-board button', '关闭公告');
     await tap('.lobby-tools summary');
-    await tap('[data-testid="settings-btn"]'); await page.waitForSelector('.modal [data-testid="lang-toggle"]');
+    await tap('[data-testid="settings-btn"]'); await tap('[data-testid="set-tab-language"]'); await page.waitForSelector('.modal [data-testid="lang-toggle"]');
     await page.select('[data-testid="lang-toggle"] select', 'en'); await page.waitForFunction(() => document.documentElement.lang === 'en');
     await page.select('[data-testid="lang-toggle"] select', 'zh'); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
     await tap('.modal__actions button', '完成');

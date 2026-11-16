@@ -18,6 +18,14 @@ const KEPT = '已持久保存：存储空间不足时，浏览器不会自动清
 const NOT_KEPT = '未持久保存：存储空间不足时，浏览器可能清掉导入的素材。';
 const REFUSED = /^浏览器没有同意。/;
 
+/** A 公告板 that opened by itself over the lobby is closed first (it covers the top bar's 设置). */
+async function closeNotices(page) {
+  if (await page.waitForSelector('.announcement-board', { visible: true, timeout: 1500 }).catch(() => null)) {
+    await page.click('.announcement-board .modal__actions button');
+    await page.waitForSelector('.announcement-board', { hidden: true });
+  }
+}
+
 describe('设置 → 素材存储', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;
   let browser;
@@ -47,7 +55,10 @@ describe('设置 → 素材存储', { skip: !ENABLED && 'set SP_E2E=1 (and have 
     await skipEntryFilm(page);
     await page.goto(`${base}/`, { waitUntil: 'networkidle0', timeout: 60000 });
     await page.waitForSelector('.lobby-settings', { timeout: 15000 });
+    await closeNotices(page);
     await page.click('.lobby-settings');
+    await page.waitForSelector('[data-testid="set-tab-other"]', { timeout: 5000 }); // 素材存储 is on the 其他 page (the paged 设置, 2026-11-16)
+    await page.click('[data-testid="set-tab-other"]');
     await page.waitForSelector('[data-testid="storage-note"]', { timeout: 5000 });
     return { page, problems };
   };
@@ -104,7 +115,10 @@ describe('设置 → 素材存储', { skip: !ENABLED && 'set SP_E2E=1 (and have 
       await cache.put('/sp-imported-index.json', new Response(JSON.stringify([...urls].sort()), { headers: { 'Content-Type': 'application/json' } }));
     }, [current, old]);
     await page.waitForSelector('.lobby-settings', { timeout: 15000 });
+    await closeNotices(page);
     await page.click('.lobby-settings');
+    await page.waitForSelector('[data-testid="set-tab-other"]', { timeout: 5000 });
+    await page.click('[data-testid="set-tab-other"]');
     await page.waitForSelector('[data-testid="storage-prune"]', { timeout: 5000 });
     await page.click('[data-testid="storage-prune"]');
     await page.waitForFunction(() => [...document.querySelectorAll('button[data-autofocus]')].some((b) => b.textContent.trim() === '清理'), { timeout: 5000 });
