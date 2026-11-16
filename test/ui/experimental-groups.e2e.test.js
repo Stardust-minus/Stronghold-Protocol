@@ -11,8 +11,10 @@
 // The server's budget of resend-heavy intents per connection (server/net.js NET_DEFAULTS heavyBurst 6, refilled at
 // heavyPerSec 2; HEAVY_TYPES) is shared by queue.join and the lobby settings a page sends on its hello and again as
 // 多人匹配 opens (room.loadout, room.ownership, room.diy, room.skins, room.card): a 开始多人匹配 right after them is answered
-// RATE「queue.join too often」. The page says so (its toast, 操作过于频繁, and it stays idle: checked once on purpose); each
-// real start waits until the budget is whole again (HEAVY_REFILL_MS) — the test does not change the server's limits.
+// RATE「queue.join too often」. The page sends it once more a moment later (lobby.js QUEUE_RETRY_MS) without a word, and
+// says so only when that one is refused too (its toast, 操作过于频繁, idle again), or sends nothing more once the sheet has
+// closed — all checked on purpose; each real start waits until the budget is whole again (HEAVY_REFILL_MS). The test
+// does not change the server's limits.
 //
 //   SP_E2E=1 node --test test/ui/experimental-groups.e2e.test.js
 //
@@ -121,16 +123,60 @@ describe('实验性功能 by group, 多人匹配 with own options (real server)'
       await me.page.keyboard.press('Escape');
       await me.page.waitForSelector('[data-testid="version-picker"]', { hidden: true });
 
-      // ---- a start the server refuses for rate: the page says so and stays idle ----
-      // (the budget spent on purpose: heavyBurst room.list in the same task as the click, so queue.join comes right after)
-      await me.page.evaluate((n) => {
-        for (let i = 0; i < n; i++) globalThis.__SP__.net.request('room.list').catch(() => {});
+      // ---- a start the server refuses for rate: tried once more without a word; a second refusal is told ----
+      // (the budget spent on purpose: heavyBurst room.list in the same task as the click, so queue.join comes right after;
+      // `keep` goes on spending it until the retry is past; every queue.join's answer and any 操作过于频繁 are recorded)
+      const RATE_TEXT = '操作过于频繁';
+      const spendAndStart = (keep) => me.page.evaluate((n, keep, text) => {
+        const w = globalThis.__rate = { joins: [], toast: false };
+        const net = globalThis.__SP__.net;
+        if (!net.__joinsTapped) {
+          const request = net.request.bind(net);
+          net.request = (t, ...rest) => {
+            const p = request(t, ...rest);
+            if (t === 'queue.join') p.then(() => globalThis.__rate.joins.push('ok'), (e) => globalThis.__rate.joins.push(e?.code || 'error'));
+            return p;
+          };
+          net.__joinsTapped = true;
+        }
+        const seen = () => [...document.querySelectorAll('.toast .toast__text')].some((el) => el.textContent === text);
+        const obs = new MutationObserver(() => { if (seen()) w.toast = true; });
+        obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+        setTimeout(() => obs.disconnect(), 4000);
+        const spend = () => { for (let i = 0; i < n; i++) net.request('room.list').catch(() => {}); };
+        spend();
         document.querySelector('.proto-start').click();
-      }, NET_DEFAULTS.heavyBurst);
-      await me.page.waitForFunction(() => [...document.querySelectorAll('.toast .toast__text')].some((el) => el.textContent === '操作过于频繁'), { timeout: 5000 });
+        if (keep) { const id = setInterval(spend, 300); setTimeout(() => clearInterval(id), 2000); }
+      }, NET_DEFAULTS.heavyBurst, keep, RATE_TEXT);
+      const rate = () => me.page.evaluate(() => globalThis.__rate);
+      // refused once: sent again, queued, no toast
+      await spendAndStart(false);
+      await me.page.waitForFunction(() => globalThis.__SP__.store.get().queue.state === 'queued', { timeout: 8000 });
+      assert.deepEqual((await rate()).joins, ['RATE', 'ok']);
+      await sleep(500);
+      assert.equal((await rate()).toast, false, 'no 操作过于频繁 for a retry that went through');
+      await me.click('.mf-stop', '停止搜寻');
+      await me.page.waitForFunction(() => globalThis.__SP__.store.get().queue.state === 'idle', { timeout: 10000 });
+      await me.page.waitForSelector('.proto-start', { visible: true, timeout: 10000 });
+      // refused twice: the toast, idle, the start offered again
+      await sleep(HEAVY_REFILL_MS);
+      await spendAndStart(true);
+      await me.page.waitForFunction((text) => [...document.querySelectorAll('.toast .toast__text')].some((el) => el.textContent === text), { timeout: 5000 }, RATE_TEXT);
+      assert.deepEqual((await rate()).joins, ['RATE', 'RATE']);
       assert.equal(await me.page.evaluate(() => globalThis.__SP__.store.get().queue.state), 'idle');
       assert.equal(await me.page.$eval('.proto-start', (el) => el.disabled), false, 'the start is offered again');
       await me.shot('match-rate');
+      // refused, then the sheet closed before the retry: nothing more is sent, nothing is said
+      await sleep(HEAVY_REFILL_MS + 3600); // the toast above gone too
+      await spendAndStart(false);
+      await me.page.waitForFunction(() => globalThis.__rate.joins.length === 1, { timeout: 5000 });
+      await me.page.keyboard.press('Escape');
+      await me.page.waitForSelector('.proto', { hidden: true, timeout: 10000 });
+      await sleep(2000);
+      assert.deepEqual(await rate(), { joins: ['RATE'], toast: false });
+      assert.equal(await me.page.evaluate(() => globalThis.__SP__.store.get().queue.state), 'idle');
+      await me.click('.hub-entry', '多人匹配');
+      await me.page.waitForSelector('[data-testid="match-scope"]', { visible: true, timeout: 15000 });
 
       // ---- 确认入场: my options ----
       await lone('BotSame', { rules: ['custom'], experimental: MINE });

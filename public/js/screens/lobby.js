@@ -329,6 +329,8 @@ const FALLBACK_TIPS = [
   N_('只有达成完美作战的队友可以进行联防'),
 ];
 const TIP_ROTATE_MS = 5000; // matchingTipRotateInterval
+/** How long a 开始多人匹配 refused as too frequent (RATE) waits before it is sent once more [ASSUMED] (room.js PROPOSE_RETRY_MS). */
+const QUEUE_RETRY_MS = 1200;
 
 /** Rotating tactical tips (config.json `tips`, weighted list of { tip, weight }). */
 function TipsPanel() {
@@ -624,8 +626,9 @@ function ProtocolArt({ d, regArt = false }) {
  */
 function ProtocolSelect({ card, purpose = 'create', difficulty, onDifficulty, onClose, online, maint, busy, queue, onCreate, onQueue, chained = false,
   difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, picks = null, onPick = null, scope = null, onScope = null,
-  ladder = null, modeId = null, onMode = null, season = null, look = false, pool = null, own = null }) {
+  ladder = null, modeId = null, onMode = null, season = null, look = false, pool = null, own = null, onLeaving = null }) {
   const [leaving, leave] = useLeave(onClose);
+  useEffect(() => { if (leaving) onLeaving?.(); }, [leaving]); // ‹ / Esc pressed: closing from now (lobby.js queueMatch)
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
     addEventListener('keydown', onKey);
@@ -994,6 +997,8 @@ export function LobbyScreen() {
   };
   // hub screens: 选择模拟协议 of 独立模拟 / 多人匹配, 选择同盟方式, 密钥加入
   const [sheet, setSheet] = useState(null);                // null | 'solo' | 'match'
+  const sheetSeq = useRef(0);                               // counts the sheet's changes and closings (queueMatch)
+  useEffect(() => { sheetSeq.current += 1; }, [sheet]);
   const [sheetChained, setSheetChained] = useState(false); // opened from 选择同盟方式: no darkening of the hub between
   const [allyOpen, setAllyOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);          // 公开同盟, over 选择同盟方式 (ui/roomList.js)
@@ -1036,12 +1041,26 @@ export function LobbyScreen() {
   const serverDefault = useStore(serverDefaultVersion);
   const pool = versions ? { label: versionLabel(version), off: !versionQueueable({ versions }, version),
     onPick: versions.length > 1 && !queued ? () => setVerOpen(true) : null } : null;
-  const queueMatch = () => run('queue', () => net.request('queue.join', { difficulty: matchFocus, ...(picks.length > 1 ? { difficulties: picks } : {}),
-    ...matchScopeRequest(shownRange, matchOpts, takesCustom), ...(versions ? { version } : {}) }).catch((err) => {
-    // a version this server cannot queue right now (its data, its match host): say which, not the room's wording
-    if (err?.code === ERR.VERSION_UNSUPPORTED || err?.code === ERR.VERSION_UNKNOWN) { toast(t('「{version}」暂不开放多人匹配', { version: versionLabel(version) }), 'warn'); return; }
-    throw err;
-  }));
+  // (opening 多人匹配 makes the page send its settings again, which share the server's budget of heavy messages with
+  // queue.join: a RATE right after them is tried once more a moment later, as room.js proposeVersion does — not when the
+  // sheet closed or the lobby left meanwhile; a second RATE is told)
+  const queueMatch = () => run('queue', async () => {
+    const send = () => net.request('queue.join', { difficulty: matchFocus, ...(picks.length > 1 ? { difficulties: picks } : {}),
+      ...matchScopeRequest(shownRange, matchOpts, takesCustom), ...(versions ? { version } : {}) });
+    const seq = sheetSeq.current;
+    try {
+      try { await send(); } catch (err) {
+        if (err?.code !== ERR.RATE) throw err;
+        await new Promise((r) => setTimeout(r, QUEUE_RETRY_MS));
+        if (!alive.current || sheetSeq.current !== seq) return;
+        await send();
+      }
+    } catch (err) {
+      // a version this server cannot queue right now (its data, its match host): say which, not the room's wording
+      if (err?.code === ERR.VERSION_UNSUPPORTED || err?.code === ERR.VERSION_UNKNOWN) { toast(t('「{version}」暂不开放多人匹配', { version: versionLabel(version) }), 'warn'); return; }
+      throw err;
+    }
+  });
   // an offer while the hub shows: 选择模拟协议 comes up with 确认入场 (the 30-second window must not go unseen)
   useEffect(() => { if (queue?.state === 'offered' && sheet !== 'match') { setAllyOpen(false); setSheetChained(false); setSheet('match'); } }, [queue?.state]);
   const join = (c = code) => {
@@ -1157,7 +1176,7 @@ export function LobbyScreen() {
       difficulties=${sheet === 'match' ? coop : solo} loading=${versionLoading} failed=${versionFailed} pool=${sheet === 'match' ? pool : null}
       soloTime=${sheet !== 'match' && soloTimed === true ? { on: soloFree, onToggle: setSoloFreePref } : null}
       ladder=${sheet === 'match' ? null : ladder} modeId=${sheet === 'match' ? null : shownMode} onMode=${pickMode} season=${sheet === 'match' ? null : season} look=${look}
-      onCreate=${() => create('solo')} onQueue=${queueMatch} chained=${sheetChained} />` : null}
+      onCreate=${() => create('solo')} onQueue=${queueMatch} chained=${sheetChained} onLeaving=${() => { sheetSeq.current += 1; }} />` : null}
 
     ${allyOpen ? html`<${AllianceSelect} onClose=${() => setAllyOpen(false)} code=${code} onCode=${(v) => setCode(normalizeCode(v))} codeOk=${codeOk}
       recent=${recent} online=${online} maint=${maint} busy=${busy} queued=${queued} difficulty=${shownCoop}
