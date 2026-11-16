@@ -90,21 +90,30 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   // 2026-11-16: the owner cleared every notice but the oldest (「除了最旧的都清掉」) and asked for only the fork's own changes,
   // pointing to the original's 0.4.0 release for the rest (「只写我们的，其余的让用户去看0.4.0就行」). The interface author's
   // contact and the credits of the removed 10-18 recap move here.
-  assert.equal(entries.length, 3);
-  // 2026-11-16 the owner's UI overhaul (「UI必须大修」) gets its own notice on top; the 0.4.0 notice below keeps its text,
-  // less the interface author's QQ (the owner: 「删除前端反馈QQ」)
-  assert.equal(entries[0].title, '界面大修：对局界面、选择策略、成就、设置与匹配');
+  assert.equal(entries.length, 4);
+  // 2026-11-16 the owner's 「名片为啥没办法选塔露拉」 and 「对于动态立绘能不能带上背景」: their own notice on top
+  assert.equal(entries[0].title, '名片可选精二立绘，动态立绘带上原作场景');
   assert.equal(entries[0].date, '2026-11-16');
-  const rel42 = entries[0].paragraphs.join('\n');
+  const rel43 = entries[0].paragraphs.join('\n');
+  for (const phrase of ['【名片】', '默认立绘和精二立绘', '塔露拉', '在名片上播放', '按干员分组', '阿米娅', '报童', '见习联结者', '播种者',
+    '于万千宇宙之中', '触及星辰', '只能用作名片', '【动态立绘】', '原作的场景', '「查看立绘」', '座位卡', '87 套有背景', '56 套有前景',
+    'W「恍惚」', '夕「染尘烟」', '官方的取景位置', '不再拉伸错位', '仍只显示人物'])
+    assert.ok(rel43.includes(phrase), phrase);
+  assert.doesNotMatch(rel43, /ModelScope|OpenI|PRTS|DXBC|WebP|烘焙|签名|nginx|Worker|WebSocket|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理|QQ/i);
+  // 2026-11-16 the owner's UI overhaul (「UI必须大修」) gets its own notice; the 0.4.0 notice below keeps its text,
+  // less the interface author's QQ (the owner: 「删除前端反馈QQ」)
+  assert.equal(entries[1].title, '界面大修：对局界面、选择策略、成就、设置与匹配');
+  assert.equal(entries[1].date, '2026-11-16');
+  const rel42 = entries[1].paragraphs.join('\n');
   for (const phrase of ['黑色缺口', '锡拉库扎城区', '「卫戍协议终端」', '🔍', '「已就绪」', '「冻结」「刷新」', '可露希尔主题的商店卡', '分为两行',
     '金色标识', '彩色', '红色角标', '拼音首字母', '「Doctor…」', '华法琳', '娜仁图雅', '按期显示', '「绝境突破」', '「已获赞」', '150 / 200 / 300',
     '18 个', '塔露拉', '27 名干员', '「查看立绘」', '双色着色', '8 页', '「素材下载」', 'github.com/Stardust-minus/Stronghold-Protocol',
     '「已开启 n 项」', '「标准规则」', '「我的实验性」', '「任意实验性」', '保留排队位置', '30 秒', '繁体中文', '运营商和省份'])
     assert.ok(rel42.includes(phrase), phrase);
   assert.doesNotMatch(rel42, /ModelScope|OpenI|签名|nginx|Worker|WebSocket|lanes|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理|QQ|Grafana|SP_ISP|coordinator/i);
-  assert.equal(entries[1].title, '版本更新：同步原作 0.4.0，按版本匹配，连接更稳定');
-  assert.equal(entries[1].date, '2026-11-16');
-  const rel40 = entries[1].paragraphs.join('\n');
+  assert.equal(entries[2].title, '版本更新：同步原作 0.4.0，按版本匹配，连接更稳定');
+  assert.equal(entries[2].date, '2026-11-16');
+  const rel40 = entries[2].paragraphs.join('\n');
   for (const phrase of ['私人运行', '待休赛期再对外开放', 'github.com/sganggs/Stronghold-Protocol/releases/tag/v0.4.0', '只列本服自己的调整',
     '「规程·序列Ⅰ」', '第二期下半', '「选择自编」', '「自选四选二」', '按版本分池', '「多人匹配」', '「组队匹配」', '3 条连接', '1.5 秒',
     '「大厅背景」', '「规程」主题', '红色的无法出现干员数', '「设置 → 界面主题」', '“全能的”可露希尔', '「更新说明」弹窗不加',
@@ -116,12 +125,12 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
     assert.ok(rel40.includes(phrase), phrase);
   assert.doesNotMatch(rel40, /ModelScope|OpenI|签名|nginx|Worker|WebSocket|lanes|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理/i);
   // the 10-06 introduction stays untouched (the owner: 「10-06的不能动」)
-  assert.equal(entries[2].title, '欢迎游玩卫戍协议！卫来！');
-  assert.equal(entries[2].date, '2026-10-06');
-  assert.match(entries[2].paragraphs.join('\n'), /纯公益.*非官方/);
-  assert.match(entries[2].paragraphs.join('\n'), /github\.com\/sganggs\/Stronghold-Protocol/);
-  assert.match(entries[2].paragraphs.join('\n'), /界面致谢：.*Bilibili@雨千代chiyo/);
-  assert.match(entries[2].paragraphs.join('\n'), /第一次来的博士：.*「玩法说明」/);
+  assert.equal(entries[3].title, '欢迎游玩卫戍协议！卫来！');
+  assert.equal(entries[3].date, '2026-10-06');
+  assert.match(entries[3].paragraphs.join('\n'), /纯公益.*非官方/);
+  assert.match(entries[3].paragraphs.join('\n'), /github\.com\/sganggs\/Stronghold-Protocol/);
+  assert.match(entries[3].paragraphs.join('\n'), /界面致谢：.*Bilibili@雨千代chiyo/);
+  assert.match(entries[3].paragraphs.join('\n'), /第一次来的博士：.*「玩法说明」/);
   // condensed on 2026-10-17 (the 0.3.0 notice alone had grown past 3000): the board scrolls, but the notices stay bounded
   assert.ok(entries.flatMap(entry => entry.paragraphs).join('\n').length < 4000, 'the notices stay readable');
 });
