@@ -842,7 +842,10 @@ const BY_BUFF = {
     if (regen) S.stat('regen', { hpRegenRatio: regen });
     if (!(sc > 0)) return;
     onDamageEnemies(S, u, (t, c) => {
-      if (isProc(c.dmg)) return;
+      // not on an addition either, like 伊比利亚骨刺刀: 规程's 奥术 rider (an ADDITION) answers this true damage, and the
+      // two fed each other until the hook-depth guard cut them (one 100-arts hit: 63 damage instances, ~25× the damage).
+      // A hit is now the hit + 奥术 + 天马之耀 + 奥术 on 天马之耀's damage. [ASSUMED] 奥术 still answers an item's damage.
+      if (isProc(c.dmg) || damageAttackType(c.dmg) === 'ADDITION') return;
       battle.dealDamage(u, t, { amount: u.s.atk * sc, type: 'true', tags: procTags('pegasus') });
     });
   },
