@@ -99,7 +99,7 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
     '「大厅背景」', '「规程」主题', '红色的无法出现干员数', '「设置 → 界面主题」', '“全能的”可露希尔', '「点击进入」', '「更新说明」弹窗不加',
     '39 套时装', '寰宇独奏', '54 名干员', '15 套动态立绘', '漫步于黄金之梦', 'Touch', '歌利亚', '「反馈板」', '雨千代chiyo', 'xinhai-ai',
     // 2026-11-16 the owner: the fixes that followed go into this notice (「完成之后最新公告合入这些修改」)
-    '「载入中…」', '「加载中」', '18 套动态立绘', '「查看立绘」', '泥岩二技能', '不计入挂机', '选择自编也算作操作', '「收起」', '「余 n」', '「天马之耀」', '【验算】', '以服务器结果为准'])
+    '「载入中…」', '「加载中」', '18 套动态立绘', '「查看立绘」', '泥岩二技能', '不计入挂机', '选择自编也算作操作', '「收起」', '「余 n」', '「天马之耀」', '【验算】', '以服务器结果为准', '帧率很低的问题已修正'])
     assert.ok(rel40.includes(phrase), phrase);
   assert.doesNotMatch(rel40, /ModelScope|OpenI|签名|nginx|Worker|WebSocket|lanes|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理/i);
   // the 10-06 introduction stays untouched (the owner: 「10-06的不能动」)
