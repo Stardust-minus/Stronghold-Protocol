@@ -65,6 +65,26 @@ client uses its no-cubemap formula. The key light is the prefab's directional Ma
 
 Materials are not all in the sand theme. STAGE_DEPS is the bundle each stage's material fileID names
 (m01–m04 and m06 sand, m05 Syracuse metro, m09/m11 icewild, m10/m12 ltny2) plus the one external mesh.
+
+Backdrop (backdrop.json + backdrop.bin beside scene.json; the owner 2026-11-16 「地图周边会出现一些黑色缺损」). The
+placement above drops what lies past the borrowed rows, and each piece's background with it. scene.json and
+scene.bin stay exactly as they were; the backdrop is a second file of the same chunk format the client draws
+under the scene (lightmap 0 is the scene's own atlas lm0):
+
+  Planes. A flat sheet wider than DROP_SPAN with at most BACKDROP_TRIS triangles and no baked lightmap: m05's
+  S_Background_common (MT_Syracuse_metro_BG, s_background_common.ab, z −2.24), m09 / m11's land_base (MT_LAND,
+  s_background_icewild.ab, a ring round the piece at z −0.34) and m10 / m12's BG_church_tower
+  (MT_church_tower_background, bg_church_tower.ab, z −19.52). Every piece carries the same copy at the same
+  piece-local place. One copy is written, BACKDROP_PIECE's, each vertex moved by the delta of that piece's
+  nearest borrowed row (backdrop_vertex_delta): sub_03 lends rows 0–6 unshifted and rows 7–11 at +7, so the
+  sheet stretches by 7 rows across the board and land_base's hole spans the stitched board. [ASSUMED] the 7–9 %
+  stretch of the two pictures does not show.
+
+  Ground. The pieces' terrain sheets (wider than DROP_SPAN and not a plane: background_sand*, iceland*,
+  S_outworld_grpund_*, the Syracuse street floors). What the placement dropped is cut to the board rows that
+  piece owns in floor_piece (backdrop_bands: sub_03 below board row 6.5 and past 13.5, sub_01 rows 7–8, sub_02
+  rows 9–13, each with its own delta) and kept outside the board, or under the deck (below FLOOR_Z) inside it.
+  A rock or a prop is narrower than DROP_SPAN and is not cut: a sliced closed mesh would show its inside.
 """
 import json
 import math
@@ -129,6 +149,12 @@ WATER_FLAT = 0.05
 WATER_TRIS = 4
 # max(R, G, B) at or below this is a near-black lightmap texel (lightmap_black_share).
 BLACK_THRESHOLD = 8
+# Backdrop (module docstring). The piece whose copy of a background plane is written: sub_03 lends rows at both ends of
+# the board. A plane has at most BACKDROP_TRIS triangles (land_base's ring is 8).
+BACKDROP_PIECE = 3
+BACKDROP_TRIS = 16
+# The board's cells in board space (rows 0–18, columns 0–20 centred on the integers).
+BOARD_FOOT = (-0.5, -0.5, BOARD_COLS - 0.5, BOARD_ROWS - 0.5)
 GROUP_LEFT = 'HIDDEN@1'
 GROUP_RIGHT = 'HIDDEN@2'
 GROUP_BOSS = 'HIDDEN@3'
@@ -461,6 +487,130 @@ def _is_background_sheet(kind, span, ntris):
     return kind != 'water' and span >= BACKGROUND_SPAN and ntris >= 20
 
 
+def _is_backdrop_plane(kind, span, zrange, ntris, lightmap=-1):
+    """True for a background plane (module docstring: S_Background_common, land_base, BG_church_tower).
+
+    Flat (WATER_FLAT), wider than DROP_SPAN (place_triangle drops every triangle of it), a handful of triangles and no
+    baked lightmap page. A Syracuse street floor is as wide and flat but baked: it is ground, cut per piece.
+    [ASSUMED] BACKDROP_TRIS.
+    """
+    return bool(kind != 'water' and span >= DROP_SPAN and zrange <= WATER_FLAT and 0 < ntris <= BACKDROP_TRIS
+                and (lightmap is None or lightmap < 0))
+
+
+def _is_ground_sheet(kind, span, ntris, zrange=1.0, lightmap=-1):
+    """True for a terrain sheet whose dropped part goes to the backdrop, cut by backdrop_bands.
+
+    Wider than DROP_SPAN and not a plane: background_sand* (41.9 cells), iceland* (32–35), S_outworld_grpund_*
+    (26–27), the Syracuse street floors (28.6). The rocks, stones and dunes that _is_background_sheet also takes are
+    12–22 cells and closed meshes; cutting them would open their insides. [ASSUMED] DROP_SPAN as the line.
+    """
+    return bool(kind != 'water' and span >= DROP_SPAN and ntris > 0
+                and not _is_backdrop_plane(kind, span, zrange, ntris, lightmap))
+
+
+def backdrop_vertex_delta(piece, y):
+    """Board-y shift of a background-plane vertex: the delta of `piece`'s borrowed row nearest to `y` (ties: the lower
+    row). sub_03's corners below its row 6.5 stay, those above move with rows 7–11 (+7)."""
+    shifts = PIECE_SHIFT[piece]
+    return shifts[min(shifts, key=lambda src: (abs(y - src), src))]
+
+
+def backdrop_bands(piece):
+    """[(y0, y1, delta)] piece-local y intervals whose shifted copy is that piece's in floor_piece.
+
+    A borrowed row belongs to the piece when floor_piece gives it the shifted row; neighbouring rows with the same
+    delta merge. The first and the last interval run on (±inf) when the board rows past that end are the piece's too:
+    sub_03 → (−inf, 6.5, 0) and (6.5, +inf, 7) (its row 12 becomes the strip above board row 18); sub_01 → (−0.5, 1.5,
+    7); sub_02 → (0.5, 5.5, 8).
+    """
+    rows = []
+    for src, delta in sorted(PIECE_SHIFT[piece].items()):
+        if floor_piece(0.0, src + delta) != piece:
+            continue
+        if rows and rows[-1][2] == delta and abs(rows[-1][1] - (src - 0.5)) < 1e-9:
+            rows[-1][1] = src + 0.5
+        else:
+            rows.append([src - 0.5, src + 0.5, delta])
+    if rows:
+        if floor_piece(0.0, -1.0) == piece and rows[0][0] + rows[0][2] <= -0.5 + 1e-9:
+            rows[0][0] = -math.inf
+        if floor_piece(0.0, BOARD_ROWS) == piece and rows[-1][1] + rows[-1][2] >= BOARD_ROWS - 0.5 - 1e-9:
+            rows[-1][1] = math.inf
+    return [tuple(r) for r in rows]
+
+
+def _clip(poly, axis, value, keep_above):
+    """Sutherland–Hodgman: the part of a convex polygon on one side of the line coordinate[axis] = value.
+
+    `poly` is a list of vertices; a vertex is a tuple whose first element is the (x, y, z) point and whose other
+    elements are attribute tuples (uv, lightmap uv, normal, colour), interpolated linearly at a crossing.
+    """
+    if not poly:
+        return []
+    inside = (lambda v: v[0][axis] >= value - 1e-9) if keep_above else (lambda v: v[0][axis] <= value + 1e-9)
+    out = []
+    for i, cur in enumerate(poly):
+        prev = poly[i - 1]
+        a, b = inside(prev), inside(cur)
+        if a != b:
+            d = cur[0][axis] - prev[0][axis]
+            t = (value - prev[0][axis]) / d if d else 0.0
+            out.append(tuple(tuple(p + (c - p) * t for p, c in zip(pa, ca)) for pa, ca in zip(prev, cur)))
+        if b:
+            out.append(cur)
+    return out
+
+
+def _clip_box(poly, x0, y0, x1, y1):
+    """The part of a convex polygon inside the box x0 ≤ x ≤ x1, y0 ≤ y ≤ y1 (an infinite bound clips nothing)."""
+    for axis, value, above in ((0, x0, True), (0, x1, False), (1, y0, True), (1, y1, False)):
+        if math.isfinite(value):
+            poly = _clip(poly, axis, value, above)
+    return poly
+
+
+def _foot_regions():
+    """Convex boxes that tile the plane: the board footprint (inside=True) and the four slabs round it."""
+    x0, y0, x1, y1 = BOARD_FOOT
+    inf = math.inf
+    return ((x0, y0, x1, y1, True), (-inf, -inf, x0, inf, False), (x1, -inf, inf, inf, False),
+            (x0, -inf, x1, y0, False), (x0, y1, x1, inf, False))
+
+
+def backdrop_ground_pieces(piece, tri):
+    """Cut one dropped ground-sheet triangle into the polygons the backdrop keeps, in board space.
+
+    `tri` is three vertices (point, uv, lightmap uv, normal, colour) in piece-local board space. Each band of
+    backdrop_bands keeps its slice, moved by that band's delta; the slice is then split by the board footprint: outside
+    it is kept, inside only when every vertex is below FLOOR_Z (under the deck, as place_floor_triangle). Returns
+    [(delta, polygon)] with polygons of ≥ 3 vertices in the input winding.
+    """
+    out = []
+    for y0, y1, delta in backdrop_bands(piece):
+        band = _clip_box(list(tri), -math.inf, y0, math.inf, y1)
+        if len(band) < 3:
+            continue
+        moved = [((v[0][0], v[0][1] + delta, v[0][2]), *v[1:]) for v in band]
+        for rx0, ry0, rx1, ry1, inside in _foot_regions():
+            part = _clip_box(moved, rx0, ry0, rx1, ry1)
+            if len(part) < 3 or _area2(part) < 1e-6:
+                continue
+            if inside and max(v[0][2] for v in part) >= FLOOR_Z:
+                continue
+            out.append((delta, part))
+    return out
+
+
+def _area2(poly):
+    """Twice the absolute xy area of a polygon (a sliver below 1e-6 is not written)."""
+    s = 0.0
+    for i, v in enumerate(poly):
+        u = poly[i - 1]
+        s += u[0][0] * v[0][1] - v[0][0] * u[0][1]
+    return abs(s)
+
+
 def resize_straight(image, size, resample):
     """Resize an RGBA image without premultiplying RGB by alpha.
 
@@ -690,7 +840,8 @@ def _chunks_of_piece(piece, objects, log, stage_id, material_info):
     chunks = {}
     stats = {'tris': 0, 'kept': 0, 'inactive': 0, 'nomat': 0, 'static': 0,
              'water_tris': 0, 'water_strict': 0, 'water_quads': [],
-             'floor_tris': 0, 'floor_strict': 0, 'floor_fill': 0}
+             'floor_tris': 0, 'floor_strict': 0, 'floor_fill': 0,
+             'planes': [], 'backdrop': {}, 'ground_tris': 0, 'ground_cut': 0}
     world_cache = {}
 
     def material_name(pptr):
@@ -806,15 +957,28 @@ def _chunks_of_piece(piece, objects, log, stage_id, material_info):
                     f'tris {len(prepared)} z {z0:.2f}..{z1:.2f} -> water sheet '
                     f'({strict} tris place_triangle would keep)')
                 continue
+            if (_is_backdrop_plane(info.get('kind'), span, z1 - z0, len(prepared), index)
+                    and not any(place_triangle(piece, [p[0] for p in tri[0]], [p[1] for p in tri[0]]) is not None
+                                for tri in prepared)):
+                # Backdrop plane (module docstring): place_triangle keeps none of it. One copy is written
+                # (export_stage, _emit_planes), not the three pieces' stacked copies.
+                stats['planes'].append((name, tuple(round(v, 1) for v in (min(xs_all), min(ys_all), z0, max(xs_all), max(ys_all))),
+                                        prepared))
+                log(f'  {stage_id} sub_0{piece} {obj_name}: {name} span {span:.1f} '
+                    f'tris {len(prepared)} z {z0:.2f}..{z1:.2f} -> backdrop plane')
+                continue
             # A tessellated river is not a sheet. Count it here; place_triangle below keeps
             # the borrowed part. The geometry STAT then shows those drops (m10: 60 of 210).
             if surface:
                 stats['water_tris'] += len(prepared)
             floor = _is_background_sheet(info.get('kind'), span, len(prepared))
+            ground = _is_ground_sheet(info.get('kind'), span, len(prepared), z1 - z0, index)
             if floor:
                 stats['floor_tris'] += len(prepared)
                 log(f'  {stage_id} sub_0{piece} {obj_name}: {name} span {span:.1f} '
                     f'tris {len(prepared)} z {z0:.2f}..{z1:.2f} -> background sheet')
+            if ground:
+                stats['ground_tris'] += len(prepared)
             for pts, uvs, lms, nrms, cols in prepared:
                 xs = [p[0] for p in pts]
                 ys = [p[1] for p in pts]
@@ -828,6 +992,23 @@ def _chunks_of_piece(piece, objects, log, stage_id, material_info):
                 else:
                     placed = place_triangle(piece, xs, ys)
                 if placed is None:
+                    if ground:
+                        # The dropped part of a terrain sheet: the backdrop's, cut to this piece's bands.
+                        cut = backdrop_ground_pieces(piece, list(zip(pts, uvs, lms, nrms, cols)))
+                        if cut:
+                            stats['ground_cut'] += 1
+                        back = stats['backdrop'].setdefault(
+                            (name, index, ''), {'pos': [], 'uv': [], 'uv1': [], 'nrm': [], 'col': [], 'idx': []})
+                        for _delta, poly in cut:
+                            base = len(back['pos'])
+                            for point, uv, lm, nrm, col in poly:
+                                back['pos'].append(point)
+                                back['uv'].append(uv)
+                                back['uv1'].append(lm)
+                                back['nrm'].append(nrm)
+                                back['col'].append(col)
+                            for k in range(1, len(poly) - 1):
+                                back['idx'].extend((base, base + k, base + k + 1))
                     continue
                 if surface:
                     stats['water_strict'] += 1
@@ -1090,14 +1271,84 @@ def _emit_water(merged, quads, log, stage_id):
     return nquads
 
 
+def _emit_planes(back, planes, log, stage_id):
+    """One copy of each backdrop plane (module docstring), each vertex moved by backdrop_vertex_delta of its piece.
+    Returns the triangles written."""
+    n = 0
+    for (name, _box), (piece, prepared) in sorted(planes.items()):
+        dest = back.setdefault((name, -1, ''), {'pos': [], 'uv': [], 'uv1': [], 'nrm': [], 'col': [], 'idx': []})
+        ys = []
+        for pts, uvs, _lms, nrms, cols in prepared:
+            base = len(dest['pos'])
+            for i in range(3):
+                x, y, z = pts[i]
+                dest['pos'].append((x, y + backdrop_vertex_delta(piece, y), z))
+                dest['uv'].append(uvs[i])
+                dest['uv1'].append((0.0, 0.0))
+                dest['nrm'].append(nrms[i])
+                dest['col'].append(cols[i])
+                dest['idx'].append(base + i)
+                ys.append(dest['pos'][-1][1])
+        n += len(prepared)
+        log(f'  {stage_id}: backdrop plane {name} from sub_0{piece}, {len(prepared)} tris, '
+            f'board y {min(ys):.2f}..{max(ys):.2f}')
+    return n
+
+
+def _atlas_extra(images, chunks, gutter=ATLAS_GUTTER):
+    """Backdrop chunks moved into the lightmap atlas _atlas builds from the same `images` (same slot, same layout), so
+    their lightmap 0 is the scene's lm0. Unchanged when _atlas leaves the pages alone (fewer than 2 or more than 4)."""
+    if len(images) < 2 or len(images) > 4:
+        return chunks
+    slot = max(max(im.width, im.height) for im in images)
+    return _remap_chunks(chunks, slot, gutter)
+
+
+def _write_backdrop(stage_id, chunks, materials, light, lightmaps, out_root, manifest, log):
+    """backdrop.json + backdrop.bin (module docstring): the scene.json chunk format, group '' only, lightmap pages
+    shared with scene.json (`lightmaps` of them). Returns the files written (0 without a triangle)."""
+    out_dir = Path(out_root) / scenes.SCENE_SUB / stage_id
+    sub = f'{scenes.SCENE_SUB}/{stage_id}'
+    blob, records = bytearray(), []
+    for (name, page, group), chunk in sorted(chunks.items(), key=lambda kv: (kv[0][2], kv[0][0], kv[0][1])):
+        if not chunk['idx']:
+            continue
+        data, idx32 = scenes.pack_chunk(chunk)
+        xs, ys, zs = zip(*chunk['pos'])
+        records.append({'material': name, 'lightmap': page, 'group': group, 'verts': len(chunk['pos']),
+                        'tris': len(chunk['idx']) // 3, 'offset': len(blob), 'index32': idx32,
+                        'bounds': [round(v, 3) for v in (min(xs), min(ys), min(zs), max(xs), max(ys), max(zs))]})
+        blob += data
+    if not records:
+        log(f'  {stage_id}: no backdrop')
+        return 0
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / 'backdrop.bin').write_bytes(bytes(blob))
+    used = sorted({rec['material'] for rec in records})
+    doc = {'version': scenes.SCENE_VERSION, 'kind': 'backdrop', 'stage': stage_id, 'scene': f'/assets/local/{sub}/scene.json',
+           'planePiece': BACKDROP_PIECE, 'light': light, 'lightmaps': lightmaps, 'lightRange': scenes.LIGHT_RANGE,
+           'lightEncoding': scenes.LIGHT_ENCODING, 'materials': {name: materials[name] for name in used if name in materials},
+           'groups': [''], 'chunks': records, 'binBytes': len(blob)}
+    (out_dir / 'backdrop.json').write_text(json.dumps(doc, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    manifest.setdefault(sub, {})['backdropBin'] = {'path': f'/assets/local/{sub}/backdrop.bin', 'kind': 'SceneData', 'bytes': len(blob)}
+    manifest[sub]['backdrop'] = {'path': f'/assets/local/{sub}/backdrop.json', 'kind': 'SceneBackdrop', 'chunks': len(records),
+                                 'version': scenes.SCENE_EXTRACT_VERSION}
+    tris = sum(rec['tris'] for rec in records)
+    log(f'{stage_id}: backdrop {len(records)} chunks, {tris} triangles -> {sub}/backdrop.json')
+    return 2
+
+
 def export_stage(stage_id, paths, dep_paths, out_root, manifest, log, material_info):
     """Write one 规程 stage from its three prefab bundles. `paths` is (sub_01, sub_02, sub_03)."""
     images = []
     merged = {}
+    back = {}     # backdrop chunks (module docstring), keyed like merged
+    planes = {}   # backdrop plane material → (piece, prepared triangles)
     materials, mat_tex = {}, {}
     light = None
     water_quads = []
-    totals = {'water_tris': 0, 'water_strict': 0, 'floor_tris': 0, 'floor_strict': 0, 'floor_fill': 0}
+    totals = {'water_tris': 0, 'water_strict': 0, 'floor_tris': 0, 'floor_strict': 0, 'floor_fill': 0,
+              'ground_tris': 0, 'ground_cut': 0}
     log(f'{stage_id}: loading {", ".join(Path(p).name for p in paths)}')
     owns = _load_pieces(paths, dep_paths, log, stage_id)
     for piece, own in zip((1, 2, 3), owns):
@@ -1126,6 +1377,13 @@ def export_stage(stage_id, paths, dep_paths, out_root, manifest, log, material_i
             for attr in ('pos', 'uv', 'uv1', 'nrm', 'col'):
                 dest[attr].extend(chunk[attr])
             dest['idx'].extend(i + base for i in chunk['idx'])
+        for key, chunk in _shift_pages(stats['backdrop'], page_of).items():
+            _append_chunk(back.setdefault(key, {'pos': [], 'uv': [], 'uv1': [], 'nrm': [], 'col': [], 'idx': []}), chunk)
+        for name, box, prepared in stats['planes']:
+            # the same plane in every piece (same material, same piece-local box) is written once
+            held = planes.get((name, box))
+            if held is None or (piece == BACKDROP_PIECE and held[0] != BACKDROP_PIECE):
+                planes[(name, box)] = (piece, prepared)
         materials.update(mats)
         for name, slots in texs.items():
             mat_tex.setdefault(name, {}).update(slots)
@@ -1145,8 +1403,19 @@ def export_stage(stage_id, paths, dep_paths, out_root, manifest, log, material_i
         'floor_tris': totals['floor_tris'], 'floor_strict': totals['floor_strict'], 'floor_fill': totals['floor_fill'],
         'floor_dropped_before': floor_before, 'floor_dropped_after': floor_after,
     }, ensure_ascii=False))
+    nplanes = _emit_planes(back, planes, log, stage_id)
+    log('STAT ' + json.dumps({
+        'stage': stage_id, 'kind': 'backdrop',
+        'planes': sorted({name for name, _box in planes}), 'plane_tris': nplanes,
+        'ground_tris': totals['ground_tris'], 'ground_cut': totals['ground_cut'],
+        'backdrop_tris': sum(len(c['idx']) // 3 for c in back.values()),
+    }, ensure_ascii=False))
+    back = _atlas_extra(images, back)
     images, merged = _atlas(images, merged, log, stage_id)
-    return _write(stage_id, merged, materials, mat_tex, light, images, out_root, manifest, log)
+    written = _write(stage_id, merged, materials, mat_tex, light, images, out_root, manifest, log)
+    if written:
+        written += _write_backdrop(stage_id, back, materials, light, len(images), out_root, manifest, log)
+    return written
 
 
 def export_regulation(ab_root, out_root, manifest, log, ids, roots, material_info, shader_deps=()):

@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
-import { BoardScene, sceneGroupVisible, LIGHTING, sceneBackdropPlan, planarUvFit, SCENE_BACKDROP_FRAME } from '../../public/js/render/board3d/scene.js';
+import { BoardScene, sceneGroupVisible, LIGHTING, sceneBackdropPlan, planarUvFit, SCENE_BACKDROP_FRAME, planeCoversBoard } from '../../public/js/render/board3d/scene.js';
 import { parseObj } from '../../public/js/render/board3d/obj.js';
 import { TILE_H } from '../../public/js/render/style.js';
 import { AREAS } from '../../public/js/render/board3d/layout.js';
@@ -21,7 +21,7 @@ import { presetCamera } from '../../public/js/render/projection.js';
 import { sceneMaterial, sceneWaterMaterial, sceneBlend, sceneEnvTexture, focusUniforms, SCENE_LIGHT, waterMaterial, applyWaterMaterial, WATER_DEFAULTS, SCENE_WATER_DEFAULTS, WATER_TUNING, boardMaterial, glassMaterial, trapMaterial } from '../../public/js/render/board3d/materials.js';
 import {
   parseSceneChunks, sceneGroupRects, loadScenePack, sceneListed, resetBoardPack, sceneGroup, sceneMaterialKey, mergeSceneChunks,
-  SCENE_TEX_GROUP, SCENE_VERSION, SCENE_VERTEX_BYTES, isSceneWater, sceneWaterInfo,
+  SCENE_TEX_GROUP, SCENE_VERSION, SCENE_VERTEX_BYTES, isSceneWater, sceneWaterInfo, parseSceneBackdrop,
 } from '../../public/js/render/board3d/load.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -244,6 +244,75 @@ print(json.dumps({
     assert.equal(out.bg, true);
     assert.equal(out.bg_water, false);
     assert.equal(out.bg_few, false);
+  });
+
+  test('规程 backdrop: one copy of each background plane stretched over the board, the terrain cut to each piece\'s rows (2026-11-16 背景重导)', () => {
+    // the official sizes (regulation_scenes.py module docstring): S_Background_common 79.6 cells, 2 tris, z −2.24;
+    // land_base 72.6, 8 tris, z −0.34; BG_church_tower 130.4, 2 tris, z −19.52; a Syracuse street floor 28.6, 14 tris,
+    // baked; background_sand 41.9, 393 tris; a rock 13.1, 442 tris
+    const out = py(`import regulation_scenes as r, tempfile, os
+from pathlib import Path
+V = lambda x, y, z: ((x, y, z), (0.0, 0.0), (0.5, 0.5), (0.0, 0.0, 1.0), (1.0, 1.0, 1.0, 1.0))
+low = [V(-5, -2, -1), V(25, -2, -1), V(10, 20, -1)]
+high = [V(-5, -2, 0.5), V(25, -2, 0.5), V(10, 20, 0.5)]
+area = lambda parts: round(sum(r._area2(p) for _d, p in parts) / 2, 6)
+cut3 = r.backdrop_ground_pieces(3, high)
+back = {}
+planes = {('MT_x_BG', (-27.6, -29.9, -2.2, 52.1, 49.7)): (3, [([(-27.55, -29.94, -2.24), (52.09, -29.94, -2.24), (52.09, 49.7, -2.24)],
+          [(1, 0), (1, 1), (0, 1)], None, [(0, 0, 1)] * 3, [(1, 1, 1, 1)] * 3)])}
+n = r._emit_planes(back, planes, lambda *_a, **_k: None, 'act3autochess_m05')
+ys = sorted({round(p[1], 2) for p in back[('MT_x_BG', -1, '')]['pos']})
+manifest = {}
+with tempfile.TemporaryDirectory() as tmp:
+    w = r._write_backdrop('act3autochess_m05', back, {'MT_x_BG': {'kind': 'lit', 'map': 'TX_BG'}}, None, 1, tmp, manifest, lambda *_a, **_k: None)
+    doc = json.loads((Path(tmp) / 'scene/act3autochess_m05/backdrop.json').read_text())
+    size = os.path.getsize(Path(tmp) / 'scene/act3autochess_m05/backdrop.bin')
+    none = r._write_backdrop('act3autochess_m01', {}, {}, None, 1, tmp, {}, lambda *_a, **_k: None)
+print(json.dumps({
+  'bands': {p: [[None if abs(v) == float('inf') else v for v in b] for b in r.backdrop_bands(p)] for p in (1, 2, 3)},
+  'delta': [r.backdrop_vertex_delta(3, y) for y in (-29.94, -3.58, 6.4, 6.6, 9.98, 49.7)],
+  'plane': [r._is_backdrop_plane('lit', 79.6, 0, 2), r._is_backdrop_plane('lit', 72.6, 0, 8), r._is_backdrop_plane('lit', 130.4, 0, 2, -1),
+            r._is_backdrop_plane('lit', 28.6, 0, 14, 0), r._is_backdrop_plane('water', 79.6, 0, 2), r._is_backdrop_plane('lit', 20, 0, 2)],
+  'ground': [r._is_ground_sheet('lit', 41.9, 393, 5.06, 0), r._is_ground_sheet('lit', 28.6, 14, 0, 0), r._is_ground_sheet('lit', 13.1, 442, 4.9, 0),
+             r._is_ground_sheet('lit', 79.6, 2, 0, -1), r._is_ground_sheet('water', 41.9, 393, 0, 0)],
+  'tri': round(r._area2(low) / 2, 6),
+  'low': [area(r.backdrop_ground_pieces(p, low)) for p in (1, 2, 3)],
+  'lowy': {p: [round(min(v[0][1] for _d, q in r.backdrop_ground_pieces(p, low) for v in q), 3), round(max(v[0][1] for _d, q in r.backdrop_ground_pieces(p, low) for v in q), 3)] for p in (1, 2)},
+  'low3mid': any(6.5 + 1e-6 < v[0][1] < 13.5 - 1e-6 for _d, q in r.backdrop_ground_pieces(3, low) for v in q),
+  'high': [area(r.backdrop_ground_pieces(p, high)) for p in (1, 2, 3)],
+  'high3': sorted({d for d, _p in cut3}),
+  'high3_inside': any(-0.5 < sum(v[0][0] for v in p) / len(p) < 20.5 and -0.5 < sum(v[0][1] for v in p) / len(p) < 18.5 for _d, p in cut3),
+  'n': n, 'ys': ys, 'w': w, 'none': none, 'size': size,
+  'doc': {k: doc[k] for k in ('version', 'kind', 'stage', 'lightmaps', 'groups', 'binBytes')},
+  'chunk': {k: doc['chunks'][0][k] for k in ('material', 'lightmap', 'group', 'verts', 'tris', 'offset')},
+  'mat': doc['materials'], 'manifest': manifest,
+}))`);
+    assert.deepEqual(out.bands, { 1: [[-0.5, 1.5, 7]], 2: [[0.5, 5.5, 8]], 3: [[null, 6.5, 0], [6.5, null, 7]] });
+    assert.deepEqual(out.delta, [0, 0, 0, 7, 7, 7]);
+    assert.deepEqual(out.plane, [true, true, true, false, false, false], 'the three background planes; not a baked floor, water or a narrow quad');
+    assert.deepEqual(out.ground, [true, true, false, false, false], 'terrain and street floors; not a rock, a plane or water');
+    // a low sheet is kept whole by sub_03 (its two bands cover every piece-local row) but lands outside board rows
+    // 6.5–13.5, which sub_01 (rows 7–8) and sub_02 (rows 9–13) fill from their own sheets: no gap, no overlap
+    assert.equal(out.low[2], out.tri);
+    assert.equal(out.low3mid, false);
+    assert.deepEqual(out.lowy, { 1: [6.5, 8.5], 2: [8.5, 13.5] });
+    assert.ok(out.low.every((a) => a > 0), JSON.stringify(out.low));
+    // above the deck it is kept only outside the board's cells
+    assert.ok(out.high.every((a, i) => a < out.low[i]), JSON.stringify(out.high));
+    assert.deepEqual(out.high3, [0, 7]);
+    assert.equal(out.high3_inside, false);
+    // one plane copy, its far corners moved with sub_03's rows 7–11
+    assert.equal(out.n, 1);
+    assert.deepEqual(out.ys, [-29.94, 56.7]);
+    assert.equal(out.w, 2);
+    assert.equal(out.none, 0, 'nothing to draw: no file');
+    assert.deepEqual(out.doc, { version: 1, kind: 'backdrop', stage: 'act3autochess_m05', lightmaps: 1, groups: [''], binBytes: out.size });
+    assert.deepEqual(out.chunk, { material: 'MT_x_BG', lightmap: -1, group: '', verts: 3, tris: 1, offset: 0 });
+    assert.deepEqual(out.mat, { MT_x_BG: { kind: 'lit', map: 'TX_BG' } });
+    assert.deepEqual(out.manifest, { 'scene/act3autochess_m05': {
+      backdropBin: { path: '/assets/local/scene/act3autochess_m05/backdrop.bin', kind: 'SceneData', bytes: out.size },
+      backdrop: { path: '/assets/local/scene/act3autochess_m05/backdrop.json', kind: 'SceneBackdrop', chunks: 1, version: out.manifest['scene/act3autochess_m05'].backdrop.version },
+    } });
   });
 
   test('规程 lightmap resize keeps indirect RGB where the shadowmask alpha is 0', { skip: !HAS_PIL && 'no Pillow' }, () => {
@@ -581,6 +650,125 @@ describe('scene chunks (load.js)', () => {
       assert.ok(await loadScenePack(store, 'act2autochess_m02'), 'a failed load is not cached');
       assert.equal(await loadScenePack(null, 'act2autochess_m02').catch(() => 'threw'), await loadScenePack(store, 'act2autochess_m02'), 'cached per stage');
     } finally { globalThis.fetch = original; resetBoardPack(); }
+  });
+});
+
+describe('scene backdrop (load.js, 2026-11-16 背景重导)', () => {
+  /** backdrop.json + backdrop.bin: a piece of terrain (material M, page 0) and a background plane past the frame. */
+  function fakeBackdrop(corners = [[-27.55, -29.94], [52.09, -29.94], [52.09, 56.7], [-27.55, 56.7]]) {
+    const { doc, bin } = fakeScene([{ material: 'M', x0: -6, y0: 15, group: 'HIDDEN@1' }, { material: 'MT_x_BG', x0: 0, y0: 0, z: -2.24, lightmap: -1 }]);
+    doc.kind = 'backdrop';
+    doc.chunks[1].bounds = [-27.55, -29.94, -2.24, 52.09, 56.7, -2.24];
+    new Float32Array(bin, doc.chunks[1].offset, 12).set(corners.flatMap(([x, y]) => [x, y, -2.24]));
+    doc.materials = { M: doc.materials.M, MT_x_BG: { shader: 'Torappu/Scene/Unlit Texture', keywords: [], colors: {}, floats: {}, textures: {}, kind: 'lit', map: 'TX_BG' } };
+    return { doc, bin };
+  }
+
+  test('parseSceneBackdrop: the scene chunk format, every chunk drawn (group \'\'); a wrong version or a short buffer gives null', () => {
+    const { doc, bin } = fakeBackdrop();
+    const bd = parseSceneBackdrop(doc, bin);
+    assert.equal(bd.doc, doc);
+    assert.deepEqual(bd.chunks.map((c) => [c.material, c.lightmap, c.group]), [['M', 0, ''], ['MT_x_BG', -1, '']]);
+    assert.equal(parseSceneBackdrop({ ...doc, version: SCENE_VERSION + 1 }, bin), null);
+    assert.equal(parseSceneBackdrop(doc, bin.slice(0, 40)), null);
+    assert.equal(parseSceneBackdrop(doc, null), null);
+    assert.equal(parseSceneBackdrop(null, bin), null);
+  });
+
+  test('loadScenePack: a listed backdrop loads with the scene and names its textures; a missing one leaves the scene as it was', async () => {
+    resetBoardPack();
+    const { doc, bin } = fakeScene(PARTS);
+    const back = fakeBackdrop();
+    const group = sceneGroup('act3autochess_m05');
+    const urls = {
+      [`${group}|scene`]: '/s/scene.json', [`${group}|bin`]: '/s/scene.bin', [`${group}|lm0`]: '/s/lm0.webp',
+      [`${group}|backdrop`]: '/s/backdrop.json', [`${group}|backdropBin`]: '/s/backdrop.bin',
+      [`${SCENE_TEX_GROUP}|TX_A`]: '/t/TX_A.webp', [`${SCENE_TEX_GROUP}|TX_BG`]: '/t/TX_BG.webp',
+    };
+    const seen = [];
+    const store = { local: async () => ({ groups: {} }), localUrl: (g, n) => urls[`${g}|${n}`] || null, image: async (u) => { seen.push(u); return { width: 8, height: 8 }; } };
+    const original = globalThis.fetch;
+    const originalWarn = console.warn;
+    const warned = [];
+    let backBin = back.bin;
+    globalThis.fetch = async (u) => (u === '/s/scene.json' ? { ok: true, json: async () => doc } : u === '/s/scene.bin' ? { ok: true, arrayBuffer: async () => bin }
+      : u === '/s/backdrop.json' ? { ok: true, json: async () => back.doc } : u === '/s/backdrop.bin' && backBin ? { ok: true, arrayBuffer: async () => backBin } : { ok: false });
+    console.warn = (...a) => warned.push(a.join(' '));
+    try {
+      const pack = await loadScenePack(store, 'act3autochess_m05');
+      assert.equal(pack.chunks.length, PARTS.length, 'the scene itself is unchanged');
+      assert.deepEqual(pack.backdrop.chunks.map((c) => c.material), ['M', 'MT_x_BG']);
+      assert.ok(pack.images.tex.TX_BG, 'the plane\'s picture');
+      assert.deepEqual(seen.sort(), ['/s/lm0.webp', '/t/TX_A.webp', '/t/TX_BG.webp']);
+      assert.deepEqual(Object.keys(pack.groups).sort(), ['HIDDEN@1', 'HIDDEN@2', 'HIDDEN@3'], 'the backdrop is not a sub-graphic');
+      assert.match(pack.key, /\+\d+$/);
+      resetBoardPack();
+      backBin = null;
+      const bare = await loadScenePack(store, 'act3autochess_m05');
+      assert.equal(bare.backdrop, null);
+      assert.equal(bare.chunks.length, PARTS.length);
+      assert.ok(warned.some((w) => /backdrop/.test(w)), warned.join('|'));
+      assert.notEqual(bare.key, pack.key, 'its own GPU resources');
+      resetBoardPack();
+      delete urls[`${group}|backdrop`];
+      warned.length = 0;
+      assert.equal((await loadScenePack(store, 'act3autochess_m05')).backdrop, null, 'not listed: not fetched');
+      assert.equal(warned.length, 0);
+    } finally { globalThis.fetch = original; console.warn = originalWarn; resetBoardPack(); }
+  });
+
+  test('BoardScene: the backdrop\'s terrain joins the scene mesh of its material, a plane is one more mesh, and the stand-in stays off; without a backdrop it comes back', () => {
+    const { doc, bin } = fakeScene(PARTS);
+    doc.materials.MT_x_BG = { shader: 'Torappu/Scene/Unlit Texture', keywords: [], colors: {}, floats: {}, textures: {}, kind: 'lit', map: 'TX_BG' };
+    const chunks = parseSceneChunks(doc, bin);
+    const back = fakeBackdrop();
+    const img = { width: 4, height: 4 };
+    const stage = stages.act2autochess_m02;
+    const pack = (backdrop) => ({ key: `bd-${!!backdrop}`, stage: stage.id, doc, chunks, groups: sceneGroupRects(chunks), images: { tex: { TX_A: img, TX_BG: img }, lm: [img] }, backdrop });
+    const board = new BoardScene(THREE, fakePack(), { renderer: stubRenderer() });
+    board.setStage(stage);
+    board.setScenePack(stage.id, pack(null));
+    const bare = sceneMeshes(board);
+    const verts = (list) => list.map((m) => m.geometry.getAttribute('position').count).sort((a, b) => a - b);
+    assert.ok(board.meshes.backdrop, 'no backdrop file: the stand-in');
+    board.setScenePack(stage.id, pack(parseSceneBackdrop(back.doc, back.bin)));
+    const meshes = sceneMeshes(board);
+    assert.equal(board.meshes.backdrop, undefined, 'the plane covers the frame: no stand-in');
+    assert.equal(meshes.length, bare.length + 1, 'one more draw: the plane; the terrain joined M');
+    assert.deepEqual(verts(meshes), [4, 4, 4, 12]);
+    const plane = meshes.find((m) => m.material.uniforms?.uMap?.value && m.geometry.getAttribute('position').count === 4 && m.geometry.boundingSphere.center.z < -2);
+    assert.ok(plane, 'the plane, with its picture');
+    assert.equal(plane.material.uniforms.uLm.value, null, 'no lightmap page');
+    board.setArea(AREAS.boss);
+    assert.ok(sceneMeshes(board).some((m) => m.geometry.boundingSphere.center.z < -2), 'drawn in every view');
+    assert.equal(board.meshes.backdrop, undefined);
+    // a ring (m09 / m11 land_base): its hole is the board, so a switched-off field would stay open — the stand-in, in the
+    // ring's land colour, stays under it
+    const ring = fakeBackdrop([[30, -29.94], [52.09, -29.94], [52.09, 56.7], [30, 56.7]]);   // one side of the ring: not under the board
+    ring.doc.materials.MT_x_BG = { shader: null, keywords: [], colors: { _Color: [0.78, 0.86, 0.95, 1] }, floats: {}, textures: {}, kind: 'lit' };
+    ring.doc.materials.MT_LAND = ring.doc.materials.MT_x_BG;
+    delete ring.doc.materials.MT_x_BG;
+    ring.doc.chunks[1].material = 'MT_LAND';
+    const docRing = { ...doc, materials: { ...doc.materials } };
+    delete docRing.materials.MT_x_BG;
+    board.setScenePack(stage.id, { ...pack(parseSceneBackdrop(ring.doc, ring.bin)), key: 'bd-ring', doc: docRing });
+    assert.equal(board.meshes.backdrop?.material.uniforms.uMap.value ?? null, null, 'the land colour, no picture');
+    assert.ok(board.meshes.backdrop, 'the stand-in under a ring');
+    board.destroy();
+  });
+
+  test('planeCoversBoard: a whole sheet lies under the middle of the board, a ring round it does not', () => {
+    const sheet = { position: new Float32Array([-27, -29, -2, 52, -29, -2, 52, 56, -2, -27, 56, -2]), index: new Uint16Array([0, 1, 2, 0, 2, 3]) };
+    assert.equal(planeCoversBoard(sheet), true);
+    // land_base: the outer square and the hole (x −4.05…22.65, y −3.58…16.98) as eight triangles
+    const o = [[-27, -30], [45.6, -30], [45.6, 43.35], [-27, 43.35]], h = [[-4.05, -3.58], [22.65, -3.58], [22.65, 16.98], [-4.05, 16.98]];
+    const pts = [...o, ...h];
+    const idx = [];
+    for (let k = 0; k < 4; k++) { const k1 = (k + 1) % 4; idx.push(k, k1, 4 + k1, k, 4 + k1, 4 + k); }
+    const ring = { position: new Float32Array(pts.flatMap(([x, y]) => [x, y, -0.34])), index: new Uint16Array(idx) };
+    assert.equal(planeCoversBoard(ring), false);
+    assert.equal(planeCoversBoard(ring, 30, 9), true, 'past the hole');
+    assert.equal(planeCoversBoard(null), false);
   });
 });
 
@@ -1369,6 +1557,33 @@ describe('extracted scenes (when scene bundles were extracted here)', { skip: !O
       }
       const L = doc.light;
       assert.ok(L && Math.abs(Math.hypot(...L.dir) - 1) < 1e-3 && L.dir[2] > 0, 'the key light shines down on the board');
+    });
+  }
+
+  for (const g of Object.keys(groups).filter((k) => k.startsWith('scene/act3autochess_') && groups[k].backdrop)) {
+    test(`${g}: backdrop.json records fit backdrop.bin; drawn in every view, the scene's lightmap page, textures listed; a background plane covers the frame`, { skip: !existsSync(file(groups[g].backdrop.path)) && 'files not on this machine' }, () => {
+      const doc = JSON.parse(readFileSync(file(groups[g].backdrop.path), 'utf8'));
+      const scene = JSON.parse(readFileSync(file(groups[g].scene.path), 'utf8'));
+      const bin = readFileSync(file(groups[g].backdropBin.path));
+      assert.equal(doc.kind, 'backdrop');
+      assert.equal(`scene/${doc.stage}`, g);
+      assert.equal(doc.binBytes, bin.length);
+      assert.equal(groups[g].backdropBin.bytes, bin.length);
+      const bd = parseSceneBackdrop(doc, bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.length));
+      assert.ok(bd && bd.chunks.length === doc.chunks.length);
+      for (const c of bd.chunks) {
+        let max = 0;
+        for (const i of c.index) if (i > max) max = i;
+        assert.ok(max < c.position.length / 3, 'indices in range');
+        assert.ok(doc.materials[c.material] || scene.materials[c.material], `material ${c.material}`);
+        if (c.lightmap >= 0) assert.ok(c.lightmap < scene.lightmaps && groups[g][`lm${c.lightmap}`], `the scene's lightmap page ${c.lightmap}`);
+      }
+      assert.ok(doc.chunks.every((c) => c.group === ''), 'no sub-graphic');
+      for (const m of Object.values(doc.materials)) for (const k of ['map', 'normalMap', 'glossMap', 'emissionMap']) if (m[k]) assert.ok(groups[SCENE_TEX_GROUP]?.[m[k]], `texture ${m[k]}`);
+      const plane = doc.chunks.find((c) => c.lightmap < 0);
+      const sbin = readFileSync(file(groups[g].bin.path));
+      const sceneChunks = parseSceneChunks(scene, sbin.buffer.slice(sbin.byteOffset, sbin.byteOffset + sbin.length));
+      if (plane) assert.equal(sceneBackdropPlan(scene, [...sceneChunks, ...bd.chunks]), null, 'no stand-in under a plane');
     });
   }
 

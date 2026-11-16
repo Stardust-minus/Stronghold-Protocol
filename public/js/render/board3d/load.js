@@ -7,7 +7,8 @@
 //       tiles, uv, materials: { theme?, fx?, trap? } }
 //   const scene = await loadScenePack(assets, stageId)   // the stage's official scene (tools/local-extract/scenes.py),
 //   → { key, stage, doc, chunks: [{ material, lightmap, group, bounds, position, uv, uv1, normal, color, index }],
-//       groups: { name: [x0, y0, x1, y1] }, images: { tex: { name: img }, lm: [img|null] } }     null when not extracted
+//       groups: { name: [x0, y0, x1, y1] }, images: { tex: { name: img }, lm: [img|null] },
+//       backdrop: { doc, chunks } | null }     null when not extracted (backdrop: the 规程 background layer, below)
 //
 // Everything is optional except the diffuse atlas: a missing map or mesh only drops that feature (e.g. no normal
 // map → flat shading of the atlas; no crate mesh → a procedural box). URLs come from data/local-assets.json only
@@ -308,6 +309,22 @@ export function sceneGroupRects(chunks) {
   return out;
 }
 
+/**
+ * The background layer of a 规程 scene (tools/local-extract/regulation_scenes.py backdrop.json + backdrop.bin, the
+ * owner 2026-11-16 「地图周边会出现一些黑色缺损」): the pieces' background planes and the terrain the stitched board does
+ * not keep, in the scene.json chunk format. Every chunk is drawn (group ''), its lightmap pages are the scene's. Null
+ * when the manifest does not list it, or the files are missing or malformed: the board then keeps scene.js's
+ * sceneBackdropPlan fallback.
+ * @param {object|null} doc backdrop.json @param {ArrayBuffer|null} buf backdrop.bin
+ * @returns {{ doc: object, chunks: object[] }|null}
+ */
+export function parseSceneBackdrop(doc, buf) {
+  if (!isObj(doc) || doc.version !== SCENE_VERSION || !buf) return null;
+  const chunks = parseSceneChunks(doc, buf);
+  if (!chunks || !chunks.length) return null;
+  return { doc, chunks: chunks.map((c) => ({ ...c, group: '' })) };
+}
+
 async function fetchBuffer(url) {
   try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.arrayBuffer() : null; } catch { return null; }
 }
@@ -335,16 +352,23 @@ export function loadScenePack(assets, stageId) {
     if (!(await sceneListed(assets, stageId)) || typeof assets.image !== 'function') return null;
     const url = (g, n) => { const u = assets.localUrl(g, n); return typeof u === 'string' && u ? u : null; }; // as in loadBoardPack
     const group = sceneGroup(stageId);
-    const [doc, buf] = await Promise.all([fetchJson(url(group, 'scene')), fetchBuffer(url(group, 'bin'))]);
+    const bdUrl = url(group, 'backdrop'), bdBin = url(group, 'backdropBin');
+    const [doc, buf, bdDoc, bdBuf] = await Promise.all([
+      fetchJson(url(group, 'scene')), fetchBuffer(url(group, 'bin')),
+      bdUrl && bdBin ? fetchJson(bdUrl) : null, bdUrl && bdBin ? fetchBuffer(bdBin) : null,
+    ]);
     if (!isObj(doc) || doc.version !== SCENE_VERSION || !buf) return null;
     const chunks = parseSceneChunks(doc, buf);
     if (!chunks || !chunks.length) return null;
+    const backdrop = bdUrl && bdBin ? parseSceneBackdrop(bdDoc, bdBuf) : null;
+    if (bdUrl && bdBin && !backdrop) console.warn(`[board3d] scene backdrop of ${stageId} unavailable: the fallback backdrop is drawn`);
     const img = async (u) => {
       if (!u) return null;
       const i = await assets.image(u, { retry: true }).catch(() => null);
       return i && (i.width || i.naturalWidth) > 0 ? i : null;
     };
-    const mats = isObj(doc.materials) ? doc.materials : {};
+    // the backdrop's materials name their textures too (scene.json lists most of them already)
+    const mats = { ...(isObj(backdrop?.doc?.materials) ? backdrop.doc.materials : {}), ...(isObj(doc.materials) ? doc.materials : {}) };
     const namesOf = (...keys) => [...new Set(Object.values(mats).flatMap((m) => keys.map((k) => (isObj(m) && typeof m[k] === 'string' ? m[k] : null))).filter(Boolean))];
     const names = namesOf('map', 'emissionMap'), dataNames = namesOf('normalMap', 'glossMap');
     const pages = Math.max(0, Math.min(16, doc.lightmaps | 0));
@@ -357,7 +381,10 @@ export function loadScenePack(assets, stageId) {
     const tex = {}, data = {};
     names.forEach((n, i) => { if (texList[i]) tex[n] = texList[i]; });
     dataNames.forEach((n, i) => { if (dataList[i]) data[n] = dataList[i]; });
-    return { key: `${url(group, 'scene')}#${doc.binBytes | 0}`, stage: stageId, doc, chunks, groups: sceneGroupRects(chunks), images: { tex, data, lm, env } };
+    return {
+      key: `${url(group, 'scene')}#${doc.binBytes | 0}${backdrop ? `+${backdrop.doc.binBytes | 0}` : ''}`, stage: stageId, doc, chunks,
+      groups: sceneGroupRects(chunks), images: { tex, data, lm, env }, backdrop,
+    };
   })().catch((err) => { console.warn('[board3d] scene load failed', err); return null; }).then((pack) => {
     if (!pack && sceneCache.get(stageId) === pending) sceneCache.delete(stageId);
     return pack;
