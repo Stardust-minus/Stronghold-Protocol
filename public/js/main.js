@@ -88,10 +88,12 @@ import { sanitizeVersions, roomVersion, isDefaultVersion, matchFrameVersion, mus
 import { prediction } from './ui/prediction.js';
 
 const RESTORE_GRACE_MS = 1500;
+/** How long the loading screen waits for the entry film's overlay (the film module's import) before it goes anyway. */
+const SPLASH_HOLD_MS = 4000;
 
 /**
- * Whether this page plays upstream's entry film (ui/entryFilm.js: the black 点击进入 card, then 盟约's film or 规程's
- * opening) before the lobby — by default, on every page load (the owner, 2026-11-15). Opt-outs: `?film=off`, or
+ * Whether this page plays upstream's entry film (ui/entryFilm.js: 盟约's film or 规程's opening, by itself — no 点击进入
+ * card since 2026-11-16) before the lobby — by default, on every page load (the owner, 2026-11-15). Opt-outs: `?film=off`, or
  * localStorage `sp.entryFilm` = 'off'. A browser under automation (`navigator.webdriver`: the e2e suites drive raw
  * puppeteer pages) gets none unless the page asks with `?film=on`. playEntryFilm has its own conditions (reduced
  * motion, a portrait phone, art that does not load).
@@ -665,25 +667,41 @@ async function boot() {
   const root = document.getElementById('app');
   render(html`<${App} />`, root);
 
+  // The loading screen (index.html #boot) goes once the title is drawn — unless the entry film is wanted: it stays up then
+  // as the film's cover while its art loads (ui/entryFilm.js takes it over: data-entry-film; the access gate's last frame
+  // is this screen too, deploy/stardust/auth), and goes here only when no film comes this page load. A film module that
+  // has not put its overlay up within SPLASH_HOLD_MS (a stalled import) plays nothing: the title is not covered late.
   const splash = document.getElementById('boot');
-  if (splash) {
+  let splashGone = false;
+  const dropSplash = () => {
+    if (splashGone || !splash) return;
+    splashGone = true;
     splash.classList.add('is-done');
     setTimeout(() => splash.remove(), 300);
-  }
-  // the start-up version's entry animation (ui/entryFilm.js, upstream PR #878 / §37.147): the 点击进入 card, then 盟约's
-  // film, or for a 规程 start (versions.js startupVersion) 规程's own opening (ui/regulationFilm.js; 盟约's film when its art
-  // is missing); never over a restored match. On by default since the 0.4.0 merge (the owner, 2026-11-15; opt-outs and
-  // automation: wantsEntryFilm). `entryFilm` settles once the overlay (the 点击进入 card, up before the film's art is in)
-  // is up, or when none comes this page load (test/e2e/client.mjs passEntryFilm); the lobby opens its announcement board
-  // only after the overlay is gone (screens/lobby.js useEntryFilmOver).
-  const entryFilm = wantsEntryFilm()
-    ? import('./ui/entryFilm.js')
+  };
+  // the start-up version's entry animation (ui/entryFilm.js, upstream PR #878 / §37.147): 盟约's film, or for a 规程 start
+  // (versions.js startupVersion) 规程's own opening (ui/regulationFilm.js; 盟约's film when its art is missing), playing
+  // by itself (this fork, 2026-11-16: no 点击进入 card); never over a restored match. On by default since the 0.4.0 merge
+  // (the owner, 2026-11-15; opt-outs and automation: wantsEntryFilm). `entryFilm` settles once the overlay (up at once,
+  // before the film's art is in) is up, or when none comes this page load (test/e2e/client.mjs passEntryFilm); the lobby
+  // opens its announcement board only after the overlay is gone (screens/lobby.js useEntryFilmOver).
+  let entryFilm = Promise.resolve();
+  if (wantsEntryFilm()) {
+    let late = false;
+    const hold = setTimeout(() => { late = true; dropSplash(); }, SPLASH_HOLD_MS);
+    entryFilm = import('./ui/entryFilm.js')
       .then((m) => m.playEntryFilm({
-        skip: () => selectRoute(store.get()) === 'game',
+        skip: () => late || selectRoute(store.get()) === 'game',
         regulation: () => seasonOf(startupVersion(store.get())) === REGULATION_SEASON,
+        splash,
       }))
       .catch((err) => console.warn('[app] entry film unavailable', err))
-    : Promise.resolve();
+      .finally(() => {
+        clearTimeout(hold);
+        // taken over as the film's cover: the film takes it down
+        if (!splash?.hasAttribute('data-entry-film')) dropSplash();
+      });
+  } else dropSplash();
   // (audio: the browser tests watch the UI sounds a screen asks for, e.g. test/ui/match-offer.e2e.test.js)
   globalThis.__SP__ = { store, net, data, audio, entryFilm, version: 1 };
   // A page keeps the modules it imported at load time for its whole lifetime, so a deploy cannot reach an open tab

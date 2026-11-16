@@ -15,7 +15,9 @@
 //   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }.
 //
 // - The AudioContext is created on the first user gesture (pointerdown/keydown/touchend), so browsers
-//   never block or warn; everything requested before that is remembered (BGM) or dropped (SFX).
+//   never block or warn; everything requested before that is remembered (BGM) or dropped (SFX). The one exception is
+//   the entry film that plays by itself (ui/entryFilm.js → autoStart): it tries a context before any gesture, kept only
+//   where the browser lets it run at once (Chrome may warn in the console once when it does not).
 // - Channels: master → { bgm, sfx, voice } gains; volumes from settings (0..1) + mute. Tab hidden ⇒ suspend, unless a
 //   `keepAwake` key holds the context (ui/offerCues.js while a match offer stands: its cues reach a doctor waiting in
 //   another tab); hidden and held, only the SFX channel sounds — the music and the voices are silent until the page shows.
@@ -763,26 +765,7 @@ export class AudioManager {
       return;
     }
     try {
-      const AC = this.win?.AudioContext || this.win?.webkitAudioContext;
-      if (!AC) return;
-      this.ctx = new AC();
-      this.master = this.ctx.createGain();
-      this.bgmGain = this.ctx.createGain();
-      this.sfxGain = this.ctx.createGain();
-      this.voiceGain = this.ctx.createGain();
-      this.bgmGain.connect(this.master);
-      this.sfxGain.connect(this.master);
-      this.voiceGain.connect(this.master);
-      this.master.connect(this.ctx.destination);
-      // iOS / iPadOS: a call, Siri or another app's audio moves a running context to 'interrupted' (or 'suspended');
-      // a resume without a gesture may then be refused — listen for the next gesture again (dropped once it runs)
-      try {
-        this.ctx.addEventListener?.('statechange', () => {
-          const s = this.ctx?.state;
-          if (s && s !== 'running' && s !== 'closed' && !this.win?.document?.hidden) this._armUnlock();
-        });
-      } catch { /* ignore */ }
-      this._applyVolumes();
+      if (!this._makeContext()) return;
       this._primeOutput();
       if (this.landWarm) this.warmLandings();
       if (this.ctx.state === 'running') this._dropUnlock();
@@ -795,6 +778,86 @@ export class AudioManager {
       this._warn('ctx', err);
       this.ctx = null;
     }
+  }
+
+  /** The context and its channel gains (master → bgm / sfx / voice), at the settings' volumes. False: no Web Audio. */
+  _makeContext() {
+    const AC = this.win?.AudioContext || this.win?.webkitAudioContext;
+    if (!AC) return false;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.bgmGain = this.ctx.createGain();
+    this.sfxGain = this.ctx.createGain();
+    this.voiceGain = this.ctx.createGain();
+    this.bgmGain.connect(this.master);
+    this.sfxGain.connect(this.master);
+    this.voiceGain.connect(this.master);
+    this.master.connect(this.ctx.destination);
+    // iOS / iPadOS: a call, Siri or another app's audio moves a running context to 'interrupted' (or 'suspended');
+    // a resume without a gesture may then be refused — listen for the next gesture again (dropped once it runs)
+    try {
+      this.ctx.addEventListener?.('statechange', () => {
+        const s = this.ctx?.state;
+        if (s && s !== 'running' && s !== 'closed' && !this.win?.document?.hidden) this._armUnlock();
+      });
+    } catch { /* ignore */ }
+    this._applyVolumes();
+    return true;
+  }
+
+  /**
+   * Start the sound before any gesture on this page, where the browser allows it (ui/entryFilm.js: the entry film plays
+   * by itself, this fork 2026-11-16). Chrome / Edge start a context at once on a page whose tab was clicked on a
+   * same-origin page just before — the access gate's 连接终端 (deploy/stardust/auth): the click's activation carries over
+   * the navigation —, and on a site the player plays a lot or has installed; Firefox and Safari want a gesture on the
+   * page itself (Firefox says so up front: navigator.getAutoplayPolicy, and nothing is tried). Resolves true once the
+   * context runs: the gesture listeners go and the remembered track (wantBgm) plays through playBgm — the film's music
+   * hold (ui/entryFilm.js holdBgm) takes it. Else false, and the context it tried is closed again: everything stays as
+   * before it (the first gesture creates one; no track is downloaded or scheduled on a clock that does not run).
+   * @param {number} [ms] how long a context that starts 'suspended' may take to run (Firefox and Safari start running
+   *   a moment after the constructor; Chrome runs at once or not at all)
+   * @returns {Promise<boolean>}
+   */
+  async autoStart(ms = 400) {
+    if (this.ctx) return this.ctx.state === 'running';
+    if (!this.win || this.win.document?.hidden) return false;
+    try {
+      const policy = this.win.navigator?.getAutoplayPolicy?.('audiocontext');
+      if (policy !== undefined && policy !== 'allowed') return false;
+    } catch { /* not this browser's API */ }
+    let ctx;
+    try {
+      if (!this._makeContext()) return false;
+      ctx = this.ctx;
+      if (ctx.state !== 'running') {
+        const p = ctx.resume?.();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+        const until = Date.now() + ms;
+        while (this.ctx === ctx && ctx.state !== 'running' && Date.now() < until) await new Promise((r) => setTimeout(r, 25));
+      }
+    } catch (err) {
+      this._warn('ctx', err);
+      if (this.ctx && (!ctx || this.ctx === ctx)) this._dropContext();
+      return false;
+    }
+    if (this.ctx !== ctx) return this.ctx?.state === 'running';
+    if (ctx.state !== 'running') { this._dropContext(); return false; }
+    if (this.landWarm) this.warmLandings();
+    this._dropUnlock();
+    if (this.wantBgm) { const k = this.wantBgm; this.wantBgm = null; this.playBgm(k); }
+    return true;
+  }
+
+  /** Close a context that never ran (autoStart) and forget it: audio.js is as before it, locked until a gesture. */
+  _dropContext() {
+    const ctx = this.ctx;
+    this.ctx = null;
+    this.master = this.bgmGain = this.sfxGain = this.voiceGain = null;
+    // a track a screen asked for meanwhile went onto the clock that never ran: remember it for the first gesture
+    ++this.bgmToken;
+    this.bgm = null;
+    if (this.wantBgm == null && this.lastBgmKey != null) this.wantBgm = this.lastBgmKey;
+    try { const p = ctx?.close?.(); if (p && typeof p.catch === 'function') p.catch(() => {}); } catch { /* ignore */ }
   }
 
   /** (Re-)attach the gesture listeners after the context stopped running while visible (see _unlock / _onVis). */

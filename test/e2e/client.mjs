@@ -150,14 +150,14 @@ export async function aimedDrag(page, from, to, { steps = 14, lead = 3, pause = 
 
 // ---- the entry film (public/js/ui/entryFilm.js, PR #878) ------------------------------------------------------------
 // A page load with the art (a local art pack under public/assets; CI has none) plays the event's entry film over the
-// title / lobby: a modal <dialog class="spa-entry"> whose 点击进入 card waits for the tap that unlocks the sound (and
-// says 加载中 after it while the art is still loading). Until then every click target is covered ("nothing clickable for
-// .title-login input").
+// title / lobby, by itself (this fork, 2026-11-16: no 点击进入 card): a modal <dialog class="spa-entry">, clear over the
+// page's loading screen while the art loads, then the film. Until it is gone every click target is covered ("nothing
+// clickable for .title-login input").
 
 /**
  * Get past the entry film as a player does: wait for the overlay (`__SP__.entryFilm`: no film comes up this page load
- * after it), tap the 点击进入 card, tap again once the film runs (its stage is mounted; the card's own tap does not
- * skip) and wait until the overlay is gone. Resolves true when a film was passed, false when none played.
+ * after it), tap once — the tap skips the wait for the art or the film — and wait until the overlay is gone. Resolves
+ * true when a film was passed, false when none played.
  * @param {any} page
  * @param {{ timeout?: number }} [o]
  */
@@ -168,8 +168,6 @@ export async function passEntryFilm(page, { timeout = 15000 } = {}) {
   });
   if (!centre) return false;
   const until = (fn, what) => page.waitForFunction(fn, { timeout }).catch((e) => { throw new Error(`entry film: ${what} (${e.message})`); });
-  if (await page.$('.spa-entry__gate')) await page.mouse.click(centre.x, centre.y);
-  await until(() => !document.querySelector('.spa-entry') || !!document.querySelector('.spa-entry .spa-stage'), 'no film after 点击进入');
   if (await page.$('.spa-entry')) await page.mouse.click(centre.x, centre.y);
   await until(() => !document.querySelector('.spa-entry'), 'the overlay stayed after the skip');
   return true;

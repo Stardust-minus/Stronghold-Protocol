@@ -1,16 +1,21 @@
-// test/ui/entry-film.test.js — the entry film (ui/entryFilm.js) never sits over a room or a match, and leaves the
-// player's own lobby music alone. playEntryFilm runs for real on a small stand-in DOM (the overlay is a <dialog>, the
-// card and the skip label plain elements; the scene itself is a stand-in, its pictures are ui/allianceScene.js's own,
-// unit-tested in test/ui/alliance-scene.test.js): a session restored into a room while the 点击进入 card waits takes the
-// overlay down and a later tap plays nothing; one restored into a match while the film runs takes it down at once, stops
-// the entry cue and hands the music back to the screen. holdBgm: with audio.lobbyTrack set nothing fades and playBgm
-// is left alone; without it the screen's music is held and released from its top; a lobbyTrack that arrives during
-// the hold is passed to the real playBgm at once. A sprite that fails to load plays no film (the card goes); without an
-// art pack no card comes up at all. The card does not wait for the art (this fork, 2026-11-16): a tap before the art is
-// in shows 加载中 and the film once it is in, art that never comes in takes the card down after the tap's wait, and a
-// tap meanwhile goes to the title. A phone in portrait when the title is entered does not start the film after it
-// rotates to landscape. A 规程 start plays 规程's opening (ui/regulationFilm.js) through the same overlay and cue, and
-// 盟约's film without its extracted group or when its pictures do not come in (盟约's load from the card on).
+// test/ui/entry-film.test.js — the entry film (ui/entryFilm.js) plays by itself (this fork, 2026-11-16: no 点击进入 card),
+// never sits over a room or a match, and leaves the player's own lobby music alone. playEntryFilm runs for real on a
+// small stand-in DOM (the overlay is a <dialog>, the page's loading screen and the labels plain elements; the scene
+// itself is a stand-in, its pictures are ui/allianceScene.js's own, unit-tested in test/ui/alliance-scene.test.js).
+// The overlay is up at once and clear over the loading screen (index.html #boot), which it keeps as the cover while
+// the art loads: 加载中 comes under it after a while, the film starts by itself once the art is in and the cover goes
+// under it; art that fails or never comes in takes the cover down (the title), and a tap meanwhile skips to the title.
+// A session restored into a room while the cover is up takes the overlay and the cover down and a later tap plays
+// nothing; one restored into a match while the film runs takes it down at once, stops the entry cue and hands the music
+// back to the screen. Sound: with a running context the cue plays in time; without one the sound is tried first
+// (audio.js autoStart) — the picture plays without sound when it does not start, the screen's music then waits for the
+// first gesture; nothing is tried while muted. A page in a background tab keeps the cover until it is shown. holdBgm:
+// with audio.lobbyTrack set nothing fades and playBgm is left alone; without it the screen's music is held and released
+// from its top (with or without a context); a lobbyTrack that arrives during the hold is passed to the real playBgm at
+// once. Without an art pack no film plays and the cover goes at once. A phone in portrait when the title is entered does
+// not start the film after it rotates to landscape. A 规程 start plays 规程's opening (ui/regulationFilm.js) through the
+// same overlay and cue, and 盟约's film without its extracted group or when its pictures do not come in (盟约's load
+// from the cover on).
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -26,6 +31,14 @@ class El {
   get firstChild() { return this.children[0] || null; }
   get lastChild() { return this.children[this.children.length - 1] || null; }
   get isConnected() { let n = this; while (n.parent) n = n.parent; return n === document.body || n === document.head; }
+  get classList() {
+    const names = () => this.className.split(/\s+/).filter(Boolean);
+    return {
+      contains: (c) => names().includes(c),
+      add: (c) => { if (!names().includes(c)) this.className = [...names(), c].join(' '); },
+      remove: (c) => { this.className = names().filter((x) => x !== c).join(' '); },
+    };
+  }
   append(...cs) { for (const c of cs) { c.remove(); c.parent = this; this.children.push(c); } }
   remove() { if (this.parent) { this.parent.children = this.parent.children.filter((x) => x !== this); this.parent = null; } }
   set innerHTML(h) {
@@ -37,7 +50,9 @@ class El {
     const walk = (n) => { for (const c of n.children) { if (c.className.split(/\s+/).includes(cls)) return c; const r = walk(c); if (r) return r; } return null; };
     return walk(this);
   }
-  setAttribute(k, v) { this.attrs[k] = v; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  removeAttribute(k) { delete this.attrs[k]; }
+  hasAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k); }
   addEventListener(type, fn, opts) { (this.listeners[type] ||= []).push({ fn, once: !!opts?.once }); }
   removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter((l) => l.fn !== fn); }
   dispatch(type) {
@@ -51,10 +66,13 @@ globalThis.addEventListener = (type, fn) => { if (!winListeners.has(type)) winLi
 globalThis.removeEventListener = (type, fn) => { winListeners.get(type)?.delete(fn); };
 const keyListeners = () => winListeners.get('keydown')?.size || 0;
 const pressKey = () => { for (const fn of [...(winListeners.get('keydown') || [])]) fn({ type: 'keydown' }); };
+const docListeners = new Map();
 globalThis.document = {
-  head: new El('head'), body: new El('body'),
+  head: new El('head'), body: new El('body'), hidden: false,
   createElement: (tag) => new El(tag),
   getElementById: (id) => document.head.children.find((c) => c.id === id) || null,
+  addEventListener: (type, fn) => { if (!docListeners.has(type)) docListeners.set(type, new Set()); docListeners.get(type).add(fn); },
+  removeEventListener: (type, fn) => { docListeners.get(type)?.delete(fn); },
 };
 globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 globalThis.innerWidth = 1600; globalThis.innerHeight = 900;
@@ -74,7 +92,16 @@ const { store, selectRoute } = await import('../../public/js/store.js');
 const { audio } = await import('../../public/js/audio.js');
 const { data } = await import('../../public/js/data.js');
 
-const overlay = () => document.body.children.find((c) => c.className === 'spa-entry') || null;
+const overlay = () => document.body.children.find((c) => c.className.split(/\s+/).includes('spa-entry')) || null;
+const isCover = (el) => el.className.split(/\s+/).includes('spa-entry--cover');
+/** The page's loading screen (index.html #boot), as main.js passes it. */
+function bootSplash() {
+  const s = new El('div');
+  s.id = 'boot';
+  s.className = 'boot';
+  document.body.append(s);
+  return s;
+}
 /**
  * Image stand-ins whose loads a test settles: a URL `hold(url)` names stays pending until release(); every other one
  * loads on the next task. `asked`: every URL set, in order.
@@ -133,32 +160,39 @@ const enterRoom = () => store.set((s) => ({ session: { ...s.session, entered: tr
 const enterMatch = () => store.set((s) => ({ session: { ...s.session, entered: true }, room: { id: 'r1', inMatch: true, players: [] } }));
 const PROTO = Object.getPrototypeOf(audio);
 const realPlayBgm = PROTO.playBgm;
+const until = async (fn, ms = 2000) => { for (let i = 0; i < ms / 20 && !fn(); i++) await sleep(20); };
 
 beforeEach(() => {
   clearSpriteLoads();
   store.reset();
   document.body.children = [];
+  document.hidden = false;
+  docListeners.clear();
   delete audio.playBgm;
+  delete audio.autoStart;
   PROTO.playBgm = realPlayBgm;
-  Object.assign(audio, { ctx: null, lobbyTrack: null, lastBgmKey: 'lobby', volumes: { ...(audio.volumes || {}), muted: false } });
+  Object.assign(audio, { ctx: null, lobbyTrack: null, lastBgmKey: 'lobby', wantBgm: null, volumes: { ...(audio.volumes || {}), muted: false } });
 });
 
-test('a session restored into a room while the 点击进入 card waits takes the overlay down; a later tap plays nothing', async () => {
+test('the overlay is up at once, clear over the loading screen; a session restored into a room takes both down, a later tap plays nothing', async () => {
   const keysBefore = keyListeners();
   const spy = sceneSpy();
-  await playEntryFilm({ mount: spy.mount });
+  const splash = bootSplash();
+  await playEntryFilm({ mount: spy.mount, splash });
   const el = overlay();
-  assert.ok(el && el.open, 'the card is up on the title screen');
-  assert.ok(el.querySelector('.spa-entry__gate'), 'with the 点击进入 card (sound is still locked)');
-  assert.equal(keyListeners(), keysBefore + 1, 'the card listens for a key');
+  assert.ok(el && el.open, 'the overlay is up before the art is in');
+  assert.ok(isCover(el), 'clear: the loading screen under it is the cover');
+  assert.equal(el.querySelector('.spa-entry__gate'), null, 'no 点击进入 card');
+  assert.equal(splash.attrs['data-entry-film'], 'cover', 'the loading screen is the film\'s now (main.js leaves it up)');
+  assert.equal(keyListeners(), keysBefore + 1, 'a key skips from the cover on');
 
   enterRoom();
   assert.equal(selectRoute(store.get()), 'room');
   assert.equal(overlay(), null, 'the overlay is gone at once');
   assert.equal(el.open, false);
+  assert.equal(splash.isConnected, false, 'and the loading screen with it (nothing over the room)');
   assert.equal(keyListeners(), keysBefore, 'and nothing listens for keys any more');
 
-  // the tap (or key) meant for the card now reaches nothing: no film over the room
   el.dispatch('pointerdown');
   pressKey();
   await sleep(800);
@@ -166,20 +200,23 @@ test('a session restored into a room while the 点击进入 card waits takes the
   assert.equal(overlay(), null);
 });
 
-test('a session restored into a match while the film runs takes it down at once, stops the cue, hands the music back', async () => {
+test('the film starts by itself once its art is in; a session restored into a match takes it down at once, stops the cue, hands the music back', async () => {
   const { ctx, sources } = runningContext();
   Object.assign(audio, { ctx, sfxGain: {}, _buffer: async () => ({ duration: 1 }), _fadeOutBgm() {} });
   const played = [];
   PROTO.playBgm = function (key) { played.push(key); };
   const spy = sceneSpy();
+  const splash = bootSplash();
   const keysBefore = keyListeners();
-  await playEntryFilm({ mount: spy.mount });
+  await playEntryFilm({ mount: spy.mount, splash });
   const el = overlay();
-  assert.ok(el, 'sound is unlocked: the film starts without the card');
-  assert.equal(el.querySelector('.spa-entry__gate'), null);
-  for (let i = 0; i < 100 && !spy.frames; i++) await sleep(20);
-  assert.equal(spy.mounted, 1, 'the film runs');
+  assert.ok(el, 'the overlay is up');
+  await until(() => spy.frames > 0);
+  assert.equal(spy.mounted, 1, 'the film runs without a tap');
   assert.ok(spy.frames > 0);
+  assert.equal(isCover(el), false, 'black under the film');
+  await until(() => !splash.isConnected, 1000);
+  assert.equal(splash.isConnected, false, 'the cover goes under the film\'s first frames');
   const cue = sources[0];
   assert.ok(cue && cue.started != null, 'the entry cue is scheduled');
   assert.ok(Object.prototype.hasOwnProperty.call(audio, 'playBgm'), 'the screen\'s music is held');
@@ -210,7 +247,7 @@ test('a skip before the entry cue starts cuts it off: no stop before its start t
   PROTO.playBgm = function () {};
   const spy = sceneSpy();
   await playEntryFilm({ mount: spy.mount });
-  for (let i = 0; i < 100 && !spy.frames; i++) await sleep(20);
+  await until(() => spy.frames > 0);
   const cue = sources[0];
   assert.ok(cue && cue.started > ctx.currentTime, 'the cue is scheduled ahead');
   pressKey(); // the skip, before the cue's start time
@@ -233,12 +270,82 @@ test('the entry cue is the manifest\'s URL, content hash included: the worker an
   try {
     const spy = sceneSpy();
     await playEntryFilm({ mount: spy.mount });
-    for (let i = 0; i < 100 && !spy.frames; i++) await sleep(20);
+    await until(() => spy.frames > 0);
     assert.deepEqual(asked.filter((u) => u.includes('g_ui_load')), [hashed]);
     pressKey();
     await sleep(400);
     assert.equal(overlay(), null);
   } finally { data.setView('assets', null); }
+});
+
+test('no context yet: the sound is tried before the film (audio.js autoStart); where it starts, the cue plays in time', async () => {
+  const { ctx, sources } = runningContext();
+  const calls = [];
+  const spy = sceneSpy();
+  PROTO.playBgm = function () {};
+  audio.autoStart = async () => { calls.push({ overlay: !!overlay(), mounted: spy.mounted }); Object.assign(audio, { ctx, sfxGain: {}, _buffer: async () => ({ duration: 1 }), _fadeOutBgm() {} }); return true; };
+  await playEntryFilm({ mount: spy.mount });
+  await until(() => spy.frames > 0);
+  assert.deepEqual(calls, [{ overlay: true, mounted: 0 }], 'tried once, with the cover up and before the film');
+  assert.ok(sources[0] && sources[0].started != null, 'the cue is scheduled with the picture');
+  pressKey();
+  await sleep(400);
+  assert.equal(overlay(), null);
+});
+
+test('where the sound does not start, the picture plays without it: no cue, and the screen\'s music waits for the first gesture', async () => {
+  const played = [];
+  PROTO.playBgm = function (key) { played.push(key); };
+  let tried = 0;
+  audio.autoStart = async () => { tried++; return false; }; // Firefox / Safari, or a gate that let the player in by itself
+  const spy = sceneSpy();
+  await playEntryFilm({ mount: spy.mount });
+  await until(() => spy.frames > 0);
+  assert.equal(tried, 1);
+  assert.equal(spy.mounted, 1, 'the film plays anyway');
+  assert.equal(audio.ctx, null, 'no context: nothing was scheduled');
+  audio.playBgm('lobby'); // the title screen asks for its music meanwhile
+  assert.deepEqual(played, [], 'held while the picture runs');
+  pressKey(); // the first gesture: a skip (audio.js starts its context on the same gesture)
+  assert.deepEqual(played, ['lobby'], 'the screen\'s music is handed to audio.js (it plays it from its top once it can)');
+  await sleep(400);
+  assert.equal(overlay(), null);
+});
+
+test('muted: no sound is tried before a gesture', async () => {
+  let tried = 0;
+  audio.autoStart = async () => { tried++; return false; };
+  audio.volumes = { ...audio.volumes, muted: true };
+  PROTO.playBgm = function () {};
+  const spy = sceneSpy();
+  await playEntryFilm({ mount: spy.mount });
+  await until(() => spy.frames > 0);
+  assert.equal(spy.mounted, 1);
+  assert.equal(tried, 0);
+  pressKey();
+  await sleep(400);
+});
+
+test('a page opened in a background tab keeps the cover until it is shown, then plays', async () => {
+  document.hidden = true;
+  let tried = 0;
+  audio.autoStart = async () => { tried++; return false; };
+  PROTO.playBgm = function () {};
+  const spy = sceneSpy();
+  const splash = bootSplash();
+  await playEntryFilm({ mount: spy.mount, splash });
+  await sleep(300);
+  assert.equal(spy.mounted, 0, 'nothing plays unseen');
+  assert.equal(tried, 0, 'and no sound is tried behind another tab');
+  assert.ok(overlay() && splash.isConnected, 'the cover waits');
+  document.hidden = false;
+  for (const fn of [...(docListeners.get('visibilitychange') || [])]) fn();
+  await until(() => spy.frames > 0);
+  assert.equal(spy.mounted, 1, 'shown: the film plays');
+  assert.equal(tried, 1);
+  pressKey();
+  await sleep(400);
+  assert.equal(overlay(), null);
 });
 
 test('holdBgm leaves the player\'s own lobby music alone: no fade, playBgm untouched', () => {
@@ -268,6 +375,13 @@ test('holdBgm without the player\'s own music holds the screen\'s and releases i
   assert.deepEqual(played, ['lobby'], 'once');
   // silent music: nothing to hold
   assert.equal(holdBgm(Object.assign(Object.create(proto), { ctx: {}, bgmSilent: true, lobbyTrack: null })), null);
+  // before there is a context (the sound is still being tried): held the same way, the release hands the key over
+  const b = Object.assign(Object.create(proto), { ctx: null, bgmSilent: false, bgmToken: 0, lastBgmKey: 'lobby', lobbyTrack: null, _fadeOutBgm() {} });
+  const releaseB = holdBgm(b);
+  assert.equal(typeof releaseB, 'function', 'held without a context too');
+  b.playBgm('prep');
+  releaseB();
+  assert.deepEqual(played, ['lobby', 'prep']);
 });
 
 test('holdBgm hands a lobby track that arrives late to the real playBgm at once, without another fade', () => {
@@ -288,7 +402,7 @@ test('holdBgm hands a lobby track that arrives late to the real playBgm at once,
   assert.deepEqual(played, ['lobby'], 'the release does not start the track again');
 });
 
-test('a sprite that fails to load plays no film: the card goes, the title stays', async () => {
+test('a sprite that fails to load plays no film: the cover goes, the title stays', async () => {
   const Real = globalThis.Image;
   globalThis.Image = class {
     set src(u) { this._src = u; setTimeout(() => this.onerror?.(), 30); }
@@ -297,10 +411,13 @@ test('a sprite that fails to load plays no film: the card goes, the title stays'
   const keysBefore = keyListeners();
   try {
     const spy = sceneSpy();
-    await playEntryFilm({ mount: spy.mount });
-    assert.ok(overlay()?.querySelector('.spa-entry__gate'), 'the card is up while the art loads');
-    for (let i = 0; i < 50 && overlay(); i++) await sleep(20);
-    assert.equal(overlay(), null, 'the card goes once a sprite fails, before any tap');
+    const splash = bootSplash();
+    await playEntryFilm({ mount: spy.mount, splash });
+    assert.ok(overlay(), 'the overlay is up while the art loads');
+    await until(() => !overlay(), 1500);
+    assert.equal(overlay(), null, 'it goes once a sprite fails, without a tap');
+    assert.ok(splash.classList.contains('is-done'), 'the cover fades: the title screen');
+    assert.equal(splash.hasAttribute('data-entry-film'), false);
     assert.equal(keyListeners(), keysBefore, 'nothing listens for keys any more');
     assert.equal(spy.mounted, 0);
   } finally {
@@ -308,55 +425,61 @@ test('a sprite that fails to load plays no film: the card goes, the title stays'
   }
 });
 
-test('without the art pack (no sprite URL) no card comes up', async () => {
+test('without the art pack (no sprite URL) no film plays: the cover goes at once', async () => {
   await data.load('assets');
   data.setView('assets', (m) => ({ ...m, ui: {} }));
   try {
     const spy = sceneSpy();
-    await playEntryFilm({ mount: spy.mount });
+    const splash = bootSplash();
+    await playEntryFilm({ mount: spy.mount, splash });
+    await until(() => !overlay(), 1000);
     assert.equal(overlay(), null, 'the title stays uncovered');
+    assert.ok(splash.classList.contains('is-done'), 'the loading screen fades as without a film');
     assert.equal(spy.mounted, 0);
   } finally { data.setView('assets', null); }
 });
 
-test('a tap before the art is in: 加载中 on the card, then the film once the art is in', async () => {
+test('the art takes a while: 加载中 under the cover, then the film by itself once the art is in', async () => {
   const imgs = heldImages(() => true);
   try {
     const spy = sceneSpy();
-    await playEntryFilm({ mount: spy.mount, budget: { load: 0, tap: 5000, cap: 8000 } });
+    const splash = bootSplash();
+    await playEntryFilm({ mount: spy.mount, splash, budget: { load: 5000, cap: 8000 } });
     const el = overlay();
-    assert.ok(el, 'the card is up before the art is in');
-    assert.equal(el.querySelector('.spa-entry__gate').firstChild.textContent, '点击进入');
+    assert.ok(el && isCover(el), 'the cover is up before the art is in');
+    assert.equal(el.querySelector('.spa-entry__wait').textContent, '加载中');
+    assert.equal(el.querySelector('.spa-entry__skip').textContent, '点击跳过', 'a tap skips the wait');
+    await until(() => imgs.asked.length >= 8, 500);
     assert.ok(imgs.asked.length >= 8, '盟约\'s pictures are loading behind it');
-    el.dispatch('pointerdown');
-    const card = el.querySelector('.spa-entry__gate');
-    assert.ok(card && card.className.includes('spa-entry__gate--wait'), 'the tap turns the card into the wait');
-    assert.equal(card.firstChild.textContent, '加载中');
-    assert.equal(el.querySelector('.spa-entry__skip').style.opacity, '', 'with 点击跳过 under it');
-    await sleep(800); // the gate's audio wait (no context here: 600 ms)
+    assert.equal(el.className.includes('spa-entry--say'), false, 'no 加载中 at first (a warm cache: no flash)');
+    await sleep(1300);
+    assert.ok(el.className.includes('spa-entry--say'), '加载中 once the art takes a moment');
     assert.equal(spy.mounted, 0, 'no film before its art');
-    assert.ok(overlay() && el.querySelector('.spa-entry__gate'), 'the card still says 加载中');
+    assert.ok(splash.isConnected, 'the cover is still up');
     imgs.release();
-    for (let i = 0; i < 100 && !spy.frames; i++) await sleep(20);
-    assert.equal(spy.mounted, 1, 'the film runs once the art is in');
-    assert.equal(el.querySelector('.spa-entry__gate'), null, 'the card is gone');
+    await until(() => spy.frames > 0);
+    assert.equal(spy.mounted, 1, 'the film runs once the art is in, without a tap');
+    assert.equal(el.querySelector('.spa-entry__wait'), null, 'no 加载中 over the film');
+    await until(() => !splash.isConnected, 1000);
+    assert.equal(splash.isConnected, false, 'the cover went under the film');
     pressKey();
     await sleep(400);
     assert.equal(overlay(), null, 'skipped');
   } finally { imgs.restore(); }
 });
 
-test('art that never comes in: after the tap the card waits its time, then goes; nothing plays later', async () => {
+test('art that never comes in: the cover waits its time, then goes; nothing plays later', async () => {
   const imgs = heldImages(() => true);
   const keysBefore = keyListeners();
   try {
     const spy = sceneSpy();
-    await playEntryFilm({ mount: spy.mount, budget: { load: 0, tap: 400, cap: 3000 } });
-    overlay().dispatch('pointerdown');
-    await sleep(800); // 600 ms audio wait + 200 of the 400 ms
-    assert.ok(overlay(), 'still 加载中');
-    for (let i = 0; i < 50 && overlay(); i++) await sleep(20);
-    assert.equal(overlay(), null, 'the card goes: the title screen');
+    const splash = bootSplash();
+    await playEntryFilm({ mount: spy.mount, splash, budget: { load: 400, cap: 3000 } });
+    await sleep(200);
+    assert.ok(overlay(), 'still waiting');
+    await until(() => !overlay(), 1500);
+    assert.equal(overlay(), null, 'the cover goes: the title screen');
+    assert.ok(splash.classList.contains('is-done'));
     assert.equal(keyListeners(), keysBefore, 'nothing listens for keys any more');
     imgs.release();
     await sleep(100);
@@ -364,15 +487,16 @@ test('art that never comes in: after the tap the card waits its time, then goes;
   } finally { imgs.restore(); }
 });
 
-test('a tap while the card says 加载中 goes to the title', async () => {
+test('a tap while the art loads goes to the title', async () => {
   const imgs = heldImages(() => true);
   try {
     const spy = sceneSpy();
-    await playEntryFilm({ mount: spy.mount, budget: { load: 0, tap: 5000, cap: 8000 } });
+    const splash = bootSplash();
+    await playEntryFilm({ mount: spy.mount, splash, budget: { load: 5000, cap: 8000 } });
     const el = overlay();
+    await sleep(100);
     el.dispatch('pointerdown');
-    await sleep(700);
-    el.dispatch('pointerdown');
+    assert.ok(splash.classList.contains('is-done'), 'the cover fades with the overlay');
     await sleep(400);
     assert.equal(overlay(), null, 'gone after its fade');
     imgs.release();
@@ -456,7 +580,7 @@ test('a 规程 start plays 规程\'s opening through the same overlay: its label
     const el = overlay();
     assert.ok(el, 'the overlay is up');
     assert.equal(el.attrs['aria-label'], '卫戍协议·规程');
-    for (let i = 0; i < 100 && !regulation.frames; i++) await sleep(20);
+    await until(() => regulation.frames > 0);
     assert.equal(regulation.mounted, 1, '规程\'s scene runs');
     assert.equal(alliance.mounted, 0, 'not 盟约\'s');
     assert.ok(sources[0] && sources[0].started != null, 'the load cue is scheduled');
@@ -482,7 +606,7 @@ test('a 规程 start without the extracted opening plays 盟约\'s film instead'
     await playEntryFilm({ mount: alliance.mount, regulation: () => true, regulationMount: regulation.mount });
     const el = overlay();
     assert.ok(el, 'the overlay is up');
-    for (let i = 0; i < 100 && !alliance.frames; i++) await sleep(20);
+    await until(() => alliance.frames > 0);
     assert.equal(el.attrs['aria-label'], '卫戍协议 · 盟约');
     assert.equal(alliance.mounted, 1, '盟约\'s scene runs');
     assert.equal(regulation.mounted, 0, 'no 规程 scene without its art');
@@ -494,23 +618,22 @@ test('a 规程 start without the extracted opening plays 盟约\'s film instead'
   }
 });
 
-test('a 规程 start whose opening does not come in plays 盟约\'s film, loading since the card came up', async () => {
+test('a 规程 start whose opening does not come in plays 盟约\'s film at the end of the wait, loading since the cover came up', async () => {
   const restore = await regulationGroup(true);
   const imgs = heldImages((u) => u.includes('/assets/local/'));
   const alliance = sceneSpy();
   const regulation = sceneSpy();
   try {
-    await playEntryFilm({ mount: alliance.mount, regulation: () => true, regulationMount: regulation.mount, budget: { load: 0, tap: 300, cap: 3000 } });
+    await playEntryFilm({ mount: alliance.mount, regulation: () => true, regulationMount: regulation.mount, budget: { load: 300, cap: 3000 } });
     const el = overlay();
-    assert.ok(el?.querySelector('.spa-entry__gate'), 'the card is up');
+    assert.ok(el && isCover(el), 'the cover is up');
     assert.equal(el.attrs['aria-label'], '卫戍协议·规程', '规程\'s until the choice');
     const isReg = (u) => u.includes('/assets/local/');
-    for (let i = 0; i < 50 && imgs.asked.filter((u) => !isReg(u)).length < 8; i++) await sleep(10);
-    assert.ok(imgs.asked.filter((u) => !isReg(u)).length >= 8, '盟约\'s pictures load with the card up, before 规程\'s have failed');
+    await until(() => imgs.asked.filter((u) => !isReg(u)).length >= 8, 500);
+    assert.ok(imgs.asked.filter((u) => !isReg(u)).length >= 8, '盟约\'s pictures load with the cover up, before 规程\'s have failed');
     assert.ok(imgs.asked.findIndex(isReg) >= 0 && imgs.asked.findIndex(isReg) < imgs.asked.findIndex((u) => !isReg(u)), 'right after 规程\'s');
-    el.dispatch('pointerdown');
-    for (let i = 0; i < 100 && !alliance.frames; i++) await sleep(20);
-    assert.equal(alliance.mounted, 1, '盟约\'s film plays at the end of the wait');
+    await until(() => alliance.frames > 0);
+    assert.equal(alliance.mounted, 1, '盟约\'s film plays at the end of the wait, by itself');
     assert.equal(regulation.mounted, 0);
     assert.equal(el.attrs['aria-label'], '卫戍协议 · 盟约');
     pressKey();

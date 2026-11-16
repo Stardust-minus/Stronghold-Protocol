@@ -59,6 +59,7 @@ test('the film\'s texts are in every shipped language pack', () => {
   const dir = path.join(ROOT, 'public/i18n');
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
     const pack = JSON.parse(readFileSync(path.join(dir, file), 'utf8'));
-    for (const id of ['点击进入', '点击跳过', '卫戍协议', '盟约']) assert.ok(pack[id], `${id} in ${file}`);
+    // the cover's 加载中 and 点击跳过 (the 点击进入 card is gone since 2026-11-16: the film plays by itself)
+    for (const id of ['加载中', '点击跳过', '卫戍协议', '盟约']) assert.ok(pack[id], `${id} in ${file}`);
   }
 });

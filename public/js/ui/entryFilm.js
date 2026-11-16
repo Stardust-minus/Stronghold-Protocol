@@ -1,22 +1,29 @@
 // The 卫戍协议：盟约 entry animation (ui/allianceScene.js) before the title screen, on every page load, with the event's
 // sound as the recording has it: the entry cue act1autochess_g_ui_load at video 1.686 s, then the lobby music from its
 // very start at 2.144 s with audio.js's own 0.8 s fade-in (a cross-correlation of the recording's soundtrack against the
-// official files: r 0.988 / 0.998, nothing else is in it). A fresh page may not play sound before a user gesture, so a
-// black 点击进入 card waits for the tap that unlocks it (audio.js listens for the same gesture), then the film runs.
-// The card comes up at once and the film's art loads behind it (this fork, 2026-11-16: the art used to get a 1.2 s look
-// before the card, which a cold first visit often missed — 盟约's film in place of 规程's, or no card and no film at
-// all): a tap before the art is in turns the card into 加载中 until it is, for a while (ART_MS / TAP_MS below); art
-// that fails, or is not in by then, takes the card down and leaves the title screen.
+// official files: r 0.988 / 0.998, nothing else is in it).
+// It plays by itself (this fork, 2026-11-16, the owner: 「开场动画去掉点击进入，直接自动播放进入就行了」 — the black 点击进入
+// card that waited for the tap unlocking the sound is gone). The page's loading screen (index.html #boot: the mark and
+// STRONGHOLD PROTOCOL, which is also the access gate's last frame, deploy/stardust/auth) stays up as the film's cover
+// while its art loads — the title is never shown first and covered after —, 加载中 under it once the art takes a moment
+// (COVER_SAY_MS); the film fades in over it once the art is in. Art that fails, or is not in after ART_MS, takes the
+// cover down: the title screen.
+// Sound: a page may not start sound before a gesture on it. Where the browser lets it anyway (audio.js autoStart:
+// Chrome / Edge right after the click on the gate's 连接终端 — the click's activation carries over to this same-origin
+// page —, a site the player plays a lot, an installed app) the cue and the music are timed to the picture as before.
+// Elsewhere (Firefox, Safari, a gate that let the player in by itself) the picture plays without sound — no cue later,
+// out of step — and audio.js starts the lobby music from its top on the first tap or key (which also skips a film still
+// running).
 // Volumes / mute are the settings' (sfx · bgm channels); the player's own lobby music (audio.setLobbyTrack) plays in
 // place of the official track as everywhere else, untouched by the film — a custom track that arrives while the film
 // holds the music is handed to audio.js at once. A tap / click / key skips (the film, or the wait for its art). Whether
 // the film plays is decided once, when the title is entered: a phone that is portrait then gets no film, and turning it
-// landscape later does not start one. Reduced motion, or no art at all (no art pack: nothing to load), gets no film and
-// no card. Never over a room or a match: the route is watched from the card on, and a session restored into a room / a
-// match while the card waits or the film runs takes the overlay down at once, silences the cue and hands the music
-// back to that screen.
+// landscape later does not start one. Reduced motion, or no art at all (no art pack: nothing to load), gets no film. A
+// page opened in a background tab keeps the cover until it is shown. Never over a room or a match: the route is watched
+// from the cover on, and a session restored into a room / a match takes the overlay (and the cover) down at once,
+// silences the cue and hands the music back to that screen.
 // main.js calls playEntryFilm once at boot. A 规程 start (versions.js startupVersion) plays 规程's own opening instead
-// (ui/regulationFilm.js: the client's season entry, DESIGN §37.147) through the same card, skip, cue and music hold;
+// (ui/regulationFilm.js: the client's season entry, DESIGN §37.147) through the same cover, skip, cue and music hold;
 // without that art (it comes only from a local-client extraction, data/local-assets.json) or when it does not load in
 // time, 盟约's film plays (this fork, 2026-11-15: the film is on by default, so a 规程 start should not show nothing).
 // Both films' art loads from the start (盟约's asked for right after 规程's), so 盟约's is in, or nearly, by the time
@@ -27,7 +34,6 @@ import { data } from '../data.js';
 import { reducedMotion } from './device.js';
 import { mountAllianceIntro, preloadSprites, setCycleOrigin, INTRO_AUDIO, INTRO_SPAN } from './allianceScene.js';
 import { t } from '../../../shared/i18n.js';
-import { scriptOf } from '../../../shared/i18nPacks.js';
 import { DEFAULT_VERSION } from '../../../shared/versions.js';
 import { startupVersion } from '../versions.js';
 
@@ -40,15 +46,17 @@ const SFX_GAIN = 0.54;
 // The art's time (this fork, 2026-11-16). A cold first visit loaded 规程's opening (prefabs.json and 40 pictures, about
 // 3.5 MB through the entry and the CDN redirects) in 1.3–2.6 s on a fast line, and 盟约's film (8 pictures, about 2.2 MB)
 // in about 1 s more; a player's slower line takes a few times that (a browser held to 8 Mbit/s and 150 ms: 规程's
-// opening 6.9 s after the card, 16 Mbit/s and 100 ms: 4.7 s). The card is up meanwhile and waits for its tap anyway,
-// so the art may take ART_MS from the moment it starts to load, with the card once the page has booted (not from the
-// page's start: on a slow line the boot alone takes seconds) — about three times the fast line's whole load; a tap
-// later than that still gives art in flight TAP_MS more. 加载中 is on the card meanwhile (a tap goes to the title), then
-// the card goes: the title screen, not a longer black one.
+// opening 6.9 s, 16 Mbit/s and 100 ms: 4.7 s). The cover may wait ART_MS for it from the moment it is up (the page has
+// booted then: on a slow line the boot alone takes seconds) — about three times the fast line's whole load, and the slow
+// lines above still see their film; a tap skips the wait. Then the cover goes: the title screen, not a longer dark one.
 const ART_MS = 8000;
-const TAP_MS = 2500;
-// Art not in this long after its load began is given up for this page load (a card still waiting for its tap goes then)
+// Art not in this long after its load began is given up (what is still loading when the cover has gone keeps loading
+// until then: it is in the browser's cache for the next page load)
 const ART_CAP_MS = 60000;
+// 加载中 under the cover only once the art takes a moment (a warm cache: the film is up within a few frames, no flash)
+const COVER_SAY_MS = 1200;
+// the film fades in over the cover (its own first frames are black: 盟约's before the grey screen, 规程's black cover)
+const FADE_IN_MS = 260;
 // A 规程 start asks for 盟约's pictures, the fallback, right after 规程's (at the latest this long after 规程's load
 // began, should its pack not answer): 规程's are then fetched first — 盟约's queue behind them on HTTP/1.1, and 规程's
 // are fetchPriority high on HTTP/2 — so the fallback does not hold up the film it stands in for (both at once, 盟约's
@@ -59,13 +67,13 @@ const CSS = `
 .spa-entry{position:fixed;inset:0;z-index:2147483647;width:100vw;height:100vh;max-width:none;max-height:none;margin:0;padding:0;
   border:0;outline:0;overflow:hidden;background:#000;cursor:pointer;color:#dfe9ea}
 .spa-entry::backdrop{background:transparent}
-.spa-entry__gate{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
-  font-family:Bender,"Microsoft YaHei","Noto Sans SC",sans-serif;color:#dfe9ea;animation:spa-pulse 1.8s ease-in-out infinite}
-.spa-entry__gate b{font:700 22px/1 "Microsoft YaHei","Noto Sans SC",sans-serif;letter-spacing:.4em;padding-left:.4em}
-.spa-entry__gate i{font-style:normal;font-size:12px;letter-spacing:.5em;color:#47c9a9}
-@keyframes spa-pulse{0%,100%{opacity:.55}50%{opacity:1}}
-.spa-entry__gate--wait{animation-duration:1s}
-.spa-entry__gate--wait::after{content:"";width:120px;height:2px;margin-top:4px;
+.spa-entry--cover{background:transparent}
+.spa-entry__wait{position:absolute;left:0;right:0;top:calc(50% + .72rem);display:flex;flex-direction:column;align-items:center;
+  gap:9px;font:400 max(12px,.14rem)/1 "Microsoft YaHei","Noto Sans SC",sans-serif;letter-spacing:.5em;text-indent:.5em;
+  color:#47c9a9;opacity:0;transition:opacity .5s;pointer-events:none}
+.spa-entry--black .spa-entry__wait{top:50%}
+.spa-entry--say .spa-entry__wait{opacity:.85}
+.spa-entry__wait::after{content:"";width:120px;height:2px;
   background:linear-gradient(90deg,transparent,#47c9a9,transparent) 0 0/50% 100% no-repeat;animation:spa-wait 1.1s linear infinite}
 @keyframes spa-wait{from{background-position:-100% 0}to{background-position:200% 0}}
 .spa-entry__skip{position:absolute;right:3%;bottom:3.5%;z-index:2;font:12px/1 "Microsoft YaHei","Noto Sans SC",sans-serif;
@@ -95,15 +103,17 @@ async function prepareSound(version) {
 }
 /**
  * Hold the screen's music for the opening: the playing track fades out and every playBgm meanwhile is only remembered;
- * the release starts the remembered (else the last) track from its top — audio.js's own start, fade-in included.
- * Null when the music is silent or the player's own lobby music is set (audio.setLobbyTrack → audio.lobbyTrack): that
- * one keeps playing on — no fade, playBgm left alone. A lobbyTrack that arrives while the hold is up is not waited
- * out: the next playBgm drops the placeholder at once and calls the real playBgm (no further fade-out).
+ * the release starts the remembered (else the last) track from its top — audio.js's own start, fade-in included. Also
+ * before there is a context (the film's sound is still being tried, audio.js autoStart): what the release asks for is
+ * then remembered by audio.js for the first gesture. Null when the music is silent or the player's own lobby music is
+ * set (audio.setLobbyTrack → audio.lobbyTrack): that one keeps playing on — no fade, playBgm left alone. A lobbyTrack
+ * that arrives while the hold is up is not waited out: the next playBgm drops the placeholder at once and calls the real
+ * playBgm (no further fade-out).
  * @param {any} [a] the audio manager (tests pass a stand-in)
  * @returns {(() => void) | null} the release
  */
 export function holdBgm(a = audio) {
-  if (!a.ctx || a.bgmSilent || a.lobbyTrack || Object.prototype.hasOwnProperty.call(a, 'playBgm')) return null;
+  if (a.bgmSilent || a.lobbyTrack || Object.prototype.hasOwnProperty.call(a, 'playBgm')) return null;
   let asked;
   let passed = false;
   const placeholder = (key) => {
@@ -158,7 +168,7 @@ function allianceFilm(mount) {
   };
 }
 
-/** 规程's opening's label and the lobby version it hands over to: the card's before its pack is in. */
+/** 规程's opening's label and the lobby version it hands over to: the overlay's before its pack is in. */
 const regulationTitle = () => ({ label: t('卫戍协议·规程'), version: startupVersion(store.get()) });
 
 /**
@@ -236,14 +246,29 @@ function loadFilms(list, cap) {
 }
 
 /**
- * @param {() => boolean} allowed  false once the film must go (a room / a match, the caller's skip)
- * @param {ReturnType<typeof loadFilms>} films
- * @param {{ label: string, version: string }} first  the best film's label and lobby version (the card's until the
- *   choice is made)
- * @param {{ by: number, tap: number }} budget  by: when the art's ART_MS run out (performance.now()); tap: TAP_MS (tests
- *   pass their own)
+ * Resolves once the page is shown (a background tab, or a prerendered page: when it is), with the undo of the wait.
+ * @returns {{ shown: Promise<void>, cancel: () => void }}
  */
-function run(allowed, films, first, budget) {
+function whenShown() {
+  if (!globalThis.document?.hidden) return { shown: Promise.resolve(), cancel: () => {} };
+  let on = () => {};
+  const shown = new Promise((resolve) => {
+    on = () => { if (document.hidden) return; document.removeEventListener('visibilitychange', on); resolve(); };
+    document.addEventListener('visibilitychange', on);
+  });
+  return { shown, cancel: () => { try { document.removeEventListener('visibilitychange', on); } catch { /* ignore */ } } };
+}
+
+/**
+ * The overlay, up at once: clear over the page's loading screen (the cover) while the manifest and the art load, then
+ * the film. Everything the overlay waits for happens behind it, so a tap or a key skips at any time.
+ * @param {() => boolean} allowed  false once the film must go (a room / a match, the caller's skip)
+ * @param {{ label: string, version: string, films: () => (Film|null|Promise<Film|null>)[] }} first  the best film's
+ *   label and lobby version (the overlay's until the choice is made) and the films to load, best first
+ * @param {{ load: number, cap: number }} budget  load: ART_MS, cap: ART_CAP_MS (tests pass their own)
+ * @param {any} splash  the page's loading screen (index.html #boot): the cover; null / gone: the overlay's own black
+ */
+function run(allowed, first, budget, splash) {
   if (playing || !allowed()) return;
   playing = true;
   if (!document.getElementById('spa-entry-style')) {
@@ -252,60 +277,54 @@ function run(allowed, films, first, budget) {
     st.textContent = CSS;
     document.head.append(st);
   }
+  // the page's loading screen stays up under a clear overlay; it is marked as the film's (main.js leaves it alone, boot.js
+  // does not call a long wait for the film's art a slow boot)
+  const cover = splash && splash.isConnected && !splash.classList?.contains('is-done') ? splash : null;
   // a modal <dialog>: the top layer, so it also covers the fullscreen prompt (fullscreen-guide.js, a modal dialog too)
   const el = document.createElement('dialog');
-  el.className = 'spa-entry';
+  // its look: 'cover' (clear over the loading screen), 'black' (no loading screen to keep), 'film'; 加载中 once `saying`
+  let look = 'cover', saying = false;
+  const paint = () => { el.className = 'spa-entry' + (look === 'film' ? '' : ` spa-entry--${look}${saying ? ' spa-entry--say' : ''}`); };
+  paint();
   el.setAttribute('aria-label', first.label);
-  el.innerHTML = '<span class="spa-entry__skip"></span>';
-  el.firstChild.textContent = t('点击跳过');
-  const locked = !(audio.ctx && audio.ctx.state === 'running');
+  el.innerHTML = '<span class="spa-entry__skip"></span><span class="spa-entry__wait"></span>';
   const skipLabel = el.querySelector('.spa-entry__skip');
-  const card = document.createElement('div');
-  card.className = 'spa-entry__gate';
-  /** The card's line, already translated (t() at the call: the i18n extractor reads only literal t() calls); the Latin
-   * one under it is a decoration under a CJK prompt (a Latin translation already says it). */
-  const say = (text, latin) => {
-    card.innerHTML = `<b></b><i>${latin}</i>`;
-    card.firstChild.textContent = text;
-    if (scriptOf(text) === 'alphabetic') card.lastChild.remove();
-  };
-  // the art is not in yet: the card says 加载中 until the film mounts, with the skip label under it
-  const waiting = () => {
-    say(t('加载中'), 'LOADING');
-    card.className = 'spa-entry__gate spa-entry__gate--wait';
-    el.append(card);
-    skipLabel.style.opacity = '';
-  };
-  let gate = Promise.resolve(), gateKey = null;
-  if (locked) {
-    skipLabel.style.opacity = '0';
-    say(t('点击进入'), 'TAP TO START');
-    el.append(card);
-    gate = new Promise((resolve) => {
-      const go = () => {
-        removeEventListener('keydown', go, true);
-        if (films.choice() === undefined) waiting();
-        else { card.remove(); skipLabel.style.opacity = ''; }
-        // audio.js creates / resumes the context on this same gesture; give it a moment to start running
-        const until = performance.now() + 600;
-        const wait = () => (audio.ctx?.state === 'running' || performance.now() > until ? resolve() : setTimeout(wait, 30));
-        setTimeout(wait, 0);
-      };
-      gateKey = go;
-      el.addEventListener('pointerdown', go, { once: true });
-      addEventListener('keydown', go, true);
-    });
-  }
+  const waitLine = el.querySelector('.spa-entry__wait');
+  skipLabel.textContent = t('点击跳过');
+  waitLine.textContent = t('加载中');
+  cover?.setAttribute('data-entry-film', 'cover');
   document.body.append(el);
   try { el.showModal(); } catch { el.setAttribute('open', ''); }
 
-  let scene = null, raf = 0, release = null, bgmTimer = 0, done = false, src = null, chosen = null;
+  const by = performance.now() + budget.load;
+  let scene = null, raf = 0, release = null, bgmTimer = 0, done = false, src = null;
+  // 加载中 once the wait takes a moment — the manifest's included (a slow line: seconds before the art even starts)
+  const sayTimer = setTimeout(() => { if (!done && !scene) { saying = true; paint(); } }, COVER_SAY_MS);
+  const visible = whenShown();
+  /** The cover goes: fading with the overlay (`fade`), else at once (a room / a match; under the film's first frames). */
+  const dropCover = (fade) => {
+    if (!cover) return;
+    cover.removeAttribute?.('data-entry-film');
+    if (!cover.isConnected) return;
+    if (!fade) { cover.remove(); return; }
+    cover.classList?.add('is-done');
+    setTimeout(() => cover.remove(), 300);
+  };
   const cleanup = () => {
     cancelAnimationFrame(raf);
+    visible.cancel();
     try { scene?.destroy(); } catch { /* ignore */ }
     try { el.close(); } catch { /* ignore */ }
     el.remove();
     playing = false;
+  };
+  /** The overlay (and the cover under it) fade out: a skip, or no film after all. */
+  const fadeOut = () => {
+    el.style.transition = 'opacity .3s ease';
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+    dropCover(true);
+    setTimeout(cleanup, 320);
   };
   /** 'end' (the film ran out, or no art for one), 'skip' (a tap / key) or 'leave' (the route left the title / lobby) */
   const finish = (how) => {
@@ -313,8 +332,8 @@ function run(allowed, films, first, budget) {
     done = true;
     unwatch();
     clearTimeout(bgmTimer);
+    clearTimeout(sayTimer);
     removeEventListener('keydown', onKey, true);
-    if (gateKey) removeEventListener('keydown', gateKey, true);
     if (how === 'leave') {
       // a restored room / match: nothing of the film may sit over it or be heard in it.
       // stop() throws InvalidStateError when its time is before the scheduled start, which used to skip the
@@ -329,6 +348,7 @@ function run(allowed, films, first, budget) {
         }
       } catch { /* ignore */ }
       release?.(); // the music goes back to audio.js, which plays the new screen's track
+      dropCover(false);
       cleanup();
       return;
     }
@@ -343,67 +363,78 @@ function run(allowed, films, first, budget) {
       } else {
         try { cue?.gain.gain.setTargetAtTime(0, now, 0.08); cue?.node.stop(now + 0.5); } catch { /* ignore */ }
       }
-      el.style.transition = 'opacity .3s ease';
-      el.style.opacity = '0';
-      el.style.pointerEvents = 'none';
-      setTimeout(cleanup, 320);
-    } else cleanup();
+      fadeOut();
+    } else if (scene) cleanup(); // the film faded itself out
+    else fadeOut(); // no film after all: the cover gives way to the title
   };
   const onKey = () => finish('skip');
-  el.addEventListener('cancel', (e) => { e.preventDefault(); if (!locked) finish('skip'); }); // Esc skips like any other key
-  // skipping is armed once the card's tap is over (the gate's own tap must not skip): the wait for the art, the film
-  const armSkip = () => { el.addEventListener('pointerdown', () => finish('skip')); addEventListener('keydown', onKey, true); };
-  // the route, from the card on: a session restored into a room / a match takes the film down at once
+  // a tap / click / key skips from the cover on: the wait for the art, the film (Esc too)
+  el.addEventListener('cancel', (e) => { e.preventDefault(); finish('skip'); });
+  el.addEventListener('pointerdown', () => finish('skip'));
+  addEventListener('keydown', onKey, true);
+  // the route, from the cover on: a session restored into a room / a match takes the film down at once
   const unwatch = store.subscribe(() => { if (!done && !allowed()) finish('leave'); });
-  // until a film is chosen: the choice names the overlay, and art that cannot play takes the card down at once
-  films.pick(null).then((film) => {
-    if (done || chosen) return;
-    if (film) el.setAttribute('aria-label', film.label);
-    else finish('end');
-  });
 
   const fonts = document.fonts?.load
     ? Promise.race([Promise.all(['300 40px Bender', '400 40px Bender'].map((f) => document.fonts.load(f).catch(() => null))), new Promise((r) => setTimeout(r, 1200))])
     : null;
-  gate.then(async () => {
+  (async () => {
+    try { await data.load('assets'); } catch { finish('end'); return; }
     if (done) return;
-    armSkip();
+    const films = loadFilms(first.films(), budget.cap);
+    // no art pack: there is nothing to load (the sprites have no URL) and the loads have failed by the next task
+    await new Promise((r) => setTimeout(r, 0));
+    if (done) return;
+    if (films.choice() === null) { finish('end'); return; }
+    if (!cover) { look = 'black'; paint(); }
+    // until a film is chosen: the choice names the overlay
+    films.pick(null).then((film) => { if (!done && !scene && film) el.setAttribute('aria-label', film.label); });
+    // the screen's music is held from here: a context that starts below must not begin the lobby track under the
+    // cover only to cut it for the film
+    release = holdBgm();
+    // a background tab (or a prerendered page): the film waits for its first look, and the sound is tried then
+    await visible.shown;
+    if (done) return;
+    // sound without a gesture where the browser lets it (audio.js autoStart); else the picture plays without it
+    const sound = !audio.volumes?.muted && await audio.autoStart();
+    if (done) return;
     // the cue decodes (and the lobby music warms) while the art may still be loading
-    const early = prepareSound(first.version);
+    const early = sound ? prepareSound(first.version) : null;
     let film = films.choice();
-    if (film === undefined) {
-      // 加载中: up since the tap; with sound running before any card, only once the art takes a moment (not a flash)
-      const later = setTimeout(waiting, locked ? 0 : 250);
-      film = await films.pick(Math.max(budget.by, performance.now() + budget.tap));
-      clearTimeout(later);
-    }
+    if (film === undefined) film = await films.pick(by);
     if (done) return;
     // a sprite that 404'd (or never loaded) is not a film: take the cover down instead of playing blank frames
     if (!film) { finish('end'); return; }
-    chosen = film;
     el.setAttribute('aria-label', film.label);
-    const [, sound] = await Promise.all([fonts, film.version === first.version ? early : prepareSound(film.version)]);
+    const [, prepared] = await Promise.all([fonts, film.version === first.version ? early : sound ? prepareSound(film.version) : null]);
     if (done) return;
     if (!allowed()) { finish('leave'); return; }
-    card.remove();
+    clearTimeout(sayTimer);
+    waitLine.remove();
+    look = 'film';
+    paint();
     try { scene = film.mount(el); } catch (err) { console.warn('[intro] could not start', err); finish('end'); return; }
+    // the film fades in over the cover, and the cover goes under it
+    if (cover) {
+      try { el.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_IN_MS, easing: 'ease-out' }); } catch { /* ignore */ }
+      setTimeout(() => { if (!done) dropCover(false); }, FADE_IN_MS + 40);
+    }
     const { from, fadeAt, to } = film.span;
     const lead = 0.04;
     const t0 = performance.now() + lead * 1000; // video second `from` is on screen at t0
     film.origin?.(t0);
-    if (sound && audio.ctx?.state === 'running') {
+    if (prepared && audio.ctx?.state === 'running') {
       const ctx = audio.ctx;
-      if (sound.sfx && audio.sfxGain) {
+      if (prepared.sfx && audio.sfxGain) {
         try {
           const node = ctx.createBufferSource(), gain = ctx.createGain();
-          node.buffer = sound.sfx; gain.gain.value = SFX_GAIN;
+          node.buffer = prepared.sfx; gain.gain.value = SFX_GAIN;
           node.connect(gain); gain.connect(audio.sfxGain);
           const when = ctx.currentTime + lead + Math.max(0, film.audio.sfxAt - from);
           node.start(when);
           src = { node, gain, when };
         } catch { /* ignore */ }
       }
-      release = holdBgm();
       // audio.js starts a track 50 ms after it is asked for
       if (release) bgmTimer = setTimeout(() => release?.(), Math.max(0, (lead + film.audio.bgmAt - from - 0.05) * 1000));
     }
@@ -420,43 +451,40 @@ function run(allowed, films, first, budget) {
     };
     scene.render(from);
     raf = requestAnimationFrame(frame);
-  });
+  })();
 }
 
 /**
  * Play the film once per page load, before the title screen — also when a reload lands in the lobby; never over a
- * room or a match, never under reduced motion, and never unless every sprite actually loads. The card comes up at
- * once (unless there is no art at all); the art may take ART_MS from then, or TAP_MS after a later tap, before the
- * card goes without a film. A phone that is portrait when this is called does not play it later, after a
- * rotation. globalThis.__SP_ENTRY_FILM__ = 'off' (the browser suites) plays nothing. A 规程 start without 规程's opening
- * (not extracted, or its pictures do not load in that time) plays 盟约's film instead. Resolves once the overlay is up,
- * or when none comes this page load.
+ * room or a match, never under reduced motion, and never unless every sprite actually loads. The overlay comes up at
+ * once, clear over the page's loading screen (`splash`, which it takes over as the cover); the art may take ART_MS from
+ * then before the cover goes without a film. A phone that is portrait when this is called does not play it later,
+ * after a rotation. globalThis.__SP_ENTRY_FILM__ = 'off' (the browser suites) plays nothing. A 规程 start without 规程's
+ * opening (not extracted, or its pictures do not load in that time) plays 盟约's film instead. Resolves once the overlay
+ * is up (`splash` then carries data-entry-film until the film no longer needs it), or when none comes this page load.
  * @param {{ skip?: () => boolean, mount?: typeof mountAllianceIntro, regulation?: () => boolean,
- *   regulationMount?: ((host: HTMLElement) => FilmScene)|null, budget?: { load?: number, tap?: number, cap?: number } }} [opts]
+ *   regulationMount?: ((host: HTMLElement) => FilmScene)|null, splash?: any, budget?: { load?: number, cap?: number } }} [opts]
  *   skip() → true when it must not (or no longer) play; mount: 盟约's scene (tests pass a stand-in); regulation() →
  *   true: 规程's opening instead (asked once, here), 盟约's film when its group is not extracted; regulationMount: its
- *   scene (tests); budget: ART_MS / TAP_MS / ART_CAP_MS (tests)
+ *   scene (tests); splash: the loading screen to keep up as the cover; budget: ART_MS / ART_CAP_MS (tests)
  */
 export async function playEntryFilm(opts = {}) {
-  const { skip = () => false, mount = mountAllianceIntro, regulation = () => false, regulationMount = null } = opts;
-  const budget = { load: ART_MS, tap: TAP_MS, cap: ART_CAP_MS, ...opts.budget };
+  const { skip = () => false, mount = mountAllianceIntro, regulation = () => false, regulationMount = null, splash = null } = opts;
+  const budget = { load: ART_MS, cap: ART_CAP_MS, ...opts.budget };
   // dev / E2E switch, like globalThis.__SP_RENDER__: the browser suites that are not about the film set it before the
   // page loads (test/helpers/entryFilm.js skipEntryFilm); a player's page never has it
   if (globalThis.__SP_ENTRY_FILM__ === 'off') return;
   if (reducedMotion()) return;
   // once, as the title is entered — a later rotation does not get a second look
   if (touchDevice() && !phoneReady()) return;
-  try { await data.load('assets'); } catch { return; }
   const allowed = () => { const r = selectRoute(store.get()); return r !== 'room' && r !== 'game' && !skip(); };
   if (!allowed()) return;
-  // 规程's opening when its art is extracted and loads; else 盟约's film (this fork). Both films' art loads from here
-  // on, behind the card: the card does not wait for it, and 盟约's is not left until 规程's has failed
+  // 规程's opening when its art is extracted and loads; else 盟约's film (this fork). Both films' art loads behind the
+  // cover once the manifest is in: 盟约's is not left until 规程's has failed
   const alliance = allianceFilm(mount);
   const reg = regulation();
-  const by = performance.now() + budget.load;
-  const films = loadFilms(reg ? [regulationFilm(regulationMount), alliance] : [alliance], budget.cap);
-  // no art pack: there is nothing to load (the sprites have no URL) and the loads have failed by the next task — no card
-  await new Promise((r) => setTimeout(r, 0));
-  if (films.choice() === null || !allowed()) return;
-  run(allowed, films, reg ? regulationTitle() : alliance, { by, tap: budget.tap });
+  run(allowed, {
+    ...(reg ? regulationTitle() : { label: alliance.label, version: alliance.version }),
+    films: () => (reg ? [regulationFilm(regulationMount), alliance] : [alliance]),
+  }, budget, splash);
 }

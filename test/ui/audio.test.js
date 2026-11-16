@@ -1696,3 +1696,111 @@ describe('漏怪 sound', () => {
     } finally { restore(); }
   });
 });
+
+// ---- autoStart: sound before a gesture, where the browser allows it (ui/entryFilm.js, this fork 2026-11-16) ----------
+describe('AudioManager.autoStart (the entry film plays by itself)', () => {
+  /**
+   * fakeWindow with a context whose start the browser decides: `state` at construction, `runsAfter` ms later running
+   * (Firefox / Safari when allowed), resume() pending without a gesture (Chrome); `policy`: navigator.getAutoplayPolicy.
+   */
+  function autoWindow({ state = 'running', runsAfter = null, policy } = {}) {
+    const fw = fakeWindow();
+    const made = [];
+    const Base = fw.win.AudioContext;
+    fw.win.AudioContext = class extends Base {
+      constructor() {
+        super();
+        this.state = state; this.closed = false; made.push(this);
+        if (runsAfter != null) setTimeout(() => { if (!this.closed) this.state = 'running'; }, runsAfter);
+      }
+      resume() { return new Promise(() => {}); }
+      close() { this.closed = true; this.state = 'closed'; return Promise.resolve(); }
+    };
+    if (policy !== undefined) fw.win.navigator = { getAutoplayPolicy: (kind) => (kind === 'audiocontext' ? policy : 'disallowed') };
+    return { ...fw, made };
+  }
+  const withFetch = async (fn) => {
+    const origFetch = globalThis.fetch;
+    const urls = [];
+    globalThis.fetch = async (u) => { urls.push(u); return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) }; };
+    try { await fn(urls); } finally { globalThis.fetch = origFetch; }
+  };
+
+  test('a context the browser lets run (Chrome after the gate\'s click): kept; the remembered track plays; no gesture needed', async () => {
+    await withFetch(async (urls) => {
+      const fw = autoWindow({ state: 'running' });
+      const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+      a.install();
+      a.playBgm('lobby'); // the title asks while locked: remembered
+      assert.equal(urls.length, 0);
+      assert.equal(await a.autoStart(), true);
+      assert.equal(fw.made.length, 1);
+      assert.equal(a.ctx, fw.made[0]);
+      await new Promise((r) => setTimeout(r, 10));
+      assert.ok(asked(urls, manifest.audio.bgm.lobby.loop), 'the remembered track starts');
+      fw.fire('pointerdown');
+      assert.equal(fw.made.length, 1, 'the gesture listeners are gone: no second context');
+      assert.equal(await a.autoStart(), true, 'asked again: the running context');
+    });
+  });
+
+  test('a context that does not run (no activation): closed again, as if never tried; the first gesture creates one and plays', async () => {
+    await withFetch(async (urls) => {
+      const fw = autoWindow({ state: 'suspended' });
+      const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+      a.install();
+      a.playBgm('lobby');
+      const t0 = Date.now();
+      assert.equal(await a.autoStart(120), false);
+      assert.ok(Date.now() - t0 >= 100, 'it waited its moment');
+      assert.equal(fw.made[0].closed, true, 'the tried context is closed');
+      assert.equal(a.ctx, null);
+      assert.equal(a.unlocked, false);
+      assert.equal(urls.length, 0, 'nothing downloaded for a clock that does not run');
+      assert.equal(a.wantBgm, 'lobby', 'the track is still remembered');
+      fw.win.AudioContext = class extends fw.win.AudioContext { constructor() { super(); this.state = 'running'; } };
+      fw.fire('pointerdown'); // the first gesture: audio.js as before
+      assert.equal(a.unlocked, true);
+      await new Promise((r) => setTimeout(r, 10));
+      assert.ok(asked(urls, manifest.audio.bgm.lobby.loop), 'and the remembered track plays');
+    });
+  });
+
+  test('a screen that asks for its music while the context is tried keeps it remembered when the context is dropped', async () => {
+    await withFetch(async () => {
+      const fw = autoWindow({ state: 'suspended' });
+      const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+      a.install();
+      const trying = a.autoStart(120);
+      a.playBgm('prep'); // e.g. a restored room's screen, while the suspended context exists
+      assert.equal(await trying, false);
+      assert.equal(a.ctx, null);
+      assert.equal(a.wantBgm, 'prep', 'remembered for the first gesture');
+      assert.equal(a.bgm, null);
+    });
+  });
+
+  test('a context that starts running a moment after the constructor (Firefox / Safari when allowed) is waited for', async () => {
+    await withFetch(async () => {
+      const fw = autoWindow({ state: 'suspended', runsAfter: 60, policy: 'allowed' });
+      const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+      a.install();
+      assert.equal(await a.autoStart(400), true);
+      assert.equal(a.ctx.state, 'running');
+    });
+  });
+
+  test('Firefox says no up front (navigator.getAutoplayPolicy): nothing is created; a hidden page tries nothing either', async () => {
+    const fw = autoWindow({ state: 'running', policy: 'disallowed' });
+    const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+    a.install();
+    assert.equal(await a.autoStart(), false);
+    assert.equal(fw.made.length, 0);
+    const hidden = autoWindow({ state: 'running' });
+    hidden.win.document.hidden = true;
+    const b = new AudioManager({ win: hidden.win, getManifest: () => manifest });
+    assert.equal(await b.autoStart(), false);
+    assert.equal(hidden.made.length, 0);
+    assert.equal(await new AudioManager({ win: null, getManifest: () => null }).autoStart(), false, 'no window: no-op');
+  });
+});
