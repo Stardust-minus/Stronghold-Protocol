@@ -126,7 +126,7 @@ sending, and close/clear cancels it. Offline/new-socket clients show unknown unt
 several difficulties, `difficulty` first; a party keeps its room's one difficulty (`BAD_MSG` otherwise) and an old client's
 join is unchanged. The ticket counts in each pool. The first pool to fill makes the offer at that difficulty: the ticket has
 one `offerId`, so it cannot be in two offers, and `queue.state.difficulty` is the offered one until the match starts. A
-broken offer that keeps a confirmed ticket puts it back in all its pools with its first difficulty. `queue.state` of such a
+broken offer that keeps a ticket puts it back in all its pools with its first difficulty. `queue.state` of such a
 ticket adds `difficulties` and, while queued, `waitingCounts` (one per difficulty); `waitingCount` is the fullest pool.
 Changing the list needs a cancel (`QUEUED`). `MATCHMAKING_VERSION` did not change: the new fields are optional both ways.
 
@@ -145,6 +145,30 @@ older page's: four seats, both rules, as before. The page always names them and 
 rules: **a lone player no longer lands in a party that turned on 复活 or another rule without asking for it.**
 `MATCHMAKING_VERSION` did not change. 选择模拟协议 of 多人匹配 offers them under the difficulties (人数: 4 人同盟, 多人同盟
 8–20 人; 规则: 标准规则, 实验性规则), each row keeps one, `lobby.matchScope` remembers them.
+
+**A ticket's own options (the owner, 2026-11-16: 「匹配玩家也支持调整实验性功能，然后带着这个实验性功能配置进入匹配。对于
+匹配到开启实验性功能的队伍，各个玩家在确认进入之前需要能看一下开启了什么实验性功能，如果不想玩的话可以退出」):** `queue.join
+{ rules: […, 'custom'], experimental }` — a lone player's ticket brings options of `QUEUE_OPTION_KEYS` (shared/
+experimental.js: 复活, 共享卡池, AI 联防置后, 层数上限, 鸭爵策略, 敌人生命 / 攻击倍率 and the by-round plan, 单次伤害上限 — not
+the seat count, which `capacities` say, not 手动卡池编组, 联动干员 or 调控台); `experimental` comes with 'custom' and only with
+it (`validateC2S`, and the server again: `BAD_MSG`), a party's room owns its rules (`BAD_MSG`), and the options must change a
+rule in every size the ticket waits for (禁用鸭爵策略 alone at four seats does not: `BAD_MSG`). In a pool the ticket brings
+its options at the pool's size (`queueOptionsAt`, `experimentalKey`) exactly as a party brings its room's: it merges with
+tickets and parties of the same options and with lone tickets that take any changed rules (`experimental`), and its
+'standard' / 'experimental' wildcards keep their meaning beside it; tickets of other options or of standard rules only never
+meet it. The offer plays the options of the unit that brings them (`ownOptions`); the allocation checks again that every
+unit takes them (`Matchmaking.takes`, in `allocateMatchmadeRoom` and the cluster's `collectMatchmade`), and a matchmade room
+never has more than a room could. `queue.state` names what was asked (`rules`, now also when 'custom' is among them) and,
+queued and offered, the ticket's own options (`config`), so 确认入场 tells the player's own options from someone else's.
+Declining an offer is `queue.cancel`: the decliner's party leaves, and every other party of the offer — confirmed or not
+(the owner, 2026-11-16) — waits again with its ticket and its place (sequence, `joinedAt`, `expiresAt`; a friend party
+keeps its room), `queue.state.reason` `peer_cancelled`; the same after a disconnect (`peer_disconnected`) or a member no
+longer available (`peer_left`, new: an older page shows only 本次匹配未成立). Only the confirmation timeout drops the
+unconfirmed (`confirmation_timeout`; the confirmed wait again). An older server dropped the unconfirmed on any break
+(`unconfirmed`, which the page still names). `welcome.
+queueRules` lists the rules this server takes (`['standard', 'experimental', 'custom']`): a page offers 我的实验性 only with
+it. An older page's tickets are unchanged — 'experimental' (实验性规则) now also fills a game a lone ticket's options make,
+which it sees before confirming. `MATCHMAKING_VERSION` did not change: the new fields are optional both ways.
 **确认入场 cards (the owner, 2026-11-06):** while an offer stands, `queue.state` adds `acceptedCards` — the others who
 confirmed, first confirmed first, each only what its seat card draws: `{ seed, charId?, look?, artX?, artY?, artZoom? }`
 (server/matchmaking.js `offerCard`, from the session's `room.card`; `seed` = shared/protocol.js `portraitSeed`, the FNV-1a

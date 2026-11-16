@@ -407,6 +407,17 @@ waits the lobby's VersionSwitch is locked (请先取消多人匹配，再切换�
 the page keeps its data. Outside a room an offer makes `content.js` want the offer's version (`offerVersion`); 确认入场
 waits for that data (正在载入版本数据… / 版本数据校验失败 + 重试) and `queue.accept` carries its `cs`
 (`ui/matchmaking.js acceptRequest`), so the matched version room starts with every page ready.
+多人匹配's version and own options (the owner, 2026-11-16: 「多人匹配界面可以切换匹配的版本」, 「匹配玩家也支持调整实验性功能」):
+选择模拟协议 of 多人匹配 turns the pool's version chip into a button (more than one version) that opens the version picker; a
+pick is the lobby's version (`setLobbyVersion`), whose difficulties and data follow. The scope's 规则 row offers 标准规则,
+我的实验性 and 任意实验性 (the former 实验性规则) while `welcome.queueRules` names 'custom'; with 我的实验性 on, a line under the
+rows names how many of its options are on (`ExperimentalBadge`, 浮窗 by group) and opens 我的实验性功能 (`MatchOptionsDialog`:
+the groups a ticket may set, 禁用鸭爵策略 only while 多人同盟 is chosen; `lobby.matchExperimental` remembers them), and 开始多人
+匹配 waits until one of them counts in the chosen sizes (`customProblem`). The dialogs hang on the lobby, not inside the full
+screen 选择模拟协议. The search tags name the rules (我的实验性 · n 项 …). 确认入场 of an offer with experimental options shows
+them by group under the seats (`offerRules`, the seat count left to the chip line), where they come from (与你的设置相同 /
+好友小队的同盟设置 / 由其他博士或小队设置: `offerRulesOrigin`) and that 退出本次匹配 is the way out; the chip line says 标准规则 or
+实验性功能 · n 项.
 
 Reconnects (2026-10-13, the owner's report of reconnects that ended on a spectator seat): a `ROOM_STARTED` code whose
 seat another, closed page of this browser played resumes that seat (`ui/resumeMatch.js resumeLocalMatch`, the
@@ -973,7 +984,7 @@ version shown.
 status line; `modded` stays the 非官方 mark. A version room's words: 数据载入中 / 就绪 / 校验失败, 「等待所有博士载入
 「{version}」的数据」, the two GoButton tooltips, the invite 「…盟约·{version}【…】」. `ui/pluginTag.js VersionTag` (nothing for
 第二期下半) sits beside the mode in the top bar and beside UnofficialMark in the briefing, the settlement and the result
-[ASSUMED placement]. ⚙ and the footer's 实验性选项 open one dialog, 同盟设置 (`ui/roomSettings.js`; ⚙ on 同盟, the footer on 规则): 同盟 (version, seats, AI 队友最后选择, 允许观战者接替 AI, 公开到同盟列表, 禁用鸭爵策略), 规则 (the battle), 卡池 (禁用共享卡池, 手动指定卡池编组); a tab's dot marks a page that differs from a new room, a guest reads the same pages, and a solo room has one page, 模拟设置, without tabs. 手动指定卡池编组 (`ui/poolEditor.js`, feedback #49) starts from what the automatic rule would build: one card per pool, a seat moves by pressing it and then another pool (a mouse, a finger and a keyboard alike; Esc lets go) or by dragging on a desktop; ＋ cuts the largest pool in two, − joins the last to the one before it, 均分 balances the seats in seat order. The plan on `room.state` is the only state, so a pool left without a seat is gone; each seat card then says 卡池 N. A timed solo (第一期) shows ⚙ 模拟设置 with the 「不限时」 switch (the host toggles `room.setSoloUnlimited`; everybody else reads
+[ASSUMED placement]. The footer's 实验性功能 badge says only 已开启 n 项 / 未开启 (the owner, 2026-11-16: 「默认房间内不再显示详细开启了什么实验性策略，而是只显示开启与否，具体信息鼠标放上去给一个浮窗查看，或点击查看」); a hover or the keyboard's focus shows a 浮窗 listing what is on by group, a first tap on a touch screen shows it with 查看全部设置 (`ui/experimental.js ExperimentalBadge` / `ExperimentalDetails`, `css/screens/experimental.css`). 公开同盟's rows (`ui/roomList.js`) carry the same badge, small, under the host's name (an info icon: there is no dialog behind it): a hover or the focus shows the 浮窗, a click or a tap pins it and the next one closes it; its 浮窗 is `float` — fixed and placed in the viewport (components.js `placeTooltip`, above the badge or below), out of the list's scroll clip. ⚙ and the badge open one dialog, 同盟设置 (`ui/roomSettings.js`; ⚙ on 同盟, the badge on the first experimental group with something on): 同盟 (version, AI 队友最后选择, 允许观战者接替 AI, 公开到同盟列表) and 实验性功能, its options split by group (shared/experimental.js `EXPERIMENTAL_GROUPS`: 同盟人数, 队友协作, 盟约与策略, 敌人, 卡池 with 手动指定卡池编组, 特殊功能 — `ExperimentalPanel`, a rail of groups with the count of what is on beside the group's rows; a row of chips above them on a narrow dialog); a matchmade room has no 同盟人数 or 特殊功能, a solo room no tabs (its 不限时 on top, then 盟约与策略, 敌人, 特殊功能); the 同盟 tab's dot marks a change, a guest reads the same pages. 手动指定卡池编组 (`ui/poolEditor.js`, feedback #49) starts from what the automatic rule would build: one card per pool, a seat moves by pressing it and then another pool (a mouse, a finger and a keyboard alike; Esc lets go) or by dragging on a desktop; ＋ cuts the largest pool in two, − joins the last to the one before it, 均分 balances the seats in seat order. The plan on `room.state` is the only state, so a pool left without a seat is gone; each seat card then says 卡池 N. A timed solo (第一期) shows ⚙ 模拟设置 with the 「不限时」 switch (the host toggles `room.setSoloUnlimited`; everybody else reads
 it). The solo briefing states the 300 s / 150 s rule, or the untimed line when the switch is on or the version's solo is
 not timed; while that version's data is not on screen the briefing omits the time line and the gear stays hidden. The
 version pill beside the difficulty and 同盟设置's 版本 row open the picker in room mode. The compact pill may abbreviate its

@@ -10,7 +10,7 @@ const body = (node) => (node?.props ? [node, ...[].concat(node.props.children ??
 const EXAMPLE = [[1, 1], [6, 1.5], [9, 2.5]];
 const byTestId = (nodes, id) => nodes.filter((n) => n.props?.['data-testid'] === id);
 
-test('options, marker, summary and the 规则 dot: a plan is kept, replaces the single multiplier, and reads as rounds', () => {
+test('options, marker, summary and the 敌人 count: a plan is kept, replaces the single multiplier, and reads as rounds', () => {
   assert.deepEqual(experimentalOptions(rules({ enemyHpPlan: EXAMPLE })), rules({ enemyHpPlan: EXAMPLE }));
   assert.deepEqual(experimentalOptions(rules({ enemyHpMul: 3, enemyHpPlan: EXAMPLE })), rules({ enemyHpPlan: EXAMPLE }));
   assert.deepEqual(experimentalOptions(rules({ enemyHpPlan: [[1, 2], [4, 2]] })), rules({ enemyHpMul: 2 }));
@@ -20,8 +20,8 @@ test('options, marker, summary and the 规则 dot: a plan is kept, replaces the 
   assert.equal(enemyHpPlanText([[1, 2], [2, 3], [3, 5]]), '1回合 ×2 / 2回合 ×3 / 3回合起 ×5');
   assert.match(experimentalSummary(rules({ enemyHpPlan: EXAMPLE, enemyAtkMul: 2 })), /· 敌人生命 1–5回合 ×1 \/ 6–8回合 ×1\.5 \/ 9回合起 ×2\.5 · 敌人攻击 ×2$/);
   assert.doesNotMatch(experimentalSummary(rules({ enemyHpPlan: EXAMPLE })), /敌人生命 ×/);
-  assert.equal(changedPages({ mode: 'coop', experimental: rules({ enemyHpPlan: EXAMPLE }) }).rules, true);
-  assert.equal(changedPages({ mode: 'coop', experimental: rules() }).rules, false);
+  assert.equal(changedPages({ mode: 'coop', experimental: rules({ enemyHpPlan: EXAMPLE }) }).enemy, true);
+  assert.equal(changedPages({ mode: 'coop', experimental: rules() }).enemy, false);
 });
 
 test('the enemy detail\'s preview: the multipliers of the match\'s round', () => {

@@ -18,8 +18,14 @@
 //               the last OFFER_URGENT_S seconds while I have not confirmed;
 //   actions   — 确认入场, wide, right under the numerals (a slow glow, a shine; it has the focus), 退出本次匹配 quieter under
 //               it (重试取消 after a failed cancellation); once I confirmed: 剩余 N 秒 · 等待其他博士;
+//   rules     — an offer whose rules differ from the standard game's (the owner, 2026-11-16: 「对于匹配到开启实验性功能的
+//               队伍，各个玩家在确认进入之前需要能看一下开启了什么实验性功能，如果不想玩的话可以退出」): the panel under the
+//               seats names every experimental option on, by group (ui/experimental.js ExperimentalDetails; the seat count
+//               is on the chip line), where they come from — the same as this ticket's own (我的实验性), the party's room,
+//               or other doctors (任意实验性: offerRulesOrigin) — and that 退出本次匹配 is the way out; there before and after
+//               I confirm. A standard offer says 标准规则 on the chip line only;
 //   info      — the chip line at the bottom: the pool's version (while the server offers versions), difficulty, seats
-//               (不自动补 AI), the friend party, the rules summary, 完整规则;
+//               (不自动补 AI), the friend party, 标准规则 / 实验性功能 n 项, 完整规则;
 //   data      — an offer in another version's pool (queue.state `version`; this fork, one pool per version): 确认入场 waits
 //               until this page holds that version's data checked (正在载入版本数据… / 版本数据校验失败 · 重试; content.js
 //               loads the offer's version outside a room) and the confirm names its cs (matchmaking.js acceptRequest), so
@@ -38,7 +44,8 @@ import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { isPlayerCapacity } from '../../../shared/playerCapacity.js';
 import { html, Icon, Modal, Button, DifficultyIcon, AvatarFrame, useTicker } from './components.js';
-import { experimentalSummary } from './experimental.js';
+import { ExperimentalDetails, experimentalItems } from './experimental.js';
+import { queueOptionsAt, sameExperimental } from '../../../shared/experimental.js';
 import { NameCardLayer } from './namecards.js';
 import { CardAvatarLive } from './avatarLive.js';
 import { cardAvatarUrl, cardContext, cardOperators, seatPortraitSource } from './seatArt.js';
@@ -68,6 +75,27 @@ export const OFFER_LEAVE_MS = 320;
 /** Whether this page shows motion: neither the system setting nor the class device.js sets asks for less. */
 export function offerMotion(doc = globalThis.document) {
   return !reducedMotion() && !doc?.documentElement?.classList?.contains('sp-reduced-motion');
+}
+
+/** The seat count is the chip line's: the rules panel leaves it out. */
+const OFFER_OMIT = Object.freeze(['playerCapacity']);
+
+/** The experimental options an offer plays (queue.experimental), by item, without the seat count; [] for a standard game. */
+export const offerRules = (q) => experimentalItems(q?.experimental, { omit: OFFER_OMIT });
+
+/**
+ * Where an offer's experimental options come from (the header, rules): 'room' — the friend party's room (a party only
+ * plays its own); 'own' — this ticket's own options (queue.state `config`) at the offer's size; else 'others' (a ticket
+ * taking any changed rules). Null for a standard offer.
+ * @param {any} q
+ */
+export function offerRulesOrigin(q) {
+  if (!offerRules(q).length) return null;
+  if (q?.partyRoomCode) return 'room';
+  try {
+    if (q?.config && sameExperimental(queueOptionsAt(q.config, offerSize(q)), q.experimental)) return 'own';
+  } catch { /* an unusable config: someone else's rules */ }
+  return 'others';
 }
 
 /** The doctors an offer needs (queue.required), else 4. */
@@ -347,9 +375,13 @@ function OfferScreen({ view }) {
     : queue?.accepted ? null : versionData === 'loading' ? t('正在载入版本数据…') : versionData === 'failed' ? t('版本数据校验失败')
     : t('请在 {seconds} 秒内确认入场', { seconds: clock.seconds });
   const rules = [t('{n} 名真人按相同人数模式和难度匹配，不自动补 AI；好友小队保持整队。', { n }), t(MATCHING_RULES), t(EXPERIMENTAL_RULES)];
+  // the experimental options of this offer (the header, rules): shown while it stands, before and after my confirm
+  const ruled = offerRules(queue).length;
+  const origin = offerRulesOrigin(queue);
+  const showRules = ruled > 0 && (live || stage === 'found');
   const size = n <= 4 ? 's' : n <= 8 ? 'm' : 'l';
   const face = cardAvatarUrl(card.avatar, undefined, card.avatarLook);
-  const screen = html`<div class=${cx('mo', `is-${stage}`, view.held && 'is-held', clock.urgent && live && 'is-urgent', queue?.accepted && 'is-accepted', !online && 'is-offline')}
+  const screen = html`<div class=${cx('mo', `is-${stage}`, view.held && 'is-held', clock.urgent && live && 'is-urgent', queue?.accepted && 'is-accepted', !online && 'is-offline', showRules && 'has-rules')}
       role="dialog" aria-modal="true" aria-label=${t('确认入场')} data-testid="match-offer" data-stage=${stage} data-player-capacity=${n} data-size=${size}
       style=${`${drain};--mo-n:${n};--mo-cols:${offerColumns(n)};--mo-rows:${offerRows(n)};--mo-cols-c:${offerColumns(n, true)};--mo-rows-c:${offerRows(n, true)};--d-color:${d ? DIFFICULTY_COLORS[d] : 'var(--mint-400)'}`}>
     <div class="mo__veil" aria-hidden="true"><i class="mo__grid"></i><i class="mo__lines"></i>
@@ -366,6 +398,12 @@ function OfferScreen({ view }) {
         ${seats.map((s, i) => html`<${SeatSlot} key=${i} seat=${s} i=${i} me=${me} card=${card} face=${face} m=${data.get('assets')} ctx=${ctx} />`)}
       </ol>
       <p class="mo__count num" data-testid="offer-count">${t('{acceptedCount} / {n} 已确认', { acceptedCount: count, n })}</p>
+      ${showRules ? html`<section class=${cx('mo__rules', origin === 'others' && 'is-others')} data-testid="offer-rules" data-origin=${origin} aria-label=${t('本局开启的实验性功能')}>
+        <header class="mo__rules-head"><${Icon} name="warn" /><b>${t('本局开启了实验性功能 · {n} 项', { n: ruled })}</b>
+          <span class="mo__rules-from">${origin === 'own' ? t('与你的设置相同') : origin === 'room' ? t('好友小队的同盟设置') : t('由其他博士或小队设置')}</span></header>
+        <${ExperimentalDetails} value=${queue.experimental} omit=${OFFER_OMIT} class="expd--inline" testid="offer-rules-list" />
+        ${live && !queue?.accepted ? html`<p class="mo__rules-out">${t('不想玩可以选择「退出本次匹配」')}</p>` : null}
+      </section>` : null}
       <div class="mo__timer" role="timer" aria-label=${t('剩余{remain}秒', { remain: clock.seconds })}>
         ${stage === 'found' ? html`<${Emblem} />`
           : stage === 'broken' || stage === 'leave' ? html`<span class="mo__num mo__num--x num">--</span>`
@@ -390,7 +428,7 @@ function OfferScreen({ view }) {
         ${d ? html`<span class="mo-chip mo-chip--diff"><${DifficultyIcon} difficulty=${d} />${t(DIFFICULTY_NAMES[d])}</span>` : null}
         <span class="mo-chip">${t('{n} 名真人 · 不自动补 AI', { n })}</span>
         ${queue?.partySize > 1 ? html`<span class="mo-chip">${t('{n} 人好友小队', { n: queue.partySize })}</span>` : null}
-        <span class="mo-chip mo-chip--rules matchmaking__options">${experimentalSummary(queue?.experimental)}</span>
+        <span class=${cx('mo-chip mo-chip--rules matchmaking__options', ruled && 'is-on')} data-testid="offer-rules-chip">${ruled ? t('实验性功能 · {n} 项', { n: ruled }) : t('标准规则')}</span>
         ${live ? html`<button type="button" class="mo__link" onClick=${() => setRulesOpen(true)}>${t('完整规则')}</button>` : null}
       </p>
     </div>

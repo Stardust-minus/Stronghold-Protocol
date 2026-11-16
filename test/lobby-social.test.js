@@ -189,15 +189,18 @@ test('cancel racing the fourth acceptance never allocates the cancelled cohort',
   h.lobby.queue.cancel(players[0], states[0]);
   assert.equal(h.lobby.queue.accept(players[3], states[3]).error, ERR.BAD_TARGET);
   assert.equal(h.lobby.rooms.size, 0);
-  assert.equal(h.lobby.queue.size, 2);
-  assert.equal(h.lobby.queue.state(players[3]).state, 'idle');
-  assert.equal(players[3].messages.at(-1).reason, 'unconfirmed');
-  assert.equal(h.lobby.queue.state(players[1]).joinedAt, states[1].joinedAt);
-  assert.equal(h.lobby.queue.state(players[1]).reason, 'peer_cancelled');
-  for (let i = 0; i < 2; i++) h.lobby.queue.join(h.player(), { difficulty: 'NORMAL' });
+  assert.equal(h.lobby.queue.size, 3, 'the unconfirmed fourth waits again too (the owner, 2026-11-16)');
+  assert.equal(h.lobby.queue.state(players[0]).state, 'idle');
+  for (const i of [1, 3]) {
+    assert.equal(h.lobby.queue.state(players[i]).state, 'queued');
+    assert.equal(h.lobby.queue.state(players[i]).joinedAt, states[i].joinedAt);
+    assert.equal(h.lobby.queue.state(players[i]).reason, 'peer_cancelled');
+  }
+  h.lobby.queue.join(h.player(), { difficulty: 'NORMAL' });
   const next = h.lobby.queue.state(players[1]);
   assert.notEqual(next.offerId, states[1].offerId);
   assert.equal(next.accepted, false);
+  assert.equal(h.lobby.queue.state(players[3]).offerId, next.offerId);
 });
 
 test('disconnect removes ticket immediately and excludes it from the next offer', (t) => {
@@ -212,32 +215,37 @@ test('disconnect removes ticket immediately and excludes it from the next offer'
   assert.equal(h.lobby.queue.accept(players[0], states[0]).error, ERR.BAD_TARGET);
 });
 
-for (const trigger of ['cancelled', 'disconnected', 'unavailable']) test(`early offer ${trigger} never requeues unconfirmed solo survivors`, (t) => {
+// Someone of an offer leaves before everyone confirmed (the owner, 2026-11-16: 「有人主动退出时，未确认的人也保留原排队位置
+// 回到队列」): every other party waits again in its place, confirmed or not; only the confirmation timeout drops the
+// unconfirmed (below).
+const PEER_REASON = { cancelled: 'peer_cancelled', disconnected: 'peer_disconnected', unavailable: 'peer_left' };
+for (const trigger of ['cancelled', 'disconnected', 'unavailable']) test(`early offer ${trigger}: confirmed and unconfirmed solo survivors wait again in their place`, (t) => {
   const h = harness(t), players = h.group(), offers = h.offer(players);
-  const original = { ...h.lobby.queue.entries.get(players[0].playerId) };
+  const original = players.map((p) => ({ ...h.lobby.queue.entries.get(p.playerId) }));
   assert.deepEqual(h.lobby.queue.accept(players[0], offers[0]), { ok: true });
   if (trigger === 'cancelled') h.lobby.queue.cancel(players[1], offers[1]);
   else if (trigger === 'disconnected') h.disconnect(players[1]);
   else { players[1].matchmakingVersion = null; h.lobby.queue.sync(players[1]); }
-  assert.equal(h.lobby.queue.size, 1);
+  assert.equal(h.lobby.queue.size, 3);
   assert.equal(h.lobby.queue.offers.size, 0);
-  const survivor = h.lobby.queue.entries.get(players[0].playerId);
-  for (const key of ['ticketId', 'sequence', 'joinedAt', 'expiresAt']) assert.equal(survivor[key], original[key]);
-  assert.equal(survivor.accepted, false); assert.equal(survivor.revivalVote, null);
-  for (const p of players.slice(2)) {
-    assert.equal(h.lobby.queue.state(p).state, 'idle');
-    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'unconfirmed');
-    assert.equal(h.lobby.queue.accept(p, offers[players.indexOf(p)]).error, ERR.BAD_TARGET);
+  assert.ok(!h.lobby.queue.has(players[1]));
+  for (const i of [0, 2, 3]) {
+    const p = players[i], survivor = h.lobby.queue.entries.get(p.playerId);
+    for (const key of ['ticketId', 'sequence', 'joinedAt', 'expiresAt']) assert.equal(survivor[key], original[i][key], `${i} ${key}`);
+    assert.equal(survivor.accepted, false); assert.equal(survivor.revivalVote, null); assert.equal(survivor.offerId, null);
+    assert.equal(h.lobby.queue.state(p).state, 'queued');
+    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, PEER_REASON[trigger]);
+    assert.equal(h.lobby.queue.accept(p, offers[i]).error, ERR.BAD_TARGET, 'the broken offer cannot be confirmed');
   }
-  const replacements = h.group().slice(0, 3);
-  for (const p of replacements) h.lobby.queue.join(p, { difficulty: 'NORMAL' });
+  const replacement = h.player('补位');
+  h.lobby.queue.join(replacement, { difficulty: 'NORMAL' });
   assert.equal(h.lobby.queue.size, 4);
   assert.equal(h.lobby.queue.offers.size, 1);
-  assert.ok([players[0], ...replacements].every((p) => h.lobby.queue.state(p).state === 'offered'));
-  assert.ok(players.slice(1).every((p) => !h.lobby.queue.has(p)));
+  assert.ok([players[0], players[2], players[3], replacement].every((p) => h.lobby.queue.state(p).state === 'offered'));
+  assert.ok(!h.lobby.queue.has(players[1]));
 });
 
-for (const trigger of ['cancelled', 'disconnected', 'unavailable']) test(`early offer ${trigger} drops a partially confirmed party intact and preserves its room`, (t) => {
+for (const trigger of ['cancelled', 'disconnected', 'unavailable']) test(`early offer ${trigger} keeps a partially confirmed party queued intact with its room`, (t) => {
   const h = harness(t), party = h.group().slice(0, 2), solos = h.group().slice(0, 2);
   const room = h.privateRoom(party);
   h.lobby.queue.join(party[0], { difficulty: 'NORMAL', party: true });
@@ -245,24 +253,32 @@ for (const trigger of ['cancelled', 'disconnected', 'unavailable']) test(`early 
   const players = [...party, ...solos], offers = players.map((p) => ({ ...h.lobby.queue.state(p), revivalVote: false }));
   h.lobby.queue.accept(party[0], offers[0]);
   h.lobby.queue.accept(solos[0], offers[2]);
-  const original = { ...h.lobby.queue.entries.get(solos[0].playerId) };
+  const original = [party[0], party[1], solos[0]].map((p) => ({ ...h.lobby.queue.entries.get(p.playerId) }));
   if (trigger === 'cancelled') h.lobby.queue.cancel(solos[1], offers[3]);
   else if (trigger === 'disconnected') h.disconnect(solos[1]);
   else { solos[1].matchmakingVersion = null; h.lobby.queue.sync(solos[1]); }
-  assert.equal(h.lobby.queue.size, 1);
-  assert.equal(h.lobby.queue.parties.size, 1);
+  assert.equal(h.lobby.queue.size, 3);
+  assert.equal(h.lobby.queue.parties.size, 2);
   assert.equal(h.lobby.queue.offers.size, 0);
-  for (const p of party) {
-    assert.equal(h.lobby.queue.state(p).state, 'idle');
-    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, 'unconfirmed');
-    assert.equal(h.lobby.roomOf(p), room);
+  for (const [i, p] of [party[0], party[1], solos[0]].entries()) {
+    const s = h.lobby.queue.state(p), e = h.lobby.queue.entries.get(p.playerId);
+    assert.equal(s.state, 'queued');
+    assert.equal(p.messages.filter((m) => m.t === 'queue.state').at(-1).reason, PEER_REASON[trigger]);
+    for (const key of ['ticketId', 'sequence', 'joinedAt', 'expiresAt']) assert.equal(e[key], original[i][key], `${i} ${key}`);
+    assert.equal(e.accepted, false); assert.equal(e.revivalVote, null);
     assert.equal(h.lobby.queue.accept(p, offers[players.indexOf(p)]).error, ERR.BAD_TARGET);
   }
+  assert.equal(h.lobby.queue.state(party[1]).partySize, 2, 'the party stays one unit');
+  for (const p of party) assert.equal(h.lobby.roomOf(p), room);
   assert.equal(room.disposed, false); assert.equal(room.match, null);
-  assert.equal(room.activeHumans().length, 2); assert.equal(h.lobby.roomQueued(room), false);
-  const survivor = h.lobby.queue.entries.get(solos[0].playerId);
-  for (const key of ['ticketId', 'sequence', 'joinedAt', 'expiresAt']) assert.equal(survivor[key], original[key]);
-  assert.equal(survivor.accepted, false); assert.equal(survivor.revivalVote, null);
+  assert.equal(room.activeHumans().length, 2); assert.equal(h.lobby.roomQueued(room), true);
+  const replacement = h.player('补位');
+  h.lobby.queue.join(replacement, { difficulty: 'NORMAL' });
+  const next = [party[0], party[1], solos[0], replacement];
+  const offerId = h.lobby.queue.state(party[0]).offerId;
+  assert.ok(offerId && next.every((p) => h.lobby.queue.state(p).offerId === offerId), 'the party, the other survivor and the newcomer');
+  for (const p of next) assert.deepEqual(h.lobby.queue.accept(p, { ...h.lobby.queue.state(p), revivalVote: false }), { ok: true });
+  assert.ok(next.every((p) => h.lobby.queue.state(p).state === 'matched'));
 });
 
 test('default thirty-second offer timeout exits every unconfirmed human without automatic rematching', (t) => {

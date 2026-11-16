@@ -1,10 +1,11 @@
-// 同盟设置 (ui/roomSettings.js): the room's options in one dialog, 卡池 with 手动指定卡池编组 (ui/poolEditor.js). The browser check
-// is test/ui/pool-editor.e2e.test.js; the plan's rules: test/pool-plan.test.js.
+// 同盟设置 (ui/roomSettings.js): the room's options in one dialog — 同盟, and 实验性功能 by group (shared/experimental.js
+// EXPERIMENTAL_GROUPS, the owner 2026-11-16), 卡池 with 手动指定卡池编组 (ui/poolEditor.js). The browser check is
+// test/ui/pool-editor.e2e.test.js and test/ui/experimental-groups.e2e.test.js; the plan's rules: test/pool-plan.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { capacityRows, experimentalChanged, experimentalOptions, experimentalSummary, poolRows } from '../../public/js/ui/experimental.js';
-import { changedPages, RoomSettings, settingsPage, settingsPages, takenSeats } from '../../public/js/ui/roomSettings.js';
+import { changedPages, groupCounts, RoomSettings, settingsPage, settingsPages, takenSeats } from '../../public/js/ui/roomSettings.js';
 import { PoolEditor, poolStock } from '../../public/js/ui/poolEditor.js';
 
 const walk = (node) => (Array.isArray(node) ? node.flatMap(walk) : node?.props ? [node, ...walk(node.props.children)] : []);
@@ -14,12 +15,17 @@ const room = (o = {}) => ({ mode: 'coop', source: 'private', hostId: 'h', experi
 const dialog = (o = {}) => walk(RoomSettings({ page: 'alliance', room: room(), myId: 'h', editable: true, busy: null, onExperimental() {}, ...o }));
 const ids = (nodes) => nodes.map((n) => n.props.id).filter(Boolean);
 
-test('a co-op room has three pages, a solo room one; a press opens its page or the first', () => {
-  assert.deepEqual(settingsPages(room()), ['alliance', 'rules', 'pools']);
-  assert.deepEqual(settingsPages(room({ mode: 'solo' })), ['sim']);
-  assert.equal(settingsPage(room(), 'rules'), 'rules');
-  assert.equal(settingsPage(room({ mode: 'solo' }), 'rules'), 'sim', '实验性选项 of a solo room');
-  assert.equal(settingsPage(room({ mode: 'solo' }), 'alliance'), 'sim');
+test('a co-op room has 同盟 and six groups, a solo room three, a matchmade room four; a press opens its page or the first', () => {
+  assert.deepEqual(settingsPages(room()), ['alliance', 'seats', 'team', 'bonds', 'enemy', 'pools', 'special']);
+  assert.deepEqual(settingsPages(room({ mode: 'solo' })), ['bonds', 'enemy', 'special'], 'no teammates, no pools, no seat count');
+  assert.deepEqual(settingsPages(room({ source: 'matchmaking' })), ['alliance', 'team', 'bonds', 'enemy', 'pools'], 'no seat count, no 联动干员 / 调控台');
+  assert.equal(settingsPage(room(), 'enemy'), 'enemy');
+  assert.equal(settingsPage(room(), 'experimental'), 'seats', 'nothing on: the first group');
+  assert.equal(settingsPage(room({ experimental: rules({ enemyAtkMul: 2 }) }), 'experimental'), 'enemy', 'the first group with something on');
+  assert.equal(settingsPage(room(), 'rules'), 'seats', 'an older caller\'s 规则');
+  assert.equal(settingsPage(room({ mode: 'solo' }), 'rules'), 'bonds', '实验性功能 of a solo room');
+  assert.equal(settingsPage(room({ mode: 'solo' }), 'alliance'), 'bonds');
+  assert.equal(settingsPage(room(), 'nope'), 'alliance');
 });
 
 test('closed, there is nothing; open, the title says the room\'s kind', () => {
@@ -28,25 +34,43 @@ test('closed, there is nothing; open, the title says the room\'s kind', () => {
   assert.equal(RoomSettings({ page: 'sim', room: room({ mode: 'solo' }) }).props.title, '模拟设置');
 });
 
+const rowIds = (nodes) => ids(nodes).filter((id) => !id.startsWith('rset') && !id.startsWith('expp'));
 test('each page holds its rows', () => {
   const on = { on: false, editable: true };
-  const alliance = ids(dialog({ page: 'alliance', aiLast: on, takeover: on, listed: on, room: room({ experimental: rules({ playerCapacity: 8 }), seats: new Array(8).fill(null) }) }));
-  assert.deepEqual(alliance.filter((id) => !id.startsWith('rset')), ['experimental-multiplayer', 'experimental-capacity', 'room-ai-last', 'room-ai-takeover', 'room-opt-listed', 'experimental-ducklord']);
+  const big = room({ experimental: rules({ playerCapacity: 8 }), seats: new Array(8).fill(null) });
+  assert.deepEqual(rowIds(dialog({ page: 'alliance', aiLast: on, takeover: on, listed: on, room: big })), ['room-ai-last', 'room-ai-takeover', 'room-opt-listed']);
+  const group = (page, r = room(), o = {}) => rowIds(dialog({ page, room: r, ...o }));
+  assert.deepEqual(group('seats', big), ['experimental-multiplayer', 'experimental-capacity']);
   // AI 联防置后 (rel29): co-op only (no 联防 in a solo run)
-  assert.deepEqual(ids(dialog({ page: 'rules' })).filter((id) => !id.startsWith('rset')), ['experimental-revival', 'experimental-layer-cap', 'experimental-hit-limit', 'experimental-enemy-hp', 'experimental-enemy-hp-plan', 'experimental-enemy-atk', 'experimental-unite-humans', 'experimental-collab', 'experimental-console']);
+  assert.deepEqual(group('team'), ['experimental-revival', 'experimental-unite-humans']);
+  assert.deepEqual(group('bonds'), ['experimental-layer-cap']);
+  assert.deepEqual(group('bonds', big), ['experimental-layer-cap', 'experimental-ducklord'], '禁用鸭爵策略: an expanded room only');
+  assert.deepEqual(group('enemy'), ['experimental-enemy-hp', 'experimental-enemy-hp-plan', 'experimental-enemy-atk', 'experimental-hit-limit']);
+  assert.deepEqual(group('pools'), ['experimental-pool', 'experimental-pools-manual']);
   // 联动干员 and 调控台 (#125) are a private room's only (shared/experimental.js isCollabRoom / isConsoleRoom)
-  assert.equal(ids(dialog({ page: 'rules', room: room({ source: 'matchmade' }) })).includes('experimental-collab'), false);
-  assert.equal(ids(dialog({ page: 'rules', room: room({ source: 'matchmade' }) })).includes('experimental-console'), false);
-  assert.deepEqual(ids(dialog({ page: 'pools' })).filter((id) => !id.startsWith('rset')), ['experimental-pool', 'experimental-pools-manual']);
-  const solo = dialog({ page: 'sim', room: room({ mode: 'solo' }), soloOption: on });
-  assert.deepEqual(ids(solo).filter((id) => !id.startsWith('rset')), ['room-solo-unlimited', 'experimental-layer-cap', 'experimental-hit-limit', 'experimental-enemy-hp', 'experimental-enemy-hp-plan', 'experimental-enemy-atk', 'experimental-collab', 'experimental-console']);
-  assert.equal(solo.some((n) => n.props.role === 'tablist'), false, 'one page, no tabs');
+  assert.deepEqual(group('special'), ['experimental-collab', 'experimental-console']);
+  assert.deepEqual(group('special', room({ source: 'matchmaking' })), group('alliance', room({ source: 'matchmaking' })), 'a matchmade room has no 特殊功能');
+  const solo = dialog({ page: 'enemy', room: room({ mode: 'solo' }), soloOption: on });
+  assert.deepEqual(rowIds(solo), ['room-solo-unlimited', 'experimental-enemy-hp', 'experimental-enemy-hp-plan', 'experimental-enemy-atk', 'experimental-hit-limit']);
+  assert.equal(solo.some((n) => n.props.role === 'tablist' && n.props.class === 'rset__tabs'), false, 'no 同盟 tab');
+  assert.deepEqual(solo.filter((n) => n.props.role === 'tab').map((n) => n.props['data-testid']), ['exp-group-bonds', 'exp-group-enemy', 'exp-group-special']);
+  // the rail: every group of the room, the shown one selected, each with the count of what is on
+  const rail = dialog({ page: 'enemy', room: room({ experimental: rules({ enemyAtkMul: 2, disableHitLimit: true, revivalEnabled: true }) }) }).filter((n) => n.props.role === 'tab');
+  assert.deepEqual(rail.map((n) => n.props['data-testid']), ['room-settings-alliance', 'room-settings-experimental',
+    'exp-group-seats', 'exp-group-team', 'exp-group-bonds', 'exp-group-enemy', 'exp-group-pools', 'exp-group-special']);
+  assert.equal(rail.find((n) => n.props['data-testid'] === 'exp-group-enemy').props['aria-selected'], 'true');
+  assert.equal(rail.find((n) => n.props['data-testid'] === 'room-settings-experimental').props['aria-selected'], 'true');
+  const text = (n) => walk(n).map((x) => x.props?.children).flat(Infinity).filter((x) => typeof x === 'string' || typeof x === 'number').join('');
+  assert.match(text(rail.find((n) => n.props['data-testid'] === 'exp-group-enemy')), /敌人2/);
+  assert.match(text(rail.find((n) => n.props['data-testid'] === 'exp-group-team')), /队友协作1/);
+  assert.match(text(rail.find((n) => n.props['data-testid'] === 'room-settings-experimental')), /3/);
 });
 
 test('the editor shows only with a plan, and its changes keep every other rule', () => {
   assert.equal(dialog({ page: 'pools' }).some((n) => n.type === PoolEditor), false);
   const sent = [];
   const nodes = dialog({ page: 'pools', onExperimental: (v) => sent.push(v), room: room({ experimental: rules({ disableLayerCap: true, poolPlan: [0, 0, 1, 1] }) }) });
+  assert.equal(dialog({ page: 'enemy', room: room({ experimental: rules({ poolPlan: [0, 0, 1, 1] }) }) }).some((n) => n.type === PoolEditor), false, 'only on 卡池');
   const editor = nodes.find((n) => n.type === PoolEditor);
   assert.deepEqual(editor.props.plan, [0, 0, 1, 1]);
   editor.props.onPlan([0, 1, 1, 1]);
@@ -104,14 +128,16 @@ test('the page options read a plan, and a stale or foreign plan is none', () => 
   assert.doesNotMatch(experimentalSummary(rules()), /手动卡池/);
 });
 
-test('a tab\'s dot says that page differs from a new room', () => {
-  assert.deepEqual(changedPages(room()), { alliance: false, rules: false, pools: false });
-  assert.deepEqual(changedPages(room({ listed: true })), { alliance: true, rules: false, pools: false });
+test('a tab\'s dot / a group\'s count says that page differs from a new room', () => {
+  const none = { alliance: false, seats: false, team: false, bonds: false, enemy: false, pools: false, special: false };
+  assert.deepEqual(changedPages(room()), none);
+  assert.deepEqual(changedPages(room({ listed: true })), { ...none, alliance: true });
   assert.equal(changedPages(room({ aiPicksLast: false })).alliance, true, 'on by default');
-  assert.equal(changedPages(room({ experimental: rules({ playerCapacity: 8 }) })).alliance, true);
-  assert.deepEqual(changedPages(room({ experimental: rules({ enemyHpMul: 2 }) })), { alliance: false, rules: true, pools: false });
-  assert.deepEqual(changedPages(room({ experimental: rules({ disableSharedPool: true }) })), { alliance: false, rules: false, pools: true });
+  assert.deepEqual(changedPages(room({ experimental: rules({ playerCapacity: 8 }) })), { ...none, seats: true });
+  assert.deepEqual(changedPages(room({ experimental: rules({ enemyHpMul: 2 }) })), { ...none, enemy: true });
+  assert.deepEqual(changedPages(room({ experimental: rules({ disableSharedPool: true }) })), { ...none, pools: true });
   assert.equal(changedPages(room({ experimental: rules({ poolPlan: [0, 0, 0, 0] }) })).pools, true);
+  assert.deepEqual(groupCounts(room({ experimental: rules({ enemyHpMul: 2, enemyAtkMul: 3, revivalEnabled: true, console: true }) })), { enemy: 2, team: 1, special: 1 });
 });
 
 test('takenSeats keeps room seat numbers', () => {

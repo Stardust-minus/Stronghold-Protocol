@@ -2,6 +2,11 @@
 // One pool per official version (this fork, the owner 2026-11-15; server/matchmaking.js): queue.state `version` names a
 // ticket's (absent: 第二期下半); the searching screens tag it while the server offers versions (welcome.versions), and
 // queue.accept in another version's pool carries the cs of that version's data this page checked (acceptRequest).
+// A lone player's own experimental options (the owner, 2026-11-16: 「匹配玩家也支持调整实验性功能，然后带着这个实验性功能配置
+// 进入匹配」): the scope's 规则 row offers 我的实验性 ('custom') beside 标准规则 and 任意实验性 ('experimental', the former
+// 实验性规则) while the server takes it (welcome.queueRules); queue.join then carries the options (matchScopeRequest,
+// ui/experimental.js queueConfig), which 选择模拟协议 edits by group (MatchOptionsDialog) and `lobby.matchExperimental`
+// remembers. Such a ticket meets only doctors of the same options, or those taking any (server/matchmaking.js header).
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
@@ -12,7 +17,8 @@ import { useStore, serverNow } from '../store.js';
 import { net } from '../net.js';
 import { queueCancellation } from '../queueCancellation.js';
 import { toastError } from './toasts.js';
-import { ExperimentalSummary } from './experimental.js';
+import { ExperimentalPanel, ExperimentalSummary, experimentalItems, optionGroups, queueConfig } from './experimental.js';
+import { experimentalRuleChanged, queueOptions, queueOptionsAt } from '../../../shared/experimental.js';
 import { contentSet } from '../content.js';
 import { DEFAULT_VERSION, versionById, versionLabel } from '../versions.js';
 import { t, N_ } from '../../../shared/i18n.js';
@@ -50,7 +56,7 @@ export function queueDifficulties(q) {
  * 实验性规则. Each keeps at least one, as the difficulties do.
  */
 const SCOPE_SEATS = Object.freeze({ four: Object.freeze([MAX_SEATS]), multi: Object.freeze(PLAYER_CAPACITIES.filter((n) => n > MAX_SEATS)) });
-const SCOPE_RULES = Object.freeze(['standard', 'experimental']);
+const SCOPE_RULES = Object.freeze(['standard', 'custom', 'experimental']);
 export const MATCH_SCOPE_DEFAULT = Object.freeze({ seats: Object.freeze(['four']), rules: Object.freeze(['standard']) });
 
 /** A saved `lobby.matchScope`, checked: anything unusable falls back to the default of its axis. */
@@ -70,9 +76,35 @@ export function toggleMatchScope(scope, axis, value) {
   return { ...scope, [axis]: known.filter((x) => (x === value ? !list.includes(x) : list.includes(x))) };
 }
 
-/** What queue.join carries for a scope. */
-export function matchScopeRequest(scope) {
-  return { capacities: scope.seats.flatMap((x) => SCOPE_SEATS[x]), rules: [...scope.rules] };
+/**
+ * What queue.join carries for a scope, and with 我的实验性 ('custom') the ticket's own options (`config`, queueConfig). A
+ * server without 'custom' (welcome.queueRules, `custom` false) never sees it: the scope's other rules go alone.
+ */
+export function matchScopeRequest(scope, config = null, custom = true) {
+  const rules = scope.rules.filter((r) => r !== 'custom' || custom);
+  const own = rules.includes('custom');
+  return { capacities: scope.seats.flatMap((x) => SCOPE_SEATS[x]), rules: rules.length ? rules : ['standard'],
+    ...(own ? { experimental: queueConfig(config) } : {}) };
+}
+
+/** Whether this server takes a ticket's own options (welcome.queueRules names 'custom'). @param {any} s store state */
+export const queueTakesCustom = (s) => Array.isArray(s?.queueRules) && s.queueRules.includes('custom');
+
+/**
+ * Why a scope's 我的实验性 cannot be queued, or null: nothing on (`empty`), or nothing that counts in one of its sizes
+ * (`size`: 禁用鸭爵策略 alone at four seats) — the server's check (server/matchmaking.js join).
+ */
+export function customProblem(scope, config) {
+  if (!scope.rules.includes('custom')) return null;
+  const own = queueOptions(queueConfig(config));
+  if (!own || !experimentalItems(own, { queue: true }).length) return 'empty';
+  const sizes = scope.seats.flatMap((x) => SCOPE_SEATS[x]);
+  return sizes.every((n) => experimentalRuleChanged(queueOptionsAt(own, n))) ? null : 'size';
+}
+
+/** A saved `lobby.matchExperimental`, as a ticket's own options (queueConfig); none when unusable. */
+export function matchConfig(saved) {
+  return saved && typeof saved === 'object' && !Array.isArray(saved) ? queueConfig(saved) : queueConfig(null);
 }
 
 /** The lowest and highest size of 多人同盟, for its label. */
@@ -88,9 +120,43 @@ export function queueScope(q) {
   const sizes = Array.isArray(q.capacities) ? q.capacities.filter(isPlayerCapacity) : [];
   const multi = sizes.length > 1 || sizes.some((n) => n > MAX_SEATS);
   const seats = !multi ? null : sizes.includes(MAX_SEATS) ? t('{n} 人、多人同盟', { n: MAX_SEATS }) : t('多人同盟');
-  const only = Array.isArray(q.rules) && q.rules.length === 1 ? q.rules[0] : null;
-  const rules = only === 'standard' ? t('标准规则') : only === 'experimental' ? t('仅实验性规则') : q.partyRoomCode ? null : t('含实验性规则');
-  return seats || rules ? { seats, rules } : null;
+  return seats || rules(q) ? { seats, rules: rules(q) } : null;
+}
+
+/** The rules a lone ticket takes as its tags name them (queueScope); null for a room's party. */
+function rules(q) {
+  const asked = Array.isArray(q?.rules) ? q.rules : null;
+  if (!asked) return q?.partyRoomCode ? null : t('含实验性规则');
+  const has = (r) => asked.includes(r);
+  const n = has('custom') ? experimentalItems(q.config, { queue: true }).length : 0;
+  if (has('custom') && has('experimental')) return has('standard') ? t('不限规则') : t('我的或任意实验性');
+  if (has('custom')) return has('standard') ? t('标准或我的实验性 · {n} 项', { n }) : t('我的实验性 · {n} 项', { n });
+  if (has('experimental')) return has('standard') ? t('含实验性规则') : t('仅实验性规则');
+  return has('standard') ? t('标准规则') : null;
+}
+
+/**
+ * 多人匹配's own experimental options (the header): the groups a ticket may set (shared/experimental.js QUEUE_OPTION_KEYS:
+ * no seat count, no 卡池编组, no 联动干员 / 调控台; 禁用鸭爵策略 while the scope also takes 多人同盟), by group as in the
+ * room's dialog. Every change is the page's at once (`onChange`, remembered by the lobby); 恢复默认 turns them all off.
+ * @param {{ value: any, multi: boolean, onChange: (next: any) => void, onClose: () => void }} props
+ */
+export function MatchOptionsDialog({ value, multi, onChange, onClose }) {
+  const rows = { value, mode: 'coop', source: 'queue', multi, editable: true, busy: false, onChange };
+  const groups = optionGroups(rows);
+  const items = experimentalItems(value, { queue: true });
+  const counts = {};
+  for (const x of items) counts[x.group] = (counts[x.group] || 0) + 1;
+  const [group, setGroup] = useState(() => groups.find((g) => counts[g]) || groups[0]);
+  return html`<${Modal} open=${true} title=${t('我的实验性功能')} micro="MATCHMAKING OPTIONS" ariaLabel=${t('我的实验性功能')} trapFocus=${true}
+      class="room-settings-modal match-options-modal" onClose=${onClose}
+      actions=${html`<p class="rset__note">${t('只和设置完全相同的博士或小队匹配；选择「任意实验性」的博士也可能加入')}</p>
+        <${Button} variant="ghost" icon="close" disabled=${!items.length} data-testid="match-options-reset" onClick=${() => onChange(queueConfig(null))}>${t('全部关闭')}<//>
+        <${Button} icon="check" data-testid="match-options-done" onClick=${onClose}>${t('完成')}<//>`}>
+    <div class="rset__page rset__page--experimental">
+      ${ExperimentalPanel({ groups, group, onGroup: setGroup, counts, rows, label: t('我的实验性功能'), focus: true })}
+    </div>
+  <//>`;
 }
 
 export function queueTime(q, now) {
@@ -103,10 +169,13 @@ export const REASONS = {
   confirmation_timeout: N_('确认时间已结束，未确认的博士已退出本次匹配'), unavailable: N_('匹配条件或可用容量已变化，请重新匹配'),
   shutdown: N_('匹配服务已停止'),
   expired: N_('等待时间已满，请重新加入匹配'), offer_timeout: N_('有人未及时确认，继续等待队友'),
-  declined: N_('队友取消了确认，继续等待'), peer_cancelled: N_('队友取消了确认，继续等待'),
-  peer_disconnected: N_('队友连接中断，继续等待'), capacity: N_('房间容量暂满，请稍后重试'),
+  // an offer fell apart and this ticket waits again in its place, confirmed or not (server/matchmaking.js breakOffer)
+  declined: N_('有队友退出了本次匹配，已保留排队位置，继续等待'), peer_cancelled: N_('有队友退出了本次匹配，已保留排队位置，继续等待'),
+  peer_disconnected: N_('有队友连接中断，已保留排队位置，继续等待'), peer_left: N_('有队友已离开本次匹配，已保留排队位置，继续等待'),
+  capacity: N_('房间容量暂满，请稍后重试'),
   allocation_failed: N_('本次分配未完成，继续等待；原好友队伍保留'),
   allocation_timeout: N_('游戏节点准备超时，继续等待；原好友队伍保留'),
+  // an older server: the unconfirmed left whatever broke the offer
   unconfirmed: N_('你或同队成员未完成确认，已退出本次匹配；请重新开始匹配'),
   maintenance: N_('服务器即将维护，匹配已暂停'),
 };
@@ -130,8 +199,8 @@ export function queuePopulation(q, online, cancelling = false) {
     ? q.waitingCount : null;
 }
 
-export const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。未完成确认者不自动回队。最多等待 10 分钟，可随时取消。');
-export const EXPERIMENTAL_RULES = N_('好友小队沿用房间的实验性选项。单人默认只进标准规则的对局，选择「实验性规则」后才会进入改过规则的小队，确认入场前可以看到具体规则。只有单人时一律按标准规则开局。');
+export const MATCHING_RULES = N_('集齐后有 30 秒确认时间，全部确认后直接开局。超时未确认的博士退出匹配；有人退出时，其余博士保留排队位置继续等待。最多等待 10 分钟，可随时取消。');
+export const EXPERIMENTAL_RULES = N_('好友小队沿用房间的实验性功能。单人默认只进标准规则的对局；选择「我的实验性」并设置后，只和设置完全相同的博士或小队匹配；选择「任意实验性」后可加入其他博士或小队开启的实验性对局。确认入场前可以看到本局开启了哪些实验性功能，不想玩可以退出本次匹配。');
 
 export function MatchmakingPanel({ queue, difficulty, experimental, online, onJoin, joining = false, compact = false }) {
   useTicker(1000);

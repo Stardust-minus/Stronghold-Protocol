@@ -29,6 +29,20 @@ const replica = (c) => c.page.evaluate(() => {
     foe: foe ? { hp: foe.base.maxHp / (foe.def.maxHp * foe.mods.hpMul) } : null, e: e ? { replica: !!e.replica, dropped: !!e.dropped, synced: e.synced ?? 0 } : null };
 });
 
+/** The room's 实验性功能 badge: its count, and the 浮窗's list (a hover; ui/experimental.js ExperimentalBadge). */
+async function badge(c) {
+  await c.page.mouse.move(2, 2);
+  const pt = await c.point('[data-testid="room-experimental"]');
+  await c.page.mouse.move(pt.x, pt.y);
+  await c.page.waitForSelector('[data-testid="room-experimental-pop"]', { visible: true, timeout: 5000 });
+  const out = await c.page.evaluate(() => ({ count: document.querySelector('[data-testid="room-experimental"]').dataset.count,
+    small: document.querySelector('.rs-exp small').textContent, list: document.querySelector('[data-testid="room-experimental-pop"]').textContent }));
+  await c.page.mouse.move(2, 2);
+  return out;
+}
+/** A group of 同盟设置's 实验性功能 (ui/roomSettings.js), the dialog open. */
+const group = (c, id) => c.click(`[data-testid="exp-group-${id}"]`);
+
 describe('enemy HP by round (server-run combat, real server + Worker)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public/assets)' }, () => {
   test('the host edits the plan in 规则; the boss round fights under its last segment, on the Worker and the replica', { timeout: 6 * 60 * 1000 }, async () => {
     const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 2, startRound: 'boss', autoPlace: true, kits: [YAN], botChess: BOT_KIT },
@@ -42,6 +56,7 @@ describe('enemy HP by round (server-run combat, real server + Worker)', { skip: 
       for (let i = 0; i < 3; i++) { await host.click('button', '添加 AI 队友'); await sleep(500); }
       await host.click('.rs-exp');
       await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
+      await group(host, 'enemy');
       assert.equal(await host.page.$('[data-testid="experimental-enemy-hp-plan"]'), null, 'no editor while off');
       await host.click('[data-testid="experimental-enemy-hp-plan-switch"]');
       await waitPlan(host, [[1, 1], [6, 1.5], [9, 2.5]]);
@@ -62,7 +77,7 @@ describe('enemy HP by round (server-run combat, real server + Worker)', { skip: 
       await waitPlan(host, [[1, 1], [5, 1.5], [9, 2.5]]);
       await host.click('.room-settings-modal .modal__actions button');
       await host.page.waitForSelector('.room-settings-modal', { hidden: true, timeout: 10000 });
-      assert.match(await host.page.$eval('.rs-exp small', (el) => el.textContent), /敌人生命 1–4回合 ×1 \/ 5–8回合 ×1\.5 \/ 9回合起 ×2\.5/);
+      assert.match((await badge(host)).list, /敌人生命 1–4回合 ×1 \/ 5–8回合 ×1\.5 \/ 9回合起 ×2\.5/);
       await host.shot('room');
       assert.equal(await plan(host), JSON.stringify([[1, 1], [5, 1.5], [9, 2.5]]));
       await host.roomStart({ timeout: 20000 });

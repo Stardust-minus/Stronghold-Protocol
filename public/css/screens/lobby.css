@@ -2946,8 +2946,8 @@ button.ach-card__ava:hover, button.ach-card__ava:focus-visible { border-color: v
 .rlist__diff { display: inline-flex; align-items: center; gap: 6px; font-size: max(calc(.16 * var(--t)), 13px); color: var(--d-color, #8d9391); white-space: nowrap; }
 .rlist__diff .icon, .rlist__diff svg { width: 16px; height: 16px; }
 .rlist__who { display: flex; flex-direction: column; min-width: 0; }
-.rlist__who b { overflow: hidden; font-size: max(calc(.17 * var(--t)), 14px); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.rlist__who small { overflow: hidden; font-size: max(calc(.13 * var(--t)), 11px); color: #858b89; text-overflow: ellipsis; white-space: nowrap; }
+.rlist__who > b { overflow: hidden; font-size: max(calc(.17 * var(--t)), 14px); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+/* the room's 实验性功能 badge under the host's name: css/screens/experimental.css .rlist__exp */
 .rlist__ver { display: inline-flex; align-items: center; gap: 4px; font-size: max(calc(.13 * var(--t)), 11px); color: var(--text-md); white-space: nowrap; }
 .rlist__ver .icon { width: 13px; height: 13px; }
 .rlist__seats { font-size: max(calc(.2 * var(--t)), 15px); color: var(--mint-400); white-space: nowrap; }

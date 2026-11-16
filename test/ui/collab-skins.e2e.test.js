@@ -19,6 +19,9 @@ const SLOT = 'chess_char_5_diy1_a';
 const PICKER = '[data-testid="diy-picker"]';
 const HOLD = '[data-testid="dialog-hold-ok"]';
 
+/** A group of 同盟设置's 实验性功能 (ui/roomSettings.js), the dialog open. */
+const group = (c, id) => c.click(`[data-testid="exp-group-${id}"]`);
+
 describe('联动干员 skin on the board (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + the collab pack\'s skins)' }, () => {
   test('pack off: no skin art asked for; on: 灰烬「游侠」 in 自选 → shop → board, drawn in the skin\'s model', { timeout: 6 * 60 * 1000 }, async () => {
     const srv = await startRealServer({ fast: { timerScale: 0.5, combatSpeed: 0.2, startRound: 1, kit: 0, level: 5, shop: [SLOT] } });
@@ -35,6 +38,8 @@ describe('联动干员 skin on the board (real server)', { skip: !ENABLED && 'se
       assert.deepEqual(skinArt, [], 'no collab skin art without 联动干员');
 
       await c.click('.rs-exp');
+      await c.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
+      await group(c, 'special');
       await c.page.waitForSelector('#experimental-collab', { visible: true, timeout: 10000 });
       await c.page.click('#experimental-collab');
       await c.page.waitForSelector(HOLD, { visible: true, timeout: 5000 });

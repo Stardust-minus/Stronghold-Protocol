@@ -1,0 +1,134 @@
+/* ==========================================================================================
+   实验性功能 by group (js/ui/experimental.js; the owner, 2026-11-16: 「实验性功能需要拆分成多个分类」, 「默认房间内不再显示
+   详细开启了什么实验性策略……鼠标放上去给一个浮窗查看，或点击查看」, 「匹配玩家也支持调整实验性功能」):
+     .expp  — a place's groups: a rail of groups (each with the count of what is on) beside the rows of the one shown; on a
+              narrow dialog the rail is a row of chips above the rows
+     .expb  — the room's 实验性功能 badge (已开启 n 项 / 未开启) and its 浮窗; 多人匹配's 我的实验性功能 line
+     .expd  — what is on, by group (the 浮窗, 确认入场's panel: css/screens/match-offer.css .mo__rules)
+     .rlist__exp — 公开同盟's rows (js/ui/roomList.js): the same badge, small, under the host's name; its 浮窗 floats
+              (.expb__pop--float: fixed, placed by the script above the badge, below it when the top has no room)
+   No :has(), container queries, @layer or nesting (ESR 115 / older Safari).
+   ========================================================================================== */
+
+/* ---- the room's dialog: wider by the rail (卡池's editor keeps three pools a row at 720p), one height for every page;
+   the 实验性功能 tab's count, the groups ---- */
+.room-settings-modal { width: min(max(12.8rem, calc(772px * var(--ui))), 96vw); }
+.room-settings-modal.is-solo { height: min(88vh, max(8.2rem, calc(520px * var(--ui)))); }
+.rset__count { flex: none; min-width: 1.5em; padding: 0 .3em; font-size: .78em; line-height: 1.45; text-align: center; color: #0d2a23;
+  background: var(--mint-400); border-radius: 999px; }
+.rset__page--experimental { overflow: hidden; }
+.rset__rows--top { flex: none; grid-template-columns: minmax(0, 1fr); margin-bottom: .06rem; border-bottom: 1px solid var(--line-2); }
+.expp { flex: 1; display: grid; grid-template-columns: max(2rem, calc(132px * var(--ui))) minmax(0, 1fr); gap: .2rem; min-height: 0; }
+.expp__rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: .06rem 0; overflow: auto; border-right: 1px solid var(--line-2); }
+.expp__tab { position: relative; display: flex; align-items: center; justify-content: space-between; gap: .08rem; min-height: max(.5rem, calc(34px * var(--ui)));
+  padding: 0 .14rem 0 .16rem; font: inherit; font-size: max(calc(.16 * var(--t)), calc(13px * var(--ui))); font-weight: 700; text-align: left; color: var(--text-lo);
+  background: none; border: 0; cursor: pointer; }
+.expp__tab::before { content: ''; position: absolute; left: 0; top: 18%; bottom: 18%; width: 2px; background: transparent; }
+.expp__tab:hover { color: var(--text-hi); background: rgba(255, 255, 255, .03); }
+.expp__tab:focus-visible { outline: 2px solid var(--mint-400); outline-offset: -2px; }
+.expp__tab.is-on { color: var(--mint-400); background: linear-gradient(90deg, rgba(89, 244, 202, .12), transparent); }
+.expp__tab.is-on::before { background: var(--mint-400); }
+.expp__name { min-width: 0; line-height: 1.25; overflow-wrap: anywhere; }
+.expp__n { flex: none; min-width: 1.6em; padding: 0 .35em; font-size: .8em; line-height: 1.5; text-align: center; color: #0d2a23; background: var(--mint-400); border-radius: 999px; }
+.expp__body { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; padding-right: .04rem; }
+.expp__body > .rset__rows { grid-template-columns: minmax(0, 1fr); }
+.expp__body > .pooled { flex: 1; min-height: max(2.4rem, calc(170px * var(--ui))); }
+/* narrow dialogs (a phone held upright, a small window): the rail above the rows, a row of chips */
+@media (max-width: 640px), (max-aspect-ratio: 3/4) {
+  .expp { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
+  .expp__rail { flex-direction: row; gap: 6px; padding: 6px 0; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--line-2); scrollbar-width: none; }
+  .expp__rail::-webkit-scrollbar { display: none; }
+  .expp__tab { flex: none; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 999px; }
+  .expp__name { white-space: nowrap; }
+  .expp__tab::before { display: none; }
+  .expp__tab.is-on { border-color: var(--mint-400); background: rgba(89, 244, 202, .1); }
+}
+/* a phone held sideways: the dialog is short, the rail narrower */
+@media (max-height: 520px) and (min-aspect-ratio: 3/4) {
+  .expp { grid-template-columns: 118px minmax(0, 1fr); gap: 10px; }
+  .expp__tab { min-height: 30px; font-size: 12px; }
+}
+.match-options-modal { height: min(88vh, max(8.2rem, calc(520px * var(--ui)))); }
+.match-options-modal .modal__actions { flex-wrap: wrap; }
+
+/* ---- the badge: 实验性功能 · 已开启 n 项, and its 浮窗 ---- */
+.expb { position: relative; display: inline-flex; max-width: 100%; }
+.expb > .rs-exp { max-width: 100%; }
+.expb__pop { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: max-content; min-width: max(3.6rem, 220px); max-width: min(7rem, 88vw);
+  max-height: min(60vh, 7rem); overflow: auto; padding: .12rem .16rem .14rem; text-align: left; color: #dfe3e1;
+  background: rgba(10, 14, 13, .97); border: 1px solid var(--mint-a35); box-shadow: 0 .08rem .3rem rgba(0, 0, 0, .6);
+  animation: expb-in 140ms ease-out; }
+@keyframes expb-in { from { opacity: 0; transform: translateY(4px); } }
+.expb__pop::after { content: ''; position: absolute; left: .3rem; bottom: -6px; width: 10px; height: 10px; background: rgba(10, 14, 13, .97);
+  border-right: 1px solid var(--mint-a35); border-bottom: 1px solid var(--mint-a35); transform: rotate(45deg); }
+.expb__head { display: flex; align-items: baseline; justify-content: space-between; gap: .2rem; margin-bottom: .06rem; padding-bottom: .05rem; border-bottom: 1px solid var(--line-2);
+  font-size: max(calc(.15 * var(--t)), 12px); }
+.expb__head b { font-weight: 800; color: var(--text-hi); }
+.expb__head .num { color: #4fe8c0; }
+.expb:not(.is-on) .expb__head .num { color: var(--text-lo); }
+.expb__more { display: inline-flex; align-items: center; gap: .06rem; margin-top: .1rem; min-height: 36px; padding: 0 .14rem; font: inherit; font-size: max(calc(.14 * var(--t)), 12px);
+  font-weight: 700; color: #0d2a23; background: var(--mint-400); border: 0; cursor: pointer; }
+.expb__more .icon { width: 1.1em; height: 1.1em; }
+/* phones: the count stays (the old summary was hidden there), beside the label */
+@media (max-height: 520px), (max-width: 900px) {
+  .expb .rs-exp > span { flex-direction: row; align-items: baseline; gap: .5em; }
+  .expb .rs-exp small { display: inline; }
+}
+/* a floating 浮窗 (`float`): fixed, the script sets left / top and data-place; the arrow points at the badge's middle
+   (--expb-arrow); it only fades in, so the box the script measures is where it stays */
+.expb__pop--float { position: fixed; left: 0; top: 0; bottom: auto; z-index: var(--z-tooltip, 60); max-height: min(60vh, 7rem, calc(100vh - 16px));
+  animation-name: expb-fade; }
+@keyframes expb-fade { from { opacity: 0; } }
+/* over a list's rows (dense text) the box is opaque: no ghost of the row beneath */
+.expb__pop--float, .expb__pop--float::after { background: #0a0e0d; }
+.expb__pop--float::after { left: calc(var(--expb-arrow, 20px) - 5px); }
+.expb__pop--float[data-place="bottom"]::after { top: -6px; bottom: auto; transform: rotate(225deg); }
+@media (prefers-reduced-motion: reduce) { .expb__pop { animation: none; } }
+.sp-reduced-motion .expb__pop { animation: none; }
+
+/* ---- 公开同盟: a row's badge, a small chip under the host's name (no dialog behind it: the info icon) ---- */
+.rlist__exp { align-self: flex-start; margin-top: 3px; }
+.rlist__exp > .rs-exp { min-height: 26px; gap: 6px; padding: 2px 10px 2px 7px; font-size: max(calc(.13 * var(--t)), 12px); background: rgba(12, 15, 15, .55);
+  border-color: rgba(255, 255, 255, .14); }
+.rlist__exp > .rs-exp > span { flex-direction: row; align-items: baseline; gap: .5em; }
+.rlist__exp > .rs-exp b { font-weight: 600; color: var(--text-md); }
+.rlist__exp > .rs-exp small { display: inline; font-size: 1em; }
+.rlist__exp > .rs-exp.is-on { border-color: var(--mint-a35); }
+.rlist__exp.is-open > .rs-exp { border-color: var(--mint-400); background: rgba(20, 30, 28, .9); }
+/* a touch screen: the chip is a comfortable target */
+@media (pointer: coarse) { .rlist__exp > .rs-exp { min-height: 32px; } }
+
+/* ---- what is on, by group ---- */
+.expd { display: flex; flex-direction: column; gap: .07rem; margin: 0; font-size: max(calc(.14 * var(--t)), 12px); }
+.expd__group { display: grid; gap: 2px; }
+.expd__k { margin: 0; font-size: .84em; font-weight: 700; letter-spacing: .06em; color: var(--text-lo); }
+.expd__list { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.expd__list li { position: relative; padding-left: .9em; line-height: 1.45; color: #e6ebe9; }
+.expd__list li::before { content: ''; position: absolute; left: .15em; top: .6em; width: .32em; height: .32em; background: #4fe8c0; }
+.expd--empty { color: var(--text-lo); }
+/* 确认入场: one line per group, its items side by side */
+.expd--inline { gap: 4px; }
+.expd--inline .expd__group { grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 4px 12px; }
+.expd--inline .expd__list { flex-direction: row; flex-wrap: wrap; gap: 2px 14px; }
+
+/* ---- 多人匹配: the 规则 row of three, the line of 我的实验性功能, the version chip as a button ---- */
+.proto-scope__row.is-three { grid-template-columns: max(.6rem, 30px) repeat(3, minmax(0, 1fr)); }
+.proto-scope__own { display: flex; align-items: center; flex-wrap: wrap; gap: .06rem .14rem; padding-left: calc(max(.6rem, 30px) + .08rem); }
+.proto-own > .rs-exp { min-height: max(.42rem, 28px); padding: .02rem .12rem; font-size: max(calc(.14 * var(--t)), 11px); background: rgba(12, 15, 15, .6); }
+.proto-own > .rs-exp > span { flex-direction: row; align-items: baseline; gap: .08rem; }
+/* the side column sits at the right edge: the 浮窗 opens leftwards from the badge's right end */
+.proto-own .expb__pop { left: auto; right: 0; max-width: min(6rem, 80vw); }
+.proto-own .expb__pop::after { left: auto; right: .3rem; }
+.proto-scope__warn { font-size: max(calc(.13 * var(--t)), 11px); color: var(--amber); }
+button.proto-mode-chip--pick { font: inherit; font-size: max(calc(.17 * var(--t)), 12px); font-weight: 700; color: #e9eceb; border: 1px solid transparent; cursor: pointer; }
+button.proto-mode-chip--pick:hover:not(:disabled), button.proto-mode-chip--pick:focus-visible { border-color: var(--mint-a35); color: #fff; }
+button.proto-mode-chip--pick:disabled { cursor: default; opacity: .6; }
+.proto-mode-chip__go { opacity: .7; }
+@media (max-height: 520px) {
+  /* three in a ~220 px column: the names keep their room, the frame and colour say which is on */
+  .proto-scope__row.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .proto-scope__row.is-three .proto-scope__opt { justify-content: center; padding: 0 3px; }
+  .proto-scope__row.is-three .proto-scope__opt .icon { display: none; }
+  .proto-scope__own { padding-left: 0; }
+  .proto-own > .rs-exp { min-height: 26px; }
+}

@@ -3,7 +3,7 @@
 
 import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, BOND_PLAN_SUB_MAX, REHEARSAL_MAX_CANDIDATES } from './constants.js';
 import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS, PLAYER_CAPACITIES, isPlayerCapacity } from './playerCapacity.js';
-import { isExperimental } from './experimental.js';
+import { isExperimental, queueOptions } from './experimental.js';
 import { isSkinChoices } from './skins.js';
 
 /** Public response-pressure hint; never carries raw host/process diagnostics. */
@@ -644,10 +644,13 @@ export const C2S = {
   // seats, both rules, as an older page's ticket.
   // version (this fork, one pool per official version): the version a lone player's ticket plays — the lobby's; absent =
   // act2autochess (an older page). A party plays its room's version (a different one: BAD_MSG).
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, experimental: () => false, version: isVersionId,
+  // experimental (the owner, 2026-11-16, a lone player only): the ticket's own options, with 'custom' among `rules` and only
+  // then (validateC2S) — options of QUEUE_OPTION_KEYS (shared/experimental.js queueOptions: no seat count, no 卡池编组, no
+  // 联动干员 / 调控台); it meets only tickets / parties of the same options or tickets taking any changed rules.
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), party: isBool, experimental: (v) => queueOptions(v) !== null, version: isVersionId,
     difficulties: (v) => Array.isArray(v) && v.length >= 1 && v.length <= DIFFICULTIES.length && new Set(v).size === v.length && v.every((d) => DIFFICULTIES.includes(d)),
     capacities: (v) => Array.isArray(v) && v.length >= 1 && v.length <= PLAYER_CAPACITIES.length && new Set(v).size === v.length && v.every(isPlayerCapacity),
-    rules: (v) => Array.isArray(v) && v.length >= 1 && v.length <= 2 && new Set(v).size === v.length && v.every((r) => r === 'standard' || r === 'experimental'),
+    rules: (v) => Array.isArray(v) && v.length >= 1 && v.length <= 3 && new Set(v).size === v.length && v.every((r) => r === 'standard' || r === 'experimental' || r === 'custom'),
     $optional: ['party', 'experimental', 'difficulties', 'capacities', 'rules', 'version'] },
   'queue.cancel': { ticketId: isId },
   // Older clients may send a boolean vote, but it has no authority over room-owned rules.
@@ -878,7 +881,8 @@ export const S2C = [
   // several difficulties (feedback #87: `difficulties`, in its order, and `waitingCounts`, one per difficulty) gets its
   // fullest pool as waitingCount. `difficulty` is its first one until an offer stands, then the offered one. A ticket of
   // several room sizes adds `capacities` (a difficulty's count is then its fullest size; `required` is its smallest one
-  // until an offer stands, then the offered one), one that took one kind of rules adds `rules`.
+  // until an offer stands, then the offered one), one that took one kind of rules adds `rules`; a ticket of its own options
+  // (rules 'custom') adds them as `config`, queued and offered.
   // While an offer stands, `acceptedCards` lists the others who confirmed, first confirmed first, by what their seat cards
   // show and nothing else — { seed, charId?, look?, artX?, artY?, artZoom? } (server/matchmaking.js offerCard): no id, no name.
   // Excludes offered/allocation/matched identities; not compatible-party progress, online count or an ETA.
@@ -947,6 +951,8 @@ export function validateC2S(msg) {
   const spec = typeof msg.t === 'string' && Object.hasOwn(C2S, msg.t) ? C2S[msg.t] : null;
   if (!spec) return `unknown type ${String(msg.t).slice(0, 32)}`;
   if (msg.t === 'p2p.signal' && (msg.description !== undefined) === (msg.candidate !== undefined)) return 'exactly one signal required';
+  // a ticket's own options come with the rule 'custom', and 'custom' only with them
+  if (msg.t === 'queue.join' && (msg.experimental !== undefined) !== (Array.isArray(msg.rules) && msg.rules.includes('custom'))) return 'experimental options need the custom rule';
   if (msg.rid != null && !isInt(msg.rid, 0, 0x80000000)) return 'bad rid';
   const optional = spec.$optional || [];
   for (const [k, check] of Object.entries(spec)) {

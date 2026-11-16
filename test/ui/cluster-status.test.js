@@ -137,11 +137,11 @@ test('experimental options are room-only and lobby creation uses server defaults
 
 test('room options stay with difficulty controls rather than crowding ready actions', () => {
   const room = source('../../public/js/screens/room.js');
-  // ⚙ of the difficulty pill and 实验性选项 at the left open the one dialog (ui/roomSettings.js), never among 组队匹配 / 开始模拟 / 准备就绪
+  // ⚙ of the difficulty pill and 实验性功能 at the left open the one dialog (ui/roomSettings.js), never among 组队匹配 / 开始模拟 / 准备就绪
   const pill = room.slice(room.indexOf('<div class="rs-pill">'), room.indexOf('<div class="rs-foot__right">'));
   assert.match(pill, /setSettings\(settingsPage\(room, 'alliance'\)\)/);
-  assert.match(room, /class=\$\{`rs-exp[\s\S]{0,120}setSettings\(settingsPage\(room, 'rules'\)\)/);
+  assert.match(room, /<\$\{ExperimentalBadge\}[\s\S]{0,160}setSettings\(settingsPage\(room, 'experimental'\)\)/);
   const actions = room.slice(room.indexOf('<div class="rs-foot__right">'), room.indexOf('</footer>'));
-  assert.doesNotMatch(actions, /setSettings|实验性选项/);
+  assert.doesNotMatch(actions, /setSettings|实验性选项|ExperimentalBadge/);
   assert.match(actions, /myReady \? t\('已就绪'\) : t\('准备就绪'\)/);
 });

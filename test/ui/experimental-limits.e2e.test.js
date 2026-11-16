@@ -26,6 +26,20 @@ const replica = (c) => c.page.evaluate(() => {
     e: e ? { replica: !!e.replica, dropped: !!e.dropped, replay: !!e.replay, synced: e.synced, tick: e.battle?.tickCount ?? null, finished: !!e.battle?.finished } : null };
 });
 
+/** The room's 实验性功能 badge: its count, and the 浮窗's list (a hover; ui/experimental.js ExperimentalBadge). */
+async function badge(c) {
+  await c.page.mouse.move(2, 2);
+  const pt = await c.point('[data-testid="room-experimental"]');
+  await c.page.mouse.move(pt.x, pt.y);
+  await c.page.waitForSelector('[data-testid="room-experimental-pop"]', { visible: true, timeout: 5000 });
+  const out = await c.page.evaluate(() => ({ count: document.querySelector('[data-testid="room-experimental"]').dataset.count,
+    small: document.querySelector('.rs-exp small').textContent, list: document.querySelector('[data-testid="room-experimental-pop"]').textContent }));
+  await c.page.mouse.move(2, 2);
+  return out;
+}
+/** A group of 同盟设置's 实验性功能 (ui/roomSettings.js), the dialog open. */
+const group = (c, id) => c.click(`[data-testid="exp-group-${id}"]`);
+
 describe('room rules past the official limits (server-run combat, real server + Worker)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public/assets)' }, () => {
   test('both switches reach the Worker and the replica: layers past 999, leaders cleared by hits past 300000, no stream fallback', { timeout: 6 * 60 * 1000 }, async () => {
     const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 2, startRound: 'boss', autoPlace: true, kits: [YAN], botChess: BOT_KIT },
@@ -40,16 +54,20 @@ describe('room rules past the official limits (server-run combat, real server + 
       await host.click('.rs-exp');
       await host.page.waitForSelector('.room-settings-modal', { visible: true, timeout: 10000 });
       await host.shot('options-off');
+      await group(host, 'bonds');
       await host.click('#experimental-layer-cap');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.disableLayerCap === true, { timeout: 10000 });
+      await group(host, 'enemy');
       await host.click('#experimental-hit-limit');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.disableHitLimit === true, { timeout: 10000 });
       await host.shot('options-on');
       await host.click('.room-settings-modal .modal__actions button');
       await host.page.waitForSelector('.room-settings-modal', { hidden: true, timeout: 10000 });
       await host.shot('room');
-      const summary = await host.page.$eval('.rs-exp small', (el) => el.textContent);
-      assert.match(summary, /禁用层数上限 · 禁用单次伤害上限/);
+      const summary = await badge(host);
+      assert.equal(summary.count, '2');
+      assert.match(summary.small, /已开启 2 项/);
+      assert.match(summary.list, /盟约与策略.*禁用层数上限.*敌人.*禁用单次伤害上限/);
       await host.roomStart({ timeout: 20000 });
       await host.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
       await host.settled('.brief-go');

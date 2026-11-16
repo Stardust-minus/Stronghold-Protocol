@@ -2,10 +2,13 @@
 // players. The list is asked for (room.list) only while this dialog is open, every ROOM_LIST_POLL_MS on a visible page; the
 // server shares one scan among its askers and never pushes it. Joining goes through the page's ordinary key join, which
 // checks everything again: a row gone stale meanwhile answers with the usual refusal.
+// A row's experimental options are the room's 实验性功能 badge (ui/experimental.js ExperimentalBadge, the owner 2026-11-16):
+// 已开启 n 项 / 未开启, the list by group in a 浮窗 on a hover, the keyboard's focus, a click or a tap — placed in the
+// viewport (`float`), out of the list's scroll clip; there is no dialog behind it (one is not in the room).
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTY_COLORS, DIFFICULTY_NAMES, ROOM_LIST_MIN_CAPACITY } from '../../../shared/constants.js';
 import { html, Button, DifficultyIcon, Icon, Modal, Spinner } from './components.js';
-import { experimentalSummary } from './experimental.js';
+import { ExperimentalBadge } from './experimental.js';
 import { net } from '../net.js';
 import { versionLabel } from '../versions.js';
 import { t } from '../../../shared/i18n.js';
@@ -17,7 +20,8 @@ function RoomRow({ row, disabled, onJoin }) {
   const bots = row.filled - row.humans;
   return html`<li class="rlist__row" style=${`--d-color:${DIFFICULTY_COLORS[row.difficulty]}`} data-testid="room-row" data-code=${row.code}>
     <span class="rlist__diff"><${DifficultyIcon} difficulty=${row.difficulty} />${t(DIFFICULTY_NAMES[row.difficulty])}</span>
-    <span class="rlist__who"><b class="selectable">${row.host}</b><small title=${experimentalSummary(row.experimental)}>${experimentalSummary(row.experimental)}</small></span>
+    <span class="rlist__who"><b class="selectable">${row.host}</b>
+      <${ExperimentalBadge} value=${row.experimental} icon="info" float=${true} testid="room-row-experimental" popId=${`room-row-experimental-${row.code}`} class="rlist__exp" /></span>
     ${row.version ? html`<span class="rlist__ver"><${Icon} name="book" />${versionLabel(row.version)}</span>` : html`<span></span>`}
     <span class="rlist__seats num" title=${t('{humans} 名博士，{bots} 名 AI', { humans: row.humans, bots })}>${row.filled}<i>/</i>${row.capacity}</span>
     <${Button} size="sm" variant="primary" class="rlist__join" disabled=${disabled} onClick=${() => onJoin(row.code)}>${t('加入同盟')}<//>

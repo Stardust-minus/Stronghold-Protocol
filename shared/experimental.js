@@ -1,5 +1,6 @@
 // Room-owned experimental rules are snapshotted at launch, never player votes.
 import { MAX_SEATS } from './constants.js';
+import { N_ } from './i18n.js';
 import { isPlayerCapacity, roomCapacity } from './playerCapacity.js';
 import { canonicalPoolPlan, isPoolPlan } from './poolPlan.js';
 
@@ -186,3 +187,47 @@ export const isConsoleRoom = value => !!value && typeof value === 'object' && va
  * @param {any} value a room's / match's experimental options
  */
 export const isUniteHumansFirst = value => !!value && typeof value === 'object' && value.uniteHumansFirst === true;
+
+/**
+ * The categories of the experimental options (the owner, 2026-11-16: 「实验性功能需要拆分成多个分类，目前单个大项下的选项太
+ * 多了」): every option belongs to exactly one, in this order. The room's dialog (ui/roomSettings.js), 多人匹配's own options
+ * (ui/matchmaking.js) and every summary — the room's 实验性功能 badge, 确认入场 (ui/matchOffer.js) — list them by these
+ * groups; which options a place offers is its own (a solo room has no teammates, a ticket no seat plan). `keys`: the option
+ * fields of the group (`enemyHpPlan` stands in for `enemyHpMul` when set, isEnemyHpPlan).
+ */
+export const EXPERIMENTAL_GROUPS = Object.freeze([
+  Object.freeze({ id: 'seats', label: N_('同盟人数'), keys: Object.freeze(['playerCapacity']) }),
+  Object.freeze({ id: 'team', label: N_('队友协作'), keys: Object.freeze(['revivalEnabled', 'uniteHumansFirst']) }),
+  Object.freeze({ id: 'bonds', label: N_('盟约与策略'), keys: Object.freeze(['disableLayerCap', 'disableDuckLord']) }),
+  Object.freeze({ id: 'enemy', label: N_('敌人'), keys: Object.freeze(['enemyHpMul', 'enemyHpPlan', 'enemyAtkMul', 'disableHitLimit']) }),
+  Object.freeze({ id: 'pools', label: N_('卡池'), keys: Object.freeze(['disableSharedPool', 'poolPlan']) }),
+  Object.freeze({ id: 'special', label: N_('特殊功能'), keys: Object.freeze(['collabOps', 'console']) }),
+]);
+/** The group of an option field, or null. @param {string} key */
+export const experimentalGroupOf = key => EXPERIMENTAL_GROUPS.find(group => group.keys.includes(key))?.id ?? null;
+
+/**
+ * The options a lone 多人匹配 ticket may bring (queue.join `rules` 'custom' + `experimental`, the owner 2026-11-16: 「匹配
+ * 玩家也支持调整实验性功能，然后带着这个实验性功能配置进入匹配」; server/matchmaking.js): the rules of the game only — not the
+ * seat count (the ticket's sizes say it), not 手动指定卡池编组 (nobody knows the seats yet), not 联动干员 / 调控台 (a private
+ * room's alone).
+ */
+export const QUEUE_OPTION_KEYS = Object.freeze(['revivalEnabled', 'disableSharedPool', 'uniteHumansFirst', 'disableLayerCap', 'disableDuckLord',
+  'enemyHpMul', 'enemyHpPlan', 'enemyAtkMul', 'disableHitLimit']);
+
+/**
+ * A ticket's own options, checked and canonical (frozen), or null when `value` is not experimental options of
+ * QUEUE_OPTION_KEYS. 禁用鸭爵策略 is kept as asked: it only counts in a pool above four seats (queueOptionsAt).
+ * @param {unknown} value
+ */
+export function queueOptions(value) {
+  if (!isExperimental(value) || Object.keys(value).some(key => !QUEUE_OPTION_KEYS.includes(key))) return null;
+  const { disableDuckLord, ...rules } = /** @type {any} */ (value);
+  return Object.freeze({ ...experimentalOptions(rules), ...(disableDuckLord === true ? { disableDuckLord: true } : {}) });
+}
+
+/**
+ * The options of the game a ticket's own options make in a pool of `required` seats: the room's options at that size
+ * (experimentalOptions; 禁用鸭爵策略 only above four seats). @param {any} options queueOptions @param {number} required
+ */
+export const queueOptionsAt = (options, required) => experimentalOptions({ ...options, ...(required === MAX_SEATS ? {} : { playerCapacity: required }) });
