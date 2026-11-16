@@ -360,7 +360,9 @@ export class MatchPlatform {
    * 挂机移出 (afkRemoveRounds, the header's leave policy): called as a PREP ends, before its battle / boss fight is built
    * (MatchPrep.endPrep). Every alive human of a match that started with ≥ 2 humans (never solo or soloUntimed) is
    * counted: an accepted AFK_ACTIONS intent since the previous check — or the AI playing the seat now (AI 托管), or the
-   * seat being offline — resets its idle rounds, else they grow by one. Offline is not idle (the owner's decision of
+   * seat being offline — resets its idle rounds, else they grow by one; a seat that could not have made one now (no
+   * funds for anything, nothing owned, no offer or choice: PlayerState afkCanAct — 老鲤【得闲饮茶】's rounds 1–2,
+   * feedback #164) keeps them as they were, unwarned. Offline is not idle (the owner's decision of
    * 2026-10-13): a dropped seat keeps its place and its last lineup, the disconnect policy of Match.js (the AI takes it
    * over after OFFLINE_TAKEOVER_ROUNDS, _checkOffline) — the rule had removed it after two preps, so a player back
    * found the seat gone and could only watch. A seat reaching afkRemoveRounds is removed (_removeIdle); may end the
@@ -370,12 +372,17 @@ export class MatchPlatform {
     const limit = this.afkRemoveRounds;
     if (!(limit > 0) || this.soloUntimed) return;
     const humans = this.order.filter((p) => !p.isBot && !p.left && p.alive);
+    // a seat with nothing it could have done (PlayerState afkCanAct — 老鲤's rounds 1–2: no funds, nothing owned) keeps
+    // its count: the prep is no idle round, nor a substantive one (feedback #164)
+    const counted = new Set();
     for (const ps of humans) {
-      ps.afkRounds = ps.afkActed || ps.botControlled || !ps.connected ? 0 : ps.afkRounds + 1;
+      if (ps.afkActed || ps.botControlled || !ps.connected) ps.afkRounds = 0;
+      else if (ps.afkCanAct()) { ps.afkRounds++; counted.add(ps); }
       ps.afkActed = false;
     }
     for (const ps of humans) {
       if (this.ended || this.disposed) return;
+      if (!counted.has(ps)) continue;
       if (!ps.left && ps.afkRounds >= limit) this._removeIdle(ps);
       else if (limit > 1 && ps.afkRounds === limit - 1) {
         this.toast(ps, 'warn', msg('你本回合没有任何操作，下回合备战仍无操作将被移出对局'));

@@ -90,7 +90,29 @@ export class PlayerViews {
   /** Whether the AFK rule removes this seat at the end of its next prep without a substantive intent before it. */
   afkWarned() {
     const limit = this.m.afkRemoveRounds;
-    return limit > 1 && !this.isBot && !this.left && !this.botControlled && !this.afkActed && this.afkRounds >= limit - 1;
+    return limit > 1 && !this.isBot && !this.left && !this.botControlled && !this.afkActed && this.afkRounds >= limit - 1
+      && this.afkCanAct();
+  }
+
+  /**
+   * 挂机移出 (feedback #164): whether this seat could make a substantive prep intent (common.js AFK_ACTIONS) now — a prep
+   * where it cannot is not an idle round (Match _checkIdle). Anything it owns (board, hand, 暂存: g.move / g.sell /
+   * g.equip / g.destroy), a queued reward offer (g.reward) or a personal choice (g.choice), or funds for a shop card
+   * (g.buy, its onPrice price), a refresh (a free one, or the refresh price: g.refresh) or a level-up (g.levelUp), or a
+   * 规程 指令 it could use now (g.command: an ACTIVE command, off cooldown, with uses, funds and a target — commandView's
+   * reason, not its `usable`, which a readied seat never is). g.freeze is always open and does not count (the owner's
+   * decision of 2026-11-16). 老鲤【得闲饮茶】 holds back the funds of rounds 1–2 and owns nothing before round 3 (its 规程
+   * 指令 is passive): those preps leave the seat nothing to do.
+   */
+  afkCanAct() {
+    if (this.board.size || this.hand.some(Boolean) || this.temp.some(Boolean)) return true;
+    if (this.offers.length || this.personalChoice) return true;
+    const cmd = this.command ? commandView(this) : null;
+    if (cmd && !cmd.reason && cmd.targets.length) return true;
+    const funds = this.funds;
+    if (this.shop.freeRefreshes > 0 || funds >= this.gd.refreshPrice) return true;
+    if (this.shop.level < this.gd.maxShopLevel && funds >= Math.max(0, this.shop.upgradePrice)) return true;
+    return this.shop.slots.some((s) => s && !s.sold && this.priceOf(s) <= funds);
   }
 
   privateView() {

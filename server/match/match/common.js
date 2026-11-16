@@ -75,12 +75,14 @@ export function parseOfflineHoldMinutes(value) {
  */
 export const PREP_INTENT_GRACE_MS = 1500;
 /**
- * The intents that count as playing for that rule — accepted ones only. g.ready, g.infoReady, g.emote, g.watch,
- * g.unitStats, g.pause, g.art, g.bandFocus, g.autoplay, g.rerollVote, g.kickVote, g.kickBallot, g.speedVote, the battle reports and
- * anything else do not.
+ * The intents that count as playing for that rule — accepted ones only; 规程's 指令 (g.command) and 选择自编 (g.diyBring)
+ * too (the owner's decision of 2026-11-16, DESIGN §36.22). g.ready, g.infoReady, g.emote, g.watch, g.unitStats, g.pause,
+ * g.art, g.bandFocus, g.autoplay, g.rerollVote, g.kickVote, g.kickBallot, g.speedVote, the battle reports and anything
+ * else do not.
  */
 export const AFK_ACTIONS = new Set(['g.buy', 'g.sell', 'g.move', 'g.refresh', 'g.levelUp', 'g.freeze', 'g.equip', 'g.destroy',
-  'g.choice', 'g.reward', 'g.revive', 'g.band', 'g.bandSkip', 'g.bandHold', 'g.bandCancel', 'g.bandLock']);
+  'g.choice', 'g.reward', 'g.revive', 'g.band', 'g.bandSkip', 'g.bandHold', 'g.bandCancel', 'g.bandLock', 'g.command',
+  'g.diyBring']);
 
 export const REVIVAL_COST = 10;
 export const REVIVAL_MIN_DONOR_LP = 11;
