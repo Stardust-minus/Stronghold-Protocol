@@ -73,7 +73,7 @@ import { CardAvatarLive } from '../ui/avatarLive.js';
 import { cardArt } from '../ui/dynamicFraming.js';
 import { CARD_SYNC, useMyCard, setCardOperator, setCardAvatar, setCardBackground, setCardBackgroundFrame, setCardLook, setAvatarLook, setCardArt, ART_SPACE } from '../ui/playerCard.js';
 import { OperatorPicker, AvatarPicker } from '../ui/opPicker.js';
-import { NameCardLayer, NameCardPicker } from '../ui/namecards.js';
+import { NameCardLayer, NameCardPicker, hasNamecard } from '../ui/namecards.js';
 import { TrophyBadge } from '../ui/trophies.js';
 import { OwnerBadge, isOwnerSeat } from '../ui/ownerName.js';
 import { difficultyInfo, modeInfo, ProtoCard, LadderList } from './lobby.js';
@@ -383,8 +383,8 @@ function SeatCard({ seat, index, room, facts, myId, myCard, busy, gd, queued, on
       return html`<button type="button" class="rseat__spectate" data-testid="seat-spectate" disabled=${!!why || !!busy || queued}
         onClick=${onSpectate} title=${why || t('转为观战')} aria-label=${t('转为观战')}><${Icon} name="eye" /></button>`;
     })() : null}
-    <div class=${`rseat__plate${card?.bg ? ' has-nc' : ''}`}>
-      ${card?.bg ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />` : null}
+    <div class=${`rseat__plate${hasNamecard(card?.bg) ? ' has-nc' : ''}`}>
+      ${hasNamecard(card?.bg) ? html`<${NameCardLayer} card=${card.bg} y=${card.bgY} x=${card.bgX} zoom=${card.bgZoom} />` : null}
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
       ${isMe && onPickAvatar
         ? html`<button type="button" class="rseat__ava" onClick=${onPickAvatar} title=${t('更换头像')} aria-label=${t('更换头像')}>

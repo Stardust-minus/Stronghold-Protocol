@@ -3934,5 +3934,12 @@
   "settings-page::其他": "Other",
   "设置分类": "Settings categories",
   "界面设计：{author}（{site}）": "UI design: {author} ({site})",
-  "外观在『{name}』（设置 → 皮肤与插件 → 外观插件）": "Appearance is in “{name}” (Settings → Skins & plugins → Cosmetic plugins)"
+  "外观在『{name}』（设置 → 皮肤与插件 → 外观插件）": "Appearance is in “{name}” (Settings → Skins & plugins → Cosmetic plugins)",
+  "搜索干员或皮肤": "Search operators or skins",
+  "没有匹配的干员或皮肤": "No operator or skin matches",
+  "报童": "Newsgirl",
+  "见习联结者": "Fresh Fastener",
+  "播种者": "Seedsower",
+  "于万千宇宙之中": "Among Myriad Universes",
+  "触及星辰": "Reaching for the Stars"
 }

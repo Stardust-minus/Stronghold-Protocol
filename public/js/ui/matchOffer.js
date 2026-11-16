@@ -46,7 +46,7 @@ import { isPlayerCapacity } from '../../../shared/playerCapacity.js';
 import { html, Icon, Modal, Button, DifficultyIcon, AvatarFrame, useTicker } from './components.js';
 import { ExperimentalDetails, experimentalItems } from './experimental.js';
 import { queueOptionsAt, sameExperimental } from '../../../shared/experimental.js';
-import { NameCardLayer } from './namecards.js';
+import { NameCardLayer, hasNamecard } from './namecards.js';
 import { CardAvatarLive } from './avatarLive.js';
 import { cardAvatarUrl, cardContext, cardOperators, seatPortraitSource } from './seatArt.js';
 import { SeatArt } from './seatLive.js';
@@ -289,7 +289,7 @@ function SeatSlot({ seat, i, me, card, face, m, ctx }) {
   const art = pic?.src && bad !== pic.src ? pic : null;
   return html`<li class=${cx('mo-seat', seat.me && 'is-me', seat.lit && 'is-lit', art && 'has-art')} style=${`--i:${Math.min(i, 19)};--w:${(((i * 7) % 5) - 2)}`}
       title=${seat.me ? t('你') : seat.lit ? t('已确认') : t('等待确认')} data-testid=${seat.me ? 'offer-seat-me' : null}>
-    <div class=${cx('mo-seat__body', !art && seat.me && card?.bg && 'has-nc')}>
+    <div class=${cx('mo-seat__body', !art && seat.me && hasNamecard(card?.bg) && 'has-nc')}>
       ${art ? html`<span class="mo-seat__art" data-testid="offer-seat-art"><${SeatArt} key=${art.src} m=${m} src=${art.src} source=${art}
             charId=${(seat.me ? card?.charId : other?.charId) || ''} look=${(seat.me ? card?.look : other?.look) || ''}
             art=${seat.me ? card?.art || null : cardArt(other)} legacyArt=${seat.me && !!card?.art && card.artSpace !== ART_SPACE}

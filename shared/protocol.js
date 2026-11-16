@@ -550,7 +550,10 @@ const isDir = (v) => DIRS.includes(v);
  * ('' clears; format only, the client maps ids to art), `trophies`: a self-reported cumulative trophy count (0 clears;
  * cosmetic only, never used by a match). `look` / `avatarLook` (GitHub feedback #9 / #24): the art of the portrait / the
  * avatar operator — '' its 精二 art (as before), 'e1' its 精一 art, or a skin id of that operator (the server checks it
- * belongs to it: shared/skins.js skinFor). `bg` may be `skin:<skin id>`, the skin's full illustration. `bgY` (feedback
+ * belongs to it: shared/skins.js skinFor). `bg` may be `skin:<skin id>`, the skin's full illustration, or (2026-11-16)
+ * `char:<charId>_1` / `char:<charId>_2`, an operator's own 默认 / 精二 立绘 (the official skin id <charId>#1 / #2 with '#' as
+ * '_': isCardBg below — the format every server since rel28 checks — has no '#', so an older server keeps these ids; a page
+ * that does not know an id draws no card for it, public/js/ui/namecards.js namecardOf). `bgY` (feedback
  * #61): the vertical position of the background in percent, the part of the picture the plate shows; -1 the default.
  * `bgX` / `bgZoom` (feedback #129, rel29): its horizontal position in percent and its zoom in percent of the size that just
  * covers the plate (100–CARD_LIMITS.bgZoomMax), -1 each the default (centred, 100) — the picture's bgX% bgY% point on the
@@ -579,6 +582,8 @@ const isCardCharId = (v) => v === '' || (isStr(v, CARD_LIMITS.idLength) && /^cha
 export const isOfficialAvatar = (v) => isStr(v, CARD_LIMITS.idLength) && /^avatar_[0-9A-Za-z_]+$/.test(v);
 const isCardAvatar = (v) => isCardCharId(v) || isOfficialAvatar(v);
 const isCardLook = (v) => v === '' || v === 'e1' || (isStr(v, CARD_LIMITS.idLength) && /^char_[0-9a-z_]+$/.test(v));
+// a namecard id, format only (the ids are the client's: public/js/ui/namecards.js); keep it as is — a page sends its new
+// kinds of id to servers from before (`char:`, 2026-11-16, fits it)
 const isCardBg = (v) => v === '' || (isStr(v, CARD_LIMITS.idLength) && /^[a-z0-9][a-z0-9_:\-\/]*$/i.test(v));
 
 const target = (v) => {

@@ -76,6 +76,7 @@ import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash
 import { retainInstalledSkins } from './prepare-operator-skins.mjs';
 import { applyIllustrations } from './assets/illustrations.mjs';
 import { applyDynamicE2 } from './assets/dynamic-e2.mjs';
+import { applyNamecardSkins } from './assets/namecard-skins.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { statsTemplateJobs } from './assets/stats-template.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
@@ -558,6 +559,10 @@ async function main() {
   const dynE2 = applyDynamicE2(body, { assetRoot: ASSETS });
   body = dynE2.body;
   for (const rel of dynE2.files) resolved.files.add(rel);
+  // 名片-only skins (2026-11-16, 阿米娅's other forms): the registry's records where their files are on disk (tools/assets/namecard-skins.mjs)
+  const ncSkins = applyNamecardSkins(body, { assetRoot: ASSETS });
+  body = ncSkins.body;
+  for (const rel of ncSkins.files) resolved.files.add(rel);
   const importedVoices = retainManifestVoices(current?.audio, body.audio, ASSETS);
   body.audio = importedVoices.audio;
   for (const rel of importedVoices.files) resolved.files.add(rel);

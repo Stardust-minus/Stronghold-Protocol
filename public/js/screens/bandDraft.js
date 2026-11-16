@@ -66,7 +66,7 @@ import { bondPlanOpen, playerPlan, planLine, BondPlanTags, BondPlanDialog } from
 import { MatchInfoDialog, matchInfoModel, MatchBondDialog, regulationCoreAbsent } from '../ui/matchInfo.js';
 import { useRise } from '../ui/transitions.js';
 import { useFitBox, fitTileBox, fitRowBox, fitNameBox, fitBandNames } from '../ui/fitGrid.js';
-import { NameCardLayer } from '../ui/namecards.js';
+import { NameCardLayer, hasNamecard } from '../ui/namecards.js';
 import { MatchName } from '../ui/ownerName.js';
 import { TrophyBadge } from '../ui/trophies.js';
 import { cardOperators, seatPortrait } from '../ui/seatArt.js';
@@ -387,7 +387,8 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek, held =
   const pband = picked ? gd.band(picked) : null;
   // a free draft: the doctor's choice not locked yet (my own opens its detail pane, a teammate's is peeked)
   const hband = !picked && held ? gd.band(held) : null;
-  const nc = !p.isBot && card?.bg ? card.bg : null;
+  // an id this build does not know (a newer page's) keeps the operator's art
+  const nc = !p.isBot && hasNamecard(card?.bg) ? card.bg : null;
   // the name whole (the owner, 2026-11-16: no ellipsis): best-fit on its line, past a readable floor wrapped (ui/fitGrid.js
   // fitNameBox; the column's resize re-fits it — the detail pane narrowing the list, 文字大小)
   const textRef = useRef(null);
