@@ -222,19 +222,24 @@ html[data-sp-slot~="detail_panel"] .dpanel {
   background-image: var(--sp-img-detail_panel);
   background-size: 100% 100%; background-repeat: no-repeat;
 }
+/* (a colour is not an <image>: `rgba()` as the second layer made the whole declaration invalid and dropped the picture) */
 html[data-sp-slot~="prep_ready"]:not([data-sp-slice~="prep_ready"]) .readybtn:not(.readybtn--pf) {
-  background-image: var(--sp-img-prep_ready), rgba(10, 14, 12, .9);
+  background-image: var(--sp-img-prep_ready), linear-gradient(rgba(10, 14, 12, .9), rgba(10, 14, 12, .9));
   background-size: 100% 100%, auto; background-repeat: no-repeat;
 }
 
-/* 9-slice. No fill keyword: the centre stays the element's own background. */
+/* 9-slice, its centre filled from the picture: 卫戍协议终端's ready_bg is a solid plate (48×49, 23-unit slices, a teal centre).
+   Without `fill` the centre showed the button's dark background — a black band across 准备就绪 wherever the button is
+   taller than its two slices (1920×1080 and up). */
 html[data-sp-slice~="prep_ready"] .readybtn:not(.readybtn--pf) {
   border-style: solid;
   border-width: var(--sp-slice-px-prep_ready);
   border-image-source: var(--sp-img-prep_ready);
-  border-image-slice: var(--sp-slice-prep_ready);
+  border-image-slice: var(--sp-slice-prep_ready) fill;
   border-image-repeat: stretch;
+  background: transparent; box-shadow: none;
 }
+html[data-sp-slice~="prep_ready"] .readybtn:not(.readybtn--pf):hover:not(:disabled) { background: transparent; filter: brightness(1.08); }
 html[data-sp-slice~="chess_frame_normal"] .scard.scard--t1,
 html[data-sp-slice~="chess_frame_normal"] .scard.scard--t2,
 html[data-sp-slice~="chess_frame_normal"] .scard.scard--t3,
