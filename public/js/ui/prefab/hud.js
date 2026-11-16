@@ -194,12 +194,21 @@ export function cornerOffset(pack) {
   const ready = pack?.doc?.prefabs?.panel_prep_ready;
   if (!cd || !ready) return null;
   const skip = (n) => !!n.fx;
-  const a = layoutPrefab(cd, { skip, pose: buildPose(pack, cd, { status: countdownStatus({ remain: 1, ready: false }), hide: CD_HIDE }) }).bounds;
+  const la = layoutPrefab(cd, { skip, pose: buildPose(pack, cd, { status: countdownStatus({ remain: 1, ready: false }), hide: CD_HIDE }) });
   let on = null;
   for (const s of ready.scripts || []) if (s?.anims?._animationLocation?.on != null) on = s.anims._animationLocation.on;
-  const b = layoutPrefab(ready, { skip, pose: buildPose(pack, ready, { poses: [{ on, clip: 'btn_ready_switch', at: 'start' }] }) }).bounds;
+  const lb = layoutPrefab(ready, { skip, pose: buildPose(pack, ready, { poses: [{ on, clip: 'btn_ready_switch', at: 'start' }] }) });
+  // PrefabView draws a sized root's own box and a zero-size root's drawn bounds (view.js); both hang from the holder's
+  // top-right corner, which is the root's own top-right corner (a zero-size root: the point itself). 卫戍协议终端's countdown
+  // root is sized (180×100, anchored top right) and its glows reach far past it: its bounds put the button 2 rem low.
+  const frame = (l) => (l.box.w > 0 && l.box.h > 0 ? l.box : l.bounds);
+  const corner = (l) => ({ x: l.box.left + l.box.w, y: l.box.top });
+  const a = frame(la);
+  const b = frame(lb);
+  const ca = corner(la);
+  const cb = corner(lb);
   const rem = (u) => `${Number(((u * OFFICIAL_SCALE) / 100).toFixed(4))}rem`;
-  return { x: rem(b.left - a.left), y: rem(b.top - a.top) };
+  return { x: rem((b.left - cb.x) - (a.left - ca.x)), y: rem((b.top - cb.y) - (a.top - ca.y)) };
 }
 
 /**

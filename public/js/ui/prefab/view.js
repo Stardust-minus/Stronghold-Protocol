@@ -599,8 +599,14 @@ function SpineSlot({ character }) {
   return html`<i class="pf__spine" ref=${ref} aria-hidden="true"></i>`;
 }
 
-/** Bitmap-font text: one sprite per glyph. @param {{ text: string, font: any, align: number }} props */
-function BitmapText({ text, font, align }) {
+/**
+ * Bitmap-font text: one sprite per glyph. A colour other than white multiplies the glyphs, as Unity's Text colour does
+ * (卫戍协议终端's countdown: mint, orange in the last seconds — countdown_color_switch): the texture under the colour
+ * (multiply), cut by the texture's own alpha.
+ * @param {{ text: string, font: any, align: number, tint?: number[] | null }} props
+ */
+function BitmapText({ text, font, align, tint = null }) {
+  const tinted = Array.isArray(tint) && (tint[0] !== 255 || tint[1] !== 255 || tint[2] !== 255);
   const chars = [...String(text)];
   const row = Math.floor(align / 3);
   const col = align % 3;
@@ -616,11 +622,18 @@ function BitmapText({ text, font, align }) {
     // uv is from the texture's bottom-left; the glyph quad is gw × gh units, the whole texture (1/uw) × (1/uh) quads
     const tw = uw ? gw / uw : gw;
     const th = uh ? gh / uh : gh;
+    const size = `${rem(tw)} ${rem(th)}`;
+    const at = `${rem(-ux * tw)} ${rem(-(1 - uy - uh) * th)}`;
     return html`<span key=${i} class="pf__glyph" style=${{
       width: rem(num(g.advance, gw)), height: rem(gh),
       backgroundImage: `url("${font.url}")`,
-      backgroundSize: `${rem(tw)} ${rem(th)}`,
-      backgroundPosition: `${rem(-ux * tw)} ${rem(-(1 - uy - uh) * th)}`,
+      backgroundSize: size,
+      backgroundPosition: at,
+      ...(tinted ? {
+        backgroundColor: `rgb(${tint[0]} ${tint[1]} ${tint[2]})`, backgroundBlendMode: 'multiply',
+        WebkitMaskImage: `url("${font.url}")`, maskImage: `url("${font.url}")`, WebkitMaskSize: size, maskSize: size,
+        WebkitMaskPosition: at, maskPosition: at, WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+      } : null),
     }}></span>`;
   })}</span>`;
 }
@@ -675,7 +688,7 @@ function PNodeView({ box, pack, fit, pose, idx, spine = null }) {
     const bitmap = pack.fonts[t.font];
     const [r, g, b, a] = mixColor(t.color, pose?.color.get(n));
     if (bitmap) {
-      graphic = html`<i class="pf__g pf__t" style=${{ opacity: a < 1 ? String(a) : undefined }}><${BitmapText} text=${box.text} font=${bitmap} align=${align} /></i>`;
+      graphic = html`<i class="pf__g pf__t" style=${{ opacity: a < 1 ? String(a) : undefined }}><${BitmapText} text=${box.text} font=${bitmap} align=${align} tint=${[r, g, b]} /></i>`;
     } else {
       const [family, weight] = fontFace(t.font);
       const size = fit.get(n) ?? num(t.fontSize, 14);

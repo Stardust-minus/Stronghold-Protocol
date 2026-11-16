@@ -578,15 +578,23 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
   const settings = useSettings();
   const pack = usePrefabPack(data.get('local')?.groups, settings?.uiTheme);
   const pf = packHud(pack);
-  const pfRemain = pf.countdown ? (frozenSecs != null ? frozenSecs : secondsLeft(pub?.deadline)) : null;
+  // 卫戍协议终端 keeps the hand-made top bar (PR #643 / #827) but wears its pack's own countdown and ready button
+  // (panel_countdown / panel_prep_ready), in the screen's corner like the other two packs' (the owner 2026-11-16)
+  const initialPack = usePrefabPack(!pack && settings?.uiTheme === 'ac_n_initial' ? data.get('local')?.groups : null, 'ac_n_initial', { includeDefault: true });
+  const cpack = pack || initialPack;
+  const pc = packHud(cpack);
+  const pfRemain = pc.countdown ? (frozenSecs != null ? frozenSecs : secondsLeft(pub?.deadline)) : null;
   // untimed: the solo rest shows the pack's single-player picture (content_single_plain); elsewhere nothing, like the
   // hand-made countdown (user playtest #4 item 3)
-  const pfClock = pf.countdown && (pfRemain != null || (phase === PHASE.PREP && (playerCount ?? 1) <= 1));
-  const corner = useMemo(() => (pf.countdown && pf.ready ? cornerOffset(pack) : null), [pack, pf.countdown, pf.ready]);
-  useTicker(pf.countdown && frozenSecs == null && pfRemain != null ? 1000 : 0);
+  const pfClock = pc.countdown && (pfRemain != null || (phase === PHASE.PREP && (playerCount ?? 1) <= 1));
+  const corner = useMemo(() => (pc.countdown && pc.ready ? cornerOffset(cpack) : null), [cpack, pc.countdown, pc.ready]);
+  // whose corner sits top right (css: the EFFECTS column, the right card and the bond popup docked right start under it;
+  // ui/regHud.js cornerKind, ui/gameLogic/panel.js CORNER_TOP): the pack's, or the hand-made countdown's
+  const cornerKind = corner ? String(cpack?.group || '').replace(/^themes\//, '') || 'hand' : 'hand';
+  useTicker(pc.countdown && frozenSecs == null && pfRemain != null ? 1000 : 0);
   const onLeft = () => (pen ? onPen(false) : onDrawer('info'));
   const onRight = () => (pen ? onPen(false) : penAvail ? onPen(true) : null);
-  return html`<header class=${cx('gtop', pen && 'is-pen', pf.band && 'gtop--pf')}>
+  return html`<header class=${cx('gtop', pen && 'is-pen', pf.band && 'gtop--pf')} data-corner=${cornerKind}>
     <div class="gtop__left">
       <${Button} variant="danger" size="lg" square=${true} icon="exit" onClick=${onExit} aria-label=${t('离开')} title=${t('离开 / 暂离')} class="gtop__exit tapx" />
       <div class="gtop__meta">
@@ -644,21 +652,21 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
     </div>
 
     <div class="gtop__right">
-      <div class=${cx('gtop__clock', pf.countdown && 'gtop__clock--pf')} style=${corner ? { '--pf-rx': corner.x, '--pf-ry': corner.y } : null}>
-        ${pf.countdown
+      <div class=${cx('gtop__clock', pc.countdown && 'gtop__clock--pf')} style=${corner ? { '--pf-rx': corner.x, '--pf-ry': corner.y } : null}>
+        ${pc.countdown
           ? (pfClock ? html`<div class="pfclock" role="timer" aria-label=${pfRemain == null ? t('无倒计时') : t('剩余{remain}秒', { remain: pfRemain })}>
-              <${RegCountdown} pack=${pack} remain=${pfRemain} total=${total ?? null} ready=${showReady && !!priv?.ready} still=${!settings?.themeMotion} />
+              <${RegCountdown} pack=${cpack} remain=${pfRemain} total=${total ?? null} ready=${showReady && !!priv?.ready} still=${!settings?.themeMotion} />
             </div>` : null)
           : frozenSecs != null
             ? html`<${Countdown} seconds=${frozenSecs} total=${total ?? undefined} size="md" label="PAUSED" />`
             : html`<${Countdown} deadline=${pub?.deadline} total=${total ?? undefined} size="md" />`}
         ${pause && (pause.show || pause.paused) ? html`<${PauseButton} paused=${!!pause.paused} busy=${pause.busy} onToggle=${pause.onToggle} />` : null}
-        ${corner && pfClock && showReady ? html`<${ReadyToggle} priv=${priv} onToggle=${onReady} busy=${readyBusy} readyCount=${readyCount} total=${playerCount} pack=${pack} corner=${true} />` : null}
+        ${corner && pfClock && showReady ? html`<${ReadyToggle} priv=${priv} onToggle=${onReady} busy=${readyBusy} readyCount=${readyCount} total=${playerCount} pack=${cpack} corner=${true} />` : null}
       </div>
       <${SpeedVote} pub=${pub} myId=${myId} spectator=${spectator} onVote=${onSpeedVote} />
       <${OvertimeWarning} ot=${ot} />
       <${AfkWarning} pub=${pub} priv=${priv} />
-      ${showReady && !(corner && pfClock) ? html`<${ReadyToggle} priv=${priv} onToggle=${onReady} busy=${readyBusy} readyCount=${readyCount} total=${playerCount} pack=${pf.ready ? pack : null} />` : null}
+      ${showReady && !(corner && pfClock) ? html`<${ReadyToggle} priv=${priv} onToggle=${onReady} busy=${readyBusy} readyCount=${readyCount} total=${playerCount} pack=${pc.ready ? cpack : null} />` : null}
     </div>
   </header>`;
 }

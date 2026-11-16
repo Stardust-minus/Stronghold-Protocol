@@ -94,6 +94,18 @@ export function prefabTheme(groups, themeId) {
 }
 
 /**
+ * Whose corner sits top right (ui/hud.js TopBar data-corner): an installed official pack's countdown and ready button —
+ * all three packs, 卫戍协议终端 too since the 2026-11-16 overhaul (the owner) — else the hand-made countdown ('hand'). The
+ * EFFECTS column, the right card and the bond popup docked right start under it (ui/gameLogic/panel.js CORNER_TOP).
+ * @param {Record<string, any>|null|undefined} groups @param {string|null|undefined} themeId
+ * @returns {string}
+ */
+export function cornerKind(groups, themeId) {
+  const theme = officialThemeById(themeId);
+  return theme?.group && groups?.[theme.group]?.['prefabs.json'] ? theme.group.replace(/^themes\//, '') : 'hand';
+}
+
+/**
  * The 规程 look — its shop, top bar, banners and layout: a 规程 version, or any version with such a theme (the owner,
  * 2026-11-14: 「规程版本官方出的那几个主题全量覆盖到盟约版本」, §37.206). The rules stay with regulationFamily (the commands,
  * the core groups, the briefing, the sweep's fourth tab).

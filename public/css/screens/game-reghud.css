@@ -503,6 +503,10 @@
    in the official HUD: the TV / the tubes sit in the screen's corner (themes/<id>/preview.webp), not inside the bar's
    padding (the owner 2026-11-16 「可露希尔的右上角准备没有紧贴右上角」). The HUD layer is already inside the safe area. */
 .gtop__clock--pf { margin-top: calc(-1 * var(--gtop-pt, .2rem)); margin-right: calc(-1 * var(--gtop-pr, .3rem)); }
+/* The hand-made countdown (the default look, a custom theme, a package without the packs) hugs the corner too (the owner
+   2026-11-16 「默认主题也改成贴角」): out of the bar's padding, keeping a hair of its own for its glow; the ready button and
+   the 已就绪 count follow it up, at the bar's right inset. */
+.gtop[data-corner="hand"] .gtop__clock { margin-top: calc(.08rem - var(--gtop-pt, .2rem)); margin-right: calc(.1rem - var(--gtop-pr, .3rem)); }
 /* The pack's corner is taller than the hand-made countdown (可露希尔's TV box is 2.95rem, 乌萨斯齐心团's ~2.3rem): the EFFECTS
    column (game.css .gm__effects, 2.4rem) starts under it, so the ready button's key hint and the TV no longer sit on the
    column's EFFECTS label and first icon. Both packs with the corner draw the top bar too (`gtop--pf`, the column's earlier
