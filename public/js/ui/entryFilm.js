@@ -3,17 +3,24 @@
 // very start at 2.144 s with audio.js's own 0.8 s fade-in (a cross-correlation of the recording's soundtrack against the
 // official files: r 0.988 / 0.998, nothing else is in it). A fresh page may not play sound before a user gesture, so a
 // black 点击进入 card waits for the tap that unlocks it (audio.js listens for the same gesture), then the film runs.
+// The card comes up at once and the film's art loads behind it (this fork, 2026-11-16: the art used to get a 1.2 s look
+// before the card, which a cold first visit often missed — 盟约's film in place of 规程's, or no card and no film at
+// all): a tap before the art is in turns the card into 加载中 until it is, for a while (ART_MS / TAP_MS below); art
+// that fails, or is not in by then, takes the card down and leaves the title screen.
 // Volumes / mute are the settings' (sfx · bgm channels); the player's own lobby music (audio.setLobbyTrack) plays in
 // place of the official track as everywhere else, untouched by the film — a custom track that arrives while the film
-// holds the music is handed to audio.js at once. A tap / click / key skips. Whether the film plays is decided once,
-// when the title is entered: a phone that is portrait then gets no film, and turning it landscape later does not
-// start one. Reduced motion, or a sprite that fails to load, gets no film (the title screen shows at once). Never over
-// a room or a match: the route is watched from the card on, and a session restored into a room / a match while the card
-// waits or the film runs takes the overlay down at once, silences the cue and hands the music back to that screen.
+// holds the music is handed to audio.js at once. A tap / click / key skips (the film, or the wait for its art). Whether
+// the film plays is decided once, when the title is entered: a phone that is portrait then gets no film, and turning it
+// landscape later does not start one. Reduced motion, or no art at all (no art pack: nothing to load), gets no film and
+// no card. Never over a room or a match: the route is watched from the card on, and a session restored into a room / a
+// match while the card waits or the film runs takes the overlay down at once, silences the cue and hands the music
+// back to that screen.
 // main.js calls playEntryFilm once at boot. A 规程 start (versions.js startupVersion) plays 规程's own opening instead
 // (ui/regulationFilm.js: the client's season entry, DESIGN §37.147) through the same card, skip, cue and music hold;
 // without that art (it comes only from a local-client extraction, data/local-assets.json) or when it does not load in
 // time, 盟约's film plays (this fork, 2026-11-15: the film is on by default, so a 规程 start should not show nothing).
+// Both films' art loads from the start (盟约's asked for right after 规程's), so 盟约's is in, or nearly, by the time
+// 规程's has failed.
 import { store, selectRoute } from '../store.js';
 import { audio, resolveBgm } from '../audio.js';
 import { data } from '../data.js';
@@ -30,6 +37,23 @@ const ENTRY_SFX = '/assets/audio/sfx/customse/act1autochess/act1autochess_g_ui_l
 // the cue against the music as the recording mixes them (cue ×0.28, music ×0.18 of their files), at the default
 // volumes (sfx 0.8 → ×0.576, bgm 0.6 → ×0.198 in audio.js _applyVolumes)
 const SFX_GAIN = 0.54;
+// The art's time (this fork, 2026-11-16). A cold first visit loaded 规程's opening (prefabs.json and 40 pictures, about
+// 3.5 MB through the entry and the CDN redirects) in 1.3–2.6 s on a fast line, and 盟约's film (8 pictures, about 2.2 MB)
+// in about 1 s more; a player's slower line takes a few times that (a browser held to 8 Mbit/s and 150 ms: 规程's
+// opening 6.9 s after the card, 16 Mbit/s and 100 ms: 4.7 s). The card is up meanwhile and waits for its tap anyway,
+// so the art may take ART_MS from the moment it starts to load, with the card once the page has booted (not from the
+// page's start: on a slow line the boot alone takes seconds) — about three times the fast line's whole load; a tap
+// later than that still gives art in flight TAP_MS more. 加载中 is on the card meanwhile (a tap goes to the title), then
+// the card goes: the title screen, not a longer black one.
+const ART_MS = 8000;
+const TAP_MS = 2500;
+// Art not in this long after its load began is given up for this page load (a card still waiting for its tap goes then)
+const ART_CAP_MS = 60000;
+// A 规程 start asks for 盟约's pictures, the fallback, right after 规程's (at the latest this long after 规程's load
+// began, should its pack not answer): 规程's are then fetched first — 盟约's queue behind them on HTTP/1.1, and 规程's
+// are fetchPriority high on HTTP/2 — so the fallback does not hold up the film it stands in for (both at once, 盟约's
+// first: neither in within ART_MS at 8 Mbit/s), and is in, or nearly, when 规程's fails.
+const FALLBACK_LEAD_MS = 1500;
 
 const CSS = `
 .spa-entry{position:fixed;inset:0;z-index:2147483647;width:100vw;height:100vh;max-width:none;max-height:none;margin:0;padding:0;
@@ -40,6 +64,10 @@ const CSS = `
 .spa-entry__gate b{font:700 22px/1 "Microsoft YaHei","Noto Sans SC",sans-serif;letter-spacing:.4em;padding-left:.4em}
 .spa-entry__gate i{font-style:normal;font-size:12px;letter-spacing:.5em;color:#47c9a9}
 @keyframes spa-pulse{0%,100%{opacity:.55}50%{opacity:1}}
+.spa-entry__gate--wait{animation-duration:1s}
+.spa-entry__gate--wait::after{content:"";width:120px;height:2px;margin-top:4px;
+  background:linear-gradient(90deg,transparent,#47c9a9,transparent) 0 0/50% 100% no-repeat;animation:spa-wait 1.1s linear infinite}
+@keyframes spa-wait{from{background-position:-100% 0}to{background-position:200% 0}}
 .spa-entry__skip{position:absolute;right:3%;bottom:3.5%;z-index:2;font:12px/1 "Microsoft YaHei","Noto Sans SC",sans-serif;
   letter-spacing:.2em;color:rgba(220,240,236,.45);pointer-events:none;transition:opacity .3s}`;
 
@@ -130,6 +158,9 @@ function allianceFilm(mount) {
   };
 }
 
+/** 规程's opening's label and the lobby version it hands over to: the card's before its pack is in. */
+const regulationTitle = () => ({ label: t('卫戍协议·规程'), version: startupVersion(store.get()) });
+
 /**
  * 规程's opening (ui/regulationFilm.js), or null when its group is not extracted / not readable.
  * @param {((host: HTMLElement) => FilmScene)|null} [mount]  tests pass a stand-in scene
@@ -140,20 +171,79 @@ async function regulationFilm(mount = null) {
   const pack = await m.loadRegulationPack();
   if (!pack) return null;
   return {
-    label: t('卫戍协议·规程'),
+    ...regulationTitle(),
     mount: mount || ((host) => m.mountRegulationIntro(host, pack)),
     preload: (ms) => m.preloadRegulation(pack, ms),
     span: m.REG_SPAN,
     audio: m.REG_AUDIO,
-    version: startupVersion(store.get()),
+  };
+}
+
+/**
+ * The films a start may play, best first (a 规程 start: 规程's opening, then 盟约's film), every one's art loading from
+ * now on, each film's pictures asked for right after the better one's (FALLBACK_LEAD_MS). choice(): the first film
+ * whose art is in once every better one has failed; null when none can play; undefined while that still waits on a
+ * load. pick(until) waits for the choice until `until` (performance.now(); null: no limit), then takes the first film
+ * whose art is in, else null.
+ * @param {(Film|null|Promise<Film|null>)[]} list
+ * @param {number} cap  ms a film's art may take at all (ART_CAP_MS)
+ */
+function loadFilms(list, cap) {
+  /** @type {{ film: Film|null, ok: boolean|undefined }[]} */
+  const art = list.map(() => ({ film: null, ok: undefined }));
+  /** @type {Set<() => void>} */
+  const waits = new Set();
+  let better = Promise.resolve();
+  list.forEach((entry, i) => {
+    let timer = 0, asked = () => {};
+    const turn = i === 0 ? Promise.resolve() : new Promise((resolve) => {
+      const lead = setTimeout(resolve, FALLBACK_LEAD_MS);
+      better.then(() => { clearTimeout(lead); resolve(undefined); });
+    });
+    better = new Promise((resolve) => { asked = resolve; });
+    const loaded = turn.then(() => entry)
+      .then((film) => { art[i].film = film || null; const p = film ? film.preload(cap) : false; asked(); return p; })
+      .then((ok) => ok === true, () => { asked(); return false; });
+    // the cap holds for the whole of it, 规程's pack (its manifest and prefabs.json) included
+    Promise.race([loaded, new Promise((resolve) => { timer = setTimeout(() => resolve(false), cap); })])
+      .then((ok) => { clearTimeout(timer); art[i].ok = ok; for (const w of [...waits]) w(); });
+  });
+  /** @param {boolean} [late] the wait is over: the first film whose art is in */
+  const choice = (late = false) => {
+    for (const a of art) {
+      if (a.ok) return a.film;
+      if (a.ok === undefined && !late) return undefined;
+    }
+    return null;
+  };
+  return {
+    choice,
+    /** @param {number|null} until @returns {Promise<Film|null>} */
+    async pick(until) {
+      for (;;) {
+        const film = choice();
+        if (film !== undefined) return film;
+        const left = until == null ? Infinity : until - performance.now();
+        if (left <= 0) return choice(true);
+        await new Promise((resolve) => {
+          const done = () => { clearTimeout(timer); waits.delete(done); resolve(undefined); };
+          const timer = left === Infinity ? 0 : setTimeout(done, left);
+          waits.add(done);
+        });
+      }
+    },
   };
 }
 
 /**
  * @param {() => boolean} allowed  false once the film must go (a room / a match, the caller's skip)
- * @param {Film} film
+ * @param {ReturnType<typeof loadFilms>} films
+ * @param {{ label: string, version: string }} first  the best film's label and lobby version (the card's until the
+ *   choice is made)
+ * @param {{ by: number, tap: number }} budget  by: when the art's ART_MS run out (performance.now()); tap: TAP_MS (tests
+ *   pass their own)
  */
-function run(allowed, film) {
+function run(allowed, films, first, budget) {
   if (playing || !allowed()) return;
   playing = true;
   if (!document.getElementById('spa-entry-style')) {
@@ -165,25 +255,36 @@ function run(allowed, film) {
   // a modal <dialog>: the top layer, so it also covers the fullscreen prompt (fullscreen-guide.js, a modal dialog too)
   const el = document.createElement('dialog');
   el.className = 'spa-entry';
-  el.setAttribute('aria-label', film.label);
+  el.setAttribute('aria-label', first.label);
   el.innerHTML = '<span class="spa-entry__skip"></span>';
   el.firstChild.textContent = t('点击跳过');
   const locked = !(audio.ctx && audio.ctx.state === 'running');
   const skipLabel = el.querySelector('.spa-entry__skip');
+  const card = document.createElement('div');
+  card.className = 'spa-entry__gate';
+  /** The card's line; the Latin one under it is a decoration under a CJK prompt (a Latin translation already says it). */
+  const say = (text, latin) => {
+    card.innerHTML = `<b></b><i>${latin}</i>`;
+    card.firstChild.textContent = t(text);
+    if (scriptOf(t(text)) === 'alphabetic') card.lastChild.remove();
+  };
+  // the art is not in yet: the card says 加载中 until the film mounts, with the skip label under it
+  const waiting = () => {
+    say('加载中', 'LOADING');
+    card.className = 'spa-entry__gate spa-entry__gate--wait';
+    el.append(card);
+    skipLabel.style.opacity = '';
+  };
   let gate = Promise.resolve(), gateKey = null;
   if (locked) {
     skipLabel.style.opacity = '0';
-    const card = document.createElement('div');
-    card.className = 'spa-entry__gate';
-    card.innerHTML = '<b></b><i>TAP TO START</i>';
-    card.firstChild.textContent = t('点击进入');
-    // the Latin line is a decoration under a CJK prompt; a Latin translation already says it
-    if (scriptOf(t('点击进入')) === 'alphabetic') card.lastChild.remove();
+    say('点击进入', 'TAP TO START');
     el.append(card);
     gate = new Promise((resolve) => {
       const go = () => {
         removeEventListener('keydown', go, true);
-        card.remove(); skipLabel.style.opacity = '';
+        if (films.choice() === undefined) waiting();
+        else { card.remove(); skipLabel.style.opacity = ''; }
         // audio.js creates / resumes the context on this same gesture; give it a moment to start running
         const until = performance.now() + 600;
         const wait = () => (audio.ctx?.state === 'running' || performance.now() > until ? resolve() : setTimeout(wait, 30));
@@ -197,7 +298,7 @@ function run(allowed, film) {
   document.body.append(el);
   try { el.showModal(); } catch { el.setAttribute('open', ''); }
 
-  let scene = null, raf = 0, release = null, bgmTimer = 0, done = false, src = null;
+  let scene = null, raf = 0, release = null, bgmTimer = 0, done = false, src = null, chosen = null;
   const cleanup = () => {
     cancelAnimationFrame(raf);
     try { scene?.destroy(); } catch { /* ignore */ }
@@ -205,7 +306,7 @@ function run(allowed, film) {
     el.remove();
     playing = false;
   };
-  /** 'end' (the film ran out), 'skip' (a tap / key) or 'leave' (the route left the title / lobby) */
+  /** 'end' (the film ran out, or no art for one), 'skip' (a tap / key) or 'leave' (the route left the title / lobby) */
   const finish = (how) => {
     if (done) return;
     done = true;
@@ -249,22 +350,41 @@ function run(allowed, film) {
   };
   const onKey = () => finish('skip');
   el.addEventListener('cancel', (e) => { e.preventDefault(); if (!locked) finish('skip'); }); // Esc skips like any other key
-  // skipping is armed once the film runs (the gate's own tap must not skip it)
+  // skipping is armed once the card's tap is over (the gate's own tap must not skip): the wait for the art, the film
   const armSkip = () => { el.addEventListener('pointerdown', () => finish('skip')); addEventListener('keydown', onKey, true); };
   // the route, from the card on: a session restored into a room / a match takes the film down at once
   const unwatch = store.subscribe(() => { if (!done && !allowed()) finish('leave'); });
+  // until a film is chosen: the choice names the overlay, and art that cannot play takes the card down at once
+  films.pick(null).then((film) => {
+    if (done || chosen) return;
+    if (film) el.setAttribute('aria-label', film.label);
+    else finish('end');
+  });
 
   const fonts = document.fonts?.load
     ? Promise.race([Promise.all(['300 40px Bender', '400 40px Bender'].map((f) => document.fonts.load(f).catch(() => null))), new Promise((r) => setTimeout(r, 1200))])
     : null;
-  const pictures = film.preload(3000);
-  gate.then(() => Promise.all([pictures, fonts, prepareSound(film.version)])).then((res) => {
+  gate.then(async () => {
+    if (done) return;
+    armSkip();
+    // the cue decodes (and the lobby music warms) while the art may still be loading
+    const early = prepareSound(first.version);
+    let film = films.choice();
+    if (film === undefined) {
+      // 加载中: up since the tap; with sound running before any card, only once the art takes a moment (not a flash)
+      const later = setTimeout(waiting, locked ? 0 : 250);
+      film = await films.pick(Math.max(budget.by, performance.now() + budget.tap));
+      clearTimeout(later);
+    }
     if (done) return;
     // a sprite that 404'd (or never loaded) is not a film: take the cover down instead of playing blank frames
-    if (!res || res[0] !== true) { finish('end'); return; }
+    if (!film) { finish('end'); return; }
+    chosen = film;
+    el.setAttribute('aria-label', film.label);
+    const [, sound] = await Promise.all([fonts, film.version === first.version ? early : prepareSound(film.version)]);
+    if (done) return;
     if (!allowed()) { finish('leave'); return; }
-    const sound = res[2];
-    armSkip();
+    card.remove();
     try { scene = film.mount(el); } catch (err) { console.warn('[intro] could not start', err); finish('end'); return; }
     const { from, fadeAt, to } = film.span;
     const lead = 0.04;
@@ -304,17 +424,21 @@ function run(allowed, film) {
 
 /**
  * Play the film once per page load, before the title screen — also when a reload lands in the lobby; never over a
- * room or a match, never under reduced motion, and never unless every sprite actually loads. A phone that is
- * portrait when this is called does not play it later, after a rotation. globalThis.__SP_ENTRY_FILM__ = 'off' (the
- * browser suites) plays nothing. A 规程 start without 规程's opening (not extracted, or its sprites do not load in the
- * short look) plays 盟约's film instead.
+ * room or a match, never under reduced motion, and never unless every sprite actually loads. The card comes up at
+ * once (unless there is no art at all); the art may take ART_MS from then, or TAP_MS after a later tap, before the
+ * card goes without a film. A phone that is portrait when this is called does not play it later, after a
+ * rotation. globalThis.__SP_ENTRY_FILM__ = 'off' (the browser suites) plays nothing. A 规程 start without 规程's opening
+ * (not extracted, or its pictures do not load in that time) plays 盟约's film instead. Resolves once the overlay is up,
+ * or when none comes this page load.
  * @param {{ skip?: () => boolean, mount?: typeof mountAllianceIntro, regulation?: () => boolean,
- *   regulationMount?: ((host: HTMLElement) => FilmScene)|null }} [opts]  skip() → true when it must not (or no longer)
- *   play; mount: 盟约's scene (tests pass a stand-in); regulation() → true: 规程's opening instead (asked once, here),
- *   盟约's film when its group is not extracted; regulationMount: its scene (tests)
+ *   regulationMount?: ((host: HTMLElement) => FilmScene)|null, budget?: { load?: number, tap?: number, cap?: number } }} [opts]
+ *   skip() → true when it must not (or no longer) play; mount: 盟约's scene (tests pass a stand-in); regulation() →
+ *   true: 规程's opening instead (asked once, here), 盟约's film when its group is not extracted; regulationMount: its
+ *   scene (tests); budget: ART_MS / TAP_MS / ART_CAP_MS (tests)
  */
 export async function playEntryFilm(opts = {}) {
   const { skip = () => false, mount = mountAllianceIntro, regulation = () => false, regulationMount = null } = opts;
+  const budget = { load: ART_MS, tap: TAP_MS, cap: ART_CAP_MS, ...opts.budget };
   // dev / E2E switch, like globalThis.__SP_RENDER__: the browser suites that are not about the film set it before the
   // page loads (test/helpers/entryFilm.js skipEntryFilm); a player's page never has it
   if (globalThis.__SP_ENTRY_FILM__ === 'off') return;
@@ -324,20 +448,14 @@ export async function playEntryFilm(opts = {}) {
   try { await data.load('assets'); } catch { return; }
   const allowed = () => { const r = selectRoute(store.get()); return r !== 'room' && r !== 'game' && !skip(); };
   if (!allowed()) return;
-  // a short look: the title is already on screen, so a film that would only cover it seconds later is skipped this
-  // time (the sprites it did load are cached for the next page load)
-  const ready = async (f) => { try { return (await f.preload(1200)) === true; } catch { return false; } };
-  let film = null;
-  // 规程's opening when its art is extracted and loads; else 盟约's film (this fork)
-  if (regulation()) {
-    try { film = await regulationFilm(regulationMount); } catch { film = null; }
-    if (film && !(await ready(film))) film = null;
-    if (!allowed()) return;
-  }
-  if (!film) {
-    film = allianceFilm(mount);
-    if (!(await ready(film))) return;
-  }
-  if (!allowed()) return;
-  run(allowed, film);
+  // 规程's opening when its art is extracted and loads; else 盟约's film (this fork). Both films' art loads from here
+  // on, behind the card: the card does not wait for it, and 盟约's is not left until 规程's has failed
+  const alliance = allianceFilm(mount);
+  const reg = regulation();
+  const by = performance.now() + budget.load;
+  const films = loadFilms(reg ? [regulationFilm(regulationMount), alliance] : [alliance], budget.cap);
+  // no art pack: there is nothing to load (the sprites have no URL) and the loads have failed by the next task — no card
+  await new Promise((r) => setTimeout(r, 0));
+  if (films.choice() === null || !allowed()) return;
+  run(allowed, films, reg ? regulationTitle() : alliance, { by, tap: budget.tap });
 }

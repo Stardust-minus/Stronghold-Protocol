@@ -2,8 +2,9 @@
 // 0.4.0 merge; public/js/main.js wantsEntryFilm, ui/entryFilm.js, screens/lobby.js useEntryFilmOver):
 //   * a page under automation (navigator.webdriver) gets no film unless it asks with ?film=on, and the 公告板 opens by
 //     itself as before — no upstream 更新说明 popup (#603), no 更新说明 in the footer;
-//   * a player's page (navigator.webdriver false) shows the black 点击进入 card first on every load; ?film=off and
-//     localStorage sp.entryFilm=off opt out;
+//   * a player's page (navigator.webdriver false) shows the black 点击进入 card first on every load, a fresh profile's
+//     (cold cache) included: the card does not wait for the art (this fork, 2026-11-16); ?film=off and localStorage
+//     sp.entryFilm=off opt out;
 //   * with the film up, the 公告板 waits: it opens only once the overlay is gone. A 规程 start without 规程's extracted
 //     opening plays 盟约's film (this checkout's art has no local-client season entry).
 // The film needs the art pack (public/assets): without it no sprite loads and no film plays, so those steps skip.
@@ -83,15 +84,11 @@ describe('entry film by default, the 公告板 after it (real server, headless C
   });
 
   test('a player\'s page: the 点击进入 card by default; ?film=off and sp.entryFilm=off opt out', { timeout: 120000, skip: !ART && 'needs the art pack (public/assets)' }, async () => {
-    // the film's short look (1.2 s for its sprites) may let a cold first load pass: the next load has them cached
-    let shown = false;
-    for (let i = 0; i < 3 && !shown; i++) {
-      const { ctx, page } = await open({ player: true });
-      shown = await filmUp(page) && !!(await page.$('.spa-entry__gate'));
-      if (shown) assert.match(await page.$eval('.spa-entry__gate', (el) => el.textContent), /点击进入/);
-      await ctx.close();
-    }
-    assert.ok(shown, 'the black 点击进入 card on a player\'s page load');
+    // a fresh browser context: the first load, its art not cached
+    const first = await open({ player: true });
+    assert.equal(await filmUp(first.page) && !!(await first.page.$('.spa-entry__gate')), true, 'the black 点击进入 card on a player\'s first page load');
+    assert.match(await first.page.$eval('.spa-entry__gate', (el) => el.textContent), /点击进入/);
+    await first.ctx.close();
     for (const o of [{ player: true, query: '?film=off' }, { player: true, stored: 'off' }]) {
       const { ctx, page } = await open(o);
       assert.equal(await filmUp(page), false, `no film with ${JSON.stringify(o)}`);
@@ -100,16 +97,12 @@ describe('entry film by default, the 公告板 after it (real server, headless C
   });
 
   test('?film=on under automation: the card, then 盟约\'s film (no 规程 opening here); the 公告板 only after it', { timeout: 120000, skip: !ART && 'needs the art pack (public/assets)' }, async () => {
-    let run = null;
-    for (let i = 0; i < 3 && !run; i++) {
-      const o = await open({ query: '?film=on' });
-      if (await filmUp(o.page)) run = o; else await o.ctx.close();
-    }
-    assert.ok(run, 'the film comes up with ?film=on');
-    const { ctx, page, errors } = run;
+    const { ctx, page, errors } = await open({ query: '?film=on' });
     try {
-      // a 规程 start (the stock server's default) without 规程's extracted opening plays 盟约's film
-      assert.equal(await page.$eval('.spa-entry', (el) => el.getAttribute('aria-label')), '卫戍协议 · 盟约');
+      assert.equal(await filmUp(page), true, 'the film comes up with ?film=on');
+      // a 规程 start (the stock server's default) without 规程's extracted opening plays 盟约's film: the card says 规程's
+      // until 规程's pack is known missing and 盟约's art is in
+      await page.waitForFunction(() => document.querySelector('.spa-entry')?.getAttribute('aria-label') === '卫戍协议 · 盟约', { timeout: 15000 });
       const notice = await hasNotice(page);
       await sleep(2500);
       assert.equal(await page.$('.announcement-board'), null, 'the 公告板 waits while the card is up');

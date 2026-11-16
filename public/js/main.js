@@ -673,9 +673,9 @@ async function boot() {
   // the start-up version's entry animation (ui/entryFilm.js, upstream PR #878 / §37.147): the 点击进入 card, then 盟约's
   // film, or for a 规程 start (versions.js startupVersion) 规程's own opening (ui/regulationFilm.js; 盟约's film when its art
   // is missing); never over a restored match. On by default since the 0.4.0 merge (the owner, 2026-11-15; opt-outs and
-  // automation: wantsEntryFilm). `entryFilm` settles once the film has decided: its overlay is up by then, or none comes
-  // this page load (test/e2e/client.mjs passEntryFilm); the lobby opens its announcement board only after the overlay is
-  // gone (screens/lobby.js useEntryFilmOver).
+  // automation: wantsEntryFilm). `entryFilm` settles once the overlay (the 点击进入 card, up before the film's art is in)
+  // is up, or when none comes this page load (test/e2e/client.mjs passEntryFilm); the lobby opens its announcement board
+  // only after the overlay is gone (screens/lobby.js useEntryFilmOver).
   const entryFilm = wantsEntryFilm()
     ? import('./ui/entryFilm.js')
       .then((m) => m.playEntryFilm({
