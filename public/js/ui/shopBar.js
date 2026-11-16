@@ -192,8 +192,9 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
   const tap = () => { if (onTap) onTap(idx); else if (!disabled) onBuy(idx); else onDetail(slot.id, 'chess', hint); };
   const name = `${c?.name || t('干员')}${si ? t('（{note}）', { note: standInForText(c0.name) }) : ''}`;
   if (reg) {
-    const button = html`<button type="button" class=${cx('scard', 'scard--reg', `scard--t${tier}`, frozen && 'is-frozen', disabled && 'is-disabled', willMerge && 'is-merge', armed && 'is-armed', si && 'is-standin', repeat && 'is-repeat')}
-      style=${face?.backing?.style} data-shop-slot=${free ? undefined : idx} data-plan=${marks?.level || undefined} aria-keyshortcuts=${free ? undefined : hotkeyLabelOf('buy')}
+    const fbox = faceBoxStyle(face?.card);
+    const button = html`<button type="button" class=${cx('scard', 'scard--reg', `scard--t${tier}`, frozen && 'is-frozen', disabled && 'is-disabled', willMerge && 'is-merge', armed && 'is-armed', si && 'is-standin', repeat && 'is-repeat', fbox && 'has-facebox')}
+      style=${fbox ? { ...face?.backing?.style, ...fbox } : face?.backing?.style} data-shop-slot=${free ? undefined : idx} data-plan=${marks?.level || undefined} aria-keyshortcuts=${free ? undefined : hotkeyLabelOf('buy')}
       title=${free || reason ? undefined : t('购买鼠标指向的商品 · {key}', { key: hotkeyLabelOf('buy') })}
       onClick=${tap} onContextMenu=${(e) => { e.preventDefault(); onDetail(slot.id, 'chess', hint); }}
       aria-label=${`${t('{name}，价格 {price}', { name, price: slot.price })}${armed ? (disabled ? t('，无法购买') : t('，再次点击确认')) : ''}`} aria-pressed=${onTap ? String(!!armed) : undefined}>
@@ -202,7 +203,7 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
       </span>
       ${face?.layers.map((layer, i) => html`<span key=${`${layer.node.name}:${i}`} class=${cx('scard__prefab-layer', `scard__prefab-layer--${layer.node.name}`)} style=${layer.style} aria-hidden="true"><i style=${layer.image}></i></span>`)}
       ${regCost(slot, free, reason === t('资金不足'), face?.cost?.style, pool)}
-      <span class="scard__artbox" aria-hidden="true"><${Img} src=${chessPortraitUrl(m, c)} fallbackSrc=${chessPortraitUrl(m, defaultBody)} class="scard__art" /></span>
+      <span class="scard__artbox" style=${face?.art} aria-hidden="true"><${Img} src=${chessPortraitUrl(m, c)} fallbackSrc=${chessPortraitUrl(m, defaultBody)} class="scard__art" /></span>
       ${prog.copies > 0 ? html`<span class="scard__pips" title=${t('已拥有 {copies}/{need}', { copies: prog.copies, need: prog.need })}>
         ${Array.from({ length: prog.need }, (_, i) => html`<i key=${i} class=${i < prog.copies ? 'on' : ''}></i>`)}
       </span>` : null}
@@ -286,6 +287,18 @@ function SkillBadge({ chess, lo, standIn = false }) {
 }
 
 /**
+ * 可露希尔's card prefab is 157×207, the other packs' 155×187 — the shop's slot: its face is drawn at its own proportions
+ * over the slot, centred, a little past the slot's top and bottom edges (game-reghud.css .has-facebox), not squeezed 10 %
+ * flat into it (the owner 2026-11-16). Null for a card of the slot's size.
+ * @param {{ w: number, h: number } | null | undefined} card the face model's card box (prefab units)
+ * @returns {Record<string, string> | null}
+ */
+export function faceBoxStyle(card) {
+  if (!card || !(card.w > 0) || !(card.h > 0) || (card.w === 155 && card.h === 187)) return null;
+  return { '--face-w': `${card.w / 100}rem`, '--face-h': `${card.h / 100}rem` };
+}
+
+/**
  * Item card (the bar's item slot): the same two taps as an operator card.
  * @param {{ slot:any, idx:number, frozen?:boolean, reason?:string|null, armed?:boolean, onTap?:(idx:number)=>void,
  *   onBuy:Function, onDetail:Function }} props
@@ -299,8 +312,9 @@ export function ItemCard({ slot, idx, frozen = false, reason = null, free = fals
   if (reg) {
     const face = faceModel;
     const tierView = regCardTierView(face, facePack, still);
-      const button = html`<button type="button" class=${cx('scard', 'scard--item', 'scard--reg', `scard--t${tier}`, frozen && 'is-frozen', disabled && 'is-disabled', armed && 'is-armed')}
-      style=${face?.backing?.style} data-shop-slot=${free ? undefined : idx} aria-keyshortcuts=${free ? undefined : hotkeyLabelOf('buy')}
+    const fbox = faceBoxStyle(face?.card);
+      const button = html`<button type="button" class=${cx('scard', 'scard--item', 'scard--reg', `scard--t${tier}`, frozen && 'is-frozen', disabled && 'is-disabled', armed && 'is-armed', fbox && 'has-facebox')}
+      style=${fbox ? { ...face?.backing?.style, ...fbox } : face?.backing?.style} data-shop-slot=${free ? undefined : idx} aria-keyshortcuts=${free ? undefined : hotkeyLabelOf('buy')}
       title=${free || reason ? undefined : t('购买鼠标指向的商品 · {key}', { key: hotkeyLabelOf('buy') })}
       onClick=${tap} onContextMenu=${(e) => { e.preventDefault(); onDetail(slot.id, 'item'); }}
       aria-label=${`${t('{name}，价格 {price}', { name: it?.name || t('装备'), price: slot.price })}${armed ? (disabled ? t('，无法购买') : t('，再次点击确认')) : ''}`}
@@ -361,7 +375,8 @@ function EmptyArt({ face, reg = false }) {
  * official pack is installed (the lite package). */
 export function SoldCard({ item = false, reg = false, face = null }) {
   const art = face;
-  return html`<div class=${cx('scard', 'scard--sold', 'scard--vacant', reg && 'scard--reg', item && 'scard--item', art && 'has-empty-art')} aria-label=${t('已售出')}>
+  const fbox = reg ? faceBoxStyle(art?.card) : null;
+  return html`<div class=${cx('scard', 'scard--sold', 'scard--vacant', reg && 'scard--reg', item && 'scard--item', art && 'has-empty-art', fbox && 'has-facebox')} style=${fbox} aria-label=${t('已售出')}>
     <${EmptyArt} face=${art} reg=${reg} />
     <span class="scard__soldtxt"><${MicroLabel}>SOLD OUT</${MicroLabel}><span>${item ? t('已购买') : t('已招募')}</span></span>
   </div>`;
@@ -375,7 +390,8 @@ export function SoldCard({ item = false, reg = false, face = null }) {
 export function EmptyCard({ item = false, reg = false, face = null }) {
   // `scard--sold` too: the same inert frame (no hover lift, not a buyable card for every `:not(.scard--sold)` rule); `scard--empty` only restyles it
   const art = face;
-  return html`<div class=${cx('scard', 'scard--sold', 'scard--empty', 'scard--vacant', reg && 'scard--reg', item && 'scard--item', art && 'has-empty-art')} role="img" aria-label=${t('空栏位：刷新或下回合开始时补满')}
+  const fbox = reg ? faceBoxStyle(art?.card) : null;
+  return html`<div class=${cx('scard', 'scard--sold', 'scard--empty', 'scard--vacant', reg && 'scard--reg', item && 'scard--item', art && 'has-empty-art', fbox && 'has-facebox')} style=${fbox} role="img" aria-label=${t('空栏位：刷新或下回合开始时补满')}
     title=${t('空栏位：刷新或下回合开始时补满')}><${EmptyArt} face=${art} reg=${reg} /></div>`;
 }
 

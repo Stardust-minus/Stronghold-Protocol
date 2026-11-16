@@ -231,7 +231,9 @@ the open shop of either kind (盟约 too: the default look and other themes get 
 collapsed tab; the deploy fold's scale on the shop leaves it whole. The empty cards are translucent and sit on it as in the
 official shop.
 
-The three themes keep their own card dimensions and name colours. ac_n_initial has a hollow frame and no level-frame
+The three themes keep their own card dimensions and name colours: 可露希尔's 157×207 card is drawn at that size over the
+shop's 155×187 slot, centred (10 units past its top and bottom, the row standing 10 units higher), not squeezed into it;
+its portrait is the pack's own `char_portrait` box (`art` of the face model). ac_n_initial has a hollow frame and no level-frame
 prefabs; 乌萨斯齐心团's name sits at Unity y=32 with `#EFEBDF`; 可露希尔's name sits at y=42.5 with black ink. 可露希尔's
 level-five/six frame pictures carry a static colour band but no TV and no footer text: the card draws frame_lv2_obj /
 frame_lv3_obj's own layers (the scrolling bottom ramp, the TV, its front and 「CLOSURE × RHODES ISLAND」), as the official card does.

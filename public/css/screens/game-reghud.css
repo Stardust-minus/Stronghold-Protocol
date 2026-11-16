@@ -207,6 +207,17 @@
 .shopbar--reg .scard {
   width: 1.55rem; height: 1.87rem;
 }
+/* 可露希尔's card prefab is 157×207, the slot the other packs' 155×187 (ui/shopBar.js faceBoxStyle): its face keeps its own
+   proportions, centred on the slot — 10 units past its top and bottom edges, 1 past its sides — instead of being squeezed
+   10 % flat into it; the negative margins keep the row's layout (the owner 2026-11-16). */
+.shopbar .scard.scard--reg.has-facebox,
+.gm .shopbar .scard.scard--reg.has-facebox {
+  width: var(--face-w); height: var(--face-h);
+  margin: calc((1.87rem - var(--face-h)) / 2) calc((1.55rem - var(--face-w)) / 2);
+}
+/* …which reach 10 units past the slot's bottom edge: 可露希尔's row stands that much higher, so the bottom of its cards
+   (「CLOSURE × SOPL SYSTEM」) stays on screen. */
+.shopbar--reg[data-reg-theme="ac_s_closur"] .shopbar__row { padding-bottom: .1rem; }
 .scard.scard--reg {
   /* not clipped: the portrait's overhang (§37.139), the repeat glow (§37.201), 乌萨斯齐心团's tier icon and the TV reach past the box */
   box-sizing: border-box; padding: 0; overflow: visible;
@@ -254,7 +265,7 @@
   clip-path: inset(var(--art-clip-t, 0) var(--art-clip-r, 0) 0 0);
 }
 .scard.scard--reg .scard__artbox > .scard__art {
-  right: -6.1%; top: -15.8%; width: 72.3%;
+  right: var(--art-r, -6.1%); top: var(--art-t, -15.8%); width: var(--art-w, 72.3%);
   transform: none;
   -webkit-mask-image: linear-gradient(180deg, #000 52%, transparent 76%);
   mask-image: linear-gradient(180deg, #000 52%, transparent 76%);
