@@ -67,7 +67,7 @@ export function uiScaleStep(uiScale, phone) {
  *  planMarkMine / planMarkMates: 设置「商店标出我的预选盟约」/「商店标出队友的预选盟约」 (rel35, feedback #152), ON by
  *  default — the 预选盟约 marks on the shop's bond chips (ui/bondPlan.js shopPlanMarks); only `false` turns one off.
  *  poolCount: 设置「显示卡池剩余张数」 (feedback #160), ON by default like the 预选盟约 switches — the copies left in the
- *  shared pool (m.private poolLeft) under a shop card's price and on the bond card's members (ui/poolCount.js); the
+ *  shared pool (m.private poolLeft) right of a shop card's price and on the bond card's members (ui/poolCount.js); the
  *  official interface has no such number. Only `false` turns it off.
  *  uiTheme: 设置「界面主题」 (docs/THEMES.md). Empty is the built-in 卫戍协议终端. A stored id is this browser's
  *  pack only — never sent, and it does not change a match.

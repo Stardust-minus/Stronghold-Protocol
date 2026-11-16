@@ -50,7 +50,7 @@ import { t } from '../../../shared/i18n.js';
 import { ownAppearance } from './skinAssets.js';
 import { cardPlanMarks } from './bondPlan.js';
 import { itemText } from './showTags.js';
-import { poolLeftOf, PoolTag } from './poolCount.js';
+import { poolLeftOf, withPoolTag, isEdgeAnchor } from './poolCount.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -68,16 +68,21 @@ function PriceHex({ slot, free, poor = false }) {
  * 刷新 show it — at the card prefab's root_cost (css game-reghud.css: the top centre, right of centre in 乌萨斯齐心团 and
  * 可露希尔). Grey while the funds do not cover it, mint for a discount, red for a markup.
  */
-function regCost(slot, free, poor, style = null) {
+function regCost(slot, free, poor, style = null, pool = null) {
   const tone = priceTone(slot);
   const price = Number(slot?.price) || 0;
-  if (free || price === 0) return html`<span class="scard__cost scard__cost--free" style=${style}>FREE</span>`;
+  if (free || price === 0) {
+    // 卡池剩余 (ui/poolCount.js withPoolTag): with a count the box takes the anchor and FREE sits in it
+    if (!Number.isInteger(pool) || pool < 0) return html`<span class="scard__cost scard__cost--free" style=${style}>FREE</span>`;
+    return withPoolTag(html`<span class="scard__cost scard__cost--free">FREE</span>`, pool, { style, edge: isEdgeAnchor(style) });
+  }
   const title = poor ? t('资金不足')
     : tone === 'discount' ? t('折扣价（原价 {basePrice}）', { basePrice: slot.basePrice })
       : tone === 'premium' ? t('加价（原价 {basePrice}）', { basePrice: slot.basePrice })
         : t('价格');
-  return html`<${HexBadge} value=${price} tone=${poor ? 'dark' : tone} size="sm" title=${title}
-    class=${cx('scard__cost', poor && 'is-poor', tone === 'discount' && 'is-discount', tone === 'premium' && 'is-premium')} style=${style} />`;
+  // HexBadge drops `style`: the hexagon keeps the CSS anchor (the top centre) in every face, and so does its count's box
+  return withPoolTag(html`<${HexBadge} value=${price} tone=${poor ? 'dark' : tone} size="sm" title=${title}
+    class=${cx('scard__cost', poor && 'is-poor', tone === 'discount' && 'is-discount', tone === 'premium' && 'is-premium')} style=${style} />`, pool);
 }
 
 function regCardTierView(face, facePack, still, { unitRemX = 0.01, unitRemY = 0.01 } = {}) {
@@ -196,8 +201,7 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
         <${TierChip} tier=${tier} size="md" class=${tierView?.chipClass} style=${tierView?.badgeStyle} overlay=${tierView?.overlay} />
       </span>
       ${face?.layers.map((layer, i) => html`<span key=${`${layer.node.name}:${i}`} class=${cx('scard__prefab-layer', `scard__prefab-layer--${layer.node.name}`)} style=${layer.style} aria-hidden="true"><i style=${layer.image}></i></span>`)}
-      ${regCost(slot, free, reason === t('资金不足'), face?.cost?.style)}
-      <${PoolTag} n=${pool} style=${face?.cost?.style} />
+      ${regCost(slot, free, reason === t('资金不足'), face?.cost?.style, pool)}
       <${Img} src=${chessPortraitUrl(m, c)} fallbackSrc=${chessPortraitUrl(m, defaultBody)} class="scard__art" />
       ${prog.copies > 0 ? html`<span class="scard__pips" title=${t('已拥有 {copies}/{need}', { copies: prog.copies, need: prog.need })}>
         ${Array.from({ length: prog.need }, (_, i) => html`<i key=${i} class=${i < prog.copies ? 'on' : ''}></i>`)}
@@ -223,7 +227,7 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
     </button>`;
     return reason && reason !== t('已售出') && !armed ? html`<${Tooltip} text=${reason} block=${true} class="scard-wrap">${button}<//>` : button;
   }
-  const card = html`<button type="button" class=${cx('scard', `scard--t${tier}`, frozen && 'is-frozen', disabled && 'is-disabled', willMerge && 'is-merge', armed && 'is-armed', si && 'is-standin', repeat && 'is-repeat', backing && 'has-backing')}
+  const card = html`<button type="button" class=${cx('scard', `scard--t${tier}`, frozen && 'is-frozen', disabled && 'is-disabled', willMerge && 'is-merge', armed && 'is-armed', si && 'is-standin', repeat && 'is-repeat', backing && 'has-backing', Number.isInteger(pool) && pool >= 0 && 'has-pool')}
       style=${backing?.style} data-shop-slot=${free ? undefined : idx} data-plan=${marks?.level || undefined} aria-keyshortcuts=${free ? undefined : hotkeyLabelOf('buy')}
       title=${free || reason ? undefined : t('购买鼠标指向的商品 · {key}', { key: hotkeyLabelOf('buy') })}
       onClick=${tap} onContextMenu=${(e) => { e.preventDefault(); onDetail(slot.id, 'chess', hint); }}
@@ -233,8 +237,7 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
     <${Img} src=${chessPortraitUrl(m, c)} fallbackSrc=${chessPortraitUrl(m, defaultBody)} class="scard__art" />
     <span class="scard__top">
       <${TierChip} tier=${tier} size="md" />
-      <${PriceHex} slot=${slot} free=${free} poor=${reason === t('资金不足')} />
-      <${PoolTag} n=${pool} />
+      ${withPoolTag(html`<${PriceHex} slot=${slot} free=${free} poor=${reason === t('资金不足')} />`, pool)}
       ${prog.copies > 0 ? html`<span class="scard__pips" title=${t('已拥有 {copies}/{need}', { copies: prog.copies, need: prog.need })}>
         ${Array.from({ length: prog.need }, (_, i) => html`<i key=${i} class=${i < prog.copies ? 'on' : ''}></i>`)}
       </span>` : null}
@@ -305,8 +308,7 @@ export function ItemCard({ slot, idx, frozen = false, reason = null, free = fals
       <span class="scard__tierbox" style=${tierView?.boxStyle}><${TierChip} tier=${tier} size="md" class=${tierView?.chipClass} style=${tierView?.badgeStyle} overlay=${tierView?.overlay} /></span>
       ${face?.item?.watermark ? html`<span class="scard__prefab-layer scard__prefab-layer--deco_item" style=${face.item.watermark.style} aria-hidden="true"><i style=${face.item.watermark.image}></i></span>` : null}
       ${face?.layers.map((layer, i) => html`<span key=${`${layer.node.name}:${i}`} class=${cx('scard__prefab-layer', `scard__prefab-layer--${layer.node.name}`)} style=${layer.style} aria-hidden="true"><i style=${layer.image}></i></span>`)}
-      ${regCost(slot, free, reason === t('资金不足'), face?.cost?.style)}
-      <${PoolTag} n=${pool} style=${face?.cost?.style} />
+      ${regCost(slot, free, reason === t('资金不足'), face?.cost?.style, pool)}
       <span class="scard__itemart" style=${face?.item?.icon}>
         <${Img} src=${itemIconUrl(m, it)} fallback=${html`<${GIcon} name="bolt" />`} />
       </span>
@@ -327,8 +329,7 @@ export function ItemCard({ slot, idx, frozen = false, reason = null, free = fals
     <span class="scard__bg" aria-hidden="true"></span>
     <span class="scard__top">
       <${TierChip} tier=${it?.tier ?? 1} size="md" />
-      <${PriceHex} slot=${slot} free=${free} poor=${reason === t('资金不足')} />
-      <${PoolTag} n=${pool} />
+      ${withPoolTag(html`<${PriceHex} slot=${slot} free=${free} poor=${reason === t('资金不足')} />`, pool)}
     </span>
     <span class="scard__itemart"><${Img} src=${itemIconUrl(m, it)} fallback=${html`<${GIcon} name="bolt" />`} /></span>
     <span class="scard__body">
@@ -580,7 +581,7 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
   const faceTheme = regChromeTheme(groups, settings?.uiTheme);
   const facePack = usePrefabPack(groups, faceTheme || null, { includeDefault: true });
   const still = settings?.themeMotion === false;
-  // 卡池剩余 (feedback #160, ui/poolCount.js): the shared stock's count under each card's price, unless 设置 turns it off
+  // 卡池剩余 (feedback #160, ui/poolCount.js): the shared stock's count right of each card's price, unless 设置 turns it off
   const poolOf = (kind, id) => (settings?.poolCount === false ? null : poolLeftOf(priv, kind, id));
   // the card's prefab `bkg` belongs to the official theme's own look: drawn only while that theme is the selected one, so a
   // non-official theme (or none) on ac_n_initial's card keeps our dark face under its frame (§37.237)

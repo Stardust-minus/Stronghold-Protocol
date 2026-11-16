@@ -306,15 +306,31 @@
 .lvcard.is-armed .lvcard__label { letter-spacing: .12em; padding-left: .12em; }
 
 /* 卡池剩余 (feedback #160, ui/poolCount.js; a fork addition — the official cards show no such number): 「余 n」, the copies
-   left in the shared stock, a flat dark tab hanging under the card's price — not a hexagon like the price, not gold like
-   可晋升 or the owned-copies pips, not on the frame (feedback #152's rule) — red at 0. 盟约 card: the price hex is centred at
-   the top of .scard__top; 规程 card: under the cost at root_cost's position (the face model's cost.style, else the CSS one).
-   --pt-hex: that hex's height (phones raise it, devices.css). */
-.pooltag { display: inline-flex; align-items: baseline; padding: 0 .045rem; white-space: nowrap; pointer-events: none;
-  font-size: .12rem; font-weight: 700; line-height: 1.3; letter-spacing: .02em; color: #dfe7e4;
-  background: rgba(5, 8, 7, .84); border: 1px solid rgba(223, 231, 228, .4); border-radius: .03rem; box-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
-.pooltag__n { margin: 0 .01rem; font-family: var(--font-num); font-size: 1.18em; font-weight: 700; font-variant-numeric: tabular-nums; color: #fff; }
-.pooltag.is-empty { color: #ffc2b8; border-color: rgba(255, 92, 72, .8); }
+   left in the shared stock, a flat dark tab right of the card's price — not a hexagon like the price, not gold like 可晋升
+   or the owned-copies pips, not on the frame (feedback #152's rule) — red at 0. It hung under the price at first and covered
+   the top of the portrait, worst on the 规程 card (the owner, 2026-11-16: right of the price). The outline is an inset
+   shadow, not a border, so the narrow phone card keeps its width. */
+.pooltag { display: inline-flex; align-items: baseline; padding: 0 .035rem; white-space: nowrap; pointer-events: none;
+  font-size: .12rem; font-weight: 700; line-height: 1.2; letter-spacing: .02em; color: #dfe7e4;
+  background: rgba(5, 8, 7, .86); border-radius: .03rem; box-shadow: inset 0 0 0 1px rgba(223, 231, 228, .45), 0 1px 3px rgba(0, 0, 0, .7); }
+.pooltag__n { font-family: var(--font-num); font-size: 1.16em; font-weight: 700; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums; color: #fff; }
+.pooltag.is-empty { color: #ffc2b8; box-shadow: inset 0 0 0 1px rgba(255, 92, 72, .85), 0 1px 3px rgba(0, 0, 0, .7); }
 .pooltag.is-empty .pooltag__n { color: #ff7d66; }
-.scard__top .pooltag--card { position: absolute; left: 50%; top: calc(var(--pt-hex, .34rem) + .025rem); transform: translateX(-50%); }
-.scard.scard--reg .pooltag--card { position: absolute; z-index: 3; left: 49.4%; top: 6.7%; transform: translate(-50%, calc(var(--pt-hex, .26rem) / 2 + .025rem)); }
+/* The price and its tab (withPoolTag): the box takes the price's place and the price sits in it, so the tab follows the
+   price's own width (two digits, FREE) and the price stays where it was. */
+.scard__pricebox { display: flex; align-items: center; }
+.scard__pricebox > .pooltag { position: absolute; left: 100%; margin-left: .025rem; }
+/* 盟约 card: the box at the top centre of .scard__top; the tab in the band between the owned-copies pips (the top row's
+   right end, ≈ .13rem tall) and 可晋升 (.38rem down the card, .32rem down .scard__top) */
+.scard__top > .scard__pricebox { position: absolute; left: 50%; top: 0; transform: translateX(-50%); align-items: flex-start; }
+.scard__pricebox > .scard__price, .scard__pricebox > .scard__free { position: relative; left: auto; top: auto; transform: none; }
+.scard__pricebox > .scard__free { margin-top: .02rem; }
+.scard__top > .scard__pricebox > .pooltag { top: .225rem; transform: translateY(-50%); }
+/* 规程 card: the box at the cost's anchor (game-reghud.css; FREE's inline root_cost position moves to the box); the tab
+   level with the price. is-edge: the anchor in the card's right part (乌萨斯齐心团 / 可露希尔 FREE) — price and tab
+   right-aligned in the card instead. */
+.scard.scard--reg .scard__pricebox { position: absolute; z-index: 3; left: 49.4%; top: 6.7%; transform: translate(-50%, -50%); }
+.scard.scard--reg .scard__pricebox > .scard__cost { position: relative; left: auto; top: auto; transform: none; }
+.scard.scard--reg .scard__pricebox > .pooltag { top: 50%; transform: translateY(-50%); }
+.scard.scard--reg .scard__pricebox.is-edge { left: auto; right: .03rem; top: var(--pb-top, 6.7%); transform: translateY(-50%); gap: .025rem; }
+.scard.scard--reg .scard__pricebox.is-edge > .pooltag { position: static; margin: 0; transform: none; }

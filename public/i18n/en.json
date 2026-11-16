@@ -3872,7 +3872,7 @@
   "商店标出队友的预选盟约": "Mark teammates' bond plans in the shop",
   "共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。": "An alliance planned by a teammate who shares your chess pool shows on operator cards in a dashed blue outline with the alliance members icon.",
   "显示卡池剩余张数": "Show copies left in the pool",
-  "和队友共用卡池时，在商店卡牌的价格下方、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。": "When you share the chess pool with teammates, shows how many copies of an operator or equipment are left in it: under the price on shop cards and on the members' portraits in a bond's details. The official interface has no such numbers.",
+  "和队友共用卡池时，在商店卡牌的价格右侧、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。": "When you share the chess pool with teammates, shows how many copies of an operator or equipment are left in it: right of the price on shop cards and on the members' portraits in a bond's details. The official interface has no such numbers.",
   "卡池剩余 {n} 张": "{n} {n|copy|copies} left in the shared pool",
   "余 {n}": "{n} left",
   "已选中": "Selected",

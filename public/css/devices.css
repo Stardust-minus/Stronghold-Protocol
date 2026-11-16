@@ -186,7 +186,22 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
   .gm .funds__hex { width: max(1rem, calc(44px * var(--ui))); height: max(.9rem, calc(40px * var(--ui))); }
   .gm .shopbar .hex { --hex-h: max(.32rem, calc(20px * var(--ui))); }
   .gm .shopbar { --pt-hex: max(.32rem, calc(20px * var(--ui))); }
-  .gm .pooltag { font-size: max(.12rem, calc(12px * var(--ui))); }
+  /* 卡池剩余 (game-shop.css .pooltag): the cards' own text size (bonds, class: 10 px × 界面大小), so 「余 24」 fits right of
+     the price on the 80 px × 界面大小 card. 盟约 card: the top row is narrow (官方贴图's frame takes 7 px a side), so the tab
+     sits at the row's right end, level with the price's top — beside the price, over the hexagon's point where the row is
+     too narrow (the box steps aside; the price keeps its own place) — and the owned-copies pips and 可晋升, which sat there,
+     step below it (has-pool: the operator card with a count). --pt-tag: the tab's height. */
+  .gm .shopbar { --pt-tag: calc(max(.12rem, calc(10px * var(--ui))) * 1.2); }
+  .gm .pooltag { font-size: max(.12rem, calc(10px * var(--ui))); padding: 0 max(.03rem, calc(1.25px * var(--ui))); word-spacing: -.2em; }
+  .gm .pooltag__n { font-size: 1.12em; }
+  .gm .scard__pricebox > .pooltag { margin-left: max(.025rem, calc(1px * var(--ui))); }
+  .gm .scard__top > .scard__pricebox { display: contents; }
+  .gm .scard__top > .scard__pricebox > .scard__price { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
+  .gm .scard__top > .scard__pricebox > .scard__free { position: absolute; left: 50%; top: .02rem; margin: 0; transform: translateX(-50%); }
+  .gm .scard__top > .scard__pricebox > .pooltag { z-index: 1; left: auto; right: -.06rem; top: 0; margin: 0; transform: none; }
+  .gm .scard.has-pool .scard__top > .scard__pips { margin-top: calc(var(--pt-tag) + calc(1px * var(--ui))); }
+  .gm .scard.has-pool:not(.scard--reg) .scard__mergetag { top: calc(.06rem + var(--pt-tag) + .16rem + calc(3px * var(--ui))); }
+  .gm .scard.scard--reg .scard__pricebox.is-edge { top: max(var(--pb-top, 6.7%), calc(var(--pt-tag) / 2)); align-items: flex-start; }
   .gm .shopbar .tier { --tier-h: max(.28rem, calc(16px * var(--ui))); }
   .gm .scard__skill { width: max(.3rem, calc(18px * var(--ui))); height: max(.3rem, calc(18px * var(--ui))); }
   .gm .scard__confirm b { font-size: max(.18rem, calc(12px * var(--ui))); letter-spacing: .04em; }

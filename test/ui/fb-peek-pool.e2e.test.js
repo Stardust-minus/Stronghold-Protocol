@@ -7,8 +7,10 @@
 // is the prep screen again (top bar, bond strip, shop; no veil), the 展开 button keeps the countdown and says a card is
 // still selected, nothing was sent; 展开 → the same card still selected, a second tap picks it. Both buttons have a
 // 44 px touch area on the phone (the --tap-min hit area). 规程's 更换指令 hides and comes back the same way. #160: the
-// shop's cards (盟约 and 规程 looks) carry 「余 n」 under the price with m.private poolLeft's numbers, red at 0, inside
-// the card and clear of the tier chip; the bond card's members too; 设置 off hides them all. Screenshots:
+// shop's and the reward row's cards (盟约 and 规程 looks) carry 「余 n」 right of the price and level with it, with
+// m.private poolLeft's numbers, red at 0, inside the card and clear of the tier chip, the owned-copies pips and 可晋升 —
+// also with a two-digit price, a discount and 「余 24」, and in 乌萨斯齐心团 / 可露希尔 (FREE at root_cost on the card's right,
+// when the local theme packs are there); the bond card's members too; 设置 off hides them all. Screenshots:
 // test/e2e/out/fb-peek-*.png, fb-pool-*.png.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,6 +24,56 @@ const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Conte
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const VIEWS = [['phone', 800, 360, true], ['desk', 1600, 900, false]];
+const PACKS = ['ac_n_iron', 'ac_s_closur'].filter((id) => existsSync(path.join(ROOT, `public/assets/local/themes/${id}/prefabs.json`)));
+// a two-digit premium price, a discount and a two-digit price on the shop's operators; 24 / 10 / 0 … on every visible card
+const EDGE = () => {
+  const M = globalThis.__MOCK__;
+  M.mutate((S) => {
+    const ch = S.priv.shop.slots.filter((x) => x && x.kind === 'chess' && !x.sold);
+    if (ch[0]) Object.assign(ch[0], { price: 12, basePrice: 10 });
+    if (ch[1]) Object.assign(ch[1], { price: 1, basePrice: 3 });
+    if (ch[2]) Object.assign(ch[2], { price: 10, basePrice: 10 });
+  });
+  const m = M.store.get().match;
+  const pl = JSON.parse(JSON.stringify(m.private.poolLeft));
+  const vals = [24, 10, 0, 17, 36, 9, 1];
+  [...m.private.shop.slots, ...(m.private.shop.rewardOffer?.slots || [])].filter((x) => x && !x.sold)
+    .forEach((x, i) => { (x.kind === 'item' ? pl.items : pl.chess)[x.id] = vals[i % vals.length]; });
+  M.store.patch('match', { private: { ...m.private, poolLeft: pl } });
+};
+/** Every shop / reward card's tab against the card's other marks (a 1 px tolerance; the price's box is the tab's anchor). */
+const CARD_TABS = () => {
+  const priv = globalThis.__MOCK__.store.get().match.private;
+  const R = (el) => el?.getBoundingClientRect() || null;
+  const overlap = (a, b) => !!(a && b) && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+  return [...document.querySelectorAll('.shopbar .scard:not(.scard--vacant)')].map((el) => {
+    const shopIdx = el.dataset.shopSlot;
+    const tag = el.querySelector('.pooltag');
+    // the card's padding box: a theme's 9-slice frame (官方贴图's 盟约 card) is a border, and the 盟约 card clips its content to it
+    // (client* are before the shop's scale transform, the rect after it)
+    const b = R(el), sx = b.width / el.offsetWidth || 1, sy = b.height / el.offsetHeight || 1;
+    const r = { left: b.left + el.clientLeft * sx, right: b.left + (el.clientLeft + el.clientWidth) * sx, top: b.top + el.clientTop * sy, bottom: b.top + (el.clientTop + el.clientHeight) * sy };
+    const t = R(tag), p = R(el.querySelector('.scard__price, .scard__cost, .scard__free'));
+    const name = el.querySelector('.scard__name')?.textContent.trim();
+    const slot = shopIdx != null ? priv.shop.slots[Number(shopIdx)] : null;
+    const want = slot ? priv.poolLeft[slot.kind === 'item' ? 'items' : 'chess'][slot.id] : undefined;
+    return { name, shop: shopIdx != null, want, got: tag ? Number(tag.dataset.poolLeft) : null, empty: !!tag?.classList.contains('is-empty'),
+      inside: !!t && t.left >= r.left - 1 && t.right <= r.right + 1 && t.top >= r.top - 1 && t.bottom <= r.bottom + 1,
+      right: !!t && !!p && t.left >= p.right - 1, level: !!t && !!p && t.top < p.bottom && p.top < t.bottom,
+      clear: ['.tier', '.scard__pips', '.scard__mergetag', '.scard__standin', '.scard__diy', '.scard__skill'].filter((sel) => overlap(t, R(el.querySelector(sel)))),
+      fontPx: tag ? parseFloat(getComputedStyle(tag).fontSize) : 0 };
+  });
+};
+const checkTabs = (cards, label) => {
+  for (const c of cards) {
+    if (c.shop) assert.equal(c.got, c.want ?? null, `${label} ${c.name}: the count`);
+    if (c.got == null) continue;
+    assert.equal(c.empty, c.got === 0, `${label} ${c.name}: red only at 0`);
+    assert.ok(c.inside && c.right && c.level, `${label} ${c.name}: right of the price, level with it, on the card ${JSON.stringify(c)}`);
+    assert.deepEqual(c.clear, [], `${label} ${c.name}: clear of the card's other marks`);
+    assert.ok(c.fontPx >= 7.5, `${label} ${c.name}: legible (${c.fontPx}px)`);
+  }
+};
 
 describe('#162 收起 / 展开 and #160 卡池剩余 (mock harness, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;
@@ -124,40 +176,58 @@ describe('#162 收起 / 展开 and #160 卡池剩余 (mock harness, headless Chr
 
     for (const version of ['', 'version=regulation&']) {
       const look = version ? 'reg' : 'cov';
-      test(`#160 ${name} ${look}: 「余 n」 under every card's price with poolLeft's numbers; 设置 off hides them`, { timeout: 120000 }, async () => {
+      test(`#160 ${name} ${look}: 「余 n」 right of every card's price with poolLeft's numbers; 设置 off hides them`, { timeout: 120000 }, async () => {
         const { page, problems } = await open(`${version}phase=PREP&variant=pool`, [w, h, touch]);
         await page.waitForSelector('.shopbar .pooltag');
-        const cards = await page.evaluate(() => {
-          const priv = globalThis.__MOCK__.S().priv;
-          return [...document.querySelectorAll('.shopbar .scard[data-shop-slot]')].map((el) => {
-            const slot = priv.shop.slots[Number(el.dataset.shopSlot)];
-            const tag = el.querySelector('.pooltag');
-            const want = priv.poolLeft[slot.kind === 'item' ? 'items' : 'chess'][slot.id];
-            const r = el.getBoundingClientRect(), t = tag?.getBoundingClientRect(), tier = el.querySelector('.tier')?.getBoundingClientRect();
-            const overlap = (a, b) => !!(a && b) && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-            return { id: slot.id, want, got: tag ? Number(tag.dataset.poolLeft) : null, empty: !!tag?.classList.contains('is-empty'),
-              inside: !!t && t.left >= r.left - 1 && t.right <= r.right + 1 && t.top >= r.top - 1 && t.bottom <= r.bottom + 1,
-              clearTier: !overlap(t, tier), fontPx: tag ? parseFloat(getComputedStyle(tag).fontSize) : 0 };
-          });
-        });
-        assert.ok(cards.length >= 3, JSON.stringify(cards));
-        for (const c of cards) {
-          assert.equal(c.got, c.want ?? null, `${c.id}: the count`);
-          if (c.got == null) continue;
-          assert.equal(c.empty, c.got === 0, `${c.id}: red only at 0`);
-          assert.ok(c.inside && c.clearTier, `${c.id}: on the card, clear of the tier chip ${JSON.stringify(c)}`);
-          assert.ok(c.fontPx >= 9, `${c.id}: legible (${c.fontPx}px)`);
-        }
+        const cards = await page.evaluate(CARD_TABS);
+        assert.ok(cards.filter((c) => c.got != null).length >= 3, JSON.stringify(cards));
+        checkTabs(cards, look);
         assert.ok(cards.some((c) => c.got === 0), 'the red 0');
         await page.screenshot({ path: path.join(OUT, `fb-pool-${look}-${name}.png`) });
+        // a two-digit premium price, a discount, 「余 24」 / 「余 10」
+        await page.evaluate(EDGE);
+        await page.waitForFunction(() => [...document.querySelectorAll('.shopbar .pooltag')].some((el) => el.dataset.poolLeft === '24'));
+        await sleep(300);
+        const edge = await page.evaluate(CARD_TABS);
+        checkTabs(edge, `${look} edge`);
+        assert.ok(edge.some((c) => c.got >= 10), 'two digits');
+        await page.screenshot({ path: path.join(OUT, `fb-pool-${look}-edge-${name}.png`) });
         assert.deepEqual(problems, []);
         await page.close();
         const off = await open(`${version}phase=PREP&variant=pool`, [w, h, touch], { poolCount: false });
         await off.page.waitForSelector('.shopbar .scard[data-shop-slot]');
         assert.equal(await off.page.$('.pooltag'), null, '设置「显示卡池剩余张数」 off');
+        assert.equal(await off.page.$('.scard__pricebox'), null, 'no count: the price as before');
         await off.page.close();
       });
+
+      test(`#160 ${name} ${look}: the reward row's FREE cards carry it right of FREE`, { timeout: 120000 }, async () => {
+        const { page, problems } = await open(`${version}phase=PREP&variant=pool,reward`, [w, h, touch]);
+        await page.waitForSelector('.shopbar__reward .pooltag');
+        const cards = await page.evaluate(CARD_TABS);
+        assert.ok(cards.filter((c) => c.got != null).length >= 3, JSON.stringify(cards));
+        checkTabs(cards, `${look} reward`);
+        assert.deepEqual(problems, []);
+        await page.close();
+      });
     }
+
+    test(`#160 ${name}: 乌萨斯齐心团 / 可露希尔 card faces (FREE at root_cost on the card's right)`, { timeout: 180000, skip: !PACKS.length && 'no local theme packs' }, async () => {
+      for (const theme of PACKS) {
+        for (const variant of ['pool', 'pool,reward']) {
+          const { page, problems } = await open(`version=regulation&phase=PREP&variant=${variant}`, [w, h, touch], { uiTheme: theme });
+          await page.waitForSelector('.shopbar .pooltag');
+          await sleep(600);
+          if (variant === 'pool') await page.evaluate(EDGE);
+          await sleep(400);
+          checkTabs(await page.evaluate(CARD_TABS), `${theme} ${variant}`);
+          if (variant !== 'pool') assert.ok(await page.$('.scard__pricebox.is-edge'), `${theme}: FREE in the card's right part is right-aligned with its tab`);
+          await page.screenshot({ path: path.join(OUT, `fb-pool-${theme}-${variant.replace(',', '-')}-${name}.png`) });
+          assert.deepEqual(problems, []);
+          await page.close();
+        }
+      }
+    });
 
     test(`#160 ${name}: the bond card's members carry their counts`, { timeout: 120000 }, async () => {
       const { page, problems } = await open('phase=PREP&variant=pool,bond', [w, h, touch]);

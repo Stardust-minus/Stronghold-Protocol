@@ -19,7 +19,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-const { poolLeftOf, PoolTag } = await import('../../public/js/ui/poolCount.js');
+const { poolLeftOf, PoolTag, withPoolTag, isEdgeAnchor } = await import('../../public/js/ui/poolCount.js');
 const { ChessCard, ItemCard } = await import('../../public/js/ui/shopBar.js');
 const { BondPopup } = await import('../../public/js/ui/bondStrip.js');
 const { ChoiceView, ChoicePill, PeekPill } = await import('../../public/js/ui/choiceOverlay.js');
@@ -74,24 +74,50 @@ test('#160 PoolTag: 「余 n」 with the full sentence for assistive tech, red a
   assert.ok(hasClass(zero, 'is-empty') && hasClass(zero, 'pooltag--member'));
 });
 
-test('#160 shop cards: the tab under the price on operator and equipment cards, in the 盟约 and the 规程 look; none without a count', () => {
+test('#160 shop cards: the tab right of the price on operator and equipment cards, in the 盟约 and the 规程 look; none without a count', () => {
   const slot = { kind: 'chess', id: A, price: 3, basePrice: 3 };
+  const boxOf = (v) => [...walk(v)].find((n) => hasClass(n, 'scard__pricebox'));
   for (const reg of [false, true]) {
     const card = ChessCard({ slot, idx: 0, priv: {}, onBuy() {}, onDetail() {}, reg, pool: 5 });
     const t = tags(card);
     assert.equal(t.length, 1, `operator card (reg ${reg})`);
     assert.equal(t[0].props.n, 5);
-    assert.deepEqual(tags(ChessCard({ slot, idx: 0, priv: {}, onBuy() {}, onDetail() {}, reg })).map((x) => x.props.n), [null], 'no count: the tab renders nothing');
+    // the price and its tab share one box (withPoolTag): the price first, the tab after it — CSS puts the tab on its right
+    const box = boxOf(card);
+    const kids = [box.props.children].flat();
+    assert.equal(kids.length, 2, `price + tab (reg ${reg})`);
+    assert.equal(kids[1].type, PoolTag);
+    assert.ok(reg ? hasClass(kids[0], 'scard__cost') : kids[0].type?.name === 'PriceHex', `the price is the box's first child (reg ${reg})`);
+    // no count (单人, 独立卡池, 设置 off): no box, no tab — the price is drawn exactly as before
+    const none = ChessCard({ slot, idx: 0, priv: {}, onBuy() {}, onDetail() {}, reg });
+    assert.equal(tags(none).length, 0, 'no count: no tab');
+    assert.equal(boxOf(none), undefined, 'no count: no box');
     const item = ItemCard({ slot: { kind: 'item', id: ITEM, price: 2 }, idx: 5, onBuy() {}, onDetail() {}, reg, pool: 0 });
     assert.deepEqual(tags(item).map((x) => x.props.n), [0], `equipment card (reg ${reg})`);
+    assert.ok(boxOf(item), `equipment card's box (reg ${reg})`);
   }
-  // the 盟约 card hangs it in .scard__top beside the price hex; the 规程 card under its root_cost (the face model's position)
+  // the 盟约 card keeps the box in .scard__top (the price's place)
   const cov = ChessCard({ slot, idx: 0, priv: {}, onBuy() {}, onDetail() {}, pool: 5 });
   const top = [...walk(cov)].find((n) => hasClass(n, 'scard__top'));
-  assert.ok(tags(top).length === 1, '盟约: inside .scard__top');
-  const face = { cost: { style: { left: '50%', top: '7%' } }, layers: [], namebar: {}, profession: { style: {} }, name: { style: {}, color: '#fff', fontSize: 0.2 }, bonds: null };
-  const regCard = ChessCard({ slot, idx: 0, priv: {}, onBuy() {}, onDetail() {}, reg: true, faceModel: face, pool: 5 });
-  assert.deepEqual(tags(regCard)[0].props.style, face.cost.style, '规程: at the cost\'s own position');
+  assert.ok(boxOf(top) && tags(top).length === 1, '盟约: the box inside .scard__top');
+  assert.ok(hasClass([...walk(cov)].find((n) => hasClass(n, 'scard')), 'has-pool'), '盟约 operator card: has-pool (phones move the pips and 可晋升)');
+  assert.equal(hasClass([...walk(ChessCard({ slot, idx: 0, priv: {}, onBuy() {}, onDetail() {} }))].find((n) => hasClass(n, 'scard')), 'has-pool'), false);
+  // 规程: a priced card's box keeps the hexagon's CSS anchor (HexBadge drops style); FREE's root_cost position moves to the box;
+  // an anchor in the card's right part (乌萨斯齐心团 / 可露希尔) is is-edge: right-aligned, only the height kept
+  const face = (left) => ({ cost: { style: { left, top: '7%' } }, layers: [], namebar: {}, profession: { style: {} }, name: { style: {}, color: '#fff', fontSize: 0.2 }, bonds: null });
+  const regCard = ChessCard({ slot, idx: 0, priv: {}, onBuy() {}, onDetail() {}, reg: true, faceModel: face('49.4%'), pool: 5 });
+  assert.equal(boxOf(regCard).props.style, null, '规程 hexagon: the CSS anchor');
+  const freeArgs = { slot: { ...slot, price: 0 }, idx: 0, priv: {}, free: true, onBuy() {}, onDetail() {}, reg: true, pool: 5 };
+  const regFree = ChessCard({ ...freeArgs, faceModel: face('49.4%') });
+  assert.deepEqual(boxOf(regFree).props.style, { left: '49.4%', top: '7%' }, '规程 FREE: the box at root_cost');
+  assert.equal(hasClass(boxOf(regFree), 'is-edge'), false);
+  const freePill = [...walk(regFree)].find((n) => hasClass(n, 'scard__cost--free'));
+  assert.equal(freePill.props.style, undefined, 'FREE itself sits in the box');
+  const edge = ChessCard({ ...freeArgs, faceModel: face('72.1%') });
+  assert.ok(hasClass(boxOf(edge), 'is-edge'), 'root_cost in the right part: is-edge');
+  assert.deepEqual(boxOf(edge).props.style, { '--pb-top': '7%' }, 'is-edge keeps root_cost\'s height only');
+  const freeNone = ChessCard({ ...freeArgs, pool: null, faceModel: face('72.1%') });
+  assert.deepEqual([...walk(freeNone)].find((n) => hasClass(n, 'scard__cost--free')).props.style, { left: '72.1%', top: '7%' }, 'no count: FREE at root_cost as before');
   // the bar reads the setting and the private view; the reward cards get the same counts
   const bar = read('public/js/ui/shopBar.js');
   assert.match(bar, /settings\?\.poolCount === false \? null : poolLeftOf\(priv, kind, id\)/);
@@ -99,6 +125,20 @@ test('#160 shop cards: the tab under the price on operator and equipment cards, 
   assert.equal((bar.match(/pool=\$\{poolOf\('item', s\.id\)\}/g) || []).length, 2, 'both shops\' equipment cards');
   assert.equal((bar.match(/poolOf=\$\{poolOf\}/g) || []).length, 2, 'both reward rows');
   assert.match(bar, /pool: poolOf\(kind, s\.id\)/);
+});
+
+test('#160 isEdgeAnchor / withPoolTag: the right part of the card is past 55 %; no count returns the price untouched', () => {
+  assert.equal(isEdgeAnchor({ left: '72.1%' }), true);
+  assert.equal(isEdgeAnchor({ left: '49.4%' }), false);
+  assert.equal(isEdgeAnchor(null), false);
+  assert.equal(isEdgeAnchor({}), false);
+  const price = { type: 'span', props: { class: 'x' } };
+  assert.equal(withPoolTag(price, null), price);
+  assert.equal(withPoolTag(price, -1), price);
+  assert.equal(withPoolTag(price, 1.5), price);
+  const box = withPoolTag(price, 0, { style: { left: '72%', top: '6%' }, edge: true });
+  assert.ok(hasClass(box, 'scard__pricebox') && hasClass(box, 'is-edge'));
+  assert.deepEqual(box.props.style, { '--pb-top': '6%' });
 });
 
 test('#160 bond card: each member\'s count under its portrait — own card only, never a banned member or a watched teammate\'s card', () => {
@@ -133,7 +173,7 @@ test('#160 设置「显示卡池剩余张数」: on by default (like 预选盟�
 });
 
 test('#160 / #162 strings are in every shipped pack', () => {
-  const ids = ['显示卡池剩余张数', '和队友共用卡池时，在商店卡牌的价格下方、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。',
+  const ids = ['显示卡池剩余张数', '和队友共用卡池时，在商店卡牌的价格右侧、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。',
     '卡池剩余 {n} 张', '余 {n}', '已选中'];
   for (const code of ['en', 'ja', 'ko', 'zh-TW']) {
     const pack = JSON.parse(read(`public/i18n/${code}.json`));

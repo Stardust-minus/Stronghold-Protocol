@@ -501,7 +501,7 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 @keyframes spov-pill-turn { 0%, 100% { box-shadow: 0 0 .1rem rgba(23, 249, 183, .3); } 50% { box-shadow: 0 0 .24rem rgba(23, 249, 183, .7); } }
 @media (prefers-reduced-motion: reduce) { .spov-pill.is-turn { animation: none; box-shadow: 0 0 .2rem rgba(23, 249, 183, .55); } }
 @media (max-height: 600px) and (pointer: coarse), (max-width: 767px) {
-  .spov, .spov-pill { --spov-cw: max(calc(.32 * var(--t) + .24rem + 2px), calc(46px * var(--ui))); }
+  .spov, .spov-pill { --spov-cw: max(calc(.32 * var(--t) + .24rem + calc(2px * var(--ui))), calc(46px * var(--ui))); }
   .spov__collapse { font-size: max(calc(.15 * var(--t)), calc(11px * var(--ui))); }
   /* a row on phones (the art, then the name, 已选中 and the clock): the column was as tall as the space between the
      effects column and the shop's 剩余可放置角色 line at 800×360, and covered the line */
