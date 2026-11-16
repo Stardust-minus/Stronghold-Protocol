@@ -155,7 +155,12 @@ over the core bonds; the additional bonds with their legend over the banned oper
 in the footer row, and only a column that still overflows scrolls inside itself; the strategy wall measures its box
 and takes the largest tile (.9–1.9rem) and column count that hold every strategy (`ui/fitGrid.js fitTiles` →
 `--dcols` / `--dtile`; below .9rem it scrolls), the order rows likewise (`fitRowHeight` → `--drh`, .96–1.26rem; 8+
-seat lists still scroll). Without ResizeObserver the fixed sizes stay.
+seat lists still scroll). Without ResizeObserver the fixed sizes stay. A doctor's name in a row is never cut (§36.25): the
+client's best fit (`text_name` BestFit) shrinks it on its line beside the trophy and the AI / 服主 tags to 72 % of its size or
+11 px (`fitNameScale` / `fitNameBox` → `--nk`, `data-fit`; never below its size on a phone at 小), then it wraps; a column
+taller than its card (a phone's short row) lets the name go up to 15 % under its floor (not under 8 px) to fit, else (大 /
+特大) sits at the card's top, so the card cuts the lines under the name, not the name (a name taller than the card by itself
+steps down to 8 px); without ResizeObserver it wraps at its size.
 
 Picture-only outfits (B6, §35.4): per the maintainer's 2026-10-18 option A, a `skins` record with pictures and no
 Spine is wearable, labelled 「仅更换头像与立绘」. Owner-specific cards / panels / results read that seat's choice;

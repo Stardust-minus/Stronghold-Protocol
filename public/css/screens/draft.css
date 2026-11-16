@@ -81,9 +81,33 @@
 .dorder .pavatar { --pa: calc(var(--drh, 1.26rem) * .714); box-shadow: 0 0 0 .03rem #e6e9e9; border: 0; }
 .dorder__me { position: absolute; left: -.14rem; top: -.14rem; width: .32rem; height: .32rem; display: grid; place-items: center; background: var(--mint-500); color: #062019; box-shadow: 0 0 0 .02rem #062019; }
 .dorder__me .icon { width: 72%; height: 72%; }
-.dorder__text { position: relative; display: flex; flex-direction: column; gap: .05rem; min-width: 0; text-shadow: 0 1px 3px #000, 0 0 .1rem #000; }
-.dorder__name { display: flex; align-items: center; gap: .06rem; min-width: 0; font-size: calc(.24 * var(--t)); font-weight: 700; line-height: 1.2; color: #f2f4f4; white-space: nowrap; }
-.dorder__name > span:not(.dorder__ai) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dorder__text { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; gap: .05rem; min-width: 0; text-shadow: 0 1px 3px #000, 0 0 .1rem #000; }
+/* A doctor's name, whole (the owner, 2026-11-16: 「不要出现省略号」 — 「Doctor…」 in the list the detail pane narrows): the client's
+   best fit (its player card's text_name: BestFit from 18 down in one line). bandDraft.js measures it in the text column, which
+   takes the card's whole width beside the avatar (ui/fitGrid.js fitNameBox):
+   data-fit="one", shrunk by --nk on its line beside the trophy and the AI / 服主 tags, to a readable floor (72 % of its size or
+   11 px, never above its size); data-fit="wrap" past the floor, the trophy (scaled with it) and the tags in its flow, balanced,
+   a long word broken as a last resort (Japanese strict, Korean between words). Unmeasured (no ResizeObserver, the first frame)
+   it wraps at its size. */
+.dorder__name { display: block; gap: .06rem; min-width: 0; font-size: calc(.24 * var(--t)); font-weight: 700; color: #f2f4f4;
+  line-height: calc(1.15em * var(--nk, 1)); /* the lines of the shrunk name, not of the row's own size */
+  overflow-wrap: anywhere; text-wrap: balance; }
+.dorder__name:lang(ja) { line-break: strict; }
+.dorder__name:lang(ko) { word-break: keep-all; }
+.dorder__nm { font-size: calc(1em * var(--nk, 1)); }
+.dorder__nm .sp-owner-line { display: inline; max-width: none; white-space: inherit; }
+.dorder__nm .sp-owner-name { overflow: visible; text-overflow: clip; white-space: inherit; }
+.dorder__nm .sp-owner-badge { margin-left: 4px; }
+.dorder__name .dorder__ai { display: inline-block; margin-left: .3em; }
+.dorder__name[data-fit="wrap"] > .tbadge--inline { width: calc(1.35em * var(--nk, 1)); height: calc(1.35em * var(--nk, 1)); }
+.dorder__name:is([data-fit="one"], [data-fit="measure"]) { display: flex; align-items: center; line-height: 1.2; white-space: nowrap; }
+.dorder__name[data-fit="one"] > .dorder__nm { flex: 0 1 auto; min-width: 0; }
+.dorder__name[data-fit="measure"] > .dorder__nm { flex: none; }
+.dorder__name:is([data-fit="one"], [data-fit="measure"]) .sp-owner-line { display: inline-flex; }
+.dorder__name:is([data-fit="one"], [data-fit="measure"]) :is(.sp-owner-badge, .dorder__ai) { margin-left: 0; }
+/* a column taller than its card (a phone at 大 / 特大): at the card's top, so the card cuts the state line and the plan under
+   the name, never the name */
+.dorder__text[data-over] { align-self: flex-start; margin-top: 1px; }
 /* the player's best trophy medal (local records) before the name, at the name's height */
 .dorder__medal { flex: none; width: .34rem; height: .34rem; object-fit: contain; filter: drop-shadow(0 1px 2px #000); }
 .dorder__ai { flex: none; font-family: var(--font-num); font-size: calc(.11 * var(--t)); padding: 0 .04rem; background: #a9c3d8; color: #0b1520; }
@@ -180,8 +204,9 @@
 .draft-grid__sec span::after { right: 0; border-left: 0; }
 .dband, .dorder__box, .draft-skip, .draft-lockbtn, .stephead__info { border: 0; font: inherit; }
 .dband {
-  /* the name and the marks are sized off the tile (cqw), whatever size the wall gives it */
-  position: relative; aspect-ratio: 1; padding: 0; color: var(--text-md); background: #0e1212; container-type: inline-size;
+  /* the name and the marks are sized off the tile, whatever size the wall gives it: --dtile, the width ui/fitGrid.js gives the
+     wall's columns (no container query: client-static, Firefox ESR 115 / Safari 15) */
+  position: relative; aspect-ratio: 1; padding: 0; color: var(--text-md); background: #0e1212;
   box-shadow: 0 0 0 .03rem #30373a, inset 0 0 0 .02rem #000; transition: box-shadow var(--t-fast), transform var(--t-fast), filter var(--t-fast);
   animation: pg-card 420ms var(--pg-ease) backwards; animation-delay: calc(220ms + var(--n, 0) * 28ms);
 }
@@ -196,7 +221,7 @@
      at a size taken from the tile — about six characters a line — with a readable floor; a word longer than the tile
      breaks as a last resort. 文字大小 scales it (--dname-k). */
   white-space: normal; text-wrap: balance; overflow-wrap: anywhere; line-height: 1.12;
-  font-size: max(9px, calc(var(--dname-k, 1) * 14.5cqw)); font-weight: 700; color: rgba(232, 244, 240, .9); text-shadow: 0 1px 2px #000;
+  font-size: max(9px, calc(var(--dname-k, 1) * var(--dtile, 1.9rem) * .145)); font-weight: 700; color: rgba(232, 244, 240, .9); text-shadow: 0 1px 2px #000;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .55) 32%, rgba(0, 0, 0, .78)); }
 .dband__name:lang(ja) { line-break: strict; }
 .dband__name:lang(ko) { word-break: keep-all; }
@@ -228,7 +253,7 @@
 .dband.is-taken:hover { filter: none; box-shadow: 0 0 0 .03rem #5a2a26, inset 0 0 0 .02rem #000; }
 .dband.is-taken:active { transform: none; }
 .dband__taken { position: absolute; left: .07rem; right: .07rem; bottom: .07rem; height: 36%; display: grid; place-items: center; pointer-events: none;
-  font-size: max(9px, min(calc(.21 * var(--t)), 17cqw)); font-weight: 700; letter-spacing: .04em; white-space: nowrap; color: #ff9d90;
+  font-size: max(9px, min(calc(.21 * var(--t)), calc(var(--dtile, 1.9rem) * .17))); font-weight: 700; letter-spacing: .04em; white-space: nowrap; color: #ff9d90;
   background: linear-gradient(180deg, rgba(140, 20, 16, .35), rgba(176, 26, 20, .88)); box-shadow: inset 0 -.03rem 0 #ff4a3a, 0 0 .16rem rgba(255, 60, 40, .25);
   animation: dband-taken 420ms var(--pg-ease) backwards; }
 @keyframes dband-taken { from { opacity: 0; transform: scaleY(.2); filter: brightness(2); } }

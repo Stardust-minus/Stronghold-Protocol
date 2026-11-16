@@ -27,7 +27,8 @@
 // Search (2026-11-16, 「再加一个搜索框，可以输入搜索对应策略」): a box in the step header, over the wall, filters it by name,
 // effect name, bond and, in Chinese, pinyin initials (ui/bandSearch.js); the wall keeps its size while it filters.
 // Size (「策略整体放大一点，不要出现省略号」): a narrower order column and tighter gaps give the portraits about a tenth more;
-// a name wraps at a size taken from its tile, never ending in an ellipsis.
+// a name wraps at a size taken from its tile, never ending in an ellipsis. A doctor's name in the order is whole too (「Doctor…」
+// once the detail pane narrowed the list): the client's best fit on its line to a readable floor, then wrapped (fitNameBox).
 // 本局信息 (GitHub #8 item 1 and #484): the step header's entry beside the difficulty opens the briefing's leader, battlefield,
 // special enemies (ui/matchEnemies.js), bond rows, legend and 本局禁用干员 again, read-only (MatchInfoDialog).
 // The draft runs on underneath: its status line repeats the current turn and the countdown (draftInfoStatus),
@@ -62,7 +63,7 @@ import { StepHeader, ExitModal } from '../ui/matchChrome.js';
 import { bondPlanOpen, playerPlan, planLine, BondPlanTags, BondPlanDialog } from '../ui/bondPlan.js';
 import { MatchInfoDialog, matchInfoModel, MatchBondDialog, regulationCoreAbsent } from '../ui/matchInfo.js';
 import { useRise } from '../ui/transitions.js';
-import { useFitBox, fitTileBox, fitRowBox } from '../ui/fitGrid.js';
+import { useFitBox, fitTileBox, fitRowBox, fitNameBox } from '../ui/fitGrid.js';
 import { NameCardLayer } from '../ui/namecards.js';
 import { MatchName } from '../ui/ownerName.js';
 import { TrophyBadge } from '../ui/trophies.js';
@@ -383,13 +384,18 @@ function OrderRow({ p, i, picked, cur, self, solo, art, card, gd, onPeek, held =
   // a free draft: the doctor's choice not locked yet (my own opens its detail pane, a teammate's is peeked)
   const hband = !picked && held ? gd.band(held) : null;
   const nc = !p.isBot && card?.bg ? card.bg : null;
+  // the name whole (the owner, 2026-11-16: no ellipsis): best-fit on its line, past a readable floor wrapped (ui/fitGrid.js
+  // fitNameBox; the column's resize re-fits it — the detail pane narrowing the list, 文字大小)
+  const textRef = useRef(null);
+  const shown = p.name || t('博士');
+  useFitBox(textRef, fitNameBox, [shown, Number.isSafeInteger(card?.trophies), !!p.isBot]);
   return html`<div class=${cx('dorder', cur && 'is-cur', picked && 'is-done', self && 'is-self', flash && 'is-flash')} style=${`--i:${i}`}>
     <div class=${cx('dorder__card', nc && 'has-nc')}>
       ${nc ? html`<${NameCardLayer} card=${nc} y=${card?.bgY} x=${card?.bgX} zoom=${card?.bgZoom} />` : null}
       ${art && !nc ? html`<span class="dorder__art" style=${`background-image:url("${art}")`} aria-hidden="true"></span>` : null}
       <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} />${self ? html`<span class="dorder__me" title=${t('我')}><${Icon} name="user" /></span>` : null}</span>
-      <div class="dorder__text">
-        <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<${MatchName} player=${p} name=${p.name || t('博士')} />${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
+      <div class="dorder__text" ref=${textRef}>
+        <b class="dorder__name">${p.isBot ? null : html`<${TrophyBadge} count=${Number.isSafeInteger(card?.trophies) ? card.trophies : null} class="tbadge--inline" />`}<span class="dorder__nm"><${MatchName} player=${p} name=${p.name || t('博士')} /></span>${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
         <span class="dorder__state">${picked ? html`<span class="t-mint">${pband?.name || t('已选择')}</span>`
           : hband ? html`<span class="t-gold">${t('{name} · 未锁定', { name: hband.name })}</span>`
           : cur ? html`<span class="t-gold">${t('决策中')}</span>` : html`<span class="t-dim">${t('等待中')}</span>`}</span>

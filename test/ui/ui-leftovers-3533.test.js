@@ -55,11 +55,11 @@ test('the other event screens at a big 文字大小: 成就统计\'s banner, the
   assert.match(block(brief, '@media (max-height: 640px) {'), /:root\[data-text="xl"\] \.stephead__micro \{ display: none; \}/);
   assert.match(readFileSync(path.join(ROOT, 'public/js/ui/matchEnemies.js'), 'utf8'), /<b>\$\{slashBreaks\(name\)\}<\/b>/);
   const draft = block(css('public/css/screens/draft.css'), '@media (max-height: 520px) {');
-  // 2026-11-16 (the owner: 「不要出现省略号」): 已被选择 and a strategy's name are sized off the tile (cqw) at every height —
+  // 2026-11-16 (the owner: 「不要出现省略号」): 已被选择 and a strategy's name are sized off the tile (--dtile, no container query) at every height —
   // 已被选择 on one line, the name wrapping, balanced, never clamped or cut with an ellipsis
   const draftBase = css('public/css/screens/draft.css');
-  assert.match(draftBase, /\n\.dband__taken \{[^}]*font-size: max\(9px, min\(calc\(\.21 \* var\(--t\)\), 17cqw\)\);[^}]*white-space: nowrap;/);
-  assert.match(draftBase, /\n\.dband__name \{[^}]*white-space: normal; text-wrap: balance; overflow-wrap: anywhere;[^}]*font-size: max\(9px, calc\(var\(--dname-k, 1\) \* 14\.5cqw\)\);/);
+  assert.match(draftBase, /\n\.dband__taken \{[^}]*font-size: max\(9px, min\(calc\(\.21 \* var\(--t\)\), calc\(var\(--dtile, 1\.9rem\) \* \.17\)\)\);[^}]*white-space: nowrap;/);
+  assert.match(draftBase, /\n\.dband__name \{[^}]*white-space: normal; text-wrap: balance; overflow-wrap: anywhere;[^}]*font-size: max\(9px, calc\(var\(--dname-k, 1\) \* var\(--dtile, 1\.9rem\) \* \.145\)\);/);
   assert.doesNotMatch(draftBase, /line-clamp/);
   for (const rule of draftBase.match(/\n\.dband[^{]*\{[^}]*\}/g)) assert.doesNotMatch(rule, /ellipsis/, `no ellipsis on a strategy card: ${rule.slice(0, 60)}`);
   assert.match(draft, /\.draft\.has-status \.stephead__name \{ display: none; \}/);

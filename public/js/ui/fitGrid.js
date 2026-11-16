@@ -8,7 +8,8 @@
 //     counts of sections, each starting a row: 规程's 泛用型 / 盟约型 strategies under their full-row headers) the rows add
 //     up per section; the headers' own height the caller takes off `h` (fitTileBox `head`).
 //   * fitRowHeight: `n` rows in a column whose other content (pool heads, gaps, paddings) keeps its height.
-// Used by screens/bandDraft.js (.draft-grid: --dcols / --dtile; .draft-order__rows: --drh).
+//   * fitNameScale: a doctor's name on its order row, whole (the owner, 2026-11-16: no ellipsis) — the client's best fit.
+// Used by screens/bandDraft.js (.draft-grid: --dcols / --dtile; .draft-order__rows: --drh; .dorder__name: --nk).
 
 import { useEffect } from '../../vendor/hooks.module.js';
 
@@ -53,6 +54,75 @@ export function fitRowHeight(n, boxH, contentH, rowH, min, max) {
 
 const px = (v) => parseFloat(v) || 0;
 const rootPx = () => px(globalThis.getComputedStyle?.(document.documentElement).fontSize) || 16;
+
+/**
+ * A doctor's name: `k` of its size or `floorPx`, whichever is larger (never above its size: a phone at 文字大小 小 keeps
+ * its size and wraps), is the readable floor of the one-line fit. A wrapped name whose row is too short for its column
+ * may go `squeeze` of the way under that floor, never under `minPx` (a phone's own size at 小), when that brings the
+ * whole column inside its card. [ASSUMED] the four values.
+ */
+export const NAME_FIT = Object.freeze({ k: 0.72, floorPx: 11, minPx: 8, squeeze: 0.85 });
+
+/**
+ * The scale of a doctor's name on its order row (pure). The client's player card (prefab_auto_chess_band_choose_player_card_item
+ * text_name: BestFit from 18 down, one 30-unit line) shrinks the name until it fits; ours does so down to NAME_FIT's floor and
+ * wraps past it, at the floor. px in. `room`: the width the row leaves the name beside the trophy and the AI tag; `need`: the
+ * name's one-line width at `base` (the 服主 tag beside it included); `own`: the name's text alone (the tag keeps its size).
+ * @param {{ room: number, need: number, own?: number, base: number }} m
+ * @returns {{ scale: number, wrap: boolean }}
+ */
+export function fitNameScale({ room, need, own = need, base }) {
+  // half a pixel of rounding is no overflow
+  if (!(need > room + 0.5) || !(own > 0) || !(base > 0)) return { scale: 1, wrap: false };
+  const floor = Math.max(NAME_FIT.k * base, Math.min(base, NAME_FIT.floorPx));
+  // a pixel to spare: the widths are rounded, and a hair too wide would wrap the last letter
+  const scale = (room - 1 - Math.max(0, need - own)) / own;
+  if (scale * base >= floor) return { scale: Math.min(1, scale), wrap: false };
+  return { scale: floor / base, wrap: true };
+}
+
+/**
+ * Fit the name of an order row's text column (.dorder__text, as wide as its card leaves it; fitNameScale): measured on one
+ * line at its size, it gets --nk and data-fit="one" (shrunk on its line) or "wrap" (at the floor, wrapping, the trophy
+ * scaled with it) on .dorder__name. A wrapped name whose column outgrows its card (a phone's short row) steps down half a
+ * pixel at a time, to NAME_FIT.squeeze of its floor (not under minPx), if that brings the column inside; else (大 / 特大 on
+ * a phone, where the state line and the plan are large too) it keeps its floor and the column sits at the card's top
+ * (data-over): the card cuts the lines under the name, never the name; only a name taller than the card by itself steps
+ * down further, to NAME_FIT.minPx. Without a measure the CSS wraps it at its size (css/screens/draft.css).
+ * @param {HTMLElement} el
+ */
+export function fitNameBox(el) {
+  const row = el.querySelector('.dorder__name');
+  const nm = row?.querySelector('.dorder__nm');
+  if (!row || !nm) return;
+  row.dataset.fit = 'measure';
+  row.style.removeProperty('--nk');
+  delete el.dataset.over;
+  const cs = getComputedStyle(row);
+  const base = px(cs.fontSize);
+  const kids = [...row.children];
+  const width = (k) => { const s = getComputedStyle(k); return k.getBoundingClientRect().width + px(s.marginLeft) + px(s.marginRight); };
+  const others = kids.reduce((sum, k) => (k === nm ? sum : sum + width(k)), 0);
+  const room = row.getBoundingClientRect().width - others - px(cs.columnGap) * Math.max(0, kids.length - 1);
+  const need = nm.getBoundingClientRect().width;
+  const own = (nm.querySelector('.sp-owner-name') || nm).getBoundingClientRect().width;
+  const { scale, wrap } = fitNameScale({ room, need, own, base });
+  if (scale < 1) row.style.setProperty('--nk', scale.toFixed(4));
+  row.dataset.fit = wrap ? 'wrap' : 'one';
+  const card = el.closest('.dorder__card');
+  if (!wrap || !card) return;
+  const roomH = card.clientHeight - 2;
+  const min = Math.min(base, NAME_FIT.minPx);
+  const set = (size) => row.style.setProperty('--nk', (size / base).toFixed(4));
+  if (el.offsetHeight <= roomH) return;
+  for (let size = scale * base - 0.5, low = Math.max(min, NAME_FIT.squeeze * scale * base); size >= low; size -= 0.5) {
+    set(size);
+    if (el.offsetHeight <= roomH) return;
+  }
+  set(scale * base);
+  el.dataset.over = '1';
+  for (let size = scale * base - 0.5; row.offsetHeight > roomH && size >= min; size -= 0.5) set(size);
+}
 
 /**
  * Size a wall of square tiles (the element's children) to its box: sets --dcols and --dtile (px) on `el`. Children that
