@@ -37,13 +37,17 @@ const BY_NAME = {
   'Torappu/Particles-L2D/Dissolve/Dissolve AB (VertexColor Major)': 'dissolveVc', 'Torappu/Particles-L2D/Dissolve/Dissolve Add (VertexColor Major)': 'dissolveVc',
   'Torappu/Particles/Dissolve/Dissolve AB Double': 'dissolveDouble', 'Torappu/Particles/Dissolve/Dissolve Add Double': 'dissolveDouble',
   'Torappu/Particles/Dissolve/Dissolve Double': 'dissolveDouble', 'Torappu/Particles-L2D/Dissolve/Dissolve AB Double': 'dissolveDouble',
-  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double': 'dissolveDouble', 'Torappu/Particles-L2D/Dissolve/Dissolve AB Double edge': 'dissolveDouble',
-  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double edge': 'dissolveDouble',
+  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double': 'dissolveDouble', 'Torappu/Particles-L2D/Dissolve/Dissolve AB Double edge': 'dissolveDoubleEdge',
+  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double edge': 'dissolveDoubleEdge',
   'Torappu/Particles/Dissolve/Dissolve(CustomData)': 'dissolveCd', 'Torappu/Particles-L2D/Dissolve/Dissolve(CustomData)': 'dissolveCd',
   'Torappu/Particles/ZDistort/Dissolve(CustomData)': 'dissolveCd',
   'Torappu/Particles/Disturb/Disturb Origin': 'disturbOrigin',
   'Torappu/Particles-L2D/Disturb/Disturb (Add)': 'disturbOrigin', 'Torappu/Particles-L2D/Disturb/Disturb (AlphaBlend)': 'disturbOrigin',
-  'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': 'disturbOrigin', 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)': 'disturbOrigin',
+  // the 动态立绘 scenes' own L2D shaders (spike/dyn-fx-20261116)
+  'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': 'disturb2', 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)': 'disturb2',
+  'Torappu/Particles-L2D/Mask/Erase': 'erase', 'Hidden/Particles-L2D/Dissolve/Dissolve AB Double edge': 'dissolveDoubleEdge',
+  'Hidden/Particles-L2D/Dissolve/Dissolve Add Double edge': 'dissolveDoubleEdge',
+  'Torappu/Particles-L2D/Disturb/Disturb GrabPass': 'grab', 'Torappu/Particles-L2D/Disturb/Disturb GrabPassOnce': 'grab',
   'Torappu/Particles/Disturb/Disturb Anchor': 'disturbAnchor', 'Torappu/Particles-L2D/Disturb/Disturb Anchor (Add)': 'disturbAnchor',
   'Torappu/Particles-L2D/Disturb/Disturb Anchor (AlphaBlend)': 'disturbAnchor',
   'Torappu/Particles/Disturb/Disturb(CustomData)': 'disturbCd', 'Torappu/Particles-L2D/Disturb/Disturb(CustomData)': 'disturbCd',
@@ -125,6 +129,10 @@ export function compileMaterial(m, opts = {}) {
   };
   const queue = typeof m?.queue === 'number' ? m.queue : m?.queue === 'Geometry' ? 2000 : m?.queue === 'AlphaTest' ? 2450 : m?.queue === 'Overlay' ? 4000 : 3000;
   const defs = { cvs: kw.has('_HGCUSTOMVERTEXSTREAM_ON') || num(floats._HGCustomVertexStream, 0) > 0.5, weight: kw.has('_WEIGHT_ON') || num(floats._Weight, 0) > 0.5, lite };
-  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}`;
+  // the L2D variants (spike/dyn-fx-20261116): Add vs AlphaBlend arithmetic, Disturb2's Glow mode, GrabPass's custom data
+  defs.add = / Add\b|\(Add\)/.test(String(m?.shader || ''));
+  defs.glow = kw.has('_DISTURBMODE_GLOW') || num(floats._DisturbMode, 0) > 0.5;
+  if (family === 'grab') defs.cvs = kw.has('_CUSTOMDATA_ON') || num(floats._CUSTOMDATA, 0) > 0.5;
+  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}`;
   return { name: m?.name || '', shader: m?.shader || '', family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
 }

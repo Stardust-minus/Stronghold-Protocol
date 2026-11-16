@@ -25,6 +25,8 @@ export const PAGE = 4096;
 export const MAX_STEP = 0.25;
 
 const views = new Set();
+/** SPIKE (spike/dyn-fx-20261116): the official scene's effects around the Spine (ui/dynFx.js) when ?dynfx=1. */
+const dynFxOn = () => { try { return !!globalThis.__dynfx || /[?&]dynfx=1(?:&|$)/.test(globalThis.location?.search || ''); } catch { return false; } };
 let P = null, renderer = null, stage = null, raf = 0, last = 0, lost = false, booting = null, limit = PAGE, contexts = 0;
 const env = () => globalThis;
 
@@ -137,8 +139,14 @@ async function load(v) {
     }
     const frame = dynamicFrame(v.entry);
     const container = new P.Container(); container.addChild(actor);
-    let layers = 0;
-    if (v.backdrop) {
+    let layers = 0, scene = null;
+    if (v.backdrop && dynFxOn()) {
+      const fxm = await import('./dynFx.js');
+      const sd = await fxm.loadScene(fxm.sceneKeyOf(v.entry));
+      if (v.gone) return;
+      if (sd) { scene = new fxm.DynScene(P, sd, actor); container.addChild(scene.view); }
+    }
+    if (v.backdrop && !scene) {
       for (const [url, front] of [[v.entry.background, false], [v.entry.foreground, true]]) {
         if (!url) continue;
         const image = await assets.image(url);
@@ -156,7 +164,7 @@ async function load(v) {
     const mask = new P.Graphics();
     container.mask = mask;
     stage.addChild(container, mask);
-    Object.assign(v, { actor, container, mask, bounds: b, frame, layers, dirty: true, cell: null });
+    Object.assign(v, { actor, container, mask, bounds: b, frame, layers, dirty: true, cell: null, scene });
     schedule();
   } catch (e) {
     if (!v.gone) v.onState?.('fallback', e);
@@ -181,7 +189,7 @@ function tick(now) {
   const draw = [];
   for (const v of views) {
     if (!v.actor || !v.canvas || !(v.canvas.width > 0 && v.canvas.height > 0)) continue;
-    if (v.playing !== false) { v.actor.update(dt); v.dirty = true; }
+    if (v.playing !== false) { v.actor.update(dt); v.scene?.update(dt); v.dirty = true; }
     if (v.dirty) draw.push(v);
   }
   if (draw.length) {
@@ -237,11 +245,12 @@ export function stopView(v) {
   if (!v || v.gone) return;
   v.gone = true; views.delete(v);
   try {
+    v.scene?.destroy();
     if (v.container) { stage?.removeChild(v.container); v.container.destroy({ children: true, texture: false, baseTexture: false }); }
     if (v.mask) { stage?.removeChild(v.mask); v.mask.destroy(); }
   } catch { /* a lost context: the objects are gone with it */ }
   if (v.acquired) v.release?.();
-  v.container = v.actor = v.mask = null;
+  v.container = v.actor = v.mask = v.scene = null;
   if (!views.size) last = 0;
 }
 
