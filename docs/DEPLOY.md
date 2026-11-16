@@ -643,7 +643,7 @@ Docker 镜像一起提供（`data/versions/`）。**不设置时五个版本都�
   3. （可选）入口机的默认路由加上 `rto_min 50ms quickack 1`，例如 `ip route change default via <网关> dev <网卡> proto static rto_min 50ms quickack 1`（IPv6 同理）。丢包时卡顿的尾部还能再减半：2 条连接加上它，约等于不加时的 3 条。Netplan 写不了这两个路由属性，本服入口用一个开机和每 2 分钟检查一次的 systemd 定时器重新应用。
 
   本服的 `deploy/stardust/tools/prepare-dual-ingress-proxy.mjs` 生成的上游块已经带第 1 条的哈希（`--replace-prepared` 也认旧的 `least_conn` 块）；`deploy/stardust/nginx/ark-proto.conf` 已改成 192（3 条）。
-- **网络质量监测**：页面每分钟上报一次本页测到的心跳往返、多连接副本晚到、连接替换和掉线时间（docs/LATENCY.md「Network quality reports」）。服务器按运营商和省份汇总，在 `/healthz` 的 `netq` 里给出。按运营商和省份分要设 `SP_ISP_FILE`，指向 `node tools/isp-table.mjs --out <文件>` 生成的表（约 600 KB，每月更新一次即可）；不设时全部算作「未识别」。不保存任何玩家、会话或 IP。
+- **网络质量监测**：页面每分钟上报一次本页测到的心跳往返、多连接副本晚到、连接替换和掉线时间（docs/LATENCY.md「Network quality reports」）。服务器按运营商和省份汇总，在 `/healthz` 的 `netq` 里给出。按运营商和省份分要设 `SP_ISP_FILE`，指向 `node tools/isp-table.mjs --out <文件>` 生成的表（约 600 KB，每月更新一次即可）；不设时全部算作「未识别」，启动日志有一行 `[netq] no ISP table`。集群里设在**协调器**上（页面的 `net.q` 走控制连接，由协调器汇总；游戏节点不用设），表文件只读挂进协调器容器；客户端地址用入口 Nginx 转发的 `X-Real-IP`（ingress 只采信私网 / 回环来源的转发头，经 ingress link 也保留）。省份表只有 IPv4：IPv6 的页面有运营商、没有省份。表只在启动时读一次，换表要重启协调器。不保存任何玩家、会话或 IP。
 - **成本**：对局下行字节数和连接数按条数成倍增加（每多 1 条，每人多约 5 kbit/s；3 条时多约 11 kbit/s），每条多一份 TLS 状态、一条 Nginx 上游连接和 ingress 上的一个压缩上下文（约 144 KiB）。附加连接在第一条建好后随机等 0.5–3 秒再建，发版后集体重连时握手不会一下翻倍。
 
 ## 13. 断点续玩：重启后接着打（可选，Valkey）

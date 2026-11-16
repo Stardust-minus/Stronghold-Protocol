@@ -57,7 +57,7 @@ test('dashboard: a public-dashboard-compatible, Chinese, dark, 1 min / 6 h board
   assert.deepEqual(dashboard.annotations, { list: [] });
   assert.equal(dashboard.editable, false);
   assert.match(ini, /^default_theme = dark$/m);
-  assert.deepEqual(dashboard.panels.filter((p) => p.type === 'row').map((p) => p.title), ['玩家', '游戏服务', '济南入口']);
+  assert.deepEqual(dashboard.panels.filter((p) => p.type === 'row').map((p) => p.title), ['玩家', '游戏服务', '重庆入口']);
   const ids = dashboard.panels.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length, 'unique panel ids');
   for (const p of dashboard.panels) {
@@ -130,8 +130,15 @@ test('network-quality board: public-dashboard-compatible, known series only (rec
   const nginx = fs.readFileSync(new URL('../../nginx/ark-proto.conf', import.meta.url), 'utf8');
   assert.match(nginx, /location = \/monitor\/net \{ include \S+\/monitor-net-entry\.conf; \}/, '/monitor/net leads to it');
   assert.match(nginx, /location = \/monitor\/net\/ \{ include \S+\/monitor-net-entry\.conf; \}/, '/monitor/net/ (trailing slash) too');
-  assert.match(netqBoard.panels[0].options.content, /\(\/monitor\/\)/, 'it links the status board');
-  assert.match(dashboard.panels.find((p) => p.type === 'text').options.content, /\(\/monitor\/net\)/, 'the status board links it');
+  // Grafana's SPA takes over a click on a same-site <a> without a target (a markdown link too): it strips the sub path
+  // and routes /net in the browser — 「找不到Page」, no request reaches Nginx (11-16). target="_self" loads the page.
+  const statusText = dashboard.panels.find((p) => p.type === 'text').options.content;
+  assert.ok(netqBoard.panels[0].options.content.includes('<a href="/monitor/" target="_self">'), 'it links the status board');
+  assert.ok(statusText.includes('<a href="/monitor/net" target="_self">'), 'the status board links it');
+  for (const p of [...dashboard.panels, ...netqBoard.panels].filter((p) => p.type === 'text')) {
+    assert.doesNotMatch(p.options.content, /\]\(\//, `panel ${p.id}: no markdown link to a site path (Grafana would route it)`);
+    for (const a of p.options.content.match(/<a [^>]*>/g) || []) assert.match(a, /target="_(?:self|blank)"/, `panel ${p.id}: ${a}`);
+  }
   assert.equal(netqBoard.editable, false);
   assert.deepEqual(netqBoard.templating, { list: [] });
   const ids = netqBoard.panels.map((p) => p.id);
