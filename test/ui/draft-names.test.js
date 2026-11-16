@@ -79,7 +79,7 @@ test('the order row measures its name and the stylesheet never cuts it', () => {
 // whole name, no ellipsis): the same best fit — one line shrunk to the floor —, past it wrapped at the floor between words;
 // a word breaks inside only when it alone is wider than the tile at the floor. The browser check: mock.e2e 「选择策略 on
 // 640×360 / 667×375 phones」 (test/e2e/text-fit.mjs wordWider).
-test('fitBandNameScale: one line shrunk to the floor, then wrapped between words; a word breaks only past the floor', () => {
+test('fitBandNameScale: one line shrunk to the floor, then wrapped between words; a word too wide goes a little under it, then breaks', () => {
   // 1920 (a 122 px name box, 21.2 px, .06em paddings): a name that fits keeps its size on one line
   assert.deepEqual(fitBandNameScale({ box: 122, pad: 2.5, line: 100, word: 100, base: 21.2 }), { scale: 1, mode: 'one' });
   // a little too long: shrunk on its line, a pixel to spare (its paddings shrink with it)
@@ -92,13 +92,25 @@ test('fitBandNameScale: one line shrunk to the floor, then wrapped between words
   const r = fitBandNameScale({ box: 87, pad: 1.8, line: 200, word: 60, base: 15.1 });
   near(r.scale * 15.1, 11, '1366 floor');
   assert.equal(r.mode, 'wrap');
-  assert.equal(fitBandNameScale({ box: 87, pad: 1.8, line: 200, word: 130, base: 15.1 }).mode, 'break');
-  // a phone's 9 px tile (39 px box): 11 px is above its size, so it keeps 9 px — 「클레멘티아」 (41 px) breaks, two short
-  // words wrap between them; a word a pixel too wide runs into its padding rather than break
-  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 41, word: 41, base: 9 }), { scale: 1, mode: 'break' });
+  // a word wider than the box there goes on under the floor, whole (to 85 % of it, 9.4 px), as a doctor's wrapped name does;
+  // wider even then, it breaks, at the floor
+  const q = fitBandNameScale({ box: 87, pad: 1.8, line: 200, word: 130, base: 15.1 });
+  near(q.scale, 88 / 131.8, 'under the floor');
+  assert.equal(q.mode, 'wrap');
+  const b = fitBandNameScale({ box: 87, pad: 1.8, line: 200, word: 150, base: 15.1 });
+  near(b.scale * 15.1, 11, 'a break at the floor');
+  assert.equal(b.mode, 'break');
+  // a phone's 9 px tile (39 px box): 11 px is above its size, so it keeps 9 px — two short words wrap between them; a word a
+  // pixel too wide runs into its padding rather than break; 「클레멘티아」 (41 px) goes under it, not under 8 px (8.56 px),
+  // 「에르망가르드」 (50 px, 7 px would do) breaks at 9 px
   assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 60, word: 30, base: 9 }), { scale: 1, mode: 'wrap' });
   assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 60, word: 38.9, base: 9 }), { scale: 1, mode: 'wrap' });
-  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 60, word: 39, base: 9 }), { scale: 1, mode: 'break' });
+  const k = fitBandNameScale({ box: 39, pad: 1.08, line: 41, word: 41, base: 9 });
+  near(k.scale, 40 / 42.08, '클레멘티아');
+  assert.equal(k.mode, 'wrap');
+  near(fitBandNameScale({ box: 39, pad: 1.08, line: 60, word: 39, base: 9 }).scale, 40 / 40.08, 'a hair too wide');
+  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 50, word: 50, base: 9 }), { scale: 1, mode: 'break' });
+  assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 44.5, word: 44.5, base: 9 }), { scale: 1, mode: 'break' }, 'under 8 px');
   // half a pixel into the padding is no overflow
   assert.deepEqual(fitBandNameScale({ box: 39, pad: 1.08, line: 38.4, base: 9 }), { scale: 1, mode: 'one' });
 });

@@ -29,8 +29,8 @@
 // Size (「策略整体放大一点，不要出现省略号」): a narrower order column and tighter gaps give the portraits about a tenth more;
 // a name is sized from its tile and never ends in an ellipsis. A doctor's name in the order is whole too (「Doctor…」 once the
 // detail pane narrowed the list): the client's best fit on its line to a readable floor, then wrapped (fitNameBox); a
-// strategy's name on its tile likewise, wrapped between words only — a word breaks only when it alone is wider than the
-// tile at the floor (fitBandNames; Korean 「에르망가|르드」 on a phone, mock.e2e).
+// strategy's name on its tile likewise, wrapped between words only — a word too wide at the floor goes a little under it,
+// and breaks only when it alone is wider than the tile even there (fitBandNames; Korean 「에르망가|르드」 on a phone, mock.e2e).
 // 本局信息 (GitHub #8 item 1 and #484): the step header's entry beside the difficulty opens the briefing's leader, battlefield,
 // special enemies (ui/matchEnemies.js), bond rows, legend and 本局禁用干员 again, read-only (MatchInfoDialog).
 // The draft runs on underneath: its status line repeats the current turn and the countdown (draftInfoStatus),

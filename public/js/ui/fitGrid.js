@@ -131,7 +131,8 @@ export function fitNameBox(el) {
  * name not broken inside a word, 「에르망가|르드」 on a phone): the best fit of a doctor's name (fitNameScale, NAME_FIT) —
  * on one line, shrunk to a readable floor (72 % of its size or 11 px, never above its size: a phone's 9 px keeps its
  * size); past the floor it wraps, at the floor, between words only (Korean keep-all, Japanese at its ・: css/screens/draft.css);
- * only a word wider than the tile at the floor may break inside ('break'). px in, at the name's own size `base`: `box`, the
+ * a word wider than the tile at the floor may go NAME_FIT.squeeze of the way under it (not under minPx), words still whole;
+ * only one wider even there breaks inside ('break', at the floor). px in, at the name's own size `base`: `box`, the
  * name box's width (it spans the tile); `pad`, its side paddings (in em: they scale with it); `line`, the name on one line;
  * `word`, its widest piece that may not break (the min-content width under the language's rules).
  * @param {{ box: number, pad?: number, line: number, word?: number, base: number }} m
@@ -145,12 +146,18 @@ export function fitBandNameScale({ box, pad = 0, line, word = line, base }) {
   const one = (box - 1) / (line + pad);
   if (one >= floor) return { scale: Math.min(1, one), mode: 'one' };
   // a word may run a pixel into its padding rather than break (less than that is the widths' rounding)
-  return { scale: floor, mode: word * floor > box - pad * floor + 1 ? 'break' : 'wrap' };
+  if (!(word * floor > box - pad * floor + 1)) return { scale: floor, mode: 'wrap' };
+  // a word wider than the tile at the floor goes on under it, as a doctor's wrapped name does (fitNameBox): down to
+  // NAME_FIT.squeeze of the floor, never under minPx (「클레멘티아」, 「Mulberry」 a pixel or three too wide); past that it
+  // breaks, at the floor (「에르망가르드」 on a phone)
+  const squeezed = (box + 1) / (word + pad);
+  if (squeezed >= Math.max(NAME_FIT.squeeze * floor, Math.min(base, NAME_FIT.minPx) / base)) return { scale: squeezed, mode: 'wrap' };
+  return { scale: floor, mode: 'break' };
 }
 
 /**
  * Fit the names of a wall's tiles (.dband__name, fitBandNameScale): each gets --bk (its scale) and data-fit "one" (one
- * line), "wrap" (at the floor, words whole) or "break" (a word wider than the tile at the floor breaks inside, as the
+ * line), "wrap" (at the floor or a little under it, words whole) or "break" (a word wider than the tile even there breaks inside, as the
  * unmeasured CSS does). Measured in three passes over all of them — a layout each, not one per tile —, from computed
  * widths (the tiles' entry animation scales them: rectangles would be off): the box at its size on one line ("measure"),
  * the line ("measure-line", max-content) and the widest piece ("measure-word", min-content, words whole). A hidden name

@@ -230,8 +230,9 @@
    phone, 「에르망가|르드」): the best fit of a doctor's name — data-fit="one", shrunk by --bk on one line to a readable floor
    (72 % of its size or 11 px, never above its size: a phone's 9 px keeps it); "wrap" past the floor, at the floor, between
    words only (Korean keep-all; Japanese keep-all too, at its ・ — 「イオレッタ・/ラッセル」, not 「イオレッ/タ・ラッセル」 —
-   strict); "break" only for a word wider than the tile at the floor (anywhere, as unmeasured; Japanese then between its
-   kana, strict). measure / measure-line / measure-word: the fit's own passes (its size, one line, the widest piece). */
+   strict) — a word wider than the tile at the floor takes "wrap" a little under it (to 85 % of the floor, not under 8 px:
+   「클레멘티아」 on a phone); "break" only for a word wider even there (at the floor, anywhere, as unmeasured; Japanese then
+   between its kana, strict). measure / measure-line / measure-word: the fit's own passes (its size, one line, the widest piece). */
 .dband__name[data-fit] { font-size: calc(var(--bk, 1) * max(9px, calc(var(--dname-k, 1) * var(--dtile, 1.9rem) * .145))); }
 .dband__name:is([data-fit="one"], [data-fit="measure"], [data-fit="measure-line"]) { white-space: nowrap; }
 .dband__name:is([data-fit="wrap"], [data-fit="measure-word"]) { overflow-wrap: normal; }
