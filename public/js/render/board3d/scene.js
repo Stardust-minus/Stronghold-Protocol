@@ -599,9 +599,13 @@ export class BoardScene {
     const key = `backdrop:${plan.kind}:${plan.material}`;
     let mat = res.mats.get(key);
     if (!mat) {
-      // no lightmap page: the scene's key light and the ambient term, like act2 m01's square
+      // no lightmap page: the scene's key light and the ambient term, like act2 m01's square. An untextured land's colour
+      // is taken down to the shade of the lightmapped ground beside it: lit in full, m09's (0.78, 0.86, 0.95) read as a white
+      // hole at the board's edge. [ASSUMED] 0.7.
+      const c = plan.kind === 'colour' ? plan.info.colors._Color : null;
+      const info = c ? { ...plan.info, colors: { ...plan.info.colors, _Color: [c[0] * 0.7, c[1] * 0.7, c[2] * 0.7, c[3] ?? 1] } } : plan.info;
       mat = sceneMaterial(T, {
-        map: plan.map ? res.tex[plan.map] || null : null, lightMap: null, info: plan.info,
+        map: plan.map ? res.tex[plan.map] || null : null, lightMap: null, info,
         light: pack.doc?.light || null, lightRange: pack.doc?.lightRange, lightEncoding: pack.doc?.lightEncoding,
       }, this.focus);
       mat.side = T.DoubleSide;
