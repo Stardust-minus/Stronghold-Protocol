@@ -112,7 +112,7 @@ const castable = (u) => activeSkill(u) && u.skill.ready && !u.skill.active && u.
 /** Trigger rules whose cast asks no target of its own ("不需要目标"): at full SP, a kit's own cast, a hit taken. */
 const NO_TARGET_RULES = new Set(['SP_FULL', 'NEVER', 'TAKE_DAMAGE']);
 /** The rules the engine checks on their own range every tick (skills.js TICK_RULES but SP_FULL). */
-const RANGE_RULES = new Set(['SEARCH', 'CUSTOM_RANGE', 'SKILL_RANGE', 'ACTIVE_RANGE', 'GDGLOW_SKILL_2']);
+const RANGE_RULES = new Set(['SEARCH', 'CUSTOM_RANGE', 'SKILL_RANGE', 'ACTIVE_RANGE', 'AUTO_RANGE', 'GDGLOW_SKILL_2']);
 /**
  * "满足目标条件" (PRTS S2 备注): the target condition the engine asks of an automatic cast of `u`'s skill — the range rules'
  * own check (skills.js `_tickRuleSatisfied`), else DEFAULT's: an enemy in the initial range or one it blocks, a heal skill

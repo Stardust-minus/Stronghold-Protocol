@@ -7,7 +7,10 @@ import {
 } from '../shared/tier4.js';
 
 export default withDefaults({
-  // ===== 泥岩 (unyield) S2 岩崩锤 — next attack: heal 4 %, 190 % phys to all ground enemies around, 30 % stun; talents
+  // ===== 泥岩 (unyield) S2 岩崩锤 — next attack: heal 4 %, 190 % phys to all ground enemies around, 30 % stun; cast as soon
+  //       as a ground enemy is on its x-4 (AUTO_RANGE: the client's skill prefab triggers it by its own target selector —
+  //       1 ground enemy in the skill range, not extendable —, not by her attack; the owner's decision of 2026-11-16,
+  //       docs/history/0.3.3.md §36.21); talents
   //       S1 防御力强化·γ型 (TAKE_DAMAGE); S3 秽壤的血脉 (10 s dormant — PRTS 备注 "实际将会进入闭锁状态": 闭锁 = 强制缴械 +
   //       无敌 + 不可阻挡 (PRTS 异常效果: SHELTERING; 不可阻挡 BLOCK_FREE "无法阻挡/被阻挡，自动解除阻挡") — she makes no attack,
   //       takes no damage and blocks nobody: the enemies she held walk on (flag noBlock — "keeps blocking" until 0.2.0
@@ -52,6 +55,8 @@ export default withDefaults({
       }),
       skill: {
         kind: 'instant',
+        // AUTO_RANGE on the skill range (skills.js): the cast waits for a ground enemy there, not for an attack of hers
+        trigger: { rule: 'AUTO_RANGE', grid: g },
         targeting: { rangeGrid: g, allInRange: true, canHitFly: false },
         attack: {
           atkScale: num(bb.atk_scale, 1.9), groundOnly: true,
