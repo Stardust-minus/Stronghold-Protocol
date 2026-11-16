@@ -1,8 +1,9 @@
 // Settings → 界面主题. The same dialog on the title, in the lobby and in a match (ui/settings.js).
-// Import stays on this device. Switching calls selectTheme, which paints immediately.
+// Import stays on this device. Switching calls selectTheme, which paints immediately. An installed official pack is
+// fetched first (prepareTheme): its card says 载入中… meanwhile, and 使用中 moves once it is painted.
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { html, Button, Icon, MicroLabel, confirmDialog } from './components.js';
+import { html, Button, Icon, MicroLabel, Spinner, confirmDialog } from './components.js';
 import { t } from '../../../shared/i18n.js';
 import { THEME_LIMITS } from '../../../shared/uiTheme.js';
 import {
@@ -10,6 +11,10 @@ import {
 } from '../uiTheme.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
+
+// The latest 使用 wins, across dialogs too: a pack still loading when 设置 is closed is applied all the same (selectTheme
+// is module state, not the dialog's), unless a later 使用 — the built-in's stays live during a load — took over.
+let pickSeq = 0;
 
 function packFailText(code) {
   switch (code) {
@@ -68,6 +73,10 @@ export function ThemeSection({ activeId = '' }) {
   const [report, setReport] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
+  /** the card whose pack is loading (prepareTheme), or null */
+  const [loading, setLoading] = useState(/** @type {string | null} */ (null));
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
   const refresh = () => setCards(themeCards());
 
   useEffect(() => {
@@ -108,17 +117,22 @@ export function ThemeSection({ activeId = '' }) {
     try { show(await importThemeFiles(list)); } finally { setBusy(false); }
   };
   const useTheme = async (id) => {
+    const seq = ++pickSeq;
     setBusy(true);
+    setLoading(id || null);
     try {
       const prepared = await prepareTheme(id);
-      if (!prepared.ok) {
-        if (prepared.code !== 'missing') setNotice('broken');
-        refresh();
-        return;
-      }
-      selectTheme(id);
+      if (seq !== pickSeq) return;
+      if (prepared.ok) selectTheme(id);
+      if (!mounted.current) return; // 设置 closed meanwhile: the pick is applied, this dialog is gone
+      if (!prepared.ok && prepared.code !== 'missing') setNotice('broken');
       refresh();
-    } finally { setBusy(false); }
+    } finally {
+      if (mounted.current && seq === pickSeq) {
+        setBusy(false);
+        setLoading(null);
+      }
+    }
   };
   const remove = async (card) => {
     const ok = await confirmDialog({
@@ -163,7 +177,8 @@ export function ThemeSection({ activeId = '' }) {
       ${cards.map((card) => {
         const on = activeId === card.id;
         const title = card.official ? t(card.name) : card.name;
-        return html`<article key=${card.official ? `official:${card.id}` : card.id} class=${cx('theme-card', on && 'is-on', card.official && 'is-official')} data-theme-id=${card.id} data-official=${card.official ? '1' : '0'}>
+        const wait = !on && loading === card.id;
+        return html`<article key=${card.official ? `official:${card.id}` : card.id} class=${cx('theme-card', on && 'is-on', card.official && 'is-official')} data-theme-id=${card.id} data-official=${card.official ? '1' : '0'} aria-busy=${wait ? 'true' : undefined}>
           ${card.thumbnailUrl
             ? html`<img class="theme-card__thumb" src=${card.thumbnailUrl} alt="" />`
             : html`<span class="theme-card__thumb" aria-hidden="true">${(title || '?').slice(0, 1)}</span>`}
@@ -176,7 +191,9 @@ export function ThemeSection({ activeId = '' }) {
           <div class="theme-card__actions">
             ${on
               ? html`<span class="theme-card__using">${t('使用中')}</span>`
-              : html`<${Button} variant="secondary" size="sm" disabled=${busy} onClick=${() => useTheme(card.id)}>${t('使用')}<//>`}
+              : wait
+                ? html`<${Spinner} size="sm" class="theme-card__loading" label=${t('载入中…')} />`
+                : html`<${Button} variant="secondary" size="sm" disabled=${busy} onClick=${() => useTheme(card.id)}>${t('使用')}<//>`}
             ${card.official && !card.imported ? null : html`<${Button} variant="ghost" size="sm" disabled=${busy} onClick=${() => remove(card)}>${t('删除')}<//>`}
           </div>
         </article>`;

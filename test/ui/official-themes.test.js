@@ -6,10 +6,10 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createThemeLibrary } from '../../public/js/uiTheme.js';
+import { OFFICIAL_FETCH_CONCURRENCY, createThemeLibrary, officialFetchInit } from '../../public/js/uiTheme.js';
 import { characterAnimName } from '../../shared/uiTheme.js';
 import {
-  assessTheme, installedOfficialThemes, officialAssetUrl, officialThemeById, themePathsOf,
+  WIRED_IMAGE_SLOTS, assessTheme, installedOfficialThemes, officialAssetUrl, officialThemeById, themePathsOf,
 } from '../../shared/uiTheme.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -197,4 +197,81 @@ test('loading an official pack resolves blob pictures and keeps the spine URL', 
   assert.equal(pack.character.spine.atlas, `${prefix}/spine/trap.atlas`);
   assert.deepEqual(pack.character.anims.voice, { cn_014: 'Interact' });
   assert.equal(await lib.remove('ac_n_initial'), false);
+});
+
+// 「界面主题 点击使用后不会变更选项，需要刷新才能生效」 (the owner, 2026-11-16): the files went one after another.
+test('an official pack is fetched a few files at a time, kept in its order, and one load serves every caller', async () => {
+  const group = 'themes/ac_n_iron';
+  const prefix = '/assets/local/themes/ac_n_iron';
+  const slots = WIRED_IMAGE_SLOTS.slice(0, 16);
+  const doc = {
+    spTheme: 1,
+    id: 'ac_n_iron',
+    name: '乌萨斯齐心团',
+    description: '同心协力。',
+    thumbnail: 'thumb.webp',
+    images: Object.fromEntries(slots.map((slot) => [slot, `sprites/${slot}.webp`])),
+    voice: { AUTOCHESS_FREEZE: ['voice/a.mp3', 'voice/b.mp3', 'voice/c.mp3', 'voice/d.mp3'] },
+  };
+  const rels = themePathsOf(doc);
+  // every file a different length, so a blob URL (`blob:test/<size>`) names the file it came from
+  const bytes = { [`${prefix}/theme.json`]: new TextEncoder().encode(JSON.stringify(doc)) };
+  rels.forEach((rel, i) => { bytes[`${prefix}/${rel}`] = new Uint8Array(i + 1).fill(i); });
+  const manifest = { groups: { [group]: {} } };
+  for (const url of Object.keys(bytes)) manifest.groups[group][url.slice(`${prefix}/`.length)] = { path: url };
+  const asked = [];
+  let live = 0;
+  let peak = 0;
+  let measuring = 0;
+  let measurePeak = 0;
+  const later = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const lib = createThemeLibrary({
+    openDb: async () => { throw new Error('no IndexedDB'); },
+    measure: async () => {
+      measurePeak = Math.max(measurePeak, ++measuring);
+      await later(10);
+      measuring -= 1;
+      return { ok: true, width: 16, height: 16 };
+    },
+    createUrl: (blob) => `blob:test/${blob.size}`,
+    revokeUrl: () => {},
+    fetchImpl: async (url, init) => {
+      asked.push([url, init?.cache]);
+      const body = bytes[url];
+      if (!body) return { ok: false, status: 404 };
+      peak = Math.max(peak, ++live);
+      await later(Math.max(1, 30 - body.length)); // the later files answer first
+      live -= 1;
+      return {
+        ok: true,
+        status: 200,
+        text: async () => new TextDecoder().decode(body),
+        arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength),
+      };
+    },
+  });
+  const row = officialThemeById('ac_n_iron');
+  const [first, second] = await Promise.all([lib.loadOfficial(row, manifest), lib.loadOfficial(row, manifest)]);
+  assert.equal(first.ok, true, first.code);
+  assert.deepEqual(second, first);
+  assert.equal(asked.length, rels.length + 1, 'each file once for both callers');
+  assert.equal(new Set(asked.map(([url]) => url)).size, asked.length);
+  assert.equal(peak, OFFICIAL_FETCH_CONCURRENCY, 'the files overlap, at most OFFICIAL_FETCH_CONCURRENCY at once');
+  assert.ok(measurePeak > 1 && measurePeak <= OFFICIAL_FETCH_CONCURRENCY, `pictures measured in parallel (${measurePeak})`);
+  assert.ok(asked.every(([, cache]) => cache === 'no-cache'), 'plain paths are revalidated');
+  const pack = lib.get('ac_n_iron');
+  const sizeOf = (rel) => rels.indexOf(rel) + 1;
+  for (const slot of slots) assert.equal(pack.images[slot]?.url, `blob:test/${sizeOf(`sprites/${slot}.webp`)}`, slot);
+  assert.deepEqual(pack.voice.AUTOCHESS_FREEZE, doc.voice.AUTOCHESS_FREEZE.map((rel) => `blob:test/${sizeOf(rel)}`));
+  assert.equal(pack.thumbnailUrl, `blob:test/${sizeOf('thumb.webp')}`);
+  // the load is over: a later call fetches again
+  asked.length = 0;
+  assert.equal((await lib.loadOfficial(row, manifest)).ok, true);
+  assert.equal(asked.length, rels.length + 1);
+});
+
+test('only a content-hashed official file may come from the browser cache', () => {
+  assert.deepEqual(officialFetchInit('/assets/~0123456789abcdef/local/themes/ac_n_iron/sprites/bg.webp'), { cache: 'default' });
+  assert.deepEqual(officialFetchInit('/assets/local/themes/ac_n_iron/sprites/bg.webp'), { cache: 'no-cache' });
+  assert.deepEqual(officialFetchInit('/assets/~0123/local/themes/ac_n_iron/theme.json'), { cache: 'no-cache' });
 });
