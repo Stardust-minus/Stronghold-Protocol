@@ -27,12 +27,12 @@
    our bottom-left controls at five slots. The scale is a transform, so the deploy fold's scale(.7) still applies. */
 .shopbar--reg .shopbar__cluster {
   display: flex; flex-direction: column; align-items: flex-end;
-  max-width: 100%; pointer-events: none;
+  max-width: none; pointer-events: none;
   --reg-k-max: 1.3;
   transform: scale(var(--reg-k, var(--reg-k-max))); transform-origin: bottom right;
 }
 .shopbar--reg .shopbar__row {
-  width: max-content; max-width: 100%;
+  width: max-content; max-width: none;
   align-items: flex-end; justify-content: center;
   gap: .06rem; padding: 0;
   background: transparent; border: 0; box-shadow: none;
@@ -44,6 +44,8 @@
 
 /* Freeze (blue) and refresh (gold) sit on the right end of the group. */
 .shopbar--reg .shopbar__tools { gap: .06rem .08rem; }
+/* 刷新's price hex rides 62 % above its plate (root_cost on the plate's top edge): the 剩余可放置角色 line keeps clear of it */
+.shopbar--reg .shopbar__remain { margin-bottom: .1rem; }
 .shopbar--reg .toolbtn {
   position: relative; overflow: visible;
   justify-content: center; gap: .04rem;
@@ -407,11 +409,11 @@
 
 /* 展开 sits where the shop folded away: the right edge, as the covenant tab does. */
 
-/* The right detail card ends above the 规程 shop: its top (剩余可放置角色 included) is 4.36rem up at the full 1.3×, 2.84rem on a
-   short landscape phone (gameLogic/panel.js PANEL_RIGHT_BOTTOM_SHOP_REG / _SHORT). It used to stop at the 盟约 bar's 3.78rem, so the
-   armed card's raised bar covered the card's stats and the 冻结 / 刷新 buttons sat on it. */
-.gm.gm--reg .dpanel--right.is-shop { bottom: 4.44rem; }
-@media (max-height: 430px) { .gm.gm--reg .dpanel--right.is-shop { bottom: 2.92rem; } }
+/* The right detail card ends above the 规程 shop: its top (剩余可放置角色 and the room under it for 刷新's price included) is
+   ~4.5rem up at the full 1.3× — on a phone too, which now keeps the prefab sizes and scale (gameLogic/panel.js
+   PANEL_RIGHT_BOTTOM_SHOP_REG). It used to stop at the 盟约 bar's 3.78rem, so the armed card's raised bar covered the card's
+   stats and the 冻结 / 刷新 buttons sat on it. */
+.gm.gm--reg .dpanel--right.is-shop { bottom: 4.6rem; }
 
 /* Bond discs under the middle of the top bar. The discs stay the hit targets. */
 .gm.gm--reg .gm__bonds {
@@ -420,24 +422,28 @@
   transform: translateX(-50%);
 }
 
-/* Short landscape (844×390 → 1rem = 40px). One row of 1.55rem cards is 62px and fits;
-   wrap is the overflow safety. Touch targets stay at least --tap-min. */
-@media (max-width: 900px) {
-  .shopbar--reg .shopbar__cluster { width: 100%; --reg-k-max: 1; }
-  .shopbar--reg .shopbar__row,
-  .shopbar--reg .shopbar__cards,
-  .shopbar--reg .shopbar__rwcards { flex-wrap: wrap; justify-content: center; }
-  .shopbar--reg .shopbar__row { width: 100%; }
-}
-@media (max-height: 430px) {
+/* Narrow or short screens: no growth past the prefab size; useRegFit shrinks the one row to the room right of the corner
+   (it used to wrap and scroll inside 46vh, and still slid under the corner buttons). */
+@media (max-width: 900px), (max-height: 430px) {
   .shopbar--reg .shopbar__cluster { --reg-k-max: 1; }
-  .shopbar--reg .shopbar__row {
-    max-height: 46vh; overflow-x: hidden; overflow-y: auto;
-  }
-  .shopbar--reg .scard { width: 1.2rem; height: 1.45rem; }
-  /* the upgrade stage at the cards' height (1.45 / 1.9) */
-  .shopbar--reg .lvcard.lvcard--up { --up-k: .763; }
-  .shopbar--reg .funds.funds--reg { --fw: 1.4rem; --fh: 1.6rem; }
+}
+/* Phones (css/devices.css's phone block: a short touch screen, or narrower than 768 px). That block sizes the covenant
+   shop — 80 × 112 px cards, a 56 px funds column, a bar narrowed and kept clear of the corner by its max-width — and its
+   rules reached the 规程 shop as well: the cards took the covenant card's 5 : 7 (the prefab layers are laid on 155 × 187,
+   so the frame, the name bar and the bonds stretched apart), the character card shrank to a stub with 收起 over the
+   character, and the bar, anchored left, put the level box under the bottom-left buttons (the owner 2026-11-16 UI 大修).
+   Here the 规程 shop keeps the desktop's prefab sizes and scale: up to 1.3× (a card ~64 px wide at the phone's 32 px
+   root, as wide as the covenant card), shrunk by useRegFit to the room right of the corner. */
+@media (max-height: 600px) and (pointer: coarse), (max-width: 767px) {
+  .gm .shopbar.shopbar--reg { max-width: none; }
+  .gm .shopbar--reg .shopbar__cluster { --reg-k-max: 1.3; }
+  .gm .shopbar--reg .shopbar__row { gap: .06rem; padding: 0; max-height: none; overflow: visible; }
+  .gm .shopbar--reg .shopbar__cards,
+  .gm .shopbar--reg .shopbar__rwcards { gap: .06rem; padding: 0; overflow: visible; flex-wrap: nowrap; }
+  .gm .shopbar--reg .shopbar__item { gap: 0; padding-left: .06rem; }
+  .gm .shopbar .scard.scard--reg { width: 1.55rem; height: 1.87rem; }
+  .gm .shopbar--reg .funds.funds--reg { align-self: auto; }
+  .gm .shopbar--reg .shopbar__remain { margin-bottom: .14rem; }
 }
 .sp-coarse .shopbar--reg .toolbtn,
 .sp-coarse .shopbar--reg .funds__collapse,

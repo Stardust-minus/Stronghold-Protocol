@@ -37,7 +37,7 @@ export function panelSlots(vp, rem, { shopOpen = false, reg = false } = {}) {
   const R = rem > 0 ? rem : 100;
   const top = R * 2.1;
   const leftH = Math.min(R * 8.4, H - top - R * 1.02);
-  const shopInset = !reg ? PANEL_RIGHT_BOTTOM_SHOP : H <= 430 ? PANEL_RIGHT_BOTTOM_SHOP_REG_SHORT : PANEL_RIGHT_BOTTOM_SHOP_REG;
+  const shopInset = !reg ? PANEL_RIGHT_BOTTOM_SHOP : PANEL_RIGHT_BOTTOM_SHOP_REG;
   const rightBottom = H - R * (shopOpen ? shopInset : PANEL_RIGHT_BOTTOM);
   return {
     left: { left: X + R * 2.3, right: X + R * (2.3 + 4.9), top: Y + top, bottom: Y + top + leftH },
@@ -48,9 +48,9 @@ export function panelSlots(vp, rem, { shopOpen = false, reg = false } = {}) {
 export const PANEL_RIGHT_GAP = 0.9;
 export const PANEL_RIGHT_BOTTOM = 1.02;
 export const PANEL_RIGHT_BOTTOM_SHOP = 3.78;
-/** The same above the 规程 shop (css/screens/game-reghud.css .gm--reg .dpanel--right.is-shop; a ≤ 430px high viewport: _SHORT). */
-export const PANEL_RIGHT_BOTTOM_SHOP_REG = 4.44;
-export const PANEL_RIGHT_BOTTOM_SHOP_REG_SHORT = 2.92;
+/** The same above the 规程 shop (css/screens/game-reghud.css .gm--reg .dpanel--right.is-shop), on a phone too: the 规程 shop
+ * keeps its prefab sizes there (2026-11-16 UI 大修; a short viewport used to have its own 2.92rem for 1.2rem cards). */
+export const PANEL_RIGHT_BOTTOM_SHOP_REG = 4.6;
 
 /** Bond popup geometry (rem; keep in sync with css/screens/game-panels.css .bpop / .bpop--*). */
 export const BPOP = Object.freeze({ width: 5.4, top: 2.1, bottomGap: 0.3, left: 2.3, beside: 7.32, besideR: 5.92, right: 0.9 });

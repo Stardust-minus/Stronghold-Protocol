@@ -540,9 +540,12 @@ function FundsChar({ character }) {
 }
 
 /**
- * 规程: the shop cluster grows leftwards with its slots. Its scale (css --reg-k-max, 1.3 on a desktop) shrinks towards 1
- * so the cluster never runs under the bottom-left corner buttons (.gm__corner): five operator slots, the equipment slot,
- * the level box and the character card are wider than 1.3× allows at 16:9. A narrow screen keeps its own --reg-k-max (1).
+ * 规程: the shop cluster grows leftwards with its slots. Its scale (css --reg-k-max: 1.3 on a desktop, 1 on a narrow or
+ * short screen) shrinks so the cluster never runs under the bottom-left corner buttons (.gm__corner): five operator
+ * slots, the equipment slot, the level box and the character card are wider than 1.3× allows at 16:9. Below 1 too
+ * (down to --reg-k-min, 0.5): a phone's row is wider than the room right of the corner, and the cluster used to stay at
+ * 1× and slide its level box under the corner buttons (the owner 2026-11-16 UI 大修). The cluster is laid out at its
+ * natural width (no max-width) so offsetWidth is the row it needs.
  */
 function useRegFit(clusterRef, on) {
   useLayoutEffect(() => {
@@ -550,15 +553,17 @@ function useRegFit(clusterRef, on) {
     if (!on || !el) return undefined;
     const fit = () => {
       try {
-        const kMax = parseFloat(getComputedStyle(el).getPropertyValue('--reg-k-max')) || 1;
+        const cs = getComputedStyle(el);
+        const kMax = parseFloat(cs.getPropertyValue('--reg-k-max')) || 1;
+        const kMin = Math.min(kMax, parseFloat(cs.getPropertyValue('--reg-k-min')) || 0.5);
         const corner = document.querySelector('.gm__corner');
         const host = el.parentElement;
         const w = el.offsetWidth;
-        if (kMax <= 1 || !corner || !host || !w) { el.style.removeProperty('--reg-k'); return; }
+        if (!corner || !host || !w) { el.style.removeProperty('--reg-k'); return; }
         const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 100;
         const right = host.getBoundingClientRect().right - (parseFloat(getComputedStyle(host).paddingRight) || 0);
         const avail = right - corner.getBoundingClientRect().right - 0.12 * rem;
-        el.style.setProperty('--reg-k', String(Math.max(1, Math.min(kMax, avail / w)).toFixed(3)));
+        el.style.setProperty('--reg-k', String(Math.max(kMin, Math.min(kMax, avail / w)).toFixed(3)));
       } catch { /* layout not ready */ }
     };
     fit();
