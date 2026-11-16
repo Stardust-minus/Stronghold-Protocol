@@ -251,14 +251,23 @@ html[data-sp-slot~="prep_ready"]:not([data-sp-slice~="prep_ready"]) .readybtn:no
 
 /* 9-slice, its centre filled from the picture: 卫戍协议终端's ready_bg is a solid plate (48×49, 23-unit slices, a teal centre).
    Without `fill` the centre showed the button's dark background — a black band across 准备就绪 wherever the button is
-   taller than its two slices (1920×1080 and up). */
+   taller than its two slices (1920×1080 and up). The filled plate is a frame on ::before as the other sliced boxes' (§37.204:
+   only a ::before frame fills), behind the label, reaching out over the button's transparent border (border-image-outset).
+   (卫戍协议终端 itself draws its pack's panel_prep_ready since the 2026-11-16 overhaul: this is a pack without prefabs.json, or
+   a custom theme.) */
 html[data-sp-slice~="prep_ready"] .readybtn:not(.readybtn--pf) {
-  border-style: solid;
-  border-width: var(--sp-slice-px-prep_ready);
+  position: relative; isolation: isolate;
+  border-style: solid; border-width: var(--sp-slice-px-prep_ready); border-color: transparent;
+  background: transparent; box-shadow: none;
+}
+html[data-sp-slice~="prep_ready"] .readybtn:not(.readybtn--pf)::before {
+  content: ''; position: absolute; inset: 0; width: auto; height: auto; transform: none; z-index: -1; pointer-events: none;
+  border: 0 solid transparent;
   border-image-source: var(--sp-img-prep_ready);
   border-image-slice: var(--sp-slice-prep_ready) fill;
+  border-image-width: var(--sp-slice-px-prep_ready);
+  border-image-outset: var(--sp-slice-px-prep_ready);
   border-image-repeat: stretch;
-  background: transparent; box-shadow: none;
 }
 html[data-sp-slice~="prep_ready"] .readybtn:not(.readybtn--pf):hover:not(:disabled) { background: transparent; filter: brightness(1.08); }
 html[data-sp-slice~="chess_frame_normal"] .scard.scard--t1,
