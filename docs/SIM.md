@@ -1142,7 +1142,7 @@ flag alters movement or 失衡.
   `tools/build-data.mjs resolveTrigger`: charId rows by skill index; the class rows (重装 / 执旗手 / 战术家 / 吟游者 / 解放者 /
   阵法术师) for **every MANUAL skill** of the class; SKILL_RANGE for a MANUAL skill with a 技能范围 of its own; ACTIVE_RANGE
   for a MANUAL skill on the basic strategy or the SEARCH row whose running attack range strictly contains the own range;
-  AUTO skills take no row — they keep their own rule, DEFAULT or a kit override): `DEFAULT` — the basic strategy: ready
+  AUTO skills take no row — they keep their own rule, DEFAULT, AUTO_RANGE or a kit override): `DEFAULT` — the basic strategy: ready
   **and** about to attack/heal **and** an enemy (heal skills: an injured ally) inside the **initial** range
   (`unit.baseRangeKeys`: its own grid + its permanent rangeExtend — "攻击范围扩大" modules/talents as persist never-expiring
   `rangeExtend` buffs; no skill range, no temporary extend, no extra keys) or blocked by the melee unit — or, checked
@@ -1176,6 +1176,15 @@ flag alters movement or 失衡.
   `TAKE_DAMAGE` — ready and just hit (重装: "不受技能范围影响，受到伤害时释放技能"; in the data every MANUAL 重装 skill but
   the six of DESIGN §21.29 — 深巡 / 雷蛇 S2, 号角 S2 / S3, 灰毫 S1 / S2 — which are `DEFAULT`, a deliberate deviation (深巡
   S2 then `ACTIVE_RANGE` on its 3-2), and 余 S2 厚礼上宾, `SKILL_RANGE` on its own x-1 since DESIGN §22.10);
+  `AUTO_RANGE` — never in the data (feedback #156, DESIGN §36.21): the DEFAULT condition (an enemy the unit can target — its
+  own `canHitFly` —, or one it blocks) on the skill's own 技能范围 every tick, no attack needed, the range never grown by
+  攻击距离 — the client's trigger of such a skill (1 ground enemy in the skill range). The engine sets it for an operator's
+  AUTO skill on the data's DEFAULT with no kit trigger whose cast is an action of its own (an instant / charge cast with
+  no `attack` override or `targeting`, not a heal) on a 技能范围 of its own (`def.rangeGrid`) that reaches past the unit's
+  own range — in the data of every version only 乌尔比安 S1 必须促成的接触 (its 3-2 over his 1-1); a kit sets it
+  (`trigger: { rule: 'AUTO_RANGE', grid }`) for a "next attack" whose client prefab carries that trigger — 泥岩 S2 岩崩锤
+  on its x-4 (the owner's decision of 2026-11-16; the cast arms the slam, her next attack hits every ground enemy of the
+  x-4); the other AUTO next attacks with a 技能范围 (瑕光 S1, 锏 S1, 维娜·维多利亚 S1, 推进之王 S2) have none and keep DEFAULT;
   `SP_FULL` (`ALWAYS`) — immediately;
   `CUSTOM_RANGE` — an enemy inside `trigger.customRangeGrid` (rotated by the unit direction like every grid); `SEARCH` — an
   enemy inside the INITIAL range, checked every tick (no attack needed: "不受基础策略影响，在初始攻击范围内存在敌人时释放技能");

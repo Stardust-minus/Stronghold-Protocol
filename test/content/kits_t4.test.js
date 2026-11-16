@@ -743,6 +743,32 @@ test('泥岩 S2: after 5 hits the next attack heals 4 % and deals 190 % phys to 
   checkInvariants(h.b);
 });
 
+test('泥岩 S2 opens on a ground enemy of its x-4 alone (AUTO_RANGE, the owner 2026-11-16): no attack, nothing in her 1-1, never a flyer', () => {
+  for (const id of ['chess_char_4_18_a', 'chess_char_4_18_b']) {
+    const bb = D(id).skill.bb;
+    const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy(), enemy_air: dummy({ key: 'enemy_air', motion: 'FLY' }) } },
+      units: [{ chessId: id, row: 10, col: 5 }], timeLimit: 60, hooks: ['damaged'], captureNoisy: true, seed: 6 });
+    h.step();
+    const u = h.unit(id);
+    assert.equal(u.skill.rule, 'AUTO_RANGE', id);
+    assert.deepEqual(u.skill.triggerGrid, u.def.skill.rangeGrid, 'the trigger grid is the skill range');
+    u.skill.gainSp(1000);
+    // a flyer on a tile around her (inside the x-4) and a ground enemy two tiles ahead (past it): the client's trigger
+    // asks 1 ground enemy in the skill range — before the fix the basic strategy waited for an enemy in her 1-1
+    const air = h.spawn('enemy_air', { pos: [11, 6] });
+    h.spawn('enemy_dummy', { pos: [10, 7] });
+    h.run(2.5);
+    assert.equal(u.skill.activations, 0, `${id}: a flyer around her and a ground enemy beyond the x-4 do not open it`);
+    const side = h.spawn('enemy_dummy', { pos: [9, 6] }); // diagonal: inside the x-4, outside her 1-1, not blocked
+    assert.ok(h.runUntil(() => u.skill.activations > 0, 2), `${id}: opened once a ground enemy is in the x-4`);
+    assert.ok(h.runUntil(() => dmgBy(h, u, (c) => c.dmg.isSkill && c.target === side).length > 0, u.s.interval + 0.5), `${id}: the slam lands on it`);
+    approx(dmgBy(h, u, (c) => c.target === side)[0].amount, u.s.atk * bb.atk_scale, 1e-6);
+    assert.equal(dmgBy(h, u, (c) => !c.dmg.isSkill).length, 0, 'no attack of her own was needed');
+    assert.equal(dmgBy(h, u, (c) => c.target === air).length, 0, 'never on the flyer');
+    checkInvariants(h.b);
+  }
+});
+
 test('焰尾 S3: +8 DP over the skill, 60 % dodge, block +1; 前锋剑术 riposte after a dodge; 卡西米尔 aura +22 % dodge', () => {
   const id = 'chess_char_4_19_a', bb = D(id).skill.bb, t1 = D(id).talents[1].bb;
   const h = makeBattle({ defs: { enemies: { enemy_hitter: dummy({ key: 'enemy_hitter', atk: 200, bat: 0.5 }) } }, flags: { dpPerSec: 0 },

@@ -233,7 +233,9 @@
 //     its battle, an alive human seat without an accepted substantive intent (common.js AFK_ACTIONS) since the previous
 //     check gains an idle round, one with such an intent — or under AI 托管, or disconnected, at that moment — resets
 //     to 0 (a dropped seat is left to the disconnect policy above: the reconnect window decides; the first
-//     check counts from the match start: strategy draft, 机变). At afkRemoveRounds the seat is removed like a departed
+//     check counts from the match start: strategy draft, 机变); a seat that could not have made such an intent at the
+//     check (PlayerState afkCanAct: no funds for anything, nothing owned, no offer or choice — 老鲤's rounds 1–2,
+//     feedback #164) keeps its count, unwarned. At afkRemoveRounds the seat is removed like a departed
 //     human: m.removed { reason: 'afk', rounds } to it, m.notice { kind: 'afkRemoved', playerId, name, rounds } to
 //     everyone else in the match (spectator seats included), opts.onRemove, onLeave (MatchPlatform._checkIdle).
 //   * 投票移出 (the owner's rule of 2026-10-17, kickVote.js): in SP_DRAFT / PREP the connected humans may vote out a seat

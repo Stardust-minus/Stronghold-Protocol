@@ -20,6 +20,14 @@
 //   strictly contains the unit's own range checks the DEFAULT condition on that larger range (trigger grid = the running
 //   range, grown by the unit's permanent rangeExtend unless the skill ignores 攻击距离), every tick, no attack needed —
 //   an enemy the unit can target there (or one it blocks), a heal skill an injured ally;
+//   AUTO_RANGE — never in the data (feedback #156, 2026-11-16): the DEFAULT target condition (an enemy the unit can target,
+//   or one it blocks) on the skill's own 技能范围, every tick, no attack needed, never grown by 攻击距离 — the client's own
+//   trigger of such a skill (1 ground enemy in the skill range, range not extendable; docs/history/0.3.3.md §36.21). Set
+//   by the engine for an operator's AUTO skill whose cast is an action of its own — an instant / charge cast that is not
+//   the next attack (no `spec.attack`, no `targeting`), not a heal, no kit trigger, the data's DEFAULT — on a 技能范围
+//   (def.rangeGrid) that reaches past the unit's range (乌尔比安 S1 必须促成的接触, its 3-2); a "next attack" whose client
+//   prefab carries that trigger sets it in its kit (`trigger: { rule: 'AUTO_RANGE', grid }` — 泥岩 S2 岩崩锤 on its x-4,
+//   the owner's decision of 2026-11-16); the next attacks without one (瑕光 S1, 锏 S1 …) keep DEFAULT;
 //   TAKE_DAMAGE (ready + just took a hit: 重装 "不受技能范围影响，受到伤害时释放技能"), SP_FULL/ALWAYS (as soon as ready),
 //   CUSTOM_RANGE (enemy inside the custom trigger grid), SEARCH (an enemy inside the INITIAL range, checked every tick
 //   without waiting for an attack: "不受基础策略影响，在初始攻击范围内存在敌人时释放技能" — not any enemy on the field,
@@ -57,7 +65,13 @@ import { AUTO_OP_COOLDOWN, COLS, ROWS } from './constants.js';
 import { boundedCount } from '../../shared/plugins/limits.js';
 import { fieldCap } from '../../shared/plugins/officialBounds.js';
 
-const TICK_RULES = new Set(['SP_FULL', 'SEARCH', 'CUSTOM_RANGE', 'SKILL_RANGE', 'ACTIVE_RANGE', 'GDGLOW_SKILL_2']);
+const TICK_RULES = new Set(['SP_FULL', 'SEARCH', 'CUSTOM_RANGE', 'SKILL_RANGE', 'ACTIVE_RANGE', 'AUTO_RANGE', 'GDGLOW_SKILL_2']);
+/** Grid `a` ([dRow, dCol] pairs) has a tile that grid `b` lacks (AUTO_RANGE: a 技能范围 past the unit's own range). */
+function reachesBeyond(a, b) {
+  if (!Array.isArray(a) || !a.length) return false;
+  const own = new Set((Array.isArray(b) ? b : []).map((p) => `${p[0]},${p[1]}`));
+  return a.some((p) => !own.has(`${p[0]},${p[1]}`));
+}
 /** True when a SkillSpec `targeting` changes the unit's range while the skill runs (Battle._refreshRange). */
 const changesRange = (tg) => !!(tg && (tg.rangeGrid || tg.rangeExtend || tg.noRangeExtend));
 /** Enemies that satisfy a content trigger range (any targetable enemy, flyers included). */
@@ -110,6 +124,14 @@ export class SkillRuntime {
     this.healSkill = s.heal ?? (unit.profile && unit.profile.dmgType === 'heal' && !!unit.profile.heal);
     // the official skill strategies automate the manual 开启: only MANUAL skills wait for the operation cooldown
     this.manual = String(d.skillType ?? 'MANUAL').toUpperCase() === 'MANUAL';
+    // AUTO_RANGE (feedback #156, see the header): an operator's AUTO cast of its own on a 技能范围 that reaches past the
+    // unit's range — the data's DEFAULT, no kit trigger — looks for its target there instead of waiting for an attack
+    if (!s.trigger && this.rule === 'DEFAULT' && String(d.skillType ?? '').toUpperCase() === 'AUTO' && unit.kind === 'op'
+      && !this.isTimed && this.kind !== 'passive' && !s.attack && !s.targeting && !this.healSkill
+      && reachesBeyond(d.rangeGrid, unit.def?.rangeGrid ?? unit.rangeGrid)) {
+      this.rule = 'AUTO_RANGE';
+      this.triggerGrid = d.rangeGrid;
+    }
     this.opReadyAt = -Infinity;   // no automatic cast before this battle time (AUTO_OP_COOLDOWN)
     this.nextCastAt = -Infinity;  // instant / charges with no attack of its own: no cast from the tick before (GitHub #298)
     if (this.kind === 'passive') this.baseSpCost = 0;
@@ -485,6 +507,8 @@ export class SkillRuntime {
       return b.anyEnemyInKeys(this._triggerKeys(), u) || this._allyTargetIn(this._trigSet);
     }
     if (this.rule === 'ACTIVE_RANGE') return this._defaultCondition(this.triggerGrid ? this._triggerKeys() : null);
+    // AUTO_RANGE: the same target condition on the skill's own range (not grown by 攻击距离: _triggerKeys)
+    if (this.rule === 'AUTO_RANGE') return this._defaultCondition(this._triggerKeys());
     // GDGLOW_SKILL_2 "全场存在可选目标时释放技能": a targetable enemy anywhere (heal skill: an ally that needs healing)
     if (this.rule === 'GDGLOW_SKILL_2') {
       if (this.healSkill) return b.injuredAlliesInKeys(ALL_TILES, u, !!u.profile?.heal?.elementHealRatio).length > 0;

@@ -256,6 +256,20 @@ test('泥岩: a broken 沃土予身 layer returns 1 SP on 第一期 elite and no
   assert.equal(talentSp(TODAY, 'chess_char_4_18_b'), 0);
 });
 
+test('泥岩 S2 岩崩锤 opens by AUTO_RANGE on its x-4 in every version: 第一期 chess 6_16, 第二期上半 4_18, the 规程 自选 form', (t) => {
+  t.after(() => setGameData(null));
+  for (const [data, entry, label] of [[ACT1, { chessId: 'chess_char_6_16_a', skillIndex: 1 }, '第一期'], [V21, { chessId: 'chess_char_4_18_b', skillIndex: 1 }, 'V2_1'],
+    [V31, { diy: { slot: 6, charId: 'char_311_mudrok', skillIndex: 1 } }, '规程 自选']]) {
+    setGameData(data);
+    const h = makeBattle({ data: new DataSource(data), seed: 1, timeLimit: 5, autoFinish: false, units: [{ ...entry, row: 10, col: 4 }] });
+    h.step();
+    const u = h.b.allies().find((x) => x.kind === 'op');
+    assert.equal(u?.skill?.id, 'skchr_mudrok_2', label);
+    assert.equal(u.skill.rule, 'AUTO_RANGE', label);
+    assert.deepEqual(u.skill.triggerGrid, u.def.skill.rangeGrid, `${label}: on the skill range`);
+  }
+});
+
 test('异客 RA-A: V2_1 module 004 multiplies by 1.2, today\'s full potential by 1.25', (t) => {
   const dealt = (data) => {
     setGameData(data);

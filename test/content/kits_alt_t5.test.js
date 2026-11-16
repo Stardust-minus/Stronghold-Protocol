@@ -410,6 +410,31 @@ test('乌尔比安 S1 必须促成的接触: the anchor drags up to 2 enemies ar
   }
 });
 
+test('乌尔比安 S1 opens on a ground enemy of its 3-2 alone (AUTO_RANGE, feedback #156): no attack, no enemy in his range', () => {
+  for (const id of pair('05')) {
+    // a ground enemy 3 tiles ahead: inside the skill's 3-2 (cols 3–6), outside his 1-1 (cols 3–4) — before the fix the
+    // basic strategy waited for an enemy in his own range and the anchor was never thrown
+    const h = run({
+      defs: { enemies: { enemy_dummy: dummy('enemy_dummy'), enemy_air: dummy('enemy_air', { motion: 'FLY' }) } },
+      units: [entry(id, 'skchr_ulpia_1', { row: 10, col: 3 })],
+      enemies: [{ key: 'enemy_air', pos: [10, 5] }, { key: 'enemy_dummy', pos: [10, 7] }, { key: 'enemy_dummy', pos: [10, 6], time: 3 }],
+    });
+    const u = sel(h, id, 'skchr_ulpia_1');
+    assert.equal(u.skill.rule, 'AUTO_RANGE');
+    assert.deepEqual(u.skill.triggerGrid, u.def.skill.rangeGrid, 'the trigger grid is the skill range');
+    u.skill.gainSp(1000);
+    // a flyer in the 3-2 and a ground enemy past it: nothing to throw at (the client's trigger: 1 ground target)
+    h.run(2.5);
+    assert.equal(u.skill.activations, 0, `${id}: a flyer and an enemy beyond the 3-2 do not open it`);
+    assert.ok(h.runUntil(() => u.skill.activations > 0, 2), `${id}: opened once a ground enemy is inside the 3-2`);
+    const air = h.b.enemies.find((e) => e.isFlying), near = h.b.enemies.reduce((a, e) => (e.spawnSeq > a.spawnSeq ? e : a));
+    assert.equal(attacks(h, u).length, 0, 'no attack was needed');
+    assert.ok(near && tagged(h, u, 'anchorPull', near).length > 0, 'the anchor lands on it');
+    assert.equal(tagged(h, u, 'anchorPull', air).length, 0, 'never on the flyer');
+    done(h);
+  }
+});
+
 test('乌尔比安 S2 必须维系的界限: never ends; ATK +, max HP +, block +1; T1 heals ×talent_scale', () => {
   for (const id of pair('05')) {
     const h = run({

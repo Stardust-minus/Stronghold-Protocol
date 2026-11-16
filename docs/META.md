@@ -283,6 +283,14 @@ A `choice:<effectId>` registry handler overrides the default application (§2.4)
   is the AI's at the seat's turn (Touch while nobody else holds it, never 歌利亚, §37.65), a 机变 turn passes on and an open 教鞭 choice goes with the seat (`eliminate`). Status `left`, LP 0 (kept when the AI drafts its strategy, §37.65), rounds passed = the rounds it had survived.
   When no human is left at all the match ends immediately (`reason: 'abandoned'`); when only eliminated spectators are
   left it ends as `'eliminated'`.
+* 挂机移出 (this fork's rule, `afkRemoveRounds`, default `AFK_REMOVE_ROUNDS` 2; matches that started with ≥ 2 humans):
+  as each prep ends (`_checkIdle`), an online human seat with no accepted `AFK_ACTIONS` intent since the last check
+  (规程's `g.command`, `g.commandChoice` and `g.diyBring` among them, the owner 2026-11-16) gains an idle round — warned one short of the
+  limit, removed like `onLeave` at it (`m.removed {reason:'afk'}`); an intent, AI 托管 or being offline resets it. A
+  seat that could not have made such an intent (`PlayerState.afkCanAct`: no funds for a card, a refresh or a level-up,
+  no free refresh, nothing on the board, in the hand or in 暂存, no offer or personal choice, no 规程 指令 it could use
+  — g.freeze does not count) keeps its count and is not warned: 老鲤【得闲饮茶】's rounds 1–2 (feedback #164, DESIGN
+  §36.22).
 
 ### 1.3a Solo pause
 `g.pause { on }` (`Match.setPause`, DESIGN §14 Solo pause): solo matches only (co-op → `WRONG_PHASE`), `on: true` only
