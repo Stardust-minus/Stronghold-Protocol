@@ -498,6 +498,9 @@
    sibling; no :has() — Firefox ESR 115). */
 .gtop--pf ~ .gm__effects { top: 3rem; }
 .gm.has-readywhy .gtop--pf ~ .gm__effects { top: calc(3rem + max(.3rem, calc(16px * var(--ui)))); }
+/* …and so does the right detail card (a shop card's first tap opens it): at the usual 2.1rem it covered the TV and the
+   ready button while the player read the card. */
+.gtop--pf ~ .dpanel--right { top: 3rem; }
 .pfclock { display: block; line-height: 0; }
 .readybtn.readybtn--pf {
   position: relative; padding: 0; border: 0; background: none; box-shadow: none; min-width: 0; min-height: 0; height: auto;
