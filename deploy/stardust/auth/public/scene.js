@@ -1,6 +1,6 @@
 import * as THREE from './three.module.js';
 import { CSS3DObject, CSS3DRenderer } from './css3d.js';
-import { sampleTerminalMotion, sphereLinePositions } from './terminal-motion.js?v=ae-13';
+import { sampleTerminalMotion, sphereLinePositions } from './terminal-motion.js?v=ae-14';
 
 const clamp = (n, a = 0, b = 1) => Math.max(a, Math.min(b, n));
 const ease = t => 1 - (1 - clamp(t)) ** 4;
@@ -181,7 +181,7 @@ export function createTerminalScene({ canvas, plane, home, dom, reduced = false 
   // The original 80-face OBJ was reduced to bounded normalized edges by the offline import tool.
   // Missing optional art keeps the procedural sphere; it never holds up login or the entry deadline.
   artDeadline = setTimeout(() => artController.abort(), 2500);
-  fetch('/_gate/assets/ae-sphere.json?v=ae-13', { credentials: 'omit', signal: artController.signal })
+  fetch('/_gate/assets/ae-sphere.json?v=ae-14', { credentials: 'omit', signal: artController.signal })
     .then(response => { if (!response.ok) throw new Error('Optional sphere unavailable'); return response.json(); })
     .then(value => {
       if (disposed) return;

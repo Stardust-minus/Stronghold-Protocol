@@ -9,11 +9,11 @@
   <meta name="description" content="卫戍协议：盟约 · 私人访问终端">
   <title>PRTS · 卫戍协议：盟约</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/_gate/assets/gate.css?v=ae-13">
-  <script src="/_gate/assets/warmup.js?v=ae-13" async></script>
-  <script src="/_gate/assets/gate.js?v=ae-13" defer></script>
+  <link rel="stylesheet" href="/_gate/assets/gate.css?v=ae-14">
+  <script src="/_gate/assets/warmup.js?v=ae-14" async></script>
+  <script src="/_gate/assets/gate.js?v=ae-14" defer></script>
 </head>
-<body data-authenticated="{{AUTHENTICATED}}" data-phase="idle" data-renderer="fallback" data-build="ae-13">
+<body data-authenticated="{{AUTHENTICATED}}" data-phase="idle" data-renderer="fallback" data-build="ae-14">
   <div id="ambient-field" aria-hidden="true"></div>
   <canvas id="world" aria-hidden="true"></canvas>
   <div id="spatial-dom"></div>
@@ -64,14 +64,14 @@
 
       <div id="success-scene" aria-hidden="true" hidden>
         <div class="recognized-copy"><div class="access-legend"><span>ACCESS TERMINAL</span><i></i></div><div class="identified-band"><span>IDENTIFIED</span></div><div class="welcome-outline"><span>WELCOME</span></div></div>
-        <div class="credential"><span class="credential-tab">PRTS / 00</span><div class="credential-frame"><div class="credential-scan"></div><div class="credential-slashes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="credential-emblem"><img id="doctor-portrait" class="optional-art doctor-portrait" src="/_gate/assets/doctor.webp?v=ae-13" alt="" decoding="async"><div class="portrait-fallback"><span class="tower"></span><span>PRTS</span><small>ACCESS CONFIRMED</small></div><div class="portrait-hatch"></div></div></div><p id="credential-name" class="credential-name"></p></div>
+        <div class="credential"><span class="credential-tab">PRTS / 00</span><div class="credential-frame"><div class="credential-scan"></div><div class="credential-slashes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="credential-emblem"><img id="doctor-portrait" class="optional-art doctor-portrait" src="/_gate/assets/doctor.webp?v=ae-14" alt="" decoding="async"><div class="portrait-fallback"><span class="tower"></span><span>PRTS</span><small>ACCESS CONFIRMED</small></div><div class="portrait-hatch"></div></div></div><p id="credential-name" class="credential-name"></p></div>
       </div>
     </section>
   </main>
 
   <section id="entry-bridge" hidden aria-hidden="true">
     <div class="portal-fallback"><span></span><span></span><span></span></div>
-    <div class="portal-card"><div class="portal-emblem"><img class="optional-art rhodes-logo" src="/_gate/assets/rhodes.webp?v=ae-13" alt="" decoding="async"><span class="tower logo-fallback"></span><b class="logo-fallback">PRTS</b></div><div class="portal-text"><span>服务器</span><h2>STARDUST</h2><p><sup>#</sup>0</p></div></div>
+    <div class="portal-card"><div class="portal-emblem"><img class="optional-art rhodes-logo" src="/_gate/assets/rhodes.webp?v=ae-14" alt="" decoding="async"><span class="tower logo-fallback"></span><b class="logo-fallback">PRTS</b></div><div class="portal-text"><span>服务器</span><h2>STARDUST</h2><p><sup>#</sup>0</p></div></div>
     <div class="portal-axis"><div class="progress-arm progress-left"><i></i></div><div class="progress-arm progress-right"><i></i></div><span class="progress-caption">ACCESS VERIFIED</span><span class="progress-meet"></span></div>
   </section>
 
@@ -80,6 +80,9 @@
   <button id="intro-skip" type="button" hidden>跳过片头 <span>↗</span></button>
   <a id="entry-skip" href="{{NEXT}}" hidden>立即进入 <span>↗</span></a>
   <p id="entry-message" class="sr-only" role="status" aria-live="polite"></p>
+  <!-- The game's loading screen (public/index.html #boot, css/theme.css .boot), the last frame before the game page: the
+       page swap does not show (2026-11-16). The label row is kept, unseen, for the hex's place; the game fades its own in. -->
+  <div id="game-handover" class="game-handover" hidden aria-hidden="true"><div class="handover-inner"><div class="handover-mark"></div><div class="handover-label">STRONGHOLD PROTOCOL</div><div class="handover-err"></div></div></div>
   <!-- Private-run notice (the owner 2026-11-15): remove when the server opens to the public again. -->
   <dialog id="service-notice" class="service-notice" aria-labelledby="service-notice-title">
     <form method="dialog">

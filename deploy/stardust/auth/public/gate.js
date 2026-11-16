@@ -2,7 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const body = document.body;
-  if (body.dataset.build !== 'ae-13') { location.reload(); return; }
+  if (body.dataset.build !== 'ae-14') { location.reload(); return; }
   // the private-run notice (login.html #service-notice): shown on every visit, closed by its button or Esc
   const notice = document.getElementById('service-notice');
   if (notice && !notice.open) {
@@ -126,15 +126,29 @@
     }
   }
   function clearEntry() { entryTimers.forEach(clearTimeout); entryTimers = []; }
+  // The game's own page (not an edge page): the gate's last frame is the game's loading screen (#game-handover, the
+  // game's #boot), so the swap to the game page does not show. 'on' fades it in after the portal, before the timed
+  // navigation (no added wait); a navigation that comes first (立即进入, the hard deadline) shows it quickly ('fast');
+  // reduced motion at once ('instant'). The old page stays on screen until the game page paints its first frame.
+  const handover = $('game-handover');
+  function showHandover(mode) {
+    if (!handover || body.dataset.handover || edgePage(new URL(gameLink(destination), location.origin).pathname)) return;
+    handover.hidden = false; body.dataset.handover = mode;
+  }
   function navigate() {
     if (navigation) return;
     navigation = true; clearEntry();
+    try { showHandover(motion.matches ? 'instant' : 'fast'); } catch {}
     try {
       const target = gameLink(destination);
       if (location.pathname === '/entry') location.replace(target);
       else location.assign(target);
     }
-    catch { navigation = false; tell(announcer, '访问已获授权，请点击立即进入。', 'success'); }
+    catch {
+      navigation = false;
+      if (handover) { handover.hidden = true; delete body.dataset.handover; }
+      tell(announcer, '访问已获授权，请点击立即进入。', 'success');
+    }
   }
   function enter(next, name) {
     const safe = entryPath(next);
@@ -160,6 +174,8 @@
         if (navigation) return;
         try { bridge.hidden = false; setPhase('entering'); } catch { navigate(); }
       }, 2050));
+      // the portal's centre lock lands at ~3.46 s: the game's loading screen fades in over its end (0.38 s, by 3.55 s)
+      entryTimers.push(setTimeout(() => { if (!navigation) { try { showHandover('on'); } catch {} } }, 3170));
       entryTimers.push(setTimeout(navigate, 3550));
     } catch { navigate(); }
   }
@@ -261,7 +277,7 @@
         };
         try {
           for (let i = 0; i < count; i++) {
-            const worker = new Worker('/_gate/assets/altcha-pbkdf2.js?v=ae-13');
+            const worker = new Worker('/_gate/assets/altcha-pbkdf2.js?v=ae-14');
             workers.push(worker);
             worker.onmessage = event => {
               const data = event.data;
@@ -393,7 +409,7 @@
   function loadScene() {
     if (motion.matches || scene || sceneLoading || navigation) return;
     sceneLoading = true;
-    import('/_gate/assets/scene.js?v=ae-13').then(module => {
+    import('/_gate/assets/scene.js?v=ae-14').then(module => {
       if (motion.matches || navigation) return;
       $('spatial-dom').hidden = false;
       scene = module.createTerminalScene({ canvas: $('world'), plane: $('terminal-plane'), home: $('plane-home'), dom: $('spatial-dom'), reduced: motion.matches });
