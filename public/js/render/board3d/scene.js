@@ -5,7 +5,9 @@
 //   const board = new BoardScene(THREE, pack, { canvas, quality })   (pack = load.js loadBoardPack)
 //   board.setStage(stage)            geometry from the stage grid (layout.js) + devices + gates + terrain
 //   board.setScenePack(id, pack)     the official scene of stage `id` (load.js loadScenePack): drawn instead of the
-//                                    procedural tiles and background while that stage is set (null → procedural)
+//                                    procedural tiles and background while that stage is set (null → procedural);
+//                                    its backdrop (a 规程 scene's background layer) is drawn with it, or without one
+//                                    the stand-in sceneBackdropPlan picks
 //   board.setArea(rects)             the built areas (layout.js AREAS / areaFor: normal field + pen, 联防, boss)
 //   board.setFocus(rect)             the lit field (others fade, animated)
 //   board.setBattleRect(rect|null)   crates / turrets inside a running battle are sim units: static ones hide
@@ -176,6 +178,25 @@ export function planarUvFit(chunk) {
   }
   if (![...U, ...V].every(Number.isFinite) || !(Math.abs(U[0]) + Math.abs(U[1]) > 1e-4) || !(Math.abs(V[0]) + Math.abs(V[1]) > 1e-4)) return null;
   return { u: U, v: V, rms: Math.sqrt(err / n) };
+}
+
+/**
+ * Does a backdrop plane (a few big triangles, regulation_scenes.py) lie under the middle of the board? land_base is a ring
+ * round the piece (its hole is the piece's own ground); S_Background_common and BG_church_tower are whole sheets. A plane
+ * with a hole leaves the board's switched-off fields open, so the stand-in stays under it.
+ * @param {{ position: ArrayLike<number>, index: ArrayLike<number> }} chunk
+ */
+export function planeCoversBoard(chunk, x = (COLS - 1) / 2, y = (ROWS - 1) / 2) {
+  const p = chunk?.position, ix = chunk?.index;
+  if (!p || !ix) return false;
+  for (let i = 0; i + 2 < ix.length; i += 3) {
+    const a = ix[i] * 3, b = ix[i + 1] * 3, c = ix[i + 2] * 3;
+    const d1 = (x - p[b]) * (p[a + 1] - p[b + 1]) - (p[a] - p[b]) * (y - p[b + 1]);
+    const d2 = (x - p[c]) * (p[b + 1] - p[c + 1]) - (p[b] - p[c]) * (y - p[c + 1]);
+    const d3 = (x - p[a]) * (p[c + 1] - p[a + 1]) - (p[c] - p[a]) * (y - p[a + 1]);
+    if (!((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0))) return true;
+  }
+  return false;
 }
 
 const areaKey = (list) => (list || []).map((a) => `${a.r0},${a.r1},${a.c0},${a.c1}`).sort().join(';');
@@ -522,10 +543,14 @@ export class BoardScene {
   _buildScene(pack) {
     const T = this.THREE;
     const res = this._sceneResources(pack);
-    const infos = pack.doc?.materials || {};
+    // The backdrop (load.js parseSceneBackdrop: group '' only) shares the scene's buckets: its terrain joins the scene
+    // mesh of the same material and lightmap page, a background plane is one more draw.
+    const back = Array.isArray(pack.backdrop?.chunks) ? pack.backdrop.chunks : [];
+    const infos = { ...(pack.backdrop?.doc?.materials || {}), ...(pack.doc?.materials || {}) };
+    const all = back.length ? [...(pack.chunks || []), ...back] : pack.chunks || [];
     this.sceneWater = [];
     const buckets = new Map();
-    for (const c of pack.chunks || []) {
+    for (const c of all) {
       // The extractor keeps disabled, ungrouped objects as 'inactive' (tools/local-extract/scenes.py). Their bounds can
       // overlap the boss area (its untextured survival-shadow planes): a camera switch must never show them.
       if (c.group === 'inactive') continue;
@@ -573,13 +598,20 @@ export class BoardScene {
       this.root.add(mesh);
       this.meshes[`scene${n++}`] = mesh;
     }
-    if (n > 0) this._buildSceneBackdrop(pack, res);
+    // A background plane with a hole (m09 / m11 land_base: the piece's own ground fills it) does not cover what a switched-off
+    // field leaves open in the stitched board: the stand-in stays under it.
+    if (n > 0) this._buildSceneBackdrop(pack, res, back.length ? [...(pack.chunks || []), ...back.filter((c) => !(c.lightmap < 0) || planeCoversBoard(c))] : all);
     return n > 0;
   }
 
-  /** The backdrop sceneBackdropPlan picks for a scene without one, as `meshes.backdrop` (one quad, under everything). */
-  _buildSceneBackdrop(pack, res) {
-    const plan = sceneBackdropPlan(pack.doc, pack.chunks);
+  /**
+   * The stand-in sceneBackdropPlan picks for a scene without a backdrop of its own, as `meshes.backdrop` (one quad, under
+   * everything). `chunks` include the extracted backdrop's: a whole plane covers the frame (no stand-in); a ring
+   * (planeCoversBoard false) is left out, so its land colour still fills the switched-off fields from below; a terrain
+   * sheet that ends short of a wide screen's corners keeps the sheet stand-in below it.
+   */
+  _buildSceneBackdrop(pack, res, chunks = pack.chunks) {
+    const plan = sceneBackdropPlan({ ...pack.doc, materials: { ...(pack.backdrop?.doc?.materials || {}), ...(pack.doc?.materials || {}) } }, chunks);
     if (!plan) return;
     const T = this.THREE;
     const F = SCENE_BACKDROP_FRAME;
