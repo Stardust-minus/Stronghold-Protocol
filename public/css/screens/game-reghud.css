@@ -97,6 +97,15 @@
   background-image: var(--reg-refresh-lock, var(--reg-refresh, none));
   filter: grayscale(.35);
 }
+/* Hover and press keep the plate as it is drawn at rest: game-shop.css's `.toolbtn:hover` / `:active` set the `background`
+   shorthand and a box glow, which outweigh `.shopbar--reg .toolbtn` and reset the plate's size and repeat — the sprite
+   drew at its own pixel size, cropped below a 1920 px wide window and tiled above it — and ringed the transparent plate
+   with a rectangle (the owner 2026-11-16 「所有主题把鼠标放到冻结/刷新上时都会出现异常现象」). The plate's own
+   brightness lift above stays the hover. */
+.shopbar.shopbar--reg .toolbtn:hover:not(:disabled),
+.shopbar.shopbar--reg .toolbtn:active:not(:disabled) {
+  background-size: 100% 100%; background-repeat: no-repeat; box-shadow: none;
+}
 .shopbar--reg .toolbtn--amber .hex,
 .shopbar--reg .toolbtn__free {
   position: absolute; left: 50%; top: 0; z-index: 1;
