@@ -594,7 +594,11 @@ H.SERVER_GAIN_SPECIAL_REFRESH_BOND_CHAR = {
 };
 
 // Upgrade carried normal equipment and return the upgraded instances (official footage BV1egWJ66Ejp, 2026-11-08).
-// [ASSUMED, existing] upgradeChessId, else goldenId; this trait takes no second shop copy.
+// [ASSUMED, existing] upgradeChessId, else goldenId; this trait takes no second shop copy: it upgrades even when the
+// shared stock is full. The copy the golden takes past the cap is then a debt (PlayerState.upgradeItem overdraw, the
+// 整备 rule's one place), so the stock is never over its cap without one — it used to rewrite the id in place, and a
+// full 源石溶剂 (cap 4) went to 5 held with no debt (invariants.js; reported from the owner's RL runs, 2026-11-16).
+// The item is returned first, then upgraded where it lands; one that cannot be returned stays as it is.
 H.SERVER_UPGRADE_SELF_EQUIP = {
   run(ctx) {
     const piece = realPiece(ctx);
@@ -604,9 +608,7 @@ H.SERVER_UPGRADE_SELF_EQUIP = {
       if (!rec || rec.isGolden) continue;
       const next = rec.upgradeChessId || rec.goldenId;
       if (!next || !ctx.gd.item(next)) continue;
-      const previous = it.id;
-      it.id = next;
-      if (!ctx.unequipDirect(it.uid)) it.id = previous;
+      if (ctx.unequipDirect(it.uid)) ctx.upgradeItem(it.uid, { overdraw: true });
     }
   },
 };

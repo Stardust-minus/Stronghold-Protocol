@@ -200,14 +200,19 @@ export class PlayerAcquire {
   }
 
   /** Normal item → golden version in place (整备). A golden occupies two shared copies and this piece
-   * already occupies one, so the upgrade waits when no second copy is free. The caller keeps its charge. */
-  upgradeItem(piece) {
+   * already occupies one, so the upgrade waits when no second copy is free. The caller keeps its charge.
+   * `overdraw` (白铁's prep-start trait, SERVER_UPGRADE_SELF_EQUIP, which always upgrades): with no second copy free
+   * the upgrade happens anyway and the copy it takes past the cap is a debt (SharedItemPool.owe), as for an already
+   * displayed card — the stock never holds more than its cap without one (invariants.js). */
+  upgradeItem(piece, { overdraw = false } = {}) {
     const rec = this.gd.item(piece.id);
     if (!rec || rec.isGolden) return false;
     const gid = rec.upgradeChessId || rec.goldenId;
     if (!gid || !this.gd.item(gid)) return false;
-    if (this.itemPool.left(piece.id) < 1) return false;
+    const short = this.itemPool.left(piece.id) < 1;
+    if (short && !overdraw) return false;
     piece.id = gid;
+    if (short) this.itemPool.owe(gid, 1);
     this.recompute();
     return true;
   }
