@@ -68,6 +68,8 @@ describe('界面主题 (headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (an
     await page.goto(`${base}/dev/game-mock.html?shot=1&phase=PREP`, { waitUntil: 'load', timeout: 60000 });
     await page.waitForSelector('.shopbar__row', { timeout: 60000 });
     await page.click('button.gm__gear[aria-label="设置"]');
+    await page.waitForSelector('[data-testid="set-tab-theme"]', { timeout: 10000 }); // 导入 is on the 主题 page (the paged 设置, 2026-11-16)
+    await page.click('[data-testid="set-tab-theme"]');
     await page.waitForSelector('[data-testid="theme-import-zip"]', { timeout: 10000 });
     const input = await page.$('[data-testid="theme-import-zip"]');
     await input.uploadFile(zipPath);
