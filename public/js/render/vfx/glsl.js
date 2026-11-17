@@ -600,6 +600,31 @@ void main() {
   o_col = texture(u_GrabTexture, s0 + vec2(off.x, -off.y));
 }`,
   },
+  // 3D/MatCapTransparent: the main texture × _Color blended to the matcap (sampled at the view-space normal's xy) by
+  // smoothstep(_CtrlParams.x, .y) of the fresnel (1 − n·z)^_FresnelPow, then toward white by the highlight matcap's R
+  // smoothstep(_CtrlParams.z, .w) × _HighLightStrength × the dissolve; the dissolve also cuts the alpha. The normal is
+  // the object normal through the inverse transpose of ObjectToWorld and then the view (the object-space template)
+  matcap: {
+    tex: ['_MainTex', '_DissolveTex', '_MatCap', '_MatCapHighLight'],
+    vs: () => ({}),
+    src: () => `${S(['_MainTex', '_DissolveTex', '_MatCap', '_MatCapHighLight'])}
+${U4(['_MainTex_ST', '_DissolveTex_ST', '_Color', '_CtrlParams'])}
+${U1(['_Amount', '_BorderWidth', '_HighLightStrength', '_FresnelPow'])}
+uniform mat4 u_V;
+void main() {
+  vec3 nv = mat3(u_V) * v_nrm;
+  nv *= inversesqrt(dot(nv, nv));
+  float fr = exp2(log2(1.0 - clamp(nv.z, 0.0, 1.0)) * u_FresnelPow);
+  float s = clamp((fr - u_CtrlParams.x) * (1.0 / (u_CtrlParams.y - u_CtrlParams.x)), 0.0, 1.0);
+  vec2 muv = nv.xy * 0.5 + 0.5;
+  vec4 base = texture(u_MainTex, st(v_uv, u_MainTex_ST)) * u_Color;
+  vec4 c = s * s * (3.0 - 2.0 * s) * (texture(u_MatCap, muv) - base) + base;
+  float hs = clamp((1.0 / (u_CtrlParams.w - u_CtrlParams.z)) * (texture(u_MatCapHighLight, muv).r - u_CtrlParams.z), 0.0, 1.0);
+  float k = dissolveMask(texture(u_DissolveTex, st(v_uv, u_DissolveTex_ST)).r, u_Amount, u_BorderWidth);
+  float h = k * hs * hs * (3.0 - 2.0 * hs) * u_HighLightStrength;
+  o_col = vec4(h * (1.0 - c.rgb) + c.rgb, k * (h * (1.0 - c.a) + c.a));
+}`,
+  },
   multiply: {
     tex: ['_MainTex'],
     src: () => `${S(['_MainTex'])}

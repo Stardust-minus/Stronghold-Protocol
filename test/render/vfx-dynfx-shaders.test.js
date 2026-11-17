@@ -49,3 +49,13 @@ test('Ram/VertexDisturb(CustomData): Ram/Disturb(CustomData) plus a vertex stage
   assert.ok(!/u_DisturbInfluenceMainUV;\n/.test(fs.split('void main')[1]) && /muv2 = muv \+ dist\.xy;/.test(fs), 'main UV pushed at full strength');
   assert.ok(!/chan4\(texture\(u_MainTex/.test(fs), 'no channel selects');
 });
+
+test('3D/MatCapTransparent compiles to the matcap family with the object-space vertex stage', () => {
+  const m = compileMaterial({ shader: 'Torappu/Particles-L2D/3D/MatCapTransparent', passes: [pass('Back')], keywords: [] });
+  assert.equal(m.family, 'matcap');
+  assert.equal(m.fallback, false);
+  assert.equal(m.state.cull, 'Back');
+  assert.ok(vertexExt('matcap', m.defs));
+  assert.match(vertexSource('meshr', vertexExt('matcap', m.defs)), /transpose\(inverse\(mat3\(o2w\)\)\)/);
+  assert.match(fragmentSource('matcap', m.defs), /mat3\(u_V\) \* v_nrm/);
+});

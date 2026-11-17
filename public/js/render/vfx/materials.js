@@ -63,6 +63,7 @@ const BY_NAME = {
   'Torappu/Particles-L2D/Rim/Rim Tint (Add)': 'rimTint', 'Torappu/Particles-L2D/Rim/Rim Tint (AlphaBlend)': 'rimTint',
   'Torappu/Particles/Flipbook(Add)': 'flipbook', 'Torappu/Particles/Flipbook(Blend)': 'flipbook',
   'Torappu/Particles/Multiply': 'multiply', 'Torappu/Particles-L2D/Multiply': 'multiply',
+  'Torappu/Particles-L2D/3D/MatCapTransparent': 'matcap',
 };
 
 const fallbacks = new Map(); // shader name → family it falls back to

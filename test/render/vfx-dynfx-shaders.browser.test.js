@@ -162,3 +162,29 @@ test('Ram/VertexDisturb(CustomData): vertices move in the shader\'s object space
     mat: { ...mat, textures: { ...mat.textures, _VertexDisturbWeightTex: { tex: 'black', st: [1, 1, 0, 0] } } } }] });
   assert.equal(left(r), edgePx(-1), 'weight 0');
 });
+
+test('3D/MatCapTransparent: fresnel blend to the matcap and highlight from the view-space normal (inverse transpose)', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  const textures = { main: tex1([200, 100, 50, 255]), cap: tex1([0, 255, 0, 255]), hl: tex1([128, 0, 0, 255]), white: tex1([255, 255, 255, 255]) };
+  // a quad whose normals all lean (0, −0.6, −0.8): toward the camera (−z) and down
+  const tilted = { ...QUAD_MESH, normals: [0, -0.6, -0.8, 0, -0.6, -0.8, 0, -0.6, -0.8, 0, -0.6, -0.8] };
+  const mat = {
+    shader: 'Torappu/Particles-L2D/3D/MatCapTransparent', keywords: [], queue: 3000,
+    passes: [{ blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'], blendOp: 'Add', zTest: 'Disabled', zWrite: false, cull: 'Back', colorMask: 15 }],
+    floats: { _Amount: 0, _BorderWidth: 0.1, _HighLightStrength: 0.5, _FresnelPow: 1 },
+    colors: { _Color: [1, 1, 1, 1], _CtrlParams: [0, 0.4, 0, 1] },
+    textures: { _MainTex: { tex: 'main', st: [1, 1, 0, 0] }, _DissolveTex: { tex: 'white', st: [1, 1, 0, 0] }, _MatCap: { tex: 'cap', st: [1, 1, 0, 0] }, _MatCapHighLight: { tex: 'hl', st: [1, 1, 0, 0] } },
+  };
+  const smooth = (x) => { const s = Math.min(1, Math.max(0, x)); return s * s * (3 - 2 * s); };
+  const expect = (nz) => {
+    const f = smooth((1 - nz) / 0.4), h = smooth(128 / 255) * 0.5;
+    return [200, 100, 50].map((b, i) => { const c = b / 255 + f * ([0, 1, 0][i] - b / 255); return (c + h * (1 - c)) * 255; });
+  };
+  const check = (r, nz, msg) => { const c = px(r, 32, 32); const e = expect(nz); assert.ok(e.every((v, i) => Math.abs(v - c[i]) <= 2), `${msg}: got ${c.slice(0, 3)}, want ${e.map(Math.round)}`); };
+  let r = await render(t, { textures, meshes: { q: tilted }, items: [{ kind: 'mesh', mesh: 'q', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat }] });
+  check(r, 0.8, 'view normal z 0.8');
+  // a MeshRenderer stretched 3× more in y: its normal goes through the inverse transpose → (0, −0.6 / 9, −0.8 / 3)
+  r = await render(t, { textures, meshes: { q: tilted }, items: [{ kind: 'mesh', mesh: 'q', inst: { m: [3, 0, 0, 0, 9, 0, 0, 0, 3] }, mat }] });
+  check(r, (0.8 / 3) / Math.hypot(0.6 / 9, 0.8 / 3), 'inverse transpose');
+});
