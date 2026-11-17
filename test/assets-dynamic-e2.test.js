@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { applyDynamicE2, loadDynamicE2Registry, validEntry, dynamicE2Dir } from '../tools/assets/dynamic-e2.mjs';
 import { rewriteManifest } from '../tools/prepare-operator-dynamic-e2.mjs';
 import { applyDynamicBackdrops } from '../tools/assets/dynamic-backdrops.mjs';
+import { applyDynamicScenes } from '../tools/assets/dynamic-scenes.mjs';
 import { contentHash } from '../tools/assets/manifest.mjs';
 
 const rect = (x, y, w, h) => ({ x, y, width: w, height: h });
@@ -72,8 +73,10 @@ test('the registry: every 精二 动态立绘 of the client, complete; data/asse
   const assets = JSON.parse(readFileSync(new URL('../data/assets.json', import.meta.url), 'utf8'));
   const named = Object.entries(assets.chars).filter(([, c]) => c.dynamicE2).map(([id]) => id).sort();
   assert.deepEqual(named, [...CLIENT].sort());
-  // then the camera frame and backdrop layers (tools/assets/dynamic-backdrops.mjs, 2026-11-16)
-  const again = applyDynamicBackdrops(applyDynamicE2((({ version, hash, generator, stats, ...b }) => b)(assets), { registry: reg }).body, { kinds: ['chars'] }).body;
+  // then the camera frame and backdrop layers (tools/assets/dynamic-backdrops.mjs, 2026-11-16) and the checked scene
+  // (tools/assets/dynamic-scenes.mjs, 2026-11-17)
+  const again = applyDynamicScenes(applyDynamicBackdrops(applyDynamicE2((({ version, hash, generator, stats, ...b }) => b)(assets), { registry: reg }).body,
+    { kinds: ['chars'] }).body, { kinds: ['chars'] }).body;
   for (const id of CLIENT) assert.deepEqual(again.chars[id].dynamicE2, assets.chars[id].dynamicE2, `${id}: the manifest is the registries'`);
   const collab = JSON.parse(readFileSync(new URL('../data/assets-collab.json', import.meta.url), 'utf8'));
   for (const id of CLIENT) assert.ok(!Object.hasOwn(collab.chars || {}, id), `${id}: not a collab operator (the files go to the normal pack)`);

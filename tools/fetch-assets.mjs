@@ -78,6 +78,7 @@ import { applyIllustrations } from './assets/illustrations.mjs';
 import { applyDynamicE2 } from './assets/dynamic-e2.mjs';
 import { applyNamecardSkins } from './assets/namecard-skins.mjs';
 import { applyDynamicBackdrops } from './assets/dynamic-backdrops.mjs';
+import { applyDynamicScenes } from './assets/dynamic-scenes.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { statsTemplateJobs } from './assets/stats-template.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
@@ -568,6 +569,11 @@ async function main() {
   const backdrops = applyDynamicBackdrops(body, { assetRoot: ASSETS });
   body = backdrops.body;
   for (const rel of backdrops.files.keys()) resolved.files.add(rel);
+  // the checked 动态立绘 scenes, played live (2026-11-17, tools/assets/dynamic-scenes.mjs): `scene` where the registry
+  // enables one and its file and everything it names are on disk
+  const scenes = applyDynamicScenes(body, { assetRoot: ASSETS });
+  body = scenes.body;
+  for (const rel of scenes.files.keys()) resolved.files.add(rel);
   const importedVoices = retainManifestVoices(current?.audio, body.audio, ASSETS);
   body.audio = importedVoices.audio;
   for (const rel of importedVoices.files) resolved.files.add(rel);
@@ -599,7 +605,8 @@ async function main() {
   if (guard.write) await writeJsonAtomic(MANIFEST, manifest);
 
   // Orphans: files on disk that the manifest does not reference (e.g. after a mapping change).
-  const orphans = orphanFiles(await listFiles(ASSETS), new Set([...resolved.files, ...dl.preserved]));
+  // the 动态立绘 scenes not checked yet stay on disk for the next check (tools/assets/dynamic-scenes.mjs `parked`)
+  const orphans = orphanFiles(await listFiles(ASSETS), new Set([...resolved.files, ...dl.preserved, ...scenes.parked]));
   if (opts.prune) for (const r of orphans) { try { await unlink(join(ASSETS, r)); } catch { /* ignore */ } }
 
   const charIds = Object.keys(plan.template.chars);

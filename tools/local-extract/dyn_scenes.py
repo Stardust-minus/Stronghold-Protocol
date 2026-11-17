@@ -1,11 +1,14 @@
-"""SPIKE (spike/dyn-fx-20261116): export the client's official dyn illust scenes (arts/dynchars/*.ab, `dyn_illust_*` prefabs) as fx-prefab
-descriptors (docs/design/vfx-format.md §33, written by tools/local-extract/fx.py's own Exporter) plus the dyn illust
-extras the remake's runtime needs (`dyn`: camera, Spine node, render separator, action-only groups, Animator default
-states). Read-only on the client; the Spine pages are not exported (the remake has the skeletons).
+"""Export the client's official dyn illust scenes (arts/dynchars/*.ab, `dyn_illust_*` prefabs; 2026-11-16 trial, 2026-11-17
+release) as fx-prefab descriptors (docs/design/vfx-format.md §33, written by tools/local-extract/fx.py's own Exporter) plus
+the dyn illust extras the remake's runtime needs (`dyn`: camera, Spine node, render separator, action-only groups,
+Animator default states). Read-only on the client; the Spine pages are not exported (the remake has the skeletons).
+tools/local-extract/dyn-scenes-pack.mjs turns the export into the scene files the game loads (docs/ASSETS.md "Dynamic
+illustrations").
 
-Usage: .venv/bin/python tools/local-extract/dyn_scenes.py <out root> [--jobs N] [--tex png|webp|none] [--url /dynfx/x] [substr ...]
+Usage: .venv/bin/python tools/local-extract/dyn_scenes.py <out root> [--jobs N] [--tex png|webp|none] [--no-half] [--url /dynfx/x] [substr ...]
   <out root>/fx/{prefabs,tex,mesh}/…, <out root>/fx/textures.json, <out root>/local-fx.json (fx-manifest, URLs under --url),
   <out root>/summary.json (per prefab: shaders, behaviours, counts)
+  --no-half: no half-size texture copies (the scenes always draw the full ones: the highest quality)
 """
 import argparse
 import hashlib
@@ -20,11 +23,13 @@ BASE = '/mnt/Arknights Game/Arknights_Data/StreamingAssets/AB/Windows'
 G = {}
 
 
-def _init(le, root, cabs, out, tex):
+def _init(le, root, cabs, out, tex, half=True):
     sys.path.insert(0, le)
     sys.dont_write_bytecode = True
     import aklz4  # noqa: F401
     import fx
+    if not half:
+        fx.HALF_MIN = 1 << 30              # no texture is large enough for a half-size copy
     env = fx.AssetEnv(root, cabs)
     ex = fx.Exporter(env, out, log=lambda m: G['log'].append(m), texture_format='png' if tex == 'png' else 'webp')
     G.update(fx=fx, env=env, ex=ex, tex=tex, log=[], skip=False)
@@ -176,6 +181,7 @@ def main():
     ap.add_argument('--jobs', type=int, default=1)
     ap.add_argument('--tex', default='png', choices=('png', 'webp', 'none'))
     ap.add_argument('--url', default='/dynfx')
+    ap.add_argument('--no-half', action='store_true')
     a = ap.parse_args()
     a.le = str(Path(__file__).resolve().parent)
     sys.path.insert(0, a.le)
@@ -192,7 +198,7 @@ def main():
         cabs = fx.scan_cabs(root)
         print('cabs', len(cabs), flush=True)
         textures, meshes, prefabs = {}, {}, {}
-        with Pool(max(1, a.jobs), initializer=_init, initargs=(a.le, str(root), cabs, str(out), a.tex)) as pool:
+        with Pool(max(1, a.jobs), initializer=_init, initargs=(a.le, str(root), cabs, str(out), a.tex, not a.no_half)) as pool:
             for rel, res, tex, mesh, log in pool.imap_unordered(_export, [(n,) for n in names]):
                 for m in log:
                     print(m, flush=True)

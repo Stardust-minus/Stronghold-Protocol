@@ -1,0 +1,2810 @@
+{
+ "version": 1,
+ "source": "the local CN client (hot update 26-11-06-12-42-25-70182449): each dyn_illust prefab of arts/dynchars/*.ab exported by tools/local-extract/dyn_scenes.py (WebP q90, no half-size copies) and trimmed to its always-on part (tools/assets/dynamic-scenes.mjs idleScene)",
+ "skins": {
+  "char_003_kalts_boc_6": {
+   "dynIllustId": "dyn_illust_char_003_kalts_boc#6",
+   "bundle": "arts/dynchars/char_003_kalts_boc#6.ab",
+   "clientHash": "5bb2f4da0745252e2554d720935a7e50",
+   "scene": {
+    "name": "scene-14b29eb0.json",
+    "bytes": 186754,
+    "sha256": "14b29eb09305ec3047a4f01198be55a7a44b53a379a5184b70e5818e2f63fc4d"
+   },
+   "textures": 26,
+   "texBytes": 314546,
+   "meshes": 10,
+   "meshBytes": 6368,
+   "cut": {
+    "nodes": 266,
+    "clips": 4,
+    "textures": 30,
+    "meshes": 10
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveTween",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_003_kalts_sale_14": {
+   "dynIllustId": "dyn_illust_char_003_kalts_sale#14",
+   "bundle": "arts/dynchars/char_003_kalts_sale#14.ab",
+   "clientHash": "3bb46f56eedf02c2bcdb4a41eec8a069",
+   "scene": {
+    "name": "scene-f257ea95.json",
+    "bytes": 255776,
+    "sha256": "f257ea95392de5730c9275fb739a7df0572be143c1c93eaa75e6a69106425730"
+   },
+   "textures": 50,
+   "texBytes": 1495624,
+   "meshes": 2,
+   "meshBytes": 23095,
+   "cut": {
+    "nodes": 0,
+    "clips": 0,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveCd",
+    "dissolveTween",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1012_skadi2_boc_4": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_boc#4",
+   "bundle": "arts/dynchars/char_1012_skadi2_boc#4.ab",
+   "clientHash": "2a74517ed887b41274c2ebdfb7223362",
+   "scene": {
+    "name": "scene-4c97262d.json",
+    "bytes": 186872,
+    "sha256": "4c97262de8b0f728e6635fa9e997c22566a59ae5e1dc07547ae166337010fabd"
+   },
+   "textures": 41,
+   "texBytes": 278896,
+   "meshes": 7,
+   "meshBytes": 19653,
+   "cut": {
+    "nodes": 55,
+    "clips": 3,
+    "textures": 4,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDouble",
+    "dissolveTween",
+    "dissolveVc",
+    "disturb2",
+    "disturbAnchor",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1012_skadi2_iteration_2": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_iteration#2",
+   "bundle": "arts/dynchars/char_1012_skadi2_iteration#2.ab",
+   "clientHash": "4eee987ff5e73b2dc1c1828aa7d8a56c",
+   "scene": {
+    "name": "scene-452980bf.json",
+    "bytes": 364711,
+    "sha256": "452980bf7bfa65238fdf5d2405475f3657bf4a2cd8baddf9731eeed9edbbf1ee"
+   },
+   "textures": 49,
+   "texBytes": 521832,
+   "meshes": 17,
+   "meshBytes": 91662,
+   "cut": {
+    "nodes": 68,
+    "clips": 6,
+    "textures": 26,
+    "meshes": 6
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDouble",
+    "dissolveTween",
+    "dissolveVc",
+    "disturb2",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1013_chen2_boc_6": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_boc#6",
+   "bundle": "arts/dynchars/char_1013_chen2_boc#6.ab",
+   "clientHash": "d7e6851bf4d932313b6a78bbb0acb13c",
+   "scene": {
+    "name": "scene-f155120b.json",
+    "bytes": 239659,
+    "sha256": "f155120ba1ec0e0d5fbedf331c672a372474cd2076a7c08bf240c30d55ce6cb5"
+   },
+   "textures": 31,
+   "texBytes": 355710,
+   "meshes": 8,
+   "meshBytes": 24498,
+   "cut": {
+    "nodes": 77,
+    "clips": 6,
+    "textures": 22,
+    "meshes": 4
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1013_chen2_summer_20": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_summer#20",
+   "bundle": "arts/dynchars/char_1013_chen2_summer#20.ab",
+   "clientHash": "8d65d3c52b0dcc0e5959201ad3575452",
+   "scene": {
+    "name": "scene-471fbd88.json",
+    "bytes": 148025,
+    "sha256": "471fbd88f429ece11e686556a5710709141f4aaeff7f71400e7ab3a94d8ae3e7"
+   },
+   "textures": 13,
+   "texBytes": 685062,
+   "meshes": 3,
+   "meshBytes": 7265,
+   "cut": {
+    "nodes": 61,
+    "clips": 3,
+    "textures": 17,
+    "meshes": 2
+   },
+   "batch": 2,
+   "families": [
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1014_nearl2_epoque_17": {
+   "dynIllustId": "dyn_illust_char_1014_nearl2_epoque#17",
+   "bundle": "arts/dynchars/char_1014_nearl2_epoque#17.ab",
+   "clientHash": "929f9ad9c7f3b909ab3b2faf13c1f817",
+   "scene": {
+    "name": "scene-2949c75b.json",
+    "bytes": 268412,
+    "sha256": "2949c75b4667722444ec63b67efec4cbd53f9ed218d53afa020f9e6eab8d3b2b"
+   },
+   "textures": 32,
+   "texBytes": 542576,
+   "meshes": 25,
+   "meshBytes": 32816,
+   "cut": {
+    "nodes": 135,
+    "clips": 25,
+    "textures": 23,
+    "meshes": 9
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveDoubleEdge",
+    "disturbAnchor",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1016_agoat2_epoque_34": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_epoque#34",
+   "bundle": "arts/dynchars/char_1016_agoat2_epoque#34.ab",
+   "clientHash": "401ed3a9844b581f867b5efebed1e48c",
+   "scene": {
+    "name": "scene-11b155ec.json",
+    "bytes": 117892,
+    "sha256": "11b155ecd86e9966fe2517cff05f2189e7d5f4b9fb2f2be33c3ab6d09676f90d"
+   },
+   "textures": 12,
+   "texBytes": 196096,
+   "meshes": 5,
+   "meshBytes": 30886,
+   "cut": {
+    "nodes": 63,
+    "clips": 2,
+    "textures": 19,
+    "meshes": 5
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1016_agoat2_epoque_57": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_epoque#57",
+   "bundle": "arts/dynchars/char_1016_agoat2_epoque#57.ab",
+   "clientHash": "219cfed3c629d1214ad776ac5d2a44f5",
+   "scene": {
+    "name": "scene-f9236d72.json",
+    "bytes": 153222,
+    "sha256": "f9236d726dd90474f8e92dacb4bde527661df0eb892307cba54bd9421ccbe7ca"
+   },
+   "textures": 30,
+   "texBytes": 759400,
+   "meshes": 4,
+   "meshBytes": 15534,
+   "cut": {
+    "nodes": 5,
+    "clips": 3,
+    "textures": 0,
+    "meshes": 1
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1019_siege2_epoque_50": {
+   "dynIllustId": "dyn_illust_char_1019_siege2_epoque#50",
+   "bundle": "arts/dynchars/char_1019_siege2_epoque#50.ab",
+   "clientHash": "fff089cc76a0a125a2e281722a7867dd",
+   "scene": {
+    "name": "scene-8fc5e6b1.json",
+    "bytes": 236000,
+    "sha256": "8fc5e6b12050de13ef47d79b44c20cf921848025c300951751055b4e042f1325"
+   },
+   "textures": 30,
+   "texBytes": 473292,
+   "meshes": 2,
+   "meshBytes": 3742,
+   "cut": {
+    "nodes": 73,
+    "clips": 21,
+    "textures": 25,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveTween",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_1020_reed2_epoque_30": {
+   "dynIllustId": "dyn_illust_char_1020_reed2_epoque#30",
+   "bundle": "arts/dynchars/char_1020_reed2_epoque#30.ab",
+   "clientHash": "fec9b0f5a1ebbd86566dd2324d752b38",
+   "scene": {
+    "name": "scene-5f271043.json",
+    "bytes": 541910,
+    "sha256": "5f271043d02c55ce0a41be0639f1a6e681d6fb27249b1819f654e6996c48068c"
+   },
+   "textures": 33,
+   "texBytes": 569362,
+   "meshes": 5,
+   "meshBytes": 4887,
+   "cut": {
+    "nodes": 116,
+    "clips": 29,
+    "textures": 13,
+    "meshes": 12
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1020_reed2_summer_17": {
+   "dynIllustId": "dyn_illust_char_1020_reed2_summer#17",
+   "bundle": "arts/dynchars/char_1020_reed2_summer#17.ab",
+   "clientHash": "7b6c40dead291adae9399ccf1065a900",
+   "scene": {
+    "name": "scene-c6a94963.json",
+    "bytes": 333025,
+    "sha256": "c6a94963f8b790a021e9b8139af93cf2c15f2923192915130196f74ff13357f8"
+   },
+   "textures": 43,
+   "texBytes": 461754,
+   "meshes": 9,
+   "meshBytes": 18524,
+   "cut": {
+    "nodes": 97,
+    "clips": 8,
+    "textures": 12,
+    "meshes": 6
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1023_ghost2_boc_6": {
+   "dynIllustId": "dyn_illust_char_1023_ghost2_boc#6",
+   "bundle": "arts/dynchars/char_1023_ghost2_boc#6.ab",
+   "clientHash": "266191d2f115a2f02ae0cd8cb559611d",
+   "scene": {
+    "name": "scene-baba57d6.json",
+    "bytes": 269616,
+    "sha256": "baba57d68214dfc9bf64ae64ae9d56dc81f87eec865c2073ba063bdf8e899ab0"
+   },
+   "textures": 36,
+   "texBytes": 666904,
+   "meshes": 11,
+   "meshBytes": 10940,
+   "cut": {
+    "nodes": 95,
+    "clips": 6,
+    "textures": 30,
+    "meshes": 3
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveCd",
+    "disturbAnchor",
+    "disturbCd",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1026_gvial2_summer_12": {
+   "dynIllustId": "dyn_illust_char_1026_gvial2_summer#12",
+   "bundle": "arts/dynchars/char_1026_gvial2_summer#12.ab",
+   "clientHash": "4b4fd2ff90dfeefb4ba6a2727cdce6d6",
+   "scene": {
+    "name": "scene-4c93e0a4.json",
+    "bytes": 130001,
+    "sha256": "4c93e0a4dad32d2694df9fe07abcb60db46e9c1af706e1efa68cf3f3023c34b6"
+   },
+   "textures": 26,
+   "texBytes": 512752,
+   "meshes": 5,
+   "meshBytes": 6705,
+   "cut": {
+    "nodes": 40,
+    "clips": 2,
+    "textures": 23,
+    "meshes": 6
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDouble",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1028_texas2_epoque_36": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_epoque#36",
+   "bundle": "arts/dynchars/char_1028_texas2_epoque#36.ab",
+   "clientHash": "8585392fb1cb029d5479981bf24430ab",
+   "scene": {
+    "name": "scene-674ca8e6.json",
+    "bytes": 224511,
+    "sha256": "674ca8e624ce04871e0a33bf4dc6578d1428c365662951102d68df8c2b019cc9"
+   },
+   "textures": 35,
+   "texBytes": 471198,
+   "meshes": 11,
+   "meshBytes": 23675,
+   "cut": {
+    "nodes": 131,
+    "clips": 5,
+    "textures": 35,
+    "meshes": 3
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1028_texas2_iteration_1": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_iteration#1",
+   "bundle": "arts/dynchars/char_1028_texas2_iteration#1.ab",
+   "clientHash": "7061b3230fd2f2a1bb8ed65e612c9e31",
+   "scene": {
+    "name": "scene-97da7102.json",
+    "bytes": 177502,
+    "sha256": "97da71027ab76fda63b45fcb5f704b8eb986b1f1f7d5fb499d6e6b73281b4b14"
+   },
+   "textures": 11,
+   "texBytes": 246606,
+   "meshes": 0,
+   "meshBytes": 0,
+   "cut": {
+    "nodes": 146,
+    "clips": 12,
+    "textures": 32,
+    "meshes": 14
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1032_excu2_sale_12": {
+   "dynIllustId": "dyn_illust_char_1032_excu2_sale#12",
+   "bundle": "arts/dynchars/char_1032_excu2_sale#12.ab",
+   "clientHash": "c3f64ed92b79197aca1242c67b8993a5",
+   "scene": {
+    "name": "scene-d2768f32.json",
+    "bytes": 256912,
+    "sha256": "d2768f3259aada4c0d88892e88f7fdc529450dad6a7e79593d470197dd843425"
+   },
+   "textures": 42,
+   "texBytes": 660146,
+   "meshes": 26,
+   "meshBytes": 107798,
+   "cut": {
+    "nodes": 87,
+    "clips": 22,
+    "textures": 31,
+    "meshes": 6
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "disturbAnchor",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1035_wisdel_sale_14": {
+   "dynIllustId": "dyn_illust_char_1035_wisdel_sale#14",
+   "bundle": "arts/dynchars/char_1035_wisdel_sale#14.ab",
+   "clientHash": "1340eef9d95de96e18dc6cb9b80755e7",
+   "scene": {
+    "name": "scene-fde786e4.json",
+    "bytes": 391773,
+    "sha256": "fde786e4eb0f00881ce5e720e2e25918e86ca9ccac5246c2c3d7ee38f951df15"
+   },
+   "textures": 28,
+   "texBytes": 1479636,
+   "meshes": 17,
+   "meshBytes": 19651,
+   "cut": {
+    "nodes": 277,
+    "clips": 35,
+    "textures": 43,
+    "meshes": 14
+   },
+   "batch": 3,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1037_amiya3_sale_13": {
+   "dynIllustId": "dyn_illust_char_1037_amiya3_sale#13",
+   "bundle": "arts/dynchars/char_1037_amiya3_sale#13.ab",
+   "clientHash": "2a404f757a0b07b2fef005b95c9d4ae9",
+   "scene": {
+    "name": "scene-6d453219.json",
+    "bytes": 343564,
+    "sha256": "6d4532191475eb436dc48fc4918c20a7944f4245c579ff09fae1d4d2e806d208"
+   },
+   "textures": 48,
+   "texBytes": 789286,
+   "meshes": 11,
+   "meshBytes": 45971,
+   "cut": {
+    "nodes": 168,
+    "clips": 11,
+    "textures": 29,
+    "meshes": 8
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "grab",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1038_whitw2_sale_15": {
+   "dynIllustId": "dyn_illust_char_1038_whitw2_sale#15",
+   "bundle": "arts/dynchars/char_1038_whitw2_sale#15.ab",
+   "clientHash": "1d3f1e4e06e8c6514749e39fff27b259",
+   "scene": {
+    "name": "scene-604bf77e.json",
+    "bytes": 452354,
+    "sha256": "604bf77e444e702c3331c8305aedeee387d453b300325a48829be6ba954aa0e1"
+   },
+   "textures": 44,
+   "texBytes": 1442086,
+   "meshes": 5,
+   "meshBytes": 15533,
+   "cut": {
+    "nodes": 255,
+    "clips": 5,
+    "textures": 30,
+    "meshes": 11
+   },
+   "batch": 3,
+   "families": [
+    "basic",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1039_thorn2_marthe_9": {
+   "dynIllustId": "dyn_illust_char_1039_thorn2_marthe#9",
+   "bundle": "arts/dynchars/char_1039_thorn2_marthe#9.ab",
+   "clientHash": "d4880f8be2e180ced9d390cf2c116e0d",
+   "scene": {
+    "name": "scene-30105b04.json",
+    "bytes": 370758,
+    "sha256": "30105b04e208454140707d0068107800f28f3193ab8d1508ba096b5fe37b63b5"
+   },
+   "textures": 41,
+   "texBytes": 857546,
+   "meshes": 9,
+   "meshBytes": 36366,
+   "cut": {
+    "nodes": 220,
+    "clips": 15,
+    "textures": 36,
+    "meshes": 4
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1041_angel2_iteration_6": {
+   "dynIllustId": "dyn_illust_char_1041_angel2_iteration#6",
+   "bundle": "arts/dynchars/char_1041_angel2_iteration#6.ab",
+   "clientHash": "19be6e67d6a8d7c9a5eff114f99b397a",
+   "scene": {
+    "name": "scene-3e28fd20.json",
+    "bytes": 290952,
+    "sha256": "3e28fd20622fecdf72bb82bd16a49d70764b1ac87597a95e190a0f7b85f1c452"
+   },
+   "textures": 41,
+   "texBytes": 864868,
+   "meshes": 17,
+   "meshBytes": 250641,
+   "cut": {
+    "nodes": 0,
+    "clips": 0,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_1042_phatm2_sightseer_4": {
+   "dynIllustId": "dyn_illust_char_1042_phatm2_sightseer#4",
+   "bundle": "arts/dynchars/char_1042_phatm2_sightseer#4.ab",
+   "clientHash": "f9948d7985958ce5c1d9ea47a12aeb9f",
+   "scene": {
+    "name": "scene-79f1e502.json",
+    "bytes": 381123,
+    "sha256": "79f1e50247d9b3741b0cb70310f5c150b14b5e50824dab21116d48235197a650"
+   },
+   "textures": 32,
+   "texBytes": 1082048,
+   "meshes": 3,
+   "meshBytes": 5933,
+   "cut": {
+    "nodes": 0,
+    "clips": 38,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_1044_hsgma2_whirlwind_11": {
+   "dynIllustId": "dyn_illust_char_1044_hsgma2_whirlwind#11",
+   "bundle": "arts/dynchars/char_1044_hsgma2_whirlwind#11.ab",
+   "clientHash": "0089ebd51935734d2f98c7b362eaac61",
+   "scene": {
+    "name": "scene-ee313728.json",
+    "bytes": 320023,
+    "sha256": "ee313728bb304cb45facd4865de07a23493e0ff4551c8ed918e2078c275b7ef3"
+   },
+   "textures": 55,
+   "texBytes": 3909736,
+   "meshes": 5,
+   "meshBytes": 36796,
+   "cut": {
+    "nodes": 0,
+    "clips": 4,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "grab",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_1045_svash2_sale_20": {
+   "dynIllustId": "dyn_illust_char_1045_svash2_sale#20",
+   "bundle": "arts/dynchars/char_1045_svash2_sale#20.ab",
+   "clientHash": "a99291bb8bb5a73049c49ac370e27c5c",
+   "scene": {
+    "name": "scene-e26416c3.json",
+    "bytes": 250503,
+    "sha256": "e26416c37c01f5520d8385da83253dc3aab8e62bb250d9b910b443519cde7e56"
+   },
+   "textures": 45,
+   "texBytes": 1152770,
+   "meshes": 13,
+   "meshBytes": 80331,
+   "cut": {
+    "nodes": 0,
+    "clips": 0,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_1046_sbell2_ambienceSynesthesia_8": {
+   "dynIllustId": "dyn_illust_char_1046_sbell2_ambienceSynesthesia#8",
+   "bundle": "arts/dynchars/char_1046_sbell2_ambiencesynesthesia#8.ab",
+   "clientHash": "bf961d85ceb73d261f341db5b09014f5",
+   "scene": {
+    "name": "scene-fe275d7d.json",
+    "bytes": 378131,
+    "sha256": "fe275d7d4ec6fbe630fbd6d9e840c881cdc55a36e7d5ea1b8601884af4999c45"
+   },
+   "textures": 85,
+   "texBytes": 1216718,
+   "meshes": 34,
+   "meshBytes": 355398,
+   "cut": {
+    "nodes": 0,
+    "clips": 2,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "disturbCd",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_113_cqbw_epoque_7": {
+   "dynIllustId": "dyn_illust_char_113_cqbw_epoque#7",
+   "bundle": "arts/dynchars/char_113_cqbw_epoque#7.ab",
+   "clientHash": "7bb406442ca4f5a8bd42af9214ad6ecc",
+   "scene": {
+    "name": "scene-e251b77e.json",
+    "bytes": 79490,
+    "sha256": "e251b77ee8f6c400437eee12c1d8c1f137bd1b7caee181829b6ddaa8746914d4"
+   },
+   "textures": 17,
+   "texBytes": 346008,
+   "meshes": 4,
+   "meshBytes": 13934,
+   "cut": {
+    "nodes": 59,
+    "clips": 4,
+    "textures": 21,
+    "meshes": 7
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "disturbAnchor",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_172_svrash_ambienceSynesthesia_4": {
+   "dynIllustId": "dyn_illust_char_172_svrash_ambienceSynesthesia#4",
+   "bundle": "arts/dynchars/char_172_svrash_ambiencesynesthesia#4.ab",
+   "clientHash": "c264695b32f19cb47b59a86ed22bed18",
+   "scene": {
+    "name": "scene-68970969.json",
+    "bytes": 110965,
+    "sha256": "68970969de1658270b9c21017eebf9d595b6967f113ece181def676188e65877"
+   },
+   "textures": 26,
+   "texBytes": 366722,
+   "meshes": 13,
+   "meshBytes": 33828,
+   "cut": {
+    "nodes": 59,
+    "clips": 3,
+    "textures": 29,
+    "meshes": 8
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_179_cgbird_sightseer_1": {
+   "dynIllustId": "dyn_illust_char_179_cgbird_sightseer#1",
+   "bundle": "arts/dynchars/char_179_cgbird_sightseer#1.ab",
+   "clientHash": "a7f2099ba49f6fa04c0e36f39547f3c4",
+   "scene": {
+    "name": "scene-3a0e0a25.json",
+    "bytes": 660982,
+    "sha256": "3a0e0a25b4c24203a6a9c06e2f7238d4e63b560d4c4ae01766bc4db3d524c047"
+   },
+   "textures": 81,
+   "texBytes": 1344940,
+   "meshes": 18,
+   "meshBytes": 64103,
+   "cut": {
+    "nodes": 63,
+    "clips": 12,
+    "textures": 28,
+    "meshes": 4
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "dissolveDouble",
+    "dissolveTween",
+    "disturbAnchor",
+    "disturbCd",
+    "erase",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_2014_nian_cfa_1": {
+   "dynIllustId": "dyn_illust_char_2014_nian_cfa#1",
+   "bundle": "arts/dynchars/char_2014_nian_cfa#1.ab",
+   "clientHash": "28127eedf38faf8c4e5e6c20248eb5d8",
+   "scene": {
+    "name": "scene-97740dd7.json",
+    "bytes": 481712,
+    "sha256": "97740dd72315c90f554710d3a240a99302182ef0363691f290a5d90d28cc8516"
+   },
+   "textures": 39,
+   "texBytes": 618060,
+   "meshes": 4,
+   "meshBytes": 1185,
+   "cut": {
+    "nodes": 143,
+    "clips": 5,
+    "textures": 33,
+    "meshes": 4
+   },
+   "batch": 3,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_2014_nian_nian_4": {
+   "dynIllustId": "dyn_illust_char_2014_nian_nian#4",
+   "bundle": "arts/dynchars/char_2014_nian_nian#4.ab",
+   "clientHash": "9fb4a69df3eb4c01523c206fbe6e0538",
+   "scene": {
+    "name": "scene-68702207.json",
+    "bytes": 143130,
+    "sha256": "687022078526ffa6156898920f639cba256063bc9747ee80ac5b498385998a5a"
+   },
+   "textures": 11,
+   "texBytes": 35194,
+   "meshes": 2,
+   "meshBytes": 5348,
+   "cut": {
+    "nodes": 106,
+    "clips": 8,
+    "textures": 20,
+    "meshes": 13
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_2015_dusk_nian_12": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_nian#12",
+   "bundle": "arts/dynchars/char_2015_dusk_nian#12.ab",
+   "clientHash": "8ee740f4f604b18ed96e688f864adc5b",
+   "scene": {
+    "name": "scene-ccbf3428.json",
+    "bytes": 136100,
+    "sha256": "ccbf342815092eee0f9f803b8c667fc633aa6687b628645f2bea8bcc30fc5226"
+   },
+   "textures": 32,
+   "texBytes": 404156,
+   "meshes": 12,
+   "meshBytes": 47964,
+   "cut": {
+    "nodes": 0,
+    "clips": 2,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_2015_dusk_nian_7": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_nian#7",
+   "bundle": "arts/dynchars/char_2015_dusk_nian#7.ab",
+   "clientHash": "e95a2532b01fd99abbbcda91f28e0088",
+   "scene": {
+    "name": "scene-29d87c08.json",
+    "bytes": 355927,
+    "sha256": "29d87c08aefab71f69e591a121eecd6b04a4255150072f0c49189ab12e71eabc"
+   },
+   "textures": 43,
+   "texBytes": 506060,
+   "meshes": 10,
+   "meshBytes": 45200,
+   "cut": {
+    "nodes": 52,
+    "clips": 10,
+    "textures": 14,
+    "meshes": 11
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDoubleEdge",
+    "dissolveVc",
+    "disturbAnchor",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_2023_ling_ncg_1": {
+   "dynIllustId": "dyn_illust_char_2023_ling_ncg#1",
+   "bundle": "arts/dynchars/char_2023_ling_ncg#1.ab",
+   "clientHash": "eff6274b4a518fa2feeb209add4a9c66",
+   "scene": {
+    "name": "scene-3ff7afd9.json",
+    "bytes": 128290,
+    "sha256": "3ff7afd9fd9608f24ee9fa40355e26c142708db6e16011f96f2c0ccda37bd8e0"
+   },
+   "textures": 14,
+   "texBytes": 362388,
+   "meshes": 10,
+   "meshBytes": 23453,
+   "cut": {
+    "nodes": 60,
+    "clips": 4,
+    "textures": 29,
+    "meshes": 6
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "disturbCd"
+   ],
+   "enabled": false
+  },
+  "char_2023_ling_nian_9": {
+   "dynIllustId": "dyn_illust_char_2023_ling_nian#9",
+   "bundle": "arts/dynchars/char_2023_ling_nian#9.ab",
+   "clientHash": "b29163fc3113946f69cb61f18b59ff96",
+   "scene": {
+    "name": "scene-269fabe9.json",
+    "bytes": 280526,
+    "sha256": "269fabe9e6cca75d30a00ffc08786de8e56518c7a5609b5b49b312d4048eeab4"
+   },
+   "textures": 40,
+   "texBytes": 428056,
+   "meshes": 21,
+   "meshBytes": 99801,
+   "cut": {
+    "nodes": 92,
+    "clips": 7,
+    "textures": 24,
+    "meshes": 23
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "dissolveDouble",
+    "disturbCd"
+   ],
+   "enabled": false
+  },
+  "char_2024_chyue_cfa_1": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_cfa#1",
+   "bundle": "arts/dynchars/char_2024_chyue_cfa#1.ab",
+   "clientHash": "973d5af5715bc1d1cf73a6fb47488668",
+   "scene": {
+    "name": "scene-868721fe.json",
+    "bytes": 245507,
+    "sha256": "868721fef3839817a722ba24206c874de90d09375e71d8adb80905122baedede"
+   },
+   "textures": 30,
+   "texBytes": 624466,
+   "meshes": 6,
+   "meshBytes": 12251,
+   "cut": {
+    "nodes": 140,
+    "clips": 13,
+    "textures": 53,
+    "meshes": 6
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "dissolveVc",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_2024_chyue_nian_10": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_nian#10",
+   "bundle": "arts/dynchars/char_2024_chyue_nian#10.ab",
+   "clientHash": "40da8f3d8b043b7be82d7f9e507a24b3",
+   "scene": {
+    "name": "scene-8a5410c6.json",
+    "bytes": 203459,
+    "sha256": "8a5410c65113466a8375bd7418e0d2f43869192163a0db051bbbac60a0497cb8"
+   },
+   "textures": 25,
+   "texBytes": 243998,
+   "meshes": 4,
+   "meshBytes": 4654,
+   "cut": {
+    "nodes": 262,
+    "clips": 13,
+    "textures": 31,
+    "meshes": 26
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_2025_shu_nian_11": {
+   "dynIllustId": "dyn_illust_char_2025_shu_nian#11",
+   "bundle": "arts/dynchars/char_2025_shu_nian#11.ab",
+   "clientHash": "696fe1b9dc1ea10984183527a28d3acd",
+   "scene": {
+    "name": "scene-2244d243.json",
+    "bytes": 405080,
+    "sha256": "2244d2434fc3d3d83ffdfb45548f1d964311d03899d0e5fee9ec3f9aa93d2c07"
+   },
+   "textures": 22,
+   "texBytes": 520754,
+   "meshes": 17,
+   "meshBytes": 23015,
+   "cut": {
+    "nodes": 111,
+    "clips": 27,
+    "textures": 19,
+    "meshes": 1
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "disturbAnchor",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_2025_shu_nlc_1": {
+   "dynIllustId": "dyn_illust_char_2025_shu_nlc#1",
+   "bundle": "arts/dynchars/char_2025_shu_nlc#1.ab",
+   "clientHash": "44ef3e80686b0cea0d468277493a8e4f",
+   "scene": {
+    "name": "scene-237f49ff.json",
+    "bytes": 158831,
+    "sha256": "237f49ffa8920562382167043bb4987e9226e542d13a8efe184da7ebfcbe7179"
+   },
+   "textures": 37,
+   "texBytes": 1532142,
+   "meshes": 13,
+   "meshBytes": 402854,
+   "cut": {
+    "nodes": 0,
+    "clips": 2,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 3,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "grab",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_2026_yu_nian_12": {
+   "dynIllustId": "dyn_illust_char_2026_yu_nian#12",
+   "bundle": "arts/dynchars/char_2026_yu_nian#12.ab",
+   "clientHash": "d23e5790535ee7b50f821db6c41e9436",
+   "scene": {
+    "name": "scene-4be3ce06.json",
+    "bytes": 914946,
+    "sha256": "4be3ce06aa09b4bf7016c430c03298e8aa043bfb9fbb6981b0bf53d4988100e4"
+   },
+   "textures": 42,
+   "texBytes": 1190028,
+   "meshes": 18,
+   "meshBytes": 39405,
+   "cut": {
+    "nodes": 0,
+    "clips": 5,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_202_demkni_ambienceSynesthesia_7": {
+   "dynIllustId": "dyn_illust_char_202_demkni_ambienceSynesthesia#7",
+   "bundle": "arts/dynchars/char_202_demkni_ambiencesynesthesia#7.ab",
+   "clientHash": "d244e3d037652bdee4a8308cd0ef0650",
+   "scene": {
+    "name": "scene-e5e8f167.json",
+    "bytes": 92965,
+    "sha256": "e5e8f167206c6023aeadaba095db24562107494342eb9d1953008c16085eadc0"
+   },
+   "textures": 19,
+   "texBytes": 1045810,
+   "meshes": 8,
+   "meshBytes": 25246,
+   "cut": {
+    "nodes": 0,
+    "clips": 4,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_245_cello_sale_12": {
+   "dynIllustId": "dyn_illust_char_245_cello_sale#12",
+   "bundle": "arts/dynchars/char_245_cello_sale#12.ab",
+   "clientHash": "89b2c896d7a736f2d156d6055058d858",
+   "scene": {
+    "name": "scene-16d34b57.json",
+    "bytes": 345822,
+    "sha256": "16d34b5721d94d6714e1faebe0bdc5811cb0398a603604d4550f620533a74da1"
+   },
+   "textures": 41,
+   "texBytes": 1054578,
+   "meshes": 34,
+   "meshBytes": 146866,
+   "cut": {
+    "nodes": 123,
+    "clips": 35,
+    "textures": 43,
+    "meshes": 20
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_249_mlyss_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_ambienceSynesthesia#6",
+   "bundle": "arts/dynchars/char_249_mlyss_ambiencesynesthesia#6.ab",
+   "clientHash": "f33b092f1c248660bf104710284bd2e3",
+   "scene": {
+    "name": "scene-d60c5c9a.json",
+    "bytes": 310860,
+    "sha256": "d60c5c9abcf3a2d633c1b0b92aa155fb6f926b54bb7a3ccde89299f7aa71d90c"
+   },
+   "textures": 9,
+   "texBytes": 190956,
+   "meshes": 12,
+   "meshBytes": 12412,
+   "cut": {
+    "nodes": 114,
+    "clips": 2,
+    "textures": 35,
+    "meshes": 10
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_249_mlyss_boc_8": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_boc#8",
+   "bundle": "arts/dynchars/char_249_mlyss_boc#8.ab",
+   "clientHash": "1699c587454feca61458811483dfcadd",
+   "scene": {
+    "name": "scene-3bbe5e4c.json",
+    "bytes": 310143,
+    "sha256": "3bbe5e4cd7bf6424284a235d6ddd5b53034a39bb6167789f5fd5691f44749a97"
+   },
+   "textures": 32,
+   "texBytes": 769006,
+   "meshes": 24,
+   "meshBytes": 161364,
+   "cut": {
+    "nodes": 166,
+    "clips": 8,
+    "textures": 23,
+    "meshes": 16
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_250_phatom_sale_4": {
+   "dynIllustId": "dyn_illust_char_250_phatom_sale#4",
+   "bundle": "arts/dynchars/char_250_phatom_sale#4.ab",
+   "clientHash": "c4560ff94581d4fb1d9da0ba10216bee",
+   "scene": {
+    "name": "scene-bf666e64.json",
+    "bytes": 141488,
+    "sha256": "bf666e6460e089768510ff6c7815fba56b69ac7dd9e2606ec6b2ff1152c2e7fc"
+   },
+   "textures": 20,
+   "texBytes": 381710,
+   "meshes": 4,
+   "meshBytes": 28352,
+   "cut": {
+    "nodes": 64,
+    "clips": 4,
+    "textures": 26,
+    "meshes": 7
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDoubleEdge",
+    "dissolveTween",
+    "disturb2",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_322_lmlee_witch_3": {
+   "dynIllustId": "dyn_illust_char_322_lmlee_witch#3",
+   "bundle": "arts/dynchars/char_322_lmlee_witch#3.ab",
+   "clientHash": "769be9031e6e15d7fccffca5378ed04c",
+   "scene": {
+    "name": "scene-377e6fac.json",
+    "bytes": 106315,
+    "sha256": "377e6face00600056e8e760885c4566d000f750f64734e5ec4749b9f7bd091bf"
+   },
+   "textures": 7,
+   "texBytes": 10858,
+   "meshes": 0,
+   "meshBytes": 0,
+   "cut": {
+    "nodes": 177,
+    "clips": 21,
+    "textures": 20,
+    "meshes": 6
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveTween",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_332_archet_sale_14": {
+   "dynIllustId": "dyn_illust_char_332_archet_sale#14",
+   "bundle": "arts/dynchars/char_332_archet_sale#14.ab",
+   "clientHash": "8862b0b76cdaf321cdce54c09cb30164",
+   "scene": {
+    "name": "scene-b4525dfa.json",
+    "bytes": 206839,
+    "sha256": "b4525dfa59a7f820cd5e47cf745a2f8aebaf4d2f79be1cd890ba623d729b7f18"
+   },
+   "textures": 28,
+   "texBytes": 430470,
+   "meshes": 3,
+   "meshBytes": 11945,
+   "cut": {
+    "nodes": 100,
+    "clips": 9,
+    "textures": 16,
+    "meshes": 2
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_350_surtr_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_350_surtr_ambienceSynesthesia#6",
+   "bundle": "arts/dynchars/char_350_surtr_ambiencesynesthesia#6.ab",
+   "clientHash": "419b8e137d86ae141bd7ad67d875a97c",
+   "scene": {
+    "name": "scene-dee3399e.json",
+    "bytes": 435115,
+    "sha256": "dee3399e7b1b49b24510dfb8bdcca7e5d99a92f0b44b357d9fc24031a369bb7b"
+   },
+   "textures": 49,
+   "texBytes": 499068,
+   "meshes": 11,
+   "meshBytes": 108172,
+   "cut": {
+    "nodes": 0,
+    "clips": 16,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 3,
+   "families": [
+    "basic",
+    "dissolve",
+    "disturbCd",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_350_surtr_summer_9": {
+   "dynIllustId": "dyn_illust_char_350_surtr_summer#9",
+   "bundle": "arts/dynchars/char_350_surtr_summer#9.ab",
+   "clientHash": "41e25f4d9ab124655de45c6316ab99d7",
+   "scene": {
+    "name": "scene-d4325173.json",
+    "bytes": 261571,
+    "sha256": "d4325173752a93f841ed352649623b31a3d9e37c66651dc50e9dda2dcb91d6cc"
+   },
+   "textures": 18,
+   "texBytes": 163968,
+   "meshes": 7,
+   "meshBytes": 26639,
+   "cut": {
+    "nodes": 83,
+    "clips": 7,
+    "textures": 41,
+    "meshes": 10
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "disturb2",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_377_gdglow_summer_12": {
+   "dynIllustId": "dyn_illust_char_377_gdglow_summer#12",
+   "bundle": "arts/dynchars/char_377_gdglow_summer#12.ab",
+   "clientHash": "b05be0f8bc5e2cf37c54283e7ca24967",
+   "scene": {
+    "name": "scene-88dd464f.json",
+    "bytes": 233119,
+    "sha256": "88dd464fe63f9a4dbf6799d82e0957efacd1fec07e94e4f2e2f37e51dc4885f1"
+   },
+   "textures": 23,
+   "texBytes": 281518,
+   "meshes": 10,
+   "meshBytes": 22075,
+   "cut": {
+    "nodes": 65,
+    "clips": 8,
+    "textures": 28,
+    "meshes": 4
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "disturb2",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_391_rosmon_epoque_17": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_epoque#17",
+   "bundle": "arts/dynchars/char_391_rosmon_epoque#17.ab",
+   "clientHash": "d15f83da45f9ba669f9c63d89bfc5114",
+   "scene": {
+    "name": "scene-2912fd43.json",
+    "bytes": 175551,
+    "sha256": "2912fd43ceaa582780005ca1859d1ea0bc03355643a8e9eb7bce5bab74748120"
+   },
+   "textures": 25,
+   "texBytes": 215204,
+   "meshes": 3,
+   "meshBytes": 61492,
+   "cut": {
+    "nodes": 161,
+    "clips": 7,
+    "textures": 21,
+    "meshes": 1
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDouble",
+    "dissolveTween",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_391_rosmon_sale_16": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_sale#16",
+   "bundle": "arts/dynchars/char_391_rosmon_sale#16.ab",
+   "clientHash": "17677e4280397ac2ca762770c56c9b44",
+   "scene": {
+    "name": "scene-c69540e0.json",
+    "bytes": 281366,
+    "sha256": "c69540e0f5d6e3a70b5fb5d96db108d269da7c288e56e1565dd804e610d6e2d3"
+   },
+   "textures": 14,
+   "texBytes": 877630,
+   "meshes": 6,
+   "meshBytes": 9426,
+   "cut": {
+    "nodes": 0,
+    "clips": 0,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "disturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_4010_etlchi_winter_5": {
+   "dynIllustId": "dyn_illust_char_4010_etlchi_winter#5",
+   "bundle": "arts/dynchars/char_4010_etlchi_winter#5.ab",
+   "clientHash": "7b579254d57b814117f6309c8ba963d7",
+   "scene": {
+    "name": "scene-6c187b4e.json",
+    "bytes": 279253,
+    "sha256": "6c187b4e0fab6fc5f6977e0ef33c54f1b6a89ad9d45681d89733185dcc70d5f5"
+   },
+   "textures": 14,
+   "texBytes": 59236,
+   "meshes": 4,
+   "meshBytes": 10795,
+   "cut": {
+    "nodes": 0,
+    "clips": 0,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveDouble",
+    "disturbCd",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_4055_bgsnow_wild_7": {
+   "dynIllustId": "dyn_illust_char_4055_bgsnow_wild#7",
+   "bundle": "arts/dynchars/char_4055_bgsnow_wild#7.ab",
+   "clientHash": "80bc9a3ea00076d63395f837f83149a0",
+   "scene": {
+    "name": "scene-e150a9a5.json",
+    "bytes": 472574,
+    "sha256": "e150a9a5125f7895cfc34086944f1d8afcfa72cce71055cd80c0be7654389933"
+   },
+   "textures": 74,
+   "texBytes": 795366,
+   "meshes": 17,
+   "meshBytes": 72361,
+   "cut": {
+    "nodes": 22,
+    "clips": 8,
+    "textures": 11,
+    "meshes": 3
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDouble",
+    "dissolveTween",
+    "disturb2",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_4058_pepe_sightseer_2": {
+   "dynIllustId": "dyn_illust_char_4058_pepe_sightseer#2",
+   "bundle": "arts/dynchars/char_4058_pepe_sightseer#2.ab",
+   "clientHash": "e0815ca325165a7577dae34e21fb5100",
+   "scene": {
+    "name": "scene-e081e11e.json",
+    "bytes": 229796,
+    "sha256": "e081e11e38504cfa34e99c6c47172f71dc47ca9da1d1e7ef660c2b150a9ec6eb"
+   },
+   "textures": 31,
+   "texBytes": 677244,
+   "meshes": 17,
+   "meshBytes": 38503,
+   "cut": {
+    "nodes": 118,
+    "clips": 0,
+    "textures": 41,
+    "meshes": 16
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolveVc",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_4064_mlynar_epoque_28": {
+   "dynIllustId": "dyn_illust_char_4064_mlynar_epoque#28",
+   "bundle": "arts/dynchars/char_4064_mlynar_epoque#28.ab",
+   "clientHash": "5f0f8aaddcc0ea753a810bb7146a5530",
+   "scene": {
+    "name": "scene-88918eee.json",
+    "bytes": 155468,
+    "sha256": "88918eeeb89a288d800045a5d8c11231a49e686f72930bdb48eac92e772279b1"
+   },
+   "textures": 26,
+   "texBytes": 641396,
+   "meshes": 2,
+   "meshBytes": 3291,
+   "cut": {
+    "nodes": 60,
+    "clips": 9,
+    "textures": 27,
+    "meshes": 6
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolveDouble",
+    "dissolveTween",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4080_lin_nian_10": {
+   "dynIllustId": "dyn_illust_char_4080_lin_nian#10",
+   "bundle": "arts/dynchars/char_4080_lin_nian#10.ab",
+   "clientHash": "927cf5f6c2e22d5493fc44ca74e7d459",
+   "scene": {
+    "name": "scene-0c91dcab.json",
+    "bytes": 239089,
+    "sha256": "0c91dcab62f8207ba16696d013452add7643e7348c3ed951d61082e639516090"
+   },
+   "textures": 48,
+   "texBytes": 964972,
+   "meshes": 16,
+   "meshBytes": 137440,
+   "cut": {
+    "nodes": 64,
+    "clips": 5,
+    "textures": 17,
+    "meshes": 2
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4080_lin_summer_19": {
+   "dynIllustId": "dyn_illust_char_4080_lin_summer#19",
+   "bundle": "arts/dynchars/char_4080_lin_summer#19.ab",
+   "clientHash": "263f82dc1b8fd479afc276d9fbc853f6",
+   "scene": {
+    "name": "scene-fa787206.json",
+    "bytes": 389051,
+    "sha256": "fa78720679c7816e033253cb5c19464abe437d72eba89c4e1d3cb2b4cd75657a"
+   },
+   "textures": 15,
+   "texBytes": 305604,
+   "meshes": 3,
+   "meshBytes": 6252,
+   "cut": {
+    "nodes": 255,
+    "clips": 5,
+    "textures": 32,
+    "meshes": 40
+   },
+   "batch": 2,
+   "families": [
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_4087_ines_ambienceSynesthesia_5": {
+   "dynIllustId": "dyn_illust_char_4087_ines_ambienceSynesthesia#5",
+   "bundle": "arts/dynchars/char_4087_ines_ambiencesynesthesia#5.ab",
+   "clientHash": "904e84dcae31d7f1724476bc32ef25d0",
+   "scene": {
+    "name": "scene-bc92d1b6.json",
+    "bytes": 357327,
+    "sha256": "bc92d1b6ba188b9e5746f8c1c6a3bc2635fa797c2f975565803ef75f5894c01d"
+   },
+   "textures": 22,
+   "texBytes": 1177664,
+   "meshes": 15,
+   "meshBytes": 57952,
+   "cut": {
+    "nodes": 135,
+    "clips": 16,
+    "textures": 23,
+    "meshes": 19
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_4087_ines_boc_8": {
+   "dynIllustId": "dyn_illust_char_4087_ines_boc#8",
+   "bundle": "arts/dynchars/char_4087_ines_boc#8.ab",
+   "clientHash": "b12c4bfef9ff11911ea353a65c051016",
+   "scene": {
+    "name": "scene-a2602077.json",
+    "bytes": 188700,
+    "sha256": "a260207789be3f411fdf3a3903e7b27edd84833aec2f176cbce46af397eab66c"
+   },
+   "textures": 35,
+   "texBytes": 1643506,
+   "meshes": 23,
+   "meshBytes": 27072,
+   "cut": {
+    "nodes": 88,
+    "clips": 4,
+    "textures": 42,
+    "meshes": 8
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveDouble",
+    "dissolveTween",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4098_vvana_epoque_59": {
+   "dynIllustId": "dyn_illust_char_4098_vvana_epoque#59",
+   "bundle": "arts/dynchars/char_4098_vvana_epoque#59.ab",
+   "clientHash": "d2c646f8f6097ab4c27af4316d3c7e16",
+   "scene": {
+    "name": "scene-6b08ecd7.json",
+    "bytes": 484852,
+    "sha256": "6b08ecd73e85bd226e8225cfc5112e1978fc7ab51fcc57ede989d95654c6dc2f"
+   },
+   "textures": 70,
+   "texBytes": 1864336,
+   "meshes": 19,
+   "meshBytes": 73466,
+   "cut": {
+    "nodes": 0,
+    "clips": 12,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4116_blkkgt_witch_5": {
+   "dynIllustId": "dyn_illust_char_4116_blkkgt_witch#5",
+   "bundle": "arts/dynchars/char_4116_blkkgt_witch#5.ab",
+   "clientHash": "2ae582760d0723484328fc1cf375fbd2",
+   "scene": {
+    "name": "scene-0c4ebc02.json",
+    "bytes": 281385,
+    "sha256": "0c4ebc027a56c9ec16484904aca9ac5dc4d0dcbd0b5a0d83a4b2196b68aff654"
+   },
+   "textures": 32,
+   "texBytes": 449932,
+   "meshes": 11,
+   "meshBytes": 27476,
+   "cut": {
+    "nodes": 268,
+    "clips": 66,
+    "textures": 37,
+    "meshes": 12
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4121_zuole_nian_11": {
+   "dynIllustId": "dyn_illust_char_4121_zuole_nian#11",
+   "bundle": "arts/dynchars/char_4121_zuole_nian#11.ab",
+   "clientHash": "0f558ebbaf346e9072955786b3e57797",
+   "scene": {
+    "name": "scene-3d80ff16.json",
+    "bytes": 288631,
+    "sha256": "3d80ff169c31ddda2e0eefc3b179f3f7e53d646d074c544b1932a917e424a22d"
+   },
+   "textures": 49,
+   "texBytes": 958616,
+   "meshes": 33,
+   "meshBytes": 119079,
+   "cut": {
+    "nodes": 141,
+    "clips": 9,
+    "textures": 49,
+    "meshes": 9
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4132_ascln_iteration_4": {
+   "dynIllustId": "dyn_illust_char_4132_ascln_iteration#4",
+   "bundle": "arts/dynchars/char_4132_ascln_iteration#4.ab",
+   "clientHash": "0b6bd9b7506e1cb6dc12e51dd6e4d545",
+   "scene": {
+    "name": "scene-4f584b31.json",
+    "bytes": 225843,
+    "sha256": "4f584b312ab3119f5c97a8bbe5f78bc2ba8db918571f9916373225f13d56ca68"
+   },
+   "textures": 10,
+   "texBytes": 47732,
+   "meshes": 5,
+   "meshBytes": 6956,
+   "cut": {
+    "nodes": 162,
+    "clips": 6,
+    "textures": 26,
+    "meshes": 6
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "legacyPremul",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_4133_logos_ambienceSynesthesia_6": {
+   "dynIllustId": "dyn_illust_char_4133_logos_ambienceSynesthesia#6",
+   "bundle": "arts/dynchars/char_4133_logos_ambiencesynesthesia#6.ab",
+   "clientHash": "12fa6f4aa4124e512075f3a5ce2b6848",
+   "scene": {
+    "name": "scene-a3ae44ec.json",
+    "bytes": 682531,
+    "sha256": "a3ae44eceab13b59805b02d1faba06504f05438a064f06108820834f5a7de9c7"
+   },
+   "textures": 37,
+   "texBytes": 877822,
+   "meshes": 33,
+   "meshBytes": 27304,
+   "cut": {
+    "nodes": 120,
+    "clips": 39,
+    "textures": 51,
+    "meshes": 13
+   },
+   "batch": 3,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "dissolveDouble",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4134_cetsyr_epoque_50": {
+   "dynIllustId": "dyn_illust_char_4134_cetsyr_epoque#50",
+   "bundle": "arts/dynchars/char_4134_cetsyr_epoque#50.ab",
+   "clientHash": "9f65a07461c09355e0633f374177bf5c",
+   "scene": {
+    "name": "scene-edb3c8da.json",
+    "bytes": 461349,
+    "sha256": "edb3c8dadfe54a69c7dbff8c30d1f9d11e24e32bacc8f5f99bf5cbb25ecee9ab"
+   },
+   "textures": 60,
+   "texBytes": 1794630,
+   "meshes": 20,
+   "meshBytes": 186636,
+   "cut": {
+    "nodes": 14,
+    "clips": 5,
+    "textures": 5,
+    "meshes": 2
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4179_monstr_boc_11": {
+   "dynIllustId": "dyn_illust_char_4179_monstr_boc#11",
+   "bundle": "arts/dynchars/char_4179_monstr_boc#11.ab",
+   "clientHash": "484bc9c4b8e4c97df19ff0415e38b955",
+   "scene": {
+    "name": "scene-4c465472.json",
+    "bytes": 170070,
+    "sha256": "4c4654729bcd6dc6d2153c99054d6b3578942dda94c494988befb6cc2821ac06"
+   },
+   "textures": 37,
+   "texBytes": 643142,
+   "meshes": 2,
+   "meshBytes": 5703,
+   "cut": {
+    "nodes": 0,
+    "clips": 0,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4202_haruka_iteration_6": {
+   "dynIllustId": "dyn_illust_char_4202_haruka_iteration#6",
+   "bundle": "arts/dynchars/char_4202_haruka_iteration#6.ab",
+   "clientHash": "4a3ba11024e9bc18e8a1d46bd01888a7",
+   "scene": {
+    "name": "scene-87c525f9.json",
+    "bytes": 346608,
+    "sha256": "87c525f91c47e65f3fa3f3e5e88e2ddc7c2dacc5b099eb5e158b6db27ec2051f"
+   },
+   "textures": 42,
+   "texBytes": 1246412,
+   "meshes": 2,
+   "meshBytes": 4689,
+   "cut": {
+    "nodes": 0,
+    "clips": 3,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "grab",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_437_mizuki_sale_7": {
+   "dynIllustId": "dyn_illust_char_437_mizuki_sale#7",
+   "bundle": "arts/dynchars/char_437_mizuki_sale#7.ab",
+   "clientHash": "50336e3db5c278cd8a69ce9dacfb93e9",
+   "scene": {
+    "name": "scene-b29e5218.json",
+    "bytes": 97336,
+    "sha256": "b29e52182471b59503ca937b650ef009fcb0d3ed8604a4ef330e07b89fabc28e"
+   },
+   "textures": 19,
+   "texBytes": 151896,
+   "meshes": 4,
+   "meshBytes": 18029,
+   "cut": {
+    "nodes": 86,
+    "clips": 1,
+    "textures": 20,
+    "meshes": 4
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveTween",
+    "disturb2",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_450_necras_summer_20": {
+   "dynIllustId": "dyn_illust_char_450_necras_summer#20",
+   "bundle": "arts/dynchars/char_450_necras_summer#20.ab",
+   "clientHash": "e9054220fb17fafdb320774ac2910a97",
+   "scene": {
+    "name": "scene-0abba397.json",
+    "bytes": 237510,
+    "sha256": "0abba3970375d8b1dcc102764f06a0f6b602a189c8ba32d137b8ec68438f4f96"
+   },
+   "textures": 35,
+   "texBytes": 487660,
+   "meshes": 6,
+   "meshBytes": 9038,
+   "cut": {
+    "nodes": 109,
+    "clips": 9,
+    "textures": 15,
+    "meshes": 1
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_472_pasngr_epoque_17": {
+   "dynIllustId": "dyn_illust_char_472_pasngr_epoque#17",
+   "bundle": "arts/dynchars/char_472_pasngr_epoque#17.ab",
+   "clientHash": "01456058b6fa8e7a757df3d92dda0972",
+   "scene": {
+    "name": "scene-af01bcf7.json",
+    "bytes": 195300,
+    "sha256": "af01bcf7a2de7e374f144653afa7a6fdfcc8126a3d2f2be584f5192b3006f62b"
+   },
+   "textures": 22,
+   "texBytes": 338004,
+   "meshes": 4,
+   "meshBytes": 9662,
+   "cut": {
+    "nodes": 91,
+    "clips": 5,
+    "textures": 15,
+    "meshes": 5
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveDouble",
+    "disturb2",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  }
+ },
+ "chars": {
+  "char_1012_skadi2": {
+   "dynIllustId": "dyn_illust_char_1012_skadi2_2",
+   "bundle": "arts/dynchars/char_1012_skadi2_2.ab",
+   "clientHash": "9c7f62a42c0c588a32d12790ff32911c",
+   "scene": {
+    "name": "scene-ebe0a270.json",
+    "bytes": 96368,
+    "sha256": "ebe0a2706cf96ee5fb1ba3d5bfca3128b9468a8040e830ee2e64dadcc5ddfdcc"
+   },
+   "textures": 11,
+   "texBytes": 79018,
+   "meshes": 2,
+   "meshBytes": 7836,
+   "cut": {
+    "nodes": 9,
+    "clips": 1,
+    "textures": 2,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveTween",
+    "dissolveVc",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1013_chen2": {
+   "dynIllustId": "dyn_illust_char_1013_chen2_2",
+   "bundle": "arts/dynchars/char_1013_chen2_2.ab",
+   "clientHash": "4215ec04ea03148b58441bba74ab318c",
+   "scene": {
+    "name": "scene-658c2a38.json",
+    "bytes": 182920,
+    "sha256": "658c2a3856aa11951e26e0bc9b1577720aae7588066d0f6a611e775c221f36a7"
+   },
+   "textures": 30,
+   "texBytes": 487360,
+   "meshes": 15,
+   "meshBytes": 58218,
+   "cut": {
+    "nodes": 29,
+    "clips": 1,
+    "textures": 6,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "disturb2",
+    "erase",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1014_nearl2": {
+   "dynIllustId": "dyn_illust_char_1014_nearl2_2",
+   "bundle": "arts/dynchars/char_1014_nearl2_2.ab",
+   "clientHash": "9640cc4fee845bd9f3e013d42494f84d",
+   "scene": {
+    "name": "scene-ce092d25.json",
+    "bytes": 104936,
+    "sha256": "ce092d25770dda19a00bbffb9a9f9333064dc5004294fae978a66ada0432061a"
+   },
+   "textures": 23,
+   "texBytes": 166530,
+   "meshes": 17,
+   "meshBytes": 47371,
+   "cut": {
+    "nodes": 31,
+    "clips": 3,
+    "textures": 9,
+    "meshes": 4
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "disturb2",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1015_aglna2": {
+   "dynIllustId": "dyn_illust_char_1015_aglna2_2",
+   "bundle": "arts/dynchars/char_1015_aglna2_2.ab",
+   "clientHash": "a98bb9e3f3fc258b563fa239bb916c1c",
+   "scene": {
+    "name": "scene-98462634.json",
+    "bytes": 265791,
+    "sha256": "98462634c504c9ed2999254794d6e8dca23a683f05eff4a744528ebc6cd9821d"
+   },
+   "textures": 29,
+   "texBytes": 2296794,
+   "meshes": 9,
+   "meshBytes": 16954,
+   "cut": {
+    "nodes": 0,
+    "clips": 0,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_1016_agoat2": {
+   "dynIllustId": "dyn_illust_char_1016_agoat2_2",
+   "bundle": "arts/dynchars/char_1016_agoat2_2.ab",
+   "clientHash": "a8592ecfc8bf7350d0090750f7b0a010",
+   "scene": {
+    "name": "scene-8dc0ae38.json",
+    "bytes": 251188,
+    "sha256": "8dc0ae381869338602fc3b81462b81e46604062cd260f9dff3eec148c76c1c0b"
+   },
+   "textures": 35,
+   "texBytes": 538298,
+   "meshes": 7,
+   "meshBytes": 34177,
+   "cut": {
+    "nodes": 155,
+    "clips": 9,
+    "textures": 30,
+    "meshes": 7
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "erase",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1023_ghost2": {
+   "dynIllustId": "dyn_illust_char_1023_ghost2_2",
+   "bundle": "arts/dynchars/char_1023_ghost2_2.ab",
+   "clientHash": "85528560997b6e59b15da0cbb5058bba",
+   "scene": {
+    "name": "scene-47dd1494.json",
+    "bytes": 147998,
+    "sha256": "47dd1494625b421866687c77a1e98c363c7b967d50cee97c0b0e03313a1fe993"
+   },
+   "textures": 34,
+   "texBytes": 405558,
+   "meshes": 3,
+   "meshBytes": 8984,
+   "cut": {
+    "nodes": 70,
+    "clips": 7,
+    "textures": 16,
+    "meshes": 5
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "disturbAnchor",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1026_gvial2": {
+   "dynIllustId": "dyn_illust_char_1026_gvial2_2",
+   "bundle": "arts/dynchars/char_1026_gvial2_2.ab",
+   "clientHash": "9fba1215c5802b495edd01959b2107d4",
+   "scene": {
+    "name": "scene-63ebaf60.json",
+    "bytes": 134428,
+    "sha256": "63ebaf60b0c57d7b0f579a87a1888ab51564a2f919bcf3b26101bb1f8e1fd123"
+   },
+   "textures": 18,
+   "texBytes": 312498,
+   "meshes": 8,
+   "meshBytes": 23765,
+   "cut": {
+    "nodes": 111,
+    "clips": 7,
+    "textures": 31,
+    "meshes": 11
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDouble",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1028_texas2": {
+   "dynIllustId": "dyn_illust_char_1028_texas2_2",
+   "bundle": "arts/dynchars/char_1028_texas2_2.ab",
+   "clientHash": "f85ec5ec79805124d8fb701dc94b2205",
+   "scene": {
+    "name": "scene-b5148edd.json",
+    "bytes": 492182,
+    "sha256": "b5148edd013eb175687ed7ccdd215892f5e76acbc252a5f872674e28f5cadabd"
+   },
+   "textures": 52,
+   "texBytes": 837604,
+   "meshes": 29,
+   "meshBytes": 63578,
+   "cut": {
+    "nodes": 16,
+    "clips": 10,
+    "textures": 12,
+    "meshes": 4
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveCd",
+    "dissolveTween",
+    "disturb2",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_1035_wisdel": {
+   "dynIllustId": "dyn_illust_char_1035_wisdel_2",
+   "bundle": "arts/dynchars/char_1035_wisdel_2.ab",
+   "clientHash": "48265b0180a6bdf5af365656a83a5dbb",
+   "scene": {
+    "name": "scene-a87b92cc.json",
+    "bytes": 140580,
+    "sha256": "a87b92cc0f6c480b87f846179ad2dfbff9edba94c93aad55c13cbad70a47f35e"
+   },
+   "textures": 23,
+   "texBytes": 481882,
+   "meshes": 11,
+   "meshBytes": 16950,
+   "cut": {
+    "nodes": 129,
+    "clips": 2,
+    "textures": 28,
+    "meshes": 7
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1038_whitw2": {
+   "dynIllustId": "dyn_illust_char_1038_whitw2_2",
+   "bundle": "arts/dynchars/char_1038_whitw2_2.ab",
+   "clientHash": "d8e80d532650c81643f07f28c1223153",
+   "scene": {
+    "name": "scene-635d1078.json",
+    "bytes": 511321,
+    "sha256": "635d107897c27b25c387b68e5270b79767cef864141bd4db2925aed8695d55fc"
+   },
+   "textures": 65,
+   "texBytes": 1171812,
+   "meshes": 16,
+   "meshBytes": 111415,
+   "cut": {
+    "nodes": 56,
+    "clips": 18,
+    "textures": 26,
+    "meshes": 11
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbAnchor",
+    "disturbCd",
+    "grab",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1041_angel2": {
+   "dynIllustId": "dyn_illust_char_1041_angel2_2",
+   "bundle": "arts/dynchars/char_1041_angel2_2.ab",
+   "clientHash": "aeb0df510faa84d65d4ea38ab70cddfc",
+   "scene": {
+    "name": "scene-f2782928.json",
+    "bytes": 376674,
+    "sha256": "f2782928f3b3c1f2c50c3101924728728cabf54717600d2f0e465fcc0e93a0c8"
+   },
+   "textures": 29,
+   "texBytes": 540788,
+   "meshes": 40,
+   "meshBytes": 41848,
+   "cut": {
+    "nodes": 259,
+    "clips": 6,
+    "textures": 63,
+    "meshes": 19
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1044_hsgma2": {
+   "dynIllustId": "dyn_illust_char_1044_hsgma2_2",
+   "bundle": "arts/dynchars/char_1044_hsgma2_2.ab",
+   "clientHash": "afd88a6e6b9efd2c159382f1e1b05166",
+   "scene": {
+    "name": "scene-72da2c09.json",
+    "bytes": 527581,
+    "sha256": "72da2c09f2595e8165960b52098d6f829054e6be40a2cae7632326022a2d082f"
+   },
+   "textures": 53,
+   "texBytes": 1080748,
+   "meshes": 19,
+   "meshBytes": 67755,
+   "cut": {
+    "nodes": 240,
+    "clips": 3,
+    "textures": 26,
+    "meshes": 12
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_1045_svash2": {
+   "dynIllustId": "dyn_illust_char_1045_svash2_2",
+   "bundle": "arts/dynchars/char_1045_svash2_2.ab",
+   "clientHash": "f7a4d58a261651a2bed75d3853b8a2b9",
+   "scene": {
+    "name": "scene-ee497464.json",
+    "bytes": 414215,
+    "sha256": "ee4974643a3567766f33f2f24d83005bd34de979fc6cc7565e837c5c9d221ced"
+   },
+   "textures": 30,
+   "texBytes": 1542698,
+   "meshes": 8,
+   "meshBytes": 13365,
+   "cut": {
+    "nodes": 0,
+    "clips": 7,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_1052_kalts2": {
+   "dynIllustId": "dyn_illust_char_1052_kalts2_2",
+   "bundle": "arts/dynchars/char_1052_kalts2_2.ab",
+   "clientHash": "500630f3358e4292323f9b1b3b1e3399",
+   "scene": {
+    "name": "scene-440fe8e9.json",
+    "bytes": 266251,
+    "sha256": "440fe8e95b7fc96fbfa0000c8ed885e4ae93bd64d2a897a9f2bbb4b5bee8f83a"
+   },
+   "textures": 34,
+   "texBytes": 1622356,
+   "meshes": 48,
+   "meshBytes": 29354,
+   "cut": {
+    "nodes": 0,
+    "clips": 4,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  },
+  "char_113_cqbw": {
+   "dynIllustId": "dyn_illust_char_113_cqbw_2",
+   "bundle": "arts/dynchars/char_113_cqbw_2.ab",
+   "clientHash": "383a65800406136086066333366fda78",
+   "scene": {
+    "name": "scene-620c69b3.json",
+    "bytes": 102759,
+    "sha256": "620c69b32b2e02e6546118323d14d92999ee42cfe7c930b737c41b670a0f5932"
+   },
+   "textures": 21,
+   "texBytes": 399536,
+   "meshes": 9,
+   "meshBytes": 186438,
+   "cut": {
+    "nodes": 54,
+    "clips": 0,
+    "textures": 18,
+    "meshes": 5
+   },
+   "batch": 3,
+   "families": [
+    "basic",
+    "dissolve",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_2014_nian": {
+   "dynIllustId": "dyn_illust_char_2014_nian_2",
+   "bundle": "arts/dynchars/char_2014_nian_2.ab",
+   "clientHash": "507039d8e3ae305fa5bd3265e6ad1533",
+   "scene": {
+    "name": "scene-3dd02422.json",
+    "bytes": 273743,
+    "sha256": "3dd02422ea62360fc006b73564739acfa4c3c9d8be616afa2e1d1b3ffba5ed8b"
+   },
+   "textures": 35,
+   "texBytes": 610088,
+   "meshes": 18,
+   "meshBytes": 21431,
+   "cut": {
+    "nodes": 34,
+    "clips": 5,
+    "textures": 8,
+    "meshes": 0
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveVc",
+    "disturbOrigin",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_2015_dusk": {
+   "dynIllustId": "dyn_illust_char_2015_dusk_2",
+   "bundle": "arts/dynchars/char_2015_dusk_2.ab",
+   "clientHash": "2973f6545ac33c589a199fb087b04808",
+   "scene": {
+    "name": "scene-f2ba5f33.json",
+    "bytes": 187193,
+    "sha256": "f2ba5f33b6f41fbb54c85ccca6c9af2cb5f3d2ec38940a9810e8bb95601468e0"
+   },
+   "textures": 31,
+   "texBytes": 384260,
+   "meshes": 5,
+   "meshBytes": 103441,
+   "cut": {
+    "nodes": 27,
+    "clips": 0,
+    "textures": 14,
+    "meshes": 4
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveTween",
+    "dissolveVc",
+    "disturb2",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_2023_ling": {
+   "dynIllustId": "dyn_illust_char_2023_ling_2",
+   "bundle": "arts/dynchars/char_2023_ling_2.ab",
+   "clientHash": "3fffdf3b42d51a07cc64eddba8aa981b",
+   "scene": {
+    "name": "scene-fd14cd38.json",
+    "bytes": 215624,
+    "sha256": "fd14cd38a62edffd73ba6914c8ed73eef130e626674375915cd8569a660e83a4"
+   },
+   "textures": 62,
+   "texBytes": 422898,
+   "meshes": 6,
+   "meshBytes": 90376,
+   "cut": {
+    "nodes": 86,
+    "clips": 8,
+    "textures": 12,
+    "meshes": 4
+   },
+   "batch": 3,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveDoubleEdge",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_2024_chyue": {
+   "dynIllustId": "dyn_illust_char_2024_chyue_2",
+   "bundle": "arts/dynchars/char_2024_chyue_2.ab",
+   "clientHash": "afb8fad2d5d3af0849f3771ccbfd23f2",
+   "scene": {
+    "name": "scene-5504e44a.json",
+    "bytes": 88252,
+    "sha256": "5504e44a45fff54c0198de43db162548d60d7f9b2f4a7f71976cab4c3043f5da"
+   },
+   "textures": 18,
+   "texBytes": 291220,
+   "meshes": 14,
+   "meshBytes": 20083,
+   "cut": {
+    "nodes": 63,
+    "clips": 5,
+    "textures": 25,
+    "meshes": 3
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolveDouble",
+    "disturbAnchor",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_2025_shu": {
+   "dynIllustId": "dyn_illust_char_2025_shu_2",
+   "bundle": "arts/dynchars/char_2025_shu_2.ab",
+   "clientHash": "83d837317d7f19290afbd990f6a0b608",
+   "scene": {
+    "name": "scene-7ec24d87.json",
+    "bytes": 171788,
+    "sha256": "7ec24d875a6df1456502f2baf6cf7e8bef334a376157121fdc3395a1f0d09b1b"
+   },
+   "textures": 25,
+   "texBytes": 412040,
+   "meshes": 8,
+   "meshBytes": 49612,
+   "cut": {
+    "nodes": 87,
+    "clips": 8,
+    "textures": 34,
+    "meshes": 8
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveDouble",
+    "dissolveTween",
+    "dissolveVc",
+    "disturbAnchor",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_2026_yu": {
+   "dynIllustId": "dyn_illust_char_2026_yu_2",
+   "bundle": "arts/dynchars/char_2026_yu_2.ab",
+   "clientHash": "9896264c338494c00eae206b4130bb1f",
+   "scene": {
+    "name": "scene-539ba622.json",
+    "bytes": 490698,
+    "sha256": "539ba622597fef4125de240a07f28580b5652a7cd7c1157148b8a04f36ee49b6"
+   },
+   "textures": 52,
+   "texBytes": 803776,
+   "meshes": 29,
+   "meshBytes": 31325,
+   "cut": {
+    "nodes": 154,
+    "clips": 21,
+    "textures": 24,
+    "meshes": 10
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbAnchor",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_245_cello": {
+   "dynIllustId": "dyn_illust_char_245_cello_2",
+   "bundle": "arts/dynchars/char_245_cello_2.ab",
+   "clientHash": "301987da05b1e456542f932f432bc61e",
+   "scene": {
+    "name": "scene-3e0575c4.json",
+    "bytes": 221603,
+    "sha256": "3e0575c4286c3b4d879501a285ccc3a0c0822d8d43ee6f93a4e029fc811fef71"
+   },
+   "textures": 30,
+   "texBytes": 480886,
+   "meshes": 19,
+   "meshBytes": 143796,
+   "cut": {
+    "nodes": 74,
+    "clips": 4,
+    "textures": 27,
+    "meshes": 8
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolveCd",
+    "disturbCd",
+    "ram"
+   ],
+   "enabled": false
+  },
+  "char_249_mlyss": {
+   "dynIllustId": "dyn_illust_char_249_mlyss_2",
+   "bundle": "arts/dynchars/char_249_mlyss_2.ab",
+   "clientHash": "f0808e3e51f037e04cec27780d005861",
+   "scene": {
+    "name": "scene-14d3c6e6.json",
+    "bytes": 477414,
+    "sha256": "14d3c6e6a209e5203d10159abb1a631daab3afd6846f51b0bf901c6dc8704258"
+   },
+   "textures": 49,
+   "texBytes": 686980,
+   "meshes": 22,
+   "meshBytes": 106935,
+   "cut": {
+    "nodes": 13,
+    "clips": 4,
+    "textures": 2,
+    "meshes": 0
+   },
+   "batch": 1,
+   "families": [
+    "basic",
+    "dissolve",
+    "dissolveCd",
+    "disturbCd",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_391_rosmon": {
+   "dynIllustId": "dyn_illust_char_391_rosmon_2",
+   "bundle": "arts/dynchars/char_391_rosmon_2.ab",
+   "clientHash": "b71ff8de26ae42de792dcfe589de6538",
+   "scene": {
+    "name": "scene-4fbf9645.json",
+    "bytes": 217235,
+    "sha256": "4fbf96452a4ac5d7605fa860ecb197a231e41afccf4e0a5574f57310b2822dac"
+   },
+   "textures": 21,
+   "texBytes": 190758,
+   "meshes": 5,
+   "meshBytes": 14388,
+   "cut": {
+    "nodes": 133,
+    "clips": 0,
+    "textures": 9,
+    "meshes": 2
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "dissolveTween",
+    "dissolveVc",
+    "disturb2",
+    "legacyPremul"
+   ],
+   "enabled": false
+  },
+  "char_4058_pepe": {
+   "dynIllustId": "dyn_illust_char_4058_pepe_2",
+   "bundle": "arts/dynchars/char_4058_pepe_2.ab",
+   "clientHash": "46bf19af2abe0fc0a779c06bc46228cd",
+   "scene": {
+    "name": "scene-68584dcf.json",
+    "bytes": 163844,
+    "sha256": "68584dcf96788c8cb3a468afd18535abf01073c8fa48327b22df9c3520e4e1e4"
+   },
+   "textures": 31,
+   "texBytes": 1575792,
+   "meshes": 5,
+   "meshBytes": 16981,
+   "cut": {
+    "nodes": 55,
+    "clips": 4,
+    "textures": 34,
+    "meshes": 7
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd"
+   ],
+   "enabled": false
+  },
+  "char_4247_oxi": {
+   "dynIllustId": "dyn_illust_char_4247_oxi_2",
+   "bundle": "arts/dynchars/char_4247_oxi_2.ab",
+   "clientHash": "e0ac71a29efc04638bc1d3cbc51ab2c8",
+   "scene": {
+    "name": "scene-a8ced83b.json",
+    "bytes": 350900,
+    "sha256": "a8ced83b85eab39f8a3be0203b3499626971197f7e070711af628d93f2cc9bc4"
+   },
+   "textures": 23,
+   "texBytes": 1173224,
+   "meshes": 16,
+   "meshBytes": 8462,
+   "cut": {
+    "nodes": 0,
+    "clips": 28,
+    "textures": 0,
+    "meshes": 0
+   },
+   "batch": 2,
+   "families": [
+    "basic",
+    "disturbCd",
+    "legacyPremul",
+    "ramDisturbCd",
+    "stdUnlit"
+   ],
+   "enabled": false
+  }
+ }
+}

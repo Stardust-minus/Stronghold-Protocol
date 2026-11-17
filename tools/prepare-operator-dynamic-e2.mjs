@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { contentHash } from './assets/manifest.mjs';
 import { applyDynamicE2, loadDynamicE2Registry, FIELD } from './assets/dynamic-e2.mjs';
 import { applyDynamicBackdrops, loadDynamicBackdrops } from './assets/dynamic-backdrops.mjs';
+import { applyDynamicScenes, loadDynamicScenes } from './assets/dynamic-scenes.mjs';
+import { namedSceneFiles } from './prepare-dynamic-scenes.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -29,19 +31,25 @@ function namedFiles(body, registry, backdrops) {
   return files;
 }
 
-/** The registry's records, then their camera frame and backdrop layers (tools/assets/dynamic-backdrops.mjs). */
-export function rewriteManifest(manifest, { registry, assetRoot, backdrops = loadDynamicBackdrops() }) {
+/**
+ * The registry's records, then their camera frame and backdrop layers (tools/assets/dynamic-backdrops.mjs) and their
+ * checked scene (tools/assets/dynamic-scenes.mjs, 2026-11-17; its files counted only with `assetRoot`).
+ */
+export function rewriteManifest(manifest, { registry, assetRoot, backdrops = loadDynamicBackdrops(), scenes = loadDynamicScenes() }) {
   const { version, hash, generator, stats, ...body } = manifest;
   const before = namedFiles(body, registry, backdrops);
   const e2 = applyDynamicE2(body, { registry, assetRoot });
   const bd = applyDynamicBackdrops(e2.body, { registry: backdrops, assetRoot, kinds: ['chars'] });
-  const next = bd.body, files = new Set(e2.files);
+  const next = applyDynamicScenes(bd.body, { registry: scenes, assetRoot, kinds: ['chars'] }).body, files = new Set(e2.files);
   let bytes = e2.bytes;
   for (const [rel, n] of bd.files) if (rel.startsWith('char/dynamic/') && !files.has(rel)) { files.add(rel); bytes += n; }
   const old = [...before.values()].reduce((a, b) => a + b, 0);
+  // the scenes' files (local/dynfx/, shared with the skins' scenes): only what this run newly names or no longer names
+  const sb = assetRoot ? namedSceneFiles(body, assetRoot) : new Map(), sa = assetRoot ? namedSceneFiles(next, assetRoot) : new Map();
+  const sAdd = [...sa].filter(([r]) => !sb.has(r)), sDel = [...sb].filter(([r]) => !sa.has(r));
   const out = { version, hash: null, generator, stats: { ...stats }, ...next };
-  if (Number.isSafeInteger(stats?.files)) out.stats.files = stats.files - before.size + files.size;
-  if (Number.isSafeInteger(stats?.bytes)) out.stats.bytes = stats.bytes - old + bytes;
+  if (Number.isSafeInteger(stats?.files)) out.stats.files = stats.files - before.size + files.size + sAdd.length - sDel.length;
+  if (Number.isSafeInteger(stats?.bytes)) out.stats.bytes = stats.bytes - old + bytes + sAdd.reduce((n, [, b]) => n + b, 0) - sDel.reduce((n, [, b]) => n + b, 0);
   out.hash = contentHash(next);
   return out;
 }
