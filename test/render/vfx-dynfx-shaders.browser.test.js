@@ -15,7 +15,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const enabled = process.env.RENDER_E2E === '1' && hasChrome();
 const W = 64, H = 64, HW = 2, HH = 2;   // canvas px; the orthographic camera's half extents (Unity units)
 
-/** In the page: draw a background (r = u, g = v, b = 0.5) and then the items through FxGL; returns the RGBA pixels. */
+/** In the page: draw a background (r = u, g = v, b = 0.5; spec.clear: transparent) and then the items through FxGL;
+ * returns the RGBA pixels. */
 async function pageRender(spec) {
   const { FxGL } = await import('/js/render/vfx/gl.js');
   const { compileMaterial } = await import('/js/render/vfx/materials.js');
@@ -35,7 +36,8 @@ precision highp float; in vec2 uv; out vec4 o; void main() { o = vec4(uv, 0.5, 1
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   gl.viewport(0, 0, spec.W, spec.H);
   gl.clearDepth(1); gl.clear(gl.DEPTH_BUFFER_BIT);
-  gl.useProgram(bg); gl.drawArrays(gl.TRIANGLES, 0, 6); gl.bindVertexArray(null);
+  if (spec.clear) { gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); } else { gl.useProgram(bg); gl.drawArrays(gl.TRIANGLES, 0, 6); }
+  gl.bindVertexArray(null);
   // Unity camera at z = −10 looking +z; orthographic, half extents hw × hh, clip z = view depth / 100
   const vp = new Float32Array([1 / spec.hw, 0, 0, 0, 0, 1 / spec.hh, 0, 0, 0, 0, 0.01, 0, 0, 0, 0.1, 1]);
   const fd = { nq: 0, nm: 0, ns: 0, ni: 0, quad: new Float32Array(QUAD_STRIDE * 8), mesh: new Float32Array(MESH_STRIDE * 8) };
@@ -276,4 +278,24 @@ test('RGBsplit: each channel read at its own offset UV (× the flicker amplitude
   // _UseCustomData: TEXCOORD1.x / .y scale the R / G offsets (TEXCOORD1.w × _SplitBase, TEXCOORD2.x × _SplitRandom)
   r = await render(t, { textures, items: [{ kind: 'quad', inst: { ax: [3, 0, 0], ay: [0, 3, 0], t1: [2, 0.5, 1, 1], t2: [1, 0, 0, 0] }, mat: mat(true) }] });
   check(r, 2, 0.5, 'custom data');
+});
+
+test('Particles-L2D/Multiply: 2 × colour × texture × _TintColor, lerp(1, c, c.a); coverage as the client\'s transmittance', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  const textures = { m: tex1([128, 200, 64, 192]) };
+  const mat = {
+    shader: 'Torappu/Particles-L2D/Multiply', keywords: [], queue: 3000,
+    passes: [{ blend: ['Zero', 'SrcColor', 'Zero', 'SrcColor'], blendOp: 'Add', zTest: 'Disabled', zWrite: false, cull: 'Off', colorMask: 15 }],
+    floats: {}, colors: { _TintColor: [0.8, 0.5, 0.6, 0.7] }, textures: { _MainTex: { tex: 'm', st: [1, 1, 0, 0] } },
+  };
+  const c = [128, 200, 64, 192].map((x, i) => Math.min(Infinity, 2 * (x / 255) * [0.8, 0.5, 0.6, 0.7][i]));
+  const out = c.map((x) => Math.min(1, Math.max(0, c[3] * (x - 1) + 1)));
+  // on the opaque background: the background × out.rgb
+  let r = await render(t, { textures, meshes: { quad: QUAD_MESH }, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat }] });
+  const p = px(r, 32, 32), bg = [32.5 / W * 255, 32.5 / H * 255, 127.5];
+  assert.ok([0, 1, 2].every((i) => Math.abs(p[i] - bg[i] * out[i]) <= 2), `multiplied: got ${p.slice(0, 3)}, want ${bg.map((x, i) => Math.round(x * out[i]))}`);
+  // on a transparent target: black with coverage 1 − out.a (the client's transmittance × out.a)
+  r = await render(t, { clear: true, textures, meshes: { quad: QUAD_MESH }, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat }] });
+  assert.ok(Math.abs(px(r, 32, 32)[3] - 255 * (1 - out[3])) <= 2, `coverage: got ${px(r, 32, 32)[3]}, want ${Math.round(255 * (1 - out[3]))}`);
 });

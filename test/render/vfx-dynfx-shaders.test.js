@@ -93,3 +93,14 @@ test('Torappu/Particles/RGBsplit compiles to the rgbsplit family', () => {
   assert.equal(vertexExt('rgbsplit', m.defs), null);
   assert.match(fragmentSource('rgbsplit', m.defs), /vec4 c1 = cd \? v_t1 : vec4\(1\.0\);/);
 });
+
+test('Multiply: the L2D shader gets its own arithmetic, the battle one keeps its', () => {
+  const l = compileMaterial({ shader: 'Torappu/Particles-L2D/Multiply', passes: [pass('Off')], keywords: [] });
+  const b = compileMaterial({ shader: 'Torappu/Particles/Multiply', passes: [pass('Off')], keywords: [] });
+  assert.equal(l.family, 'multiply');
+  assert.equal(l.defs.l2d, true);
+  assert.equal(b.defs.l2d, false);
+  assert.notEqual(l.key, b.key);
+  assert.match(fragmentSource('multiply', l.defs), /2\.0 \* v_col \* t \* u_TintColor/);
+  assert.match(fragmentSource('multiply', b.defs), /0\.299, 0\.587, 0\.114/);
+});

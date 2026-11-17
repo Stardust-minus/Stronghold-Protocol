@@ -141,11 +141,13 @@ export function compileMaterial(m, opts = {}) {
   defs.glow = kw.has('_DISTURBMODE_GLOW') || num(floats._DisturbMode, 0) > 0.5;
   // GrabPass: its own custom-data keyword ([Toggle] _CUSTOMDATA → _CUSTOMDATA_ON; the variant follows the keyword)
   if (family === 'grab') { defs.cvs = kw.has('_CUSTOMDATA_ON'); defs.once = /GrabPassOnce/.test(String(m?.shader || '')); }
+  // Particles-L2D/Multiply: its own arithmetic (×2 × _TintColor, alpha as the client's transmittance)
+  if (family === 'multiply') defs.l2d = /Particles-L2D\//.test(String(m?.shader || ''));
   // 3D/Toon: [KeywordEnum(Default, Custom)] _SunMode (no keyword: the first, Default)
   if (family === 'toon') defs.sunCustom = kw.has('_SUNMODE_CUSTOM');
   // Ram/VertexDisturb(CustomData): Ram/Disturb(CustomData) plus the vertex displacement
   defs.vdist = /VertexDisturb/.test(String(m?.shader || ''));
-  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}${defs.vdist ? 1 : 0}${defs.sunCustom ? 1 : 0}`;
+  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}${defs.vdist ? 1 : 0}${defs.sunCustom ? 1 : 0}${defs.l2d ? 1 : 0}`;
   const out = { name: m?.name || '', shader: m?.shader || '', keywords: [...kw], family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
   // Unlit-Outline's second pass, the outline shell, on the same geometry (render/vfx/gl.js draws `next` after the main
   // pass; `under`: before it when the target has no depth buffer, so the main pass covers the shell's inside)

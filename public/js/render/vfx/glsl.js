@@ -502,8 +502,6 @@ void main() {
   o_col = c * v_col * u_TintColor;
 }`,
   },
-  // Multiply: lerp(1, texture × colour, texture alpha × colour alpha) (blend DstColor Zero — gl.js maps it for the
-  // transparent canvas: darkening by the luminance)
   // ---- the 动态立绘 scenes' L2D shaders the battle set does not use (spike/dyn-fx-20261116; formulas from the client's
   // D3D11 bytecode as decoded for the runtime developer, kept outside the repository) ----
   // Disturb2 (AlphaBlend / Add): the main UV pushed by two scrolled noise lookups of one texture (R, G) × Noise*Param.zw;
@@ -722,15 +720,22 @@ void main() {
     clamp(2.0 * c.a * clamp(sB.a * u_OffsetB.w + sR.a * u_OffsetR.w + sG.a * u_OffsetG.w, 0.0, 1.0), 0.0, 1.0));
 }`,
   },
+  // Multiply: lerp(1, texture × colour, texture alpha × colour alpha) (blend DstColor Zero — gl.js maps it for the
+  // transparent canvas: darkening by the luminance). Particles-L2D/Multiply (defs.l2d): c = 2 × vertex colour × texture
+  // × _TintColor, out = lerp(1, c, c.a) on all four channels (Blend Zero SrcColor, Zero SrcColor): the colour multiplies
+  // the target, and the client's target alpha (transmittance) is multiplied by out.a — as this canvas's coverage that
+  // is coverage + (1 − out.a) × (1 − coverage), so the alpha written is 1 − out.a
   multiply: {
     tex: ['_MainTex'],
-    src: () => `${S(['_MainTex'])}
-${U4(['_MainTex_ST'])}
+    src: (d) => `${S(['_MainTex'])}
+${U4(['_MainTex_ST', '_TintColor'])}
 void main() {
   vec4 t = texture(u_MainTex, st(v_uv, u_MainTex_ST));
-  vec4 cl = clamp(v_col, 0.0, 1.0);
+  ${d.l2d ? `vec4 c = 2.0 * v_col * t * u_TintColor;
+  vec4 m = c.a * (c - 1.0) + 1.0;
+  o_col = vec4(m.rgb, 1.0 - m.a);` : `vec4 cl = clamp(v_col, 0.0, 1.0);
   vec3 m = mix(vec3(1.0), t.rgb * cl.rgb, t.a * cl.a);
-  o_col = vec4(m, 1.0 - dot(m, vec3(0.299, 0.587, 0.114)));
+  o_col = vec4(m, 1.0 - dot(m, vec3(0.299, 0.587, 0.114)));`}
 }`,
   },
 };
