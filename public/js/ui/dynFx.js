@@ -120,6 +120,8 @@ function meshCentre(key) {
   return c;
 }
 let clock = 0;
+/** One number per DynScene.render (FxGL frame.renderId): GrabPassOnce grabs once per camera render, drawn in several calls. */
+let renderSeq = 0;
 
 /** Load and compile a record's scene once (null when it has none or it fails). */
 export function loadScene(src) {
@@ -285,7 +287,9 @@ export function prepareScene(desc) {
   const partNodes = (sep?.fields?.partsRenderers || []).map((p) => p?.node).filter((x) => x != null && N[x]);
   const mr = (n) => N[n].meshRenderer || {};
   const parts = (partNodes.length ? partNodes : [0]).map((n) => ({ node: n, order: Number(mr(n).m_SortingOrder) || 0, layer: Number(mr(n).m_SortingLayer) || 0 }));
-  return { hidden, drive, bones, parts, sepSlots, camSize: Number(dyn.illust?.cameraSize) || 10,
+  // Toon / Unlit-Outline write depth (ZWrite On): such a scene clears the depth buffer before each render
+  const writesDepth = (desc.materials || []).some((m) => (m?.passes || []).some((p) => p?.zWrite));
+  return { hidden, drive, bones, parts, sepSlots, writesDepth, camSize: Number(dyn.illust?.cameraSize) || 10,
     rootPos: Array.isArray(root.pos) ? root.pos.slice(0, 3) : [0, 0, 0], skelScale: Number(dyn.spine?.scale) || 0.01 };
 }
 
@@ -484,11 +488,17 @@ export class DynScene {
     st.items = items.length; st.fxDraws = 0; st.spineParts = 0;
     st.buildMs = performance.now() - t0;   // CPU: gather, sort, particle / mesh geometry (JS)
     const d0 = c.glr.stats.draws, g0 = c.glr.stats.grabs || 0;
-    try { c.glr.upload(fd); } finally { resetPixi(renderer); }
+    const renderId = ++renderSeq;
+    try {
+      c.glr.upload(fd);
+      if (this.s.writesDepth && c.glr.hasDepth) { const gl = c.glr.gl; gl.depthMask(true); gl.clearDepth(1); gl.clear(gl.DEPTH_BUFFER_BIT); }
+    } finally { resetPixi(renderer); }
     let run = [];
     const flush = () => {
       if (!run.length) return;
-      try { c.glr.draw(run, { vp, cam: basis.pos, time: this.fx.time, half: false, pass: ++c.pass }); } catch (err) {
+      // cam: the far sorting point; FxGL derives the view (at cam, looking +z) from it — Toon's highlight direction uses it
+      // too, the client's camera position being unknown (SHADER-STATE §7) [ASSUMED close enough]
+      try { c.glr.draw(run, { vp, cam: basis.pos, time: this.fx.time, half: false, pass: ++c.pass, renderId }); } catch (err) {
         if (!this._warned) { this._warned = true; console.error('[dynfx] draw failed', err); }
       } finally { resetPixi(renderer); }
       run = [];

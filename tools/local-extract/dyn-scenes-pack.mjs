@@ -24,10 +24,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 /** Families the battle effects had before the 动态立绘 scenes (the first batch uses only these). */
 const NEW_FAMILIES = new Set(['disturb2', 'dissolveDoubleEdge', 'erase', 'grab']);
+/** Families the runtime only approximated until feat/dyn-fx-shaders-20261117 drew them: their scenes stay the last batch. */
+const LATE_FAMILIES = new Set(['matcap', 'outline', 'toon', 'rgbsplit', 'uiAlpha']);
 
 /**
- * The check batch of a trimmed scene (the trial's order): 3 — a shader the runtime only approximates (MatCap, Outline,
- * Toon, RGBsplit); 1 — the battle families only, one Spine part, no skinned mesh, no vertex displacement; else 2. And the
+ * The check batch of a trimmed scene (the trial's order): 3 — a shader the runtime approximates or only drew since the
+ * shader branch (MatCap, Outline, Toon, RGBsplit, UI AlphaBlend); 1 — the battle families only, one Spine part, no skinned mesh, no vertex displacement; else 2. And the
  * families its always-on renderers use.
  */
 export function sceneBatch(desc) {
@@ -41,7 +43,7 @@ export function sceneBatch(desc) {
         if (!s || /spine|skeleton/i.test(s)) continue;
         const f = familyOf(s);
         fams.add(f.family);
-        if (f.fallback) fallback = true;
+        if (f.fallback || LATE_FAMILIES.has(f.family)) fallback = true;
         if (NEW_FAMILIES.has(f.family) || /VertexDisturb/.test(s)) special = true;
       }
     }
