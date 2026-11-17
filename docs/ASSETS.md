@@ -104,7 +104,8 @@ where the backdrop shows (「查看立绘」, the 名片, seat cards; not the cr
 root> [--upload <dir>]` trims each record's prefab to its always-on part and writes, add-only, its scene file into the
 record's own folder (`scene-<sha8>.json` next to `bg.webp`) and the textures (WebP q90, no half-size copies) and meshes it
 names into tools/local-extract's tree, `local/dynfx/tex/`, `local/dynfx/mesh/` (named by content and shared between scenes;
-only the scene files name them, with their content-hash segment), plus the registry
+only the scene files name them, with their content-hash segment, which the client drops when the scene's own URL has
+none — SP_ASSET_INDEX=0, the cluster, whose edge routes plain paths only), plus the registry
 `tools/assets/dynamic-scenes.json` (sizes, sha256, check batch, shader families). A record names its scene (`scene`, never inside
 data/assets.json itself) only once checked against the client — the registry's `enabled` / `check`, set with
 `node tools/prepare-dynamic-scenes.mjs --assets <dir> --enable <kind/id,…> --note <text>` (`--check`: idempotent; fetch-assets

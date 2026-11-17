@@ -214,3 +214,34 @@ test('the root\'s scale (重岳 精二 0.9227) scales the skeleton and the layer
   assert.deepEqual([m[0] * w[12] + m[4] * w[13] + m[12], m[1] * w[12] + m[5] * w[13] + m[13]].map((v) => +v.toFixed(3)), [400, -1200]);
   d.destroy();
 });
+
+test('a scene handed out without content hashes (SP_ASSET_INDEX=0, the cluster) loads its textures and meshes at plain paths; a hashed one keeps them', async () => {
+  // the cluster's edge routes plain paths only (a `~` segment is a 404): the scene file names its files hashed, as packed
+  const H = '0123456789abcdef';
+  const asked = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, o) => { asked.push(String(url)); return real(url, o); };
+  try {
+    for (const hashedScene of [false, true]) {
+      const name = hashedScene ? 'hashed' : 'plain';
+      const plainUrl = scene(`cl_${name}`, [`tcl_${name}`]);
+      const file = JSON.parse(files.get(plainUrl));
+      for (const t of Object.values(file.textures)) t.path = t.path.replace('/assets/', `/assets/~${H}/`);
+      for (const k of Object.keys(file.meshes)) file.meshes[k] = file.meshes[k].replace('/assets/', `/assets/~${H}/`);
+      const url = hashedScene ? plainUrl.replace('/assets/', `/assets/~${H}/`) : plainUrl;
+      files.set(url, JSON.stringify(file));
+      for (const p of [...Object.values(file.textures).map((t) => t.path), ...Object.values(file.meshes)]) files.set(p, files.get(p.replace(`/~${H}`, '')));
+      asked.length = 0;
+      const s = await loadScene(url);
+      const r = renderer();
+      const d = new DynScene(P, s, spine());
+      assert.equal(await d.preload(r), true);
+      const deps = asked.filter((u) => /\/local\/dynfx\/(tex|mesh)\//.test(u));
+      assert.equal(deps.length, 2, deps.join(' '));
+      if (hashedScene) assert.ok(deps.every((u) => u.includes(`/~${H}/`)), `hashed server: the files keep their hash ${deps}`);
+      else assert.ok(deps.every((u) => !u.includes('/~')), `plain paths only: ${deps}`);
+      d.destroy();
+      releaseRenderer(r);
+    }
+  } finally { globalThis.fetch = real; }
+});

@@ -36,6 +36,7 @@ import { resetPixi } from '../render/vfx/system.js';
 import { sampleClip } from '../render/vfx/clips.js';
 import { mat4InvertAffine, mat4Point, mat4Rotation, quatMul } from '../render/vfx/math.js';
 import { fetchMaterial } from '../materialFallback.js';
+import { splitHashedPath, unhashedUrl } from '../../../shared/assetPaths.js';
 
 /** The scene file format (tools/assets/dynamic-scenes.mjs). */
 export const SCENE_FORMAT = 'dyn-scene';
@@ -72,12 +73,22 @@ export function validSceneFile(f) {
 
 // Every scene's textures and meshes in one file list (keys are content-addressed: the same key is the same file).
 const shared = { groups: { fx: {}, 'fx/prefabs': {}, 'fx/tex': {}, 'fx/mesh': {} }, infos: {} };
-function register(file) {
+/**
+ * The URL of a file a scene names. The scene file carries each one with its content-hash segment
+ * (`/assets/~<sha16>/local/dynfx/…`, tools/local-extract/dyn-scenes-pack.mjs); it takes the form of the scene's own URL,
+ * i.e. of the manifest this server handed out (server/http/assetViews.js) — hashed only where the server hashes (its
+ * content-hash index on). A plain scene URL (SP_ASSET_INDEX=0: the cluster, whose edge routes plain paths only and answers
+ * a `~` segment with 404) → the plain path (shared/assetPaths.js), like every other asset there.
+ */
+export function sceneFileUrl(path, sceneUrl) {
+  return splitHashedPath(String(sceneUrl ?? '')).hash ? path : unhashedUrl(path);
+}
+function register(file, url) {
   for (const [k, t] of Object.entries(file.textures)) {
-    shared.groups['fx/tex'][k] = { path: t.path, w: t.w, h: t.h };
+    shared.groups['fx/tex'][k] = { path: sceneFileUrl(t.path, url), w: t.w, h: t.h };
     shared.infos[k] = { wrapU: t.wrapU, wrapV: t.wrapV, filter: t.filter, mips: t.mips };
   }
-  for (const [k, p] of Object.entries(file.meshes)) shared.groups['fx/mesh'][k] = { path: p };
+  for (const [k, p] of Object.entries(file.meshes)) shared.groups['fx/mesh'][k] = { path: sceneFileUrl(p, url) };
 }
 
 /** The effects library over the scenes' files, loading through the public-material failover (materialFallback.js). */
@@ -135,7 +146,7 @@ export function loadScene(src) {
       await L.init();
       const file = await fetchMaterial(url, (res) => res.json());
       if (!validSceneFile(file)) throw new Error('not a scene file');
-      register(file);
+      register(file, url);
       const desc = file.prefab;
       const info = prepareScene(desc);
       r.meshes = (desc.meshes || []).filter((k) => !k.startsWith('builtin:'));
