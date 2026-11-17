@@ -338,3 +338,20 @@ test('GrabPassOnce reads one copy per camera render; GrabPass copies before each
   assert.ok(Math.abs(red(await render(t, { textures, meshes, items: draws(ONCE), calls: [[0], [1]] })) - moved) <= 2, 'two renders: copied again');
   assert.ok(Math.abs(red(await render(t, { textures, meshes, items: draws(EACH) })) - moved) <= 2, 'GrabPass: copied before each draw');
 });
+
+test('Torappu/UI/AlphaBlend: 2 × texture × colour × tint, alpha without the ×2, the raw UV, cut below 0.001', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  const textures = { t: tex1([200, 100, 50, 160]) };
+  const mat = (tint) => ({
+    shader: 'Torappu/UI/AlphaBlend', keywords: [], queue: 3000,
+    passes: [{ blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'SrcAlpha', 'OneMinusSrcAlpha'], blendOp: 'Add', zTest: 'Disabled', zWrite: false, cull: 'Off', colorMask: 15 }],
+    floats: { _DstBlend: 10 }, colors: { _TintColor: tint }, textures: { _MainTex: { tex: 't', st: [4, 4, 0.3, 0.3] } },
+  });
+  const tint = [0.4, 0.5, 0.6, 0.8], a = (160 / 255) * 0.8, bg = [32.5 / W * 255, 32.5 / H * 255, 127.5];
+  let r = await render(t, { textures, meshes: { quad: QUAD_MESH }, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat: mat(tint) }] });
+  const want = [200, 100, 50].map((x, i) => Math.min(255, 2 * x * tint[i]) * a + bg[i] * (1 - a));
+  assert.ok(want.every((x, i) => Math.abs(x - px(r, 32, 32)[i]) <= 2), `got ${px(r, 32, 32).slice(0, 3)}, want ${want.map(Math.round)}`);
+  r = await render(t, { textures, meshes: { quad: QUAD_MESH }, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat: mat([1, 1, 1, 0.0005]) }] });
+  assert.ok(bg.every((x, i) => Math.abs(x - px(r, 32, 32)[i]) <= 1), 'alpha below 0.001 is cut');
+});

@@ -114,3 +114,10 @@ test('Disturb(CustomData): _DisturbScale is read as it is only for the L2D shade
   assert.match(fragmentSource('disturbCd', l.defs), /float sc = u_DisturbScale;/);
   assert.match(fragmentSource('disturbCd', b.defs), /u_DisturbScale > 0\.0 \? u_DisturbScale : 1\.0/);
 });
+
+test('Torappu/UI/AlphaBlend on particles compiles to the uiAlpha family', () => {
+  const m = compileMaterial({ shader: 'Torappu/UI/AlphaBlend', passes: [pass('Off')], keywords: [] });
+  assert.equal(m.family, 'uiAlpha');
+  assert.equal(m.fallback, false);
+  assert.match(fragmentSource('uiAlpha', m.defs), /texture\(u_MainTex, v_uv\)/);
+});

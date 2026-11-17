@@ -726,6 +726,19 @@ void main() {
   // × _TintColor, out = lerp(1, c, c.a) on all four channels (Blend Zero SrcColor, Zero SrcColor): the colour multiplies
   // the target, and the client's target alpha (transmittance) is multiplied by out.a — as this canvas's coverage that
   // is coverage + (1 − out.a) × (1 − coverage), so the alpha written is 1 − out.a
+  // Torappu/UI/AlphaBlend on particles (logos_ambiencesynesthesia#6): 2 × texture × vertex colour × _TintColor, alpha
+  // texture × colour (no ×2), cut below 0.001; the raw UV (no _MainTex_ST). Blend SrcAlpha [_DstBlend]
+  uiAlpha: {
+    tex: ['_MainTex'],
+    src: () => `${S(['_MainTex'])}
+${U4(['_TintColor'])}
+void main() {
+  vec4 t = texture(u_MainTex, v_uv);
+  vec4 c = v_col * u_TintColor;
+  if (t.a * c.a - 0.001 < 0.0) discard;
+  o_col = vec4(2.0 * t.rgb * c.rgb, clamp(t.a * c.a, 0.0, 1.0));
+}`,
+  },
   multiply: {
     tex: ['_MainTex'],
     src: (d) => `${S(['_MainTex'])}
