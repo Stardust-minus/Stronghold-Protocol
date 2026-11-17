@@ -16,8 +16,12 @@
 // Both pictures load before the view's first frame, so the static picture gives way to skeleton and backdrop at once
 // ([data-dyn="live"]). A 2048² RGBA texture is 16 MB of GPU memory: a view with both layers adds ~32 MB (one texture per
 // picture, shared by every view of it).
+// The scene (2026-11-17, the owner: the official 动态立绘 scenes play live — ui/dynFx.js): a backdrop view of a record with
+// a `scene` (dynamicFraming.js dynamicScene) loads it alongside; once it is compiled and its textures are on this
+// renderer's GPU it takes the two pictures' place between two frames (they were its placeholder) and draws the Spine's
+// slots between its own layers, on this same context. A view that stops gives its scene's GPU textures back.
 import { ensurePixi } from '../render/app/pixi.js';
-import { framingLayout, dynamicFrame, frameClip } from './dynamicFraming.js';
+import { framingLayout, dynamicFrame, frameClip, dynamicScene } from './dynamicFraming.js';
 
 /** The largest side of the shared canvas (a GPU's own limit is applied when lower). */
 export const PAGE = 4096;
@@ -25,8 +29,6 @@ export const PAGE = 4096;
 export const MAX_STEP = 0.25;
 
 const views = new Set();
-/** SPIKE (spike/dyn-fx-20261116): the official scene's effects around the Spine (ui/dynFx.js) when ?dynfx=1. */
-const dynFxOn = () => { try { return !!globalThis.__dynfx || /[?&]dynfx=1(?:&|$)/.test(globalThis.location?.search || ''); } catch { return false; } };
 let P = null, renderer = null, stage = null, raf = 0, last = 0, lost = false, booting = null, limit = PAGE, contexts = 0;
 const env = () => globalThis;
 
@@ -120,6 +122,12 @@ export function fixStaleClips(data, idle) {
 async function load(v) {
   v.loading = true;
   try {
+    const sceneUrl = v.backdrop ? dynamicScene(v.entry) : null;
+    // the scene loads alongside the skeleton and the pictures (its placeholder); it is attached once on the GPU
+    if (sceneUrl) {
+      v.sceneLoad = import('./dynFx.js').then((m) => (m.dynFxEnabled() ? m.loadScene(sceneUrl).then((sd) => (sd ? { m, sd } : null)) : null));
+      v.sceneLoad.catch(() => {});
+    }
     await boot();
     const [{ assets }] = await Promise.all([import('../assets.js')]);
     v.assets = assets;
@@ -139,14 +147,9 @@ async function load(v) {
     }
     const frame = dynamicFrame(v.entry);
     const container = new P.Container(); container.addChild(actor);
-    let layers = 0, scene = null;
-    if (v.backdrop && dynFxOn()) {
-      const fxm = await import('./dynFx.js');
-      const sd = await fxm.loadScene(fxm.sceneKeyOf(v.entry));
-      if (v.gone) return;
-      if (sd) { scene = new fxm.DynScene(P, sd, actor); container.addChild(scene.view); }
-    }
-    if (v.backdrop && !scene) {
+    let layers = 0;
+    const sprites = [];
+    if (v.backdrop) {
       for (const [url, front] of [[v.entry.background, false], [v.entry.foreground, true]]) {
         if (!url) continue;
         const image = await assets.image(url);
@@ -154,6 +157,7 @@ async function load(v) {
         if (!image) throw new Error('Dynamic illustration layer unavailable');
         const sprite = backdropSprite(P, image, frame || b);
         if (front) container.addChild(sprite); else container.addChildAt(sprite, 0);
+        sprites.push(sprite);
         layers++;
       }
     }
@@ -164,11 +168,37 @@ async function load(v) {
     const mask = new P.Graphics();
     container.mask = mask;
     stage.addChild(container, mask);
-    Object.assign(v, { actor, container, mask, bounds: b, frame, layers, dirty: true, cell: null, scene });
+    Object.assign(v, { actor, container, mask, bounds: b, frame, layers, sprites, dirty: true, cell: null, scene: null });
     schedule();
+    if (v.sceneLoad) void attachScene(v);
   } catch (e) {
     if (!v.gone) v.onState?.('fallback', e);
   } finally { v.loading = false; }
+}
+
+/**
+ * The scene's swap into a loaded view: compiled, its textures and meshes uploaded to this renderer, then — between two
+ * frames — the baked pictures out and the scene in (no frame without either). Without WebGL2 or on a failure the pictures
+ * stay.
+ */
+async function attachScene(v) {
+  let s = null;
+  try {
+    const got = await v.sceneLoad;
+    if (!got || v.gone || !v.container) return;
+    s = new got.m.DynScene(P, got.sd, v.actor);
+    if (!(await s.preload(renderer)) || v.gone || !v.container) { s.destroy(); return; }
+    for (const sp of v.sprites || []) { v.container.removeChild(sp); sp.destroy(); }
+    v.sprites = []; v.layers = 0;
+    s.mount(v.container);
+    v.scene = s; s = null;
+    v.dirty = true;
+    v.onScene?.(true);
+    schedule();
+  } catch (e) {
+    s?.destroy();
+    console.warn('[dynfx] scene not attached', e?.message || e);
+  }
 }
 
 /**
@@ -226,8 +256,9 @@ function schedule() {
 
 /**
  * Start drawing a view: { canvas (the box's 2D canvas, sized by the caller), entry (skins[id].dynamic), framing
- * (ui/dynamicFraming.js framingLayout), backdrop? (draw the entry's background / foreground, in its frame), playing?,
- * onState(state: 'ready'|'fallback') }. Returns the view; stopView ends it.
+ * (ui/dynamicFraming.js framingLayout), backdrop? (draw the entry's background / foreground, in its frame, and its scene
+ * once loaded), playing?, onState(state: 'ready'|'fallback'), onScene?(true: the scene plays) }. Returns the view;
+ * stopView ends it.
  */
 export function startView(view) {
   const v = Object.assign(view, { gone: false, drawn: false, dirty: true });
@@ -250,15 +281,16 @@ export function stopView(v) {
     if (v.mask) { stage?.removeChild(v.mask); v.mask.destroy(); }
   } catch { /* a lost context: the objects are gone with it */ }
   if (v.acquired) v.release?.();
-  v.container = v.actor = v.mask = v.scene = null;
+  v.container = v.actor = v.mask = v.scene = v.sceneLoad = null; v.sprites = [];
   if (!views.size) last = 0;
 }
 
-/** Test hooks: views alive, drawn, drawn with a backdrop layer, WebGL contexts this stage created (one, whatever the number of views). */
+/** Test hooks: views alive, drawn, drawn with a backdrop layer, drawn with the scene, WebGL contexts this stage created (one, whatever the number of views). */
 export const dynamicStage = Object.freeze({
   get views() { return views.size; },
   get drawn() { return [...views].filter((v) => v.drawn).length; },
   get backdrops() { return [...views].filter((v) => v.drawn && v.layers > 0).length; },
+  get scenes() { return [...views].filter((v) => v.drawn && v.scene).length; },
   get contexts() { return contexts; },
   get page() { return limit; },
 });

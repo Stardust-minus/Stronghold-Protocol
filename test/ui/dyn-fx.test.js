@@ -1,0 +1,144 @@
+// The official 动态立绘 scenes played live (ui/dynFx.js, 2026-11-17): a scene file loads and compiles once per URL (the
+// last SCENE_CACHE unused ones kept); preload puts its textures and meshes on a renderer's GPU, counted per renderer, and
+// says no — the baked placeholder stays — when anything failed; destroying the last scene that uses a texture deletes it
+// (a closed view keeps nothing on the GPU: the trial leaked them); a released or restored context is handled.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { loadScene, DynScene, dynFxGpu, releaseRenderer, fxContext, SCENE_CACHE, dynFxEnabled, sceneUrlOf } from '../../public/js/ui/dynFx.js';
+
+const T = { pos: [0, 0, 0], rot: [0, 0, 0, 1], scale: [1, 1, 1] };
+const MESH = { format: 'fx-mesh', version: 2, positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], uv0: [0, 0, 1, 0, 0, 1], submeshes: [[0, 1, 2]] };
+const files = new Map();
+function scene(name, textures) {
+  const desc = {
+    format: 'fx-prefab', version: 1, key: `dyn_illust_${name}`,
+    nodes: [
+      { id: 0, name: 'root', parent: null, children: [1], active: true, ...T, behaviours: [{ class: 'DynIllust', fields: { _cameraSize: 10, _particles: [] } }] },
+      { id: 1, name: 'layer', parent: 0, children: [], active: true, ...T, meshRenderer: { m_Enabled: true, materials: [0] } },
+    ],
+    materials: [{ name: 'm', shader: 'Torappu/Particles-L2D/AlphaBlend', passes: [{ blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'] }], queue: 'Transparent',
+      floats: {}, colors: {}, textures: { _MainTex: { tex: textures[0], st: [1, 1, 0, 0] } } }],
+    clips: [], textures, meshes: [`mesh_${name}`], dyn: { illust: { cameraSize: 10 }, spine: { scale: 0.01 }, animatorStates: {} },
+  };
+  const file = { format: 'dyn-scene', version: 1, key: desc.key, prefab: desc,
+    textures: Object.fromEntries(textures.map((k) => [k, { path: `/assets/local/dynfx/tex/${k}.webp`, w: 2, h: 2, wrapU: 'repeat', wrapV: 'repeat', filter: 'bilinear', mips: 1 }])),
+    meshes: { [`mesh_${name}`]: `/assets/local/dynfx/mesh/${name}.json` } };
+  files.set(`/assets/local/dynfx/scene/${name}.json`, JSON.stringify(file));
+  files.set(`/assets/local/dynfx/mesh/${name}.json`, JSON.stringify(MESH));
+  for (const k of textures) if (!k.startsWith('missing')) files.set(`/assets/local/dynfx/tex/${k}.webp`, 'webp');
+  return `/assets/local/dynfx/scene/${name}.json`;
+}
+globalThis.fetch = async (url) => {
+  const body = files.get(String(url));
+  return body == null ? new Response('no', { status: 404 }) : new Response(body, { status: 200, headers: { 'content-type': /\.json$/.test(url) ? 'application/json' : 'image/webp' } });
+};
+const bitmaps = [];
+globalThis.createImageBitmap = async () => { const b = { width: 2, height: 2, closed: false, close() { this.closed = true; } }; bitmaps.push(b); return b; };
+
+/** A WebGL2 context where every call succeeds; deleted textures are recorded. */
+function fakeGl() {
+  const deleted = [];
+  let n = 0;
+  const gl = new Proxy({ deleted }, {
+    get(target, name) {
+      if (typeof name !== 'string') return undefined;
+      if (name in target) return target[name];
+      if (name === 'getContextAttributes') return () => ({ depth: true });
+      if (name === 'deleteTexture') return (t) => { if (t) deleted.push(t); };
+      if (/^create/.test(name)) return () => ({ id: ++n, kind: name });
+      if (/^[A-Z0-9_]+$/.test(name)) return 1;
+      return (target[name] ??= () => ({}));
+    },
+  });
+  return gl;
+}
+let uid = 0;
+const renderer = () => ({ gl: fakeGl(), CONTEXT_UID: ++uid, context: { webGLVersion: 2 }, batch: { flush() {} } });
+class Container { constructor() { this.children = []; } addChild(c) { this.children.push(c); } destroy() { this.destroyed = true; } }
+const P = { Container };
+const spine = () => ({ skeleton: { findBone: () => null }, children: [], renderable: true, state: { tracks: [] } });
+
+test('on by default (no ?dynfx=1 any more); a record names its scene file, nothing else counts as one', () => {
+  assert.equal(dynFxEnabled(), true);
+  assert.equal(sceneUrlOf({ scene: '/assets/~0123456789abcdef/local/dynfx/scene/x.json' }), '/assets/~0123456789abcdef/local/dynfx/scene/x.json');
+  assert.equal(sceneUrlOf({ scene: 'https://x/y.json' }), null);
+  assert.equal(sceneUrlOf({}), null);
+});
+
+test('two scenes on one renderer: a shared texture is uploaded once and deleted with the last scene that uses it', async () => {
+  const r = renderer();
+  const a = await loadScene(scene('a', ['ta', 'shared']));
+  const b = await loadScene(scene('b', ['tb', 'shared']));
+  assert.ok(a && b);
+  assert.equal(await loadScene({ scene: a.url }), a, 'compiled once per URL');
+  const sa = new DynScene(P, a, spine()), sb = new DynScene(P, b, spine());
+  assert.equal(await sa.preload(r), true);
+  assert.equal(await sb.preload(r), true);
+  assert.equal(dynFxGpu.textures, 3);
+  assert.equal(dynFxGpu.meshes, 2);
+  assert.equal(dynFxGpu.scenes, 2);
+  assert.ok(bitmaps.every((x) => x.closed), 'a decoded image is let go once on the GPU');
+  const sp = spine(), box = new Container();
+  sa.spine = sp; sa.mount(box);
+  assert.deepEqual([box.children.length, sp.renderable], [1, false], 'mounted: the scene draws the Spine\'s slots');
+  fxContext(r).glr.grabTex = { id: 'grab' };
+  sa.destroy();
+  assert.equal(sp.renderable, true);
+  assert.equal(dynFxGpu.textures, 2, 'ta went; shared stays for b');
+  assert.equal(dynFxGpu.grabs, 1, 'a scene left: the GrabPass copy stays');
+  sb.destroy();
+  assert.deepEqual([dynFxGpu.textures, dynFxGpu.meshes, dynFxGpu.scenes, dynFxGpu.texBytes, dynFxGpu.grabs], [0, 0, 0, 0, 0], 'nothing left on the GPU');
+  assert.equal(r.gl.deleted.length, 4, 'ta, tb, shared and the GrabPass copy deleted');
+  sb.destroy();
+  assert.equal(r.gl.deleted.length, 4, 'destroy twice: nothing more');
+  releaseRenderer(r);
+});
+
+test('a texture that fails: preload says no (the placeholder stays), and gives its counts back on destroy', async () => {
+  const r = renderer();
+  const s = await loadScene(scene('c', ['tc', 'missing_c']));
+  const d = new DynScene(P, s, spine());
+  const warn = console.warn; const said = []; console.warn = (...a) => said.push(a.join(' '));
+  try { assert.equal(await d.preload(r), false); } finally { console.warn = warn; }
+  assert.ok(said.some((m) => /incomplete/.test(m)));
+  d.destroy();
+  assert.deepEqual([dynFxGpu.textures, dynFxGpu.scenes], [0, 0]);
+  releaseRenderer(r);
+  assert.equal(await loadScene(scene('nofile', ['x']).replace('nofile', 'gone')), null, 'a scene file that does not load: null');
+});
+
+test('a renderer released while a scene loads gets no new FxGL; a restored context takes the counts over', async () => {
+  const r = renderer();
+  const s = await loadScene(scene('d', ['td']));
+  const d = new DynScene(P, s, spine());
+  const p = d.preload(r);
+  releaseRenderer(r);
+  assert.equal(await p, false);
+  assert.equal(dynFxGpu.renderers, 0, 'not rebuilt for a released renderer');
+  d.destroy();
+  const r2 = renderer();
+  const e = new DynScene(P, s, spine());
+  assert.equal(await e.preload(r2), true);
+  const old = fxContext(r2);
+  r2.CONTEXT_UID = ++uid;                       // a lost context restored: Pixi keeps the object, a new UID
+  const now = fxContext(r2);
+  assert.notEqual(now, old);
+  assert.equal(now.tex.get('td'), 1, 'the counts moved to the new context');
+  await now.texLib.loadTexture('td', false);    // drawn again on the new context
+  now.glr.texture('td', false);
+  assert.equal(now.glr.textures.size, 1);
+  e.destroy();
+  assert.equal(now.glr.textures.size, 0, 'released on the context it is on now');
+  releaseRenderer(r2);
+});
+
+test(`compiled scenes: the last ${SCENE_CACHE} unused are kept, older ones dropped with their mesh data`, async () => {
+  const before = dynFxGpu.cached;
+  const urls = [];
+  for (let i = 0; i < SCENE_CACHE + 3; i++) urls.push(scene(`e${i}`, [`te${i}`]));
+  const r = renderer();
+  for (const u of urls) { const s = new DynScene(P, await loadScene(u), spine()); await s.preload(r); s.destroy(); }
+  assert.ok(dynFxGpu.cached <= SCENE_CACHE, `${dynFxGpu.cached} kept (${before} before)`);
+  assert.equal(dynFxGpu.textures, 0);
+  releaseRenderer(r);
+});

@@ -17,6 +17,10 @@
 // `background` / `foreground` (the scene's layers behind and in front of the character, one picture each) fill the official
 // camera frame (ui/dynamicFraming.js dynamicFrame). The preview and DynamicIllustration's cover mode draw them; LiveArt
 // (the cells' crops, avatars) does not. They load with the skeleton, before the first frame.
+// Scene (2026-11-17, the owner: the official 动态立绘 scenes, played live like the client's, highest quality): where the
+// backdrop shows, a record's `scene` (ui/dynFx.js — the client prefab's mesh layers, particles and shader effects around
+// the Spine) loads behind the baked pictures and takes their place once its textures are on the GPU ([data-scene="live"]);
+// the pictures are only its placeholder. Closing a view gives its scene's GPU memory back.
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button } from './components.js';
 // not ./gameComponents.js (Img): it imports ./playerCard.js, which imports ./namecards.js, which imports this module —
@@ -24,15 +28,13 @@ import { html, Button } from './components.js';
 import { MaterialImage } from './materialImage.js';
 import { ensurePixi } from '../render/app/pixi.js';
 import { startView, stopView, touchView, acquireSpine, fixStaleClips, backdropSprite } from './dynamicStage.js';
-import { dynamicOf, lookDynamic, cropFraming, dynamicFrame } from './dynamicFraming.js';
+import { dynamicOf, lookDynamic, cropFraming, dynamicFrame, dynamicScene } from './dynamicFraming.js';
 import { t } from '../../../shared/i18n.js';
 
 /** How long a dynamic illustration may take to load before its static picture stays. */
 export const LOAD_TIMEOUT_MS = 20000;
 
 const env = () => globalThis;
-/** SPIKE (spike/dyn-fx-20261116): the official scene's effects (ui/dynFx.js) when ?dynfx=1. */
-const dynFxOn = () => { try { return !!env().__dynfx || /[?&]dynfx=1(?:&|$)/.test(env().location?.search || ''); } catch { return false; } };
 /**
  * Where the illustration's rect goes in a box: `frame` (the preview with the official camera frame: whole, edge to edge),
  * `contain` (the preview of a record without one: its bounds whole, 94 %) or `cover` (fills the box, the horizontal centre
@@ -82,6 +84,7 @@ export function CoverIllustration({ entry, focusY = 50, framing = null, playing 
   const box = useRef(null), canvas = useRef(null), view = useRef(null);
   const [state, setState] = useState('idle');
   const [onScreen, setOnScreen] = useState(false);
+  const [sceneLive, setScene] = useState(false);
   const frame = framing || { focusY };
   const frameKey = JSON.stringify(frame);
 
@@ -120,9 +123,9 @@ export function CoverIllustration({ entry, focusY = 50, framing = null, playing 
     setState('loading');
     let timer = setTimeout(() => setState((s) => (s === 'loading' ? 'fallback' : s)), LOAD_TIMEOUT_MS);
     const v = startView({ canvas: canvas.current, entry, framing: frame, playing, backdrop,
-      onState: (next) => { clearTimeout(timer); timer = null; setState(next); } });
+      onState: (next) => { clearTimeout(timer); timer = null; setState(next); }, onScene: () => setScene(true) });
     view.current = v;
-    return () => { clearTimeout(timer); stopView(v); view.current = null; setState('idle'); };
+    return () => { clearTimeout(timer); stopView(v); view.current = null; setState('idle'); setScene(false); };
   }, [entry, onScreen]);
   useEffect(() => { const v = view.current; if (v) { v.framing = frame; v.playing = playing; touchView(v); } }, [frameKey, playing]);
 
@@ -135,7 +138,7 @@ export function CoverIllustration({ entry, focusY = 50, framing = null, playing 
   }, [state]);
 
   const layered = backdrop && !!(entry?.background || entry?.foreground);
-  return html`<span class="dyn-cover" ref=${box} data-testid="dynamic-cover" data-state=${state} data-frame=${frameKey} data-backdrop=${layered ? 'on' : undefined} aria-hidden="true">
+  return html`<span class="dyn-cover" ref=${box} data-testid="dynamic-cover" data-state=${state} data-frame=${frameKey} data-backdrop=${layered ? 'on' : undefined} data-scene=${sceneLive && state === 'ready' ? 'live' : undefined} aria-hidden="true">
     <canvas class="dyn-cover__canvas" ref=${canvas} hidden=${state !== 'ready'}></canvas>
   </span>`;
 }
@@ -146,6 +149,7 @@ function FullIllustration({ entry, staticSrc }) {
   const [playing, setPlaying] = useState(true);
   const playingRef = useRef(playing); playingRef.current = playing;
   const [state, setState] = useState('loading');
+  const [sceneLive, setScene] = useState(false);
   const [clip, setClip] = useState(entry?.anims?.idle || 'Idle');
   const actorRef = useRef(null);
   const relayout = useRef(null);
@@ -155,7 +159,7 @@ function FullIllustration({ entry, staticSrc }) {
     if (!entry) return undefined;
     // the asset store (../assets.js, also behind render/app/host.js) loads with the first opened illustration, not with
     // the lobby (a vanilla page loads it only when needed — test/ui/plugins-client.test.js)
-    let disposed = false, release = null, assets = null, releaseGl = null, app = null, actor = null, watcher = null, scene = null;
+    let disposed = false, release = null, assets = null, releaseGl = null, app = null, actor = null, watcher = null, scene = null, fxm = null;
     const stop = () => { if (app) app.stop(); };
     const visibility = () => { if (env().document?.hidden) stop(); else if (playingRef.current) app?.start(); };
     setState('loading');
@@ -164,6 +168,10 @@ function FullIllustration({ entry, staticSrc }) {
         if (!host.current) throw new Error('No dynamic artwork');
         const P = await ensurePixi();
         if (disposed) return;
+        // the scene (ui/dynFx.js) loads alongside; the baked pictures show until it is on the GPU
+        const sceneUrl = dynamicScene(entry);
+        const sceneLoad = sceneUrl ? import('./dynFx.js').then((m) => { fxm = m; return m.dynFxEnabled() ? m.loadScene(sceneUrl) : null; }) : null;
+        sceneLoad?.catch(() => {});
         // the display's own resolution and rate: no DPR clamp, no fps cap (the owner's decision of 2026-11-03)
         app = new P.Application({ width: 1, height: 1, backgroundAlpha: 0, antialias: true, autoStart: false, resolution: env().devicePixelRatio || 1, autoDensity: true });
         appRef.current = app;
@@ -190,6 +198,7 @@ function FullIllustration({ entry, staticSrc }) {
           const clip = new P.Graphics().beginFill(0xffffff).drawRect(frame.x, -frame.y - frame.height, frame.width, frame.height).endFill();
           container.addChild(clip); container.mask = clip;
         }
+        const sprites = [];
         const layer = async (url, foreground) => {
           if (!url) return;
           const image = await assets.image(url);
@@ -197,15 +206,9 @@ function FullIllustration({ entry, staticSrc }) {
           if (!image) throw new Error('Dynamic illustration layer unavailable');
           const sprite = backdropSprite(P, image, space);
           if (foreground) container.addChild(sprite); else container.addChildAt(sprite, 0);
+          sprites.push(sprite);
         };
-        if (dynFxOn()) {
-          // the official scene instead of the baked layers (inside the camera frame's clip above)
-          const fxm = await import('./dynFx.js');
-          const sd = await fxm.loadScene(fxm.sceneKeyOf(entry));
-          if (disposed) return;
-          if (sd) { scene = new fxm.DynScene(P, sd, actor); container.addChild(scene.view); }
-        }
-        if (!scene) await Promise.all([layer(entry.background, false), layer(entry.foreground, true)]);
+        await Promise.all([layer(entry.background, false), layer(entry.foreground, true)]);
         if (disposed) return;
         actor.state.setAnimation(0, entry.anims?.idle || clips[0], true);
         actor.update(0);
@@ -226,6 +229,18 @@ function FullIllustration({ entry, staticSrc }) {
         env().document?.addEventListener('visibilitychange', visibility);
         if (playingRef.current && !env().document?.hidden) app.start(); else app.render();
         setState('ready');
+        // the swap (as ui/dynamicStage.js attachScene): the pictures out and the scene in between two frames
+        const sd = sceneLoad ? await sceneLoad.catch(() => null) : null;
+        if (!sd || disposed) return;
+        const s = new fxm.DynScene(P, sd, actor);
+        try {
+          if (!(await s.preload(app.renderer)) || disposed) { s.destroy(); return; }
+        } catch (e) { s.destroy(); console.warn('[dynfx] scene not attached', e?.message || e); return; }
+        for (const sp of sprites) { container.removeChild(sp); sp.destroy(); }
+        s.mount(container);
+        scene = s;
+        if (!app.ticker.started) app.render();
+        setScene(true);
       } catch {
         stop();
         if (!disposed) setState('fallback');
@@ -236,6 +251,9 @@ function FullIllustration({ entry, staticSrc }) {
       disposed = true; watcher?.disconnect(); env().document?.removeEventListener('visibilitychange', visibility);
       appRef.current = null; actorRef.current = null; relayout.current = null;
       try { scene?.destroy(); } catch { /* its stage is gone */ }
+      setScene(false);
+      // the preview's own renderer goes: the scene runtime's GPU objects on it too (Pixi's releaseGl does not know them)
+      try { if (app?.renderer) fxm?.releaseRenderer(app.renderer); } catch { /* a lost context is already gone */ }
       try { if (app?.renderer) releaseGl?.(app.renderer); app?.destroy(true, { children: true, texture: false, baseTexture: false }); } catch { /* a lost context is already gone */ }
       release?.();
     };
@@ -251,7 +269,7 @@ function FullIllustration({ entry, staticSrc }) {
     actor.state.setAnimation(0, clip, true); actor.update(0); appRef.current?.render();
   }, [clip, state]);
 
-  return html`<div class="lo-dynamic" data-testid="dynamic-illustration" data-state=${state} data-view=${dynamicFrame(entry) ? 'frame' : 'bounds'}>
+  return html`<div class="lo-dynamic" data-testid="dynamic-illustration" data-state=${state} data-view=${dynamicFrame(entry) ? 'frame' : 'bounds'} data-scene=${sceneLive && state === 'ready' ? 'live' : undefined}>
     <div class="lo-dynamic__stage">
       ${state !== 'ready' && staticSrc ? html`<${MaterialImage} src=${staticSrc} class="lo-dynamic__fallback" alt="" draggable=${false} />` : null}
       <div class="lo-dynamic__canvas" ref=${host} hidden=${state === 'fallback'}></div>

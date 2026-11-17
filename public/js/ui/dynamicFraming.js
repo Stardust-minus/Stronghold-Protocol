@@ -113,6 +113,19 @@ export function dynamicFrame(entry) {
 }
 
 /**
+ * The scene file of a 动态立绘 (2026-11-17), or null: the client prefab's whole scene — the mesh layers, particles and
+ * shader effects behind and in front of the character, played live by ui/dynFx.js (skins[id].dynamic.scene,
+ * chars[id].dynamicE2.scene; tools/assets/dynamic-scenes.mjs). Where a view shows the backdrop (「查看立绘」, the 名片, a
+ * seat card) the scene takes the baked `background` / `foreground` pictures' place once it is loaded; those pictures are
+ * its placeholder until then (and stay where it cannot play: no WebGL2, a failed load).
+ * @param {any} entry a `dynamic` record @returns {string|null}
+ */
+export function dynamicScene(entry) {
+  const u = entry?.scene;
+  return typeof u === 'string' && /^\/assets\/.+\.json$/.test(u) ? u : null;
+}
+
+/**
  * The transform for one embedded view: `framing` { rect, posX?, posY? } (a crop), { focusX?, focusY, zoom? } (the whole
  * frame — the official camera square, `frame`, else the bounds —, the 名片), or { art, space? } (a seat; null art =
  * { rect, posX, posY } fallback given as `rect`; `space`: the rect the art is relative to when it is not the bounds — a
