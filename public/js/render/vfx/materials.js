@@ -2,7 +2,7 @@
 // shader family of render/vfx/glsl.js, the uniform values (floats, colours / vectors, textures with their _ST), the
 // render state of the material's first pass (blend factors, blend op, ZTest, ZWrite, cull, colour mask) and its queue.
 //
-//   compileMaterial(m, { lite })  → { family, defs, key, floats, vecs, textures, state, queue, fallback }
+//   compileMaterial(m, { lite })  → { family, defs, key, keywords, floats, vecs, textures, state, queue, fallback }
 //   familyOf(shaderName)          → { family, fallback?: true }   (unknown and unported shaders fall back to the
 //                                   closest simple family; `fallbackLog()` lists them once each)
 //
@@ -116,7 +116,8 @@ export function compileMaterial(m, opts = {}) {
     const key = typeof t?.tex === 'string' && !t.tex.startsWith('builtin:') ? t.tex : null;
     textures.push({ name, key, def: typeof t?.default === 'string' ? t.default : (/Distur|Disturb|Add|Mask/.test(name) ? 'black' : 'white') });
   }
-  const p = Array.isArray(m?.passes) && m.passes.length ? m.passes[0] : {};
+  // a GrabPass shader's first exported pass is the grab itself: its state is the drawing pass after it
+  const p = Array.isArray(m?.passes) && m.passes.length ? m.passes[family === 'grab' && m.passes.length > 1 ? 1 : 0] : {};
   const b = Array.isArray(p.blend) ? p.blend : ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'];
   const state = {
     src: BLEND[b[0]] ?? BLEND.SrcAlpha, dst: BLEND[b[1]] ?? BLEND.OneMinusSrcAlpha,
@@ -132,7 +133,8 @@ export function compileMaterial(m, opts = {}) {
   // the L2D variants (spike/dyn-fx-20261116): Add vs AlphaBlend arithmetic, Disturb2's Glow mode, GrabPass's custom data
   defs.add = / Add\b|\(Add\)/.test(String(m?.shader || ''));
   defs.glow = kw.has('_DISTURBMODE_GLOW') || num(floats._DisturbMode, 0) > 0.5;
-  if (family === 'grab') defs.cvs = kw.has('_CUSTOMDATA_ON') || num(floats._CUSTOMDATA, 0) > 0.5;
+  // GrabPass: its own custom-data keyword ([Toggle] _CUSTOMDATA → _CUSTOMDATA_ON; the variant follows the keyword)
+  if (family === 'grab') { defs.cvs = kw.has('_CUSTOMDATA_ON'); defs.once = /GrabPassOnce/.test(String(m?.shader || '')); }
   const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}`;
-  return { name: m?.name || '', shader: m?.shader || '', family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
+  return { name: m?.name || '', shader: m?.shader || '', keywords: [...kw], family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
 }

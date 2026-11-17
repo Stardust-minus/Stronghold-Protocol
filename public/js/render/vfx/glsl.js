@@ -26,8 +26,14 @@ export const LOC = Object.freeze({
   corner: 0, pos: 0, center: 1, ax: 2, ay: 3, m0: 2, m1: 3, color: 4, uvr: 5, t0: 6, t1: 7, t2: 8, nrm: 9, uv: 10, vcol: 11, m2: 12,
 });
 
-/** The vertex shader of a geometry kind. */
-export function vertexSource(kind) {
+/**
+ * The vertex shader of a geometry kind; `ext` (a family's vertex stage, FAMILIES[f].vs(defs)) switches to the
+ * object-space template below. Kind 'meshr' is a MeshRenderer's mesh (object space = the mesh's own space); 'mesh'
+ * without ext covers both.
+ */
+export function vertexSource(kind, ext) {
+  if (ext) return extVertexSource(kind, ext);
+  if (kind === 'meshr') kind = 'mesh';
   if (kind === 'quad') {
     return `${HEAD}
 layout(location=0) in vec2 a_corner;
@@ -94,6 +100,85 @@ void main() {
   v_nrm = l > 1e-8 ? a_nrm / l : vec3(0.0, 0.0, -1.0);
   v_uv = a_uv; v_col = a_vcol; v_t0 = vec2(0.0); v_t1 = vec4(0.0); v_t2 = vec4(0.0);
   gl_Position = u_vp * vec4(a_pos, 1.0);
+}`;
+}
+
+/**
+ * The vertex stage of the families that work in the shader's object space (动态立绘 3D / vertex shaders): the client's
+ * object space is a MeshRenderer's mesh space (ObjectToWorld = the renderer's transform, kind 'meshr'); particle
+ * meshes, billboards and CPU-built strips reach the shader in world space with an identity ObjectToWorld (Unity bakes
+ * the particle transform into the vertices). In main(): `op` / `on` the object-space position / normal (ext.pre may
+ * move op), `o2w`, then the world position / normal (inverse transpose, normalised per vertex), clip position, and
+ * ext.post (extra varyings, may move gl_Position). Uniforms u_V / u_P are Unity's view and projection matrices.
+ */
+function extVertexSource(kind, ext) {
+  const attrs = kind === 'quad' ? `layout(location=0) in vec2 a_corner;
+layout(location=1) in vec3 a_center;
+layout(location=2) in vec3 a_ax;
+layout(location=3) in vec3 a_ay;`
+    : kind === 'strip' ? `layout(location=0) in vec3 a_pos;
+layout(location=10) in vec2 a_uv;
+layout(location=11) in vec4 a_vcol;
+layout(location=9) in vec3 a_nrm;`
+      : `layout(location=0) in vec3 a_pos;
+layout(location=9) in vec3 a_nrm;
+layout(location=10) in vec2 a_uv;
+layout(location=11) in vec4 a_vcol;
+layout(location=1) in vec3 a_center;
+layout(location=2) in vec3 a_m0;
+layout(location=3) in vec3 a_m1;
+layout(location=12) in vec3 a_m2;`;
+  const inst = kind === 'strip' ? '' : `
+layout(location=4) in vec4 a_color;
+layout(location=5) in vec4 a_uvr;
+layout(location=6) in vec2 a_t0;
+layout(location=7) in vec4 a_t1;
+layout(location=8) in vec4 a_t2;`;
+  const setup = kind === 'quad' ? `
+  vec3 cn = cross(a_ax, a_ay); float cl = length(cn);
+  vec4 op = vec4(a_center + a_ax * a_corner.x + a_ay * a_corner.y, 1.0);
+  vec3 on = cl > 1e-8 ? cn / cl : vec3(0.0, 0.0, -1.0);
+  mat4 o2w = mat4(1.0);
+  vec2 uv0 = a_uvr.xy + (a_corner + 0.5) * a_uvr.zw;
+  v_col = a_color; v_t0 = a_t0; v_t1 = a_t1; v_t2 = a_t2;`
+    : kind === 'strip' ? `
+  vec4 op = vec4(a_pos, 1.0);
+  vec3 on = a_nrm;
+  mat4 o2w = mat4(1.0);
+  vec2 uv0 = a_uv;
+  v_col = a_vcol; v_t0 = vec2(0.0); v_t1 = vec4(0.0); v_t2 = vec4(0.0);`
+      : kind === 'meshr' ? `
+  vec4 op = vec4(a_pos, 1.0);
+  vec3 on = a_nrm;
+  mat4 o2w = mat4(vec4(a_m0, 0.0), vec4(a_m1, 0.0), vec4(a_m2, 0.0), vec4(a_center, 1.0));
+  vec2 uv0 = a_uvr.xy + a_uv * a_uvr.zw;
+  v_col = a_color * a_vcol; v_t0 = a_t0; v_t1 = a_t1; v_t2 = a_t2;`
+        : `
+  mat3 pm = mat3(a_m0, a_m1, a_m2);
+  vec4 op = vec4(a_center + pm * a_pos, 1.0);
+  vec3 on = pm * a_nrm;
+  mat4 o2w = mat4(1.0);
+  vec2 uv0 = a_uvr.xy + a_uv * a_uvr.zw;
+  v_col = a_color * a_vcol; v_t0 = a_t0; v_t1 = a_t1; v_t2 = a_t2;`;
+  return `${HEAD}
+${attrs}${inst}
+uniform mat4 u_vp;
+uniform mat4 u_V;
+uniform mat4 u_P;
+uniform vec4 u_Time;
+uniform vec4 u_Screen;
+uniform vec3 u_WorldSpaceCameraPos;
+${VARY_OUT}${ext.decl || ''}
+void main() {${setup}
+  v_uv = uv0;
+${ext.pre || ''}
+  vec4 wp = o2w * op;
+  vec3 wn = transpose(inverse(mat3(o2w))) * on;
+  float wl = length(wn);
+  v_nrm = wl > 1e-8 ? wn / wl : vec3(0.0, 0.0, -1.0);
+  v_wpos = wp.xyz;
+  gl_Position = u_vp * wp;
+${ext.post || ''}
 }`;
 }
 
@@ -445,29 +530,52 @@ void main() {
   o_col = vec4(0.0, 0.0, 0.0, clamp((1.0 - texture(u_MainTex, st(v_uv, u_MainTex_ST)).r) * u_Strength, 0.0, 1.0));
 }`,
   },
-  // Disturb GrabPass: the picture under it (render/vfx/gl.js copies the target into u_GrabTexture before the draw),
-  // read at the fragment's own screen position pushed by a scrolled noise × the direction mode × _Intensity × the
-  // vertex R (optional mask texture, plain or polar). Directional / Center modes (1, 2: object-space directions) are
-  // drawn as Directional_UV [ASSUMED approximation: they need the object-space projection of the displaced vertex]
+  // Disturb GrabPass / GrabPassOnce: the picture under it (render/vfx/gl.js copies the target into u_GrabTexture before
+  // the draw, blend One Zero), read at the fragment's own screen position pushed by a scrolled noise (_Time.x) × the
+  // direction mode × _Intensity × the vertex R, optionally masked (_MaskTex plain or polar, × _MaskIntensity). Modes:
+  // 3 Directional_UV −_DisturbDirUV × 0.1; 4 Center_UV ±normalize(uv − _DisturbCenterUV) × 0.1; 1 Directional / 2 Center
+  // (object space): the screen step from the vertex to the vertex moved by _DisturbDir, or one unit away from
+  // _DisturbCenter + _ParticleSystemPositionWS. _CUSTOMDATA_ON: TEXCOORD1.xy noise offset, .zw intensity scale;
+  // TEXCOORD2.xy mask offset (.x for the polar mask), .z mask intensity scale. _ShowMask / _ShowNoise draw the mask /
+  // the noise instead. The client's grab texture runs top-down (D3D), so its V offsets point down the screen here.
   grab: {
     tex: ['_DisturTex', '_MaskTex', '_GrabTexture'],
+    vs: () => ({
+      decl: `uniform vec4 u_DisturbDir;
+uniform vec4 u_DisturbCenter;
+uniform vec4 u_ParticleSystemPositionWS;
+uniform float u_DirMode;
+out vec4 v_scr;
+out vec4 v_scr2;
+`,
+      post: `  v_scr = gl_Position;
+  vec4 q = op;
+  if (u_DirMode == 1.0) q.xyz += u_DisturbDir.xyz;
+  else if (u_DirMode == 2.0) { vec3 dd = op.xyz - (u_DisturbCenter.xyz + u_ParticleSystemPositionWS.xyz); q.xyz += dd * inversesqrt(dot(dd, dd)); }
+  v_scr2 = u_vp * (o2w * q);`,
+    }),
+    fsIn: () => 'in vec4 v_scr;\nin vec4 v_scr2;\n',
     src: (d) => `${S(['_DisturTex', '_MaskTex', '_GrabTexture'])}
-${U4(['_DisturTex_ST', '_MaskTex_ST', '_NoiseSpeed', '_MaskSpeed', '_DisturbDirUV', '_DisturbCenterUV', '_GrabRect'])}
-${U1(['_Intensity', '_DirMode', '_Mask', '_MaskIntensity', '_PolarCoord', '_PolarRadius', '_DisturbInvert'])}
+${U4(['_DisturTex_ST', '_MaskTex_ST', '_NoiseSpeed', '_MaskSpeed', '_DisturbDirUV', '_DisturbCenterUV'])}
+${U1(['_Intensity', '_DirMode', '_Mask', '_MaskIntensity', '_PolarCoord', '_PolarRadius', '_DisturbInvert', '_ShowMask', '_ShowNoise'])}
 void main() {
-  vec2 nOff = vec2(0.0), mOff = vec2(0.0); vec2 iScale = vec2(1.0); float mI = 1.0;
-  ${d.cvs ? 'nOff = v_t0; iScale = v_t1.xy; mOff = v_t1.zw; mI = v_t2.x;' : ''}
+  vec2 nOff = vec2(0.0), iScale = vec2(1.0), mOff = vec2(0.0); float mI = 1.0;
+  ${d.cvs ? 'nOff = v_t1.xy; iScale = v_t1.zw; mOff = v_t2.xy; mI = v_t2.z;' : ''}
   float r = 2.0 * length(v_uv - 0.5) * u_PolarRadius - u_MaskSpeed.x * u_Time.y;
   float m1 = texture(u_MaskTex, vec2(r) + u_MaskTex_ST.zw + mOff.x).r;
   float m2 = texture(u_MaskTex, v_uv * u_MaskTex_ST.xy - u_MaskSpeed.xy * u_Time.y + u_MaskTex_ST.zw + mOff).r;
-  float n = texture(u_DisturTex, st(v_uv, u_DisturTex_ST) + fract(u_NoiseSpeed.xy * u_Time.x) + nOff).r;
-  vec2 dir = -(u_DisturbDirUV.xy * 0.1);
-  if (u_DirMode > 3.5 && u_DirMode < 4.5) dir = (u_DisturbInvert * 2.0 - 1.0) * normalize(v_uv - u_DisturbCenterUV.xy + 1e-6) * 0.1;
-  float mask = u_Mask > 0.0 ? clamp(mI * u_MaskIntensity, 0.0, 1.0) * ((u_PolarCoord > 0.0 ? m1 : m2) - 1.0) + 1.0 : 1.0;
-  vec2 off = mask * n * dir * u_Intensity * v_col.r * iScale;
-  // the client's grab texture runs top-down (D3D): its V offset points down the screen
-  vec2 suv = (gl_FragCoord.xy - u_GrabRect.xy) / u_GrabRect.zw + vec2(off.x, -off.y);
-  o_col = texture(u_GrabTexture, suv);
+  vec4 nz = texture(u_DisturTex, st(v_uv, u_DisturTex_ST) + fract(u_NoiseSpeed.xy * u_Time.x) + nOff);
+  float mk = clamp(mI * u_MaskIntensity, 0.0, 1.0) * ((u_PolarCoord > 0.0 ? m1 : m2) - 1.0) + 1.0;
+  float mask = u_Mask > 0.0 ? mk : 1.0;
+  vec2 s0 = v_scr.xy / v_scr.w * 0.5 + 0.5;
+  vec2 dir = vec2(1.0);
+  if (u_DirMode == 1.0 || u_DirMode == 2.0) { vec2 s2 = v_scr2.xy / v_scr2.w * 0.5 + 0.5; dir = vec2(s2.x - s0.x, s0.y - s2.y); }
+  else if (u_DirMode == 3.0) dir = -(u_DisturbDirUV.xy * 0.1);
+  else if (u_DirMode == 4.0) { vec2 c = v_uv - u_DisturbCenterUV.xy; dir = (u_DisturbInvert * 2.0 - 1.0) * inversesqrt(dot(c, c)) * c * 0.1; }
+  vec2 off = mask * nz.r * dir * u_Intensity * v_col.r * iScale;
+  if (u_Mask > 0.0 && u_ShowMask > 0.0) { o_col = vec4(vec3(mk), 1.0); return; }
+  if (u_ShowNoise > 0.0) { o_col = mask * nz; return; }
+  o_col = texture(u_GrabTexture, s0 + vec2(off.x, -off.y));
 }`,
   },
   multiply: {
@@ -486,5 +594,11 @@ void main() {
 /** The fragment shader of a family. */
 export function fragmentSource(family, defs = {}) {
   const f = FAMILIES[family] || FAMILIES.basic;
-  return `${HEAD}${VARY_IN}${COMMON}${f.src(defs)}`;
+  return `${HEAD}${VARY_IN}${f.fsIn ? f.fsIn(defs) : ''}${COMMON}${f.src(defs)}`;
+}
+
+/** A family's own vertex stage (see extVertexSource), or null for the plain geometry shaders. */
+export function vertexExt(family, defs = {}) {
+  const f = FAMILIES[family];
+  return f && f.vs ? f.vs(defs) : null;
 }
