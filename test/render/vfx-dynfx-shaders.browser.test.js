@@ -133,3 +133,32 @@ test('Disturb GrabPass: the picture under it, moved by each direction mode and t
   r = await render(t, { textures, meshes, items: [{ kind: 'quad', inst: { ax: [3, 0, 0], ay: [0, -3, 0], t1: [0, 0, 0.5, 2] }, mat: cd }] });
   near(step(r), [-0.6 * 0.1 * 0.5 * 0.5, 0.4 * 0.1 * 0.5 * 2], 'custom data scale');
 });
+
+test('Ram/VertexDisturb(CustomData): vertices move in the shader\'s object space by the disturb texture × weight × intensity', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  const textures = { white: tex1([255, 255, 255, 255]), vd: tex1([191, 128, 128, 255]) };
+  const meshes = { quad: QUAD_MESH };
+  const mat = {
+    shader: 'Torappu/Particles-L2D/Ram/VertexDisturb(CustomData)', keywords: [], queue: 3000,
+    passes: [{ blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'], blendOp: 'Add', zTest: 'Disabled', zWrite: false, cull: 'Off', colorMask: 15 }],
+    floats: { _Opacity: 1, _PremultiplyAlpha: 5, _Amount: 0, _BorderWidth: 0.1, _IntensityU: 0, _IntensityV: 0, _NormalDisturb: 0, _NormalDisturbIntensity: 0, _VertexDisturbUSpeed: 0, _VertexDisturbVSpeed: 0 },
+    colors: { _MainColor: [1, 0, 0, 1], _VertexDisturbIntensity: [0.8, 0, 0, 0] },
+    textures: { _MainTex: { tex: 'white', st: [1, 1, 0, 0] }, _RamTex: { tex: 'white', st: [1, 1, 0, 0] }, _VertexDisturbTex: { tex: 'vd', st: [1, 1, 0, 0] },
+      _VertexDisturbWeightTex: { tex: 'white', st: [1, 1, 0, 0] } },
+  };
+  // the quad's left edge on the middle row: the first pixel the red draw covers (background b = 0.5)
+  const left = (r) => { for (let x = 0; x < W; x++) if (px(r, x, 32)[2] < 20) return x; return -1; };
+  const shift = 0.8 * (191 / 255 - 0.5);   // object-space x offset
+  const edgePx = (xw) => Math.ceil((xw / HW * 0.5 + 0.5) * W - 0.5);
+  // MeshRenderer (scale 2): the offset is in mesh space, so it is scaled with the mesh
+  let r = await render(t, { textures, meshes, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [2, 0, 0, 0, 2, 0, 0, 0, 1] }, mat }] });
+  assert.equal(left(r), edgePx(-1 + 2 * shift), 'renderer: mesh-space displacement');
+  // particle mesh: Unity's particle vertices are world space, so the same offset is not scaled
+  r = await render(t, { textures, meshes, items: [{ kind: 'mesh', part: 'ps', mesh: 'quad', inst: { m: [2, 0, 0, 0, 2, 0, 0, 0, 1] }, mat }] });
+  assert.equal(left(r), edgePx(-1 + shift), 'particle: world-space displacement');
+  // no weight, no displacement
+  r = await render(t, { textures: { ...textures, black: tex1([0, 0, 0, 255]) }, meshes, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [2, 0, 0, 0, 2, 0, 0, 0, 1] },
+    mat: { ...mat, textures: { ...mat.textures, _VertexDisturbWeightTex: { tex: 'black', st: [1, 1, 0, 0] } } } }] });
+  assert.equal(left(r), edgePx(-1), 'weight 0');
+});

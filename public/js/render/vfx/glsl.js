@@ -392,8 +392,30 @@ void main() {
 }`,
   },
   // Ram/Disturb(CustomData): Disturb(CustomData) with a ramp texture multiplied in
+  // Ram/VertexDisturb(CustomData) (defs.vdist): the same fragment without channel selects and with the main UV pushed at
+  // full strength, after a vertex stage that moves each vertex in object space by (_VertexDisturbTex.rgb − 0.5) ×
+  // _VertexDisturbWeightTex.r × _VertexDisturbIntensity (the disturb texture scrolled by _VertexDisturbU/VSpeed ×
+  // _Time.y, both read at LOD 0 with the vertex UV), plus normalize(normal) × (R − 0.5) × weight ×
+  // _NormalDisturbIntensity when _NormalDisturb > 0
   ramDisturbCd: {
-    tex: ['_MainTex', '_DisturbTex', '_RamTex', '_DissolveTex'],
+    tex: ['_MainTex', '_DisturbTex', '_RamTex', '_DissolveTex', '_VertexDisturbTex', '_VertexDisturbWeightTex'],
+    vs: (d) => (!d.vdist ? null : {
+      decl: `uniform sampler2D u_VertexDisturbTex;
+uniform sampler2D u_VertexDisturbWeightTex;
+uniform vec4 u_VertexDisturbTex_ST;
+uniform vec4 u_VertexDisturbWeightTex_ST;
+uniform vec4 u_VertexDisturbIntensity;
+uniform float u_VertexDisturbUSpeed;
+uniform float u_VertexDisturbVSpeed;
+uniform float u_NormalDisturb;
+uniform float u_NormalDisturbIntensity;
+`,
+      pre: `  vec3 vd = textureLod(u_VertexDisturbTex, uv0 * u_VertexDisturbTex_ST.xy + u_VertexDisturbTex_ST.zw + fract(vec2(u_VertexDisturbUSpeed, u_VertexDisturbVSpeed) * u_Time.y), 0.0).xyz - 0.5;
+  float vw = textureLod(u_VertexDisturbWeightTex, uv0 * u_VertexDisturbWeightTex_ST.xy + u_VertexDisturbWeightTex_ST.zw, 0.0).r;
+  vec3 voff = vd * vw * u_VertexDisturbIntensity.xyz;
+  if (0.0 < u_NormalDisturb) voff += on * inversesqrt(dot(on, on)) * vd.x * vw * u_NormalDisturbIntensity;
+  op.xyz += voff;`,
+    }),
     src: (d) => `${S(['_MainTex', '_DisturbTex', '_RamTex', '_DissolveTex'])}
 ${U4(['_MainTex_ST', '_DissolveTex_ST', '_DisturbTex_ST', '_RamTex_ST', '_MainColor', '_Rotation0', '_Rotation1', '_Rotation2', '_Rotation3'])}
 ${U1(['_HG_UV_ROTATION', '_MainUSpeed', '_MainVSpeed', '_DissolveUSpeed', '_DissolveVSpeed', '_DisturbUSpeed', '_DisturbVSpeed', '_MainTexChannel', '_DisturbTexChannel', '_DissolvTexChannel', '_RamTexChannel', '_Opacity', '_PremultiplyAlpha', '_DisturbInfluenceDissolveUV', '_DisturbInfluenceMainUV', '_Amount', '_BorderWidth', '_IntensityU', '_IntensityV'])}
@@ -404,14 +426,14 @@ void main() {
   vec2 duv = uvRot(st(v_uv, u_DissolveTex_ST) + o1, u_Rotation1, u_HG_UV_ROTATION) + fract(u_Time.y * vec2(u_DissolveUSpeed, u_DissolveVSpeed));
   vec2 ruv = uvRot(st(v_uv, u_RamTex_ST), u_Rotation2, u_HG_UV_ROTATION);
   vec2 tuv = uvRot(st(v_uv, u_DisturbTex_ST) + o3, u_Rotation3, u_HG_UV_ROTATION) + fract(u_Time.y * vec2(u_DisturbUSpeed, u_DisturbVSpeed));
-  vec4 ram = chan4(texture(u_RamTex, ruv), u_RamTexChannel);
+  vec4 ram = ${d.vdist ? 'texture(u_RamTex, ruv)' : 'chan4(texture(u_RamTex, ruv), u_RamTexChannel)'};
   vec4 dist = vec4(0.0);
-  ${d.lite ? '' : 'dist = (vec4(addI) + vec4(u_IntensityU, u_IntensityV, u_IntensityU, u_IntensityV)) * chan1(texture(u_DisturbTex, tuv), u_DisturbTexChannel);'}
-  vec2 muv2 = muv + dist.xy * u_DisturbInfluenceMainUV;
+  ${d.lite ? '' : `dist = (vec4(addI) + vec4(u_IntensityU, u_IntensityV, u_IntensityU, u_IntensityV)) * ${d.vdist ? 'texture(u_DisturbTex, tuv).r' : 'chan1(texture(u_DisturbTex, tuv), u_DisturbTexChannel)'};`}
+  vec2 muv2 = muv + dist.xy${d.vdist ? '' : ' * u_DisturbInfluenceMainUV'};
   vec2 duv2 = duv + dist.zw * u_DisturbInfluenceDissolveUV;
-  vec4 t = chan4(texture(u_MainTex, muv2), u_MainTexChannel) * u_MainColor * v_col * ram;
+  vec4 t = ${d.vdist ? 'texture(u_MainTex, muv2)' : 'chan4(texture(u_MainTex, muv2), u_MainTexChannel)'} * u_MainColor * v_col * ram;
   float a = 2.0 * t.a * u_Opacity;
-  float dv = chan1(texture(u_DissolveTex, duv2), u_DissolvTexChannel);
+  float dv = ${d.vdist ? 'texture(u_DissolveTex, duv2).r' : 'chan1(texture(u_DissolveTex, duv2), u_DissolvTexChannel)'};
   a = clamp(dissolveMask(dv, u_Amount + addA, u_BorderWidth) * a, 0.0, 1.0);
   o_col = premul(t.rgb * 2.0, a, u_PremultiplyAlpha);
 }`,

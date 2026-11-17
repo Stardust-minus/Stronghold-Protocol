@@ -135,6 +135,8 @@ export function compileMaterial(m, opts = {}) {
   defs.glow = kw.has('_DISTURBMODE_GLOW') || num(floats._DisturbMode, 0) > 0.5;
   // GrabPass: its own custom-data keyword ([Toggle] _CUSTOMDATA → _CUSTOMDATA_ON; the variant follows the keyword)
   if (family === 'grab') { defs.cvs = kw.has('_CUSTOMDATA_ON'); defs.once = /GrabPassOnce/.test(String(m?.shader || '')); }
-  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}`;
+  // Ram/VertexDisturb(CustomData): Ram/Disturb(CustomData) plus the vertex displacement
+  defs.vdist = /VertexDisturb/.test(String(m?.shader || ''));
+  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}${defs.vdist ? 1 : 0}`;
   return { name: m?.name || '', shader: m?.shader || '', keywords: [...kw], family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
 }

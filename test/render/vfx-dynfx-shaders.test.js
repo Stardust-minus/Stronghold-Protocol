@@ -33,3 +33,19 @@ test('GrabPass / GrabPassOnce: the drawing pass after the grab, the custom-data 
   assert.match(fragmentSource('grab', o.defs), /in vec4 v_scr2;/);
   assert.match(fragmentSource('grab', o.defs), /nOff = v_t1\.xy; iScale = v_t1\.zw; mOff = v_t2\.xy; mI = v_t2\.z;/);
 });
+
+test('Ram/VertexDisturb(CustomData): Ram/Disturb(CustomData) plus a vertex stage; the plain one keeps the shared mesh shader', () => {
+  const v = compileMaterial({ shader: 'Torappu/Particles-L2D/Ram/VertexDisturb(CustomData)', passes: [pass('Off')], keywords: [] });
+  const d = compileMaterial({ shader: 'Torappu/Particles-L2D/Ram/Disturb(CustomData)', passes: [pass('Off')], keywords: [] });
+  assert.equal(v.family, 'ramDisturbCd');
+  assert.equal(v.defs.vdist, true);
+  assert.equal(d.defs.vdist, false);
+  assert.notEqual(v.key, d.key);
+  assert.equal(vertexExt('ramDisturbCd', d.defs), null);
+  const ext = vertexExt('ramDisturbCd', v.defs);
+  assert.match(ext.pre, /textureLod\(u_VertexDisturbTex/);
+  assert.match(vertexSource('meshr', ext), /op\.xyz \+= voff;[\s\S]*vec4 wp = o2w \* op;/, 'displaced in object space, then transformed');
+  const fs = fragmentSource('ramDisturbCd', v.defs);
+  assert.ok(!/u_DisturbInfluenceMainUV;\n/.test(fs.split('void main')[1]) && /muv2 = muv \+ dist\.xy;/.test(fs), 'main UV pushed at full strength');
+  assert.ok(!/chan4\(texture\(u_MainTex/.test(fs), 'no channel selects');
+});

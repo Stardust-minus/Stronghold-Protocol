@@ -12,7 +12,7 @@
 // Culling: Unity treats clockwise screen triangles as front faces; the effects reach the screen with the same winding
 // (the battle frame's flip is part of the camera equivalence), so frontFace(CW) + the material's cull mode.
 
-import { vertexSource, vertexExt, fragmentSource, FAMILIES, DEPTH_VS, DEPTH_FS, LOC } from './glsl.js';
+import { vertexSource, vertexExt, fragmentSource, DEPTH_VS, DEPTH_FS, LOC } from './glsl.js';
 import { QUAD_STRIDE, MESH_STRIDE, STRIP_STRIDE } from './geom.js';
 import { BLEND, UNIFORM_DEFAULTS } from './materials.js';
 
@@ -33,6 +33,7 @@ export class FxGL {
     this.stats = { draws: 0, programs: 0, textures: 0, texBytes: 0, quads: 0, meshes: 0, tris: 0, grabs: 0 };
     this.grabTex = null; this.grabW = 0; this.grabH = 0;               // GrabPass: the target before each draw
     this.grabOnceTex = null; this.grabOnceW = 0; this.grabOnceH = 0;   // GrabPassOnce: once per draw() call
+    this.ownVs = new WeakMap();      // compiled material → has its own vertex stage (programs per renderer / particle)
     this.hasDepth = !!(gl.getContextAttributes && gl.getContextAttributes()?.depth);
     this._init();
   }
@@ -308,7 +309,8 @@ export class FxGL {
     for (const it of items) {
       const mat = it.mat;
       const kind = it.kind;
-      const ext = !!FAMILY_VS[mat.family];
+      let ext = this.ownVs.get(mat);
+      if (ext === undefined) { ext = !!vertexExt(mat.family, mat.defs); this.ownVs.set(mat, ext); }
       const rec = this.program(ext && kind === 'mesh' && it.part === 'mesh' ? 'meshr' : kind, mat);
       if (!rec) continue;
       const plan = this._plan(rec, mat);
@@ -502,9 +504,6 @@ export class FxGL {
 }
 
 const ST1 = [1, 1, 0, 0], ROT1 = [1, 0, 0, 1], V0 = [0, 0, 0, 0];
-
-/** Families with their own vertex stage (programs per renderer / particle kind). */
-const FAMILY_VS = Object.fromEntries(Object.keys(FAMILIES).map((f) => [f, !!FAMILIES[f].vs]));
 
 /** Unity view matrix of an unrotated camera at c looking along +z (view space looks down −z). */
 function viewOf(c) {
