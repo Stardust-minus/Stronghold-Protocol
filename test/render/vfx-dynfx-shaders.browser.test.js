@@ -56,7 +56,9 @@ precision highp float; in vec2 uv; out vec4 o; void main() { o = vec4(uv, 0.5, 1
     }
   }
   glr.upload(fd);
-  glr.draw(items, { vp, cam: [0, 0, -10], time: spec.time || 0, half: false, pass: 1 });
+  // spec.calls: the items split over several draw calls (one camera render when spec.renderId is set)
+  const calls = spec.calls || [items.map((_, i) => i)];
+  calls.forEach((c, k) => glr.draw(c.map((i) => items[i]), { vp, cam: [0, 0, -10], time: spec.time || 0, half: false, pass: 1 + k, ...(spec.renderId !== undefined ? { renderId: spec.renderId } : {}) }));
   const px = new Uint8Array(spec.W * spec.H * 4);
   gl.readPixels(0, 0, spec.W, spec.H, gl.RGBA, gl.UNSIGNED_BYTE, px);
   return { px: [...px] };
@@ -319,4 +321,20 @@ test('Particles-L2D/Disturb(CustomData): the main UV is pushed × _DisturbScale,
     const want = rampAt(u + 0.2 * scale);
     assert.ok(Math.abs(px(r, 32, 32)[0] - want) <= 2, `_DisturbScale ${scale}: got ${px(r, 32, 32)[0]}, want ${Math.round(want)}`);
   }
+});
+
+test('GrabPassOnce reads one copy per camera render; GrabPass copies before each draw', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  const textures = { white: tex1([255, 255, 255, 255]) };
+  const meshes = { quad: QUAD_MESH };
+  const once = (shader, I) => ({ ...grabMat({ _DirMode: 3, _Intensity: I }, { colors: { _DisturbDirUV: [0.6, 0, 0, 0] } }), shader });
+  const draws = (shader) => [0.5, 0].map((I) => ({ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 1] }, mat: once(shader, I) }));
+  const red = (r) => px(r, 32, 32)[0], bg = (32.5 / W) * 255, moved = bg - 0.6 * 0.1 * 0.5 * 255;
+  const ONCE = 'Torappu/Particles-L2D/Disturb/Disturb GrabPassOnce', EACH = 'Torappu/Particles-L2D/Disturb/Disturb GrabPass';
+  // the second (unmoved) copy reads the picture from before the first draw: the first one's push is gone
+  assert.ok(Math.abs(red(await render(t, { textures, meshes, items: draws(ONCE) })) - bg) <= 2, 'GrabPassOnce: one copy per render');
+  assert.ok(Math.abs(red(await render(t, { textures, meshes, items: draws(ONCE), calls: [[0], [1]], renderId: 7 })) - bg) <= 2, 'one render over two draw calls');
+  assert.ok(Math.abs(red(await render(t, { textures, meshes, items: draws(ONCE), calls: [[0], [1]] })) - moved) <= 2, 'two renders: copied again');
+  assert.ok(Math.abs(red(await render(t, { textures, meshes, items: draws(EACH) })) - moved) <= 2, 'GrabPass: copied before each draw');
 });

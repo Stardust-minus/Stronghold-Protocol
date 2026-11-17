@@ -32,7 +32,8 @@ export class FxGL {
     this.defaults = {};
     this.stats = { draws: 0, programs: 0, textures: 0, texBytes: 0, quads: 0, meshes: 0, tris: 0, grabs: 0 };
     this.grabTex = null; this.grabW = 0; this.grabH = 0;               // GrabPass: the target before each draw
-    this.grabOnceTex = null; this.grabOnceW = 0; this.grabOnceH = 0;   // GrabPassOnce: once per draw() call
+    this.grabOnceTex = null; this.grabOnceW = 0; this.grabOnceH = 0;   // GrabPassOnce: once per camera render
+    this.grabOnceFor = null;         // the render (frame.renderId, else the draw call's frame) the once-grab belongs to
     this.ownVs = new WeakMap();      // compiled material → has its own vertex stage (programs per renderer / particle)
     this.hasDepth = !!(gl.getContextAttributes && gl.getContextAttributes()?.depth);
     this._init();
@@ -294,7 +295,8 @@ export class FxGL {
    * Draw items (already sorted). frame = { vp (Unity → clip), cam (Unity camera position), time, half, pass, view? }.
    * view: Unity's world → view matrix (the 3D / outline shaders' unity_MatrixV); without it the camera at cam looking
    * along +z unrotated (the 动态立绘 camera). Unity's projection is then vp × view⁻¹. A material's further passes
-   * (mat.next) draw on the same item.
+   * (mat.next) draw on the same item. renderId: one camera render drawn over several calls (GrabPassOnce grabs once
+   * per render; without it, once per call).
    */
   draw(items, frame) {
     const gl = this.gl;
@@ -305,7 +307,9 @@ export class FxGL {
     const time = frame.time;
     const tv = [time / 20, time, time * 2, time * 3];
     let lastMat = null, lastOv = null;
-    let view = null, proj = null, grabbedOnce = false;
+    let view = null, proj = null;
+    // GrabPassOnce grabs once per camera render: frame.renderId names the render when it is drawn in several calls
+    const renderId = frame.renderId !== undefined ? frame.renderId : frame;
     const vpr = gl.getParameter(gl.VIEWPORT);
     for (const it of items) {
      const m0 = it.mat;
@@ -323,10 +327,10 @@ export class FxGL {
       // textures first: a draw whose texture is still loading is skipped (no white flash)
       let ready = true;
       // GrabPass: the target as it is now, copied before each such draw. GrabPassOnce (a named GrabPass) is copied once
-      // per camera render — at its first draw in this call — and every later one reads that copy
+      // per camera render — at its first draw — and every later one reads that copy
       if (mat.family === 'grab') {
         if (!mat.defs.once) this._grab(false);
-        else if (!grabbedOnce) { this._grab(true); grabbedOnce = true; }
+        else if (this.grabOnceFor !== renderId) { this._grab(true); this.grabOnceFor = renderId; }
         lastMat = null;
       }
       for (const e of plan.tex) {
