@@ -85,3 +85,11 @@ test('3D/Toon: the _SunMode keyword picks the light (no keyword: Default, the sc
   assert.match(vertexExt('toon', d.defs).post, /u_WorldSpaceLightPos0/);
   assert.deepEqual(d.vecs._LightColor0, [0, 0, 0, 1]);
 });
+
+test('Torappu/Particles/RGBsplit compiles to the rgbsplit family', () => {
+  const m = compileMaterial({ shader: 'Torappu/Particles/RGBsplit', passes: [pass('Off')], keywords: [], floats: { _UseCustomData: 1 } });
+  assert.equal(m.family, 'rgbsplit');
+  assert.equal(m.fallback, false);
+  assert.equal(vertexExt('rgbsplit', m.defs), null);
+  assert.match(fragmentSource('rgbsplit', m.defs), /vec4 c1 = cd \? v_t1 : vec4\(1\.0\);/);
+});

@@ -66,6 +66,7 @@ const BY_NAME = {
   'Torappu/Particles-L2D/3D/MatCapTransparent': 'matcap',
   'Torappu/Particles-L2D/Unlit-Outline': 'outline',
   'Torappu/Particles-L2D/3D/Toon': 'toon',
+  'Torappu/Particles/RGBsplit': 'rgbsplit',
 };
 
 const fallbacks = new Map(); // shader name → family it falls back to

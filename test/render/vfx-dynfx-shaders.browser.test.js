@@ -250,3 +250,30 @@ test('3D/Toon: emission + ambient + Lambert + saturated Blinn-Phong, the Custom 
     assert.ok(e.every((x, i) => Math.abs(x - c[i]) <= 2), `sun ${sun}: got ${c.slice(0, 3)}, want ${e.map(Math.round)}`);
   }
 });
+
+test('RGBsplit: each channel read at its own offset UV (× the flicker amplitude, × the custom data)', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  // a 64 × 1 grey ramp (clamped): value i / 63 at texel i
+  const ramp = []; for (let i = 0; i < 64; i++) { const v = Math.round((255 * i) / 63); ramp.push(v, v, v, 255); }
+  const rampAt = (u) => { const x = Math.min(63, Math.max(0, u * 64 - 0.5)), i = Math.min(62, Math.floor(x)); return ramp[i * 4] + (x - i) * (ramp[(i + 1) * 4] - ramp[i * 4]); };
+  const textures = { ramp: { w: 64, h: 1, data: ramp, wrap: 'clamp' } };
+  const mat = (cd) => ({
+    shader: 'Torappu/Particles/RGBsplit', keywords: [], queue: 3000,
+    passes: [{ blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'], blendOp: 'Add', zTest: 'Disabled', zWrite: false, cull: 'Off', colorMask: 15 }],
+    floats: { _UseMask: 0, _SplitFrequency: 1, _SplitIntensity: 1, _SplitBase: 0.2, _SplitRandom: 1, _UseCustomData: cd ? 1 : 0 },
+    colors: { _TintColor: [0.5, 0.5, 0.5, 0.5], _OffsetR: [0.5, 0, 5, 1], _OffsetG: [-0.5, 0, 5, 1], _OffsetB: [0, 0, 0, 1] },
+    textures: { _MainTex: { tex: 'ramp', st: [1, 1, 0, 0] }, _MaskTex: { tex: null, st: [1, 1, 0, 0], default: 'white' } },
+  });
+  // t = 0: the sines vanish, flicker = 2^(log2(0.5) × _SplitRandom) × _SplitIntensity + _SplitBase = 0.7
+  const u = (32.5 / W * 2 - 1) * HW / 3 + 0.5;   // the centre pixel's UV on a quad 3 units wide
+  const check = (r, kR, kG, msg) => {
+    const c = px(r, 32, 32), e = [rampAt(u + 0.7 * kR * 5 * 0.5 * 0.1), rampAt(u - 0.7 * kG * 5 * 0.5 * 0.1), rampAt(u)];
+    assert.ok(e.every((x, i) => Math.abs(x - c[i]) <= 2), `${msg}: got ${c.slice(0, 3)}, want ${e.map(Math.round)}`);
+  };
+  let r = await render(t, { textures, meshes: { quad: QUAD_MESH }, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat: mat(false) }] });
+  check(r, 1, 1, 'offsets');
+  // _UseCustomData: TEXCOORD1.x / .y scale the R / G offsets (TEXCOORD1.w × _SplitBase, TEXCOORD2.x × _SplitRandom)
+  r = await render(t, { textures, items: [{ kind: 'quad', inst: { ax: [3, 0, 0], ay: [0, 3, 0], t1: [2, 0.5, 1, 1], t2: [1, 0, 0, 0] }, mat: mat(true) }] });
+  check(r, 2, 0.5, 'custom data');
+});

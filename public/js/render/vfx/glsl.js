@@ -692,6 +692,36 @@ void main() {
   o_col = vec4(texture(u_EmissionMap, uv).rgb * u_EmissionColor.rgb + u_Ambient * t.rgb * u_Color.rgb + c, t.a * u_Color.a);
 }`,
   },
+  // RGBsplit (Torappu/Particles/RGBsplit): R, G and B read from the main texture at UVs pushed (clamped to 0–1) along
+  // _OffsetR/G/B.xy × .z × 0.1 × a flicker — _SplitIntensity × pow(product of four sines of _Time.y × 15/16/19/27 ×
+  // _SplitFrequency, _SplitRandom) + _SplitBase — optionally scaled by _MaskTex.r (read at the R offset); each channel ×
+  // its own alpha × 2 × vertex colour × _TintColor; alpha from the three alphas weighted by _OffsetR/G/B.w.
+  // _UseCustomData: TEXCOORD1.xyz scale the three offsets, .w _SplitBase, TEXCOORD2.x _SplitRandom (+1e-6)
+  rgbsplit: {
+    tex: ['_MainTex', '_MaskTex'],
+    src: () => `${S(['_MainTex', '_MaskTex'])}
+${U4(['_MainTex_ST', '_TintColor', '_OffsetR', '_OffsetG', '_OffsetB'])}
+${U1(['_UseMask', '_SplitFrequency', '_SplitIntensity', '_SplitBase', '_SplitRandom', '_UseCustomData'])}
+void main() {
+  bool cd = 0.0 < u_UseCustomData;
+  vec4 c1 = cd ? v_t1 : vec4(1.0);
+  float t = u_Time.y, f = u_SplitFrequency;
+  float k = (sin(t * 19.0 * f) * 0.5 + 1.0) * ((sin(t * 15.0 * f) + 1.0) * 0.5) * (sin(t * 16.0 * f) * 0.5 + 1.0);
+  float e = log2((sin(t * 27.0 * f) * 0.5 + 1.0) * k) * (cd ? u_SplitRandom * v_t2.x + 1e-6 : u_SplitRandom);
+  float amp = exp2(e) * u_SplitIntensity + (cd ? c1.w * u_SplitBase : u_SplitBase);
+  vec2 uv = st(v_uv, u_MainTex_ST);
+  vec2 oR = amp * (c1.x * u_OffsetR.z) * u_OffsetR.xy * 0.1;
+  vec2 oG = amp * (c1.y * u_OffsetG.z) * u_OffsetG.xy * 0.1;
+  vec2 oB = amp * (c1.z * u_OffsetB.z) * u_OffsetB.xy * 0.1;
+  float mk = 0.0 < u_UseMask ? texture(u_MaskTex, clamp(oR + uv, 0.0, 1.0)).r : 1.0;
+  vec4 sR = texture(u_MainTex, clamp(oR * mk + uv, 0.0, 1.0));
+  vec4 sG = texture(u_MainTex, clamp(oG * mk + uv, 0.0, 1.0));
+  vec4 sB = texture(u_MainTex, clamp(oB * mk + uv, 0.0, 1.0));
+  vec4 c = v_col * u_TintColor;
+  o_col = vec4(2.0 * c.r * sR.a * sR.r, 2.0 * c.g * sG.a * sG.g, 2.0 * c.b * sB.a * sB.b,
+    clamp(2.0 * c.a * clamp(sB.a * u_OffsetB.w + sR.a * u_OffsetR.w + sG.a * u_OffsetG.w, 0.0, 1.0), 0.0, 1.0));
+}`,
+  },
   multiply: {
     tex: ['_MainTex'],
     src: () => `${S(['_MainTex'])}
