@@ -367,7 +367,8 @@ void main() {
 }`,
   },
   // Disturb(CustomData): weight-masked distortion of the main UV (and optionally the dissolve UV), scrolled UVs,
-  // optional UV rotations (FxUVRotation), dissolve, opacity
+  // optional UV rotations (FxUVRotation), dissolve, opacity; the main UV's push × _DisturbScale (the battle shader has no such
+  // property: 1; Particles-L2D's has, defs.l2d, and a material's 0 means no push of the main UV)
   disturbCd: {
     tex: ['_MainTex', '_DisturbTex', '_WeightTex', '_DissolveTex'],
     src: (d) => `${S(['_MainTex', '_DisturbTex', '_WeightTex', '_DissolveTex'])}
@@ -383,7 +384,7 @@ void main() {
   vec2 dist = vec2(0.0);
   ${d.lite ? '' : `vec2 w = texture(u_WeightTex, wuv).rg;
   dist = (vec2(addI) + vec2(u_IntensityU, u_IntensityV)) * chan1(texture(u_DisturbTex, tuv), u_DisturbTexChannel) * w;`}
-  float sc = u_DisturbScale > 0.0 ? u_DisturbScale : 1.0;
+  float sc = ${d.l2d ? 'u_DisturbScale' : 'u_DisturbScale > 0.0 ? u_DisturbScale : 1.0'};
   vec4 t = chan4(texture(u_MainTex, muv + dist * sc), u_MainTexChannel) * u_MainColor * v_col;
   float a = 2.0 * t.a * u_Opacity;
   float dv = chan1(texture(u_DissolveTex, duv + u_DisturbInfluenceDissolveUV * dist), u_DissolvTexChannel);

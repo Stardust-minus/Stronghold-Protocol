@@ -299,3 +299,24 @@ test('Particles-L2D/Multiply: 2 × colour × texture × _TintColor, lerp(1, c, c
   r = await render(t, { clear: true, textures, meshes: { quad: QUAD_MESH }, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat }] });
   assert.ok(Math.abs(px(r, 32, 32)[3] - 255 * (1 - out[3])) <= 2, `coverage: got ${px(r, 32, 32)[3]}, want ${Math.round(255 * (1 - out[3]))}`);
 });
+
+test('Particles-L2D/Disturb(CustomData): the main UV is pushed × _DisturbScale, 0 included', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  const ramp = []; for (let i = 0; i < 64; i++) { const v = Math.round((255 * i) / 63); ramp.push(v, v, v, 255); }
+  const rampAt = (u) => { const x = Math.min(63, Math.max(0, u * 64 - 0.5)), i = Math.min(62, Math.floor(x)); return ramp[i * 4] + (x - i) * (ramp[(i + 1) * 4] - ramp[i * 4]); };
+  const textures = { ramp: { w: 64, h: 1, data: ramp, wrap: 'clamp' }, white: tex1([255, 255, 255, 255]) };
+  const mat = (scale) => ({
+    shader: 'Torappu/Particles-L2D/Disturb/Disturb(CustomData)', keywords: [], queue: 3000,
+    passes: [{ blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'], blendOp: 'Add', zTest: 'Disabled', zWrite: false, cull: 'Off', colorMask: 15 }],
+    floats: { _DisturbScale: scale, _IntensityU: 0.2, _IntensityV: 0, _Opacity: 1, _PremultiplyAlpha: 5, _Amount: 0, _BorderWidth: 0.1, _DisturbInfluenceDissolveUV: 0 },
+    colors: { _MainColor: [0.5, 0.5, 0.5, 1] },
+    textures: { _MainTex: { tex: 'ramp', st: [1, 1, 0, 0] }, _DisturbTex: { tex: 'white', st: [1, 1, 0, 0] }, _WeightTex: { tex: 'white', st: [1, 1, 0, 0] }, _DissolveTex: { tex: 'white', st: [1, 1, 0, 0] } },
+  });
+  const u = (32.5 / W * 2 - 1) * HW / 3 + 0.5;
+  for (const scale of [0, 1]) {
+    const r = await render(t, { textures, meshes: { quad: QUAD_MESH }, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat: mat(scale) }] });
+    const want = rampAt(u + 0.2 * scale);
+    assert.ok(Math.abs(px(r, 32, 32)[0] - want) <= 2, `_DisturbScale ${scale}: got ${px(r, 32, 32)[0]}, want ${Math.round(want)}`);
+  }
+});

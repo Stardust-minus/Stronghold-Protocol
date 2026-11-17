@@ -141,8 +141,9 @@ export function compileMaterial(m, opts = {}) {
   defs.glow = kw.has('_DISTURBMODE_GLOW') || num(floats._DisturbMode, 0) > 0.5;
   // GrabPass: its own custom-data keyword ([Toggle] _CUSTOMDATA → _CUSTOMDATA_ON; the variant follows the keyword)
   if (family === 'grab') { defs.cvs = kw.has('_CUSTOMDATA_ON'); defs.once = /GrabPassOnce/.test(String(m?.shader || '')); }
-  // Particles-L2D/Multiply: its own arithmetic (×2 × _TintColor, alpha as the client's transmittance)
-  if (family === 'multiply') defs.l2d = /Particles-L2D\//.test(String(m?.shader || ''));
+  // Particles-L2D/Multiply: its own arithmetic (×2 × _TintColor, alpha as the client's transmittance);
+  // Particles-L2D/Disturb(CustomData): _DisturbScale as it is (0 included)
+  if (family === 'multiply' || family === 'disturbCd') defs.l2d = /Particles-L2D\//.test(String(m?.shader || ''));
   // 3D/Toon: [KeywordEnum(Default, Custom)] _SunMode (no keyword: the first, Default)
   if (family === 'toon') defs.sunCustom = kw.has('_SUNMODE_CUSTOM');
   // Ram/VertexDisturb(CustomData): Ram/Disturb(CustomData) plus the vertex displacement

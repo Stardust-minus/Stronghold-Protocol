@@ -104,3 +104,13 @@ test('Multiply: the L2D shader gets its own arithmetic, the battle one keeps its
   assert.match(fragmentSource('multiply', l.defs), /2\.0 \* v_col \* t \* u_TintColor/);
   assert.match(fragmentSource('multiply', b.defs), /0\.299, 0\.587, 0\.114/);
 });
+
+test('Disturb(CustomData): _DisturbScale is read as it is only for the L2D shader (the battle one has no such property)', () => {
+  const l = compileMaterial({ shader: 'Torappu/Particles-L2D/Disturb/Disturb(CustomData)', passes: [pass('Off')], keywords: [], floats: { _DisturbScale: 0 } });
+  const b = compileMaterial({ shader: 'Torappu/Particles/Disturb/Disturb(CustomData)', passes: [pass('Off')], keywords: [] });
+  assert.equal(l.family, 'disturbCd');
+  assert.equal(l.defs.l2d, true);
+  assert.equal(b.defs.l2d, false);
+  assert.match(fragmentSource('disturbCd', l.defs), /float sc = u_DisturbScale;/);
+  assert.match(fragmentSource('disturbCd', b.defs), /u_DisturbScale > 0\.0 \? u_DisturbScale : 1\.0/);
+});
