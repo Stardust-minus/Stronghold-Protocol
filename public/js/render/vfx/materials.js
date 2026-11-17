@@ -65,6 +65,7 @@ const BY_NAME = {
   'Torappu/Particles/Multiply': 'multiply', 'Torappu/Particles-L2D/Multiply': 'multiply',
   'Torappu/Particles-L2D/3D/MatCapTransparent': 'matcap',
   'Torappu/Particles-L2D/Unlit-Outline': 'outline',
+  'Torappu/Particles-L2D/3D/Toon': 'toon',
 };
 
 const fallbacks = new Map(); // shader name → family it falls back to
@@ -92,7 +93,9 @@ export const UNIFORM_DEFAULTS = Object.freeze({
   _PremultiplyAlpha: 5, _Opacity: 1, _DisturbScale: 1, _MainColorACtrl: 1, _AlphaIntensity: 1, _RimPower: 3, _AddFactor: 0.5,
   _BorderWidth: 0.1, _Amount: 0.5,
 });
-const DEFAULT_VEC = Object.freeze({ _Rotation0: [1, 0, 0, 1], _Rotation1: [1, 0, 0, 1], _Rotation2: [1, 0, 0, 1], _Rotation3: [1, 0, 0, 1], _Color: [1, 1, 1, 1] });
+const DEFAULT_VEC = Object.freeze({ _Rotation0: [1, 0, 0, 1], _Rotation1: [1, 0, 0, 1], _Rotation2: [1, 0, 0, 1], _Rotation3: [1, 0, 0, 1], _Color: [1, 1, 1, 1],
+  // 3D/Toon's Default sun: the scene's main light; the 动态立绘 scene has none [ASSUMED]: toward the view, black
+  _WorldSpaceLightPos0: [0, 0, -1, 0], _LightColor0: [0, 0, 0, 1] });
 
 /**
  * Compile a descriptor material.
@@ -137,9 +140,11 @@ export function compileMaterial(m, opts = {}) {
   defs.glow = kw.has('_DISTURBMODE_GLOW') || num(floats._DisturbMode, 0) > 0.5;
   // GrabPass: its own custom-data keyword ([Toggle] _CUSTOMDATA → _CUSTOMDATA_ON; the variant follows the keyword)
   if (family === 'grab') { defs.cvs = kw.has('_CUSTOMDATA_ON'); defs.once = /GrabPassOnce/.test(String(m?.shader || '')); }
+  // 3D/Toon: [KeywordEnum(Default, Custom)] _SunMode (no keyword: the first, Default)
+  if (family === 'toon') defs.sunCustom = kw.has('_SUNMODE_CUSTOM');
   // Ram/VertexDisturb(CustomData): Ram/Disturb(CustomData) plus the vertex displacement
   defs.vdist = /VertexDisturb/.test(String(m?.shader || ''));
-  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}${defs.vdist ? 1 : 0}`;
+  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}${defs.vdist ? 1 : 0}${defs.sunCustom ? 1 : 0}`;
   const out = { name: m?.name || '', shader: m?.shader || '', keywords: [...kw], family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
   // Unlit-Outline's second pass, the outline shell, on the same geometry (render/vfx/gl.js draws `next` after the main
   // pass; `under`: before it when the target has no depth buffer, so the main pass covers the shell's inside)

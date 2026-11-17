@@ -73,3 +73,15 @@ test('Unlit-Outline: the main pass and its shell pass (next, Cull Front, drawn f
   assert.match(vertexExt('outline', m.next.defs).post, /0\.0003/);
   assert.match(fragmentSource('outline', m.next.defs), /u_Outline_Color\.rgb, v_col\.a \* u_Alpha/);
 });
+
+test('3D/Toon: the _SunMode keyword picks the light (no keyword: Default, the scene light)', () => {
+  const c = compileMaterial({ shader: 'Torappu/Particles-L2D/3D/Toon', passes: [pass('Back', { zWrite: true })], keywords: ['_SUNMODE_CUSTOM'] });
+  const d = compileMaterial({ shader: 'Torappu/Particles-L2D/3D/Toon', passes: [pass('Back', { zWrite: true })], keywords: [], floats: { _SunMode: 1 } });
+  assert.equal(c.family, 'toon');
+  assert.equal(c.defs.sunCustom, true);
+  assert.equal(d.defs.sunCustom, false, 'the variant follows the keyword');
+  assert.notEqual(c.key, d.key);
+  assert.match(vertexExt('toon', c.defs).post, /inverse\(u_V\)/);
+  assert.match(vertexExt('toon', d.defs).post, /u_WorldSpaceLightPos0/);
+  assert.deepEqual(d.vecs._LightColor0, [0, 0, 0, 1]);
+});

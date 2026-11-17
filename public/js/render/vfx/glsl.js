@@ -654,6 +654,44 @@ void main() {
   o_col = vec4(t.rgb * c.rgb, clamp(t.a * c.a, 0.0, 1.0) * u_Alpha);
 }`),
   },
+  // 3D/Toon (Blend One Zero, ZWrite On, Cull Back): emission × _EmissionColor + _Ambient × texture × _Color + the
+  // diffuse N·L × texture × _Color × light colour × _SunDir.w × _Diffuse + saturate(Blinn-Phong (N·H)^_Shininess ×
+  // _SpecColor × light colour × _Specular) — H from the light and the direction to _WorldSpaceCameraPos; alpha texture
+  // × _Color. Light (_SunMode keyword): Custom — _SunDir.xyz is a view-space direction (to world through the inverse
+  // view) with _LightColor; Default — the scene's main light _WorldSpaceLightPos0 / _LightColor0 [ASSUMED: no light in
+  // the 动态立绘 scene, so (0, 0, −1, 0) / black unless the material carries them]
+  toon: {
+    tex: ['_MainTex', '_EmissionMap'],
+    vs: (d) => ({
+      decl: `uniform vec4 u_SunDir;
+uniform vec4 u_LightColor;
+uniform vec4 u_WorldSpaceLightPos0;
+uniform vec4 u_LightColor0;
+out vec3 v_light;
+out vec3 v_lcol;
+`,
+      post: d.sunCustom ? `  v_light = mat3(inverse(u_V)) * (u_SunDir.xyz * inversesqrt(dot(u_SunDir.xyz, u_SunDir.xyz)));
+  v_lcol = u_LightColor.rgb;` : `  v_light = u_WorldSpaceLightPos0.xyz;
+  v_lcol = u_LightColor0.rgb;`,
+    }),
+    fsIn: () => 'in vec3 v_light;\nin vec3 v_lcol;\n',
+    src: () => `${S(['_MainTex', '_EmissionMap'])}
+${U4(['_MainTex_ST', '_SunDir', '_Color', '_EmissionColor', '_SpecColor'])}
+${U1(['_Ambient', '_Diffuse', '_Shininess', '_Specular'])}
+void main() {
+  vec3 n = v_nrm * inversesqrt(dot(v_nrm, v_nrm));
+  vec3 l = v_light * inversesqrt(dot(v_light, v_light));
+  vec3 e = v_wpos - u_WorldSpaceCameraPos;
+  vec3 h = l - e * inversesqrt(dot(e, e));
+  float sp = clamp(dot(h * inversesqrt(dot(h, h)), n), 0.0, 1.0);
+  float df = clamp(dot(n, l), 0.0, 1.0);
+  vec2 uv = st(v_uv, u_MainTex_ST);
+  vec4 t = texture(u_MainTex, uv);
+  vec3 c = df * t.rgb * u_Color.rgb * v_lcol * u_SunDir.w * u_Diffuse
+    + clamp(exp2(log2(sp) * u_Shininess) * u_SpecColor.rgb * v_lcol * u_Specular, 0.0, 1.0);
+  o_col = vec4(texture(u_EmissionMap, uv).rgb * u_EmissionColor.rgb + u_Ambient * t.rgb * u_Color.rgb + c, t.a * u_Color.a);
+}`,
+  },
   multiply: {
     tex: ['_MainTex'],
     src: () => `${S(['_MainTex'])}

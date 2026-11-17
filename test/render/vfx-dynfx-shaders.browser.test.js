@@ -220,3 +220,33 @@ test('Unlit-Outline: the main pass, and the shell pass pushed out along the proj
     assert.notDeepEqual(px(r, 32 + 16, 32).slice(0, 3), [0, 0, 255], `background beyond the shell (depth ${depth})`);
   }
 });
+
+test('3D/Toon: emission + ambient + Lambert + saturated Blinn-Phong, the Custom sun given in view space', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  const textures = { main: tex1([100, 150, 200, 255]), white: tex1([255, 255, 255, 255]) };
+  const mat = (sun) => ({
+    shader: 'Torappu/Particles-L2D/3D/Toon', keywords: ['_SUNMODE_CUSTOM'], queue: 2000,
+    passes: [{ blend: ['One', 'Zero', 'Zero', 'OneMinusSrcAlpha'], blendOp: 'Add', zTest: 'LessEqual', zWrite: true, cull: 'Back', colorMask: 15 }],
+    floats: { _SunMode: 1, _Ambient: 0.2, _Diffuse: 1, _Shininess: 5.8, _Specular: 0.5 },
+    colors: { _SunDir: sun, _LightColor: [1, 0.5, 0.25, 1], _Color: [1, 1, 1, 1], _EmissionColor: [0.05, 0.05, 0.05, 1], _SpecColor: [0.2, 0.2, 0.2, 1] },
+    textures: { _MainTex: { tex: 'main', st: [1, 1, 0, 0] }, _EmissionMap: { tex: 'white', st: [1, 1, 0, 0] } },
+  });
+  const norm = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const expect = (sun) => {
+    const n = [0, 0, -1];
+    const s = norm(sun.slice(0, 3)), l = [s[0], s[1], -s[2]];          // view → world: the view flips z
+    const p = [((32.5 / W) * 2 - 1) * HW, ((32.5 / H) * 2 - 1) * HH, 0];   // the centre pixel's point; camera (0, 0, −10)
+    const v = norm([-p[0], -p[1], -10 - p[2]]);
+    const h = norm([l[0] + v[0], l[1] + v[1], l[2] + v[2]]);
+    const df = Math.max(0, Math.min(1, dot(n, l))), sp = Math.max(0, Math.min(1, dot(h, n)));
+    const tc = [100, 150, 200].map((x) => x / 255), lc = [1, 0.5, 0.25];
+    return tc.map((x, i) => 255 * (0.05 + 0.2 * x + df * x * lc[i] * sun[3] + Math.min(1, sp ** 5.8 * 0.2 * lc[i] * 0.5)));
+  };
+  for (const sun of [[0, 0, 1, 0.5], [0.6, 0, 0.8, 0.5]]) {
+    const r = await render(t, { textures, meshes: { quad: QUAD_MESH }, items: [{ kind: 'mesh', mesh: 'quad', inst: { m: [3, 0, 0, 0, 3, 0, 0, 0, 3] }, mat: mat(sun) }] });
+    const c = px(r, 32, 32), e = expect(sun);
+    assert.ok(e.every((x, i) => Math.abs(x - c[i]) <= 2), `sun ${sun}: got ${c.slice(0, 3)}, want ${e.map(Math.round)}`);
+  }
+});
