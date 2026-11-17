@@ -41,8 +41,9 @@ import { fetchMaterial } from '../materialFallback.js';
 export const SCENE_FORMAT = 'dyn-scene';
 /** Compiled scenes kept after their last view (reopening one of them loads nothing but its textures). */
 export const SCENE_CACHE = 6;
-/** The camera's distance behind the scene: Unity sorts an orthographic camera's transparents by depth along its view;
- * the battle runtime sorts by distance to a point, which from this far is that depth. */
+/** The camera's distance behind the scene. Unity sorts an orthographic camera's transparents by depth along its view:
+ * DynScene.render turns the battle runtime's distance to a point into that depth (keeping a particle's sorting fudge),
+ * so layers at one depth keep the hierarchy order (the gather order) instead of their distance off the view axis. */
 const FAR = 1e4;
 const env = () => globalThis;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -103,6 +104,21 @@ let mainLib = null;
 const lib = () => mainLib || (mainLib = new SceneLibrary());
 
 const scenes = new Map();   // url → { promise, users, used, meshes }
+/** A mesh's local bounds centre, by mesh key: Unity sorts a renderer by the centre of its bounds, not its origin. */
+const centres = new Map();
+function meshCentre(key) {
+  let c = centres.get(key);
+  if (c) return c;
+  const p = lib().mesh(key)?.positions;
+  if (!p || p.length < 3) return null;
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i + 2 < p.length; i += 3) {
+    for (let k = 0; k < 3; k++) { const v = p[i + k]; if (v < lo[k]) lo[k] = v; if (v > hi[k]) hi[k] = v; }
+  }
+  c = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
+  centres.set(key, c);
+  return c;
+}
 let clock = 0;
 
 /** Load and compile a record's scene once (null when it has none or it fails). */
@@ -371,7 +387,10 @@ export class DynScene {
         L[o] = lp[0]; L[o + 1] = lp[1]; L[o + 2] = lp[2];
       } else { L[o] = wx; L[o + 1] = wy; L[o + 2] = wz; }
       if (b.rot) {
-        let a = Math.atan2(-bone.c, bone.a);
+        // pixi-spine keeps the world 2×2 in a PIXI Matrix (a, c | b, d: Spine's b and c swapped, the y row negated for
+        // y-down); a Bone has no a/b/c/d of its own (reading them gave NaN and dropped every rotating follower's subtree)
+        const m = bone.matrix;
+        let a = Math.atan2(-m.b, m.a);
         if (b.scale && bone.scaleX < 0) a += Math.PI;
         const q = [0, 0, Math.sin(a / 2), Math.cos(a / 2)];
         const local = p >= 0 ? quatMul(conj(mat4Rotation(fx.world[p])), q) : q;
@@ -408,8 +427,7 @@ export class DynScene {
     const P = this.basis.pos;
     for (let k = 0; k < edges.length - 1; k++) {
       const p = s.parts[k], w = this.fx.world[p.node];
-      const dx = w[12] - P[0], dy = w[13] - P[1], dz = w[14] - P[2];
-      out.push({ part: 'spine', from: edges[k], to: edges[k + 1], layer: p.layer, order: p.order, queue: 3000, dist: Math.sqrt(dx * dx + dy * dy + dz * dz), seq: 0 });
+      out.push({ part: 'spine', from: edges[k], to: edges[k + 1], layer: p.layer, order: p.order, queue: 3000, dist: w[14] - P[2], seq: 0 });
     }
     return out;
   }
@@ -432,7 +450,21 @@ export class DynScene {
     const items = [];
     let seq = 0;
     const keep = this.filter;   // test hook: (item) => draw it (screenshots of the layers alone)
-    this.fx.gather(basis, (e) => { if (keep && !keep(e)) return; e.seq = seq++; items.push(e); });
+    const P = basis.pos, W = this.fx.world;
+    this.fx.gather(basis, (e) => {
+      if (keep && !keep(e)) return;
+      const w = W[e.node];
+      if (w) {
+        // depth along the view (+z) of a mesh's bounds centre (else the node), plus the renderer's fudge; equal depths
+        // tie exactly and keep the hierarchy order (陈 精二's clouds on its sky at order −3: by the distance off the axis
+        // the sky, nearest the centre, came last; 耀骑士临光 精二's tilted streaks sort by their centres)
+        const dx = w[12] - P[0], dy = w[13] - P[1], dz = w[14] - P[2];
+        const c = e.part === 'mesh' && e.meshKey ? meshCentre(e.meshKey) : null;
+        const z = c ? w[2] * c[0] + w[6] * c[1] + w[10] * c[2] + w[14] : w[14];
+        e.dist = (z - P[2]) + Math.round((e.dist - Math.sqrt(dx * dx + dy * dy + dz * dz)) * 1e6) / 1e6;
+      }
+      e.seq = seq++; items.push(e);
+    });
     for (const p of this._parts()) { if (keep && !keep(p)) continue; p.seq = seq++; items.push(p); }
     items.sort(byUnityOrder);
     const frameNo = ++this.frameNo;

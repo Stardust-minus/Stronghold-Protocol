@@ -66,7 +66,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "f257ea95",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.28, sheets 全量/第二批"
+   }
   },
   "char_1012_skadi2_boc_4": {
    "dynIllustId": "dyn_illust_char_1012_skadi2_boc#4",
@@ -99,7 +104,12 @@
     "disturbOrigin",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "4c97262d",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.0 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_1012_skadi2_iteration_2": {
    "dynIllustId": "dyn_illust_char_1012_skadi2_iteration#2",
@@ -133,7 +143,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "452980bf",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.05 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_1013_chen2_boc_6": {
    "dynIllustId": "dyn_illust_char_1013_chen2_boc#6",
@@ -192,7 +207,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "471fbd88",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.23, sheets 全量/第二批"
+   }
   },
   "char_1014_nearl2_epoque_17": {
    "dynIllustId": "dyn_illust_char_1014_nearl2_epoque#17",
@@ -221,7 +241,12 @@
     "disturbOrigin",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "2949c75b",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.83 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: DoubleEdge"
+   }
   },
   "char_1016_agoat2_epoque_34": {
    "dynIllustId": "dyn_illust_char_1016_agoat2_epoque#34",
@@ -249,7 +274,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "11b155ec",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.49, sheets 全量/第二批"
+   }
   },
   "char_1016_agoat2_epoque_57": {
    "dynIllustId": "dyn_illust_char_1016_agoat2_epoque#57",
@@ -276,7 +306,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "f9236d72",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.25 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_1019_siege2_epoque_50": {
    "dynIllustId": "dyn_illust_char_1019_siege2_epoque#50",
@@ -305,7 +340,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "8fc5e6b1",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.18, sheets 全量/第二批"
+   }
   },
   "char_1020_reed2_epoque_30": {
    "dynIllustId": "dyn_illust_char_1020_reed2_epoque#30",
@@ -333,7 +373,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "5f271043",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.24 (bone followers left out, like the bake), sheets 全量/第二批; the idle Animator's light at frame 0 (the bake runs none; without it MAE 2.6)"
+   }
   },
   "char_1020_reed2_summer_17": {
    "dynIllustId": "dyn_illust_char_1020_reed2_summer#17",
@@ -361,7 +406,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "c6a94963",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.94 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_1023_ghost2_boc_6": {
    "dynIllustId": "dyn_illust_char_1023_ghost2_boc#6",
@@ -427,7 +477,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "4c93e0a4",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 1.92, sheets 全量/第二批; the gear on a bone follower shows since the fix (4.1 → 1.9)"
+   }
   },
   "char_1028_texas2_epoque_36": {
    "dynIllustId": "dyn_illust_char_1028_texas2_epoque#36",
@@ -454,7 +509,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "674ca8e6",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.49, sheets 全量/第二批"
+   }
   },
   "char_1028_texas2_iteration_1": {
    "dynIllustId": "dyn_illust_char_1028_texas2_iteration#1",
@@ -516,7 +576,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "d2768f32",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 5.83 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_1035_wisdel_sale_14": {
    "dynIllustId": "dyn_illust_char_1035_wisdel_sale#14",
@@ -574,7 +639,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "6d453219",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.85, sheets 全量/第二批; recheck after the SHADER merge: GrabPass"
+   }
   },
   "char_1038_whitw2_sale_15": {
    "dynIllustId": "dyn_illust_char_1038_whitw2_sale#15",
@@ -630,7 +700,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "30105b04",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.23, sheets 全量/第二批"
+   }
   },
   "char_1041_angel2_iteration_6": {
    "dynIllustId": "dyn_illust_char_1041_angel2_iteration#6",
@@ -661,7 +736,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "3e28fd20",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 0.87, sheets 全量/第二批"
+   }
   },
   "char_1042_phatm2_sightseer_4": {
    "dynIllustId": "dyn_illust_char_1042_phatm2_sightseer#4",
@@ -688,7 +768,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "79f1e502",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.1, sheets 全量/第二批"
+   }
   },
   "char_1044_hsgma2_whirlwind_11": {
    "dynIllustId": "dyn_illust_char_1044_hsgma2_whirlwind#11",
@@ -719,7 +804,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "ee313728",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.03, sheets 全量/第二批; recheck after the SHADER merge: GrabPass, DisturbScale=0"
+   }
   },
   "char_1045_svash2_sale_20": {
    "dynIllustId": "dyn_illust_char_1045_svash2_sale#20",
@@ -747,7 +837,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "e26416c3",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.8, sheets 全量/第二批"
+   }
   },
   "char_1046_sbell2_ambienceSynesthesia_8": {
    "dynIllustId": "dyn_illust_char_1046_sbell2_ambienceSynesthesia#8",
@@ -776,7 +871,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "fe275d7d",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 7.24 (bone followers left out, like the bake), sheets 全量/第二批; ray phase / Animator (5.8 without it)"
+   }
   },
   "char_113_cqbw_epoque_7": {
    "dynIllustId": "dyn_illust_char_113_cqbw_epoque#7",
@@ -837,7 +937,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "68970969",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 0.9, sheets 全量/第二批"
+   }
   },
   "char_179_cgbird_sightseer_1": {
    "dynIllustId": "dyn_illust_char_179_cgbird_sightseer#1",
@@ -870,7 +975,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "3a0e0a25",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 19.76, sheets 全量/第二批; recheck after the SHADER merge: Erase; the bake drops the Interact subtree by its name (the idle Animator keeps bg01 on) and paints Erase black; like for like (Interact hidden, black left out) MAE 3.2"
+   }
   },
   "char_2014_nian_cfa_1": {
    "dynIllustId": "dyn_illust_char_2014_nian_cfa#1",
@@ -958,7 +1068,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "ccbf3428",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.88, sheets 全量/第二批"
+   }
   },
   "char_2015_dusk_nian_7": {
    "dynIllustId": "dyn_illust_char_2015_dusk_nian#7",
@@ -989,7 +1104,12 @@
     "disturbOrigin",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "29d87c08",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.37, sheets 全量/第二批; recheck after the SHADER merge: DoubleEdge"
+   }
   },
   "char_2023_ling_ncg_1": {
    "dynIllustId": "dyn_illust_char_2023_ling_ncg#1",
@@ -1083,7 +1203,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "868721fe",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.13 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_2024_chyue_nian_10": {
    "dynIllustId": "dyn_illust_char_2024_chyue_nian#10",
@@ -1111,7 +1236,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "8a5410c6",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.49, sheets 全量/第二批"
+   }
   },
   "char_2025_shu_nian_11": {
    "dynIllustId": "dyn_illust_char_2025_shu_nian#11",
@@ -1140,7 +1270,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "2244d243",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.52 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_2025_shu_nlc_1": {
    "dynIllustId": "dyn_illust_char_2025_shu_nlc#1",
@@ -1199,7 +1334,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "4be3ce06",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.25 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_202_demkni_ambienceSynesthesia_7": {
    "dynIllustId": "dyn_illust_char_202_demkni_ambienceSynesthesia#7",
@@ -1260,7 +1400,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "16d34b57",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.98 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_249_mlyss_ambienceSynesthesia_6": {
    "dynIllustId": "dyn_illust_char_249_mlyss_ambienceSynesthesia#6",
@@ -1287,7 +1432,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "d60c5c9a",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.05, sheets 全量/第二批"
+   }
   },
   "char_249_mlyss_boc_8": {
    "dynIllustId": "dyn_illust_char_249_mlyss_boc#8",
@@ -1317,7 +1467,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "3bbe5e4c",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.57 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: VertexDisturb"
+   }
   },
   "char_250_phatom_sale_4": {
    "dynIllustId": "dyn_illust_char_250_phatom_sale#4",
@@ -1348,7 +1503,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "bf666e64",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.56 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_322_lmlee_witch_3": {
    "dynIllustId": "dyn_illust_char_322_lmlee_witch#3",
@@ -1472,7 +1632,12 @@
     "disturb2",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "d4325173",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.47, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_377_gdglow_summer_12": {
    "dynIllustId": "dyn_illust_char_377_gdglow_summer#12",
@@ -1502,7 +1667,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "88dd464f",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 5.26, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_391_rosmon_epoque_17": {
    "dynIllustId": "dyn_illust_char_391_rosmon_epoque#17",
@@ -1598,7 +1768,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "6c187b4e",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.56 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_4055_bgsnow_wild_7": {
    "dynIllustId": "dyn_illust_char_4055_bgsnow_wild#7",
@@ -1629,7 +1804,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "e150a9a5",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.29, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_4058_pepe_sightseer_2": {
    "dynIllustId": "dyn_illust_char_4058_pepe_sightseer#2",
@@ -1760,7 +1940,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "fa787206",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.86, sheets 全量/第二批"
+   }
   },
   "char_4087_ines_ambienceSynesthesia_5": {
    "dynIllustId": "dyn_illust_char_4087_ines_ambienceSynesthesia#5",
@@ -1823,7 +2008,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "a2602077",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.38 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_4098_vvana_epoque_59": {
    "dynIllustId": "dyn_illust_char_4098_vvana_epoque#59",
@@ -1850,7 +2040,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "6b08ecd7",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.4 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: DisturbScale=0"
+   }
   },
   "char_4116_blkkgt_witch_5": {
    "dynIllustId": "dyn_illust_char_4116_blkkgt_witch#5",
@@ -1878,7 +2073,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "0c4ebc02",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 5.2 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_4121_zuole_nian_11": {
    "dynIllustId": "dyn_illust_char_4121_zuole_nian#11",
@@ -1905,7 +2105,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "3d80ff16",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.73, sheets 全量/第二批"
+   }
   },
   "char_4132_ascln_iteration_4": {
    "dynIllustId": "dyn_illust_char_4132_ascln_iteration#4",
@@ -1996,7 +2201,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "edb3c8da",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.35, sheets 全量/第二批"
+   }
   },
   "char_4179_monstr_boc_11": {
    "dynIllustId": "dyn_illust_char_4179_monstr_boc#11",
@@ -2022,7 +2232,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "4c465472",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.09 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_4202_haruka_iteration_6": {
    "dynIllustId": "dyn_illust_char_4202_haruka_iteration#6",
@@ -2083,7 +2298,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "b29e5218",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.78, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_450_necras_summer_20": {
    "dynIllustId": "dyn_illust_char_450_necras_summer#20",
@@ -2110,7 +2330,12 @@
     "disturbCd",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "0abba397",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.34 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_472_pasngr_epoque_17": {
    "dynIllustId": "dyn_illust_char_472_pasngr_epoque#17",
@@ -2139,7 +2364,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "af01bcf7",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.19, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   }
  },
  "chars": {
@@ -2170,7 +2400,12 @@
     "dissolveVc",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "ebe0a270",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.84, sheets 全量/第二批"
+   }
   },
   "char_1013_chen2": {
    "dynIllustId": "dyn_illust_char_1013_chen2_2",
@@ -2199,7 +2434,12 @@
     "erase",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "658c2a38",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 24.85, sheets 全量/第二批; recheck after the SHADER merge: Disturb2, Erase; the bake paints Mask/Erase black (no target alpha), ours cuts coverage; without the bake's black pixels MAE 7.6"
+   }
   },
   "char_1014_nearl2": {
    "dynIllustId": "dyn_illust_char_1014_nearl2_2",
@@ -2227,7 +2467,12 @@
     "disturb2",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "ce092d25",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.18, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_1015_aglna2": {
    "dynIllustId": "dyn_illust_char_1015_aglna2_2",
@@ -2290,7 +2535,12 @@
     "erase",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "8dc0ae38",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.24 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Erase; the black block in the bake is Mask/Erase painted black"
+   }
   },
   "char_1023_ghost2": {
    "dynIllustId": "dyn_illust_char_1023_ghost2_2",
@@ -2319,7 +2569,12 @@
     "disturbOrigin",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "47dd1494",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 9.24, sheets 全量/第二批; the whale bones on top are skinned meshes (Take 001 bone animation, shown in idle) the bake does not draw; hidden: MAE 4.7 (their shape is unchecked)"
+   }
   },
   "char_1026_gvial2": {
    "dynIllustId": "dyn_illust_char_1026_gvial2_2",
@@ -2384,7 +2639,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "b5148edd",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 1.89 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_1035_wisdel": {
    "dynIllustId": "dyn_illust_char_1035_wisdel_2",
@@ -2411,7 +2671,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "a87b92cc",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.61 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   },
   "char_1038_whitw2": {
    "dynIllustId": "dyn_illust_char_1038_whitw2_2",
@@ -2441,7 +2706,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "635d1078",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.07 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: GrabPass"
+   }
   },
   "char_1041_angel2": {
    "dynIllustId": "dyn_illust_char_1041_angel2_2",
@@ -2469,7 +2739,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "f2782928",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.11, sheets 全量/第二批"
+   }
   },
   "char_1044_hsgma2": {
    "dynIllustId": "dyn_illust_char_1044_hsgma2_2",
@@ -2499,7 +2774,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "72da2c09",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.52 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: VertexDisturb"
+   }
   },
   "char_1045_svash2": {
    "dynIllustId": "dyn_illust_char_1045_svash2_2",
@@ -2528,7 +2808,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "ee497464",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 5.03, sheets 全量/第二批; recheck after the SHADER merge: VertexDisturb"
+   }
   },
   "char_1052_kalts2": {
    "dynIllustId": "dyn_illust_char_1052_kalts2_2",
@@ -2556,7 +2841,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "440fe8e9",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.11, sheets 全量/第二批"
+   }
   },
   "char_113_cqbw": {
    "dynIllustId": "dyn_illust_char_113_cqbw_2",
@@ -2649,7 +2939,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "f2ba5f33",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.18 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_2023_ling": {
    "dynIllustId": "dyn_illust_char_2023_ling_2",
@@ -2737,7 +3032,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "7ec24d87",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.2, sheets 全量/第二批"
+   }
   },
   "char_2026_yu": {
    "dynIllustId": "dyn_illust_char_2026_yu_2",
@@ -2766,7 +3066,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "539ba622",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.27, sheets 全量/第二批; the fire on bone BG_Fire_a shows since the BoneFollower fix; the waterfall follows a moving bone (not in the bake)"
+   }
   },
   "char_245_cello": {
    "dynIllustId": "dyn_illust_char_245_cello_2",
@@ -2862,7 +3167,12 @@
     "disturb2",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "4fbf9645",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.17, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+   }
   },
   "char_4058_pepe": {
    "dynIllustId": "dyn_illust_char_4058_pepe_2",
@@ -2890,7 +3200,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "68584dcf",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.44, sheets 全量/第二批"
+   }
   },
   "char_4247_oxi": {
    "dynIllustId": "dyn_illust_char_4247_oxi_2",
@@ -2919,7 +3234,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "a8ced83b",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 1.81 (bone followers left out, like the bake), sheets 全量/第二批"
+   }
   }
  }
 }

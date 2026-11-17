@@ -142,3 +142,53 @@ test(`compiled scenes: the last ${SCENE_CACHE} unused are kept, older ones dropp
   assert.equal(dynFxGpu.textures, 0);
   releaseRenderer(r);
 });
+
+/** A scene of layers (nodes 1…) under the root, each { name, pos, rot?, order, follower? }: a material each, one mesh. */
+function layered(name, layers) {
+  const nodes = [{ id: 0, name: 'root', parent: null, children: layers.map((_, i) => i + 1), active: true, ...T,
+    behaviours: [{ class: 'DynIllust', fields: { _cameraSize: 10, _particles: [] } }] }];
+  layers.forEach((l, i) => nodes.push({ id: i + 1, name: l.name, parent: 0, children: [], active: true, ...T, pos: l.pos, rot: l.rot || [0, 0, 0, 1],
+    meshFilter: { mesh: `mesh_${name}` }, meshRenderer: { m_Enabled: true, materials: [i], m_SortingOrder: l.order || 0 },
+    behaviours: l.follower ? [{ class: 'BoneFollower', enabled: true, fields: { boneName: l.follower, followXYPosition: 1, followZPosition: 1, followBoneRotation: 1, followSkeletonFlip: 1, followLocalScale: 1 } }] : [] }));
+  const url = scene(name, [`t_${name}`]);
+  const file = JSON.parse(files.get(url));
+  file.prefab.nodes = nodes;
+  file.prefab.materials = layers.map((l) => ({ ...file.prefab.materials[0], name: l.name }));   // one each: no merged draws
+  files.set(url, JSON.stringify(file));
+  return url;
+}
+
+test('a BoneFollower turns with its bone: pixi-spine keeps the world 2×2 in a PIXI Matrix (the trial read bone.a/c: NaN, the subtree vanished)', async () => {
+  const s = await loadScene(layered('fol', [{ name: 'fire', pos: [4, 12, 0], follower: 'BG_Fire' }]));
+  // the bone at 30° in Unity's y-up world: Spine (a, b | c, d) = (cos, −sin | sin, cos); pixi-spine y-down stores
+  // matrix.a = a, matrix.c = Spine b, matrix.b = −Spine c, matrix.d = −d
+  const th = Math.PI / 6;
+  const bone = { worldX: 400, worldY: -1200, scaleX: 1, scaleY: 1, matrix: { a: Math.cos(th), c: -Math.sin(th), b: -Math.sin(th), d: -Math.cos(th), tx: 400, ty: -1200 } };
+  const sp = { ...spine(), skeleton: { scaleX: 1, scaleY: 1, findBone: (n) => (n === 'BG_Fire' ? bone : null) } };
+  const d = new DynScene(P, s, sp);
+  d.update(0);
+  const L = d.fx.loc, o = 1 * 10;
+  assert.deepEqual([L[o], L[o + 1]].map((v) => +v.toFixed(4)), [4, 12], 'at the bone (Unity units, y-up)');
+  assert.ok([3, 4, 5, 6].every((k) => Number.isFinite(L[o + k])), 'a rotation, not NaN');
+  assert.equal(+(2 * Math.atan2(L[o + 5], L[o + 6]) * 180 / Math.PI).toFixed(3), 30, 'turned by the bone\'s world angle');
+  d.destroy();
+});
+
+test('layers sort by depth along the orthographic view; equal depth keeps the hierarchy order (not the distance off the axis)', async () => {
+  // 陈 精二: the sky (nearest the camera's axis) and its clouds at one order and z — the sky first, the clouds over it
+  const s = await loadScene(layered('sky', [{ name: 'sky', pos: [0.4, 9.4, 0], order: -3 }, { name: 'cloud', pos: [-2.7, 10.3, 0], order: -3 },
+    { name: 'near', pos: [0, 9, -1], order: -3 }, { name: 'front', pos: [9, 9, 5], order: -2 }]));
+  const r = renderer();
+  r.projection = { projectionMatrix: { a: 0.01, b: 0, c: 0, d: -0.01, tx: -1, ty: 1 } };
+  const sp = { ...spine(), worldTransform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 } };
+  const d = new DynScene(P, s, sp);
+  assert.equal(await d.preload(r), true);
+  const glr = fxContext(r).glr, drawn = [];
+  glr.upload = () => {};
+  glr.draw = (run) => { for (const e of run) drawn.push(s.desc.nodes[e.node].name); };
+  d.update(0);
+  d.render(r);
+  assert.deepEqual(drawn, ['sky', 'cloud', 'near', 'front']);
+  d.destroy();
+  releaseRenderer(r);
+});
