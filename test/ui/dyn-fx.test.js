@@ -192,3 +192,25 @@ test('layers sort by depth along the orthographic view; equal depth keeps the hi
   d.destroy();
   releaseRenderer(r);
 });
+
+test('the root\'s scale (重岳 精二 0.9227) scales the skeleton and the layers alike: the frame, the followers and the projection take it', async () => {
+  const url = layered('rootscale', [{ name: 'fire', pos: [4, 12, 0], follower: 'BG_Fire' }]);
+  const file = JSON.parse(files.get(url));
+  file.prefab.nodes[0].pos = [-0.3, -9.79, 6];
+  file.prefab.nodes[0].scale = [0.5, 0.5, 1];
+  files.set(url, JSON.stringify(file));
+  const s = await loadScene(url);
+  assert.deepEqual(s.rootScale, [0.5, 0.5, 1]);
+  const bone = { worldX: 400, worldY: -1200, scaleX: 1, scaleY: 1, matrix: { a: 1, c: 0, b: 0, d: -1, tx: 400, ty: -1200 } };
+  const sp = { ...spine(), skeleton: { scaleX: 1, scaleY: 1, findBone: (n) => (n === 'BG_Fire' ? bone : null) }, worldTransform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 } };
+  const d = new DynScene(P, s, sp);
+  // the camera square (half 10 Unity units at the world origin) in skeleton px: ÷ the root's scale, like the client's DynIllust
+  assert.deepEqual(Object.values(d.frame).map((v) => +v.toFixed(3)), [(0.3 - 10) * 200, (9.79 - 10) * 200, 4000, 4000].map((v) => +v.toFixed(3)));
+  d.update(0);
+  const L = d.fx.loc, w = d.fx.world[1];
+  assert.deepEqual([L[10], L[11]].map((v) => +v.toFixed(4)), [4, 12], 'the follower\'s local position: the bone in the root\'s frame');
+  // its world (the root's scale kept) projects back onto the bone's pixel: the layer stays on the skeleton
+  const m = d._vp({ projection: { projectionMatrix: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 } } });
+  assert.deepEqual([m[0] * w[12] + m[4] * w[13] + m[12], m[1] * w[12] + m[5] * w[13] + m[13]].map((v) => +v.toFixed(3)), [400, -1200]);
+  d.destroy();
+});

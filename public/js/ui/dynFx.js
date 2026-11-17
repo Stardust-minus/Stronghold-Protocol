@@ -289,8 +289,11 @@ export function prepareScene(desc) {
   const parts = (partNodes.length ? partNodes : [0]).map((n) => ({ node: n, order: Number(mr(n).m_SortingOrder) || 0, layer: Number(mr(n).m_SortingLayer) || 0 }));
   // Toon / Unlit-Outline write depth (ZWrite On): such a scene clears the depth buffer before each render
   const writesDepth = (desc.materials || []).some((m) => (m?.passes || []).some((p) => p?.zWrite));
+  // the root's scale (重岳 精二: 0.9227) scales the skeleton and every layer alike in Unity: the effect keeps it (only the
+  // root's position is dropped at compile time), the Spine is drawn unscaled — DynScene divides the effect's world by it
+  const rootScale = [0, 1, 2].map((k) => (Array.isArray(root.scale) && Number(root.scale[k])) || 1);
   return { hidden, drive, bones, parts, sepSlots, writesDepth, camSize: Number(dyn.illust?.cameraSize) || 10,
-    rootPos: Array.isArray(root.pos) ? root.pos.slice(0, 3) : [0, 0, 0], skelScale: Number(dyn.spine?.scale) || 0.01 };
+    rootPos: Array.isArray(root.pos) ? root.pos.slice(0, 3) : [0, 0, 0], rootScale, skelScale: Number(dyn.spine?.scale) || 0.01 };
 }
 
 export class DynScene {
@@ -299,16 +302,19 @@ export class DynScene {
     this.P = P; this.s = scene; this.spine = spine;
     this.fx = new Effect(scene.def, { seed: opts.seed, lib: lib() });
     this.fx.place({ pos: [0, 0, 0] });
+    this.fx._matrices();      // the bone followers' first frame reads their parents' world (the root's scale in it)
     this.time = 0;
     this.frameNo = 0;
     this.fd = new FrameData();
     this.vpm = new Float32Array(16);
     this.inv = new Float32Array(16);
     this.bones = scene.bones.map((b) => ({ ...b, ref: spine.skeleton?.findBone?.(b.bone) || null }));
-    const camS = scene.camSize, k = 1 / scene.skelScale;
+    const camS = scene.camSize, k = 1 / scene.skelScale, rs = scene.rootScale || [1, 1, 1];
+    // the effect's world: Unity's world less the root's position (the camera at the origin sits at −rootPos), the root's
+    // scale kept; the Spine's frame (skeleton px) is that world ÷ the root's scale ÷ the skeleton scale
     const cx = -scene.rootPos[0], cy = -scene.rootPos[1];
     /** The official camera square in skeleton px (y-up), like a dynamic entry's `frame`. */
-    this.frame = { x: (cx - camS) * k, y: (cy - camS) * k, width: 2 * camS * k, height: 2 * camS * k };
+    this.frame = { x: (cx - camS) * k / rs[0], y: (cy - camS) * k / rs[1], width: 2 * camS * k / rs[0], height: 2 * camS * k / rs[1] };
     this.basis = { right: [1, 0, 0], up: [0, 1, 0], fwd: [0, 0, 1], pos: [cx, cy, -scene.rootPos[2] - FAR], h: 1, tanHalf: camS / FAR };
     this.stats = { fxDraws: 0, spineParts: 0, items: 0, particles: 0, updateMs: 0, buildMs: 0, renderMs: 0, grabs: 0 };
     this.view = new P.Container();
@@ -377,13 +383,14 @@ export class DynScene {
 
   /** BoneFollower (Spine-Unity, world-space branch): the node at the bone's world position, turned by its world angle. */
   _follow() {
-    const fx = this.fx, L = fx.loc, k = this.s.skelScale;
+    const fx = this.fx, L = fx.loc, k = this.s.skelScale, rs = this.s.rootScale || [1, 1, 1];
     for (const b of this.bones) {
       const bone = b.ref;
       if (!bone) continue;
       const i = b.node, o = i * 10, cw = fx.world[i];
-      // pixi-spine keeps bones y-down (spine yDown): Unity's y-up world is (x, −y), its matrix c and d negated
-      const wx = b.xy ? bone.worldX * k : cw[12], wy = b.xy ? -bone.worldY * k : cw[13], wz = b.z ? 0 : cw[14];
+      // pixi-spine keeps bones y-down (spine yDown): Unity's y-up world is (x, −y), its matrix c and d negated; the
+      // skeleton's TransformPoint carries the root's scale
+      const wx = b.xy ? bone.worldX * k * rs[0] : cw[12], wy = b.xy ? -bone.worldY * k * rs[1] : cw[13], wz = b.z ? 0 : cw[14];
       const p = fx.def.parent[i];
       if (p >= 0) {
         mat4InvertAffine(fx.world[p], this.inv);
@@ -404,15 +411,16 @@ export class DynScene {
     }
   }
 
-  /** Root frame (Unity units, y-up) → clip space through the Spine's world transform and Pixi's projection. */
+  /** The effect's world (Unity units, y-up; ÷ the root's scale = the root frame) → clip space through the Spine's world
+   * transform and Pixi's projection. */
   _vp(renderer) {
     const pm = renderer.projection.projectionMatrix, wt = this.spine.worldTransform;
     const a = pm.a * wt.a + pm.c * wt.b, b = pm.b * wt.a + pm.d * wt.b;
     const c = pm.a * wt.c + pm.c * wt.d, d = pm.b * wt.c + pm.d * wt.d;
     const tx = pm.a * wt.tx + pm.c * wt.ty + pm.tx, ty = pm.b * wt.tx + pm.d * wt.ty + pm.ty;
-    const k = 1 / this.s.skelScale, m = this.vpm;
-    m[0] = a * k; m[1] = b * k; m[2] = 0; m[3] = 0;
-    m[4] = -c * k; m[5] = -d * k; m[6] = 0; m[7] = 0;
+    const rs = this.s.rootScale || [1, 1, 1], kx = 1 / this.s.skelScale / rs[0], ky = 1 / this.s.skelScale / rs[1], m = this.vpm;
+    m[0] = a * kx; m[1] = b * kx; m[2] = 0; m[3] = 0;
+    m[4] = -c * ky; m[5] = -d * ky; m[6] = 0; m[7] = 0;
     m[8] = 0; m[9] = 0; m[10] = 1 / 1000; m[11] = 0;
     m[12] = tx; m[13] = ty; m[14] = 0; m[15] = 1;
     return m;
