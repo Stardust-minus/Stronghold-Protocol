@@ -97,6 +97,20 @@ L2D shaders (history §37.246; the baker lives outside the repo, in the maintain
 after an import: it writes `<page>.edge.<ext>` and `<stem>.edge.atlas`, which the manifest names; the old files stay
 for older clients.
 
+**Dynamic illustration scenes** (2026-11-17): the client prefab's whole scene — the mesh layers, particle systems and
+shader effects around the character — plays live (`public/js/ui/dynFx.js`, on the battle effects' runtime, DESIGN §33)
+where the backdrop shows (「查看立绘」, the 名片, seat cards; not the crops). `tools/local-extract/dyn_scenes.py <export>
+--tex webp --no-half` exports the prefabs; `node tools/local-extract/dyn-scenes-pack.mjs --export <export> --assets <assets
+root> [--upload <dir>]` trims each record's prefab to its always-on part and writes, add-only, its scene file into the
+record's own folder (`scene-<sha8>.json` next to `bg.webp`) and the textures (WebP q90, no half-size copies) and meshes it
+names into tools/local-extract's tree, `local/dynfx/tex/`, `local/dynfx/mesh/` (named by content and shared between scenes;
+only the scene files name them, with their content-hash segment), plus the registry
+`tools/assets/dynamic-scenes.json` (sizes, sha256, check batch). A record names its scene (`scene`, never inside
+data/assets.json itself) only once checked against the client — the registry's `enabled` / `check`, set with
+`node tools/prepare-dynamic-scenes.mjs --assets <dir> --enable <kind/id,…> --note <text>` (`--check`: idempotent; fetch-assets
+and prepare-operator-dynamic-e2 apply it too). Until its scene is on the GPU, and wherever it cannot play (no WebGL2, a file
+that failed), a view shows the baked `background` / `foreground`. 97 scenes, 3,106 files, 89.2 MB (history §37.247).
+
 **精二 dynamic illustrations** (2026-11-16): 27 operators' own default 精二 look is animated in the client (skin_table
 `charSkins[<charId>#2].dynIllustId`; 塔露拉, 缪尔赛思, 浊心斯卡蒂 …). Their records are `chars[id].dynamicE2`, the same shape
 as a skin's `dynamic`, unpacked from the local client's `arts/dynchars/<charId>_2.ab` to `char/dynamic/<charId>_2/`

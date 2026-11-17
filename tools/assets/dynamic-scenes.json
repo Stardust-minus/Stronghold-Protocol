@@ -30,7 +30,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "14b29eb0",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_003_kalts_sale_14": {
    "dynIllustId": "dyn_illust_char_003_kalts_sale#14",
@@ -156,7 +161,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "f155120b",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_1013_chen2_summer_20": {
    "dynIllustId": "dyn_illust_char_1013_chen2_summer#20",
@@ -382,7 +392,12 @@
     "disturbOrigin",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "baba57d6",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_1026_gvial2_summer_12": {
    "dynIllustId": "dyn_illust_char_1026_gvial2_summer#12",
@@ -467,7 +482,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "97da7102",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_1032_excu2_sale_12": {
    "dynIllustId": "dyn_illust_char_1032_excu2_sale#12",
@@ -785,7 +805,12 @@
     "disturbOrigin",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "e251b77e",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_172_svrash_ambienceSynesthesia_4": {
    "dynIllustId": "dyn_illust_char_172_svrash_ambienceSynesthesia#4",
@@ -901,7 +926,12 @@
     "dissolve",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "68702207",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_2015_dusk_nian_12": {
    "dynIllustId": "dyn_illust_char_2015_dusk_nian#12",
@@ -985,7 +1015,12 @@
     "basic",
     "disturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "3ff7afd9",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_2023_ling_nian_9": {
    "dynIllustId": "dyn_illust_char_2023_ling_nian#9",
@@ -1013,7 +1048,12 @@
     "dissolveDouble",
     "disturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "269fabe9",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_2024_chyue_cfa_1": {
    "dynIllustId": "dyn_illust_char_2024_chyue_cfa#1",
@@ -1186,7 +1226,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "e5e8f167",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_245_cello_sale_12": {
    "dynIllustId": "dyn_illust_char_245_cello_sale#12",
@@ -1331,7 +1376,12 @@
     "dissolveTween",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "377e6fac",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_332_archet_sale_14": {
    "dynIllustId": "dyn_illust_char_332_archet_sale#14",
@@ -1360,7 +1410,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "b4525dfa",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_350_surtr_ambienceSynesthesia_6": {
    "dynIllustId": "dyn_illust_char_350_surtr_ambienceSynesthesia#6",
@@ -1477,7 +1532,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "2912fd43",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_391_rosmon_sale_16": {
    "dynIllustId": "dyn_illust_char_391_rosmon_sale#16",
@@ -1504,7 +1564,12 @@
     "disturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "c69540e0",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_4010_etlchi_winter_5": {
    "dynIllustId": "dyn_illust_char_4010_etlchi_winter#5",
@@ -1594,7 +1659,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "e081e11e",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_4064_mlynar_epoque_28": {
    "dynIllustId": "dyn_illust_char_4064_mlynar_epoque#28",
@@ -1624,7 +1694,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "88918eee",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_4080_lin_nian_10": {
    "dynIllustId": "dyn_illust_char_4080_lin_nian#10",
@@ -1653,7 +1728,12 @@
     "legacyPremul",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "0c91dcab",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_4080_lin_summer_19": {
    "dynIllustId": "dyn_illust_char_4080_lin_summer#19",
@@ -1708,7 +1788,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "bc92d1b6",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_4087_ines_boc_8": {
    "dynIllustId": "dyn_illust_char_4087_ines_boc#8",
@@ -1848,7 +1933,12 @@
     "legacyPremul",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "4f584b31",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_4133_logos_ambienceSynesthesia_6": {
    "dynIllustId": "dyn_illust_char_4133_logos_ambienceSynesthesia#6",
@@ -2166,7 +2256,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "98462634",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_1016_agoat2": {
    "dynIllustId": "dyn_illust_char_1016_agoat2_2",
@@ -2253,7 +2348,12 @@
     "disturbOrigin",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "63ebaf60",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_1028_texas2": {
    "dynIllustId": "dyn_illust_char_1028_texas2_2",
@@ -2513,7 +2613,12 @@
     "disturbOrigin",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "3dd02422",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_2015_dusk": {
    "dynIllustId": "dyn_illust_char_2015_dusk_2",
@@ -2689,7 +2794,12 @@
     "disturbCd",
     "ram"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "3e0575c4",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_249_mlyss": {
    "dynIllustId": "dyn_illust_char_249_mlyss_2",
@@ -2718,7 +2828,12 @@
     "disturbCd",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "14d3c6e6",
+    "note": "batch 1: vs DYNBG2 DXBC bake r7, t=0 MAE 1.4–5.6 (迷迭香「…」epoque_17 9.1: the bake has the shield its Idle Animator turns off), sheets 全量/第一批"
+   }
   },
   "char_391_rosmon": {
    "dynIllustId": "dyn_illust_char_391_rosmon_2",
