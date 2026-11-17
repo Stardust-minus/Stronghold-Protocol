@@ -91,13 +91,15 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   // pointing to the original's 0.4.0 release for the rest (「只写我们的，其余的让用户去看0.4.0就行」). The interface author's
   // contact and the credits of the removed 10-18 recap move here.
   assert.equal(entries.length, 4);
-  // 2026-11-16 the owner's 「名片为啥没办法选塔露拉」 and 「对于动态立绘能不能带上背景」: their own notice on top
-  assert.equal(entries[0].title, '名片可选精二立绘，动态立绘带上原作场景');
-  assert.equal(entries[0].date, '2026-11-16');
+  // 2026-11-16 the owner's 「名片为啥没办法选塔露拉」 and 「对于动态立绘能不能带上背景」: their own notice on top; rel43 never went out,
+  // so on 2026-11-17 (the owner: 「全量动态背景吧」) the same notice also carries the scenes played live
+  assert.equal(entries[0].title, '名片可选精二立绘，动态立绘实时播放原作场景');
+  assert.equal(entries[0].date, '2026-11-17');
   const rel43 = entries[0].paragraphs.join('\n');
   for (const phrase of ['【名片】', '默认立绘和精二立绘', '塔露拉', '在名片上播放', '按干员分组', '阿米娅', '报童', '见习联结者', '播种者',
-    '于万千宇宙之中', '触及星辰', '只能用作名片', '【动态立绘】', '原作的场景', '「查看立绘」', '座位卡', '87 套有背景', '56 套有前景',
-    'W「恍惚」', '夕「染尘烟」', '官方的取景位置', '不再拉伸错位', '仍只显示人物'])
+    '于万千宇宙之中', '触及星辰', '只能用作名片', '【动态立绘】', '原作的完整场景', '「查看立绘」', '座位卡', '粒子', '实时播放',
+    '97 套', '时装 71 套', '精二 26 套', '遥「常世之幻」', '重岳精二', '无缝换上', '互动动作里的特效暂不包括', 'W「恍惚」', '夕「染尘烟」', '官方的取景位置',
+    '不再拉伸错位', '仍只显示人物'])
     assert.ok(rel43.includes(phrase), phrase);
   assert.doesNotMatch(rel43, /ModelScope|OpenI|PRTS|DXBC|WebP|烘焙|签名|nginx|Worker|WebSocket|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理|QQ/i);
   // 2026-11-16 the owner's UI overhaul (「UI必须大修」) gets its own notice; the 0.4.0 notice below keeps its text,
