@@ -105,11 +105,12 @@ root> [--upload <dir>]` trims each record's prefab to its always-on part and wri
 record's own folder (`scene-<sha8>.json` next to `bg.webp`) and the textures (WebP q90, no half-size copies) and meshes it
 names into tools/local-extract's tree, `local/dynfx/tex/`, `local/dynfx/mesh/` (named by content and shared between scenes;
 only the scene files name them, with their content-hash segment), plus the registry
-`tools/assets/dynamic-scenes.json` (sizes, sha256, check batch). A record names its scene (`scene`, never inside
+`tools/assets/dynamic-scenes.json` (sizes, sha256, check batch, shader families). A record names its scene (`scene`, never inside
 data/assets.json itself) only once checked against the client — the registry's `enabled` / `check`, set with
 `node tools/prepare-dynamic-scenes.mjs --assets <dir> --enable <kind/id,…> --note <text>` (`--check`: idempotent; fetch-assets
 and prepare-operator-dynamic-e2 apply it too). Until its scene is on the GPU, and wherever it cannot play (no WebGL2, a file
-that failed), a view shows the baked `background` / `foreground`. 97 scenes, 3,106 files, 89.2 MB (history §37.247).
+that failed), a view shows the baked `background` / `foreground`. 97 scenes, 3,106 files, 89.2 MB; all 97 checked and named
+(71 skins, 26 精二; history §37.247). The scene files hold the idle only: the actions' own effects are not exported yet.
 
 **精二 dynamic illustrations** (2026-11-16): 27 operators' own default 精二 look is animated in the client (skin_table
 `charSkins[<charId>#2].dynIllustId`; 塔露拉, 缪尔赛思, 浊心斯卡蒂 …). Their records are `chars[id].dynamicE2`, the same shape
