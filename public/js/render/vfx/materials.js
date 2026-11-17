@@ -64,6 +64,7 @@ const BY_NAME = {
   'Torappu/Particles/Flipbook(Add)': 'flipbook', 'Torappu/Particles/Flipbook(Blend)': 'flipbook',
   'Torappu/Particles/Multiply': 'multiply', 'Torappu/Particles-L2D/Multiply': 'multiply',
   'Torappu/Particles-L2D/3D/MatCapTransparent': 'matcap',
+  'Torappu/Particles-L2D/Unlit-Outline': 'outline',
 };
 
 const fallbacks = new Map(); // shader name → family it falls back to
@@ -139,5 +140,15 @@ export function compileMaterial(m, opts = {}) {
   // Ram/VertexDisturb(CustomData): Ram/Disturb(CustomData) plus the vertex displacement
   defs.vdist = /VertexDisturb/.test(String(m?.shader || ''));
   const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}${defs.add ? 1 : 0}${defs.glow ? 1 : 0}${defs.vdist ? 1 : 0}`;
-  return { name: m?.name || '', shader: m?.shader || '', keywords: [...kw], family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
+  const out = { name: m?.name || '', shader: m?.shader || '', keywords: [...kw], family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
+  // Unlit-Outline's second pass, the outline shell, on the same geometry (render/vfx/gl.js draws `next` after the main
+  // pass; `under`: before it when the target has no depth buffer, so the main pass covers the shell's inside)
+  if (family === 'outline' && Array.isArray(m?.passes) && m.passes[1]) {
+    const shell = compileMaterial({ ...m, passes: [m.passes[1]] }, opts);
+    shell.defs = { ...shell.defs, shell: true };
+    shell.key += 's';
+    shell.under = true;
+    out.next = shell;
+  }
+  return out;
 }

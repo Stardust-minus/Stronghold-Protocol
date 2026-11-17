@@ -293,7 +293,8 @@ export class FxGL {
   /**
    * Draw items (already sorted). frame = { vp (Unity → clip), cam (Unity camera position), time, half, pass, view? }.
    * view: Unity's world → view matrix (the 3D / outline shaders' unity_MatrixV); without it the camera at cam looking
-   * along +z unrotated (the 动态立绘 camera). Unity's projection is then vp × view⁻¹.
+   * along +z unrotated (the 动态立绘 camera). Unity's projection is then vp × view⁻¹. A material's further passes
+   * (mat.next) draw on the same item.
    */
   draw(items, frame) {
     const gl = this.gl;
@@ -307,7 +308,12 @@ export class FxGL {
     let view = null, proj = null, grabbedOnce = false;
     const vpr = gl.getParameter(gl.VIEWPORT);
     for (const it of items) {
-      const mat = it.mat;
+     const m0 = it.mat;
+     // a material's further passes (mat.next) on the same geometry, in order; an `under` pass (the outline shell) first
+     // when there is no depth buffer
+     const passes = !m0.next ? null : this.hasDepth || !m0.next.under ? [m0, m0.next] : [m0.next, m0];
+     for (let pi = 0; pi < (passes ? passes.length : 1); pi++) {
+      const mat = passes ? passes[pi] : m0;
       const kind = it.kind;
       let ext = this.ownVs.get(mat);
       if (ext === undefined) { ext = !!vertexExt(mat.family, mat.defs); this.ownVs.set(mat, ext); }
@@ -418,6 +424,7 @@ export class FxGL {
         this.stats.tris += it.count / 3;
       }
       this.stats.draws++;
+     }
     }
     gl.bindVertexArray(null);
     gl.depthMask(true);

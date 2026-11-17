@@ -188,3 +188,35 @@ test('3D/MatCapTransparent: fresnel blend to the matcap and highlight from the v
   r = await render(t, { textures, meshes: { q: tilted }, items: [{ kind: 'mesh', mesh: 'q', inst: { m: [3, 0, 0, 0, 9, 0, 0, 0, 3] }, mat }] });
   check(r, (0.8 / 3) / Math.hypot(0.6 / 9, 0.8 / 3), 'inverse transpose');
 });
+
+/** A UV sphere (radius r, clockwise seen from outside = Unity front faces). */
+function sphere(r = 0.7, n = 24) {
+  const P = [], N = [], U = [], I = [];
+  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+    const th = (i / n) * 2 * Math.PI, ph = (j / n) * Math.PI;
+    const x = Math.sin(ph) * Math.cos(th), y = -Math.cos(ph), z = Math.sin(ph) * Math.sin(th);
+    P.push(r * x, r * y, r * z); N.push(x, y, z); U.push(i / n, j / n);
+  }
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; I.push(a, c, b, b, c, d); }
+  return { positions: P, normals: N, uv0: U, colors: null, submeshes: [I] };
+}
+
+test('Unlit-Outline: the main pass, and the shell pass pushed out along the projected normal (with or without depth)', {
+  skip: !enabled && 'set RENDER_E2E=1 (needs Chrome)', timeout: 120000,
+}, async (t) => {
+  const textures = { main: tex1([255, 128, 64, 255]) };
+  const pz = { blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'], blendOp: 'Add', zTest: 'LessEqual', zWrite: true, colorMask: 15 };
+  const mat = {
+    shader: 'Torappu/Particles-L2D/Unlit-Outline', keywords: [], queue: 3000, passes: [{ ...pz, cull: 'Back' }, { ...pz, cull: 'Front' }],
+    floats: { _Outline_Width: 300, _Outline_Depth_Offset: 0, _Alpha: 1 },
+    colors: { _TintColor: [0.5, 0.5, 0.5, 0.5], _Outline_Color: [0, 0, 1, 1] },
+    textures: { _MainTex: { tex: 'main', st: [1, 1, 0, 0] } },
+  };
+  // silhouette radius 0.7 / 2 × 32 = 11.2 px from the centre; the shell reaches 0.0003 × 300 × 32 = 2.9 px further
+  for (const depth of [true, false]) {
+    const r = await render(t, { depth, textures, meshes: { s: sphere() }, items: [{ kind: 'mesh', mesh: 's', mat }] });
+    assert.deepEqual(px(r, 32, 32).slice(0, 3), [255, 128, 64], `main pass at the centre (depth ${depth})`);
+    assert.deepEqual(px(r, 32 + 13, 32).slice(0, 3), [0, 0, 255], `shell just outside the silhouette (depth ${depth})`);
+    assert.notDeepEqual(px(r, 32 + 16, 32).slice(0, 3), [0, 0, 255], `background beyond the shell (depth ${depth})`);
+  }
+});

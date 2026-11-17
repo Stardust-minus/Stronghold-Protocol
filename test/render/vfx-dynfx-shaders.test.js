@@ -59,3 +59,17 @@ test('3D/MatCapTransparent compiles to the matcap family with the object-space v
   assert.match(vertexSource('meshr', vertexExt('matcap', m.defs)), /transpose\(inverse\(mat3\(o2w\)\)\)/);
   assert.match(fragmentSource('matcap', m.defs), /mat3\(u_V\) \* v_nrm/);
 });
+
+test('Unlit-Outline: the main pass and its shell pass (next, Cull Front, drawn first without a depth buffer)', () => {
+  const m = compileMaterial({ shader: 'Torappu/Particles-L2D/Unlit-Outline', passes: [pass('Back', { zWrite: true }), pass('Front', { zWrite: true })], keywords: [], floats: { _Alpha: 0.5 } });
+  assert.equal(m.family, 'outline');
+  assert.equal(m.fallback, false);
+  assert.equal(m.state.cull, 'Back');
+  assert.equal(vertexExt('outline', m.defs), null, 'the main pass uses the shared vertex shaders');
+  assert.ok(m.next && m.next.family === 'outline' && m.next.defs.shell && m.next.under);
+  assert.equal(m.next.state.cull, 'Front');
+  assert.notEqual(m.next.key, m.key);
+  assert.equal(m.next.next, undefined);
+  assert.match(vertexExt('outline', m.next.defs).post, /0\.0003/);
+  assert.match(fragmentSource('outline', m.next.defs), /u_Outline_Color\.rgb, v_col\.a \* u_Alpha/);
+});

@@ -625,6 +625,35 @@ void main() {
   o_col = vec4(h * (1.0 - c.rgb) + c.rgb, k * (h * (1.0 - c.a) + c.a));
 }`,
   },
+  // Unlit-Outline, two passes on the same mesh. Pass 0 (Cull Back): 2 × texture × vertex colour × _TintColor, alpha ×
+  // _Alpha. Pass 1, the shell (defs.shell, Cull Front): _Outline_Color.rgb with the vertex alpha × _Alpha, its vertices
+  // pushed in clip space along the projected view-space normal (MatrixV × ObjectToWorld × normal, then the projection,
+  // normalised over xyz) by _Outline_Width × 0.0003 (× w × saturate(1 / w); y × the target's aspect, _ScreenParams.x / .y),
+  // and back in depth by _Outline_Depth_Offset × 0.0001 of the client's reversed-Z [INFERRED for GL: + twice that]
+  outline: {
+    tex: ['_MainTex'],
+    vs: (d) => (!d.shell ? null : {
+      decl: `uniform float u_Outline_Width;
+uniform float u_Outline_Depth_Offset;
+`,
+      post: `  vec3 pn = mat3(u_P) * (mat3(u_V) * (mat3(o2w) * on));
+  vec2 dn = pn.xy * inversesqrt(dot(pn, pn)) * gl_Position.w;
+  float ow = clamp(1.0 / gl_Position.w, 0.0, 1.0) * u_Outline_Width;
+  gl_Position.xy += vec2(ow * dn.x, ow * (u_Screen.x / u_Screen.y) * dn.y) * 0.0003;
+  gl_Position.z += 2.0 * u_Outline_Depth_Offset * 0.0001;`,
+    }),
+    src: (d) => (d.shell ? `${U4(['_Outline_Color'])}
+${U1(['_Alpha'])}
+void main() { o_col = vec4(u_Outline_Color.rgb, v_col.a * u_Alpha); }`
+      : `${S(['_MainTex'])}
+${U4(['_MainTex_ST', '_TintColor'])}
+${U1(['_Alpha'])}
+void main() {
+  vec4 t = texture(u_MainTex, st(v_uv, u_MainTex_ST));
+  vec4 c = 2.0 * v_col * u_TintColor;
+  o_col = vec4(t.rgb * c.rgb, clamp(t.a * c.a, 0.0, 1.0) * u_Alpha);
+}`),
+  },
   multiply: {
     tex: ['_MainTex'],
     src: () => `${S(['_MainTex'])}
