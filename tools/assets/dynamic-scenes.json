@@ -108,7 +108,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "4c97262d",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.0 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.0 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 2.0, sheets 全量/复核"
    }
   },
   "char_1012_skadi2_iteration_2": {
@@ -147,7 +147,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "452980bf",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.05 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.05 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 6.05, sheets 全量/复核"
    }
   },
   "char_1013_chen2_boc_6": {
@@ -245,7 +245,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "2949c75b",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.83 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: DoubleEdge"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.83 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (DoubleEdge): unchanged, t=0 MAE 3.83, sheets 全量/复核"
    }
   },
   "char_1016_agoat2_epoque_34": {
@@ -607,9 +607,15 @@
     "basic",
     "dissolveCd",
     "legacyPremul",
-    "ramDisturbCd"
+    "ramDisturbCd",
+    "rgbsplit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "fde786e4",
+    "note": "batch 3: vs DYNBG2 bake r7, t=0 MAE 4.63 (bone followers left out, like the bake); RGBsplit = the client's DXBC (SHADER), sheets 全量/第三批"
+   }
   },
   "char_1037_amiya3_sale_13": {
    "dynIllustId": "dyn_illust_char_1037_amiya3_sale#13",
@@ -643,7 +649,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "6d453219",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.85, sheets 全量/第二批; recheck after the SHADER merge: GrabPass"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.85, sheets 全量/第二批; rechecked after the SHADER merge (GrabPass): t=0 MAE 3.85 → 4.36 (the GrabPass refracts now; the bake leaves grab passes out), sheets 全量/复核"
    }
   },
   "char_1038_whitw2_sale_15": {
@@ -671,9 +677,15 @@
     "disturbAnchor",
     "disturbCd",
     "legacyPremul",
+    "matcap",
     "ramDisturbCd"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "604bf77e",
+    "note": "batch 3: vs DYNBG2 bake r7, t=0 MAE 7.15 with the bone followers (the bake leaves the wolves' moving-bone smoke out: 5 layers; without followers our picture loses far more); MatCap = DXBC (SHADER), sheets 全量/第三批"
+   }
   },
   "char_1039_thorn2_marthe_9": {
    "dynIllustId": "dyn_illust_char_1039_thorn2_marthe#9",
@@ -808,7 +820,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "ee313728",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.03, sheets 全量/第二批; recheck after the SHADER merge: GrabPass, DisturbScale=0"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.03, sheets 全量/第二批; rechecked after the SHADER merge (GrabPass, DisturbScale=0): unchanged, t=0 MAE 3.03, sheets 全量/复核"
    }
   },
   "char_1045_svash2_sale_20": {
@@ -979,7 +991,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "3a0e0a25",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 19.76, sheets 全量/第二批; recheck after the SHADER merge: Erase; the bake drops the Interact subtree by its name (the idle Animator keeps bg01 on) and paints Erase black; like for like (Interact hidden, black left out) MAE 3.2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 19.76, sheets 全量/第二批; rechecked after the SHADER merge (Erase): unchanged, t=0 MAE 19.76, sheets 全量/复核; the bake drops the Interact subtree by its name (the idle Animator keeps bg01 on) and paints Erase black; like for like (Interact hidden, black left out) MAE 3.2"
    }
   },
   "char_2014_nian_cfa_1": {
@@ -1007,9 +1019,15 @@
     "dissolveCd",
     "disturbCd",
     "legacyPremul",
-    "ramDisturbCd"
+    "ramDisturbCd",
+    "rgbsplit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "97740dd7",
+    "note": "batch 3: vs DYNBG2 bake r7, t=0 MAE 4.04 (bone followers left out, like the bake); RGBsplit = DXBC (SHADER), sheets 全量/第三批"
+   }
   },
   "char_2014_nian_nian_4": {
    "dynIllustId": "dyn_illust_char_2014_nian_nian#4",
@@ -1108,7 +1126,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "29d87c08",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.37, sheets 全量/第二批; recheck after the SHADER merge: DoubleEdge"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.37, sheets 全量/第二批; rechecked after the SHADER merge (DoubleEdge): unchanged, t=0 MAE 3.37, sheets 全量/复核"
    }
   },
   "char_2023_ling_ncg_1": {
@@ -1303,10 +1321,16 @@
     "disturbCd",
     "grab",
     "legacyPremul",
+    "outline",
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "237f49ff",
+    "note": "batch 3: vs DYNBG2 bake r7, t=0 MAE 6.37; 3.64 without the water wheel (a SkinnedMesh with Unlit-Outline: the bake draws no skinned mesh) and the two GrabPass layers; Outline = DXBC (SHADER), sheets 全量/第三批"
+   }
   },
   "char_2026_yu_nian_12": {
    "dynIllustId": "dyn_illust_char_2026_yu_nian#12",
@@ -1471,7 +1495,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "3bbe5e4c",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.57 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: VertexDisturb"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.57 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (VertexDisturb): t=0 MAE 2.57 → 2.77 (VertexDisturb displaces the vertices now; the bake has no vertex displacement), sheets 全量/复核"
    }
   },
   "char_250_phatom_sale_4": {
@@ -1507,7 +1531,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "bf666e64",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.56 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.56 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 2.56, sheets 全量/复核"
    }
   },
   "char_322_lmlee_witch_3": {
@@ -1601,10 +1625,16 @@
     "basic",
     "dissolve",
     "disturbCd",
+    "outline",
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "dee3399e",
+    "note": "batch 3: vs DYNBG2 bake r7, t=0 MAE 4.63 (bone followers left out); 4.40 also without the Outline star models (the bake skips 3D outlines); the Standard quads are in the actions only (off in the idle), sheets 全量/第三批"
+   }
   },
   "char_350_surtr_summer_9": {
    "dynIllustId": "dyn_illust_char_350_surtr_summer#9",
@@ -1636,7 +1666,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "d4325173",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.47, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.47, sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 4.47, sheets 全量/复核"
    }
   },
   "char_377_gdglow_summer_12": {
@@ -1671,7 +1701,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "88dd464f",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 5.26, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 5.26, sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 5.26, sheets 全量/复核"
    }
   },
   "char_391_rosmon_epoque_17": {
@@ -1808,7 +1838,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "e150a9a5",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.29, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.29, sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 2.29, sheets 全量/复核"
    }
   },
   "char_4058_pepe_sightseer_2": {
@@ -2044,7 +2074,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "6b08ecd7",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.4 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: DisturbScale=0"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.4 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (DisturbScale=0): unchanged, t=0 MAE 2.4, sheets 全量/复核"
    }
   },
   "char_4116_blkkgt_witch_5": {
@@ -2170,9 +2200,15 @@
     "dissolveCd",
     "dissolveDouble",
     "legacyPremul",
-    "ramDisturbCd"
+    "ramDisturbCd",
+    "uiAlpha"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "a3ae44ec",
+    "note": "batch 3: vs DYNBG2 bake r7, t=0 MAE 3.11 (bone followers left out); its Torappu/UI/AlphaBlend particles are disabled (m_Enabled 0) in the idle, sheets 全量/第三批"
+   }
   },
   "char_4134_cetsyr_epoque_50": {
    "dynIllustId": "dyn_illust_char_4134_cetsyr_epoque#50",
@@ -2268,7 +2304,12 @@
     "ramDisturbCd",
     "stdUnlit"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "87c525f9",
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.89 after the SHADER merge (14.7 before: L2D Disturb(CustomData) _DisturbScale 0 read as 1 noised the whole backdrop), sheets 全量/复核"
+   }
   },
   "char_437_mizuki_sale_7": {
    "dynIllustId": "dyn_illust_char_437_mizuki_sale#7",
@@ -2302,7 +2343,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "b29e5218",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.78, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.78, sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 3.78, sheets 全量/复核"
    }
   },
   "char_450_necras_summer_20": {
@@ -2368,7 +2409,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "af01bcf7",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.19, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.19, sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 3.19, sheets 全量/复核"
    }
   }
  },
@@ -2438,7 +2479,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "658c2a38",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 24.85, sheets 全量/第二批; recheck after the SHADER merge: Disturb2, Erase; the bake paints Mask/Erase black (no target alpha), ours cuts coverage; without the bake's black pixels MAE 7.6"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 24.85, sheets 全量/第二批; rechecked after the SHADER merge (Disturb2, Erase): unchanged, t=0 MAE 24.85, sheets 全量/复核; the bake paints Mask/Erase black (no target alpha), ours cuts coverage; without the bake's black pixels MAE 7.6"
    }
   },
   "char_1014_nearl2": {
@@ -2471,7 +2512,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "ce092d25",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.18, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 4.18, sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 4.18, sheets 全量/复核"
    }
   },
   "char_1015_aglna2": {
@@ -2539,7 +2580,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "8dc0ae38",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.24 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Erase; the black block in the bake is Mask/Erase painted black"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.24 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (Erase): unchanged, t=0 MAE 3.24, sheets 全量/复核; the black block in the bake is Mask/Erase painted black"
    }
   },
   "char_1023_ghost2": {
@@ -2643,7 +2684,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "b5148edd",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 1.89 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 1.89 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 1.89, sheets 全量/复核"
    }
   },
   "char_1035_wisdel": {
@@ -2710,7 +2751,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "635d1078",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.07 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: GrabPass"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.07 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (GrabPass): t=0 MAE 2.07 → 2.06 (the GrabPass refracts now; the bake leaves grab passes out), sheets 全量/复核"
    }
   },
   "char_1041_angel2": {
@@ -2778,7 +2819,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "72da2c09",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.52 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: VertexDisturb"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 3.52 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (VertexDisturb): t=0 MAE 3.52 → 3.66 (VertexDisturb displaces the vertices now; the bake has no vertex displacement), sheets 全量/复核"
    }
   },
   "char_1045_svash2": {
@@ -2812,7 +2853,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "ee497464",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 5.03, sheets 全量/第二批; recheck after the SHADER merge: VertexDisturb"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 5.03, sheets 全量/第二批; rechecked after the SHADER merge (VertexDisturb): unchanged, t=0 MAE 5.03, sheets 全量/复核"
    }
   },
   "char_1052_kalts2": {
@@ -2872,9 +2913,15 @@
     "basic",
     "dissolve",
     "disturbOrigin",
-    "legacyPremul"
+    "legacyPremul",
+    "toon"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "620c69b3",
+    "note": "batch 3: vs DYNBG2 bake r7, t=0 MAE 7.15; 4.51 with the Animators not driven (the bake has no Animator: its frame 0 fades the swirls), 4.17 also without the Toon grenades (the bake skips lit 3D); Toon = DXBC (SHADER), sheets 全量/第三批"
+   }
   },
   "char_2014_nian": {
    "dynIllustId": "dyn_illust_char_2014_nian_2",
@@ -2943,7 +2990,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "f2ba5f33",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.18 (bone followers left out, like the bake), sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 6.18 (bone followers left out, like the bake), sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 6.18, sheets 全量/复核"
    }
   },
   "char_2023_ling": {
@@ -2971,9 +3018,15 @@
     "dissolve",
     "dissolveDoubleEdge",
     "disturbAnchor",
-    "legacyPremul"
+    "legacyPremul",
+    "matcap"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "fd14cd38",
+    "note": "batch 3: vs DYNBG2 bake r7, t=0 MAE 3.15 without the bone followers and the MatCap swords (the bake skips both); MatCap = DXBC (SHADER), sheets 全量/第三批"
+   }
   },
   "char_2024_chyue": {
    "dynIllustId": "dyn_illust_char_2024_chyue_2",
@@ -3001,7 +3054,12 @@
     "disturbAnchor",
     "legacyPremul"
    ],
-   "enabled": false
+   "enabled": true,
+   "check": {
+    "date": "2026-11-17",
+    "scene": "5504e44a",
+    "note": "batch 1: vs DYNBG2 bake r7, t=0 MAE 3.51 with the root-scale fix (11.64 before: the prefab root's 0.9227 scale reached the layers but not the Spine — fire and smoke 8 % small and low against the character), sheets 全量/复核"
+   }
   },
   "char_2025_shu": {
    "dynIllustId": "dyn_illust_char_2025_shu_2",
@@ -3171,7 +3229,7 @@
    "check": {
     "date": "2026-11-17",
     "scene": "4fbf9645",
-    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.17, sheets 全量/第二批; recheck after the SHADER merge: Disturb2"
+    "note": "batch 2: vs DYNBG2 bake r7, t=0 MAE 2.17, sheets 全量/第二批; rechecked after the SHADER merge (Disturb2): unchanged, t=0 MAE 2.17, sheets 全量/复核"
    }
   },
   "char_4058_pepe": {
