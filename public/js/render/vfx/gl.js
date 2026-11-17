@@ -12,7 +12,7 @@
 // Culling: Unity treats clockwise screen triangles as front faces; the effects reach the screen with the same winding
 // (the battle frame's flip is part of the camera equivalence), so frontFace(CW) + the material's cull mode.
 
-import { vertexSource, fragmentSource, DEPTH_VS, DEPTH_FS, LOC } from './glsl.js';
+import { vertexSource, vertexExt, fragmentSource, DEPTH_VS, DEPTH_FS, LOC } from './glsl.js';
 import { QUAD_STRIDE, MESH_STRIDE, STRIP_STRIDE } from './geom.js';
 import { BLEND, UNIFORM_DEFAULTS } from './materials.js';
 
@@ -31,8 +31,10 @@ export class FxGL {
     this.meshes = new Map();       // mesh key → { vao, vbo, ibo, sub: [{ first, count }], type }
     this.defaults = {};
     this.stats = { draws: 0, programs: 0, textures: 0, texBytes: 0, quads: 0, meshes: 0, tris: 0, grabs: 0 };
-    this.grabTex = null; this.grabW = 0; this.grabH = 0;
-    this.grabRect = [0, 0, 1, 1];    // the copied target rect (GrabPass family's u_GrabRect)
+    this.grabTex = null; this.grabW = 0; this.grabH = 0;               // GrabPass: the target before each draw
+    this.grabOnceTex = null; this.grabOnceW = 0; this.grabOnceH = 0;   // GrabPassOnce: once per camera render
+    this.grabOnceFor = null;         // the render (frame.renderId, else the draw call's frame) the once-grab belongs to
+    this.ownVs = new WeakMap();      // compiled material → has its own vertex stage (programs per renderer / particle)
     this.hasDepth = !!(gl.getContextAttributes && gl.getContextAttributes()?.depth);
     this._init();
   }
@@ -103,14 +105,17 @@ export class FxGL {
     return p;
   }
 
-  /** The program of a geometry kind and compiled material (built on first use). */
+  /**
+   * The program of a geometry kind and compiled material (built on first use). Families with their own vertex stage
+   * (glsl.js vertexExt) get the object-space template; kind 'meshr' is a MeshRenderer's mesh for those.
+   */
   program(kind, mat) {
     const key = `${kind}|${mat.key}`;
     let rec = this.programs.get(key);
     if (rec !== undefined) return rec;
     const gl = this.gl;
     try {
-      const prog = this._link(vertexSource(kind), fragmentSource(mat.family, mat.defs));
+      const prog = this._link(vertexSource(kind, vertexExt(mat.family, mat.defs)), fragmentSource(mat.family, mat.defs));
       const n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
       const uniforms = [];
       let unit = 0;
@@ -123,7 +128,8 @@ export class FxGL {
         if (info.type === gl.SAMPLER_2D) u.unit = unit++;
         uniforms.push(u);
       }
-      rec = { prog, uniforms, vp: gl.getUniformLocation(prog, 'u_vp'), time: gl.getUniformLocation(prog, 'u_Time'), camPos: gl.getUniformLocation(prog, 'u_WorldSpaceCameraPos'), pass: -1, plans: new WeakMap() };
+      rec = { prog, uniforms, vp: gl.getUniformLocation(prog, 'u_vp'), time: gl.getUniformLocation(prog, 'u_Time'), camPos: gl.getUniformLocation(prog, 'u_WorldSpaceCameraPos'),
+        view: gl.getUniformLocation(prog, 'u_V'), proj: gl.getUniformLocation(prog, 'u_P'), screen: gl.getUniformLocation(prog, 'u_Screen'), pass: -1, plans: new WeakMap() };
       this.stats.programs++;
     } catch (err) {
       console.warn('[fx] program failed', mat.family, err?.message || err);
@@ -144,12 +150,12 @@ export class FxGL {
     p = { tex: [], f: [], v: [] };
     for (const u of rec.uniforms) {
       const nm = u.name;
-      if (nm === '_vp' || nm === '_Time' || nm === '_WorldSpaceCameraPos') continue;
+      if (nm === '_vp' || nm === '_Time' || nm === '_WorldSpaceCameraPos' || nm === '_V' || nm === '_P' || nm === '_Screen') continue;
       if (u.unit >= 0) {
         const t = mat.textures.find((x) => x.name === nm);
         p.tex.push({ loc: u.loc, unit: u.unit, name: nm, key: t && t.key ? t.key : null, fallback: this.defaults[t?.def || 'white'] || this.defaults.white, glTex: null });
       } else if (u.type === gl.FLOAT) p.f.push({ loc: u.loc, name: nm, value: mat.floats[nm] ?? UNIFORM_DEFAULTS[nm] ?? 0 });
-      else if (u.type === gl.FLOAT_VEC4) p.v.push({ loc: u.loc, name: nm, value: nm === '_GrabRect' ? this.grabRect : mat.vecs[nm] || (nm.endsWith('_ST') ? ST1 : nm.startsWith('_Rotation') ? ROT1 : V0) });
+      else if (u.type === gl.FLOAT_VEC4) p.v.push({ loc: u.loc, name: nm, value: mat.vecs[nm] || (nm.endsWith('_ST') ? ST1 : nm.startsWith('_Rotation') ? ROT1 : V0) });
     }
     rec.plans.set(mat, p);
     return p;
@@ -286,7 +292,11 @@ export class FxGL {
   }
 
   /**
-   * Draw items (already sorted). frame = { vp (Unity → clip), cam (Unity camera position), time, half, pass }.
+   * Draw items (already sorted). frame = { vp (Unity → clip), cam (Unity camera position), time, half, pass, view? }.
+   * view: Unity's world → view matrix (the 3D / outline shaders' unity_MatrixV); without it the camera at cam looking
+   * along +z unrotated (the 动态立绘 camera). Unity's projection is then vp × view⁻¹. A material's further passes
+   * (mat.next) draw on the same item. renderId: one camera render drawn over several calls (GrabPassOnce grabs once
+   * per render; without it, once per call).
    */
   draw(items, frame) {
     const gl = this.gl;
@@ -297,18 +307,34 @@ export class FxGL {
     const time = frame.time;
     const tv = [time / 20, time, time * 2, time * 3];
     let lastMat = null, lastOv = null;
+    let view = null, proj = null;
+    // GrabPassOnce grabs once per camera render: frame.renderId names the render when it is drawn in several calls
+    const renderId = frame.renderId !== undefined ? frame.renderId : frame;
+    const vpr = gl.getParameter(gl.VIEWPORT);
     for (const it of items) {
-      const mat = it.mat;
+     const m0 = it.mat;
+     // a material's further passes (mat.next) on the same geometry, in order; an `under` pass (the outline shell) first
+     // when there is no depth buffer
+     const passes = !m0.next ? null : this.hasDepth || !m0.next.under ? [m0, m0.next] : [m0.next, m0];
+     for (let pi = 0; pi < (passes ? passes.length : 1); pi++) {
+      const mat = passes ? passes[pi] : m0;
       const kind = it.kind;
-      const rec = this.program(kind, mat);
+      let ext = this.ownVs.get(mat);
+      if (ext === undefined) { ext = !!vertexExt(mat.family, mat.defs); this.ownVs.set(mat, ext); }
+      const rec = this.program(ext && kind === 'mesh' && it.part === 'mesh' ? 'meshr' : kind, mat);
       if (!rec) continue;
       const plan = this._plan(rec, mat);
       // textures first: a draw whose texture is still loading is skipped (no white flash)
       let ready = true;
-      // GrabPass (spike/dyn-fx-20261116): the target as it is now, copied before each such draw
-      if (mat.family === 'grab') { this._grab(); lastMat = null; }
+      // GrabPass: the target as it is now, copied before each such draw. GrabPassOnce (a named GrabPass) is copied once
+      // per camera render — at its first draw — and every later one reads that copy
+      if (mat.family === 'grab') {
+        if (!mat.defs.once) this._grab(false);
+        else if (this.grabOnceFor !== renderId) { this._grab(true); this.grabOnceFor = renderId; }
+        lastMat = null;
+      }
       for (const e of plan.tex) {
-        e.glTex = e.name === '_GrabTexture' ? this.grabTex : e.key ? this.texture(e.key, frame.half) : e.fallback;
+        e.glTex = e.name === '_GrabTexture' ? (mat.defs.once ? this.grabOnceTex : this.grabTex) : e.key ? this.texture(e.key, frame.half) : e.fallback;
         if (!e.glTex) { ready = false; break; }
       }
       if (!ready) continue;
@@ -323,6 +349,12 @@ export class FxGL {
           rec.pass = frame.pass;
           if (rec.time) gl.uniform4fv(rec.time, tv);
           if (rec.camPos) gl.uniform3fv(rec.camPos, frame.cam);
+          if (rec.view || rec.proj) {
+            if (!view) { view = frame.view || viewOf(frame.cam); proj = mul4(frame.vp, invAffine4(view)); }
+            if (rec.view) gl.uniformMatrix4fv(rec.view, false, view);
+            if (rec.proj) gl.uniformMatrix4fv(rec.proj, false, proj);
+          }
+          if (rec.screen) gl.uniform4f(rec.screen, vpr[2], vpr[3], 1 + 1 / vpr[2], 1 + 1 / vpr[3]);
         }
       }
       // material uniforms (overrides from clips / UV tweeners first): all of them for another material; for the same
@@ -396,6 +428,7 @@ export class FxGL {
         this.stats.tris += it.count / 3;
       }
       this.stats.draws++;
+     }
     }
     gl.bindVertexArray(null);
     gl.depthMask(true);
@@ -405,25 +438,25 @@ export class FxGL {
     gl.frontFace(gl.CCW);
   }
 
-  /** Copy the bound target's viewport into the grab texture (GrabPass); the copied rect goes to u_GrabRect. */
-  _grab() {
+  /** Copy the bound target's viewport into the grab texture (GrabPass: the family reads it by clip position). */
+  _grab(once) {
     const gl = this.gl;
     const vp = gl.getParameter(gl.VIEWPORT);
     const w = Math.max(1, vp[2]), h = Math.max(1, vp[3]);
-    if (!this.grabTex) this.grabTex = gl.createTexture();
+    const k = once ? 'grabOnce' : 'grab';
+    if (!this[k + 'Tex']) this[k + 'Tex'] = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.grabTex);
-    if (this.grabW !== w || this.grabH !== h) {
+    gl.bindTexture(gl.TEXTURE_2D, this[k + 'Tex']);
+    if (this[k + 'W'] !== w || this[k + 'H'] !== h) {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      this.grabW = w; this.grabH = h;
+      this[k + 'W'] = w; this[k + 'H'] = h;
     }
     gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, vp[0], vp[1], w, h);
     gl.bindTexture(gl.TEXTURE_2D, null);
-    this.grabRect[0] = vp[0]; this.grabRect[1] = vp[1]; this.grabRect[2] = w; this.grabRect[3] = h;
     this.stats.grabs++;
   }
 
@@ -439,6 +472,8 @@ export class FxGL {
     // Mask/Erase (spike/dyn-fx-20261116): the client keeps transmittance in the target's alpha (One, OneMinusSrcAlpha
     // raises it); in this canvas's coverage that takes coverage away: (Zero, OneMinusSrcAlpha)
     if (family === 'erase') { srcA = gl.ZERO; dstA = gl.ONE_MINUS_SRC_ALPHA; }
+    // GrabPass (Blend One Zero, One Zero): the copied picture replaces the target, its coverage too
+    if (family === 'grab') { srcA = gl.ONE; dstA = gl.ZERO; }
     gl.blendFuncSeparate(src, dst, srcA, dstA);
     const op = st.op === 'Sub' ? gl.FUNC_SUBTRACT : st.op === 'RevSub' ? gl.FUNC_REVERSE_SUBTRACT : st.op === 'Min' ? gl.MIN : st.op === 'Max' ? gl.MAX : gl.FUNC_ADD;
     gl.blendEquationSeparate(op, gl.FUNC_ADD);
@@ -472,6 +507,7 @@ export class FxGL {
     for (const m of this.meshes.values()) if (m) { gl.deleteVertexArray(m.vao); gl.deleteBuffer(m.vbo); gl.deleteBuffer(m.ibo); }
     this.meshes.clear();
     for (const t of Object.values(this.defaults)) gl.deleteTexture(t);
+    for (const t of [this.grabTex, this.grabOnceTex]) if (t) gl.deleteTexture(t);
     for (const b of [this.cornerVbo, this.cornerIbo, this.quadBuf, this.meshBuf, this.stripVbo, this.stripIbo, this.hfVbo]) if (b) gl.deleteBuffer(b);
     for (const v of [this.quadVao, this.stripVao, this.hfVao]) if (v) gl.deleteVertexArray(v);
     if (this.depthProg) gl.deleteProgram(this.depthProg);
@@ -479,6 +515,38 @@ export class FxGL {
 }
 
 const ST1 = [1, 1, 0, 0], ROT1 = [1, 0, 0, 1], V0 = [0, 0, 0, 0];
+
+/** Unity view matrix of an unrotated camera at c looking along +z (view space looks down −z). */
+function viewOf(c) {
+  return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, -c[0], -c[1], c[2], 1]);
+}
+
+/** a × b (column-major 4 × 4). */
+function mul4(a, b) {
+  const o = new Float32Array(16);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    let s = 0;
+    for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k];
+    o[i * 4 + j] = s;
+  }
+  return o;
+}
+
+/** Inverse of an affine (rotation / scale / translation) column-major 4 × 4. */
+function invAffine4(m) {
+  const a = m[0], b = m[1], c = m[2], d = m[4], e = m[5], f = m[6], g = m[8], h = m[9], i = m[10];
+  const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+  const det = a * A + b * B + c * C, k = det ? 1 / det : 0;
+  const r = new Float32Array(16);
+  r[0] = A * k; r[1] = -(b * i - c * h) * k; r[2] = (b * f - c * e) * k;
+  r[4] = B * k; r[5] = (a * i - c * g) * k; r[6] = -(a * f - c * d) * k;
+  r[8] = C * k; r[9] = -(a * h - b * g) * k; r[10] = (a * e - b * d) * k;
+  r[12] = -(r[0] * m[12] + r[4] * m[13] + r[8] * m[14]);
+  r[13] = -(r[1] * m[12] + r[5] * m[13] + r[9] * m[14]);
+  r[14] = -(r[2] * m[12] + r[6] * m[13] + r[10] * m[14]);
+  r[15] = 1;
+  return r;
+}
 
 function GL_BLEND(gl, b) {
   switch (b) {
