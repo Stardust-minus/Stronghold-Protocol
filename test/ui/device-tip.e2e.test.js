@@ -191,4 +191,69 @@ describe('stage device tip in the browser', { skip: !ENABLED && 'set SP_E2E=1 (a
     assert.deepEqual(problems, []);
     await page.close();
   });
+
+  // 规程 MAP10's 盐坨子炮 stands on the wall row above the field (row 13, outside the battle's rect; the 规程 arena draws no
+  // tile there): a tap on its box, and on its tile, opens its card.
+  test('规程 MAP10 battle: a tap on the 盐坨子炮 (its box, then its tile) opens its card with its live HP', async () => {
+    const { makeBattle } = await import('../helpers/battleHarness.js');
+    const { GEO } = await import('../../shared/constants.js');
+    const { getVersionData } = await import('../../server/data.js');
+    const reg = getVersionData('act3autochess@V3_1', { log: { warn() {}, info() {}, error() {} } });
+    // a real battle on the stage the page boards: the cannon spawns with the first step (a 'spawn' event), then is hurt
+    const h = makeBattle({ stage: reg.stages.act3autochess_m10, rect: GEO.NORMAL_RECT, fieldId: 'n:p1', autoFinish: false, timeLimit: 30, defs: { enemies: reg.enemies } });
+    const meta = { ...h.battle.fieldMeta(), fieldId: 'n:p1', kind: 'normal' };
+    h.step(1);
+    const cannon = h.battle.allyUnits.find((u) => u.defId === 'trap_196_cnnon');
+    assert.deepEqual([cannon.tileR, cannon.tileC], [13, 6]);
+    cannon.hp = cannon.s.maxHp - 1234;
+    h.step(1);
+    const ev = h.events.slice();
+    const snap = h.battle.snapshot();
+    const { page, problems } = await open('/dev/game-mock.html?phase=PREP&version=regulation&stage=act3autochess_m10', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!globalThis.__SP_VIEW__?.tileScreen, { timeout: 30000 });
+    await sleep(1500);
+    await page.evaluate(async ({ meta, ev, snap }) => {
+      const { store } = globalThis.__MOCK__;
+      const { net } = await import('/js/net.js');
+      const pub = store.get().match.public;
+      store.patch('match', { public: { ...pub, phase: 'COMBAT', fields: [{ fieldId: meta.fieldId, kind: 'normal', players: ['p1'], live: true }] }, field: meta });
+      net._emit('m.field', { t: 'm.field', ...meta });
+      const { t, ...rest } = snap;
+      net._emit('b.ev', { t: 'b.ev', fieldId: meta.fieldId, gt: t, ev });
+      net._emit('b.snap', { t: 'b.snap', ...rest, fieldId: meta.fieldId, gt: t });
+    }, { meta, ev, snap });
+    await page.waitForFunction((id) => globalThis.__SP_VIEW__?.raw?.debug.views.get(id)?.placed === true, { timeout: 10000 }, cannon.id);
+    await sleep(800);
+    // the middle of its box (the cannon unit's view: a device box on the wall row)
+    const body = await page.evaluate((id) => {
+      const d = globalThis.__SP_VIEW__.raw.debug;
+      const v = d.views.get(id);
+      const spec = v.box?.spec || v.spec;
+      const p = d.cam.project(v.x, v.y, v.z + spec.height * 0.5);
+      const b = document.querySelector('canvas').getBoundingClientRect();
+      return { x: b.left + p.x, y: b.top + p.y };
+    }, cannon.id);
+    const tapAt = async (pt) => {
+      await page.mouse.click(pt.x, pt.y);
+      try { await page.waitForSelector('.dpanel', { timeout: 3000 }); } catch { return null; }
+      return card(page);
+    };
+    let text = await tapAt(body);
+    assert.ok(text !== null, 'the tap on the box opened a card');
+    assert.match(text, /盐坨子炮/, text);
+    assert.match(text, /每 18 秒向前方第 4 格发射一枚炮弹/, text);
+    assert.match(text, /我方干员可以攻击它/, text);
+    const hp = await hpText(page);
+    assert.ok(hp && /^58,?766 \/ 60,?000$/.test(hp), `live HP: ${hp}`);
+    // an ordinary tile (clear of the card on the left) closes it; the cannon's own tile opens it again
+    const floor = await page.evaluate(() => { const t = globalThis.__SP_VIEW__.tileScreen(12, 8); return { x: t.x, y: t.y }; });
+    await page.mouse.click(floor.x, floor.y);
+    await page.waitForFunction(() => !document.querySelector('.dpanel'), { timeout: 3000 });
+    const tile = await page.evaluate(() => { const t = globalThis.__SP_VIEW__.tileScreen(13, 6); return { x: t.x, y: t.y }; });
+    text = await tapAt(tile);
+    assert.ok(text !== null, 'the tap on its tile opened a card');
+    assert.match(text, /盐坨子炮/, text);
+    assert.deepEqual(problems, []);
+    await page.close();
+  });
 });
