@@ -7,6 +7,8 @@
 // path against a REAL battle (the turret outside the rect stands on another tile than its stage pos; the stage crates and
 // turrets are not in the field meta of a battle shown from its start; a destroyed crate is gone), the panel link
 // (resolveDetail) and that the card closes on the next field press. The tap reaching the screen is test/ui/device-tip.e2e.test.js.
+// 规程 MAP10's 盐坨子炮 (trap_196_cnnon, the wall row above each field): its prep card, and in a battle its UNIT's card on
+// the normal, 联防 and boss fields, with the rune-adjusted numbers of the sim's own cannon unit.
 
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,6 +17,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setLang, setMessages, registerLangs } from '../../shared/i18n.js';
 import { makeBattle } from '../helpers/battleHarness.js';
+import { getVersionData } from '../../server/data.js';
+import { GEO } from '../../shared/constants.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { resolveDetail } = await import('../../public/js/ui/detailPanel.js');
@@ -253,6 +257,65 @@ test('a battle: a destroyed crate is gone — HP gone, then its tuple leaves the
   // the other crates stand
   const other = h.battle.allyUnits.find((u) => u.defId === 'trap_1105_accrate' && u.alive);
   assert.ok(deviceTipAt(stage, other.tileR, other.tileC, gone));
+});
+
+// ---- 规程 MAP10 盐坨子炮 (trap_196_cnnon): the stage device stands on the wall row above each field (devices.js spawnCannon)
+
+const regStages = JSON.parse(readFileSync(path.join(ROOT, 'data', 'versions', 'act3autochess-v3_1', 'stages.json'), 'utf8'));
+const REG = getVersionData('act3autochess@V3_1', { log: { warn() {}, info() {}, error() {} } });
+
+test('盐坨子炮 in the prep: every cannon of 规程 MAP10 answers a tap on its tile with the numbers the battle runs', () => {
+  const m10 = regStages.act3autochess_m10;
+  const cannons = m10.devices.filter((d) => d.role === 'cannon');
+  assert.deepEqual(cannons.map((d) => d.pos), [[13, 6], [13, 14], [6, 6], [6, 14]]);
+  for (const d of cannons) {
+    const info = deviceInfo(m10, d.pos[0], d.pos[1]);
+    assert.ok(info, `the cannon at ${d.pos} has a card`);
+    assert.equal(info.key, 'cannon');
+    assert.equal(info.name, '盐坨子炮');
+    assert.equal(info.tag, '场地装置');
+    // the stage runes (ATK −300, HP +30000, skill cd ×3, each written twice) apply once: devices.js cannonRunes
+    assert.equal(info.lines[0], '敌方装置：每 18 秒向前方第 4 格发射一枚炮弹，落点上的我方单位受到 900 点物理伤害');
+    assert.match(info.lines[1], /重量不超过 3 的地面敌人传送到落点/);
+    assert.match(info.lines[2], /我方干员可以攻击它/);
+    assert.deepEqual(info.stats, [{ k: '生命上限', v: 60000 }, { k: '攻击', v: 900 }, { k: '防御', v: 3000 }]);
+    assert.deepEqual(info.facts, ['不可部署']);
+  }
+  // the English pack has the words
+  setMessages('en', pack('en'));
+  registerLangs([{ code: 'en' }]);
+  setLang('en');
+  const en = deviceInfo(m10, 13, 6);
+  assert.equal(en.lines[0], 'Hostile device: every 18 s it fires a shell at the tile 4 tiles ahead; our units on that tile take 900 Physical damage');
+  for (const line of [...en.lines, ...en.facts, en.tag]) assert.ok(!/[一-鿿]/.test(line), `untranslated: "${line}"`);
+});
+
+test('盐坨子炮 in a battle: the cannon UNIT on the wall row opens its card with its live HP — normal, 联防 and boss fields', () => {
+  const m10 = regStages.act3autochess_m10;
+  for (const [kind, rect, tiles] of [
+    ['normal', GEO.NORMAL_RECT, [[13, 6]]],
+    ['unite', GEO.UNITE_RECT, [[13, 6], [13, 14]]],
+    ['boss', GEO.BOSS_RECT, [[6, 6], [6, 14]]],
+  ]) {
+    const h = makeBattle({ stage: m10, kind, rect, seed: 1, autoFinish: false, timeLimit: 30, defs: { enemies: REG.enemies } });
+    h.step(1);
+    const v = screenView(h);
+    for (const [r, c] of tiles) {
+      const unit = h.battle.allyUnits.find((u) => u.defId === 'trap_196_cnnon' && u.tileR === r && u.tileC === c);
+      assert.ok(unit, `${kind}: the cannon at [${r}, ${c}] is a unit`);
+      assert.ok(v.units.some((u) => u.id === unit.id), `${kind}: the screen noted it from its 'spawn' event`);
+      const tip = deviceTipAt(m10, r, c, v);
+      assert.ok(tip, `${kind}: a tap on [${r}, ${c}] opens the cannon's card`);
+      assert.equal(tip.key, 'cannon');
+      assert.equal(tip.unitId, unit.id, 'the unit rides along: the card shows its live HP');
+      assert.equal(v.snap.get(unit.id)[4], unit.s.maxHp);
+      // the card's numbers are the unit's (terrain.js cannonNumbers mirrors devices.js spawnCannon)
+      assert.deepEqual(tip.stats.map((s) => s.v), [unit.s.maxHp, unit.s.atk, unit.base.def]);
+      const reach = Math.abs(unit.mem.cannon.impact[0] - r) + Math.abs(unit.mem.cannon.impact[1] - c);
+      assert.ok(tip.lines[0].includes(`每 ${unit.mem.cannon.sp} 秒向前方第 ${reach} 格`), tip.lines[0]);
+      assert.ok(tip.lines[0].includes(`受到 ${unit.s.atk} 点物理伤害`), tip.lines[0]);
+    }
+  }
 });
 
 test('the prep and a scouted prep board: the stage\'s own device entries answer by pos (deviceInfo)', () => {

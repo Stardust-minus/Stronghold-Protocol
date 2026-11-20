@@ -316,15 +316,19 @@ only unequip=allow permits it in PREP before ready. `room.loadout` keeps its exi
 operators in PREP under prepLoadout=prep. Room content summaries add `rules` only when declared. No protocol version
 bump; clients without these controls keep their existing messages.
 
-Teammate rescue (队友复活, the room's experimental `revivalEnabled`, co-op only; DESIGN §36.16): `g.revive {playerId, round,
+Teammate rescue (队友复活, the room's experimental `revivalEnabled`, co-op only; DESIGN §36.16, §37.274): `g.revive {playerId, round,
 matchId}` — while SETTLE's rescue window is open (`REVIVAL_WINDOW_SECONDS` 15, opened only when a player's LP ran out and a
-donor can pay; never with a shared team LP) a human teammate still in the match with at least `REVIVAL_MIN_DONOR_LP` 11 LP
+human donor can still pay; never with a shared team LP) a human teammate still in the match with at least `REVIVAL_MIN_DONOR_LP` 11 LP
 after the round's loss pays `REVIVAL_COST` 10 and `playerId` (LP 0, its death pending) comes back at LP 1 with everything
-it held, at most once per match; whether the donor leaked or helped in a 联防 does not matter, AI seats never pay. `WRONG_PHASE` while off, outside the
+it held, at most once per match; whether the donor leaked or helped in a 联防 does not matter. AI seats never send it: since
+§37.274 an AI teammate on the same terms pays for a pending human on its own as the window would open (the AI with the most LP,
+ties by seat; `Match.aiWillRescue` decides per AI and target, true by default), never for an AI; with nothing left pending no
+window opens and SETTLE keeps its ordinary delay. Every rescue sends the rescued player an `m.toast` and everyone an
+`m.ticker` naming the donor. `WRONG_PHASE` while off, outside the
 window or for another round, `BAD_TARGET` for another match, a donor short of LP, the sender itself or a target that is
 not pending (`revival-target-finalized` / `-ineligible`), `ELIMINATED` for a donor that is out
 (server/match/match/extensions.js `revive`). `m.public.revival {enabled, cost, minDonorLp, windowOpen, deadline,
-matchId, round, eligible:[playerId…]}` (always; `eligible` = who may pay now) and `players[].revived` / `pendingDeath` /
+matchId, round, eligible:[playerId…]}` (always; `eligible` = the humans who may pay now) and `players[].revived` / `pendingDeath` /
 `revivalUnavailableReason` (`disabled`, `no-helper`, `donor-lp`, `window-expired`, `window-closed`, `already-used`,
 `left`, `match-ended`) carry it.
 

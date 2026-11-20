@@ -23,8 +23,10 @@ export const NETQ_ISPS = Object.freeze(['ct', 'cu', 'cm', 'edu', 'other', 'unkno
 export const NETQ_DEVICES = Object.freeze(['mobile', 'desktop']);
 /**
  * Province labels: the first two digits of the mainland provinces' administrative codes (GB/T 2260), 'xx' = not
- * located (no table, an IPv6 address — the province lists are IPv4 only — or an address in none of them). The server
- * sums a second, smaller set per province × ISP (seconds, round trips, lane copies, reconnects, offline time).
+ * located (no table, or an address in none of the province lists: IPv4 from metowolf/iplist, IPv6 from ip2region
+ * without its "somewhere in China" 北京市 / China Mobile 广东省 rows, tools/isp-table.mjs — a Beijing IPv6 address is xx
+ * too). The server sums a second, smaller set per province × ISP (seconds, round trips, lane copies, reconnects,
+ * offline time).
  */
 export const NETQ_PROVINCES = Object.freeze(['11', '12', '13', '14', '15', '21', '22', '23', '31', '32', '33', '34', '35', '36', '37',
   '41', '42', '43', '44', '45', '46', '50', '51', '52', '53', '54', '61', '62', '63', '64', '65', 'xx']);

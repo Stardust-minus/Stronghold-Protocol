@@ -1,6 +1,8 @@
 // Rescue cancels a deferred current SETTLE death in place. Donors need >=11 LP and spend exactly 10. Since rel35 every
 // living human teammate is a donor — a leaker, a 联防 helper or neither, in a round with or without a 联防 (the owner:
-// 「队友复活移除不漏怪的要求」; until rel34 only a leak-free helper who fought on the 联防 field).
+// 「队友复活移除不漏怪的要求」; until rel34 only a leak-free helper who fought on the 联防 field). Since §37.274 (the owner,
+// 2026-11-20) AI teammates rescue too: a human teammate only, on their own as the window opens, the AI with the most LP
+// first (ties by seat), through the one decision hook Match.aiWillRescue.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match, DELAYS } from '../../server/match/Match.js';
@@ -429,21 +431,23 @@ test('rel35: a round without 联防 (every seat leaked) still opens the window, 
   assertValid(s.m);
 });
 
-test('rel35: no-helper only when no other living human is left — AI teammates and a teammate out the same round do not count', (t) => {
-  const seats = [
-    { seat: 0, playerId: 'p_0', name: 'Target', connected: true },
-    { seat: 1, playerId: 'p_1', name: 'Also out', connected: true },
-    { seat: 2, playerId: 'p_2', name: 'AI', isBot: true },
-    { seat: 3, playerId: 'p_3', name: 'AI', isBot: true },
-  ];
-  const s = scenario(t, { seats, leaks: { p_0: 1, p_1: 1 }, survivors: { p_0: 1, p_1: 1 }, lp: { p_1: 1 } });
-  for (const id of ['p_0', 'p_1']) assert.deepEqual(s.m.handle(id, { t: 'g.ready', ready: true }), { ok: true });
-  assert.ok(s.sched.runUntil(() => s.ended.length || s.m.phase === PHASE.SETTLE || !s.ps('p_0').alive));
-  for (const id of ['p_0', 'p_1']) {
-    assert.equal(s.ps(id).alive, false); assert.equal(s.ps(id).pendingDeath, false);
-    assert.equal(s.ps(id).revivalUnavailableReason, 'no-helper', id);
-  }
-});
+for (const [label, aiLp, reason] of [['no AI teammate', null, 'no-helper'], ['AI teammates at LP10 (§37.274: they count)', 10, 'donor-lp']]) {
+  test(`rel35 ${label}: a teammate out the same round is no donor — ${reason}`, (t) => {
+    const seats = [
+      { seat: 0, playerId: 'p_0', name: 'Target', connected: true },
+      { seat: 1, playerId: 'p_1', name: 'Also out', connected: true },
+      ...(aiLp == null ? [] : [{ seat: 2, playerId: 'p_2', name: 'AI', isBot: true }, { seat: 3, playerId: 'p_3', name: 'AI', isBot: true }]),
+    ];
+    const s = scenario(t, { seats, leaks: { p_0: 1, p_1: 1 }, survivors: { p_0: 1, p_1: 1 }, lp: { p_1: 1, p_2: aiLp, p_3: aiLp } });
+    for (const id of ['p_0', 'p_1']) assert.deepEqual(s.m.handle(id, { t: 'g.ready', ready: true }), { ok: true });
+    assert.ok(s.sched.runUntil(() => s.ended.length || s.m.phase === PHASE.SETTLE || !s.ps('p_0').alive));
+    for (const id of ['p_0', 'p_1']) {
+      assert.equal(s.ps(id).alive, false); assert.equal(s.ps(id).pendingDeath, false);
+      assert.equal(s.ps(id).revivalUnavailableReason, reason, id);
+    }
+    if (aiLp != null) for (const id of ['p_2', 'p_3']) assert.equal(s.ps(id).lp, aiLp, `${id} paid nothing`);
+  });
+}
 
 for (const [label, options] of [
   ['no unite', { leaks: {}, survivors: {} }],
@@ -561,11 +565,178 @@ test('AI may be a pending rescue target but cannot initiate, even after actually
   const s = scenario(t, { seats });
   s.fight();
   assert.equal(s.m.unitePlan.helpers.some((p) => p.playerId === 'p_2'), true);
+  assert.equal(s.ps('p_2').lp, 20, '§37.274: an AI does not rescue another AI');
+  assert.equal(s.ps('p_0').pendingDeath, true);
+  assert.deepEqual(s.m.publicView().revival.eligible, ['p_1', 'p_3'], 'only humans may still send g.revive');
   assert.equal(rescue(s, 'p_2').error, ERR.NOT_IN_ROOM);
   assert.deepEqual(rescue(s), { ok: true });
   assert.equal(s.ps('p_0').lp, 1);
   assert.equal(s.ps('p_0').pendingDeath, false);
 });
+
+// §37.274 (the owner, 2026-11-20): AI teammates rescue too — a human teammate only, at once as the SETTLE window opens.
+const aiSeats = (bots = 2, humans = 2) => [
+  ...Array.from({ length: humans }, (_, seat) => ({ seat, playerId: `p_${seat}`, name: seat ? `Human${seat}` : 'Target', connected: true })),
+  ...Array.from({ length: bots }, (_, i) => ({ seat: humans + i, playerId: `p_${humans + i}`, name: `AI${humans + i}`, isBot: true })),
+];
+const toastsTo = (s, id) => s.sent.filter(([to, msg]) => to === id && msg.t === 'm.toast').map(([, msg]) => msg);
+const rescueTickers = (s) => s.broadcasts.filter((msg) => msg.t === 'm.ticker' && msg.msgid === '{donor}博士支付 10 点生命，救下了{target}博士');
+const RESCUED_TOAST = '{name}博士支付 10 点生命救下了你，你回到 1 点生命';
+const WAIT_TOAST = '你的目标生命值耗尽，等待救援';
+
+test('§37.274: the AI with the most LP rescues a human at once; the target is told who, nobody waits for a window', (t) => {
+  const s = scenario(t, { seats: aiSeats(), lp: { p_1: 20, p_2: 15, p_3: 30 } });
+  const target = s.ps('p_0'), donor = s.ps('p_3');
+  const id = chessOfTier(1).find((id) => s.m.pool.has(id));
+  const piece = give(s.m, target, id, 'board', legalTileFor(s.m, target, id));
+  let lpLost;
+  s.fight(() => { lpLost = donor.stats.lpLost; });
+  assert.equal(target.alive, true); assert.equal(target.lp, 1); assert.equal(target.revived, true);
+  assert.equal(target.pendingDeath, false); assert.equal(target.revivalUnavailableReason, null);
+  assert.ok([...target.board.values()].includes(piece), 'the board stays');
+  assert.equal(donor.lp, 20); assert.equal(donor.stats.lpLost, lpLost + 10);
+  assert.equal(s.ps('p_1').lp, 20, 'the human did not have to pay'); assert.equal(s.ps('p_2').lp, 15);
+  const view = s.m.publicView().revival;
+  assert.equal(view.windowOpen, false, 'no pending death is left: no window');
+  assert.deepEqual(view.eligible, []);
+  assert.equal(s.m.deadline - s.sched.now(), DELAYS.SETTLE, 'the ordinary SETTLE delay');
+  const toasts = toastsTo(s, 'p_0');
+  assert.ok(!toasts.some((m) => m.msgid === WAIT_TOAST), 'no 「等待救援」 for a death an AI cancelled at once');
+  const told = toasts.filter((m) => m.msgid === RESCUED_TOAST);
+  assert.equal(told.length, 1);
+  assert.equal(told[0].kind, 'success');
+  assert.deepEqual(told[0].params, { name: 'AI3' });
+  assert.equal(told[0].text, 'AI3博士支付 10 点生命救下了你，你回到 1 点生命');
+  const lines = rescueTickers(s);
+  assert.equal(lines.length, 1);
+  assert.deepEqual(lines[0].params, { donor: 'AI3', target: 'Target' });
+  assert.equal(lines[0].text, 'AI3博士支付 10 点生命，救下了Target博士');
+  assert.equal(rescue(s, 'p_1').error, ERR.WRONG_PHASE, 'no window for a human to pay again');
+  assertValid(s.m);
+  s.sched.advance(DELAYS.SETTLE);
+  assert.equal(s.m.round, 2);
+  assert.equal(target.alive, true);
+  assert.equal(target.lp, 1);
+  assert.equal(s.m.errorCount, 0);
+});
+
+test('§37.274: AIs tied on LP — the lower seat pays', (t) => {
+  const s = scenario(t, { seats: aiSeats(), lp: { p_2: 20, p_3: 20 } });
+  s.fight();
+  assert.equal(s.ps('p_0').revived, true);
+  assert.equal(s.ps('p_2').lp, 10); assert.equal(s.ps('p_3').lp, 20);
+  assert.deepEqual(rescueTickers(s)[0].params, { donor: 'AI2', target: 'Target' });
+});
+
+test('§37.274: one AI pays for each pending human in seat order while it has LP >= 11; a death no one can pay for is final at once', (t) => {
+  for (const [aiLp, both] of [[25, true], [20, false]]) {
+    const s = scenario(t, { seats: aiSeats(1), leaks: { p_0: 1, p_1: 1 }, survivors: { p_0: 1, p_1: 1 }, lp: { p_1: 1, p_2: aiLp } });
+    s.fight();
+    assert.equal(s.ps('p_0').revived, true, `LP${aiLp}: the lower seat first`);
+    assert.equal(s.ps('p_1').revived, both);
+    assert.equal(s.ps('p_1').alive, both);
+    assert.equal(s.ps('p_2').lp, both ? 5 : 10);
+    if (!both) {
+      assert.equal(s.ps('p_1').pendingDeath, false);
+      assert.equal(s.ps('p_1').revivalUnavailableReason, 'donor-lp', 'the AI has paid down to LP10 and no human can pay');
+      emptyHoldings(s.ps('p_1'));
+      assert.ok(!toastsTo(s, 'p_1').some((m) => m.msgid === WAIT_TOAST));
+    }
+    assert.equal(s.m.publicView().revival.windowOpen, false);
+    assert.equal(s.m.deadline - s.sched.now(), DELAYS.SETTLE);
+    assert.deepEqual(rescueTickers(s).map((m) => m.params.target), both ? ['Target', 'Human1'] : ['Target']);
+    assertValid(s.m);
+  }
+});
+
+test('§37.274: an AI never rescues an AI — without a human donor the AI death is final at once, as before', (t) => {
+  const seats = [
+    { seat: 0, playerId: 'p_0', name: 'AI target', isBot: true },
+    { seat: 1, playerId: 'p_1', name: 'Human', connected: true },
+    { seat: 2, playerId: 'p_2', name: 'AI donor', isBot: true },
+  ];
+  const s = scenario(t, { seats, lp: { p_1: 5 } });
+  s.fight();
+  assert.equal(s.ps('p_0').alive, false); assert.equal(s.ps('p_0').pendingDeath, false);
+  assert.equal(s.ps('p_0').revivalUnavailableReason, 'donor-lp', 'the human cannot pay; the AI does not count for an AI');
+  assert.equal(s.ps('p_2').lp, 20);
+  assert.equal(s.m.publicView().revival.windowOpen, false);
+  assert.equal(s.m.publicView().revival.deadline, 0); // a lone human's SETTLE is untimed (soloUntimed), no window either
+  assert.deepEqual(rescueTickers(s), []);
+  emptyHoldings(s.ps('p_0'));
+  assertValid(s.m);
+});
+
+test('§37.274: an AI rescues the human, the AI target waits for a human in the window', (t) => {
+  const seats = [
+    { seat: 0, playerId: 'p_0', name: 'Target', connected: true },
+    { seat: 1, playerId: 'p_1', name: 'AI target', isBot: true },
+    { seat: 2, playerId: 'p_2', name: 'Human', connected: true },
+    { seat: 3, playerId: 'p_3', name: 'AI3', isBot: true },
+  ];
+  const s = scenario(t, { seats, leaks: { p_0: 1, p_1: 1 }, survivors: { p_0: 1, p_1: 1 }, lp: { p_1: 1 } });
+  s.fight();
+  assert.equal(s.ps('p_0').revived, true); assert.equal(s.ps('p_3').lp, 10);
+  assert.equal(s.ps('p_1').pendingDeath, true);
+  const view = s.m.publicView().revival;
+  assert.equal(view.windowOpen, true);
+  assert.equal(view.deadline - s.sched.now(), 15_000);
+  assert.deepEqual(view.eligible, ['p_2']);
+  assert.deepEqual(rescue(s, 'p_2', 'p_1'), { ok: true });
+  assert.equal(s.ps('p_1').lp, 1); assert.equal(s.ps('p_2').lp, 10);
+  assert.deepEqual(rescueTickers(s).map((m) => m.params), [{ donor: 'AI3', target: 'Target' }, { donor: 'Human', target: 'AI target' }]);
+  assertValid(s.m);
+});
+
+test('§37.274: Match.aiWillRescue decides per AI and target; a refused human waits for a human, and the claim guard holds', (t) => {
+  // the next AI in line when the first refuses
+  const s = scenario(t, { seats: aiSeats(), lp: { p_2: 15, p_3: 30 } });
+  const asked = [];
+  s.m.aiWillRescue = (bot, target) => { asked.push([bot.playerId, target.playerId]); return bot.playerId !== 'p_3'; };
+  s.fight();
+  assert.deepEqual(asked, [['p_3', 'p_0'], ['p_2', 'p_0']]);
+  assert.equal(s.ps('p_2').lp, 5); assert.equal(s.ps('p_3').lp, 30);
+  assert.equal(s.ps('p_0').revived, true);
+
+  // every AI refuses: the human teammate gets the ordinary window, and a later AI pass changes nothing
+  const w = scenario(t, { seats: aiSeats() });
+  w.m.aiWillRescue = () => false;
+  w.fight();
+  assert.equal(w.ps('p_0').pendingDeath, true);
+  assert.equal(w.m.publicView().revival.windowOpen, true);
+  assert.deepEqual(w.m.publicView().revival.eligible, ['p_1']);
+  assert.ok(toastsTo(w, 'p_0').some((m) => m.msgid === WAIT_TOAST));
+  assert.deepEqual(rescue(w), { ok: true });
+  assert.deepEqual(toastsTo(w, 'p_0').filter((m) => m.msgid === RESCUED_TOAST).map((m) => m.params), [{ name: 'Human1' }]);
+  w.m.aiWillRescue = () => true;
+  w.m._aiRescues();
+  assert.deepEqual([1, 2, 3].map((i) => w.ps(`p_${i}`).lp), [10, 20, 20], 'a target a human rescued is not paid for again');
+  assert.equal(rescueTickers(w).length, 1);
+  assert.equal(rescue(w).error, ERR.BAD_TARGET);
+  assertValid(w.m);
+
+  // every AI refuses and no human can pay: final at once, no window
+  const f = scenario(t, { seats: aiSeats(), lp: { p_1: 5 } });
+  f.m.aiWillRescue = () => false;
+  f.fight();
+  assert.equal(f.ps('p_0').alive, false); assert.equal(f.ps('p_0').pendingDeath, false);
+  assert.equal(f.ps('p_0').revivalUnavailableReason, 'window-closed');
+  assert.equal(f.m.publicView().revival.windowOpen, false);
+  assert.equal(f.m.deadline - f.sched.now(), DELAYS.SETTLE);
+  emptyHoldings(f.ps('p_0'));
+  assertValid(f.m);
+});
+
+for (const [label, options] of [['the rule off', { enabled: false }], ['a shared boss LP', { beforeSettle: ({ m }) => { m.teamLp = 40; } }]]) {
+  test(`§37.274 ${label}: no AI rescue, the death is final at once`, (t) => {
+    const s = scenario(t, { seats: aiSeats(), ...options });
+    s.fight();
+    assert.equal(s.ps('p_0').alive, false); assert.equal(s.ps('p_0').revived, false); assert.equal(s.ps('p_0').pendingDeath, false);
+    assert.deepEqual([2, 3].map((i) => s.ps(`p_${i}`).lp), [20, 20]);
+    assert.deepEqual(rescueTickers(s), []);
+    assert.equal(s.m.publicView().revival.windowOpen, false);
+  });
+}
 
 for (const [label, extra, code, detail] of [
   ['old round', { round: 0 }, ERR.WRONG_PHASE, 'stale-round'],

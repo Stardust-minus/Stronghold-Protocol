@@ -144,7 +144,8 @@ export class MatchViews {
         deadline: revivalOpen ? this._revival.deadline : 0,
         matchId: this.battlePrefix,
         round: this.round,
-        eligible: revivalOpen ? this.order.filter((ps) => this.revivalDonorEligible(ps)).map((ps) => ps.playerId) : [],
+        // who may still send g.revive: the humans (an AI pays only as the window opens, extensions.js _aiRescues)
+        eligible: revivalOpen ? this.order.filter((ps) => !ps.isBot && this.revivalDonorEligible(ps)).map((ps) => ps.playerId) : [],
       },
       players: this.order.map((ps) => ({
         playerId: ps.playerId,
