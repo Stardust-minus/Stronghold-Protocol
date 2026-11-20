@@ -138,6 +138,15 @@
 //     test matches without the input journal (server/match/Match.js): g.test is routed for them although this process's
 //     test switch is off (routeGameNow). Such a room is not listed (listable), like a test room. Party matchmaking refuses a
 //     test room too (matchmakingMembers).
+//   * ELO (the owner's decisions of 2026-11-20, docs/history/0.4.0.md §37.275): `experimental.elo` — like collabOps, set by
+//     the host of a private room with room.setExperimental only (the page shows its 「此功能仅为娱乐」 reminder first),
+//     never at room.create, never in a matchmade room, and a room with it never enters matchmaking (isEloRoom: nobody is
+//     tilted in a room they did not choose). room.elo { rec } — the player's own recent [wins, games] per mode and
+//     difficulty (shared/protocol.js isEloRecords; its page sends it only in such a room) — is stored on the session and
+//     the seat like the not-owned list, never in room.state, a view or the persisted lobby state; a match of a room with
+//     the option receives seats[].elo, the pair of the room's mode and difficulty (eloPairOf; null without one, absent
+//     on every AI seat and in every other room), and keeps it for its whole length (a new one is for the next match:
+//     ROOM_STARTED 'stored for the next match').
 //   * Content identity (DESIGN §32, the plugin system's first step): the lobby is given the server's vanilla content
 //     (server/plugins/identity.js; none in unit tests that build a Lobby without it). Every `welcome` carries
 //     `content: { vanilla: <cs> }` — and `plugins: <n>` when this server has n > 0 unofficial plugins (every class but a
@@ -285,11 +294,13 @@
 
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover, afterReconcile } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, ROOM_LIST_MAX, ROOM_LIST_MIN_CAPACITY, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, isOfficialAvatar } from '../shared/protocol.js';
+import { eloPairOf } from '../shared/elo.js';
 import { isSkinChoices, skinFor } from '../shared/skins.js';
 import { CARD_ROSTER } from '../shared/card-roster.js';
-import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isCollabRoom, isConsoleRoom, isExperimental, sameExperimental } from '../shared/experimental.js';
+import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isCollabRoom, isConsoleRoom, isEloRoom, isExperimental, sameExperimental } from '../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, PLAYER_CAPACITY_VERSION, roomCapacity } from '../shared/playerCapacity.js';
 import { encode, isErrCode, sendEncodedMany, sendMessage, sendRaw, sendSession, TokenBucket } from './net.js';
 import { isCompressibleType } from './wsCompression.js';
@@ -407,9 +418,9 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
  *             notOwned?: readonly string[] | null, diy?: Readonly<Record<string, DiyLoadout>> | null,
  *             skins?: Readonly<Record<string, string>>, band?: string | null, card?: Card | null, owner?: boolean,
  *             content?: 'ready' | 'failed' | null, contentGen?: number, loadoutCs?: string | null, notOwnedCs?: string | null,
- *             diyCs?: string | null, consentCs?: string | null }} Seat
+ *             diyCs?: string | null, consentCs?: string | null, elo?: Readonly<Record<string, readonly number[]>> | null }} Seat
  *   (`band`: AI seats only — the strategy room.setBotBand designated, null = the AI picks by itself; `card` / `owner`:
- *   human seats only, display only — room.card and the 服主 mark)
+ *   human seats only, display only — room.card and the 服主 mark; `elo`: human seats only, never shown — room.elo)
  *   content: a room with gameplay plugins — whether the player's page loaded and checked its content (header "Gameplay
  *   plugins"; null = still loading); contentGen: counts the seat's disconnects (a queued room.contentReady of an earlier
  *   page no longer counts); loadoutCs / notOwnedCs / diyCs: the content its settings were checked for
@@ -1191,6 +1202,7 @@ export class Lobby {
       case 'room.loadout': return this.loadout(session, msg);
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
+      case 'room.elo': return this.elo(session, msg);
       case 'room.skins': return this.skins(session, msg);
       case 'room.card': return this.setCard(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
@@ -1352,6 +1364,8 @@ export class Lobby {
     if (isCollabRoom(experimental)) return fail(ERR.BAD_MSG, 'collabOps: turned on in the room settings only');
     // 调控台 (header): the same — the host confirms its warning in the room settings
     if (isConsoleRoom(experimental)) return fail(ERR.BAD_MSG, 'console: turned on in the room settings only');
+    // ELO (header): the same — the host sees its 「此功能仅为娱乐」 reminder in the room settings
+    if (isEloRoom(experimental)) return fail(ERR.BAD_MSG, 'elo: turned on in the room settings only');
     if (roomCapacity(mode, experimental) > MAX_SEATS && !this.supportsCapacity(session)) return fail(ERR.BAD_MSG);
     if (this.maintenance()) return fail(ERR.MAINTENANCE);
     if (this.queue.has(session)) return fail(ERR.QUEUED);
@@ -1586,6 +1600,7 @@ export class Lobby {
     if (room.source !== 'private' && capacity !== room.capacity) return fail(ERR.BAD_MSG, 'matchmade room capacity cannot change');
     if (room.source !== 'private' && isCollabRoom(experimental)) return fail(ERR.BAD_MSG, 'collabOps: private rooms only');
     if (room.source !== 'private' && isConsoleRoom(experimental)) return fail(ERR.BAD_MSG, 'console: private rooms only');
+    if (room.source !== 'private' && isEloRoom(experimental)) return fail(ERR.BAD_MSG, 'elo: private rooms only');
     if (capacity > MAX_SEATS && (!this.supportsCapacity(session) || !this.capacityClients(room, capacity))) return fail(ERR.BAD_MSG);
     // Reject before touching options, ready flags, replay or seats, including a
     // disconnected human / AI in a high slot. A shrink never reassigns seats.
@@ -2487,6 +2502,8 @@ export class Lobby {
     if (isCollabRoom(room.experimental)) return fail(ERR.BAD_MSG, 'a room with collabOps on cannot enter matchmaking');
     // a test match's commands and a 调控台 room's (header) never reach a matchmade room
     if (room.test || isConsoleRoom(room.experimental)) return fail(ERR.BAD_MSG, 'a test or console room cannot enter matchmaking');
+    // ELO (header): nobody is tilted in a room they did not choose
+    if (isEloRoom(room.experimental)) return fail(ERR.BAD_MSG, 'a room with elo on cannot enter matchmaking');
     if (room.activeHumans().some(seat => !seat.connected || (seat.playerId !== room.hostId && seat.ready !== true))) return fail(ERR.NOT_READY);
     // a version room: every page holds the version's data already (its matchmade room starts with it)
     if (room.needsContent && room.activeHumans().some((seat) => seat.content !== 'ready')) return fail(ERR.CONTENT_NOT_READY);
@@ -2636,6 +2653,7 @@ export class Lobby {
     if (!isExperimental(offer.experimental) || roomCapacity('coop', offer.experimental) !== offer.required) return fail(ERR.BAD_MSG);
     if (isCollabRoom(offer.experimental)) return fail(ERR.BAD_MSG, 'a matchmade room never has collabOps');
     if (isConsoleRoom(offer.experimental)) return fail(ERR.BAD_MSG, 'a matchmade room never has the console');
+    if (isEloRoom(offer.experimental)) return fail(ERR.BAD_MSG, 'a matchmade room never has elo');
     const oldRooms = new Set();
     for (const session of sessions) {
       const entry = this.queue.entries.get(session.playerId);
@@ -2715,6 +2733,22 @@ export class Lobby {
     const seat = room.seatOf(session.playerId);
     if (seat) { seat.notOwned = list; seat.notOwnedCs = cs; }
     if (room.match && seat) return fail(ERR.ROOM_STARTED, 'stored for the next match');
+    return OK;
+  }
+
+  /**
+   * room.elo (§37.275, header "ELO"): the player's own recent results, stored on the session and the seat. A running match
+   * never takes them: it keeps the pair its seat had at its start.
+   */
+  elo(session, { rec }) {
+    // the same counts again keep the stored object (a start being prepared is not invalidated by a resend: ClusterLobby)
+    const kept = isDeepStrictEqual(session.elo, rec) ? session.elo
+      : Object.freeze(Object.fromEntries(Object.entries(rec).map(([k, v]) => [k, Object.freeze([v[0], v[1]])])));
+    session.elo = kept;
+    const room = this.roomOf(session);
+    const seat = room ? room.seatOf(session.playerId) : null;
+    if (seat) seat.elo = kept;
+    if (room?.match && seat) return fail(ERR.ROOM_STARTED, 'stored for the next match');
     return OK;
   }
 
@@ -3020,6 +3054,8 @@ export class Lobby {
         notOwned: own ? own.notOwned : null,
         // 0.2.0 自选编队: the human's checked DIY picks (bots field no 自选 piece [ASSUMED])
         diy: own ? own.diy : null,
+        // ELO (header): the human's own [wins, games] of the room's mode and difficulty — only in a room with the option
+        ...(own && isEloRoom(room.experimental) ? { elo: eloPairOf(s.elo, room.mode, room.difficulty) } : {}),
         skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }),
         // room.setBotBand: an AI seat's designated strategy (absent when it picks by itself)
         ...(s.isBot && s.band ? { band: s.band } : {}),
@@ -3471,6 +3507,8 @@ export class Lobby {
       ops: session.ops || null,
       notOwned: session.notOwned || null,
       diy: session.diy || null,
+      // ELO (header): the player's own recent results (room.elo), never shown to anybody
+      elo: session.elo || null,
       skins: Object.freeze({ ...(session.skins || {}) }),
       card: session.card || null,
       owner: session.owner === true,

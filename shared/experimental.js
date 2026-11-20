@@ -9,7 +9,7 @@ export const EXPERIMENTAL_DEFAULTS = Object.freeze({ revivalEnabled: false, disa
  * Optional booleans: absent when off, so an ordinary room, a saved room and a queue key keep their old shape.
  * @type {ReadonlySet<string | symbol>}
  */
-const OPTIONAL_FLAGS = new Set(['disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'collabOps', 'console', 'uniteHumansFirst', 'staticPoolSplit']);
+const OPTIONAL_FLAGS = new Set(['disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'collabOps', 'console', 'uniteHumansFirst', 'staticPoolSplit', 'elo']);
 /**
  * The enemy multipliers a room can pick (feedback #47); the first, a standard room's, is never stored: an ordinary room,
  * a saved room and a queue key keep their old shape.
@@ -75,7 +75,7 @@ const hpKey = value => {
 export function isExperimental(value) {
   if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return false;
   const keys = Reflect.ownKeys(value);
-  if (keys.length < 2 || keys.length > 14) return false;
+  if (keys.length < 2 || keys.length > 15) return false;
   for (const key of Object.keys(EXPERIMENTAL_DEFAULTS)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor?.enumerable !== true || typeof descriptor.value !== 'boolean') return false;
@@ -96,11 +96,12 @@ export function isExperimental(value) {
  * @param {{ revivalEnabled: boolean, disableSharedPool: boolean, playerCapacity?: number, disableDuckLord?: boolean,
  *   disableLayerCap?: boolean, disableHitLimit?: boolean, enemyHpMul?: number, enemyAtkMul?: number,
  *   enemyHpPlan?: readonly (readonly number[])[], poolPlan?: readonly number[], collabOps?: boolean, console?: boolean,
- *   uniteHumansFirst?: boolean, staticPoolSplit?: boolean }} [value]
+ *   uniteHumansFirst?: boolean, staticPoolSplit?: boolean, elo?: boolean }} [value]
  *   `poolPlan`: 手动指定卡池编组, one pool number per seat (shared/poolPlan.js); it states every seat's pool, so it replaces
  *   禁用共享卡池. `enemyHpPlan`: 敌人生命倍率 by round (isEnemyHpPlan); it replaces enemyHpMul. `collabOps`: 联动干员
  *   (isCollabRoom). `console`: 调控台 (isConsoleRoom). `uniteHumansFirst`: AI 联防置后 (server/match/unite.js helperOrder).
  *   `staticPoolSplit`: 卡池静态初始化 (isStaticPoolSplit); dropped under 禁用共享卡池, where every seat has a whole pool.
+ *   `elo`: ELO (isEloRoom), any mode.
  */
 export function experimentalOptions(value = EXPERIMENTAL_DEFAULTS) {
   if (!isExperimental(value)) throw new TypeError('invalid experimental options');
@@ -118,7 +119,8 @@ export function experimentalOptions(value = EXPERIMENTAL_DEFAULTS) {
     ...(value.collabOps === true ? { collabOps: true } : {}),
     ...(value.console === true ? { console: true } : {}),
     ...(value.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}),
-    ...(value.staticPoolSplit === true && !(value.disableSharedPool && !value.poolPlan) ? { staticPoolSplit: true } : {}) });
+    ...(value.staticPoolSplit === true && !(value.disableSharedPool && !value.poolPlan) ? { staticPoolSplit: true } : {}),
+    ...(value.elo === true ? { elo: true } : {}) });
 }
 
 /** The HP rule as stored: a plan (it replaces the single multiplier), else the single multiplier when ≠ 1, else nothing. */
@@ -137,7 +139,7 @@ export const experimentalKey = value => {
   const capacity = roomCapacity('coop', value);
   const legacy = capacity === MAX_SEATS ? key : `${key}:${capacity}`;
   const hp = hpKey(value), atk = enemyMultiplier(value.enemyAtkMul);
-  return `${duckLordDisabled(value) ? `${legacy}:duck` : legacy}${value.disableLayerCap === true ? ':layers' : ''}${value.disableHitLimit === true ? ':hits' : ''}${hp ? `:${hp}` : ''}${atk !== 1 ? `:atk${atk}` : ''}${value.poolPlan ? `:pools${planKey(value)}` : ''}${value.collabOps === true ? ':collab' : ''}${value.console === true ? ':console' : ''}${value.uniteHumansFirst === true ? ':humans' : ''}${value.staticPoolSplit === true ? ':split' : ''}`;
+  return `${duckLordDisabled(value) ? `${legacy}:duck` : legacy}${value.disableLayerCap === true ? ':layers' : ''}${value.disableHitLimit === true ? ':hits' : ''}${hp ? `:${hp}` : ''}${atk !== 1 ? `:atk${atk}` : ''}${value.poolPlan ? `:pools${planKey(value)}` : ''}${value.collabOps === true ? ':collab' : ''}${value.console === true ? ':console' : ''}${value.uniteHumansFirst === true ? ':humans' : ''}${value.staticPoolSplit === true ? ':split' : ''}${value.elo === true ? ':elo' : ''}`;
 };
 export const sameExperimental = (a, b) => !!a && !!b
   && a.revivalEnabled === b.revivalEnabled && a.disableSharedPool === b.disableSharedPool
@@ -151,7 +153,8 @@ export const sameExperimental = (a, b) => !!a && !!b
   && (a.collabOps === true) === (b.collabOps === true)
   && (a.console === true) === (b.console === true)
   && (a.uniteHumansFirst === true) === (b.uniteHumansFirst === true)
-  && (a.staticPoolSplit === true) === (b.staticPoolSplit === true);
+  && (a.staticPoolSplit === true) === (b.staticPoolSplit === true)
+  && (a.elo === true) === (b.elo === true);
 
 /**
  * Whether a room's options change a rule of the game, whatever the seat count: any key but playerCapacity that is set
@@ -207,6 +210,18 @@ export const isUniteHumansFirst = value => !!value && typeof value === 'object' 
 export const isStaticPoolSplit = value => !!value && typeof value === 'object' && value.staticPoolSplit === true;
 
 /**
+ * ELO (the owner's decisions of 2026-11-20, docs/history/0.4.0.md §37.273 / §37.275): with `elo` on, every human seat of
+ * the room's matches is tilted by that player's OWN recent win rate — the counts its page keeps (public/js/ui/eloRecords.js,
+ * room.elo) — towards 50 %: the server reweights that seat's own shop and pool draws (server/match/tilt.js) and decides an
+ * AI teammate's rescue of it; AI seats are never tilted. Fun only (the page says 「此功能仅为娱乐」); its matches count for
+ * records and achievements as any. Set by the host of a private (自建) room in the room settings after that reminder, never
+ * at room.create; a matchmade room never has it and a room with it never enters matchmaking (server/lobby.js: strangers
+ * would be tilted without having chosen it). A rel45 server refuses it (isExperimental), as any unknown option.
+ * @param {any} value a room's / match's experimental options
+ */
+export const isEloRoom = value => !!value && typeof value === 'object' && value.elo === true;
+
+/**
  * The categories of the experimental options (the owner, 2026-11-16: 「实验性功能需要拆分成多个分类，目前单个大项下的选项太
  * 多了」): every option belongs to exactly one, in this order. The room's dialog (ui/roomSettings.js), 多人匹配's own options
  * (ui/matchmaking.js) and every summary — the room's 实验性功能 badge, 确认入场 (ui/matchOffer.js) — list them by these
@@ -219,7 +234,7 @@ export const EXPERIMENTAL_GROUPS = Object.freeze([
   Object.freeze({ id: 'bonds', label: N_('盟约与策略'), keys: Object.freeze(['disableLayerCap', 'disableDuckLord']) }),
   Object.freeze({ id: 'enemy', label: N_('敌人'), keys: Object.freeze(['enemyHpMul', 'enemyHpPlan', 'enemyAtkMul', 'disableHitLimit']) }),
   Object.freeze({ id: 'pools', label: N_('卡池'), keys: Object.freeze(['disableSharedPool', 'staticPoolSplit', 'poolPlan']) }),
-  Object.freeze({ id: 'special', label: N_('特殊功能'), keys: Object.freeze(['collabOps', 'console']) }),
+  Object.freeze({ id: 'special', label: N_('特殊功能'), keys: Object.freeze(['collabOps', 'console', 'elo']) }),
 ]);
 /** The group of an option field, or null. @param {string} key */
 export const experimentalGroupOf = key => EXPERIMENTAL_GROUPS.find(group => group.keys.includes(key))?.id ?? null;
@@ -227,8 +242,8 @@ export const experimentalGroupOf = key => EXPERIMENTAL_GROUPS.find(group => grou
 /**
  * The options a lone 多人匹配 ticket may bring (queue.join `rules` 'custom' + `experimental`, the owner 2026-11-16: 「匹配
  * 玩家也支持调整实验性功能，然后带着这个实验性功能配置进入匹配」; server/matchmaking.js): the rules of the game only — not the
- * seat count (the ticket's sizes say it), not 手动指定卡池编组 (nobody knows the seats yet), not 联动干员 / 调控台 (a private
- * room's alone).
+ * seat count (the ticket's sizes say it), not 手动指定卡池编组 (nobody knows the seats yet), not 联动干员 / 调控台 / ELO (a
+ * private room's alone).
  */
 export const QUEUE_OPTION_KEYS = Object.freeze(['revivalEnabled', 'disableSharedPool', 'staticPoolSplit', 'uniteHumansFirst', 'disableLayerCap', 'disableDuckLord',
   'enemyHpMul', 'enemyHpPlan', 'enemyAtkMul', 'disableHitLimit']);

@@ -10,6 +10,7 @@ import { createPoolGroups, dealChessShares, dealItemShares, poolGroupOf, splitPo
 import { createRng, deriveSeed } from '../../sim/rng.js';
 import { REVIVAL_COST, REVIVAL_MIN_DONOR_LP, REVIVAL_UNAVAILABLE_REASONS, FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 import { buildOutResult } from '../results.js';
+import { eloWillRescue } from '../tilt.js';
 
 const DAMAGE_PUBLIC_MS = 1000;
 
@@ -271,10 +272,11 @@ export class MatchExtensions {
   /**
    * THE decision hook of an AI rescue (§37.274): whether the AI `bot` pays for the pending human `target` now. Asked only
    * once the rule's terms hold (bot: alive, not left, LP >= 11; target: pending, never rescued), in the order the AIs would
-   * pay (most LP first, ties by seat), until one says yes. true by default — every AI rescues; a later feature (ELO) may
-   * replace it to decide per target. Must not change any state: it may be asked about several AIs for one target.
+   * pay (most LP first, ties by seat), until one says yes. true by default — every AI rescues; in an ELO room (§37.275,
+   * tilt.js eloWillRescue) a target the tilt hinders (s < 0) only with chance 1 + s, one draw of the match's own stream of
+   * this round and target. Must not change any state: it may be asked about several AIs for one target.
    */
-  aiWillRescue(_bot, _target) { return true; }
+  aiWillRescue(_bot, target) { return eloWillRescue(this, target); }
 
   /**
    * The AI teammates' rescues (§37.274, the owner 2026-11-20), as the SETTLE window opens: every pending human, in seat

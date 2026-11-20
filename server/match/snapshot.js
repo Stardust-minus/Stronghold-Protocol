@@ -38,7 +38,8 @@ import { setTilt, tiltOf } from './tilt.js';
  */
 export const SNAPSHOT_VERSION = 2;
 // (卡池静态初始化, 2026-11-20: `poolSplit` is additive — written only for a match with the room's staticPoolSplit, which
-// a server without it refuses as an unknown option — so v2 stays; any other checkpoint is unchanged and loads as before.)
+// a server without it refuses as an unknown option — so v2 stays; any other checkpoint is unchanged and loads as before.
+// ELO, §37.275: `eloSecret` the same way — only for a match with the room's elo.)
 
 /** Phases whose state is fully serializable (see the header). */
 export const SNAPSHOT_PHASES = Object.freeze([PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.SP_DRAFT, PHASE.ROUND_START, PHASE.PREP]);
@@ -81,6 +82,9 @@ export const MATCH_FIELDS = Object.freeze({
   special: Object.freeze([
     'phase', 'round', 'deadline', 'startedAt', '_battleSeq', 'damageBoard', 'poolGroups', 'playerItemPools',
     ...RNG_NAMES,
+    // ELO (tilt.js eloSeed, §37.275): the match's own secret, only in a match with the option (`eloSecret` of the document;
+    // null otherwise and not written) — the checkpoint stays on the server (server/persist/, a match host's IPC)
+    'eloSecret',
   ]),
   derived: Object.freeze([
     'opts', 'roomCode', 'mode', 'difficulty', 'modeId', 'seed', 'log', 'sendFn', 'broadcastFn', 'onEndFn', 'data', 'cs', 'vs',
@@ -102,6 +106,8 @@ export const MATCH_FIELDS = Object.freeze({
     'verifyHub',
     // 0.4.0: the per-seat bot strategies (opts / SP_BOT_STRATEGY_SEATS); a modded room's content list and rules (opts)
     'seatBots', 'diyKitted', 'rules',
+    // the ELO room option (from opts.experimental; its secret is `special`)
+    'elo',
   ]),
   transient: Object.freeze([
     '_rehearsalTasks', 'paused', '_pausedAt',
@@ -369,6 +375,8 @@ function buildSnapshot(m) {
     // shares — per seat its chess [cap, left], its equipment caps and debt (pool.js splitPoolGroup)
     ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}),
     rng: Object.fromEntries(RNG_NAMES.map((n) => [n, m[n].state() >>> 0])),
+    // ELO (additive like poolSplit): the secret of the tilted streams, which a restore needs for the ones it derives anew
+    ...(m.eloSecret != null ? { eloSecret: m.eloSecret >>> 0 } : {}),
     damageBoard: encodeValue({ ...m.damageBoard }),
   };
   // a vote in INFO_CHECK is dropped on restore: keep its paused confirmation budget instead of a zero deadline
@@ -444,6 +452,8 @@ export function checkSnapshot(m, doc) {
   const players = Array.isArray(doc.players) ? doc.players : [];
   if (players.length !== m.players.size || players.some((p) => !m.players.has(p?.playerId))) return 'seats';
   if (!Array.isArray(doc.pools) || !doc.match || typeof doc.match !== 'object' || !doc.rng) return 'shape';
+  // an ELO match goes on with its own secret only (tilt.js eloSeed)
+  if (m.elo && !Number.isInteger(doc.eloSecret)) return 'elo';
   return null;
 }
 
@@ -475,6 +485,7 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
     const state = doc.rng[name];
     if (Number.isInteger(state)) m[name] = createRngFromState(state >>> 0);
   }
+  if (m.elo) m.eloSecret = doc.eloSecret >>> 0;
   if (doc.damageBoard && typeof doc.damageBoard === 'object') Object.assign(m.damageBoard, decodeValue(doc.damageBoard));
   m.stage = m.stageId ? m.gd.stage(m.stageId) : null;
   // the game data a release ships may have dropped what the checkpoint holds: such a match does not come back
@@ -675,5 +686,6 @@ export function matchState(m) {
     p.lastEmoteAt = encodeValue(Number.isFinite(ps.lastEmoteAt) ? m.sched.now() - ps.lastEmoteAt : ps.lastEmoteAt);
     players[ps.playerId] = p;
   }
-  return { phase: m.phase, round: m.round, match, pools, ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}), rng, players };
+  return { phase: m.phase, round: m.round, match, pools, ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}), rng,
+    ...(m.eloSecret != null ? { eloSecret: m.eloSecret } : {}), players };
 }

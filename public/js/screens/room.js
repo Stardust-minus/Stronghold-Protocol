@@ -82,7 +82,8 @@ import { usePresence, useRise, afterLeave } from '../ui/transitions.js';
 import { ExperimentalBadge } from '../ui/experimental.js';
 import { CollabNotice } from '../ui/collab.js';
 import { ConsoleNotice } from '../ui/consoleRoom.js';
-import { isCollabRoom, isConsoleRoom } from '../../../shared/experimental.js';
+import { EloNotice, eloSeen, markEloSeen, showEloPanel } from '../ui/eloPanel.js';
+import { isCollabRoom, isConsoleRoom, isEloRoom } from '../../../shared/experimental.js';
 import { RoomSettings, settingsPage } from '../ui/roomSettings.js';
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { QueueFlow, queueActive } from '../ui/matchmaking.js';
@@ -156,6 +157,7 @@ export function partyQueueReason(room, myId, online = true, versions = undefined
   if (room.hostId !== myId) return t('由同盟创建者发起组队匹配');
   if (isCollabRoom(room.experimental)) return t('开启联动干员的同盟不能组队匹配');
   if (isConsoleRoom(room.experimental)) return t('开启调控台的同盟不能组队匹配');
+  if (isEloRoom(room.experimental)) return t('开启 ELO 的同盟不能组队匹配');
   if (isModdedRoom(room)) return t('使用玩法插件的同盟不能组队匹配');
   const version = roomVersion(room);
   if (versions !== undefined && !versionQueueable({ versions }, version)) return t('「{version}」暂不开放组队匹配', { version: versionLabel(version) });
@@ -525,6 +527,14 @@ export function RoomScreen() {
     setVersionOpen(false);
     toast(t('同盟已切换到「{version}」', { version: versionLabel(roomVersion(room)) }), 'success');
   }, [room?.code, room?.version]);
+  // ELO (ui/eloPanel.js, §37.275): a seated player who meets the option in a room — joining it, or its host turning it on —
+  // sees the own panel once before a match takes it (the host saw it in the reminder: markEloSeen)
+  const eloOn = !!room && isEloRoom(room.experimental) && !room.inMatch && !isSpectating(room, me.playerId);
+  useEffect(() => {
+    if (!eloOn || eloSeen(room.code)) return;
+    markEloSeen(room.code);
+    showEloPanel({ mode: room.mode, difficulty: room.difficulty, revival: room.experimental?.revivalEnabled === true });
+  }, [eloOn, room?.code]);
 
   if (!room) return null;
   const online = conn.status === 'online';
@@ -741,11 +751,12 @@ export function RoomScreen() {
     <${VersionVote} room=${room} />
     ${isCollabRoom(room.experimental) ? html`<div class="rs-collab"><${CollabNotice} /></div>` : null}
     ${isConsoleRoom(room.experimental) ? html`<div class="rs-collab"><${ConsoleNotice} /></div>` : null}
+    ${isEloRoom(room.experimental) ? html`<div class="rs-collab"><${EloNotice} room=${room} seated=${!facts.spectating} /></div>` : null}
     ${bannerText ? html`<p class="rs-verbanner" data-testid="version-banner"><${Icon} name="info" />${bannerText}</p>` : null}
 
     <footer class="rs-foot">
       <div class="rs-foot__left">
-        <${ExperimentalBadge} value=${room.experimental} mode=${room.mode} disabled=${!!busy || queued} onOpen=${() => setSettings(settingsPage(room, 'experimental'))} />
+        <${ExperimentalBadge} value=${room.experimental} mode=${room.mode} difficulty=${facts.spectating ? null : room.difficulty} disabled=${!!busy || queued} onOpen=${() => setSettings(settingsPage(room, 'experimental'))} />
       </div>
       <div class="rs-foot__center">
         <p class="rs-hint">${coop ? html`<span class="rs-ready num" title=${t('已就绪')}>${facts.humans.map((s) => html`<${Icon} key=${s.playerId} name="user" class=${facts.isReady(s) ? 'is-on' : ''} />`)}<b>${facts.readyHumans}</b>/${facts.humans.length}</span>` : null}${statusLine}</p>

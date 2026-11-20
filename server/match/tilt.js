@@ -1,9 +1,13 @@
-// server/match/tilt.js — experimental ELO tilt (§37.273, the owner's decisions of 2026-11-20): a seat's hidden strength
-// `s` ∈ [-1, 1] (step 2: from that player's own win rate, only in a room with the option on; step 1: a test hook,
-// setTilt) reweights the seat's OWN random draws of operators and equipment — never a battle, an enemy, a teammate's
-// draw or anything shared — so its win rate drifts towards 50%: s > 0 deals the cards it needs more often, s < 0 less.
+// server/match/tilt.js — experimental ELO tilt (§37.273 / §37.275, the owner's decisions of 2026-11-20): a seat's hidden
+// strength `s` ∈ [-1, 1] — in a room with the ELO option (shared/experimental.js isEloRoom) from that player's own
+// recent win rate (shared/elo.js eloTilt, ELO_MAP; AI seats never), else only by the test hook setTilt — reweights the
+// seat's OWN random draws of operators and equipment — never a battle, an enemy, a teammate's draw or anything shared —
+// so its win rate drifts towards 50%: s > 0 deals the cards it needs more often, s < 0 less; an AI teammate's rescue of
+// it depends on it too.
 //
 // Server-only on purpose: server/sim/** and shared/** are served to browsers (server/http/static.js), this file never is.
+// Only the mapping a player is shown — win rate → s → level — is shared (shared/elo.js, the owner 2026-11-20: every
+// player sees their own numbers in the room's panel); the relevance, the weights and every random stream stay here.
 //
 // The rule (every lever: a reweighting inside the existing single draw, the number of rng() calls never changes):
 //   * relevance r ∈ [0, 1] of each candidate from the seat's state at the roll (no rng; chessRelevance / itemRelevance):
@@ -11,15 +15,20 @@
 //     (counted over everything the seat owns, as if deployed), of its 预选盟约 or its strategy's home bond, 转职装备 for a
 //     live bond, the 转职球 (变形同构体), the second copy of a held item. STRATEGY_TAGS raises r for what a strategy lives
 //     on (复奏 the merges, 变形者集群 the 转职 pairs, a bond strategy its bond …).
-//   * weight = base · M^(s·r); hindering with a `floor` set, a card with r ≥ `cut` goes to lerp(M^(s·r), floor, |s|) —
-//     at s = −1 exactly the floor, which may be 0: the card stays in the pool and every count stays true, it is just not
-//     dealt to this seat. A card without stock never gets weight (the pool's own gates run first).
+//   * weight = base · M^(s·r); hindering with a `floor` set, a card with r ≥ `cut` goes to lerp(M^(s·r), floor, mix)
+//     (mix: |s| unless the tilt names it — the ELO room's mapping does) — at mix 1 exactly the floor, which may be 0: the
+//     card stays in the pool and every count stays true, it is just not dealt to this seat. A card without stock never gets weight (the pool's own gates run first).
 //   * then every tier is rescaled to its untilted total, so the tier shares stay exactly as without the tilt; a tier
 //     whose every card was floored to 0 keeps its untilted weights. `tier` (the tier lever, off by default) instead
 //     moves up to that share of every tier's mass one tier up (s > 0) or down (s < 0) in the shop's own rolls.
 //   * no tilt (absent, s = 0) → the callers take their untouched code path: the same draws, the same results.
+//   * the match seed reaches every page (battle ids, m.result), so in an ELO room every stream a tilt draws from — the
+//     shop's, the 机变 draft's, the meta grants', the solo draft's second set, the rescue's — comes from the match's own
+//     server secret (Match.eloSecret, eloSeed; saved in the checkpoint, never sent): a page cannot tell a tilted draw
+//     from the seed. A tilt set by the test hook alone keeps the seed's streams.
 
 import { computeBonds, thresholdsOf } from './bondsMeta.js';
+import { createRng, deriveSeed } from '../sim/rng.js';
 
 /** Default weight base M. */
 export const TILT_BASE = 2;
@@ -85,11 +94,11 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const num = (v, d) => (v == null || v === '' || !Number.isFinite(Number(v)) ? d : Number(v));
 
 /**
- * The test hook (step 1; step 2 sets it from the player's rating in a room with the option): a seat's tilt, normalized.
- * `s` the strength, `m` the base M (≥ 1), `floor` (null = none) and `cut` the hindering floor, `tier` the tier lever's
- * share (0 = off, at most TILT_TIER_MAX), `core` false to switch the relevance weighting off (the tier lever alone).
- * s = 0 removes it.
- * @param {any} ps @param {{ s: number, m?: number, floor?: number|null, cut?: number, tier?: number, core?: boolean }|null} opts
+ * A seat's tilt, normalized (the ELO room's Match constructor with eloTilt, a checkpoint's restore, the test hook).
+ * `s` the strength, `m` the base M (≥ 1), `floor` (null = none) and `cut` the hindering floor, `mix` how far a card of
+ * r ≥ cut has gone to the floor (0 … 1; absent = |s|, step 1's rule), `tier` the tier lever's share (0 = off, at most
+ * TILT_TIER_MAX), `core` false to switch the relevance weighting off (the tier lever alone). s = 0 removes it.
+ * @param {any} ps @param {{ s: number, m?: number, floor?: number|null, cut?: number, mix?: number|null, tier?: number, core?: boolean }|null} opts
  */
 export function setTilt(ps, opts) {
   const s = clamp(num(opts?.s, 0), -1, 1);
@@ -97,9 +106,36 @@ export function setTilt(ps, opts) {
   const floor = opts.floor == null ? null : clamp(num(opts.floor, 0), 0, 1);
   ps.tilt = {
     s, m: Math.max(1, num(opts.m, TILT_BASE)), floor, cut: clamp(num(opts.cut, TILT_CUT), 0, 1),
+    // (only when given: a step-1 tilt keeps its shape)
+    ...(opts.mix != null && floor != null ? { mix: clamp(num(opts.mix, 1), 0, 1) } : {}),
     tier: clamp(num(opts.tier, 0), 0, TILT_TIER_MAX), core: opts.core !== false,
   };
   return ps.tilt;
+}
+
+// The ELO room option's mapping — a player's [wins, games] → shrunk win rate → { s, m, floor, mix } — is shared/elo.js
+// (ELO_MAP, eloTilt): the room's panel shows a player exactly what eloTilt gives the server here.
+export { ELO_MAP, eloRate, eloTilt, eloTiltAt } from '../../shared/elo.js';
+
+/**
+ * A seed of the ELO match's own secret (Match.eloSecret: never sent, saved in the checkpoint) — the streams a tilt draws
+ * from in such a match; the match seed without one (a tilt by the test hook). @param {any} m @param {string} salt
+ */
+export function eloSeed(m, salt) {
+  return m.eloSecret != null ? deriveSeed(m.eloSecret, salt) : deriveSeed(m.seed, salt);
+}
+
+/**
+ * Whether an AI teammate rescues `target` now (extensions.js aiWillRescue, §37.274): outside an ELO room, or a target
+ * without a tilt or with s > 0, always; with s < 0 when one draw of the match's own stream of this round and seat
+ * (eloSeed: no stream moves, the same answer for every AI asked) is below 1 + s.
+ * @param {any} m @param {any} target
+ */
+export function eloWillRescue(m, target) {
+  const t = m.elo === true ? tiltOf(target) : null;
+  if (!t || t.s > 0) return true;
+  const u = createRng(eloSeed(m, `rescue:${m.round}:${target.seat}`))();
+  return u < 1 + t.s;
 }
 
 /** The seat's tilt, or null (off: absent or s = 0 — the callers keep their untouched path). */
@@ -112,7 +148,7 @@ export function tiltOf(ps) {
 export function tiltFactor(t, r) {
   if (!(r > 0) || t.core === false) return 1;
   const f = Math.pow(t.m, t.s * r);
-  if (t.s < 0 && t.floor != null && r >= t.cut) return f + (t.floor - f) * -t.s;
+  if (t.s < 0 && t.floor != null && r >= t.cut) return f + (t.floor - f) * (t.mix ?? -t.s);
   return f;
 }
 

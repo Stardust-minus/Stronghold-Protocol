@@ -4,9 +4,10 @@
 // matchmade room (source 'matchmaking': no seat count, no 联动干员 / 调控台), a solo room (no teammates, no pools), a
 // 多人匹配 ticket (source 'queue', ui/matchmaking.js: the rules of the game only, QUEUE_OPTION_KEYS) — and optionGroups
 // the groups a place has. experimentalItems lists what is on, by group: the room's 实验性功能 badge and its 浮窗
-// (ExperimentalBadge), 确认入场 (ui/matchOffer.js) and the ticket's summary all read it (ExperimentalDetails).
+// (ExperimentalBadge), 确认入场 (ui/matchOffer.js) and the ticket's summary all read it (ExperimentalDetails). ELO's
+// switch shows its 「此功能仅为娱乐」 reminder first (eloRow).
 import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { html, Icon, placeTooltip } from './components.js';
+import { html, Icon, confirmDialog, placeTooltip } from './components.js';
 import { t, tc, tParts } from '../../../shared/i18n.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
 import { PLAYER_CAPACITIES, isPlayerCapacity, roomCapacity } from '../../../shared/playerCapacity.js';
@@ -14,6 +15,7 @@ import { ENEMY_HP_PLAN_MAX, ENEMY_MULTIPLIERS, EXPERIMENTAL_GROUPS, canonicalEne
 import { autoPoolPlan, canonicalPoolPlan, isPoolPlan, poolCount } from '../../../shared/poolPlan.js';
 import { confirmCollab } from './collab.js';
 import { confirmConsole } from './consoleRoom.js';
+import { EloPanel, eloBrief, eloMine, markEloSeen } from './eloPanel.js';
 
 /** A room's enemy multiplier as the page shows it: 1 when it has none. */
 const enemyMul = value => (isEnemyMultiplier(value) ? value : 1);
@@ -58,16 +60,17 @@ export function experimentalOptions(input) {
     ...(input?.console === true ? { console: true } : {}),
     ...(input?.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}),
     // 卡池静态初始化: nothing to deal under 禁用共享卡池 (shared/experimental.js experimentalOptions drops it there too)
-    ...(input?.staticPoolSplit === true && !(!plan && input?.disableSharedPool === true) ? { staticPoolSplit: true } : {}) };
+    ...(input?.staticPoolSplit === true && !(!plan && input?.disableSharedPool === true) ? { staticPoolSplit: true } : {}),
+    ...(input?.elo === true ? { elo: true } : {}) };
 }
 
 /**
  * A 多人匹配 ticket's own options as the page keeps them (queue.join `experimental`, server/matchmaking.js header): the
- * rules of the game only — no seat count, no 卡池编组, no 联动干员 / 调控台 — and 禁用鸭爵策略 as asked (it counts in a pool
- * above four seats only: shared/experimental.js queueOptionsAt).
+ * rules of the game only — no seat count, no 卡池编组, no 联动干员 / 调控台 / ELO — and 禁用鸭爵策略 as asked (it counts in a
+ * pool above four seats only: shared/experimental.js queueOptionsAt).
  */
 export function queueConfig(input) {
-  const { playerCapacity, poolPlan, collabOps, console: off, disableDuckLord, ...rules } = experimentalOptions({ ...(input || {}), playerCapacity: undefined, poolPlan: undefined });
+  const { playerCapacity, poolPlan, collabOps, console: off, elo, disableDuckLord, ...rules } = experimentalOptions({ ...(input || {}), playerCapacity: undefined, poolPlan: undefined });
   return { ...rules, ...(input?.disableDuckLord === true ? { disableDuckLord: true } : {}) };
 }
 
@@ -95,6 +98,7 @@ export function experimentalItems(input, { mode = 'coop', queue = false, omit = 
     poolPlan: !solo && options.poolPlan ? t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }) : null,
     collabOps: options.collabOps ? t('联动干员') : null,
     console: options.console ? t('调控台') : null,
+    elo: options.elo ? t('ELO') : null,
   };
   return EXPERIMENTAL_GROUPS.flatMap((group) => group.keys.filter((key) => texts[key] && !omit?.includes(key)).map((key) => ({ group: group.id, key, text: texts[key] })));
 }
@@ -114,13 +118,16 @@ export const experimentalCountText = (n) => (n > 0 ? t('已开启 {n} 项', { n 
  * `omit`: option fields left out (确认入场 names the seat count elsewhere).
  * @param {{ value: any, mode?: string, queue?: boolean, omit?: string[]|null, empty?: any, class?: string, testid?: string }} props
  */
-export function ExperimentalDetails({ value, mode = 'coop', queue = false, omit = null, empty = null, class: cls = '', testid = 'experimental-details' }) {
+export function ExperimentalDetails({ value, mode = 'coop', difficulty = null, queue = false, omit = null, empty = null, class: cls = '', testid = 'experimental-details' }) {
   const groups = experimentalByGroup(value, { mode, queue, omit });
+  // ELO with the room's difficulty known (the room's badge): the reader's own numbers in short (ui/eloPanel.js), never
+  // anybody else's
+  const elo = (key) => (key === 'elo' && difficulty ? html`<small class="expd__elo" data-testid="expd-elo-brief">${eloBrief(eloMine(mode, difficulty))}</small>` : null);
   if (!groups.length) return html`<p class=${`expd expd--empty ${cls}`} data-testid=${testid}>${empty ?? t('全部规则保持原样')}</p>`;
   return html`<div class=${`expd ${cls}`} data-testid=${testid}>
     ${groups.map((g) => html`<section key=${g.id} class="expd__group" data-group=${g.id}>
       <h4 class="expd__k">${t(g.label)}</h4>
-      <ul class="expd__list">${g.items.map((x) => html`<li key=${x.key} data-key=${x.key}>${x.text}</li>`)}</ul>
+      <ul class="expd__list">${g.items.map((x) => html`<li key=${x.key} data-key=${x.key}>${x.text}${elo(x.key)}</li>`)}</ul>
     </section>`)}
   </div>`;
 }
@@ -134,11 +141,12 @@ export function ExperimentalDetails({ value, mode = 'coop', queue = false, omit 
  * closes it.
  * `queue`: a ticket's own options (多人匹配, ui/matchmaking.js) under `label`. `float`: the 浮窗 is placed in the viewport
  * (fixed, above the badge or below when there is no room: components.js placeTooltip), out of a scrolling list's clip.
- * `popId`: the 浮窗's id when several badges share a page (default `${testid}-pop`).
- * @param {{ value: any, mode?: string, queue?: boolean, label?: string|null, disabled?: boolean, onOpen?: () => void, testid?: string, class?: string,
+ * `popId`: the 浮窗's id when several badges share a page (default `${testid}-pop`). `difficulty`: the room's — with it the
+ * ELO rule shows the reader's own numbers in short (ExperimentalDetails).
+ * @param {{ value: any, mode?: string, difficulty?: string|null, queue?: boolean, label?: string|null, disabled?: boolean, onOpen?: () => void, testid?: string, class?: string,
  *   icon?: string, float?: boolean, popId?: string|null }} props
  */
-export function ExperimentalBadge({ value, mode = 'coop', queue = false, label = null, disabled = false, onOpen = null, testid = 'room-experimental', class: cls = '',
+export function ExperimentalBadge({ value, mode = 'coop', difficulty = null, queue = false, label = null, disabled = false, onOpen = null, testid = 'room-experimental', class: cls = '',
   icon = 'edit', float = false, popId = null }) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -197,7 +205,7 @@ export function ExperimentalBadge({ value, mode = 'coop', queue = false, label =
     </button>
     ${shown ? html`<div class=${`expb__pop${float ? ' expb__pop--float' : ''}`} ref=${pop} role="tooltip" id=${id} data-testid=${`${testid}-pop`}>
       <header class="expb__head"><b>${name}</b><span class="num">${experimentalCountText(n)}</span></header>
-      <${ExperimentalDetails} value=${value} mode=${mode} queue=${queue} empty=${queue ? t('尚未开启任何功能') : null} />
+      <${ExperimentalDetails} value=${value} mode=${mode} difficulty=${difficulty} queue=${queue} empty=${queue ? t('尚未开启任何功能') : null} />
       ${pinned && onOpen && !disabled ? html`<button type="button" class="expb__more" data-testid=${`${testid}-open`} onClick=${() => { setPinned(false); setOpen(false); onOpen(); }}>
         <${Icon} name="edit" />${queue ? t('设置') : t('查看全部设置')}</button>` : null}
     </div>` : null}
@@ -207,7 +215,7 @@ export function ExperimentalBadge({ value, mode = 'coop', queue = false, label =
 /** Whether any option differs from a standard room's (the room's 实验性选项 button is then marked). */
 export function experimentalChanged(input) {
   const options = experimentalOptions(input);
-  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyHpPlan || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps || !!options.console || !!options.uniteHumansFirst || !!options.staticPoolSplit;
+  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyHpPlan || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps || !!options.console || !!options.uniteHumansFirst || !!options.staticPoolSplit || !!options.elo;
 }
 
 export function experimentalSummary(input) {
@@ -215,7 +223,7 @@ export function experimentalSummary(input) {
   const summary = t('复活 {0} · 共享卡池 {1}', { 0: options.revivalEnabled ? t('开启') : tc('toggle', '关闭'), 1: options.disableSharedPool ? tc('toggle', '关闭') : t('开启') });
   const rules = [summary, options.disableDuckLord && t('禁用鸭爵策略'), options.disableLayerCap && t('禁用层数上限'), options.disableHitLimit && t('禁用单次伤害上限'),
     options.enemyHpMul && t('敌人生命 ×{n}', { n: options.enemyHpMul }), options.enemyHpPlan && t('敌人生命 {plan}', { plan: enemyHpPlanText(options.enemyHpPlan) }), options.enemyAtkMul && t('敌人攻击 ×{n}', { n: options.enemyAtkMul }),
-    options.staticPoolSplit && t('卡池静态初始化'), options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }), options.uniteHumansFirst && t('AI 联防置后'), options.collabOps && t('联动干员'), options.console && t('调控台')].filter(Boolean).join(' · ');
+    options.staticPoolSplit && t('卡池静态初始化'), options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }), options.uniteHumansFirst && t('AI 联防置后'), options.collabOps && t('联动干员'), options.console && t('调控台'), options.elo && t('ELO')].filter(Boolean).join(' · ');
   return options.playerCapacity ? t('{rules} · {n} 人模式', { rules, n: options.playerCapacity }) : rules;
 }
 
@@ -313,6 +321,43 @@ export function consoleRow({ value, source = 'private', ...rest }) {
     } });
 }
 
+/**
+ * ELO (shared/experimental.js isEloRoom, docs/history/0.4.0.md §37.275): a private room only, solo or co-op. Off → on shows
+ * the host the reminder 「此功能仅为娱乐」 once (confirmElo, no wait); the switch stays off until it is confirmed, and on a
+ * cancel; on → off at once.
+ */
+export function eloRow({ value, source = 'private', mode = 'coop', difficulty = null, roomCode = null, confirm = confirmElo, ...rest }) {
+  const { options, locked, send } = optionsEditor({ value, ...rest });
+  if (source !== 'private') return null;
+  const on = options.elo === true;
+  return switchRow({ id: 'experimental-elo', testid: 'experimental-elo', title: t('ELO'), checked: on, disabled: locked,
+    note: t('按每位博士本机记录的近期胜率，调整其自己的商店与卡池抽取和 AI 队友的救援，让胜率向 50% 靠拢。此功能仅为娱乐。'),
+    onChange: (next, e) => {
+      if (!next) { const { elo, ...rules } = options; send(rules); return; }
+      if (e?.currentTarget) e.currentTarget.checked = on; // off until the reminder is confirmed
+      confirm({ mode, difficulty, revival: options.revivalEnabled === true }).then((ok) => {
+        if (!ok) return;
+        markEloSeen(roomCode); // the host has seen the own panel (no second dialog as the room turns it on)
+        send({ ...options, elo: true });
+      });
+    } });
+}
+
+/**
+ * The reminder the host confirms as ELO goes on (eloRow): what it does, then the host's own panel for this room's mode and
+ * difficulty (ui/eloPanel.js EloPanel: 此功能仅为娱乐, the own rate and the expected impact); resolves true on 开启.
+ * @param {{ mode?: string, difficulty?: string|null, revival?: boolean }} [room] @param {(opts: any) => Promise<boolean>} [dialog] the confirm dialog (tests)
+ */
+export function confirmElo({ mode = 'coop', difficulty = null, revival = false } = {}, dialog = confirmDialog) {
+  return dialog({ title: t('开启 ELO'), micro: 'ELO',
+    text: html`<div class="elo-note" data-testid="elo-reminder">
+      <p class="modal__text">${t('开启后，每位博士按自己浏览器里记录的近期胜率得到不同的运气：胜率高时更难抽到需要的干员和装备，低时更容易；AI 队友是否救援也会参考。AI 座位本身不受影响，对局照常计入战绩与成就。')}</p>
+      ${difficulty ? html`<${EloPanel} mode=${mode} difficulty=${difficulty} revival=${revival} />`
+        : html`<p class="modal__text"><strong>${t('此功能仅为娱乐')}</strong></p>`}
+    </div>`,
+    okText: t('开启'), cancelText: t('不开启') });
+}
+
 /** The battle rules' rows by option (ruleRows, groupRows); a solo room has no teammate to rescue or to pair. */
 function ruleRowMap({ value, mode = 'coop', source = 'private', ...rest }) {
   const { options, locked, send } = optionsEditor({ value, source, ...rest });
@@ -371,13 +416,14 @@ function ruleRowMap({ value, mode = 'coop', source = 'private', ...rest }) {
       checked: options.uniteHumansFirst === true, disabled: locked, onChange: on => send({ ...options, uniteHumansFirst: on }) }),
     collab: collabRow({ value, source, ...rest }),
     console: consoleRow({ value, source, ...rest }),
+    elo: eloRow({ value, source, mode, ...rest }),
   };
 }
 
 /** Every battle rule's row, in the order of the former single 规则 page (tests; the groups: groupRows). */
 export function ruleRows(props) {
   const r = ruleRowMap(props);
-  return [r.revival, r.layerCap, r.hitLimit, ...r.enemyHp, r.enemyAtk, r.unite, r.collab, r.console];
+  return [r.revival, r.layerCap, r.hitLimit, ...r.enemyHp, r.enemyAtk, r.unite, r.collab, r.console, r.elo];
 }
 
 /**
@@ -393,7 +439,7 @@ export function groupRows(id, props) {
   const r = ruleRowMap(props);
   if (id === 'team') return [r.revival, r.unite];
   if (id === 'enemy') return [...r.enemyHp, r.enemyAtk, r.hitLimit];
-  if (id === 'special') return [r.collab, r.console];
+  if (id === 'special') return [r.collab, r.console, r.elo];
   return null;
 }
 

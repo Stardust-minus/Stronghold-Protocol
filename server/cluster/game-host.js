@@ -8,6 +8,7 @@
 import { Match, AFK_REMOVE_ROUNDS } from '../match/Match.js';
 import { parseOfflineHoldMinutes } from '../match/match/common.js';
 import { C2S, LOADOUT_LIMITS, OWNERSHIP_LIMITS, DIY_LIMITS, isNotOwnedList, isDiyPicks } from '../../shared/protocol.js';
+import { isEloPair } from '../../shared/elo.js';
 import { experimentalOptions, isExperimental } from '../../shared/experimental.js';
 import { SKIN_LIMITS, isSkinChoices } from '../../shared/skins.js';
 import { DIFFICULTIES, ERR, NAME_MAX_LEN, modeIdFor } from '../../shared/constants.js';
@@ -23,7 +24,7 @@ const identifier = (v, max = 128) => typeof v === 'string' && v.length > 0 && v.
 const integer = (v, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(v) && v >= min && v <= max;
 const plain = v => !!v && typeof v === 'object' && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
 const SPEC_KEYS = ['assignmentId', 'roomCode', 'build', 'protocol', 'seed', 'matchNo', 'mode', 'difficulty', 'modeId', 'seats', 'spectators', 'revivalEnabled', 'disableSharedPool', 'experimental', 'aiPicksLast', 'snapshotHz', 'takenOver', 'version'];
-const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'ops', 'notOwned', 'diy', 'skins', 'band'];
+const SEAT_KEYS = ['seat', 'playerId', 'name', 'isBot', 'connected', 'loadout', 'ops', 'notOwned', 'diy', 'skins', 'band', 'elo'];
 // Match's public observer contract, including the lobby's broadcast ticker/emote,
 // the AFK rule's m.notice and server-combat streams. Unknown types fail closed for observers.
 const SPECTATOR_TYPES = new Set(['m.public', 'm.field', 'm.result', 'm.ticker', 'm.emote', 'm.notice', 'm.damage', 'b.start', 'b.snap', 'b.ev', 'b.pool', 'b.end', 'b.damage']);
@@ -175,6 +176,12 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
       const skins = dataRecord(s.skins, undefined, SKIN_LIMITS.choices);
       if (!isSkinChoices(skins)) invalid();
       seat.skins = skins;
+    }
+    // ELO (server/lobby.js header): a human seat's own [wins, games], only in a room with the option (null: none)
+    if (s.elo !== undefined) {
+      const elo = s.elo === null ? null : dataArray(s.elo, 2);
+      if (s.isBot || !experimental.elo || (elo !== null && !isEloPair(elo))) invalid();
+      seat.elo = elo;
     }
     // room.setBotBand: an AI seat's designated strategy, one AI seat per strategy (the Match checks it against its mode)
     if (s.band !== undefined) {

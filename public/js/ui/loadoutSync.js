@@ -30,7 +30,7 @@
 // a room entered after the lobby could not send them sends them then (not at every room entry: the server keeps the
 // session's copy, and the heavy-message budget is an edit's too).
 
-import { isCollabRoom } from '../../../shared/experimental.js';
+import { isCollabRoom, isEloRoom } from '../../../shared/experimental.js';
 import { createStore, loadPref, savePref, store } from '../store.js';
 import { data, buildIndex } from '../data.js';
 import { contentSet as appContentSet, pageVersion } from '../content.js';
@@ -52,6 +52,8 @@ import { cleanSkinChoices } from '../../../shared/skins.js';
 import { SKINS_PREF, parseStoredSkins, toStoredSkins } from './skinsModel.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { prepareOperatorPreset } from './operatorPresetModel.js';
+import { eloRecords } from './eloRecords.js';
+import { peekStatsRecords } from './stats.js';
 
 export const SYNC_DEBOUNCE_MS = 500;
 export const RETRY_MS = 1500;
@@ -815,4 +817,34 @@ export function installDiySync({ net, timers, target = loadoutStore, notify, con
     },
   });
   return { flush: sync.flush, dispose() { offKit?.(); offKitContent?.(); sync.dispose(); } };
+}
+
+/** The ELO sync's state ('idle' outside a room with the option); `eloRev`: the engine's edit key, never edited (the
+ * counts are read anew at every send). */
+export const eloStore = createStore({ eloSync: 'idle', eloRev: 0 });
+
+/**
+ * Wire the ELO sync once (docs/history/0.4.0.md §37.275, ui/eloRecords.js): `room.elo { rec }` — the wins and games of this
+ * browser's newest records per mode and difficulty — only while the page is in a room with the ELO option (`gate`): on
+ * entering such a room, when its host turns the option on, after every welcome there and whenever a match of the room
+ * ends (a new record). Out of such a room nothing is sent. The server keeps it on the session and the seat and
+ * never shows it to anybody; during a match it is stored for the next one (ROOM_STARTED → 'locked').
+ * @param {{ net: any, timers?: { setTimeout: Function, clearTimeout: Function }, target?: ReturnType<typeof createStore>,
+ *   app?: any, records?: () => any[] }} deps
+ */
+export function installEloSync({ net, timers, target = eloStore, app = store, records = peekStatsRecords } = {}) {
+  // the resend key: the room's switch and how many of its matches this page saw end (a new record), not a match's start
+  let ends = 0, playing = false;
+  const resendOn = (s) => {
+    const inMatch = s?.room?.inMatch === true;
+    if (playing && !inMatch) ends++;
+    playing = inMatch;
+    return `${isEloRoom(s?.room?.experimental)}|${ends}`;
+  };
+  return installPrefSync({
+    net, timers, target, key: 'eloRev', stateKey: 'eloSync', msgType: 'room.elo', field: 'rec', tag: 'elo',
+    lockedText: null, content: null, app, seatBound: false, resendOn,
+    gate: () => isEloRoom(app?.get?.()?.room?.experimental),
+    prepare: async () => eloRecords(records()),
+  });
 }

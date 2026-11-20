@@ -1,6 +1,7 @@
 // Local match statistics: every match the local player took part in is appended as one record to localStorage
 // (`sp.pref.stats`). Per-browser only — the server keeps matches in memory and has no identity, so there is nowhere
-// else for cross-match numbers to live; nothing here is ever sent anywhere. The stats page labels itself 本机数据 and
+// else for cross-match numbers to live; nothing here is ever sent anywhere, except, in a room with the ELO option, the
+// wins and games of the newest records per mode and difficulty (ui/eloRecords.js). The stats page labels itself 本机数据 and
 // offers JSON export / import for moving between devices. (Ported from PR #323 by @2321Robin, reworked for 0.2.2.)
 //
 // Two kinds of record (`end`):
@@ -871,6 +872,8 @@ export const HARD_CLEAR_DIFFICULTIES = Object.freeze(new Set(['HARD', 'ABYSS']))
 
 /** Whether this record counts as a win for its self player (per-row victory = team won AND still in). */
 const selfWon = (rec, self) => (self ? !!self.victory : !!rec.victory);
+/** selfWon of a record's own row (ui/eloRecords.js). @param {any} rec */
+export const recordWon = (rec) => selfWon(rec, selfRowOf(rec));
 
 /**
  * The rounds the player passed in a record: its own row's (the table the settlement prints per player), else the

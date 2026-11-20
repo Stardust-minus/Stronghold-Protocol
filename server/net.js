@@ -94,7 +94,7 @@ export const NET_DEFAULTS = Object.freeze({
 /**
  * Intents that also draw from the per-connection heavy bucket: g.watch (its reply is a large state resend, m.field),
  * room.loadout (a ≤ 160-entry map and ≤ 256 operator settings validated against the game data; the client debounces its
- * edits), room.ownership (a ≤ 160-id list), room.diy (≤ 12 自选 picks: 规程 takes 6 + 6), room.skins (whitelisted display choices), room.spectate
+ * edits), room.ownership (a ≤ 160-id list), room.diy (≤ 12 自选 picks: 规程 takes 6 + 6), room.elo (≤ 8 pairs, ELO §37.275), room.skins (whitelisted display choices), room.spectate
  * (taking a spectator seat in a running match resends its state like a watcher's g.watch — server/lobby.js spectate) and
  * room.setPlugins (a new visual set: every member downloads its art manifest — server/plugins/visualSet.js).
  * room.skins (docs/SKINS.md) is a small `{ [charId]: skinId }` map, sent on every edit of the appearance; a changed map
@@ -105,7 +105,7 @@ export const NET_DEFAULTS = Object.freeze({
  * room.proposeVersion (DESIGN §35.23) stays host-proposed: an accepted proposal by a lone human switches the room's
  * version — every page then downloads that version's data.
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.skins', 'room.card', 'queue.join', 'room.list', 'room.spectate', 'room.setPlugins', 'plugins.preview', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.elo', 'room.skins', 'room.card', 'queue.join', 'room.list', 'room.spectate', 'room.setPlugins', 'plugins.preview', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -165,6 +165,8 @@ export class Session {
     this.notOwned = null;
     /** @type {Readonly<Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>> | null} checked 自选 picks (lobby-owned, 0.2.0 自选编队) */
     this.diy = null;
+    /** @type {Readonly<Record<string, readonly number[]>> | null} own recent [wins, games] per mode:difficulty (lobby-owned, room.elo §37.275; never shown, never persisted) */
+    this.elo = null;
     /** @type {Readonly<Record<string, string>>} display-only skin choices (lobby-owned) */
     this.skins = Object.freeze({});
     /** @type {Readonly<{ charId?: string, avatar?: string, bg?: string, bgY?: number, bgX?: number, bgZoom?: number, trophies?: number }> | null} display card (lobby-owned, room.card) */

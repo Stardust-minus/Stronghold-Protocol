@@ -961,8 +961,14 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   the sum of its shares. An elimination or a departure (not an AI 托管) returns the seat's pieces, then deals what the group
   has left again among its remaining seats (`Match._redealPools`; a share's deficit stays with it). Equipment is dealt by
   shop tier the same way, one `SharedItemPool` per seat (`caps`).
-  ELO tilt (experimental, the owner 2026-11-20, docs/history/0.4.0.md §37.273; step 1: server only, set by a test hook —
-  `tools/matchrun.mjs --tilt`, `server/match/tilt.js setTilt`): a seat's `PlayerState.tilt` (`s` in [-1, 1], absent = off)
+  ELO tilt (experimental, the owner 2026-11-20, docs/history/0.4.0.md §37.273 / §37.275): in a private room with
+  `experimental.elo` every human seat gets its tilt from its own `seats[].elo` `[wins, games]` (`shared/elo.js eloTilt`:
+  fewer than 5 games none; w = (wins + 2) / (games + 4); w < 0.5 helps up to s = +1 at w ≤ 0.3 with M = 8; w > 0.5
+  hinders down to s = −1 at w ≥ 0.9 with M = 4, the key cards' floor 0 mixing in from w = 0.8 (`mix`)), AI seats never;
+  the shop's, the 机变 draft's and the meta grants' streams then come from the match's own secret (`Match.eloSecret`,
+  checkpointed, never sent), and an AI teammate rescues a hindered human only with chance 1 + s (`tilt.js eloWillRescue`).
+  Outside such a room only the test hook sets one (`tools/matchrun.mjs --tilt` / `--elo W`, `server/match/tilt.js
+  setTilt`). A seat's `PlayerState.tilt` (`s` in [-1, 1], absent = off)
   reweights that seat's own draws inside the same single draw — shop chess slots, the promotion reward, the special bond
   refresh, `ctx.rollChess` grants, the shop item slot and 凯瑟琳 / 娜仁图亚's free item offers — by `M^(s·r)` of each
   candidate's relevance r (merge-completing copies, bonds one or two short, 预选盟约 / home bond, 转职装备, item pairs; a

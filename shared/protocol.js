@@ -4,6 +4,7 @@
 import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, BOND_PLAN_SUB_MAX, REHEARSAL_MAX_CANDIDATES } from './constants.js';
 import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS, PLAYER_CAPACITIES, isPlayerCapacity } from './playerCapacity.js';
 import { isExperimental, queueOptions } from './experimental.js';
+import { isEloRecords } from './elo.js';
 import { isSkinChoices } from './skins.js';
 
 /** Public response-pressure hint; never carries raw host/process diagnostics. */
@@ -391,6 +392,14 @@ export function checkSkinSelection(skins, hasOperator) {
   return { ok: true, skins: out, dropped };
 }
 
+// ---- ELO (docs/history/0.4.0.md §37.275): room.elo { rec } -------------------------------------------------------
+// `room.elo { rec }`: the player's own recent results as its page counts them from its local records
+// (public/js/ui/eloRecords.js) — per `<mode>:<difficulty>` `[wins, games]` over the newest ELO_LIMITS.last records of that
+// mode and difficulty that count (shared/elo.js isEloRecords). Sent only while the page is in a room with the ELO option
+// (shared/experimental.js isEloRoom); the server keeps it on the session and the seat, passes the pair of the room's mode
+// and difficulty to a match of such a room (shared/elo.js eloPairOf → eloTilt) and never shows it to anybody. A page may
+// of course send anything: the option is for fun.
+
 // ---- operator ownership (干员持有, 0.2.0 补位): room.ownership { notOwned } -------------------------------------------
 
 /**
@@ -708,6 +717,9 @@ export const C2S = {
   // 自选编队 (0.2.0 DIY): the player's DIY slot picks; stored per session / seat like room.ownership (a match takes the
   // picks its seat had when it started; during a match they are stored for the next one: ROOM_STARTED)
   'room.diy': { picks: isDiyPicks },
+  // ELO (§37.275, ELO_LIMITS above): the player's own recent results per mode and difficulty; stored per session / seat
+  // like room.ownership (a match of an ELO room takes its seat's pair when it starts; during a match: ROOM_STARTED)
+  'room.elo': { rec: isEloRecords },
   // Independent display-only choices: actual charId → admitted manifest key; accepted in INFO_CHECK only.
   'room.skins': { choices: isSkinChoices },
   // the display card (CARD_LIMITS above; server/lobby.js setCard): stored per session, copied to the player's seat

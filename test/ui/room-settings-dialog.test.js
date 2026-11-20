@@ -48,7 +48,7 @@ test('each page holds its rows', () => {
   assert.deepEqual(group('enemy'), ['experimental-enemy-hp', 'experimental-enemy-hp-plan', 'experimental-enemy-atk', 'experimental-hit-limit']);
   assert.deepEqual(group('pools'), ['experimental-pool', 'experimental-pool-split', 'experimental-pools-manual']);
   // 联动干员 and 调控台 (#125) are a private room's only (shared/experimental.js isCollabRoom / isConsoleRoom)
-  assert.deepEqual(group('special'), ['experimental-collab', 'experimental-console']);
+  assert.deepEqual(group('special'), ['experimental-collab', 'experimental-console', 'experimental-elo']);
   assert.deepEqual(group('special', room({ source: 'matchmaking' })), group('alliance', room({ source: 'matchmaking' })), 'a matchmade room has no 特殊功能');
   const solo = dialog({ page: 'enemy', room: room({ mode: 'solo' }), soloOption: on });
   assert.deepEqual(rowIds(solo), ['room-solo-unlimited', 'experimental-enemy-hp', 'experimental-enemy-hp-plan', 'experimental-enemy-atk', 'experimental-hit-limit']);

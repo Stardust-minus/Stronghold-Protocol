@@ -9,9 +9,9 @@ import { generateDraft, applyCard, bountyBattles, isMultiRoundBounty, bountyCard
 import { onPickCard } from '../botEmotes.js';
 import { weightedPick } from '../waves.js';
 import { OK, fail, DELAYS } from './common.js';
-import { tiltOf, tiltedOrder, tiltedTimeoutPick, tiltedSoloDraft } from '../tilt.js';
+import { eloSeed, tiltOf, tiltedOrder, tiltedTimeoutPick, tiltedSoloDraft } from '../tilt.js';
 import { cardScore } from '../bot.js';
-import { createRng, deriveSeed } from '../../sim/rng.js';
+import { createRng } from '../../sim/rng.js';
 
 /** Cards of the personal choice (PRTS 卫戍协议：盟约 下半 §法术 教鞭: "于3个战术特训的悬赏任务中选择一项"). */
 const PERSONAL_OFFER_SIZE = 3;
@@ -22,10 +22,10 @@ export class MatchSpDraft {
     const draftOpts = { stageId: this.stageId, bondAvailable: (bondId) => this.bondLive(bondId), itemAvailable: id => this.spItemAvailable(id) };
     let draft = generateDraft(this.gd, this.rngDraft, this.round, draftOpts);
     // ELO tilt (server/match/tilt.js, §37.273): a solo seat's own card set may be a second draft of the same round, built
-    // from its own stream (never rngDraft) [step 2: a server-secret seed]
+    // from its own stream (never rngDraft) — in an ELO room the match's own secret's (tilt.js eloSeed, §37.275)
     const solo = this.isSolo && alive.length === 1 ? alive[0] : null;
     if (draft && solo && tiltOf(solo)) {
-      const alt = createRng(deriveSeed(this.seed, `tilt-sp:${this.round}`));
+      const alt = createRng(eloSeed(this, `tilt-sp:${this.round}`));
       draft = tiltedSoloDraft(solo, draft, () => generateDraft(this.gd, alt, this.round, draftOpts), alt, (c) => cardScore(this, solo, c));
     }
     if (!draft || !alive.length) { this.beforePrepOffers(); return; }

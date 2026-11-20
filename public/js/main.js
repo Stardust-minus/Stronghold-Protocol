@@ -21,7 +21,8 @@
 // 干员调配 (DESIGN §16): an overlay over any route (<LoadoutHost/>, opened from lobby / room / briefing); its loadout is
 // kept in sync with the server by installLoadoutSync (room.loadout after every welcome and edit), its 干员持有 tab's
 // not-owned list (0.2.0 补位) by installOwnershipSync (room.ownership, likewise), the 自选编队 picks (0.2.0 DIY) by
-// installDiySync (room.diy, likewise; it also keeps welcome.diyKitted for the picker).
+// installDiySync (room.diy, likewise; it also keeps welcome.diyKitted for the picker), the ELO counts of the local records
+// by installEloSync (room.elo, only in a room with the ELO option).
 // Game data: every text of the game is static data (/data/*.json) downloaded once per page; the in-match files are
 // warmed in the background as soon as the player is in a room (warmGameData), before the match needs them.
 // Language (ui/lang.js, docs/I18N.md): chosen before the first render (initLang); App re-renders on a switch (useLang).
@@ -76,7 +77,7 @@ import { CoveredVersionVote } from './ui/versionVote.js';
 import { installRehearsal } from './battle/rehearsal.js';
 import { installVerify } from './battle/verify.js';
 import { recordResult, recordQuit, recordLikes, installStatsRecorder } from './ui/stats.js';
-import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync, installPlayerCardSync, installSettingsViews, loadoutStore } from './ui/loadoutSync.js';
+import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync, installPlayerCardSync, installSettingsViews, installEloSync, loadoutStore } from './ui/loadoutSync.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { acceptDamageSnapshot } from './ui/damageBoard.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
@@ -633,6 +634,8 @@ async function boot() {
   installOwnershipSync({ net });
   installDiySync({ net });
   installSkinsSync({ net });
+  // ELO (§37.275): the own recent results, only while in a room with the option (ui/eloRecords.js)
+  installEloSync({ net });
   installPlayerCardSync({ net });
   // A bot prep's layout rehearsal the server offers this host's browser (DESIGN §14, SP_BOT_REHEARSAL=host on the
   // server): a same-origin module Worker simulates the candidates off the main thread and answers with its pick; a
