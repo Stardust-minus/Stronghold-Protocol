@@ -99,18 +99,20 @@ alone would have added), lanes lost / replaced as stalled / refused, reconnects 
 
 - The server (`server/netQuality.js`) takes at most one report per socket per 30 s after hello, classifies the client
   address once against `SP_ISP_FILE` (`tools/isp-table.mjs`: 中国电信 / 联通 / 移动 / 教育网 / other in China from
-  gaoyifan/china-operator-ip, provinces from metowolf/iplist) and drops it. It sums per ISP × device × lane count and,
-  separately, per province × ISP; `/healthz` `netq` carries the sums since start. No address, session, name or city is
-  kept, and the label sets are fixed (36 and at most 192 groups).
+  gaoyifan/china-operator-ip, provinces from metowolf/iplist for IPv4 and ip2region for IPv6) and drops it. It sums
+  per ISP × device × lane count and, separately, per province × ISP; `/healthz` `netq` carries the sums since start.
+  No address, session, name or city is kept, and the label sets are fixed (36 and at most 192 groups).
 - The monitoring collector exports them as `sp_netq_*` counters (buckets with `le` in ms); the public dashboard
   `stronghold-netq.json` (uid `sp-netq`, `/monitor/net`) shows them per ISP, per lane count and per province next to
   the entry's TCP retransmission ratio (node-exporter netstat). A province (× ISP) averaging under 3 reporting pages
   over the hour is not shown, so no cell stands for one player.
 - Limits: the copy delay is relative to the first copy, so it underestimates a single connection when both copies are
   late (a join's first seconds) and needs lanes — a single-lane page reports round trips and reconnects only. Provinces
-  are IPv4 only and partial (an IPv6 player, or an address in no list, is `xx`), and a mobile network's addresses often
-  locate to the provincial capital or the operator's gateway. City level is not collected: inaccurate for mobile
-  networks, too many series, and one or two players per city and ISP would make a minute series personal.
+  are partial (an address in no list is `xx`; ip2region's IPv6 rows that only say "in China" — 北京市, China Mobile's
+  广东省 — are left out, so a Beijing IPv6 player is `xx` too, and so is most of 中国电信's and 联通's IPv6 space), and a
+  mobile network's addresses often locate to the provincial capital or the operator's gateway. City level is not
+  collected: inaccurate for mobile networks, too many series, and one or two players per city and ISP would make a
+  minute series personal.
 
 ## PREP intent grace (2026-11-11)
 
