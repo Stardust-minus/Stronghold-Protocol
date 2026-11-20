@@ -6,10 +6,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeMatch, give, giveItem, chessOfTier } from './harness.js';
-import { setTilt, tiltOf, tiltFactor, chessTilt, itemTilt, itemTierTilt, offerTilt, shiftTiers, tiltContext, chessRelevance,
-  itemRelevance, STRATEGY_TAGS } from '../../server/match/tilt.js';
+import { setTilt, tiltOf, tiltFactor, chessTilt, itemTilt, itemTierTilt, shiftTiers, tiltContext, chessRelevance,
+  itemRelevance, STRATEGY_TAGS, tiltedOrder, tiltedTimeoutPick, tiltedInt, tiltedSoloDraft } from '../../server/match/tilt.js';
 import { canSnapshot, snapshotMatch, restoreMatch } from '../../server/match/snapshot.js';
-import { createRngFromState } from '../../server/sim/rng.js';
+import { makeCtx } from '../../server/match/effectsMeta.js';
+import { createRng, createRngFromState } from '../../server/sim/rng.js';
 import { PHASE } from '../../shared/constants.js';
 
 const QUIET = { warn() {}, info() {}, error() {} };
@@ -157,16 +158,20 @@ test('equipment: the second copy of a held item and 转职装备 of a live bond 
   m.dispose();
 });
 
-test('strategy offers: only 凯瑟琳 / 娜仁图亚 drawing their own pool get the equipment tilt; strategy tags raise the key cards', () => {
+test('a tilted seat\'s own pool draws (凯瑟琳 / 娜仁图亚 and every other equipment pool) are tilted; strategy tags raise the key cards', () => {
   const { m, ps } = solo();
   const cathy = { kind: 'band', bandId: 'band_cathy', band: m.gd.band('band_cathy') };
-  const narant = { kind: 'band', bandId: 'band_narant', band: m.gd.band('band_narant') };
-  assert.equal(offerTilt(ps, cathy, 'pool_equip_kathe'), null, 'untilted: none');
-  setTilt(ps, { s: 1 });
-  assert.equal(typeof offerTilt(ps, cathy, 'pool_equip_kathe'), 'function');
-  assert.equal(typeof offerTilt(ps, narant, 'pool_equip_narant'), 'function');
-  assert.equal(offerTilt(ps, cathy, 'pool_equip_normal'), null, 'another pool');
-  assert.equal(offerTilt(ps, { kind: 'item', piece: null }, 'pool_equip_kathe'), null, 'another source');
+  const ctxRoll = () => makeCtx(m, ps, cathy, 'onLevelUp').rollPool('pool_equip_kathe');
+  const seq = () => { const st = m.rngMeta.state(); const out = []; for (let i = 0; i < 40; i++) out.push(ctxRoll()?.id); m.rngMeta = createRngFromState(st); return out; };
+  const plain = seq();
+  assert.deepEqual(seq(), plain, 'untilted: the same draws');
+  const held = m.gd.shopItemsByTier[1].find((id) => ps._itemMergeable(id) && typeof m.gd.item(id).giveBondId !== 'string');
+  giveItem(m, ps, held);
+  setTilt(ps, { s: -1, m: 2, floor: 0 });
+  const st = m.rngMeta.state();
+  for (let i = 0; i < 60; i++) assert.notEqual(ctxRoll()?.id, held, 'floored: the second copy is not offered to this seat');
+  assert.notEqual(m.rngMeta.state(), st);
+  setTilt(ps, null);
   // 复奏-like merge strategy: the merge-completing copy is a key card (1), else 0.7
   const x = chessOfTier(1).find((id) => m.pool.left(id) >= 3 && m.gd.mergeCount(id) === 3);
   give(m, ps, x); give(m, ps, x);
@@ -209,4 +214,64 @@ test('checkpoint: the tilt travels only when set and comes back normalized; ever
   assert.equal(restoreMatch(r2.m, plain, { createRngFromState, log: QUIET }), true, 'a checkpoint without it restores');
   assert.equal(Object.hasOwn(r2.m.players.get('p_0'), 'tilt'), false);
   for (const x of [h, r, r2]) x.m.dispose();
+});
+
+test('机变: a tilted seat\'s place in the co-op order (the same n − 1 draws), its own timeout pick, its own 1–6 funds', () => {
+  const h = makeMatch({ humans: 4, seed: 5, fake: true }).start().toPrep(1);
+  const m = h.m, a = m.players.get('p_0');
+  const ids = ['p_0', 'p_1', 'p_2', 'p_3'];
+  // untilted: rng.shuffle itself
+  for (let seed = 1; seed <= 20; seed++) {
+    const r1 = createRng(seed), r2 = createRng(seed);
+    assert.deepEqual(tiltedOrder(m, ids.slice(), r1), r2.shuffle(ids.slice()));
+    assert.equal(r1.state(), r2.state());
+  }
+  const firstShare = (tilt) => {
+    setTilt(a, tilt);
+    let first = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const r1 = createRng(seed), r2 = createRng(seed);
+      const o = tiltedOrder(m, ids.slice(), r1);
+      r2.shuffle(ids.slice());
+      assert.equal(r1.state(), r2.state(), 'the same number of draws');
+      assert.deepEqual([...o].sort(), ids);
+      if (o[0] === 'p_0') first++;
+    }
+    return first / 400;
+  };
+  assert.ok(firstShare({ s: 1, m: 2 }) > 0.5, 'helped: mostly first (4 : 1 : 1 : 1)');
+  assert.ok(firstShare({ s: -1, m: 2 }) < 0.12, 'hindered: rarely first');
+  assert.equal(firstShare({ s: -1, m: 2, floor: 0 }), 0, 'floor 0: never before an untilted seat');
+  // the timeout pick: untilted the random card; tilted with chance |s| the best (s > 0) or worst card by the score
+  setTilt(a, null);
+  const score = (i) => [3, 9, 1][i];
+  for (const u of [0, 0.4, 0.9]) assert.equal(tiltedTimeoutPick(a, [0, 1, 2], u, score), Math.floor(u * 3));
+  setTilt(a, { s: 1 });
+  assert.equal(tiltedTimeoutPick(a, [0, 1, 2], 0.4, score), 1);
+  setTilt(a, { s: -1 });
+  assert.equal(tiltedTimeoutPick(a, [0, 1, 2], 0.4, score), 2);
+  setTilt(a, { s: 0.5 });
+  assert.equal(tiltedTimeoutPick(a, [0, 1, 2], 0.9, score), 2, 'past |s|: the untilted card');
+  // 骑士储蓄罐 / 盟约之币: rng.int untilted, one draw skewed tilted, always in range
+  setTilt(a, null);
+  const r1 = createRng(9), r2 = createRng(9);
+  for (let i = 0; i < 50; i++) assert.equal(tiltedInt(a, r1, 6), r2.int(6));
+  const avg = (tilt) => { setTilt(a, tilt); const r = createRng(3); let n = 0; for (let i = 0; i < 2000; i++) { const v = tiltedInt(a, r, 6); assert.ok(v >= 0 && v < 6); n += v; } return n / 2000; };
+  assert.ok(avg({ s: 1, m: 4 }) > 3.3 && avg({ s: -1, m: 4 }) < 1.7);
+  m.dispose();
+});
+
+test('solo 机变: a tilted seat may get a second draft of the same round, the better (help) or the worse (hinder) one', () => {
+  const { m, ps } = solo();
+  const d1 = { cards: [{ v: 2 }, { v: 5 }] }, d2 = { cards: [{ v: 9 }] }, d3 = { cards: [{ v: 1 }] };
+  const score = (c) => c.v;
+  assert.equal(tiltedSoloDraft(ps, d1, () => d2, () => 0, score), d1, 'untilted: never another draft');
+  setTilt(ps, { s: 1 });
+  assert.equal(tiltedSoloDraft(ps, d1, () => d2, () => 0.3, score), d2);
+  assert.equal(tiltedSoloDraft(ps, d1, () => d3, () => 0.3, score), d1);
+  setTilt(ps, { s: -1 });
+  assert.equal(tiltedSoloDraft(ps, d1, () => d3, () => 0.3, score), d3);
+  setTilt(ps, { s: 0.5 });
+  assert.equal(tiltedSoloDraft(ps, d1, () => d2, () => 0.7, score), d1, 'past |s|: the match\'s own draft');
+  m.dispose();
 });

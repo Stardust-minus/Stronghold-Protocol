@@ -9,6 +9,9 @@ import { generateDraft, applyCard, bountyBattles, isMultiRoundBounty, bountyCard
 import { onPickCard } from '../botEmotes.js';
 import { weightedPick } from '../waves.js';
 import { OK, fail, DELAYS } from './common.js';
+import { tiltOf, tiltedOrder, tiltedTimeoutPick, tiltedSoloDraft } from '../tilt.js';
+import { cardScore } from '../bot.js';
+import { createRng, deriveSeed } from '../../sim/rng.js';
 
 /** Cards of the personal choice (PRTS 卫戍协议：盟约 下半 §法术 教鞭: "于3个战术特训的悬赏任务中选择一项"). */
 const PERSONAL_OFFER_SIZE = 3;
@@ -16,12 +19,20 @@ const PERSONAL_OFFER_SIZE = 3;
 export class MatchSpDraft {
   enterSpDraft() {
     const alive = this.alivePlayers();
-    const draft = generateDraft(this.gd, this.rngDraft, this.round, { stageId: this.stageId,
-      bondAvailable: (bondId) => this.bondLive(bondId), itemAvailable: id => this.spItemAvailable(id) });
+    const draftOpts = { stageId: this.stageId, bondAvailable: (bondId) => this.bondLive(bondId), itemAvailable: id => this.spItemAvailable(id) };
+    let draft = generateDraft(this.gd, this.rngDraft, this.round, draftOpts);
+    // ELO tilt (server/match/tilt.js, §37.273): a solo seat's own card set may be a second draft of the same round, built
+    // from its own stream (never rngDraft) [step 2: a server-secret seed]
+    const solo = this.isSolo && alive.length === 1 ? alive[0] : null;
+    if (draft && solo && tiltOf(solo)) {
+      const alt = createRng(deriveSeed(this.seed, `tilt-sp:${this.round}`));
+      draft = tiltedSoloDraft(solo, draft, () => generateDraft(this.gd, alt, this.round, draftOpts), alt, (c) => cardScore(this, solo, c));
+    }
     if (!draft || !alive.length) { this.beforePrepOffers(); return; }
     this.phase = PHASE.SP_DRAFT;
     let order = alive.map((p) => p.playerId);
-    if (!this.isSolo) this.rngDraft.shuffle(order);
+    // a tilted seat's place in the co-op order (tilt.js tiltedOrder: the same n − 1 draws); none → rng.shuffle
+    if (!this.isSolo) tiltedOrder(this, order, this.rngDraft);
     // 「AI 队友最后选择」 (GitHub #338): humans before AI seats, after the same shuffle (MatchPhases.humansFirst)
     order = this.humansFirst(order);
     // untimed: solo and any single-human match (soloUntimed); the co-op order / 6 cards stay
@@ -87,7 +98,8 @@ export class MatchSpDraft {
         if (!ps) return;
         const avail = s.cards.filter(c => this.spCardAvailable(c)).map(c => c.idx);
         if (!avail.length) { this.finishSpDraft(); return; }
-        this._applyCard(ps, avail[Math.floor(this.rngDraft() * avail.length)]);
+        // an ELO-tilted seat's own timeout pick (tilt.js tiltedTimeoutPick: the same draw)
+        this._applyCard(ps, tiltedTimeoutPick(ps, avail, this.rngDraft(), (i) => cardScore(this, ps, s.cards[i])));
       });
       s.turnDeadline = this.deadline;
     } else {
@@ -126,7 +138,7 @@ export class MatchSpDraft {
             const ps = this.players.get(pid);
             if (!this.spPending(ps)) continue;
             const avail = s.cards.filter((c) => this.spCardAvailable(c, ps)).map((c) => c.idx);
-            this._applyCard(ps, avail[Math.floor(this.rngDraft() * avail.length)]);
+            this._applyCard(ps, tiltedTimeoutPick(ps, avail, this.rngDraft(), (i) => cardScore(this, ps, s.cards[i])));
           }
           this._concurrentSpStep();
         });
@@ -268,7 +280,7 @@ export class MatchSpDraft {
    * `also` (pool_equip_kathe: 突变细胞) joins the draw even though it is shopExcluded. The shop item slot does not
    * read it. `pick` still drops ids that `canGain` refuses, so an empty shop item stays out and an uncapped `also`
    * id can still be drawn. `exclude` removes ids before sampling (Cathy's match-long allowance / distinct choices).
-   * `tilt` (server/match/tilt.js offerTilt: an ELO-tilted seat's strategy offer; null otherwise) reweights the same pick
+   * `tilt` (server/match/tilt.js itemTilt: an ELO-tilted seat's own draw; null otherwise) reweights the same pick
    * over the ids the stock can give. */
   rollItemId({ pool = null, tier = null, maxTier = 6, shopLevel = 6, player = null, exclude = [], tilt = null } = {}) {
     const pools = this.gd.choices.pools && typeof this.gd.choices.pools === 'object' ? this.gd.choices.pools : {};
@@ -315,7 +327,7 @@ export class MatchSpDraft {
    * bonds (the player's data view: a slotted slot's operator) — 0.2.0 WE2.
    * @returns {{ kind: 'item'|'chess', id: string, golden?: boolean } | null}
    */
-  rollPool(poolId, { shopLevel = 6, player = null, extra = null, chessOf = null, exclude = [], tilt = null } = {}) {
+  rollPool(poolId, { shopLevel = 6, player = null, extra = null, chessOf = null, exclude = [], tilt = null, chessTilt = null } = {}) {
     const pools = this.gd.choices.pools && typeof this.gd.choices.pools === 'object' ? this.gd.choices.pools : {};
     const p = typeof poolId === 'string' && Object.hasOwn(pools, poolId) ? pools[poolId] : null;
     if (!p || typeof p !== 'object') return null;
@@ -353,6 +365,7 @@ export class MatchSpDraft {
         maxTier,
         filter: (cid, e) => e.tier >= minTier && (!bond || (Array.isArray(recOf(cid)?.bonds) && recOf(cid).bonds.includes(bond))),
         extra,
+        ...(chessTilt ? { tilt: chessTilt } : {}),
       });
     }
     if (!id) return null;

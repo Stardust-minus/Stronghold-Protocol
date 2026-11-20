@@ -968,8 +968,11 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   candidate's relevance r (merge-completing copies, bonds one or two short, 预选盟约 / home bond, 转职装备, item pairs; a
   strategy's key cards from `STRATEGY_TAGS`), every tier rescaled to its untilted total. Hindering may floor a relevant
   card to 0 for that seat (it stays in the pool, 「余 n」 is unchanged); a card without stock never gets weight. Optional
-  tier lever (`tier`): the shop's own tier shares move up / down one tier by at most 25 %. Without it every path is the
-  untouched one; the checkpoint carries `players[].tilt` only when set.
+  tier lever (`tier`): the shop's own tier shares move up / down one tier by at most 25 %. The seat's own 机变 levers: its
+  place in the co-op pick order (weighted, the same n − 1 draws), its timeout pick, the SOLO card set (a second draft of
+  the same round from its own stream), and its own random results (`ctx.rollItem`, `ctx.rollPool`, 机变 cards'
+  `ctx.rollChess`, `ctx.luckInt` funds). Without it every path is the untouched one; the checkpoint carries
+  `players[].tilt` only when set.
   The client sees the counts of a shared group (two or more seats) in `m.private.poolLeft` (`pool.js poolCountsView`: every
   chess of the group's pool and every capped shop equipment, docs/design/network.md §8.3; feedback #160, §36.24).
 * **自选编队 (0.2.0, `player/diy.js`; research 0.2.0 §2, the owner's decisions of 2026-10-05)**: a human's `seat.diy`

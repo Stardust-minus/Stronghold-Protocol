@@ -448,14 +448,19 @@ export function botPickCard(m, ps, cards, available) {
   for (const i of available) {
     const c = cards[i];
     if (!c) continue;
-    let s = 0;
-    if (c.kind === 'item') s = 8 + (c.tier || 1) * 4 + (canUseItem(m, ps, { id: c.id }) ? 0 : -8);
-    else if (c.kind === 'bounty') s = m.isSolo ? bountyScore(m, ps, c) : -bountyHp(m, c) / 1000;
-    else if (c.kind === 'tactic') s = tacticScore(m, ps, c);
+    let s = cardScore(m, ps, c);
     s += m.rngBots() * 0.5;
     if (s > bestScore) { bestScore = s; best = i; }
   }
   return best;
+}
+
+/** botPickCard's score of one 机变 card without its random tie-break (no rng): also the ELO tilt's card usefulness. */
+export function cardScore(m, ps, c) {
+  if (c.kind === 'item') return 8 + (c.tier || 1) * 4 + (canUseItem(m, ps, { id: c.id }) ? 0 : -8);
+  if (c.kind === 'bounty') return m.isSolo ? bountyScore(m, ps, c) : -bountyHp(m, c) / 1000;
+  if (c.kind === 'tactic') return tacticScore(m, ps, c);
+  return 0;
 }
 
 /**

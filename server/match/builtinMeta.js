@@ -75,7 +75,7 @@ const ITEM_HANDLERS = {
       const p = paramsOf(ctx, ev.item);
       const lo = int(p.min, 1);
       const hi = Math.max(lo, int(p.max, lo));
-      ctx.addFunds(lo + ctx.rng.int(hi - lo + 1), 'item');
+      ctx.addFunds(lo + (typeof ctx.luckInt === 'function' ? ctx.luckInt(hi - lo + 1) : ctx.rng.int(hi - lo + 1)), 'item');
     },
   },
   use_equip_reward_char_chess_bond_layer: {

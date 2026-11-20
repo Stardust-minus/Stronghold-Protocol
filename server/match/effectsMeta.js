@@ -53,7 +53,7 @@ import { previewContext } from './preview.js';
 import { LayerLedger } from './layerForecast.js';
 import { deriveSeed } from '../sim/rng.js';
 import { commandMetaHandler, openSkillChangeDraft } from './bandCommands.js';
-import { chessTilt, offerTilt } from './tilt.js';
+import { chessTilt, itemTilt, tiltedInt } from './tilt.js';
 
 export const HOOKS = Object.freeze([
   'onRoundStart', 'onIncome', 'onPrepStart', 'onPrepEnd', 'onGain', 'onSold', 'onRefresh', 'onPrice', 'onBuy',
@@ -727,12 +727,15 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
         }
         if (exempt.length) extra = [...(extra || []), ...exempt];
       }
-      // an ELO tilt (tilt.js, §37.273) reweights a stock draw of this seat's own grant; not a 机变 card's (step 1) and
-      // not an ignoreCounts draw (it reads no stock)
-      const tilt = opts.ignoreCounts === true || source?.kind === 'choice' ? null : chessTilt(ps);
+      // an ELO tilt (tilt.js, §37.273) reweights a stock draw of this seat's own grant — a 机变 card's per-seat result
+      // too —, not an ignoreCounts draw (it reads no stock)
+      const tilt = opts.ignoreCounts === true ? null : chessTilt(ps);
       return ps.pool.roll(rng, { maxTier: Number.isInteger(opts.maxTier) ? opts.maxTier : 6, tier: Number.isInteger(opts.tier) ? opts.tier : null, filter: f, extra, ignoreCounts: opts.ignoreCounts === true, ...(tilt ? { tilt } : {}) });
     },
-    rollItem: (opts = {}) => rolls.rollItemId({ ...opts, player: ps }),
+    // an ELO tilt (tilt.js) of this seat's own random item: the same pick over what its stock can give
+    rollItem: (opts = {}) => rolls.rollItemId({ ...opts, player: ps, tilt: itemTilt(ps) }),
+    /** A random integer 0 … n − 1 of this seat's own grant (骑士储蓄罐 / 盟约之币 funds): rng.int(n), ELO-tilted (tilt.js). */
+    luckInt: (n) => tiltedInt(ps, rng, n),
     /** Whether the shared shop stock has room for one more `itemId` (always true for an uncapped item). */
     itemInStock: (itemId) => !!gd.item(itemId) && ps.itemPool.canGain(itemId),
     /**
@@ -744,8 +747,9 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
       // a shared-pool draw also takes the player's 自选 stock, its bonds read through the player's view (rollChess)
       extra: typeof ps.diyStockEntries === 'function' ? ps.diyStockEntries() : null, chessOf: (id) => gd.chess(id),
       ...opts, player: ps,
-      // an ELO tilt (tilt.js) of a strategy's free equipment offer (凯瑟琳 定向投放, 娜仁图亚 见者有份); null otherwise
-      tilt: offerTilt(ps, source, poolId),
+      // an ELO tilt (tilt.js) of this seat's own pool draw: equipment (凯瑟琳 定向投放, 娜仁图亚 见者有份, every other pool)
+      // and an operator pool's copy-weighted draw; null without one
+      tilt: itemTilt(ps), chessTilt: chessTilt(ps),
     }),
     /**
      * Run another owned chess's 特质 of `eventType` now (SERVER_GAIN / SERVER_PREP_START / SERVER_PREP_FIN /

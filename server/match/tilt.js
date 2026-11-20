@@ -81,9 +81,6 @@ export const STRATEGY_TAGS = Object.freeze({
   band_bond: ['refresh'], // 贾维 团伙行动
 });
 
-/** The strategy effects whose free equipment offers are tilted (凯瑟琳 定向投放, 娜仁图亚 见者有份; bands/meta.js). */
-const OFFER_KEYS = new Set(['up_shop_add_special_goods', 'preparation_start_add_special_goods_every_n_round']);
-
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const num = (v, d) => (v == null || v === '' || !Number.isFinite(Number(v)) ? d : Number(v));
 
@@ -300,18 +297,6 @@ export function itemTierTilt(ps) {
 }
 
 /**
- * The equipment tilt of a strategy's free item offer (凯瑟琳 定向投放, 娜仁图亚 见者有份: a band source whose effect is one of
- * OFFER_KEYS drawing that effect's pool), else null.
- * @param {any} ps @param {any} source the dispatch source @param {string} poolId
- */
-export function offerTilt(ps, source, poolId) {
-  if (!tiltOf(ps) || !source || source.kind !== 'band') return null;
-  const band = source.band || ps.gd.band?.(source.bandId);
-  const hit = (Array.isArray(band?.buffs) ? band.buffs : []).some((b) => OFFER_KEYS.has(b?.key) && (b.bbStr?.pool ?? b.bb?.pool ?? band.params?.pool) === poolId);
-  return hit ? itemTilt(ps) : null;
-}
-
-/**
  * Weighted pick with one rng() (the shop item slot without a stock gate): [id, weight] → id, never a 0-weight one.
  * @param {Function} rng @param {string[]} ids @param {Map<string, number>} weights
  */
@@ -322,4 +307,79 @@ export function weightedPickOf(rng, ids, weights) {
   let r = rng() * total, last = null;
   for (const [id, w] of pairs) { if (w > 0) last = id; if ((r -= /** @type {number} */ (w)) < 0) return id; }
   return last;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// 机变 and small private grants (the owner's update of 2026-11-20: a tilted seat's own position, own timeout pick, own
+// random results; the solo card set, which is that player's alone). Nothing another player sees or shares moves.
+
+/** A seat's weight in the co-op 机变 pick order (earlier = first choice of the shared cards): M^(2s), floored like a card. */
+export function orderWeight(t) {
+  const f = tiltFactor(t.core === false ? { ...t, core: true } : t, 1);
+  return f * f;
+}
+
+/**
+ * The co-op 机变 order (rng.shuffle's n − 1 draws): with a tilted seat among `order`, each position but the last takes a
+ * seat of those left by orderWeight (untilted seats 1; all 0 → uniform), one draw each — else rng.shuffle itself.
+ * @param {any} m @param {string[]} order @param {any} rng
+ */
+export function tiltedOrder(m, order, rng) {
+  const ts = order.map((id) => tiltOf(m.players.get(id)));
+  if (!ts.some(Boolean)) return rng.shuffle(order);
+  const left = order.map((id, i) => [id, ts[i] ? orderWeight(ts[i]) : 1]);
+  const pickIdx = (u) => {
+    const total = left.reduce((n, x) => n + x[1], 0);
+    if (!(total > 0)) return Math.min(left.length - 1, Math.floor(u * left.length));
+    let r = u * total, last = -1;
+    for (let i = 0; i < left.length; i++) { const w = left[i][1]; if (w > 0) { last = i; r -= w; if (r < 0) return i; } }
+    return last;
+  };
+  const out = [];
+  while (left.length > 1) out.push(left.splice(pickIdx(rng()), 1)[0][0]); // loop-cap: draft order
+  out.push(left[0][0]);
+  order.splice(0, order.length, ...out);
+  return order;
+}
+
+/**
+ * A 机变 pick that ran out of time (`u` the draw the untilted pick uses): with chance |s| the card the seat's score
+ * (`score`, bot.js cardScore: no rng) rates best (s > 0) or worst (s < 0), else the untilted random card.
+ * @param {any} ps @param {number[]} avail @param {number} u @param {(idx: number) => number} score
+ */
+export function tiltedTimeoutPick(ps, avail, u, score) {
+  const t = tiltOf(ps);
+  const k = avail[Math.min(avail.length - 1, Math.floor(u * avail.length))];
+  if (!t || u >= Math.abs(t.s)) return k;
+  let best = avail[0], bs = t.s > 0 ? -Infinity : Infinity;
+  for (const i of avail) { const v = score(i); if (t.s > 0 ? v > bs : v < bs) { bs = v; best = i; } }
+  return best;
+}
+
+/**
+ * A random integer 0 … n − 1 of a seat's own grant (骑士储蓄罐 / 盟约之币 funds): rng.int(n) untilted; tilted, the same
+ * single draw skewed up (s > 0) or down (s < 0) by M^(−s) as its exponent.
+ * @param {any} ps @param {any} rng @param {number} n
+ */
+export function tiltedInt(ps, rng, n) {
+  const t = tiltOf(ps);
+  if (!t || t.core === false) return rng.int(n);
+  const u = rng();
+  return Math.max(0, Math.min(n - 1, Math.floor(Math.max(0, n) * Math.pow(u, Math.pow(t.m, -t.s)))));
+}
+
+/**
+ * SOLO 机变 (the card set is that player's alone): with chance |s| (a draw of `alt`, never the match's draft stream)
+ * the set of the second draft `alternate` built for the same round — the official round structures are generateDraft's
+ * own — replaces `draft` when its best card scores higher (s > 0) / lower (s < 0) for the seat.
+ * @param {any} ps @param {any} draft @param {() => any} alternate @param {any} alt @param {(card: any) => number} score
+ */
+export function tiltedSoloDraft(ps, draft, alternate, alt, score) {
+  const t = tiltOf(ps);
+  if (!t || !draft || alt() >= Math.abs(t.s)) return draft;
+  const other = alternate();
+  if (!other || !Array.isArray(other.cards) || !other.cards.length) return draft;
+  const best = (d) => Math.max(...d.cards.map((c) => score(c)));
+  const a = best(draft), b = best(other);
+  return (t.s > 0 ? b > a : b < a) ? other : draft;
 }
