@@ -5,11 +5,12 @@ import { PHASE, GEO } from '../../shared/constants.js';
 import { pairPlayers, bossPoolHp, SharedBossPool, hiddenEligible } from '../../server/match/finalAssault.js';
 import { GameData } from '../../server/match/gamedata.js';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { WorkerFieldRunner } from '../../server/match/combat/runner.js';
 import { FakeBattle } from './fakeBattle.js';
 import { DATA, makeMatch, checkInvariants } from './harness.js';
-import { createRng, deriveSeed } from '../../server/sim/rng.js';
+import { createRng } from '../../server/sim/rng.js';
 
 const bossFields = () => FakeBattle.instances.filter((b) => b.kind === 'boss' || b.kind === 'hidden');
 
@@ -61,7 +62,7 @@ test('boss preview and actual fields share each round\'s draw; the Hidden Core d
       const m = h.m;
       const pairs = structuredClone(m.bossPairs);
       // the Final Assault's draw is the one of before (seed salt 'boss-pairs', no previous)
-      assert.deepEqual(pairs, ids(pairPlayers(m.alivePlayers(), createRng(deriveSeed(m.seed, 'boss-pairs')))));
+      assert.deepEqual(pairs, ids(pairPlayers(m.alivePlayers(), createRng(m.streamSeed('boss-pairs')))));
       assert.deepEqual(m.bossWaves.map(w => w.players), pairs);
       for (const p of m.order) {
         p.bondCountBonus.yanShip = 3; p.layers.yanShip = 400; p.recompute();
@@ -73,7 +74,7 @@ test('boss preview and actual fields share each round\'s draw; the Hidden Core d
       const boards = new Map(m.order.map((p) => [p.playerId, p.board.size]));
       h.drive(() => m.phase === PHASE.PREP && m.round === 15);
       const hidden = structuredClone(m.bossPairs);
-      assert.deepEqual(hidden, ids(pairPlayers(m.alivePlayers(), createRng(deriveSeed(m.seed, 'boss-pairs:15')))), 'the Hidden Core\'s own draw');
+      assert.deepEqual(hidden, ids(pairPlayers(m.alivePlayers(), createRng(m.streamSeed('boss-pairs:15')))), 'the Hidden Core\'s own draw');
       assert.deepEqual(m.bossWaves.map(w => w.players), hidden, 'the R15 prep preview uses it');
       if (JSON.stringify(hidden) !== JSON.stringify(pairs)) changed++;
       // a player who changed half keeps the whole board: the halves' deploy maps are mirror images
@@ -326,7 +327,7 @@ for (const hidden of [false, true]) for (const bots of [0, 1]) {
     let m;
     t.after(async () => { m?.dispose(); await pool.close(); });
     await pool.start();
-    m = new Match({ mode: 'coop', difficulty: 'NORMAL', seed: 50, data: DATA, log,
+    m = new Match({ mode: 'coop', difficulty: 'NORMAL', seed: 50, matchSecret: seedSecret(50), data: DATA, log,
       seats: Array.from({ length: 2 + bots }, (_, seat) => ({ seat, playerId: `p_${seat}`,
         name: `P${seat}`, isBot: seat >= 2, connected: true })),
       send() { return true; }, broadcast() {}, onEnd() {}, clientCombat: false, combatPool: pool, botRehearsal: 0 });

@@ -1,6 +1,6 @@
 // #677: maintainer decision 2026-10-17 (official play memory): one Cathy cell per player/match.
 // Official activity_table aceffect_band_26: three choices, one pick, pool_equip_kathe; aceffect_band_41: Quintus R3 cell.
-// [ASSUMED] Only a successful pick counts; Quintus's cell is independent. Seed 236 offers a cell on both first upgrades.
+// [ASSUMED] Only a successful pick counts; Quintus's cell is independent. Seed 48 offers a cell on both first upgrades.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DATA, makeMatch } from './harness.js';
@@ -19,7 +19,7 @@ const idsOf = (offer) => offer.slots.map((s) => s.id);
 const cellIndex = (offer) => offer.slots.findIndex((s) => s.id === CELL);
 const cellsOwned = (ps) => [...ps.hand, ...ps.temp].filter((p) => p?.id === CELL).length;
 
-function fixture(t, seed = 236, opts = {}) {
+function fixture(t, seed = 48, opts = {}) {
   const h = makeMatch({ mode: 'solo', seed, fake: true, ...opts }).start().toPrep(1, { band: 'band_cathy' });
   t.after(() => h.m.dispose());
   const ps = h.ps('p_0');
@@ -108,7 +108,7 @@ for (const quintusFirst of [true, false]) test(`Quintus's R3 grant stays indepen
 });
 
 test('the bot reward routine uses the same Cathy allowance', (t) => {
-  const h = fixture(t, 36); // Cell (tier V), tier IV, tier II: the bot prefers the cell.
+  const h = fixture(t, 17); // The first offer holds the cell, and the bot prefers it.
   h.ps.isBot = true;
   h.upgrade();
   const steps = botPrepBeginSteps(h.m, h.ps);
@@ -128,7 +128,7 @@ test('inherited Cathy effects share the canonical source, queued offers and matc
   } };
   setGameData(data);
   t.after(() => setGameData(null));
-  const h = fixture(t, 236, { data, registry: createRegistry() });
+  const h = fixture(t, 48, { data, registry: createRegistry() });
   h.ps.bandId = alias;
   assert.equal(h.upgrade().source, 'band:band_cathy');
   assert.ok(idsOf(h.upgrade()).includes(CELL), 'another inherited offer is queued before the pick');
@@ -189,7 +189,7 @@ test('item-pool exclusions filter explicit items, weights, tiers and also before
     test_also_only: { kind: 'equip', items: [blocked], also: [keep, CELL] },
   };
   const data = { ...DATA, choices: { ...DATA.choices, pools: { ...DATA.choices.pools, ...pools } } };
-  const h = fixture(t, 236, { data });
+  const h = fixture(t, 48, { data });
   h.m.itemPool.canGain = (id) => [keep, blocked, CELL].includes(id);
   let draws = 0;
   h.m.rngMeta = () => { draws++; return 0; };
@@ -203,7 +203,7 @@ test('item-pool exclusions filter explicit items, weights, tiers and also before
 });
 
 test('the Cathy allowance belongs to the player, even when the cell is the only available item', (t) => {
-  const h = makeMatch({ mode: 'coop', humans: 2, seed: 236, fake: true }).start().toPrep(1);
+  const h = makeMatch({ mode: 'coop', humans: 2, seed: 48, fake: true }).start().toPrep(1);
   t.after(() => h.m.dispose());
   const a = h.ps('p_0'), b = h.ps('p_1');
   a.bandId = 'band_cathy'; a.funds = 999;
@@ -221,7 +221,7 @@ test('the Cathy allowance belongs to the player, even when the cell is the only 
 test('test-console upgrades, strategy switches and reconnect replay the same source-specific allowance', (t) => {
   const entries = [];
   const scheduler = new VirtualScheduler();
-  const m = new Match({ mode: 'solo', difficulty: 'NORMAL', test: true, hostId: 'p', seed: 236,
+  const m = new Match({ mode: 'solo', difficulty: 'NORMAL', test: true, hostId: 'p', seed: 48,
     seats: [{ playerId: 'p', seat: 0, name: 'P', connected: true }], data: DATA, scheduler,
     send() {}, broadcast() {}, onEnd() {}, clientCombat: false, botRehearsal: 0,
     log: { info(line) { if (line.startsWith('[test-input ')) entries.push(JSON.parse(line.slice(line.indexOf(']') + 2))); } },

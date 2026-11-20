@@ -1,5 +1,6 @@
 // Studio-only prep exercise. Production Match owns grants, refresh RNG, deadlines and trait hooks.
 import { Match } from '../match/Match.js';
+import { seedSecret } from '../match/secret.js';
 import { VirtualScheduler } from '../match/scheduler.js';
 import { getDefaultRegistry } from '../match/effectsMeta.js';
 import { registerDslMeta } from '../match/dslMeta.js';
@@ -22,7 +23,8 @@ export function gameplayTrial(set, scene, draft, request = {}) {
   for (const [pluginId, specs] of Object.entries(set.data.dsl || {})) for (const spec of specs) {
     registerDslMeta(registry, spec, { pluginId }); grants.push({ key: spec.meta.key, battle: false });
   }
-  const m = new Match({ data: set.data, mode: 'solo', modeId: 'mode_single_normal', seed: request.seed || 1,
+  // the author's seed fixes the whole trial (§37.277: its private secret is the seed's), so two drafts compare on one match
+  const m = new Match({ data: set.data, mode: 'solo', modeId: 'mode_single_normal', seed: request.seed || 1, matchSecret: seedSecret(request.seed || 1),
     seats: [{ playerId: 'studio', seat: 0, name: 'Studio', isBot: false }], scheduler, registry,
     offers: set.offers || [], ...(set.rules ? { rules: set.rules } : {}), send: () => true, broadcast() {}, onEnd() {} });
   try {

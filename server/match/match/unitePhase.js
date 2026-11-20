@@ -5,7 +5,6 @@
 
 import { PHASE, GEO } from '../../../shared/constants.js';
 import { WorkerFieldRunner } from '../combat/runner.js';
-import { deriveSeed } from '../../sim/rng.js';
 import { uniteBattleOpts, uniteSurvivors, planUniteRelay } from '../unite.js';
 import { FieldRunner, timelineAt, uniteBillBounds } from '../fields.js';
 import { uniteLeft } from '../../sim/spec.js';
@@ -67,7 +66,7 @@ export class MatchUnite {
   _uniteOpts(plan, limit) {
     const { wave, players } = uniteBattleOpts(this, plan, limit);
     return {
-      seed: deriveSeed(this.seed, plan.uniteRound === 2 ? `u:${this.round}:2` : `u:${this.round}`),
+      seed: this.streamSeed(plan.uniteRound === 2 ? `u:${this.round}:2` : `u:${this.round}`),
       ...(plan.uniteRound ? { battleId: plan.battleId } : {}),
       kind: 'unite',
       modeId: this.modeId,

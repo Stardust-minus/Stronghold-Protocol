@@ -773,7 +773,7 @@ registry.garrison('SERVER_ADD_BOND_METHOD', {
 Reads: `playerId seat name round phase modeId difficulty isSolo isCoop layerCapOff data (frozen raw data) gd (GameData) rng`
 (`layerCapOff`: the room lifted the bond layer cap; "every N layers" rewards still stop at 999 layers', `milestonesDue` in shared/constants.js)
 (`rng()`, `rng.int(n)`, `rng.pick(a)`, `rng.chance(p)`, `rng.shuffle(a)` — the match's meta stream, never
-`Math.random`), `seedFor(salt)` (a uint32 from the match seed and `salt`, the same for every player, dispatch and preview:
+`Math.random`), `seedFor(salt)` (a uint32 from the match's private secret and `salt` — Match.streamSeed, §37.277 —, the same for every player, dispatch and preview:
 `createRng(ctx.seedFor('duck:' + round))` gives every player of a round the same draw, GitHub #839), `funds() lp() alive() bandId() shopLevel() bond(id) bonds() bondActive(id) bondCount(id) layers(id)
 board() hand() temp() piece(uid) pieceAt(row, col) pieceBonds(uid) garrisonsOf(uid) chessRecord(id) stats() roundStats()
 shopSlots() effect(id)` (`piece(uid)` adds `area`, `holderUid`, `idx`; "身前一格" of (r, c) is (r, c + 1)),
@@ -967,9 +967,9 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   (`shared/elo.js eloTrusted`, server/resultReceipts.js) — (`shared/elo.js eloSummary`:
   a win counts 1 game, a loss min(1, roundsPassed / 10); fewer than 5 weighted games none; w = (wins + 2) / (games + 4);
   w < 0.5 helps up to s = +1 at w ≤ 0.3 with M = 8; w > 0.5 hinders down to s = −1 at w ≥ 0.9 with M = 4, the key cards'
-  floor 0 mixing in from w = 0.8 (`mix`)), AI seats never; the shop's, the 机变 draft's and the meta grants' streams then
-  come from the match's private secret (`Match.matchSecret`, server/match/secret.js HMAC seeds; checkpointed, never sent),
-  and an AI teammate rescues a hindered human only with chance 1 + s (`tilt.js eloWillRescue`).
+  floor 0 mixing in from w = 0.8 (`mix`)), AI seats never; the streams a tilt draws from are the match's private
+  secret's like every stream of every match (`Match.streamSeed`, server/match/secret.js HMAC seeds, §37.277; checkpointed,
+  never sent), and an AI teammate rescues a hindered human only with chance 1 + s (`tilt.js eloWillRescue`).
   Outside such a room only the test hook sets one (`tools/matchrun.mjs --tilt` / `--elo W`, `server/match/tilt.js
   setTilt`). A seat's `PlayerState.tilt` (`s` in [-1, 1], absent = off)
   reweights that seat's own draws inside the same single draw — shop chess slots, the promotion reward, the special bond
@@ -1367,7 +1367,8 @@ used by `normalizeSnapshot`). Legacy server-run mode only: client-side combat se
 `m.result` (unicast to every human, `playerId` = the recipient) = `{ victory, roundsPassed, hiddenReached,
 hiddenCleared, reason: 'victory'|'defeat'|'eliminated'|'abandoned'|'error', teamLp (merged Final Assault LP, null before
 it; players[].lp are the alive players' shares), modeId, difficulty, stageId, bossId,
-hiddenBossId, seed, durationMs, players:[{ playerId, seat, name, isBot, left, alive, victory (the team won AND this
+hiddenBossId, matchId (the match's opaque id: the battleId prefix, an HMAC of its private secret — never the seed,
+docs/history/0.4.0.md §37.277), durationMs, players:[{ playerId, seat, name, isBot, left, alive, victory (the team won AND this
 player was still in at the end), roundsPassed,
 eliminatedRound, creditedKills, lp, bandId, lineup:[{ id, golden, tier, row, col, items }], bonds, stats:{ dmgDealt, kills, leaks, gold,
 refreshes, merges, itemsEquipped, bossDamage, activatedLayers, lpLost, perfectRounds }, title:{ id, name, picId, text }|null,

@@ -73,7 +73,7 @@ test('co-op focus: a changed public main releases the cached plan within the sam
 
 test('§37.34: 终极 solo bots prefer the sturdiest strategies more than on other difficulties', () => {
   const share = (difficulty) => {
-    const { m } = makeMatch({ mode: 'solo', difficulty, seed: 5, seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }] }).start().toPrep();
+    const { m } = makeMatch({ mode: 'solo', difficulty, seed: 1, seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }] }).start().toPrep();
     try {
       const bot = m.order[0], ids = m.gd.bandIds(), top = Math.max(...ids.map((id) => m.gd.startLp(id)));
       let hits = 0;
@@ -88,7 +88,7 @@ test('§37.34: 终极 solo bots prefer the sturdiest strategies more than on oth
 test('§37.39: 终极 co-op bots weigh the starting LP like 终极 solo bots (the team plays on while one seat lives)', () => {
   const seats = Array.from({ length: 4 }, (_, i) => ({ seat: i, playerId: `ai_${i}`, name: `AI-${i + 1}`, isBot: true, connected: true }));
   const share = (mode, difficulty) => {
-    const { m } = makeMatch({ mode, difficulty, seed: 5, seats: mode === 'solo' ? seats.slice(0, 1) : seats }).start().toPrep();
+    const { m } = makeMatch({ mode, difficulty, seed: 1, seats: mode === 'solo' ? seats.slice(0, 1) : seats }).start().toPrep();
     try {
       const bot = m.order[0], top = Math.max(...m.gd.bandIds().map((id) => m.gd.startLp(id)));
       let hits = 0;
@@ -131,7 +131,7 @@ test('#514: strategy selection stays possible, and less likely, while a teammate
 });
 
 test('user: Given a faction strategy teammate, When scoring shared high-tier chess, Then humans and bots receive the same preference even with full stock', () => {
-  const { m } = makeMatch({ humans: 3, seed: 11 }).start().toPrep();
+  const { m } = makeMatch({ humans: 3, seed: 1 }).start().toPrep();
   const [ps, mate, other] = m.order;
   try {
     mate.bandId = other.bandId = null;
@@ -391,7 +391,7 @@ test('bounty Arts (教鞭): kept after a battle with leaks, used after a perfect
   const leaky = { killed: 5, total: 6, leaked: [{ counted: true }], perfect: false };
   const clean = { killed: 6, total: 6, leaked: [], perfect: true };
   {
-    const h = soloBot({ seed: 4 }).start();
+    const h = soloBot({ seed: 8 }).start();
     const m = h.m;
     const ps = m.order[0];
     h.run(() => m.phase === PHASE.PREP && m.round === 1);
@@ -414,7 +414,7 @@ test('bounty Arts (教鞭): kept after a battle with leaks, used after a perfect
   }
   for (const human of [false, true]) {
     const seat = human ? { seat: 0, playerId: 'p_0', name: 'P', isBot: false, connected: true } : { seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true };
-    const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seats: [seat], seed: 4 }).start();
+    const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seats: [seat], seed: 8 }).start();
     const m = h.m;
     const ps = m.order[0];
     if (human) assert.ok(m.setAutoplay(ps, true).ok, 'AI 托管 on');
@@ -769,7 +769,7 @@ test('user: Given a full lineup with its last operator in a crowded hand, When p
 test('user: Given equally scored purchases, When buying with limited funds, Then prefer the cheaper offer without overriding a real score advantage', () => {
   for (const expensive of ['chess_char_3_06_a', 'chess_char_3_05_a']) {
     for (const reverse of [false, true]) {
-      const { m } = makeMatch({ mode: 'solo', seed: 11 }).start().toPrep();
+      const { m } = makeMatch({ mode: 'solo', seed: 1 }).start().toPrep();
       const ps = m.order[0];
       try {
         for (const p of ps.allChess()) ps.sell(p.uid);

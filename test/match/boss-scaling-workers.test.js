@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { WorkerFieldRunner, RemoteBattle } from '../../server/match/combat/runner.js';
 import { collectViolations } from '../../server/match/invariants.js';
@@ -17,7 +18,7 @@ async function fixture(t, { count = 3, hidden = false, speed = 2, smallPool = fa
   t.after(async () => { m?.dispose(); await pool.close(); });
   await pool.start();
   assert.equal(pool.stats().ready, 1);
-  m = new Match({ roomCode: 'SCAL', mode: 'coop', difficulty: 'NORMAL', seed: 731, data: DATA,
+  m = new Match({ roomCode: 'SCAL', mode: 'coop', difficulty: 'NORMAL', seed: 701, matchSecret: seedSecret(701), data: DATA,
     // A living AI participates just like a human; the room spectators never participate.
     seats: Array.from({ length: count }, (_, seat) => ({ seat, playerId: seat > 0 && seat === count - 1 ? 'ai_0' : `p_${seat}`,
       name: `Scaling ${seat}`, isBot: seat > 0 && seat === count - 1, connected: true })),

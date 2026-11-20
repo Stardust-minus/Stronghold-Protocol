@@ -1108,7 +1108,7 @@ an explicit ignored-field warning. There is no script callback or cross-plugin g
 **Timing and choices.** `battleCheck` runs after the initial official check before R1 and before the start of
 *every* later named round, including boss rounds. `prep` runs after round-start income/shop draw and the official
 机变 draft, before entering prep. Vanilla takes its original path and draws at its original time. The engine builds
-uniform, distinct initial slots with an independent seed derived from match seed, plugin/window, hook, round,
+uniform, distinct initial slots with an independent seed derived from the match's private secret (Match.streamSeed), plugin/window, hook, round,
 window sequence and seat. A refresh adds slot and refresh count to that seed: it really replaces the card and
 leaves other seats untouched. It prefers unseen cards; if necessary it can duplicate another slot, but never the
 slot's current card. A one-card pool cannot refresh and consumes no allowance.

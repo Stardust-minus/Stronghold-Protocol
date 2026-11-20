@@ -661,7 +661,8 @@ test('startMatch: a version room plays in its version host (version + requireCs)
   ok(h.lobby.start(q));
   assert.equal(hosted.length, 1);
   const keys = Object.keys(Rec.last).sort();
-  assert.deepEqual(keys, ['afkRemoveRounds', 'aiPicksLast', 'broadcast', 'combatPool', 'cs', 'data', 'difficulty', 'disableSharedPool', 'experimental', 'hostId', 'log', 'matchNo', 'mode', 'modeId', 'now', 'onCheckpoint', 'onEnd', 'onRemove', 'revivalEnabled', 'roomCode', 'seats', 'seed', 'send', 'sendEncoded', 'snapshotHz', 'spectators', 'trialPool']);
+  assert.deepEqual(keys, ['afkRemoveRounds', 'aiPicksLast', 'broadcast', 'combatPool', 'cs', 'data', 'difficulty', 'disableSharedPool', 'experimental', 'hostId', 'log', 'matchNo', 'matchSecret', 'mode', 'modeId', 'now', 'onCheckpoint', 'onEnd', 'onRemove', 'revivalEnabled', 'roomCode', 'seats', 'seed', 'send', 'sendEncoded', 'snapshotHz', 'spectators', 'trialPool']);
+  assert.match(Rec.last.matchSecret, /^[0-9a-f]{64}$/, 'the match\'s private secret (§37.277)');
   // a version room without a version host, and the real Match class: never in this process
   const lone = new Lobby({ registry: new SessionRegistry(), log: quiet, content: { cs: VANILLA }, getData, versions: versionStub() });
   const s = lone.registry.create('C');

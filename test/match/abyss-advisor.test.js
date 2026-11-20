@@ -132,7 +132,7 @@ test('a crowded R9+ bench frees keep-listed low tiers, and a full keep-listed ha
 
 const run = gen => { for (const step of gen) void step; };
 function legacySeat(t) {
-  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], seed: 3 });
+  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], seed: 1 });
   t.after(() => h.m.dispose()); h.start().toPrep();
   const m = h.m, ps = m.order[0];
   for (const p of ps.allChess()) ps.sell(p.uid);

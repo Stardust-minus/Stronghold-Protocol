@@ -4,7 +4,9 @@
 //   h.start(); h.runToPhase('PREP'); const ps = h.ps('p_0'); …; h.invariants();
 //
 // Options: mode, difficulty, humans (count) | seats (explicit), bots, spectators (spectator seat ids, opts.spectators),
-// seed, matchNo (the room's match number: part of the battleId prefix), data (default: real data/*.json),
+// seed, matchSecret (the match's private secret, §37.277; default: secret.js seedSecret(seed), so a seed repeats the match;
+// randomSecret: true lets the Match draw its own), matchNo (the room's match number: part of the battleId prefix), data
+// (default: real data/*.json),
 // fake (true → test/match/fakeBattle.js as BattleClass), script (FakeBattle.script), registry, instant (virtual
 // scheduler runs battles synchronously; default true), timerScale, battleContent, botRehearsal (default 0),
 // botSliceMs (bot rehearsal slice budget; default: unbounded in virtual time), aiPicksLast (the room option
@@ -23,6 +25,7 @@
 
 import assert from 'node:assert/strict';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { getData } from '../../server/data.js';
 import { FIELD, canPlace, placeClass, positionClass, tileKey } from '../../server/match/board.js';
@@ -93,8 +96,9 @@ export function makeMatch(o = {}) {
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',
     experimental: o.experimental,
-    // an ELO room's private match secret (Match opts.matchSecret; a random one without it)
-    matchSecret: o.matchSecret,
+    // the match's private secret (Match opts.matchSecret, §37.277): fixed by the seed unless the test gives one, so the same
+    // seed repeats the match (a checkpoint's fresh instance too); `randomSecret: true` lets the Match draw its own
+    ...(o.randomSecret === true ? {} : { matchSecret: o.matchSecret ?? seedSecret(o.seed ?? 1) }),
     headlessSliceMs: o.headlessSliceMs,
     aiPicksLast: o.aiPicksLast,
     // the AFK rule (Match opts.afkRemoveRounds) is off unless a test asks for it: the suites' scripted humans only

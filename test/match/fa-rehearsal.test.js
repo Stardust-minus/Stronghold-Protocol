@@ -2,7 +2,6 @@
 // boss field's own ranking (§37.61: leader damage less a leak's cost first).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveSeed } from '../../server/sim/rng.js';
 import { FA_LEAK_SECONDS } from '../../server/sim/rehearsal.js';
 import { fieldModel, planLayout, createRehearsal, faRehearsalSeed, faRehearsalTicks } from '../../server/match/bot.js';
 import { legalTiles, tileKey, placeClass } from '../../server/match/board.js';
@@ -58,8 +57,8 @@ test('Final Assault rehearsal uses an independent seed and the fight\'s own rank
     const seed = faRehearsalSeed(m, ps);
     assert.equal(job.inputs[0].seed, seed);
     assert.equal(job.inputs[1].seed, seed);
-    assert.notEqual(seed, deriveSeed(m.seed, `b1:${m.round}`));
-    assert.notEqual(seed, deriveSeed(m.seed, `fa:${m.round}:${ps.seat}`));
+    assert.notEqual(seed, m.streamSeed(`b1:${m.round}`));
+    assert.notEqual(seed, m.streamSeed(`fa:${m.round}:${ps.seat}`));
     assert.equal(job.inputs[0].kind, 'boss');
     assert.equal(job.inputs[0].timeLimit, Infinity);
     assert.equal(job.inputs[0].flags.layerGainsEnabled, false);

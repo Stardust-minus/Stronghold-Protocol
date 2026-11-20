@@ -11,7 +11,7 @@ const SEAT = [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: t
 const IDS = ['4_20_b', '6_01_a', '1_06_b', '4_14_a', '4_21_a', '3_12_a', '1_01_a', '2_03_a'];
 
 function bossRound(bossId) {
-  const h = makeMatch({ mode: 'solo', difficulty: 'HARD', seats: SEAT, seed: 7, botRehearsal: 3 }).start().toPrep();
+  const h = makeMatch({ mode: 'solo', difficulty: 'HARD', seats: SEAT, seed: 17, botRehearsal: 3 }).start().toPrep();
   const m = h.m, ps = m.order[0];
   m.bossId = bossId;
   m.startRound(m.gd.bossRound);

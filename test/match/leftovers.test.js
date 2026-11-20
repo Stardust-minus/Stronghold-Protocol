@@ -10,6 +10,7 @@ import { createBattleFromSpec, compactResult } from '../../server/sim/spec.js';
 import { RESULT_GRACE_MS, BOSS_SILENCE_MS } from '../../server/match/fields.js';
 import { FakeBattle } from './fakeBattle.js';
 import { makeMatch, checkInvariants } from './harness.js';
+import { secretTag, seedSecret } from '../../server/match/secret.js';
 
 /** A plausible client result for a spec (FakeBattle stepped to its end, like test/match/simClient.js). */
 function fakeResult(m, spec) {
@@ -22,7 +23,7 @@ const pub = (h) => { h.m.flush(true); return h.lastBc('m.public'); };
 
 // ---- battleId ---------------------------------------------------------------------------------------------------
 
-test('battleIds carry a per-match prefix (seed + the room\'s match number): a late b.progress / b.result of the previous match is ignored', () => {
+test('battleIds carry a per-match prefix (the secret\'s tag + the room\'s match number): a late b.progress / b.result of the previous match is ignored', () => {
   const mk = (matchNo) => {
     const h = makeMatch({ mode: 'solo', difficulty: 'FUNNY', humans: 1, seed: 4242, matchNo, fake: true, clientCombat: true, clients: false }).start();
     assert.ok(h.drive(() => h.m.phase === PHASE.COMBAT));
@@ -33,7 +34,10 @@ test('battleIds carry a per-match prefix (seed + the room\'s match number): a la
   const sa = a.lastTo('p_0', 'b.start');
   const sb = b.lastTo('p_0', 'b.start');
   assert.notEqual(sa.battleId, sb.battleId, 'same seed, same field, another match of the room');
-  assert.ok(sa.battleId.startsWith(`${(4242).toString(36)}-1.1.`) && sb.battleId.startsWith(`${(4242).toString(36)}-2.1.`), `${sa.battleId} / ${sb.battleId}`);
+  // the prefix is an HMAC tag of the match's private secret (§37.277: the harness's, fixed by the seed), never the seed
+  const tag = secretTag(seedSecret(4242), 'battle-prefix');
+  assert.notEqual(tag, (4242).toString(36));
+  assert.ok(sa.battleId.startsWith(`${tag}-1.1.`) && sb.battleId.startsWith(`${tag}-2.1.`), `${sa.battleId} / ${sb.battleId}`);
   assert.deepEqual({ ...sa.spec, battleId: null }, { ...sb.spec, battleId: null }, 'the very same battle otherwise');
   const result = fakeResult(a.m, sa.spec);
   const f = b.m.fields[0];
@@ -49,7 +53,7 @@ test('battleIds carry a per-match prefix (seed + the room\'s match number): a la
   b.m.dispose();
 });
 
-test('battleIds: unique within a match, valid protocol ids (≤ 64 chars) even for long player ids; no matchNo ⇒ the seed alone', () => {
+test('battleIds: unique within a match, valid protocol ids (≤ 64 chars) even for long player ids; no matchNo ⇒ the secret\'s tag alone', () => {
   const long = `p_${'x'.repeat(60)}`;
   const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats: [{ seat: 0, playerId: long, name: 'L', isBot: false, connected: true }, { seat: 1, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], seed: 77, fake: true, clientCombat: true, clients: false }).start();
   const ids = new Set();
@@ -58,7 +62,7 @@ test('battleIds: unique within a match, valid protocol ids (≤ 64 chars) even f
     for (const f of h.m.fields) {
       assert.ok(!ids.has(f.battleId), `unique ${f.battleId}`);
       ids.add(f.battleId);
-      assert.ok(f.battleId.length <= 64 && f.battleId.startsWith(`${(77).toString(36)}.${r}.`), f.battleId);
+      assert.ok(f.battleId.length <= 64 && f.battleId.startsWith(`${secretTag(seedSecret(77), 'battle-prefix')}.${r}.`), f.battleId);
       assert.equal(validateC2S({ t: 'b.progress', battleId: f.battleId, gt: 0, killed: 0, total: 0 }), null);
     }
     h.drive(() => h.m.phase === PHASE.PREP || h.ended != null);

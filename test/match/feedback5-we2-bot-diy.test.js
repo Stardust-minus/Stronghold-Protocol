@@ -40,7 +40,7 @@ test('#13 buyScore: the player\'s own 自选 piece scores DIY_PIECE_BONUS more t
 });
 
 test('#13 levelUp: one round earlier for the step that opens a slotted tier (round 8: level 4 → 5 at a price above 2); a player without picks waits', () => {
-  const { m, p0, p1 } = prep(912);
+  const { m, p0, p1 } = prep(1);
   // §35.63: LEVEL_TARGET reaches level 5 at round 9
   m.round = 8;
   for (const ps of [p0, p1]) {

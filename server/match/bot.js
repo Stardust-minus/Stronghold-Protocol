@@ -1936,8 +1936,8 @@ export function faRehearsalTicks(m) {
 }
 
 /**
- * [ASSUMED] #315: battle seed of a Final Assault rehearsal. It is not derived from the match seed, and it is not the
- * live fight's `deriveSeed(match.seed, fieldId:round)`. The same seed is used for every candidate of this seat.
+ * [ASSUMED] #315: battle seed of a Final Assault rehearsal. It is not derived from the match's secret, and it is not the
+ * live fight's `match.streamSeed(fieldId:round)`. The same seed is used for every candidate of this seat.
  * @param {import('./Match.js').Match} m
  * @param {import('./PlayerState.js').PlayerState} ps
  */

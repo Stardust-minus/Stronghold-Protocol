@@ -3,17 +3,19 @@
 //   * 标准模拟 (FUNNY, solo & co-op) and 入门协议 use ONLY 战场#01 (act1autochess_m01) — official, kept: the lobby's default
 //     difficulty is 标准, so back-to-back 标准 matches always play 战场#01;
 //   * 险境模拟 (NORMAL) picks uniformly among 8 stages (战场#01–#08), 绝境 / 终极 (HARD / ABYSS) among 7 (no 战场#01),
-//     with the match seed (Match: createRng(deriveSeed(seed, 'setup')), a fresh random seed per lobby match).
+//     with the match's setup stream (Match: createRng(streamSeed('setup')), an HMAC of the match's private secret, a fresh
+//     random one per lobby match; §37.277 — a test's secret is its seed's, secret.js seedSecret).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GameData } from '../../server/match/gamedata.js';
 import { setupMatchWaves } from '../../server/match/waves.js';
-import { createRng, deriveSeed } from '../../server/sim/rng.js';
+import { createRng } from '../../server/sim/rng.js';
+import { secretSeed, seedSecret } from '../../server/match/secret.js';
 import { DATA, makeMatch } from './harness.js';
 
 const M01 = 'act1autochess_m01';
 const REST = ['act1autochess_m02', 'act1autochess_m03', 'act1autochess_m04', 'act2autochess_m01', 'act2autochess_m02', 'act2autochess_m03', 'act2autochess_m04'];
-const pick = (modeId, seed) => setupMatchWaves(new GameData(DATA, modeId), createRng(deriveSeed(seed >>> 0, 'setup'))).stageId;
+const pick = (modeId, seed) => setupMatchWaves(new GameData(DATA, modeId), createRng(secretSeed(seedSecret(seed >>> 0), 'setup'))).stageId;
 
 test('mode stage lists: 标准 / 入门 = 战场#01 only; 险境 = 8 stages; 绝境 / 终极 = 7 (no 战场#01); all weight 50', () => {
   const stagesOf = (m) => DATA.config.modes[m].stages.slice().sort();
@@ -59,7 +61,7 @@ test('different match seeds give different stages (no fixed map), the same seed 
   assert.equal(pick('mode_multi_abyss', 424242), pick('mode_multi_abyss', 424242));
 });
 
-test('Match: the stage comes from the match seed (险境 co-op / 绝境 solo vary, 标准 fixed)', () => {
+test('Match: the stage comes from the match\'s setup stream (险境 co-op / 绝境 solo vary, 标准 fixed)', () => {
   const seen = new Set();
   for (let seed = 1; seed <= 12; seed++) {
     const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 1, seed, fake: true });

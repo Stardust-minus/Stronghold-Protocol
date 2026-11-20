@@ -119,10 +119,12 @@ test('cross-group beacon gifts debit the recipient pool, retry on its exhaustion
 test('team reinforcement and fixed-list rewards route each recipient to its group/DIY stock', t => {
   const slot = 'chess_char_5_diy1_a';
   const roster = seats(7); roster[4].diy = { [slot]: { charId: 'char_112_siege', skillIndex: 2, uniEquipId: 'uniequip_002_siege' } };
-  const h = makeMatch({ seats: roster, experimental: exp(), fake: true, seed: 910 }).start();
+  const h = makeMatch({ seats: roster, experimental: exp(), fake: true, seed: 901 }).start();
   const m = h.m; t.after(() => m.dispose()); h.toPrep(1); clean(m);
   const sender = m.order[0], receiver = m.order[4];
-  assert.equal(receiver.poolOf(slot), receiver.diyStock); assert.notEqual(receiver.poolOf(slot), receiver.pool);
+  // seed 901: 维多利亚 is not a 本局禁用 bond, so the 自选 slot has its own stock (a failed identity check of two pools would
+  // print the whole match: compare the identities as booleans)
+  assert.ok(receiver.poolOf(slot) === receiver.diyStock, 'the 自选 slot draws from the DIY stock'); assert.ok(receiver.poolOf(slot) !== receiver.pool);
   assert.equal(receiver.diyStock.cap(slot), m.gd.poolCopies(slot));
   const drained = [];
   for (const g of m.poolGroups) for (const [id, e] of g.pool.entries) {

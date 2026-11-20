@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { planUnite } from '../../server/match/unite.js';
@@ -17,7 +18,7 @@ async function until(pred, ms = 10000) {
 function fixture(t, { pool = null, humans = 2, clientCombat = false, real = false, speed = 200 } = {}) {
   const sent = [], errors = [];
   const scheduler = real ? undefined : new VirtualScheduler({ instantCombat: false });
-  const m = new Match({ roomCode: 'SCOR', matchNo: 9, mode: 'coop', difficulty: 'NORMAL', seed: 731, data: DATA,
+  const m = new Match({ roomCode: 'SCOR', matchNo: 9, mode: 'coop', difficulty: 'NORMAL', seed: 731, matchSecret: seedSecret(731), data: DATA,
     seats: Array.from({ length: humans }, (_, seat) => ({ seat, playerId: `p${seat}`, name: `Score ${seat}`, isBot: false, connected: true })),
     send(pid, packet) { sent.push([pid, structuredClone(packet)]); return true; }, broadcast() {}, onEnd() {},
     log: { ...quiet, error(...args) { errors.push(args.map(String).join(' ')); } },

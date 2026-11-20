@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { BOND_LAYER_SAFE_MAX, PHASE, layerGainRoom } from '../../shared/constants.js';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { CombatEngine } from '../../server/match/combat/engine.js';
 import { validateClientResult } from '../../server/match/fields.js';
@@ -45,7 +46,7 @@ function prepMatch(t, experimental, o = {}) {
 /** A Match at the boss round's PREP: 炎 boards holding `layers` layers (what the room lets them hold). */
 function bossMatch({ experimental = rules(), count = 2, pool = null, speed = 2, layers = 300000, blood = 5e6 } = {}) {
   const m = new Match({
-    roomCode: 'LIFT', mode: 'coop', difficulty: 'NORMAL', seed: 733, data: DATA, experimental,
+    roomCode: 'LIFT', mode: 'coop', difficulty: 'NORMAL', seed: 733, matchSecret: seedSecret(733), data: DATA, experimental,
     seats: Array.from({ length: count }, (_, seat) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected: true })),
     send: () => true, broadcast: () => {}, onEnd: () => {}, log: QUIET, timerScale: 0.02, combatSpeed: speed, botRehearsal: 0,
     clientCombat: false, verify: 'off', combatPool: pool, afkRemoveRounds: 0,

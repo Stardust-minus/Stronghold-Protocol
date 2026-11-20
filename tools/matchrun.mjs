@@ -31,11 +31,13 @@
 //               cards with relevance >= C, default none / 0.5), --tilt-tier X (tier lever share, <= 0.25, default 0),
 //               --tilt-core off (the tier lever alone)
 //   --split     卡池静态初始化 (the room's experimental staticPoolSplit)
-//   --elo W     the ELO room option (§37.275): on, its private secret fixed per run seed (reproducible), and the seats
-//               of --tilt-seats (default every seat; AI seats stand in for humans) tilted as a player of shrunk win
-//               rate W in [0, 1] (shared/elo.js eloTiltAt, ELO_MAP); replaces --tilt
+//   --elo W     the ELO room option (§37.275): on, and the seats of --tilt-seats (default every seat; AI seats stand in
+//               for humans) tilted as a player of shrunk win rate W in [0, 1] (shared/elo.js eloTiltAt, ELO_MAP);
+//               replaces --tilt
 //   --tuning off     play on the research-faithful numbers (data/tuning.json ignored; docs/BALANCE.md)
 //   --legacy-time    read combat limits as game seconds (the reading before docs/BALANCE.md §2.1)
+// Every run's private match secret is fixed by its seed (server/match/secret.js seedSecret, §37.277): the same seed repeats
+// the match on the same code.
 // Examples:
 //   node tools/matchrun.mjs --mode solo --difficulty FUNNY --seed 3
 //   node tools/matchrun.mjs --mode coop --difficulty HARD --players 4 --seeds 20
@@ -49,7 +51,7 @@ import { Battle } from '../server/sim/Battle.js';
 import { getData } from '../server/data.js';
 import { layerGainRoom } from '../shared/constants.js';
 import { eloTiltAt, setTilt } from '../server/match/tilt.js';
-import { createHash } from 'node:crypto';
+import { seedSecret } from '../server/match/secret.js';
 
 const argv = process.argv.slice(2);
 const opt = {};
@@ -142,7 +144,8 @@ async function runOne(seed, difficulty) {
     send: () => { frames++; return true; }, broadcast: () => {}, onEnd: (s) => { summary = s; },
     ...(opt.split || elo != null ? { experimental: { revivalEnabled: false, disableSharedPool: false, ...(opt.split ? { staticPoolSplit: true } : {}),
       ...(elo != null ? { elo: true } : {}) } } : {}),
-    ...(elo != null ? { matchSecret: createHash('sha256').update(`elo-run:${seed}`).digest('hex') } : {}),
+    // the match's private secret, fixed by the seed (§37.277): the same seed repeats the match, ELO rooms included
+    matchSecret: seedSecret(seed),
   });
   for (const ps of m.players.values()) if (!ps.isBot) ps.autoplay = true;
   const seatTilt = elo != null ? eloTiltAt(elo) : tilt;

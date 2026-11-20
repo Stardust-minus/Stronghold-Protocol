@@ -94,7 +94,7 @@ for (const [humans, seed] of [[1, 60], [3, 5]]) test(`user: Given a full formati
 });
 
 test('user: Given two ground routes meeting at a guard, When planning support, Then allies can kill enemies from either entrance', () => {
-  const { m } = makeMatch({ mode: 'coop', humans: 3, difficulty: 'HARD', seed: 8 }).start().toPrep().setStage('act2autochess_m02');
+  const { m } = makeMatch({ mode: 'coop', humans: 3, difficulty: 'HARD', seed: 44 }).start().toPrep().setStage('act2autochess_m02');
   const ps = m.order[0];
   try {
     const routes = [[9, 10], [12, 10]].map((start) => ({ motion: 'WALK', start, end: [9, 2], checkpoints: [] }));
@@ -120,7 +120,7 @@ test('user: Given two ground routes meeting at a guard, When planning support, T
 });
 
 test('user: Given a saturated layout, When placing a self-range defender, Then prefer a free enemy path tile', () => {
-  const h = makeMatch({ mode: 'solo', seed: 11 }).start().toPrep();
+  const h = makeMatch({ mode: 'solo', seed: 2 }).start().toPrep();
   const m = h.m;
   const ps = m.order[0];
   try {
@@ -597,7 +597,7 @@ test('layout planning cache: same plan, direction and RNG; prefix built once per
 });
 
 test('user: Given normal battle-start effects, When rehearsing candidate layouts, Then choose the layout with fewer actual battle leaks', async (t) => {
-  // Real round-7 wave from seed 104; no equipment, bench, effects or prior layers are needed.
+  // Real round-7 wave from seed 22; no equipment, bench, effects or prior layers are needed.
   // Blemishine also gains Kazimierz layers in battle; Touch is supplied by the teammate's contentInfo.
   const lineup = [
     ['chess_char_4_02_a', '12,4', 'DOWN'],
@@ -607,7 +607,7 @@ test('user: Given normal battle-start effects, When rehearsing candidate layouts
     ['chess_char_3_12_a', '9,4', 'RIGHT'],
   ];
   const prep = () => {
-    const h = makeMatch({ mode: 'coop', humans: 2, difficulty: 'HARD', seed: 104, botRehearsal: 2 }).start().toPrep(1, { band: 'band_ducklord' });
+    const h = makeMatch({ mode: 'coop', humans: 2, difficulty: 'HARD', seed: 22, botRehearsal: 2 }).start().toPrep(1, { band: 'band_ducklord' });
     const m = h.m, ps = m.order[0];
     m.round = 7;
     m.wave = buildNormalWave(m.gd, m.rngWave, m.factions, m.round);

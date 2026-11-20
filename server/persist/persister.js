@@ -399,6 +399,8 @@ export class LobbyPersister {
     let refused = false;
     const result = this.lobby.startMatch(room, room.matchKey, room.matchKeys, { restore: {
       seed: cp.seed, matchNo: cp.matchNo, seats: doc.seats, spectators: room.spectators.map((s) => s.playerId),
+      // the match's private secret (§37.277): the match is built with it again (snapshot.js checkSnapshot)
+      matchSecret: doc.matchSecret,
       apply: (match) => {
         if (!restoreMatch(match, doc, { createRngFromState, log: this.log, replay: cp.reason === CHECKPOINT_PREP_END })) {
           refused = true; throw new Error('checkpoint refused');
@@ -435,6 +437,8 @@ export class LobbyPersister {
     let restored = null;
     const result = this.lobby.startMatch(room, room.matchKey, room.matchKeys, { restore: {
       seed: cp.seed, matchNo: cp.matchNo, seats: doc.seats, spectators: room.spectators.map((s) => s.playerId),
+      // the match's private secret (§37.277): the match is built with it again (snapshot.js checkSnapshot)
+      matchSecret: doc.matchSecret,
       apply: (match) => {
         if (!match?.hosted || typeof match.restore !== 'function') throw new Error('not a version host match');
         restored = match.restore(doc, { replay: cp.reason === CHECKPOINT_PREP_END });

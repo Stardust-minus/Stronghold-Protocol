@@ -51,12 +51,16 @@
 //   opts.hostId      string (optional)          the room's current host (server/lobby.js room.hostId): the executor a
 //                                              bot layout rehearsal is delegated to (DESIGN §14, botRehearsalDelegate);
 //                                              setHost follows a migration while the match runs
-//   opts.seed        uint32                     master seed for all match randomness
-//   opts.matchSecret string (optional)         an ELO room's private match secret (64 hex digits, secret.js; tools and
-//                                              tests — a fresh random one otherwise): the seed of every stream a tilt
-//                                              draws from (tilt.js eloSeed); ignored without the room's option
-//   opts.matchNo     integer ≥ 1 (optional)     the room's match number (lobby: room.matchCount + 1); with the seed it
-//                                              makes this match's battleIds unique within the room (DESIGN §14)
+//   opts.seed        uint32                     the match's name on the server (checkpoint ids, logs, a test journal);
+//                                              no stream reads it (§37.277) — tools and tests fix the secret by it
+//   opts.matchSecret string (optional)         the match's private secret (64 hex digits, secret.js): every stream's and
+//                                              battle's seed is an HMAC of it (streamSeed), the ids pages get another
+//                                              (battlePrefix); never sent. Absent or malformed: a fresh random one (a
+//                                              lobby's or game node's new match) — a test match's (opts.test) its seed's.
+//                                              A restore passes the checkpoint's; tools and tests pass secret.js
+//                                              seedSecret(seed) so the same seed repeats the match
+//   opts.matchNo     integer ≥ 1 (optional)     the room's match number (lobby: room.matchCount + 1): the battleId
+//                                              prefix's suffix (DESIGN §14)
 //   opts.cs          string (optional)          the content hash of the room's content set (DESIGN §32,
 //                                              server/plugins/identity.js; 64 hex digits): copied into every BattleSpec
 //                                              as `cs` — the sim never reads it; absent (or malformed) ⇒ specs carry none
@@ -149,9 +153,10 @@
 // overtime drain live here (b.pool ≤ 4 Hz, b.end; m.public follows a boss fight at ~1 Hz); the first end condition the
 // server registers decides the Final Assault (pool 0 → victory, team LP 0 → defeat; nothing reported after a defeat is
 // credited — _finalEnding, user playtest #6 item 5). No b.snap / b.ev is sent in
-// this mode; g.watch hands out specs. battleIds are `<seed36>[-<matchNo36>].<round>.<seq>[.<fieldId>]` (≤ 64 chars):
-// unique across the matches of a room, so a report that crossed into the next match is ignored like any stale one; a
-// duplicate b.result (a browser re-sending one it believes lost) is answered ok and changes nothing.
+// this mode; g.watch hands out specs. battleIds are `<tag>[-<matchNo36>].<round>.<seq>[.<fieldId>]` (≤ 64 chars; `<tag>`
+// an HMAC of the match secret, secret.js secretTag — never the seed, §37.277): unique across the matches of a room, so a
+// report that crossed into the next match is ignored like any stale one; a duplicate b.result (a browser re-sending one
+// it believes lost) is answered ok and changes nothing.
 // Bot layout rehearsals (opts.botRehearsalDelegate, off by default): a bot prep's candidate layouts go to the current
 // host's browser as one b.rehearsal frame — its module Worker simulates them off the page's main thread with the same
 // sim, seeds and scoring and answers b.rehearsalResult with the index of its pick (server/sim/rehearsal.js). A timeout,
@@ -296,9 +301,9 @@ import { isContentHash } from '../../shared/plugins/identity.js';
 import { DEFAULT_VERSION, versionById } from '../../shared/versions.js';
 import { Battle } from '../sim/Battle.js';
 import { DataSource } from '../sim/simdata.js';
-import { createRng, deriveSeed } from '../sim/rng.js';
+import { createRng } from '../sim/rng.js';
 import { eloTilt, setTilt } from './tilt.js';
-import { isMatchSecret, newMatchSecret, secretSeed } from './secret.js';
+import { isMatchSecret, newMatchSecret, secretTag, seedSecret } from './secret.js';
 import { GameData } from './gamedata.js';
 import { RealScheduler } from './scheduler.js';
 import { SharedPool, createItemPools, drawDisabledBonds } from './pool.js';
@@ -393,6 +398,13 @@ export class Match {
     this.difficulty = opts.difficulty;
     this.modeId = opts.modeId || modeIdFor(this.mode, opts.difficulty);
     this.seed = (Number(opts.seed) >>> 0) || 1;
+    /**
+     * The match's private secret (secret.js, §37.277): every stream below and every battle seed is an HMAC of it
+     * (streamSeed), the ids a page gets another (battlePrefix). Never derived from the seed or anything a page sees, never
+     * sent: the checkpoint keeps it (snapshot.js) and a restore builds the match with it again. A test match (opts.test,
+     * DESIGN §34.8: a sandbox whose journal replays from its seed, testTrace.js) given none takes its seed's.
+     */
+    this.matchSecret = isMatchSecret(opts.matchSecret) ? opts.matchSecret : opts.test === true ? seedSecret(this.seed) : newMatchSecret();
     this.log = opts.log || noopLog;
     this.sendFn = opts.send;
     this.broadcastFn = opts.broadcast;
@@ -548,10 +560,11 @@ export class Match {
     this._bossPubAt = -Infinity;
     this._bossClockOn = false;
     /**
-     * battleId prefix (DESIGN §14): the seed (+ the room's match number) — a b.progress / b.result that crossed into the
-     * next match of the room (the same socket, the same field ids) never names a battle of this match.
+     * battleId prefix (DESIGN §14), also the match's `matchId` in m.public / m.damage / m.result: an HMAC tag of the secret
+     * (+ the room's match number) — a b.progress / b.result that crossed into the next match of the room (the same socket,
+     * the same field ids) never names a battle of this match, and nothing of it leads back to a stream (§37.277).
      */
-    this.battlePrefix = `${this.seed.toString(36)}${Number.isInteger(opts.matchNo) && opts.matchNo > 0 ? `-${opts.matchNo.toString(36)}` : ''}`;
+    this.battlePrefix = `${secretTag(this.matchSecret, 'battle-prefix')}${Number.isInteger(opts.matchNo) && opts.matchNo > 0 ? `-${opts.matchNo.toString(36)}` : ''}`;
     this.damageBoard = createDamageBoard(this.battlePrefix);
     this._damageDirty = false;
     this._damageTimer = null;
@@ -579,14 +592,10 @@ export class Match {
     /** AI 联防置后 (shared/experimental.js isUniteHumansFirst): 联防 helpers are humans first (unite.js helperOrder) */
     this.uniteHumansFirst = this.experimental.uniteHumansFirst === true;
     /**
-     * ELO (shared/experimental.js isEloRoom, tilt.js): every human seat's own tilt from its seats[].elo, and the match's
-     * private secret (secret.js: 256 random bits, never derived from the seed) — through HMAC the seed of the shop's, the
-     * 机变 draft's and the meta grants' streams below and of every other draw a tilt reads (tilt.js eloSeed): the seed
-     * reaches every page, the secret never leaves the server (the checkpoint keeps it, snapshot.js). null without the
-     * option: every stream is the seed's.
+     * ELO (shared/experimental.js isEloRoom, tilt.js): every human seat's own tilt from its seats[].elo; the streams a tilt
+     * draws from are the match secret's like every other (tilt.js eloSeed).
      */
     this.elo = isEloRoom(this.experimental);
-    this.matchSecret = this.elo ? (isMatchSecret(opts.matchSecret) ? opts.matchSecret : newMatchSecret()) : null;
     /**
      * the room's enemy multipliers (1 = none): spec flags too, and the leader pool's size (bossRounds.js). enemyHpMul is the
      * single multiplier (1 under a by-round plan, experimental.enemyHpPlan): a round's own is enemyHpMulAt().
@@ -603,15 +612,14 @@ export class Match {
     this._lastPoolKey = '';
     this.pacer = null;
 
-    const rng = (name) => createRng(deriveSeed(this.seed, name));
-    // the streams an ELO tilt draws from: the match's own secret in an ELO room (above), the seed's otherwise
-    const own = (name) => (this.matchSecret != null ? createRng(secretSeed(this.matchSecret, name)) : rng(name));
+    // every stream is the match secret's (streamSeed, §37.277): nothing a page is sent computes one
+    const rng = (name) => createRng(this.streamSeed(name));
     this.rngSetup = rng('setup');
-    this.rngShop = own('shop');
+    this.rngShop = rng('shop');
     this.rngWaves = rng('waves');
-    this.rngDraft = own('draft');
+    this.rngDraft = rng('draft');
     this.rngBots = rng('bots');
-    this.rngMeta = own('meta');
+    this.rngMeta = rng('meta');
 
     /** @type {Map<string, PlayerState>} */
     this.players = new Map();

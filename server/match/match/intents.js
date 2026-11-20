@@ -7,7 +7,6 @@
 
 import { unitStatsEntry } from '../../../shared/protocol.js';
 import { PHASE, ERR, EMOTES, EMOTE_COOLDOWN_MS, GEO, BOND_PLAN_SUB_MAX, BOND_PLAN_COOLDOWN_MS } from '../../../shared/constants.js';
-import { deriveSeed } from '../../sim/rng.js';
 import { OK, fail } from './common.js';
 import { onHumanEmote } from '../botEmotes.js';
 
@@ -201,7 +200,7 @@ export class MatchIntents {
     // raises bond stats at t = 0 there too); the Final Assault / Hidden Core fight without (previewed as a normal field)
     const bossRound = this.round === this.gd.bossRound || this.round === this.gd.hiddenRound;
     const b = this.newBattle({
-      seed: deriveSeed(this.seed, `preview:${this.round}:${ps.seat}`), kind: 'normal', modeId: this.modeId, round: this.round,
+      seed: this.streamSeed(`preview:${this.round}:${ps.seat}`), kind: 'normal', modeId: this.modeId, round: this.round,
       stageId: this.stageId, rect: { ...GEO.NORMAL_RECT }, timeLimit: 60, players, spawns: [], routes: this.wave ? this.wave.routes : [],
       sharedBoss: null, flags: { layerGainsEnabled: !bossRound, ...this.gd.dp, ...this._ruleFlags() }, fieldId: `n:${ps.playerId}`, recordEvents: false,
     });

@@ -7,7 +7,7 @@
 
 import { PHASE, GEO } from '../../../shared/constants.js';
 import { WorkerFieldRunner } from '../combat/runner.js';
-import { createRng, deriveSeed } from '../../sim/rng.js';
+import { createRng } from '../../sim/rng.js';
 import { creditedKillsOf } from '../../sim/spec.js';
 import { buildBossWave, bountySpawns } from '../waves.js';
 import { pairPlayers, bossPairSalt, bossPoolHp, SharedBossPool, CreditPool, hiddenEligible, BOSS_HIT_STEPS } from '../finalAssault.js';
@@ -72,7 +72,7 @@ export class MatchBoss {
     // too; 规程 only from §37.124). A new pool (the hidden round) starts empty.
     pool.ops = new Map();
     // the round's plan (_planBossWaves: the Hidden Core's own draw, GitHub #845); a departure since keeps intact pairs
-    const groups = pairPlayers(alive, createRng(deriveSeed(this.seed, bossPairSalt(this.gd, this.round))), this.bossPairs);
+    const groups = pairPlayers(alive, createRng(this.streamSeed(bossPairSalt(this.gd, this.round))), this.bossPairs);
     this.bossPairs = groups.map(g => g.map(p => p.playerId));
     const reuse = this.bossWaves && this.bossWaves.length === groups.length && this.bossWaves.every((w, i) => w.players.join() === groups[i].map((p) => p.playerId).join());
     this.fields = groups.map((g, i) => {
@@ -97,7 +97,7 @@ export class MatchBoss {
       });
       const fieldId = `b${i + 1}`;
       const bopts = {
-        seed: deriveSeed(this.seed, `${fieldId}:${this.round}`),
+        seed: this.streamSeed(`${fieldId}:${this.round}`),
         kind: hidden ? 'hidden' : 'boss',
         modeId: this.modeId,
         round: this.round,

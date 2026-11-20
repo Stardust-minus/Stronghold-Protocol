@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { buildNormalWave } from '../../server/match/waves.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { CombatEngine } from '../../server/match/combat/engine.js';
@@ -63,7 +64,7 @@ function engineDigests(spec, { watched = () => false, chunk = () => 32 } = {}) {
 /** A real normal-round spec: round 3 of a co-op wave with a board of operators. */
 function normalSpec(seed = 9101) {
   const m = new Match({
-    roomCode: 'SPEC', mode: 'coop', difficulty: 'NORMAL', seed, data: DATA,
+    roomCode: 'SPEC', mode: 'coop', difficulty: 'NORMAL', seed, matchSecret: seedSecret(seed), data: DATA,
     seats: [0, 1].map((seat) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected: true })),
     send: () => true, broadcast: () => {}, onEnd: () => {}, log: QUIET, clientCombat: false, botRehearsal: 0,
   });
@@ -147,7 +148,7 @@ async function realPool(t) {
 function fixture(t, pool, { speed = 20, localReplica, timeLimit = 40 } = {}) {
   const sent = [];
   const m = new Match({
-    roomCode: 'LOCL', mode: 'coop', difficulty: 'NORMAL', seed: 733, data: DATA,
+    roomCode: 'LOCL', mode: 'coop', difficulty: 'NORMAL', seed: 733, matchSecret: seedSecret(733), data: DATA,
     seats: [0, 1].map((seat) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected: true })),
     send: (pid, msg) => { sent.push([pid, clone(msg)]); return true; },
     broadcast: () => {}, onEnd: () => {}, log: QUIET, timerScale: 0.02, combatSpeed: speed, botRehearsal: 0,

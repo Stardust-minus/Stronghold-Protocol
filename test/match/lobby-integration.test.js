@@ -24,8 +24,8 @@ let srv = null;
 const clients = [];
 
 async function server() {
-  // Issue #144: in the one-human + AI draft, seed 69 makes the AI take band_bldsk first.
-  if (!srv) srv = await startServer({ port: 0, host: '127.0.0.1', log, MatchClass: FastMatch, seedFn: () => 69 });
+  // Issue #144: in the one-human + AI draft, seed 142 makes the AI take band_bldsk first.
+  if (!srv) srv = await startServer({ port: 0, host: '127.0.0.1', log, MatchClass: FastMatch, seedFn: () => 142 });
   return srv;
 }
 async function player(name, token) {
@@ -175,7 +175,7 @@ test('co-op spectator over websockets: watches the real match like an eliminated
   }
   await ok(a, { t: 'g.infoReady' });
   const draft = await pickCoopBands([a]);
-  assert.ok(Object.values(draft.draft.picks).includes('band_bldsk'), 'seed 69: the AI already took the default');
+  assert.ok(Object.values(draft.draft.picks).includes('band_bldsk'), 'seed 142: the AI already took the default');
   await a.waitFor('m.public', (p) => p.phase === 'PREP' && p.round === 1, 10000);
   for (const msg of [{ t: 'g.buy', slot: 0 }, { t: 'g.ready', ready: true }, { t: 'g.refresh' }]) {
     const r = await s.request(msg);

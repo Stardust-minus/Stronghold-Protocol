@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { CombatEngine } from '../../server/match/combat/engine.js';
 import { createPoolGroups, createItemPools } from '../../server/match/pool.js';
@@ -83,7 +84,7 @@ test('spawnEnemy: every enemy once, over the round mods; mods stay as they came,
 /** A Match at the boss round's PREP. */
 function bossMatch({ experimental = rules(), pool = null, speed = 2, blood = 5e6 } = {}) {
   const m = new Match({
-    roomCode: 'MULT', mode: 'coop', difficulty: 'NORMAL', seed: 733, data: DATA, experimental, seats: seats(2),
+    roomCode: 'MULT', mode: 'coop', difficulty: 'NORMAL', seed: 733, matchSecret: seedSecret(733), data: DATA, experimental, seats: seats(2),
     send: () => true, broadcast: () => {}, onEnd: () => {}, log: QUIET, timerScale: 0.02, combatSpeed: speed, botRehearsal: 0,
     clientCombat: false, verify: 'off', combatPool: pool, afkRemoveRounds: 0,
   });

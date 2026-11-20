@@ -6,7 +6,7 @@ import { REROLL_VOTE_MS, rerollNeed } from '../../server/match/match/setupVote.j
 import { restoreMatch, snapshotMatch } from '../../server/match/snapshot.js';
 import { createRngFromState } from '../../server/sim/rng.js';
 import { validateC2S } from '../../shared/protocol.js';
-import { createRng, deriveSeed } from '../../server/sim/rng.js';
+import { createRng } from '../../server/sim/rng.js';
 import { setupMatchWaves } from '../../server/match/waves.js';
 import { drawDisabledBonds } from '../../server/match/pool.js';
 
@@ -76,7 +76,7 @@ test('three of four humans (ceil 0.75 n) reroll the entire official setup and st
   assert.equal(approve(m, 'p_3', voteId).error, ERR.WRONG_PHASE, 'the vote is over once three agreed');
   assert.equal(m.setupRevision, 1);
   assert.equal(m.setupVote, null);
-  const rng = createRng(deriveSeed(m.seed, 'reroll-setup:1'));
+  const rng = createRng(m.streamSeed('reroll-setup:1'));
   const setup = setupMatchWaves(m.gd, rng);
   const bans = drawDisabledBonds(m.gd, rng);
   assert.deepEqual(snapshot(m), { stageId: setup.stageId, bossId: setup.bossId, hiddenBossId: setup.hiddenBossId,

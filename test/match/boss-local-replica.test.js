@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { CombatEngine } from '../../server/match/combat/engine.js';
 import { EXT_MIN_GAP_MS } from '../../server/match/combat/runner.js';
@@ -37,7 +38,7 @@ async function until(predicate, label, ms = 30_000) {
 /** A Match at the boss round's PREP: `count` human seats, boards of STRONG operators unless `empty`. */
 function bossMatch({ count = 4, hidden = false, empty = false, lp = 40, smallPool = true, seed = 731, pool = null, send = () => true, speed = 2 } = {}) {
   const m = new Match({
-    roomCode: 'BREP', mode: 'coop', difficulty: 'NORMAL', seed, data: DATA,
+    roomCode: 'BREP', mode: 'coop', difficulty: 'NORMAL', seed, matchSecret: seedSecret(seed), data: DATA,
     seats: Array.from({ length: count }, (_, seat) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected: true })),
     send, broadcast: () => {}, onEnd: () => {}, log: QUIET, timerScale: 0.02, combatSpeed: speed, botRehearsal: 0,
     clientCombat: false, verify: 'off', combatPool: pool, afkRemoveRounds: 0,
@@ -256,7 +257,7 @@ test('workers: a reconnect re-sends the whole record from index 0 in the b.start
   t.after(() => pool.close());
   await pool.start();
   const sent = [];
-  const m = bossMatch({ count: 4, pool, speed: 1, smallPool: false, send: (pid, msg) => { sent.push([pid, clone(msg)]); return true; } });
+  const m = bossMatch({ count: 4, pool, speed: 1, smallPool: false, seed: 701, send: (pid, msg) => { sent.push([pid, clone(msg)]); return true; } });
   t.after(() => m.dispose());
   const to = (pid, type) => sent.filter(([p, msg]) => p === pid && msg.t === type).map(([, msg]) => msg);
   m.handle('p_0', { t: 'g.sim', local: true });

@@ -344,9 +344,14 @@ export class GameHost {
     return !!this.versionHosts && !!this.versions?.isEnabled?.(version) && !!this.versions.csOf(version);
   }
 
-  _construct(ctx) {
+  /**
+   * The actor's Match. `matchSecret`: a restore's (its checkpoint's, §37.277); a new actor's Match draws its own private
+   * secret (the coordinator never sees one: nothing of it is in the assignment).
+   */
+  _construct(ctx, matchSecret = undefined) {
     const matchSpec = copy(ctx.spec);
     delete matchSpec.assignmentId; delete matchSpec.build; delete matchSpec.protocol; delete matchSpec.takenOver;
+    if (typeof matchSecret === 'string') matchSpec.matchSecret = matchSecret;
     if (matchSpec.version !== undefined) return this._constructHosted(ctx, matchSpec);
     const match = new this.MatchClass({ ...matchSpec, data: this.data, combatPool: this.combatPool, trialPool: this.trialPool,
       // This host owns server-authoritative games even without SP_COMBAT.
@@ -414,7 +419,8 @@ export class GameHost {
     for (const id of safe.spectators) ctx.members.set(id, { role: 'spectator', left: false, binding: null, engineRegistered: false });
     this.contexts.set(safe.assignmentId, ctx);
     try {
-      ctx.match = this._construct(ctx);
+      // built with the checkpoint's private secret (§37.277: the seed of every stream; snapshot.js refuses another)
+      ctx.match = this._construct(ctx, saved?.match?.matchSecret);
       // a hosted actor: applied in its match host (its outcome: restoring(); a refusal ends it as a failed start)
       if (ctx.match.hosted) ctx.match.restore(saved.match, { replay: saved.reason === CHECKPOINT_PREP_END });
       else if (!restoreMatch(ctx.match, saved.match, { createRngFromState, log: this.log, replay: saved.reason === CHECKPOINT_PREP_END })) {

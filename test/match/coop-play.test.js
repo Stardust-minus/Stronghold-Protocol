@@ -8,7 +8,7 @@ import { makeMatch, give, legalTileFor, DATA } from './harness.js';
 
 const bots = (n) => Array.from({ length: n }, (_, i) => ({ seat: i, playerId: `ai_${i}`, name: `AI-${i + 1}`, isBot: true, connected: true }));
 
-function match(mode, seed = 5) {
+function match(mode, seed = 1) {
   const h = makeMatch({ mode, difficulty: 'ABYSS', seed, seats: bots(mode === 'solo' ? 1 : 4) }).start().toPrep();
   const m = h.m, ps = m.order[0];
   ps.hand.fill(null);

@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Match } from '../server/match/Match.js';
+import { seedSecret } from '../server/match/secret.js';
 import { VirtualScheduler } from '../server/match/scheduler.js';
 import { getData } from '../server/data.js';
 
@@ -59,7 +60,7 @@ export function captureMatch({ difficulty = 'HARD', seed = 7, data = getData({ l
   const captured = [];
   let summary = null;
   const m = new Match({
-    roomCode: 'PERF', mode: 'coop', difficulty, seats, seed, data, scheduler: sched, clientCombat: true,
+    roomCode: 'PERF', mode: 'coop', difficulty, seats, seed, matchSecret: seedSecret(seed), data, scheduler: sched, clientCombat: true,
     log: { info() {}, debug() {}, warn() {}, error() {} },
     send: (pid, msg) => {
       if (pid === 'p_0' && msg && msg.t === 'b.start' && !msg.watch) captured.push({ round: m.round, msg: JSON.parse(JSON.stringify(msg)) });

@@ -43,7 +43,7 @@ const officialBoss = (st, field) => {
 
 /** A 2-human co-op match on act2 m01 at the prep of round `round` (fake battles: nobody leaks). */
 function coopAt(round, o = {}) {
-  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 2, seed: o.seed ?? 21, fake: true }).start();
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 2, seed: o.seed ?? 1, fake: true }).start();
   h.setStage(STAGE);
   h.toPrep(round);
   return h;

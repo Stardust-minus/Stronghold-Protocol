@@ -19,7 +19,7 @@ after(() => setGameData(null));
 function setup(t, band = 'band_sarkazb') {
   setGameData(data);
   const registry = registerBuiltins(new MetaRegistry(), data);
-  const h = makeMatch({ data, registry, mode: 'solo', modeId: 'mode_single_1', seed: 41, fake: true }).start().toPrep(1, { band: 'band_amiya' });
+  const h = makeMatch({ data, registry, mode: 'solo', modeId: 'mode_single_1', seed: 1, fake: true }).start().toPrep(1, { band: 'band_amiya' });
   t.after(() => { assert.equal(h.m.errorCount, 0); h.m.dispose(); });
   const ps = h.ps('p_0');
   for (const p of ps.allChess()) ps.returnCopies(p);

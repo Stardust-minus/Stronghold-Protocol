@@ -10,7 +10,7 @@ const MELEE = (c) => c.position === 'MELEE';
 const RANGED = (c) => c.position === 'RANGED';
 
 function prepMatch(stageId = 'act2autochess_m01', o = {}) {
-  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seed: o.seed ?? 11, ...o }).start();
+  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seed: o.seed ?? 24, ...o }).start();
   h.toPrep(1);
   h.setStage(stageId);
   const ps = h.ps('p_0');

@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { snapshotMatch, restoreMatch } from '../../server/match/snapshot.js';
 import { createRngFromState } from '../../server/sim/rng.js';
 import { validateC2S } from '../../shared/protocol.js';
@@ -100,7 +101,7 @@ test('the match: each round\'s battles carry that round\'s multiplier as their s
 /** A Match at the boss round's PREP (test/match/experimental-enemy-rules.test.js bossMatch). */
 function bossMatch({ experimental = rules(), pool = null, blood = 1e6 } = {}) {
   const m = new Match({
-    roomCode: 'PLAN', mode: 'coop', difficulty: 'NORMAL', seed: 733, data: DATA, experimental, seats: seats(2),
+    roomCode: 'PLAN', mode: 'coop', difficulty: 'NORMAL', seed: 733, matchSecret: seedSecret(733), data: DATA, experimental, seats: seats(2),
     send: () => true, broadcast: () => {}, onEnd: () => {}, log: QUIET, timerScale: 0.02, combatSpeed: 2, botRehearsal: 0,
     clientCombat: false, verify: 'off', combatPool: pool, afkRemoveRounds: 0,
   });

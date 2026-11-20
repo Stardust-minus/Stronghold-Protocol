@@ -10,6 +10,7 @@ import { makeMatch, DATA } from './harness.js';
 import { createRegistry } from '../../server/match/effectsMeta.js';
 import { applyDuckPicks } from '../../server/sim/content/bands/meta.js';
 import { gateOf } from '../../shared/constants.js';
+import { seedSecret } from '../../server/match/secret.js';
 
 const REG = createRegistry({ log: { warn() {}, error() {}, info() {} } });
 const BOUNTY = DATA.choices.cards.bounty.filter((c) => c.payout === 'kill' && c.enemyKey && DATA.enemies[c.enemyKey]?.stats?.motion !== 'FLY');
@@ -19,7 +20,7 @@ const kindsOf = (spawns) => [...new Set(spawns.filter((s) => s.tag === 'duck').m
 const ownCount = (spawns) => spawns.filter((s) => s.tag !== 'bounty').reduce((n, s) => n + (s.count || 1), 0);
 
 test('#839 同盟: the four players get the same 鸭爵 swaps each round (count, units) on the lower lane, one kind each, with different bounties', () => {
-  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 3, seed: 839, registry: REG, fake: true }).start();
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 3, seed: 1, registry: REG, fake: true }).start();
   h.toPrep(6);
   const m = h.m;
   const ps = m.alivePlayers();
@@ -28,12 +29,12 @@ test('#839 同盟: the four players get the same 鸭爵 swaps each round (count,
   // different bounties per player: none, one, two, three walker cards
   ps.forEach((p, i) => { p.bounties = BOUNTY.slice(i, 2 * i).map((card, j) => ({ id: `t${i}${j}`, card, roundsLeft: 1, chooser: p.playerId })); });
   assert.deepEqual(ps.map((p) => p.bounties.length), [0, 1, 2, 3]);
-  const seed0 = m.seed;
+  const secret0 = m.matchSecret;
   let swapped = 0, retimed = 0, mixed = 0;
   const hist = [0, 0, 0];
   const routes = m.wave.routes;
   for (let k = 0; k < 60; k++) {
-    m.seed = seed0 + k; // another match seed: another round draw
+    m.matchSecret = seedSecret(m.seed + k); // another match's secret (§37.277): another round draw
     const lists = ps.map((p) => m._normalOpts(p).spawns);
     const want = swapsOf(lists[0]);
     hist[want.length]++;
@@ -55,7 +56,7 @@ test('#839 同盟: the four players get the same 鸭爵 swaps each round (count,
     const times = lists.map((l) => l.filter((s) => s.tag === 'duck').map((s) => s.time).sort().join());
     if (new Set(times).size > 1) retimed++;
   }
-  m.seed = seed0;
+  m.matchSecret = secret0;
   assert.ok(hist.every((n) => n > 0), `0, 1 and 2 swaps all occur: ${hist}`);
   assert.ok(swapped > 0);
   assert.ok(mixed > 0, 'players draw different kinds in some rounds');

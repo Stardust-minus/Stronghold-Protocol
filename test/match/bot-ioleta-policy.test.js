@@ -24,7 +24,7 @@ for (const disabled of ['deputShip', 'steadShip', 'preciShip']) {
   });
 }
 
-function setup(t, { seed = 11, naturalBans = false } = {}) {
+function setup(t, { seed = 2, naturalBans = false } = {}) {
   const h = makeMatch({ mode: 'solo', difficulty: 'HARD', seed, fake: true }).start().toPrep();
   t.after(() => h.m.dispose());
   const m = h.m, ps = m.order[0];

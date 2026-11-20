@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE, ERR } from '../../shared/constants.js';
 import { Match, OFFLINE_TAKEOVER_ROUNDS } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { StubMatch } from '../../server/match/StubMatch.js';
 import { DATA, makeMatch, checkInvariants, give, giveItem, chessOfTier } from './harness.js';
 import { bossPoolHp } from '../../server/match/finalAssault.js';
@@ -455,7 +456,7 @@ test('unknown / wrong-phase intents are rejected without throwing', () => {
 test('degraded data: a match without a chess pool ends immediately with an error summary (no throw)', () => {
   const out = { ended: null, bc: [] };
   const m = new Match({
-    roomCode: 'X', mode: 'coop', difficulty: 'HARD', modeId: 'mode_multi_hard', seed: 1,
+    roomCode: 'X', mode: 'coop', difficulty: 'HARD', modeId: 'mode_multi_hard', seed: 1, matchSecret: seedSecret(1),
     seats: [{ seat: 0, playerId: 'p', name: 'P', isBot: false, connected: true }],
     data: { config: {} }, log: { info() {}, warn() {}, error() {} },
     send: () => true, broadcast: (x) => out.bc.push(x), onEnd: (s) => { out.ended = s; },

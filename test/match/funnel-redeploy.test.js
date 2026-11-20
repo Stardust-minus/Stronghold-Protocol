@@ -1,4 +1,6 @@
-// Real production Match + Battle, legal normal intents from an empty board. Seed 8 fixes the shop/wave route.
+// Real production Match + Battle, legal normal intents from an empty board: each operator is bought from whichever shop
+// slot offers it, refreshing while the funds still buy it (g.refresh), so the route holds for any seed whose shop deals
+// it in time; seed 13 fixes the shop draws and the waves.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Battle } from '../../server/sim/Battle.js';
@@ -39,19 +41,26 @@ test('Rockrock killed by a real enemy and automatically revived by Ermengard sta
       });
     }
   }
-  const h = makeMatch({ mode: 'solo', seed: 8 });
+  const h = makeMatch({ mode: 'solo', seed: 13 });
   h.m.BattleClass = ObservedBattle; // read-only observers, no combat state writes
   const p = h.ps('p_0'), act = msg => assert.deepEqual(h.m.handle('p_0', msg), { ok: true });
+  // a legal purchase of `id` from the slot that offers it, refreshing (a legal paid intent) while the funds still buy it
+  // (an operator costs its tier)
+  const offered = id => p.shop.slots.findIndex(s => s?.kind === 'chess' && s.id === id && !s.sold);
+  const buyOffered = id => {
+    while (offered(id) < 0 && p.funds >= h.m.gd.refreshPrice + h.m.gd.chess(id).tier) act({ t: 'g.refresh' });
+    assert.ok(offered(id) >= 0, `precondition: the shop offers ${id}`);
+    act({ t: 'g.buy', slot: offered(id) });
+  };
   try {
     h.start().toPrep(1, { band: 'band_ermengard' });
-    act({ t: 'g.buy', slot: 0 });
+    buyOffered('chess_char_1_09_a');
     act({ t: 'g.move', uid: p.hand.find(x => x?.id === 'chess_char_1_09_a').uid,
       to: { area: 'board', row: 12, col: 6 }, dir: 'RIGHT' });
     h.toPrep(2, { band: 'band_ermengard' });
     act({ t: 'g.levelUp' });
     h.toPrep(5, { band: 'band_ermengard' });
-    assert.equal(p.shop.slots[3].id, 'chess_char_2_10_a');
-    act({ t: 'g.buy', slot: 3 });
+    buyOffered('chess_char_2_10_a');
     act({ t: 'g.move', uid: p.hand.find(x => x?.id === 'chess_char_2_10_a').uid,
       to: { area: 'board', row: 12, col: 8 }, dir: 'RIGHT' });
     h.toPrep(7, { band: 'band_ermengard' });

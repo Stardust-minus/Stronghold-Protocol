@@ -23,7 +23,7 @@ function shares(m, ps, n = 4000) {
 }
 
 test('§37.46: on 终极 the band pick also weighs how well the bots play each band', (t) => {
-  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seed: 3, seats: bots(1) });
+  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seed: 1, seats: bots(1) });
   t.after(() => h.dispose?.());
   const m = h.m, ps = m.order[0];
   const s = (id) => bandStrength(m, id);

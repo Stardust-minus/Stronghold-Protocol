@@ -33,6 +33,7 @@ import { bodyKeys } from '../../server/sim/body.js';
 import { planUnite } from '../../server/match/unite.js';
 import { createRng } from '../../server/sim/rng.js';
 import { DATA, makeMatch } from '../match/harness.js';
+import { seedSecret } from '../../server/match/secret.js';
 
 test('item 6: the three briefing types fill 7–9 of the 13 normal waves (险境 / 绝境 / 终极), at most 3 each; the rest are SPECIAL', () => {
   for (const modeId of ['mode_multi_normal', 'mode_single_hard', 'mode_multi_abyss']) {
@@ -99,7 +100,7 @@ test('item 35: the 鸭爵 strategy swaps 0–2 enemies of each player\'s wave, e
     const seed0 = h.m.seed;
     for (const ps of h.m.alivePlayers()) {
       for (let k = 0; k < 40; k++) {
-        h.m.seed = seed0 + k; // one draw per round from the match seed (GitHub #839): another seed, another draw
+        h.m.matchSecret = seedSecret(seed0 + k); // one draw per round from the match's secret (GitHub #839, §37.277): another match, another draw
         const ducks = h.m._normalOpts(ps).spawns.filter((x) => x.tag === 'duck');
         assert.ok(ducks.length <= 2, `${ducks.length} swaps in one wave`);
         hist[ducks.length]++;

@@ -23,6 +23,7 @@ import { validateC2S } from '../../shared/protocol.js';
 import { buildBattleSpec, createBattleFromSpec, resultDigest } from '../../server/sim/spec.js';
 import { DataSource } from '../../server/sim/simdata.js';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { StubMatch } from '../../server/match/StubMatch.js';
 import { TestClient } from '../helpers/wsClient.js';
@@ -273,7 +274,7 @@ describe('the wire: welcome, room.state, the match, /healthz, /cs/, BattleSpec, 
     const run = (spec) => { const b = createBattleFromSpec(spec, ds, { quiet: true }); while (!b.finished) b.step(); return resultDigest(b.result()); };
     assert.deepEqual(run(buildBattleSpec({ ...base, cs })), run(plain), 'the same battle with or without cs');
     const make = (o) => new Match({ roomCode: 'CS', mode: 'solo', difficulty: 'FUNNY', seats: [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true }],
-      seed: 5, data: DATA, log: { info() {}, warn() {}, error() {}, debug() {} }, send: () => true, broadcast() {}, onEnd() {}, scheduler: new VirtualScheduler({ instantCombat: true }), ...o });
+      seed: 5, matchSecret: seedSecret(5), data: DATA, log: { info() {}, warn() {}, error() {}, debug() {} }, send: () => true, broadcast() {}, onEnd() {}, scheduler: new VirtualScheduler({ instantCombat: true }), ...o });
     const m = make({ cs });
     try {
       const f = m._ccField({ fieldId: 'n:p_0', kind: 'normal', players: ['p_0'], opts: { ...base, players: [{ ...base.players[0], playerId: 'p_0' }] } });

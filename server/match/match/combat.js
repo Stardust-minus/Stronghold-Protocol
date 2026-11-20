@@ -5,7 +5,6 @@
 
 import { PHASE, GEO, layerGainRoom } from '../../../shared/constants.js';
 import { WorkerFieldRunner } from '../combat/runner.js';
-import { deriveSeed } from '../../sim/rng.js';
 import { withBounties } from '../waves.js';
 import { planUnite } from '../unite.js';
 import { FieldRunner, DeadBattle } from '../fields.js';
@@ -71,7 +70,7 @@ export class MatchCombat {
     if (preview) this.dispatcher.dispatch(ps, 'onBattleStart', ev);
     else this.dispatch(ps, 'onBattleStart', ev);
     return {
-      seed: deriveSeed(this.seed, `n:${this.round}:${ps.seat}`),
+      seed: this.streamSeed(`n:${this.round}:${ps.seat}`),
       kind: 'normal',
       modeId: this.modeId,
       round: this.round,
