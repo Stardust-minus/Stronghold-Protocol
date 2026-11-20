@@ -148,8 +148,31 @@ test('network-quality board: public-dashboard-compatible, known series only (rec
   const data = netqBoard.panels.filter((p) => p.type !== 'row' && p.type !== 'text');
   assert.ok(data.length >= 10);
   assert.ok(data.some((p) => p.type === 'table' && p.title === '省份 × 运营商'), 'the province × ISP table');
-  for (const p of data.filter((x) => /province/.test(JSON.stringify(x.targets)))) {
-    for (const t of targets(p)) assert.match(t.expr, /sp:netq_province_online_seconds:rate1h\) >= 3|sp:netq_province_online_seconds:rate1h >= 3/, `${p.title}: cells under 3 pages hidden`);
+  // Provinces have a few players a day (2026-11-20: no province averaged 3 pages over any hour in a week), so the
+  // province panels count the last 24 h and hide a province / cell under 3 page-hours — never a lower floor, on every
+  // province query, with the value and the floor from the same 24 h rules.
+  const provincePanels = data.filter((x) => /province/.test(JSON.stringify(x.targets)));
+  assert.deepEqual(provincePanels.map((p) => p.id), [18, 19, 20]);
+  const FLOOR = /sp:netq_province_online_seconds:rate24h\)? \* 24 >= (\d+(?:\.\d+)?)\)+$/;
+  for (const p of provincePanels) {
+    for (const t of targets(p)) {
+      const floor = t.expr.match(FLOOR);
+      assert.ok(floor && Number(floor[1]) >= 3, `${p.title}: cells under 3 page-hours in 24 h hidden (${t.expr})`);
+      assert.doesNotMatch(t.expr, /:rate1h\b/, `${p.title}: one window, 24 h`);
+    }
+    assert.match(p.description, /^过去 24 小时.*不到 3 页面·小时的(?:省份|格子)不显示/, `${p.title}: says the window and the floor`);
+    // province xx = no province for the address (the province list is IPv4 only, so mostly IPv6)
+    const xx = p.fieldConfig.overrides.flatMap((o) => o.matcher.options === 'xx' ? o.properties.map((x) => x.value)
+      : o.properties.filter((x) => x.id === 'mappings').flatMap((x) => x.value.map((m) => m.options?.xx?.text).filter(Boolean)));
+    assert.deepEqual(xx, ['未定位（多为 IPv6）'], `${p.title}: province xx`);
+  }
+  assert.equal(netqBoard.panels.find((p) => p.id === 17).title, '按省份（过去 24 小时）');
+  assert.match(netqBoard.panels[0].options.content, /按省份的数据是过去 24 小时，上报合计不到 3 页面·小时/);
+  const provinceRules = rules.filter((r) => r.record.startsWith('sp:netq_province_'));
+  assert.equal(provinceRules.length, 5);
+  for (const { record, expr } of provinceRules) {
+    assert.match(record, /:rate24h$/);
+    assert.match(expr, /^sum by \(province, isp(?:, le)?\) \(rate\(sp_netq_province_[a-z_]+_total\{job="collector"\}\[24h\]\)\)$/, record);
   }
   for (const p of data) {
     assert.ok(['timeseries', 'bargauge', 'table'].includes(p.type), p.title);
