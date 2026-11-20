@@ -1,7 +1,8 @@
 // 卡池剩余 (feedback #160, a fork addition — the official shop cards and bond card show no such number): how many copies of
 // an operator or a piece of equipment are left in the stock the player shares with the rest of their pool group
 // (m.private poolLeft, server/match/pool.js poolCountsView). The server sends it only when the stock is shared and finite
-// (never in 单人 / 独立卡池 / a one-seat pool group, never for effect-only equipment or the private 自选 stock); 设置
+// (never in 单人 / 独立卡池 / a one-seat pool group, never for effect-only equipment or the private 自选 stock; under
+// 卡池静态初始化 it is the player's own share of the group's stock, what their shop draws on); 设置
 // 「显示卡池剩余张数」 (poolCount, on by default) hides it.
 // The mark is a small tab right of the card's price — the card's buying information, not its frame (the owner's rule for
 // marks, feedback #152: on the element it belongs to, easy to tell from the 可晋升 tag, the owned-copies pips and the plan

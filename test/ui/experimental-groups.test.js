@@ -22,6 +22,10 @@ test('what is on, by group and in their order; a solo room has no teammates\' ru
   assert.deepEqual(experimentalItems(ALL, { omit: ['playerCapacity'] })[0].key, 'revivalEnabled');
   assert.deepEqual(experimentalByGroup(rules({ enemyHpMul: 2, revivalEnabled: true })).map((g) => [g.id, g.items.length]), [['team', 1], ['enemy', 1]]);
   assert.equal(experimentalItems(rules({ enemyHpPlan: [[1, 1], [6, 2]] }))[0].text, '敌人生命 1–5回合 ×1 / 6回合起 ×2');
+  assert.deepEqual(experimentalItems(rules({ staticPoolSplit: true, poolPlan: [0, 0, 1, 1] })).map((x) => `${x.group}:${x.key}:${x.text}`),
+    ['pools:staticPoolSplit:卡池静态初始化', 'pools:poolPlan:手动卡池 2 组'], '卡池静态初始化 in the 卡池 group, before the manual plan');
+  assert.deepEqual(experimentalItems(rules({ staticPoolSplit: true }), { mode: 'solo' }), [], 'a solo room has no pool to deal');
+  assert.deepEqual(queueConfig(rules({ staticPoolSplit: true })), rules({ staticPoolSplit: true }), 'a ticket keeps it');
   assert.equal(experimentalCountText(0), '未开启');
   assert.equal(experimentalCountText(3), '已开启 3 项');
 });
@@ -45,7 +49,7 @@ test('a ticket\'s own options: the rules of the game only, 禁用鸭爵策略 ke
   assert.deepEqual(optionGroups(props()), ['team', 'bonds', 'enemy', 'pools'], 'no seat count, no 特殊功能');
   assert.deepEqual(ids(groupRows('bonds', props())), ['experimental-layer-cap']);
   assert.deepEqual(ids(groupRows('bonds', props({ multi: true }))), ['experimental-layer-cap', 'experimental-ducklord'], 'with 多人同盟 in the scope');
-  assert.deepEqual(ids(groupRows('pools', props())), ['experimental-pool'], 'no manual groups');
+  assert.deepEqual(ids(groupRows('pools', props())), ['experimental-pool', 'experimental-pool-split'], 'no manual groups');
   const sent = [];
   const duck = walk(groupRows('bonds', props({ multi: true, value: rules({ disableDuckLord: true }), onChange: (v) => sent.push(v) }))).find((n) => n.props.id === 'experimental-ducklord');
   assert.equal(duck.props.checked, true, 'kept on although the ticket names no seat count');

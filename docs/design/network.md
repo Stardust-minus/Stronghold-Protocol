@@ -181,6 +181,12 @@ a plan `disableSharedPool` is false. Absent, a room keeps its old key and shape.
 like any rule, so a change resets the other doctors' ready; a change of `playerCapacity` must send a plan of the new
 length. A party queues under its plan's key: it merges only with parties of the same layout, solos fill it. `m.public.poolGroups`
 now also comes in a four-seat room with a plan.
+**卡池静态初始化 (the owner, 2026-11-20, docs/history/0.4.0.md §37.272):** `experimental.staticPoolSplit` is an optional strict
+boolean, canonically omitted when false and dropped under `disableSharedPool` (a plan replaces that flag, so a plan keeps it).
+It adds `:split` to `experimentalKey`, `sameExperimental` compares it, and a lone ticket may bring it (`QUEUE_OPTION_KEYS`).
+A server without it refuses it like any unknown option. `m.private.poolLeft` then counts the seat's own share. A checkpoint
+of such a match carries `poolSplit` (per group: every seat's chess `[cap, left]`, equipment caps and debt); any other
+checkpoint keeps its shape and `SNAPSHOT_VERSION` stays 2.
 **One pool per official version (the owner, 2026-11-15: 「大厅可以选择匹配不同版本的，组队匹配就进入对应版本匹配池」):** the
 official version is the first axis of a ticket's pools after `MATCHMAKING_VERSION` (`server/matchmaking.js` poolKey
 `<protocol>:<version>:<difficulty>:<required>`), so tickets of two versions never meet and every offer is made in its

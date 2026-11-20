@@ -90,7 +90,8 @@ export class MatchMessaging {
    * 卡池剩余 (feedback #160, m.private poolLeft): a dirty seat may have moved the stock it shares — a purchase, a sale, an
    * elimination's return. For each shared pool group with a dirty seat whose counts changed since the last flush, the
    * group's other connected, alive humans (their own state unchanged) get their m.private again. One count view per
-   * touched group (pool.js poolCountsView); the per-seat JSON dedupe of _sendPrivate stays.
+   * touched group (pool.js poolCountsView); the per-seat JSON dedupe of _sendPrivate stays. A split group (卡池静态初始化)
+   * has nothing shared to report: a seat's moves change its own share only, and a redeal marks every seat it dealt to.
    * @param {Iterable<any>} dirty the seats being flushed
    * @returns {any[]} the seats to add
    */
@@ -99,7 +100,7 @@ export class MatchMessaging {
     const seen = new Set();
     for (const ps of dirty) {
       const group = poolGroupOf(this, ps);
-      if (!group || group.playerIds.length < 2 || seen.has(group)) continue;
+      if (!group || group.playerIds.length < 2 || group.shares || seen.has(group)) continue;
       seen.add(group);
       let sig;
       try { sig = JSON.stringify(poolCountsView(this, ps)); } catch (e) { this.reportError('poolCounts', e); continue; }

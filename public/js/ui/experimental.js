@@ -56,7 +56,9 @@ export function experimentalOptions(input) {
     ...(plan ? { poolPlan: plan } : {}),
     ...(input?.collabOps === true ? { collabOps: true } : {}),
     ...(input?.console === true ? { console: true } : {}),
-    ...(input?.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}) };
+    ...(input?.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}),
+    // 卡池静态初始化: nothing to deal under 禁用共享卡池 (shared/experimental.js experimentalOptions drops it there too)
+    ...(input?.staticPoolSplit === true && !(!plan && input?.disableSharedPool === true) ? { staticPoolSplit: true } : {}) };
 }
 
 /**
@@ -89,6 +91,7 @@ export function experimentalItems(input, { mode = 'coop', queue = false, omit = 
     enemyAtkMul: options.enemyAtkMul ? t('敌人攻击 ×{n}', { n: options.enemyAtkMul }) : null,
     disableHitLimit: options.disableHitLimit ? t('禁用单次伤害上限') : null,
     disableSharedPool: !solo && options.disableSharedPool ? t('禁用共享卡池') : null,
+    staticPoolSplit: !solo && options.staticPoolSplit ? t('卡池静态初始化') : null,
     poolPlan: !solo && options.poolPlan ? t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }) : null,
     collabOps: options.collabOps ? t('联动干员') : null,
     console: options.console ? t('调控台') : null,
@@ -204,7 +207,7 @@ export function ExperimentalBadge({ value, mode = 'coop', queue = false, label =
 /** Whether any option differs from a standard room's (the room's 实验性选项 button is then marked). */
 export function experimentalChanged(input) {
   const options = experimentalOptions(input);
-  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyHpPlan || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps || !!options.console || !!options.uniteHumansFirst;
+  return options.revivalEnabled || options.disableSharedPool || !!options.disableDuckLord || !!options.disableLayerCap || !!options.disableHitLimit || !!options.enemyHpMul || !!options.enemyHpPlan || !!options.enemyAtkMul || !!options.playerCapacity || !!options.poolPlan || !!options.collabOps || !!options.console || !!options.uniteHumansFirst || !!options.staticPoolSplit;
 }
 
 export function experimentalSummary(input) {
@@ -212,7 +215,7 @@ export function experimentalSummary(input) {
   const summary = t('复活 {0} · 共享卡池 {1}', { 0: options.revivalEnabled ? t('开启') : tc('toggle', '关闭'), 1: options.disableSharedPool ? tc('toggle', '关闭') : t('开启') });
   const rules = [summary, options.disableDuckLord && t('禁用鸭爵策略'), options.disableLayerCap && t('禁用层数上限'), options.disableHitLimit && t('禁用单次伤害上限'),
     options.enemyHpMul && t('敌人生命 ×{n}', { n: options.enemyHpMul }), options.enemyHpPlan && t('敌人生命 {plan}', { plan: enemyHpPlanText(options.enemyHpPlan) }), options.enemyAtkMul && t('敌人攻击 ×{n}', { n: options.enemyAtkMul }),
-    options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }), options.uniteHumansFirst && t('AI 联防置后'), options.collabOps && t('联动干员'), options.console && t('调控台')].filter(Boolean).join(' · ');
+    options.staticPoolSplit && t('卡池静态初始化'), options.poolPlan && t('手动卡池 {n} 组', { n: poolCount(options.poolPlan) }), options.uniteHumansFirst && t('AI 联防置后'), options.collabOps && t('联动干员'), options.console && t('调控台')].filter(Boolean).join(' · ');
   return options.playerCapacity ? t('{rules} · {n} 人模式', { rules, n: options.playerCapacity }) : rules;
 }
 
@@ -431,7 +434,11 @@ const present = (rows) => (Array.isArray(rows) ? rows.flat(Infinity) : [rows]).s
 /** The groups a place has (groupRows not empty), in order. @param {any} props */
 export const optionGroups = (props) => EXPERIMENTAL_GROUPS.filter((g) => present(groupRows(g.id, props))).map((g) => g.id);
 
-/** 禁用共享卡池 and 手动指定卡池编组. The plan names every seat's pool, so it stands in for the first; it starts from the automatic rule. */
+/**
+ * 禁用共享卡池, 卡池静态初始化 and 手动指定卡池编组. The plan names every seat's pool, so it stands in for the first; it starts
+ * from the automatic rule. 卡池静态初始化 deals each pool (a manual plan's: each of its groups) to its seats; under 禁用共享卡池
+ * every seat already has a whole pool, so the switch waits (and the options drop it, experimentalOptions).
+ */
 export function poolRows({ value, seats = [], ...rest }) {
   const { options, locked, send } = optionsEditor({ value, ...rest });
   const manual = !!options.poolPlan;
@@ -439,13 +446,19 @@ export function poolRows({ value, seats = [], ...rest }) {
     const { poolPlan, ...rules } = options;
     send(on ? { ...rules, disableSharedPool: false, poolPlan: autoPoolPlan(roomCapacity('coop', options), { seats, independent: options.disableSharedPool }) } : rules);
   };
+  const independent = options.disableSharedPool === true;
+  const split = switchRow({ id: 'experimental-pool-split', title: t('卡池静态初始化'),
+    note: independent ? t('禁用共享卡池时每位博士已各用一整个卡池，此项不生效。')
+      : t('开局按阶级把卡池发给同组每位博士：每人每个阶级的张数相同，具体干员各不相同，装备同理。之后各自只从自己那份中刷新和购买；队友阵亡或退出时，剩余张数重新发给组内仍在场的博士。'),
+    checked: options.staticPoolSplit === true, disabled: locked || independent, onChange: on => send({ ...options, staticPoolSplit: on }) });
   if (rest.source === 'queue') {
     return [switchRow({ id: 'experimental-pool', title: t('禁用共享卡池'), note: t('每位博士使用独立卡池，不再争用同一干员库存。'), checked: options.disableSharedPool,
-      disabled: locked, onChange: on => send({ ...options, disableSharedPool: on }) })];
+      disabled: locked, onChange: on => send({ ...options, disableSharedPool: on }) }), split];
   }
   return [
     switchRow({ id: 'experimental-pool', title: t('禁用共享卡池'), note: manual ? t('已由手动编组决定。') : t('每位博士使用独立卡池，不再争用同一干员库存。'), checked: options.disableSharedPool,
       disabled: locked || manual, onChange: on => send({ ...options, disableSharedPool: on }) }),
+    split,
     switchRow({ id: 'experimental-pools-manual', title: t('手动指定卡池编组'), note: t('由创建者决定一共几个卡池、每个卡池包含哪些席位。'), checked: manual, disabled: locked, onChange: setManual }),
   ];
 }

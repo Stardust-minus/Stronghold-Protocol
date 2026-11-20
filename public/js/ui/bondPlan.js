@@ -138,13 +138,13 @@ export function planOffMarks(pub, mode, bonds) {
 
 /**
  * The teammates who draw from my chess pool: m.public poolGroups when published (an experimental / expanded room), none
- * when the room has no shared pool (experimental.disableSharedPool), else null — every teammate (an ordinary match
- * has one pool).
+ * when the room has no shared pool (experimental.disableSharedPool) or deals it out (卡池静态初始化, staticPoolSplit: what a
+ * teammate buys comes out of their own share, never mine), else null — every teammate (an ordinary match has one pool).
  * @param {any} pub @param {string|null} myId
  * @returns {Set<string>|null}
  */
 export function poolMateIds(pub, myId) {
-  if (pub?.experimental?.disableSharedPool === true) return new Set();
+  if (pub?.experimental?.disableSharedPool === true || pub?.experimental?.staticPoolSplit === true) return new Set();
   const groups = Array.isArray(pub?.poolGroups) ? pub.poolGroups : [];
   const mine = groups.find((g) => Array.isArray(g?.playerIds) && g.playerIds.includes(myId));
   return mine ? new Set(mine.playerIds.filter((id) => id !== myId)) : null;

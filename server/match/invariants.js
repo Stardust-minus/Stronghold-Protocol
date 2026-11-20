@@ -59,6 +59,8 @@ export function collectViolations(m, { limit = 25 } = {}) {
     const pool = m.poolFor(ps);
     if (!holdings.has(pool)) holdings.set(pool, new Map());
     const held = holdings.get(pool);
+    // 卡池静态初始化: a seat's share (pool.js PoolShare) and its group's pool both count what the seat holds
+    const groupHeld = pool.group ? holdings.get(pool.group) : null;
     // the player's view of the data (its slotted 自选 slots are its operators) and the copies its 自选 pieces hold
     const pgd = ps.gd || gd;
     const diyHeld = new Map();
@@ -130,6 +132,7 @@ export function collectViolations(m, { limit = 25 } = {}) {
         const base = gd.baseIdOf(p.id);
         const tally = rec.isDiy ? diyHeld : held;
         tally.set(base, (tally.get(base) || 0) + (p.poolCopies || 0));
+        if (!rec.isDiy && groupHeld) groupHeld.set(base, (groupHeld.get(base) || 0) + (p.poolCopies || 0));
       } else if (p.kind === 'item') {
         if (!gd.item(p.id)) fail(`${id}: unknown item ${p.id}`);
         countItem(p);

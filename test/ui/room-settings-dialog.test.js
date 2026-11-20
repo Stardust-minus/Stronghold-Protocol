@@ -46,7 +46,7 @@ test('each page holds its rows', () => {
   assert.deepEqual(group('bonds'), ['experimental-layer-cap']);
   assert.deepEqual(group('bonds', big), ['experimental-layer-cap', 'experimental-ducklord'], '禁用鸭爵策略: an expanded room only');
   assert.deepEqual(group('enemy'), ['experimental-enemy-hp', 'experimental-enemy-hp-plan', 'experimental-enemy-atk', 'experimental-hit-limit']);
-  assert.deepEqual(group('pools'), ['experimental-pool', 'experimental-pools-manual']);
+  assert.deepEqual(group('pools'), ['experimental-pool', 'experimental-pool-split', 'experimental-pools-manual']);
   // 联动干员 and 调控台 (#125) are a private room's only (shared/experimental.js isCollabRoom / isConsoleRoom)
   assert.deepEqual(group('special'), ['experimental-collab', 'experimental-console']);
   assert.deepEqual(group('special', room({ source: 'matchmaking' })), group('alliance', room({ source: 'matchmaking' })), 'a matchmade room has no 特殊功能');
@@ -109,6 +109,29 @@ test('禁用共享卡池 waits while the plan decides', () => {
   const sw = walk(poolRows({ value: rules({ poolPlan: [0, 0, 1, 1] }), editable: true })).find((n) => n.props.id === 'experimental-pool');
   assert.equal(sw.props.disabled, true);
   assert.equal(sw.props.checked, false);
+});
+
+test('卡池静态初始化: its own switch beside 禁用共享卡池 (which leaves it nothing to deal), kept with a manual plan, named in every summary', () => {
+  const sent = [], props = { editable: true, onChange: (v) => sent.push(v) };
+  const row = (value, o = {}) => walk(poolRows({ value, ...props, ...o })).find((n) => n.props.id === 'experimental-pool-split');
+  assert.equal(row(rules()).props.checked, false);
+  assert.equal(row(rules()).props.disabled, false);
+  row(rules()).props.onChange({ currentTarget: { checked: true } });
+  assert.deepEqual(sent.at(-1), rules({ staticPoolSplit: true }));
+  row(rules({ staticPoolSplit: true })).props.onChange({ currentTarget: { checked: false } });
+  assert.deepEqual(sent.at(-1), rules({ staticPoolSplit: false }));
+  const independent = row(rules({ disableSharedPool: true, staticPoolSplit: true }));
+  assert.equal(independent.props.disabled, true, '禁用共享卡池: every seat already has a whole pool');
+  assert.equal(independent.props.checked, false);
+  assert.deepEqual(experimentalOptions(rules({ disableSharedPool: true, staticPoolSplit: true })), rules({ disableSharedPool: true }));
+  const manual = row(rules({ poolPlan: [0, 0, 1, 1], staticPoolSplit: true }));
+  assert.equal(manual.props.checked, true, 'a manual plan: each of its groups is dealt');
+  assert.equal(manual.props.disabled, false);
+  assert.equal(row(rules({ staticPoolSplit: true }), { source: 'queue' }).props.checked, true, '多人匹配 may bring it');
+  assert.equal(experimentalChanged(rules({ staticPoolSplit: true })), true);
+  assert.match(experimentalSummary(rules({ staticPoolSplit: true })), /卡池静态初始化/);
+  const rail = dialog({ page: 'pools', room: room({ experimental: rules({ staticPoolSplit: true }) }) });
+  assert.equal(rail.find((n) => n.props['data-testid'] === 'exp-group-pools').props.class.includes('is-set'), true);
 });
 
 test('a new seat count takes a new layout from the automatic rule, in the same message', () => {

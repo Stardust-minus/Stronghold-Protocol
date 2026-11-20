@@ -6,23 +6,55 @@ import { emptyDamageRows } from '../../sim/damageBoard.js';
 import { buildBattleSpec } from '../../sim/spec.js';
 import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { RemoteBattle } from '../combat/runner.js';
-import { createPoolGroups } from '../pool.js';
+import { createPoolGroups, dealChessShares, dealItemShares, poolGroupOf, splitPoolGroup } from '../pool.js';
+import { createRng, deriveSeed } from '../../sim/rng.js';
 import { REVIVAL_COST, REVIVAL_MIN_DONOR_LP, REVIVAL_UNAVAILABLE_REASONS, FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 import { buildOutResult } from '../results.js';
 
 const DAMAGE_PUBLIC_MS = 1000;
 
 export class MatchExtensions {
-  /** The seat groups of this match's chess pools (pool.js createPoolGroups): the constructor, a setup reroll, a restore. */
-  buildPoolGroups(banned, { legacySix = false } = {}) {
-    return createPoolGroups(this.gd, this.order, { banned, experimental: this.capacityExperiment, independent: this.disableSharedPool,
+  /**
+   * The seat groups of this match's chess pools (pool.js createPoolGroups): the constructor, a setup reroll, a restore.
+   * 卡池静态初始化 (staticPoolSplit) splits every group of two seats or more (pool.js splitPoolGroup) and deals it with an
+   * rng of its own, seeded by the match and `revision` (the setup the groups are for: a reroll deals its new pools again),
+   * so no other stream of the match moves; a restore (`deal` false) sets the saved shares instead (snapshot.js).
+   */
+  buildPoolGroups(banned, { legacySix = false, deal = true, revision = this.setupRevision ?? 0 } = {}) {
+    const groups = createPoolGroups(this.gd, this.order, { banned, experimental: this.capacityExperiment, independent: this.disableSharedPool,
       fixedChunks: this.twentyPlayerMode, legacySix, plan: this.poolPlan });
+    if (this.staticPoolSplit) {
+      const rng = deal ? createRng(deriveSeed(this.seed, `pool-split:${revision}`)) : null;
+      for (const g of groups) splitPoolGroup(this.gd, g, rng);
+    }
+    return groups;
   }
 
-  /** seat → its group's pool, whenever a seat cannot simply read `pool` (null in an ordinary match). */
+  /** seat → its group's pool (its own share in a split group), whenever a seat cannot simply read `pool` (null in an ordinary match). */
   routePools(poolGroups) {
-    return this.disableSharedPool || this.capacityExperiment || this.poolPlan
-      ? new Map(poolGroups.flatMap(g => g.playerIds.map(id => [id, g.pool]))) : null;
+    return this.disableSharedPool || this.capacityExperiment || this.poolPlan || this.staticPoolSplit
+      ? new Map(poolGroups.flatMap(g => g.playerIds.map(id => [id, g.shares?.get(id) ?? g.pool]))) : null;
+  }
+
+  /**
+   * 卡池静态初始化: `ps` is out of its split group — eliminated, or gone (中途退出 is an elimination: platform.js _quit) —
+   * and its pieces went back to its share (PlayerState.eliminate): every copy the group has left, chess and equipment, is
+   * dealt again among the seats still in it (pool.js dealChessShares / dealItemShares). A seat still in: alive, or a death
+   * still waiting for its rescue (队友复活) — if that one is finalized too, the group is dealt again then. A seat AI 托管
+   * plays on (g.autoplay, the offline takeover, an AI seat a spectator took over) is not out and keeps its share. The rng is
+   * the match's, salted by the round and the seat, so a replayed round deals the same.
+   */
+  _redealPools(ps) {
+    if (!this.staticPoolSplit) return;
+    const g = poolGroupOf(this, ps);
+    if (!g?.shares) return;
+    const seats = g.playerIds.filter((id) => { const p = this.players.get(id); return !!p && (p.alive || p.pendingDeath === true); });
+    if (!seats.length) return;
+    const rng = createRng(deriveSeed(this.seed, `pool-redeal:${this.round}:${ps.playerId}`));
+    dealChessShares(g, seats, rng);
+    dealItemShares(this.gd, g, seats, rng, (id) => this.playerItemPools.get(id));
+    for (const id of seats) this.players.get(id)?.dirty();
+    this.log?.info?.(`[match ${this.roomCode}] pool group ${g.id} dealt again among ${seats.length} seats (R${this.round}, ${ps.playerId} out)`);
   }
 
   poolFor(player) {
@@ -235,6 +267,7 @@ export class MatchExtensions {
       try { ps.outResult = buildOutResult(this, ps, round); } catch { ps.outResult = null; }
     }
     ps.eliminate(round);
+    this._redealPools(ps);
     if (notify) {
       this.toast(ps, 'error', msg('你的目标生命值耗尽，已被淘汰'));
       this.tickerText(msg('{name}博士的目标生命值已耗尽', { name: ps.name }), FLOW_TICKER_PRIORITY);

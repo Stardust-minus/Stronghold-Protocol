@@ -557,6 +557,8 @@ export class Match {
     this.disableSharedPool = this.experimental.disableSharedPool;
     /** 手动指定卡池编组: one pool per room seat (shared/poolPlan.js), else null; a solo room has one seat and no groups */
     this.poolPlan = this.isSolo ? null : this.experimental.poolPlan ?? null;
+    /** 卡池静态初始化 (shared/experimental.js isStaticPoolSplit): every pool group of two seats or more is dealt to its seats */
+    this.staticPoolSplit = !this.isSolo && this.experimental.staticPoolSplit === true;
     this.playerCapacity = roomCapacity(this.isSolo ? 'solo' : this.mode, this.experimental);
     this.capacityExperiment = !this.isSolo && this.playerCapacity > 4;
     this.twentyPlayerMode = this.capacityExperiment && this.playerCapacity === 20;

@@ -14,6 +14,13 @@
 //     exactly what was taken — chess granted by effects while the pool is empty (or hidden/banned chess) hold 0.
 //   * Invariant: raw left ≤ cap and raw left + Σ held copies == cap. Mimic can exceed stock, but its copies still occupy it.
 //
+//   * 卡池静态初始化 (the room's experimental staticPoolSplit, shared/experimental.js isStaticPoolSplit): a group of two
+//     seats or more deals its pool to its seats at the start (dealChessShares / dealItemShares: per tier, every copy of the
+//     tier in one shuffled deck dealt round-robin) and each seat's transactions and rolls use its own PoolShare — the
+//     overdraw rules above hold per share. The group's pool stays the sum of its shares (a share's take / give moves it
+//     too), so its invariant, its checkpoint and the bond availability views read as before. A seat that is eliminated or
+//     leaves returns its pieces first; then what the group has left is dealt again among the seats still in it.
+//
 // Rolls: each chess slot draws ONE copy uniformly from all remaining copies of eligible chess with tier ≤ shop level
 // ("copy-weighted"; duplicates within a roll allowed). The item slot picks a tier with the same tier shares, then a
 // uniform shop-eligible item of that tier (falling back to lower tiers). A roll may add entries outside the pool
@@ -252,6 +259,144 @@ export class SharedPool {
   }
 }
 
+/**
+ * 卡池静态初始化: one seat's share of its group's pool (SharedPool, `group`). Its entries are the group's, with the share's
+ * own cap and left: the copies dealt to the seat (dealChessShares), minus what it took, plus what it gave back. Rolls,
+ * tier shares and counts read the share alone; take / give move the group's entry by the same copies, so the group's
+ * raw left is always the sum of its shares' and `raw left + Σ held == cap` holds for the group and for every share.
+ */
+export class PoolShare extends SharedPool {
+  /** @param {SharedPool} group the group's pool @param {string} playerId the seat */
+  constructor(group, playerId) {
+    super(group.gd, { banned: group.banned });
+    /** @type {Map<string, { cap: number, left: number, tier: number }>} the group's chess, nothing dealt yet */
+    this.entries = new Map([...group.entries].map(([id, e]) => [id, { cap: 0, left: 0, tier: e.tier }]));
+    this.group = group;
+    this.playerId = playerId;
+  }
+
+  take(baseId, n = 1, opts = {}) {
+    const k = super.take(baseId, n, opts);
+    if (k) /** @type {any} */ (this.group.entries.get(baseId)).left -= k;
+    return k;
+  }
+
+  give(baseId, n = 1) {
+    const k = super.give(baseId, n);
+    if (k) /** @type {any} */ (this.group.entries.get(baseId)).left += k;
+    return k;
+  }
+}
+
+/**
+ * Deal `cards` by tier (卡池静态初始化, the owner's rule of 2026-11-20: 「每个人的每个等级的干员数量是一样的，但是每个干员，
+ * 每人持有的数量是不一样的」): per tier, a deck of every id repeated by its count, shuffled with `rng`, dealt round-robin to
+ * `hands` hands in an order the rng shuffles too — each hand gets the same number of a tier's copies, and the rng decides
+ * which hands get one more when they do not divide evenly. `cards`: [id, tier, count] in a fixed order (the pool's, the
+ * shop's), so a seed deals the same. @returns {Map<string, number[]>} id → its copies per hand
+ * @param {Array<[string, number, number]>} cards @param {number} hands @param {Function & { shuffle: Function }} rng
+ */
+export function dealByTier(cards, hands, rng) {
+  const out = new Map(cards.map(([id]) => [id, new Array(Math.max(0, hands)).fill(0)]));
+  if (!(hands > 0)) return out;
+  const tiers = [...new Set(cards.map(([, tier]) => tier))].sort((a, b) => a - b);
+  for (const tier of tiers) {
+    const deck = [];
+    for (const [id, t, n] of cards) if (t === tier) for (let i = 0; i < n; i++) deck.push(id);
+    if (!deck.length) continue;
+    rng.shuffle(deck);
+    const order = rng.shuffle([...Array(hands).keys()]);
+    deck.forEach((id, i) => { /** @type {number[]} */ (out.get(id))[order[i % hands]]++; });
+  }
+  return out;
+}
+
+/**
+ * 卡池静态初始化: give a chess-pool group (createPoolGroups) of two seats or more one PoolShare per seat (`g.shares`) and an
+ * equipment cap per seat (`g.itemCaps`, read by createItemPools), then — `rng` given — deal it all to its seats. A restore
+ * (snapshot.js) passes none and sets the saved shares instead. A group of one seat is left as it is: its pool is its own.
+ * @param {import('./gamedata.js').GameData} gd @param {any} g @param {any} [rng]
+ */
+export function splitPoolGroup(gd, g, rng = null) {
+  if (g.playerIds.length < 2) return g;
+  g.shares = new Map(g.playerIds.map((id) => [id, new PoolShare(g.pool, id)]));
+  g.itemCaps = new Map(g.playerIds.map((id) => [id, new Map()]));
+  if (rng) {
+    dealChessShares(g, g.playerIds, rng);
+    dealItemShares(gd, g, g.playerIds, rng);
+  }
+  return g;
+}
+
+/**
+ * Deal a split group's chess (splitPoolGroup) among `seats` (its seats still playing): every share's copies left go back
+ * into the deck — a share overdrawn below zero keeps its deficit, which the copies it is dealt pay first — with the copies
+ * no share holds yet (the start: all of them), and dealByTier deals them out again. Pieces already owned stay theirs, so
+ * the group's raw left is unchanged; a share outside `seats` keeps nothing but its deficit. [ASSUMED] the deficit rule:
+ * the owner's rule names copies only.
+ * @param {any} g @param {string[]} seats @param {any} rng
+ */
+export function dealChessShares(g, seats, rng) {
+  const shares = [...g.shares.values()];
+  const cards = [];
+  for (const [id, e] of g.pool.entries) {
+    let n = e.left;
+    for (const share of shares) n -= Math.min(0, share.entries.get(id).left);
+    cards.push([id, e.tier, Math.max(0, n)]);
+  }
+  const dealt = dealByTier(cards, seats.length, rng);
+  for (const share of shares) {
+    const hand = seats.indexOf(share.playerId);
+    for (const [id, e] of share.entries) {
+      const keep = Math.min(0, e.left), add = hand >= 0 ? /** @type {number[]} */ (dealt.get(id))[hand] : 0;
+      e.cap += keep - e.left + add;
+      e.left = keep + add;
+    }
+  }
+}
+
+/**
+ * Deal a split group's equipment (splitPoolGroup) among `seats` the way dealChessShares deals its chess, by the shop's
+ * tiers (gd.shopItemsByTier, every item with a stock cap): a seat's copies left are its cap − held (`stockOf`: the seats'
+ * stocks, createItemPools; none at the start, when nothing is held). Debt (SharedItemPool, #624) only covers what a seat
+ * holds past its cap, so it shrinks with the copies dealt over it.
+ * @param {import('./gamedata.js').GameData} gd @param {any} g @param {string[]} seats @param {any} rng
+ * @param {((playerId: string) => SharedItemPool | undefined) | null} [stockOf]
+ */
+export function dealItemShares(gd, g, seats, rng, stockOf = null) {
+  const whole = new SharedItemPool(gd, () => [], { scale: g.scale });
+  const ids = [...g.itemCaps.keys()];
+  const held = new Map(ids.map((id) => [id, stockOf?.(id)?.heldCounts() ?? new Map()]));
+  const cards = [];
+  for (const tier of Object.keys(gd.shopItemsByTier).map(Number).sort((a, b) => a - b)) {
+    for (const item of gd.shopItemsByTier[tier]) {
+      const base = gd.baseIdOf(item), cap = whole.cap(base);
+      if (cap == null) continue;
+      // copies no seat holds a cap for yet (the start), plus every seat's free ones
+      let n = cap;
+      for (const id of ids) {
+        const own = g.itemCaps.get(id).get(base) || 0;
+        n += Math.max(0, own - (held.get(id).get(base) || 0)) - own;
+      }
+      cards.push([base, tier, Math.max(0, n)]);
+    }
+  }
+  const dealt = dealByTier(cards, seats.length, rng);
+  for (const id of ids) {
+    const caps = g.itemCaps.get(id), hand = seats.indexOf(id), stock = stockOf?.(id);
+    for (const [base, per] of dealt) {
+      const own = caps.get(base) || 0, h = held.get(id).get(base) || 0;
+      const cap = own - Math.max(0, own - h) + (hand >= 0 ? per[hand] : 0);
+      caps.set(base, cap);
+      if (stock && stock.debtOf(base) > Math.max(0, h - cap)) {
+        const over = Math.max(0, h - cap);
+        if (over > 0) stock.debt.set(base, over);
+        else stock.debt.delete(base);
+      }
+    }
+  }
+}
+
 /** Shared equipment stock, derived from actual ownership. Merges, equips and returns cannot lose a reservation:
  * normal equipment occupies one, upgraded equipment two. Shop and reward displays reserve nothing. An already
  * displayed shop card or item reward may be taken after `left` hits 0; `owe` records those copies and `repay`
@@ -263,15 +408,22 @@ export class SharedPool {
  * stock, consistently with the video's ownership model; this is not a per-match purchase limit.
  * `players` are the seats of one chess-pool group (createItemPools); `scale` is that group's pool scale. */
 export class SharedItemPool {
-  constructor(gd, players, { scale = 1 } = {}) {
+  /**
+   * @param {any} gd @param {() => any[]} players
+   * @param {{ scale?: number, caps?: Map<string, number> | null }} [opts] `caps` (卡池静态初始化: one seat's stock): base id →
+   *   the copies dealt to that seat (dealItemShares), in place of the group's caps
+   */
+  constructor(gd, players, { scale = 1, caps = null } = {}) {
     this.gd = gd;
     this.players = players;
     this.scale = scale;
+    this.caps = caps;
     /** @type {Map<string, number>} base id → copies taken past the cap by an already-displayed card */
     this.debt = new Map();
   }
   cap(id) {
     const n = this.gd.itemPoolCopies(id);
+    if (n != null && this.caps) return this.caps.get(this.gd.baseIdOf(id)) || 0;
     return n == null || this.scale === 1 ? n : Math.ceil(n * this.scale);
   }
   need(id) { return this.gd.isGolden(id) ? 2 : 1; }
@@ -345,10 +497,15 @@ export class SharedItemPool {
 
 /** Equipment stock per chess-pool group (createPoolGroups): a seat counts only its own group's ownership against the
  * group's scaled caps, so an experimental room shares equipment the way it shares operators — one stock per group of
- * seats, per player without a shared pool. An ordinary match has one group: every seat, the measured caps. */
+ * seats, per player without a shared pool. An ordinary match has one group: every seat, the measured caps. A split group
+ * (卡池静态初始化, splitPoolGroup) gives each seat its own stock: its own pieces against the caps dealt to it. */
 export function createItemPools(gd, groups, playerOf) {
   const out = new Map();
   for (const g of groups) {
+    if (g.itemCaps) {
+      for (const id of g.playerIds) out.set(id, new SharedItemPool(gd, () => [playerOf(id)].filter(Boolean), { caps: g.itemCaps.get(id) }));
+      continue;
+    }
     const pool = new SharedItemPool(gd, () => g.playerIds.map(playerOf).filter(Boolean), { scale: g.scale });
     for (const id of g.playerIds) out.set(id, pool);
   }
@@ -361,7 +518,8 @@ export function createItemPools(gd, groups, playerOf) {
  * group's pool (visible, not banned; the signed deficit of an overdrawn card clamped to 0, as left() does) and `items`
  * every shop equipment with a stock cap (SharedItemPool: cap − held, clamped). Null when nothing is shared: a group of
  * one seat — 单人, 独立卡池 (`disableSharedPool`), a one-seat 手动指定卡池编组 group; AI seats count, they buy from the
- * same stock. Effect-only equipment (no cap) and a player's private 自选 stock are never listed.
+ * same stock. Effect-only equipment (no cap) and a player's private 自选 stock are never listed. A split group
+ * (卡池静态初始化) counts the seat's own share: poolFor / itemPoolFor route there.
  * @param {any} m the Match (poolGroups, poolFor, itemPoolFor, gd)
  * @param {any} ps a seat of it
  * @returns {{ chess: Record<string, number>, items: Record<string, number> } | null}

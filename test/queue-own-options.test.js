@@ -137,6 +137,22 @@ test('four tickets of the same options make a game of them; other options, stand
   assert.ok(group.every((p) => f.state(p).state === 'matched'));
 });
 
+test('卡池静态初始化 (§37.272): only tickets that bring it meet, the room and the match get it', (t) => {
+  const f = fixture(t), SPLIT = rules({ staticPoolSplit: true }), BOTH = rules({ staticPoolSplit: true, revivalEnabled: true });
+  const others = [f.own(REVIVE), f.own(BOTH), f.own(REVIVE), f.lone({ rules: ['standard'] })];
+  const same = [f.own(SPLIT), f.own(SPLIT), f.own(SPLIT)];
+  assert.equal(f.queue.offers.size, 0, 'configs must match exactly');
+  const last = f.own(SPLIT);
+  const group = [...same, last];
+  assert.ok(f.offered(group));
+  assert.deepEqual(f.state(last).experimental, SPLIT);
+  assert.ok(others.every((p) => f.state(p).state === 'queued'));
+  for (const p of group) assert.deepEqual(f.queue.accept(p, f.state(p)), { ok: true });
+  assert.deepEqual(f.lobby.roomOf(last).experimental, SPLIT);
+  assert.deepEqual(RecordingMatch.made.at(-1).experimental, SPLIT);
+  assert.equal(queueOptions(rules({ staticPoolSplit: true, disableSharedPool: true })).staticPoolSplit, undefined, 'under 禁用共享卡池 nothing to deal');
+});
+
 test('tickets taking any changed rules fill a game of someone\'s options; alone they never make one', (t) => {
   const f = fixture(t);
   const any = [f.lone({ rules: ['experimental'] }), f.lone({ rules: ['experimental'] }), f.lone({ rules: ['standard', 'experimental'] }), f.lone({ rules: ['experimental'] })];

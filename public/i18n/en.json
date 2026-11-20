@@ -3967,5 +3967,8 @@
   "见习联结者": "Fresh Fastener",
   "播种者": "Seedsower",
   "于万千宇宙之中": "Among Myriad Universes",
-  "触及星辰": "Reaching for the Stars"
+  "触及星辰": "Reaching for the Stars",
+  "卡池静态初始化": "Static pool split",
+  "禁用共享卡池时每位博士已各用一整个卡池，此项不生效。": "With the shared pool disabled each Doctor already has a whole pool, so this has no effect.",
+  "开局按阶级把卡池发给同组每位博士：每人每个阶级的张数相同，具体干员各不相同，装备同理。之后各自只从自己那份中刷新和购买；队友阵亡或退出时，剩余张数重新发给组内仍在场的博士。": "At the start each pool is dealt out by tier to the Doctors who share it: everyone gets the same number of copies of each tier, but a different mix of operators; equipment likewise. Each Doctor then refreshes and buys only from their own share; when a teammate is eliminated or leaves, the copies left are dealt again among the Doctors still in the group."
 }

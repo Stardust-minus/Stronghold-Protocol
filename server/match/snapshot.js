@@ -36,6 +36,8 @@ import { SharedPool, createItemPools } from './pool.js';
  * Raise it whenever a saved field is added, removed or changes its meaning, or the restore rules below change.
  */
 export const SNAPSHOT_VERSION = 2;
+// (卡池静态初始化, 2026-11-20: `poolSplit` is additive — written only for a match with the room's staticPoolSplit, which
+// a server without it refuses as an unknown option — so v2 stays; any other checkpoint is unchanged and loads as before.)
 
 /** Phases whose state is fully serializable (see the header). */
 export const SNAPSHOT_PHASES = Object.freeze([PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.SP_DRAFT, PHASE.ROUND_START, PHASE.PREP]);
@@ -84,7 +86,7 @@ export const MATCH_FIELDS = Object.freeze({
     'requireCs', 'gd', 'isSolo', 'aiPicksLast', 'afkRemoveRounds', 'ownsScheduler', 'sched', 'registry', 'dispatcher',
     'BattleClass', 'battleContent', 'timerScale', 'prepGraceMs', 'baseGameSpeed', 'snapshotHz', 'localReplica', 'botRehearsal', 'botSliceMs',
     'botRehearsalDelegate', 'botRehearsalDelegateMs', 'hostId', 'ds', 'clientCombat', 'verifyMode', 'combatPool', 'trialPool',
-    'headlessSliceMs', 'battlePrefix', 'experimental', 'revivalEnabled', 'disableSharedPool', 'poolPlan', 'playerCapacity',
+    'headlessSliceMs', 'battlePrefix', 'experimental', 'revivalEnabled', 'disableSharedPool', 'poolPlan', 'staticPoolSplit', 'playerCapacity',
     'capacityExperiment', 'twentyPlayerMode', 'disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'uniteHumansFirst', 'enemyHpMul', 'enemyAtkMul', 'players', 'order', 'spectators', 'botBands', 'stage', 'pool',
     'playerPools', 'itemPool', 'ended', 'disposed',
     // 0.3.1: the content set's declared windows and the room's 测试 flag (both from the match options); the 调控台 switch
@@ -360,6 +362,9 @@ function buildSnapshot(m) {
     pools: m.poolGroups.map((g) => Object.fromEntries([...g.pool.entries].map(([id, e]) => [id, e.left]))),
     ...(m.disableSharedPool ? { soloPool: Object.fromEntries([...m.pool.entries].map(([id, e]) => [id, e.left])) } : {}),
     itemDebt: m.poolGroups.map((g) => [...(m.playerItemPools.get(g.playerIds[0])?.debt || new Map())]),
+    // 卡池静态初始化 (additive, absent otherwise: a checkpoint of any other match keeps its v2 shape): every split group's
+    // shares — per seat its chess [cap, left], its equipment caps and debt (pool.js splitPoolGroup)
+    ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}),
     rng: Object.fromEntries(RNG_NAMES.map((n) => [n, m[n].state() >>> 0])),
     damageBoard: encodeValue({ ...m.damageBoard }),
   };
@@ -376,6 +381,46 @@ function buildSnapshot(m) {
   }
   // JSON-safe as it stands (encodeValue): the caller serializes it once
   return doc;
+}
+
+/**
+ * 卡池静态初始化: per pool group, null (a group of one seat: nothing split) or { chess: { playerId: { baseId: [cap, left] } },
+ * items: { playerId: { baseId: cap } }, debt: { playerId: [[baseId, n], …] } }.
+ * @param {any} m
+ */
+function poolSplitState(m) {
+  return m.poolGroups.map((g) => (g.shares ? {
+    chess: Object.fromEntries([...g.shares].map(([id, share]) => [id, Object.fromEntries([...share.entries].map(([c, e]) => [c, [e.cap, e.left]]))])),
+    items: Object.fromEntries([...g.itemCaps].map(([id, caps]) => [id, Object.fromEntries(caps)])),
+    debt: Object.fromEntries(g.playerIds.map((id) => [id, [...(m.playerItemPools.get(id)?.debt || new Map())]])),
+  } : null));
+}
+
+/**
+ * Set a split group's saved shares (poolSplitState) on the fresh, undealt groups of a restore (buildPoolGroups deal false).
+ * False when the checkpoint has none for a group that is split, or its shares do not add up to the group's pool.
+ */
+function applyPoolSplit(poolGroups, saved) {
+  for (const [i, g] of poolGroups.entries()) {
+    if (!g.shares) continue;
+    const doc = Array.isArray(saved) ? saved[i] : null;
+    if (!doc || typeof doc !== 'object' || !doc.chess || !doc.items) return false;
+    for (const [id, share] of g.shares) {
+      for (const [c, pair] of Object.entries(doc.chess[id] || {})) {
+        const e = share.entries.get(c);
+        const [cap, left] = Array.isArray(pair) ? pair.map((n) => Math.trunc(Number(n))) : [];
+        if (e && Number.isFinite(cap) && Number.isFinite(left) && cap >= 0) Object.assign(e, { cap, left: Math.min(cap, left) });
+      }
+      const caps = g.itemCaps.get(id);
+      for (const [base, n] of Object.entries(doc.items[id] || {})) if (Number.isInteger(n) && n >= 0) caps.set(base, n);
+    }
+    for (const [c, e] of g.pool.entries) {
+      let cap = 0, left = 0;
+      for (const share of g.shares.values()) { const x = share.entries.get(c); cap += x.cap; left += x.left; }
+      if (cap !== e.cap || left !== e.left) return false;
+    }
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -435,7 +480,7 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
   // saved copies left and equipment debt — exactly as MatchSetupVote.completeSetupReroll rebuilds them
   const bans = m.bannedChess || [];
   // a six-seat match saved before the 3 + 3 rule goes on with the one enlarged pool it started with
-  const poolGroups = m.buildPoolGroups(bans, { legacySix: doc.pools.length === 1 });
+  const poolGroups = m.buildPoolGroups(bans, { legacySix: doc.pools.length === 1, deal: false });
   if (poolGroups.length !== doc.pools.length) { log?.warn?.(`[snapshot] ${m.roomCode}: checkpoint refused (pool groups)`); return false; }
   const applyLeft = (pool, saved) => {
     for (const [id, left] of Object.entries(saved || {})) {
@@ -446,6 +491,8 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
     }
   };
   poolGroups.forEach((g, i) => applyLeft(g.pool, doc.pools[i]));
+  // 卡池静态初始化: every seat's share as saved (poolSplitState), never dealt again
+  if (!applyPoolSplit(poolGroups, doc.poolSplit)) { log?.warn?.(`[snapshot] ${m.roomCode}: checkpoint refused (pool shares)`); return false; }
   m.poolGroups = poolGroups;
   m.pool = m.disableSharedPool ? new SharedPool(m.gd, { banned: bans }) : poolGroups[0].pool;
   if (m.disableSharedPool) applyLeft(m.pool, doc.soloPool);
@@ -453,6 +500,14 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
   m.playerItemPools = createItemPools(m.gd, poolGroups, (id) => m.players.get(id));
   m.itemPool = m.playerItemPools.get(poolGroups[0].playerIds[0]);
   poolGroups.forEach((g, i) => {
+    if (g.shares) {
+      // a split group: every seat's own stock and debt
+      for (const id of g.playerIds) {
+        const pool = m.playerItemPools.get(id), saved = doc.poolSplit[i].debt?.[id];
+        for (const [item, n] of Array.isArray(saved) ? saved : []) if (Number(n) > 0) pool.debt.set(item, Math.trunc(Number(n)));
+      }
+      return;
+    }
     const pool = m.playerItemPools.get(g.playerIds[0]);
     for (const [id, n] of Array.isArray(doc.itemDebt?.[i]) ? doc.itemDebt[i] : []) if (Number(n) > 0) pool.debt.set(id, Math.trunc(Number(n)));
   });
@@ -613,5 +668,5 @@ export function matchState(m) {
     p.lastEmoteAt = encodeValue(Number.isFinite(ps.lastEmoteAt) ? m.sched.now() - ps.lastEmoteAt : ps.lastEmoteAt);
     players[ps.playerId] = p;
   }
-  return { phase: m.phase, round: m.round, match, pools, rng, players };
+  return { phase: m.phase, round: m.round, match, pools, ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}), rng, players };
 }

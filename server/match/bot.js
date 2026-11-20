@@ -3016,7 +3016,8 @@ export function* planSpendSteps(m, ps) {
     }
     if (planTargetBuy(m, ps)) continue;
     // Official draws require remaining eligible stock. Use effective prices, including free/discounted operators.
-    const eligible = [...m.pool.entries].filter(([, e]) => e.left > 0 && e.tier <= ps.shop.level).map(([id]) => id);
+    // (卡池静态初始化: the seat's own share is what its refresh draws)
+    const eligible = [...(m.staticPoolSplit ? ps.pool : m.pool).entries].filter(([, e]) => e.left > 0 && e.tier <= ps.shop.level).map(([id]) => id);
     eligible.push(...(ps.diyRollEntries() || []).map(([id]) => id));
     if (!canFreezeSearch(m, ps, eligible) || !tryDo(() => ps.refresh())) return;
     takeOffers(m, ps);

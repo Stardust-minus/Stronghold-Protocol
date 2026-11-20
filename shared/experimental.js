@@ -9,7 +9,7 @@ export const EXPERIMENTAL_DEFAULTS = Object.freeze({ revivalEnabled: false, disa
  * Optional booleans: absent when off, so an ordinary room, a saved room and a queue key keep their old shape.
  * @type {ReadonlySet<string | symbol>}
  */
-const OPTIONAL_FLAGS = new Set(['disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'collabOps', 'console', 'uniteHumansFirst']);
+const OPTIONAL_FLAGS = new Set(['disableDuckLord', 'disableLayerCap', 'disableHitLimit', 'collabOps', 'console', 'uniteHumansFirst', 'staticPoolSplit']);
 /**
  * The enemy multipliers a room can pick (feedback #47); the first, a standard room's, is never stored: an ordinary room,
  * a saved room and a queue key keep their old shape.
@@ -75,7 +75,7 @@ const hpKey = value => {
 export function isExperimental(value) {
   if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return false;
   const keys = Reflect.ownKeys(value);
-  if (keys.length < 2 || keys.length > 13) return false;
+  if (keys.length < 2 || keys.length > 14) return false;
   for (const key of Object.keys(EXPERIMENTAL_DEFAULTS)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor?.enumerable !== true || typeof descriptor.value !== 'boolean') return false;
@@ -96,10 +96,11 @@ export function isExperimental(value) {
  * @param {{ revivalEnabled: boolean, disableSharedPool: boolean, playerCapacity?: number, disableDuckLord?: boolean,
  *   disableLayerCap?: boolean, disableHitLimit?: boolean, enemyHpMul?: number, enemyAtkMul?: number,
  *   enemyHpPlan?: readonly (readonly number[])[], poolPlan?: readonly number[], collabOps?: boolean, console?: boolean,
- *   uniteHumansFirst?: boolean }} [value]
+ *   uniteHumansFirst?: boolean, staticPoolSplit?: boolean }} [value]
  *   `poolPlan`: 手动指定卡池编组, one pool number per seat (shared/poolPlan.js); it states every seat's pool, so it replaces
  *   禁用共享卡池. `enemyHpPlan`: 敌人生命倍率 by round (isEnemyHpPlan); it replaces enemyHpMul. `collabOps`: 联动干员
  *   (isCollabRoom). `console`: 调控台 (isConsoleRoom). `uniteHumansFirst`: AI 联防置后 (server/match/unite.js helperOrder).
+ *   `staticPoolSplit`: 卡池静态初始化 (isStaticPoolSplit); dropped under 禁用共享卡池, where every seat has a whole pool.
  */
 export function experimentalOptions(value = EXPERIMENTAL_DEFAULTS) {
   if (!isExperimental(value)) throw new TypeError('invalid experimental options');
@@ -116,7 +117,8 @@ export function experimentalOptions(value = EXPERIMENTAL_DEFAULTS) {
     ...(value.poolPlan ? { poolPlan: Object.freeze(canonicalPoolPlan(value.poolPlan)) } : {}),
     ...(value.collabOps === true ? { collabOps: true } : {}),
     ...(value.console === true ? { console: true } : {}),
-    ...(value.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}) });
+    ...(value.uniteHumansFirst === true ? { uniteHumansFirst: true } : {}),
+    ...(value.staticPoolSplit === true && !(value.disableSharedPool && !value.poolPlan) ? { staticPoolSplit: true } : {}) });
 }
 
 /** The HP rule as stored: a plan (it replaces the single multiplier), else the single multiplier when ≠ 1, else nothing. */
@@ -135,7 +137,7 @@ export const experimentalKey = value => {
   const capacity = roomCapacity('coop', value);
   const legacy = capacity === MAX_SEATS ? key : `${key}:${capacity}`;
   const hp = hpKey(value), atk = enemyMultiplier(value.enemyAtkMul);
-  return `${duckLordDisabled(value) ? `${legacy}:duck` : legacy}${value.disableLayerCap === true ? ':layers' : ''}${value.disableHitLimit === true ? ':hits' : ''}${hp ? `:${hp}` : ''}${atk !== 1 ? `:atk${atk}` : ''}${value.poolPlan ? `:pools${planKey(value)}` : ''}${value.collabOps === true ? ':collab' : ''}${value.console === true ? ':console' : ''}${value.uniteHumansFirst === true ? ':humans' : ''}`;
+  return `${duckLordDisabled(value) ? `${legacy}:duck` : legacy}${value.disableLayerCap === true ? ':layers' : ''}${value.disableHitLimit === true ? ':hits' : ''}${hp ? `:${hp}` : ''}${atk !== 1 ? `:atk${atk}` : ''}${value.poolPlan ? `:pools${planKey(value)}` : ''}${value.collabOps === true ? ':collab' : ''}${value.console === true ? ':console' : ''}${value.uniteHumansFirst === true ? ':humans' : ''}${value.staticPoolSplit === true ? ':split' : ''}`;
 };
 export const sameExperimental = (a, b) => !!a && !!b
   && a.revivalEnabled === b.revivalEnabled && a.disableSharedPool === b.disableSharedPool
@@ -148,7 +150,8 @@ export const sameExperimental = (a, b) => !!a && !!b
   && planKey(a) === planKey(b)
   && (a.collabOps === true) === (b.collabOps === true)
   && (a.console === true) === (b.console === true)
-  && (a.uniteHumansFirst === true) === (b.uniteHumansFirst === true);
+  && (a.uniteHumansFirst === true) === (b.uniteHumansFirst === true)
+  && (a.staticPoolSplit === true) === (b.staticPoolSplit === true);
 
 /**
  * Whether a room's options change a rule of the game, whatever the seat count: any key but playerCapacity that is set
@@ -189,6 +192,21 @@ export const isConsoleRoom = value => !!value && typeof value === 'object' && va
 export const isUniteHumansFirst = value => !!value && typeof value === 'object' && value.uniteHumansFirst === true;
 
 /**
+ * 卡池静态初始化 (the owner's request of 2026-11-20: 「开局定死每个人的卡池，只有在队友退出/死亡时才会重新刷新」, then 「按等级
+ * 分，每个人的每个等级的干员数量是一样的，但是每个干员，每人持有的数量是不一样的」): with `staticPoolSplit` on, every chess-pool
+ * group (server/match/pool.js createPoolGroups) deals its copies to its seats at the match's start — per tier, every copy of
+ * every operator of that tier shuffled into one deck with the match's seeded rng and dealt round-robin, so each seat holds
+ * the same number of copies of a tier (a remainder: one more for seats the rng picks) but its own mix of operators; the
+ * equipment stock is dealt the same way by equipment tier. A seat's shop, rewards and grants draw only on its own share,
+ * its buys take from it, its sales and losses go back to it. When a seat of the group is eliminated or leaves (a seat AI
+ * 托管 plays on keeps its share), its pieces go back first, then every copy the group has left is dealt again among the
+ * seats still in it (pool.js dealShares). Nothing of it under 禁用共享卡池 (experimentalOptions drops it) or in a group of
+ * one seat. A rel44 server refuses it (isExperimental), as any unknown option.
+ * @param {any} value a room's / match's experimental options
+ */
+export const isStaticPoolSplit = value => !!value && typeof value === 'object' && value.staticPoolSplit === true;
+
+/**
  * The categories of the experimental options (the owner, 2026-11-16: 「实验性功能需要拆分成多个分类，目前单个大项下的选项太
  * 多了」): every option belongs to exactly one, in this order. The room's dialog (ui/roomSettings.js), 多人匹配's own options
  * (ui/matchmaking.js) and every summary — the room's 实验性功能 badge, 确认入场 (ui/matchOffer.js) — list them by these
@@ -200,7 +218,7 @@ export const EXPERIMENTAL_GROUPS = Object.freeze([
   Object.freeze({ id: 'team', label: N_('队友协作'), keys: Object.freeze(['revivalEnabled', 'uniteHumansFirst']) }),
   Object.freeze({ id: 'bonds', label: N_('盟约与策略'), keys: Object.freeze(['disableLayerCap', 'disableDuckLord']) }),
   Object.freeze({ id: 'enemy', label: N_('敌人'), keys: Object.freeze(['enemyHpMul', 'enemyHpPlan', 'enemyAtkMul', 'disableHitLimit']) }),
-  Object.freeze({ id: 'pools', label: N_('卡池'), keys: Object.freeze(['disableSharedPool', 'poolPlan']) }),
+  Object.freeze({ id: 'pools', label: N_('卡池'), keys: Object.freeze(['disableSharedPool', 'staticPoolSplit', 'poolPlan']) }),
   Object.freeze({ id: 'special', label: N_('特殊功能'), keys: Object.freeze(['collabOps', 'console']) }),
 ]);
 /** The group of an option field, or null. @param {string} key */
@@ -212,7 +230,7 @@ export const experimentalGroupOf = key => EXPERIMENTAL_GROUPS.find(group => grou
  * seat count (the ticket's sizes say it), not 手动指定卡池编组 (nobody knows the seats yet), not 联动干员 / 调控台 (a private
  * room's alone).
  */
-export const QUEUE_OPTION_KEYS = Object.freeze(['revivalEnabled', 'disableSharedPool', 'uniteHumansFirst', 'disableLayerCap', 'disableDuckLord',
+export const QUEUE_OPTION_KEYS = Object.freeze(['revivalEnabled', 'disableSharedPool', 'staticPoolSplit', 'uniteHumansFirst', 'disableLayerCap', 'disableDuckLord',
   'enemyHpMul', 'enemyHpPlan', 'enemyAtkMul', 'disableHitLimit']);
 
 /**

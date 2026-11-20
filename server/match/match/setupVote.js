@@ -141,7 +141,8 @@ export class MatchSetupVote {
       const setup = setupMatchWaves(this.gd, rng);
       const stage = setup.stageId ? this.gd.stage(setup.stageId) : null;
       const bans = drawDisabledBonds(this.gd, rng);
-      const poolGroups = this.buildPoolGroups(bans.banned);
+      // (卡池静态初始化: the new setup's own deal, Match.buildPoolGroups)
+      const poolGroups = this.buildPoolGroups(bans.banned, { revision: this.setupRevision + 1 });
       const pool = this.disableSharedPool ? new SharedPool(this.gd, { banned: bans.banned }) : poolGroups[0].pool;
       if (!pool.entries.size || poolGroups.some(g => !g.pool.entries.size)) throw new Error('rerolled chess pool is empty');
       const playerPools = this.routePools(poolGroups);

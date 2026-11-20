@@ -953,6 +953,14 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   from the recipient's pool. 手动指定卡池编组 (`experimental.poolPlan`, feedback #49, any co-op room): the plan's seat
   groups replace the rule; a pool with nobody seated at the start does not exist, a pool of up to four seats keeps a
   complete stock and a larger one scales with its seats (`shared/poolPlan.js poolScale`, up to ×5). These rules do not change shared equipment stock (§29.8 below).
+  卡池静态初始化 (`experimental.staticPoolSplit`, the owner 2026-11-20, docs/history/0.4.0.md §37.272; off under
+  `disableSharedPool`): every group of two seats or more is dealt to its seats at the start (`pool.js dealByTier`: per
+  tier one shuffled deck of every copy, dealt round-robin — equal copies per tier, the remainder to seats the rng picks,
+  each its own mix of operators) and `poolFor` routes each seat to its own `PoolShare`, so rolls, rewards, grants, buys,
+  sales, temp wipes and returns use that share alone, and the overdraw rules above hold per share; the group's pool stays
+  the sum of its shares. An elimination or a departure (not an AI 托管) returns the seat's pieces, then deals what the group
+  has left again among its remaining seats (`Match._redealPools`; a share's deficit stays with it). Equipment is dealt by
+  shop tier the same way, one `SharedItemPool` per seat (`caps`).
   The client sees the counts of a shared group (two or more seats) in `m.private.poolLeft` (`pool.js poolCountsView`: every
   chess of the group's pool and every capped shop equipment, docs/design/network.md §8.3; feedback #160, §36.24).
 * **自选编队 (0.2.0, `player/diy.js`; research 0.2.0 §2, the owner's decisions of 2026-10-05)**: a human's `seat.diy`
@@ -1527,7 +1535,8 @@ groups (owner's decision 2026-10-12, `pool.js createItemPools`, `Match.itemPoolF
 has one stock for every seat; an experimental room one per group of seats (enlarged ×5/4 with a 5-seat pool; six seats are
 3 + 3 since feedback #49, a checkpoint from before keeps its one ×6/4 pool; a manual plan's groups scale the same way),
 and one per player without a shared pool — before, 16 or 20 seats shared four 盟约之币. A draft card's stock is the
-picking seat's; a seat with none of the cards left is passed over. Expanded `sp.allowRepeat` permits repeated card
+picking seat's; a seat with none of the cards left is passed over. 卡池静态初始化 (§37.272) deals a group's equipment by shop tier:
+each seat then has its own stock (its dealt caps, its own pieces, its own debt), dealt again when a seat of the group is out. Expanded `sp.allowRepeat` permits repeated card
 indices but never bypasses item availability: `soldOut`, manual picks, timers and bots all re-check the same stock.
 `take(..., { overdraw: true })` records full occupation, including authorized acquisitions beyond capacity.
 Already displayed operator shop offers remain purchasable after exhaustion (路标月报#2 2:50–2:57, #498);
