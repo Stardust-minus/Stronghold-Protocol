@@ -529,7 +529,8 @@ function pageLabel(id, skinsOnly) {
   }
 }
 
-/** 游戏: what a match shows beyond the official interface, each switch with its note; last 作战中查看队友 (upstream PR #971). */
+/** 游戏: what a match shows beyond the official interface, each switch with its note. Upstream PR #971's 作战中查看队友 switch
+ *  is not offered here: watching a teammate during the own battle is always allowed (the owner, 2026-11-20). */
 function GamePage({ s }) {
   return html`
     <div class="set-item"><${Toggle} label=${t('显示伤害数字')} micro="DAMAGE NUMBERS" value=${s.damageNumbers} onChange=${(v) => updateSettings({ damageNumbers: v })} /></div>
@@ -545,8 +546,7 @@ function GamePage({ s }) {
       <p class="set-hint">${t('共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。')}</p></div>
     <div class="set-item"><${Toggle} label=${t('显示卡池剩余张数')} micro="POOL COUNT" value=${s.poolCount} onChange=${(v) => updateSettings({ poolCount: v })} />
       <p class="set-hint">${t('和队友共用卡池时，在商店卡牌的价格右侧、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。')}</p></div>
-    <div class="set-item"><${Toggle} label=${t('作战中查看队友')} micro="WATCH IN BATTLE" value=${s.watchDuringBattle} testId="watch-during-battle" onChange=${(v) => updateSettings({ watchDuringBattle: v })} />
-      <p class="set-hint">${t('打开后，自己的作战还没结束时也能点队友前往查看，最终攻势和隐秘核心里也能看另一组。查看时本机要多演算一场战斗，较慢的设备可能卡顿。')}</p></div>`;
+`;
 }
 
 /**

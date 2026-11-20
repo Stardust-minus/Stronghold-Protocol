@@ -355,6 +355,11 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .bond.is-sprite.is-full .bond__icon { filter: brightness(0) opacity(.85); }
 .bond.is-sprite .bond__glyph { color: var(--text-lo); }
 .bond.is-sprite.is-full .bond__glyph { color: #06221a; }
+/* This fork (the owner, 2026-11-20: an active tier-1 bond looked grey): below its top tier the official sprite keeps the
+   dark plate with only some segments lit, the same picture as an inactive disc's member progress — so an active disc's
+   icon is lit white with a mint glow, and the grey icon stays for discs that are not active. */
+.bond.is-sprite.is-active:not(.is-full):not(.is-disabled) .bond__icon { filter: brightness(0) invert(1) drop-shadow(0 0 .025rem rgba(23, 249, 183, .95)); }
+.bond.is-sprite.is-active:not(.is-full):not(.is-disabled) .bond__glyph { color: #fff; text-shadow: 0 0 .03rem rgba(23, 249, 183, .95); }
 
 /* Enlarge only the central plate; clip away the ring in this second sprite layer. */
 .bond.is-sprite .bond__core::before {

@@ -60,6 +60,9 @@ test('desktop canvas hand opt-in, rapid clicks, semantic cursors and native fall
     const enabled = () => page.$eval('[data-testid="arknights-cursor"]', e => e.getAttribute('aria-checked'));
     await page.goto(server.url, { waitUntil: 'domcontentloaded' });
     await openSettings();
+    // this fork: on by default (the owner, 2026-11-20) — switch it off first, then the opt-in flow as upstream tests it
+    assert.equal(await enabled(), 'true');
+    await page.click('[data-testid="arknights-cursor"]');
     assert.equal(await enabled(), 'false');
     assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--sp-cursor-pointer')), '');
     await page.click('[data-testid="arknights-cursor"]');

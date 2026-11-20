@@ -345,8 +345,8 @@ The [official 初雪 counterexample](research/regulation-core-ban-video-20261114
 ### 1.4 Watching fields
 Client-side combat (the default, DESIGN §14 Spectating; `Match._watchClient`): `g.watch` answers with the field's
 `b.start` (a display replica fast-forwarded to the field clock). Living players may view an existing teammate's normal field while their own battle continues, or the other pair's boss / hidden field. Viewing never transfers authority; eliminated players retain their existing spectating permissions.
-While the own battle still runs, the client allows this only with the setting 「作战中查看队友」 (`watchDuringBattle`, off by
-default: watching runs a second simulation in the page; DESIGN §37.268); the server does not check the setting. Everyone
+Upstream gates this behind the setting 「作战中查看队友」 (`watchDuringBattle`, DESIGN §37.268); this fork has no such
+switch and always allows it (the owner, 2026-11-20 — watching runs a second simulation in the page); the server never checked it. Everyone
 outside a field (spectator seats, eliminated players, living watchers) gets its spec without the players' funds
 (`_spectatorSpec`); the 规程 `bench` stays, the battle summons from it. Whatever is watched, the viewer's bond strip shows the bonds of the
 player on screen from that player's `m.public players[].bonds` (§5) plus the replica's live layers (DESIGN §20.15) — no

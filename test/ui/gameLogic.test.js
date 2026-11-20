@@ -800,7 +800,7 @@ describe('keyboard & settings', () => {
   test('sanitizeSettings', () => {
     assert.deepEqual(sanitizeSettings(null), { ...DEFAULT_SETTINGS });
     assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
-      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', voiceNative: false, voiceOverrides: {}, muted: false, damageNumbers: false, officialDamageNumbers: false, ammoEnergyCount: false, fullscreenWakeLock: false, bondTimers: false, planMarkMine: true, planMarkMates: true, poolCount: true, combatMetrics: false, watchDuringBattle: false, quality: 'high', officialFx: 'full', otherSkins: true, deploySnap: false, textSize: 'sm', uiScale: 'auto', uiTheme: '', themeMotion: true, arknightsCursor: false, keys: { ...DEFAULT_SETTINGS.keys }, bgmPrep: 'official', bgmCombat: 'official' },
+      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', voiceNative: false, voiceOverrides: {}, muted: false, damageNumbers: false, officialDamageNumbers: false, ammoEnergyCount: false, fullscreenWakeLock: false, bondTimers: false, planMarkMine: true, planMarkMates: true, poolCount: true, combatMetrics: false, quality: 'high', officialFx: 'full', otherSkins: true, deploySnap: false, textSize: 'sm', uiScale: 'auto', uiTheme: '', themeMotion: true, arknightsCursor: true, keys: { ...DEFAULT_SETTINGS.keys }, bgmPrep: 'official', bgmCombat: 'official' },
       'a saved profile without `keys` (before 0.2.0) gets the default key map (test/ui/feedback5-hotkeys.test.js)');
     // 主题动画 (§37.144): on by default; only `false` turns the official packs' tweens still
     assert.equal(DEFAULT_SETTINGS.themeMotion, true);
@@ -828,9 +828,9 @@ describe('keyboard & settings', () => {
     for (const v of ['off', 'lite', 'full', 'auto']) assert.equal(sanitizeSettings({ officialFx: v }).officialFx, v);
     assert.equal(sanitizeSettings({ officialFx: 'ultra' }).officialFx, 'full');
     assert.equal(sanitizeSettings({ combatMetrics: 'yes' }).combatMetrics, false, 'a non-boolean stays off');
-    assert.equal(DEFAULT_SETTINGS.watchDuringBattle, false, '作战中查看队友 (PR #971) is off by default');
-    assert.equal(sanitizeSettings({ watchDuringBattle: true }).watchDuringBattle, true);
-    assert.equal(sanitizeSettings({ watchDuringBattle: 'yes' }).watchDuringBattle, false, 'a non-boolean stays off');
+    // 作战中查看队友 (PR #971): this fork has no switch — always allowed (the owner, 2026-11-20); a stored key is dropped
+    assert.equal('watchDuringBattle' in DEFAULT_SETTINGS, false);
+    assert.equal('watchDuringBattle' in sanitizeSettings({ watchDuringBattle: false }), false);
     assert.equal(sanitizeSettings({ voiceLang: 'jp' }).voiceLang, 'jp');
     assert.equal(sanitizeSettings({ voiceLang: 'en' }).voiceLang, 'en');
     assert.equal(sanitizeSettings({ voiceLang: 'kr' }).voiceLang, 'kr');

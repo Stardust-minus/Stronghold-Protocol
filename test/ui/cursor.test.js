@@ -104,13 +104,13 @@ function fixture(t) {
   });
 }
 
-test('PRTS cursor requires an explicit persisted opt-in', () => {
-  assert.equal(DEFAULT_SETTINGS.arknightsCursor, false);
-  for (const v of [undefined, null, 'true', 1, {}, false]) {
-    assert.equal(sanitizeSettings({ arknightsCursor: v }).arknightsCursor, false);
+test('PRTS cursor: on by default in this fork (the owner, 2026-11-20); only a persisted `false` turns it off', () => {
+  assert.equal(DEFAULT_SETTINGS.arknightsCursor, true);
+  for (const v of [undefined, null, 'true', 1, {}, true]) {
+    assert.equal(sanitizeSettings({ arknightsCursor: v }).arknightsCursor, true);
   }
-  const saved = JSON.parse(JSON.stringify(sanitizeSettings({ arknightsCursor: true })));
-  assert.equal(sanitizeSettings(saved).arknightsCursor, true);
+  const saved = JSON.parse(JSON.stringify(sanitizeSettings({ arknightsCursor: false })));
+  assert.equal(sanitizeSettings(saved).arknightsCursor, false);
 });
 
 test('late manifests, CDN assets and decode failures retain native fallback', async t => {

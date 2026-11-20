@@ -69,7 +69,8 @@ export function nameOf(pub, playerId) {
  * @param {any} pub
  * @param {string} myId
  * @param {{ observing?: boolean, ownDone?: boolean, liveWatch?: boolean }} [o] ownDone: the local simulation of the own
- *   battle already ended; liveWatch: 设置「作战中查看队友」 (PR #971, default off) — while the own battle runs, another
+ *   battle already ended; liveWatch (default true; this fork's screens never pass false — the owner removed upstream PR #971's 作战中查看队友
+ *   switch on 2026-11-20): false = while the own battle runs, another
  *   field (a teammate's normal battle, the other boss group) opens only with it on: watching runs a second simulation.
  */
 export function observeTarget(p, pub, myId, { observing = false, ownDone = false, liveWatch = true } = {}) {
