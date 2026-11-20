@@ -786,7 +786,7 @@ function StatsScreen({ tab }) {
         <${Button} variant="secondary" size="sm" data-testid="stats-clear" disabled=${empty || stats.newer} onClick=${doClear} title=${t('清空本机的统计数据')}>${t('清空')}<//>
       </div>
     </header>
-    <p class="st-note"><${Icon} name="info" />${t('本机数据：只保存在这个浏览器里，不会上传到服务器；同盟对局里队友的代号也会存在本机（导出文件里也有）。')}</p>
+    <p class="st-note"><${Icon} name="info" />${t('本机数据：保存在这个浏览器里；ELO、已核验和规程奖杯只把需要的对局结果发给服务器核对，服务器不保存。')}<br />${t('同盟对局里队友的代号也会存在本机（导出文件里也有）。')}</p>
     ${stats.damaged ? html`<p class="st-note is-warn"><${Icon} name="warn" />${t('本机保存的统计数据无法读取，已另存为备份，从现在起重新记录。')}</p>` : null}
     ${stats.dropped ? html`<p class="st-note is-warn"><${Icon} name="warn" />${t('有 {n} 条记录已损坏，已忽略。', { n: stats.dropped })}</p>` : null}
     <${VersionFilter} records=${stats.records} value=${versionPick} shown=${shown} />

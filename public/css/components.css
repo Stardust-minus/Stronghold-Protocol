@@ -1311,8 +1311,8 @@
 .elo-panel__fun .icon { flex: none; width: 1.15em; height: 1.15em; }
 .elo-panel__h { margin-top: .02rem; font-size: max(calc(.15 * var(--t)), calc(12px * var(--ui))); font-weight: 600; color: var(--text-md); }
 .elo-panel__list { display: grid; gap: .02rem; padding: 0; list-style: none; color: var(--text-hi); }
-.elo-panel__list li { position: relative; padding-left: 1em; }
-.elo-panel__list li::before { content: '·'; position: absolute; left: .3em; color: var(--text-lo); }
+.elo-panel__list li { position: relative; padding-left: 1.25em; }
+.elo-panel__list li::before { content: '·'; position: absolute; left: 0; width: 1em; text-align: center; color: var(--text-lo); }
 .elo-panel__few, .elo-panel__est { color: var(--text-md); }
 .elo-panel__w { white-space: nowrap; }
 .elo-panel__i { display: inline-flex; align-items: center; padding: 0; border: 0; background: none; color: var(--text-lo); vertical-align: -.12em; cursor: help; }

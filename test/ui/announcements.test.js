@@ -94,7 +94,7 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   // 2026-11-20 the owner asked for this release's notice to go into the repo: the experimental ELO, the match receipts, AI teammates
   // rescuing and 卡池静态初始化 on top. To fit it the three older fork notices were condensed (the owner: 「压缩，不能删除，另外10-06的不能动」)
   assert.equal(entries[0].title, '实验性 ELO 与卡池静态初始化、对局凭证、AI 队友会救人');
-  assert.equal(entries[0].date, '2026-11-20');
+  assert.equal(entries[0].date, '2026-11-21');
   const notice1120 = entries[0].paragraphs.join('\n');
   for (const phrase of ['【ELO】', '「ELO」', '默认关闭', '此功能仅为娱乐', '版本、模式、难度', '最近 30 局', '50%', '只能看到自己的', '不能组队匹配',
     '【对局凭证】', '已核验', '5 局已核验', '本机记录只会更压', 'cookie', '不收集设备信息', '服务器也不保存你的战绩', '请勿把文件给别人',
