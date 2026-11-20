@@ -341,7 +341,7 @@ export class CombatEngine {
       ...(ext.length ? { ext } : {}),
       ...(this.damageBoard ? { damageFrames } : {}),
       boss: this.boss ? {
-        maxHp: this.pool.maxHp, hp: this.pool.hp, byPlayer: [...this.pool.byPlayer],
+        maxHp: this.pool.maxHp, hp: this.pool.hp, byPlayer: [...this.pool.byPlayer], unowned: this.pool.unowned,
         teamLp: this.boss.teamLp, overtimeApplied: this.boss.overtimeApplied,
       } : null,
     };

@@ -109,9 +109,12 @@ for (const hidden of [false, true]) {
     const effects = outputs.flatMap((out) => out.effects || []).filter((effect) => effect.type === 'bossDamage');
     assert.ok(effects.length > 1, 'real content produced multiple ordered damage deltas');
     assert.ok(Math.abs(effects.reduce((sum, e) => sum + e.amount, 0) - expected) < 1e-6, 'one shared pool, not a pool per field');
-    assert.ok(Math.abs([...shared.byPlayer.values()].reduce((sum, value) => sum + value, 0) - expected) < 1e-6);
+    // 无来源 damage no player owns (深水 on a downed boss_8 part, passed on to 胄) stays unowned: Σ byPlayer + unowned = pool
+    const unowned = effects.filter((e) => e.playerId == null).reduce((sum, e) => sum + e.amount, 0);
+    assert.ok(Math.abs(shared.unowned - unowned) < 1e-6, 'the unowned tally is the worker\'s unowned hits');
+    assert.ok(Math.abs([...shared.byPlayer.values()].reduce((sum, value) => sum + value, 0) + shared.unowned - expected) < 1e-6);
     const credit = () => m.order.reduce((sum, p) => sum + p.stats.bossDamage, 0);
-    assert.ok(Math.abs(credit() - expected) < 1e-6, 'main-thread effects replay credits the same pool only once');
+    assert.ok(Math.abs(credit() + shared.unowned - expected) < 1e-6, 'main-thread effects replay credits the same pool only once');
     let resultDamage = 0;
     for (const f of fields) {
       const result = f.battle.result();
@@ -122,7 +125,7 @@ for (const hidden of [false, true]) {
       assert.ok(damage > 0, `${f.fieldId}: both fields really damaged the leader`);
       resultDamage += damage;
     }
-    assert.ok(Math.abs(resultDamage - expected) < 1e-6, 'full field results also account for the same pool exactly once');
+    assert.ok(Math.abs(resultDamage + shared.unowned - expected) < 1e-6, 'full field results also account for the same pool exactly once');
     const before = credit();
     m._finishFinal(hidden, (f) => f.battle.result());
     assert.equal(credit(), before, 'a late duplicate settlement cannot debit or credit again');

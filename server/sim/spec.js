@@ -209,6 +209,7 @@ export function createBattleFromSpec(spec, dataSource, opts = {}) {
  *   sync(serverHp, ackedCum)  a b.pool broadcast: the server's hp and how much of THIS field's cumulative damage
  *                             (`cum`) it has already counted
  *   cum / byPlayer            cumulative damage of this field (reported as b.progress.bossDmg / .by)
+ *   unowned                   the part of `cum` no player owns (playerId null); the server counts it as cum − by
  * `hp` below 1 reads 0 (the leader is down; user playtest #6 item 5): the difference of the server's float hp and the
  * local counters can leave dust (3.6e-12) smaller than half an ulp of `cum`, which no hit could remove — `cum += dust`
  * changes nothing — so the leader stood at "0 HP" and the field never ended.
@@ -222,6 +223,8 @@ export class LocalBossPool {
     this.acked = 0;
     /** @type {Record<string, number>} */
     this.byPlayer = {};
+    /** this field's damage no player owns (SharedBossPool.unowned): in `cum`, never in `byPlayer` */
+    this.unowned = 0;
   }
 
   get hp() {
@@ -242,6 +245,7 @@ export class LocalBossPool {
     const dealt = left - a < BOSS_POOL_MIN_HP ? left : a;
     this.cum += dealt;
     if (playerId != null) this.byPlayer[playerId] = (this.byPlayer[playerId] || 0) + dealt;
+    else this.unowned += dealt;
     return dealt;
   }
 
@@ -266,7 +270,7 @@ export class LocalBossPool {
  *   ready(tick)           whether step `tick` may run (everything before it is known)
  *   enter(tick)           right before step `tick`: take the Worker's pool value when it differed
  *   endAfter(tick)        the forced end right after step `tick`, or null
- *   damage(playerId, amount) / hp / maxHp / byPlayer  SharedBossPool's (server/match/finalAssault.js) without onHit
+ *   damage(playerId, amount) / hp / maxHp / byPlayer / unowned  SharedBossPool's (server/match/finalAssault.js) without onHit
  */
 export class ReplayBossPool {
   constructor(maxHp, hp = maxHp) {
@@ -275,6 +279,7 @@ export class ReplayBossPool {
     this.hp = Number.isFinite(h) ? Math.max(0, Math.min(this.maxHp, h)) : this.maxHp;
     /** @type {Map<string, number>} */
     this.byPlayer = new Map();
+    this.unowned = 0;
     /** @type {Map<number, number>} tick → the pool before that step */
     this.entries = new Map();
     this.count = 0;
@@ -317,6 +322,7 @@ export class ReplayBossPool {
     const dealt = this.hp - a < BOSS_POOL_MIN_HP ? this.hp : a;
     this.hp -= dealt;
     if (playerId != null) this.byPlayer.set(playerId, (this.byPlayer.get(playerId) || 0) + dealt);
+    else this.unowned += dealt;
     return dealt;
   }
 }

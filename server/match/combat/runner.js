@@ -282,6 +282,7 @@ export class WorkerFieldRunner {
     if (out.boss) {
       this.m.bossPool.hp = out.boss.hp;
       this.m.bossPool.byPlayer = new Map(out.boss.byPlayer);
+      this.m.bossPool.unowned = Number.isFinite(out.boss.unowned) ? out.boss.unowned : 0;
       this.m.teamLp = out.boss.teamLp;
       this.m.overtimeApplied = out.boss.overtimeApplied;
       this.m._syncTeamLp();

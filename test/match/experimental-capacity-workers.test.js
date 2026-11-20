@@ -137,9 +137,12 @@ for (const hidden of [false, true]) {
     const effects = outputs.flatMap(out => out.effects || []).filter(e => e.type === 'bossDamage');
     assert.ok(effects.length > 1);
     assert.ok(Math.abs(effects.reduce((sum, e) => sum + e.amount, 0) - expected) < 1e-6);
-    assert.ok(Math.abs([...shared.byPlayer.values()].reduce((sum, n) => sum + n, 0) - expected) < 1e-6);
+    // 无来源 damage no player owns stays unowned (SharedBossPool.unowned): Σ byPlayer + unowned = pool
+    const unowned = effects.filter(e => e.playerId == null).reduce((sum, e) => sum + e.amount, 0);
+    assert.ok(Math.abs(shared.unowned - unowned) < 1e-6);
+    assert.ok(Math.abs([...shared.byPlayer.values()].reduce((sum, n) => sum + n, 0) + shared.unowned - expected) < 1e-6);
     const credit = () => m.order.reduce((sum, ps) => sum + ps.stats.bossDamage, 0);
-    assert.ok(Math.abs(credit() - expected) < 1e-6, 'main-thread mirror replays each worker hit once');
+    assert.ok(Math.abs(credit() + shared.unowned - expected) < 1e-6, 'main-thread mirror replays each worker hit once');
     const perField = fields.map(f => {
       const result = f.battle.result(); assert.ok(result?.perPlayer[f.players[0]]); assert.notEqual(result.synthetic, true);
       assert.equal(result.errors, 0, JSON.stringify({ field: f.fieldId, errors: f.battle.errors })); assert.deepEqual(f.battle.errors, []);
@@ -147,7 +150,7 @@ for (const hidden of [false, true]) {
     });
     assert.ok(perField[0] > 0 && perField[1] > 0, 'both pair fields contribute to the same HP pool');
     assert.ok(perField[2] >= 0, 'the odd lone field participates, even if pairs deplete HP before its attack');
-    assert.ok(Math.abs(perField.reduce((sum, n) => sum + n, 0) - expected) < 1e-6);
+    assert.ok(Math.abs(perField.reduce((sum, n) => sum + n, 0) + shared.unowned - expected) < 1e-6);
     const before = credit(); m._finishFinal(hidden, f => f.battle.result());
     assert.equal(credit(), before); assert.equal(ended.length, 1); assert.equal(shared.hp, 0);
     assert.equal(m.errorCount, 0); assert.equal(m.simErrors, 0); assert.deepEqual(errors, []);
