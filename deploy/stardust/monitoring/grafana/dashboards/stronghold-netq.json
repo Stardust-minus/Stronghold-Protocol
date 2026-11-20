@@ -51,7 +51,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "**这是什么**：每个在线页面每分钟上报一次自己测到的网络状况——心跳往返时间、多连接时同一帧几份副本的先后、重连和掉线时间。服务器只按 **运营商**、**省份**、设备和连接数汇总成数字，不保存任何玩家、会话或 IP。运营商和省份按 IP 地址库判断，库里查不到的地址算作「未识别」；省份库只有 IPv4，用 IPv6 连接的页面不分省份；手机网络的 IP 常被定位到省会或运营商网关所在地。\n\n**单条连接晚到**：同一帧的第二份副本比第一份晚到多少，也就是只用一条连接时这帧会多卡多久。比例按 15 分钟、重连与掉线按 1 小时平均；按省份的数据是过去 1 小时，平均不到 3 个页面的省份 / 运营商不显示。服务器整体状况见 <a href=\"/monitor/\" target=\"_self\">/monitor/</a>。"
+        "content": "**这是什么**：每个在线页面每分钟上报一次自己测到的网络状况——心跳往返时间、多连接时同一帧几份副本的先后、重连和掉线时间。服务器只按 **运营商**、**省份**、设备和连接数汇总成数字，不保存任何玩家、会话或 IP。运营商和省份按 IP 地址库判断，库里查不到的地址算作「未识别」；省份库只有 IPv4，用 IPv6 连接的页面不分省份；手机网络的 IP 常被定位到省会或运营商网关所在地。\n\n**单条连接晚到**：同一帧的第二份副本比第一份晚到多少，也就是只用一条连接时这帧会多卡多久。比例按 15 分钟、重连与掉线按 1 小时平均；按省份的数据是过去 24 小时，不设门槛，有上报的省份 / 运营商就显示——人少时一个省份 / 运营商可能只对应个别玩家；查不到省份的页面算作「未定位」。服务器整体状况见 <a href=\"/monitor/\" target=\"_self\">/monitor/</a>。"
       }
     },
     {
@@ -1760,7 +1760,7 @@
     {
       "id": 17,
       "type": "row",
-      "title": "按省份（过去 1 小时）",
+      "title": "按省份（过去 24 小时）",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1773,8 +1773,8 @@
     {
       "id": 18,
       "type": "bargauge",
-      "title": "各省在报告的页面",
-      "description": "过去 1 小时平均有多少在线页面在上报，按省份；平均不到 3 个页面的省份不显示。",
+      "title": "各省上报的页面·小时",
+      "description": "过去 24 小时各省在线页面上报的总时长，单位页面·小时（3 个页面各在线 1 小时 = 3）。不设门槛，有上报就显示，人少时可能只对应个别玩家。「未定位」是查不到省份的页面，多为 IPv6 连接。",
       "datasource": {
         "type": "prometheus",
         "uid": "sp-prometheus"
@@ -1792,7 +1792,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "sort_desc(sum by (province) (sp:netq_province_online_seconds:rate1h) >= 3)",
+          "expr": "sort_desc(sum by (province) (sp:netq_province_online_seconds:rate24h) * 24 > 0)",
           "legendFormat": "{{province}}",
           "range": false,
           "instant": true
@@ -1813,7 +1813,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "decimals": 1
         },
         "overrides": [
           {
@@ -2196,7 +2197,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "未识别"
+                "value": "未定位（多为 IPv6）"
               }
             ]
           }
@@ -2231,7 +2232,7 @@
       "id": 19,
       "type": "bargauge",
       "title": "各省心跳往返 p90",
-      "description": "过去 1 小时的心跳往返 90 分位，按省份；平均不到 3 个页面的省份不显示。",
+      "description": "过去 24 小时的心跳往返 90 分位，按省份；不设门槛，有上报就显示，人少时可能只对应个别玩家。",
       "datasource": {
         "type": "prometheus",
         "uid": "sp-prometheus"
@@ -2249,7 +2250,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "sort_desc((histogram_quantile(0.9, sum by (province, le) (sp:netq_province_rtt_bucket:rate1h))) and on (province) (sum by (province) (sp:netq_province_online_seconds:rate1h) >= 3))",
+          "expr": "sort_desc((histogram_quantile(0.9, sum by (province, le) (sp:netq_province_rtt_bucket:rate24h))) and on (province) (sum by (province) (sp:netq_province_online_seconds:rate24h) > 0))",
           "legendFormat": "{{province}}",
           "range": false,
           "instant": true
@@ -2653,7 +2654,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "未识别"
+                "value": "未定位（多为 IPv6）"
               }
             ]
           }
@@ -2688,7 +2689,7 @@
       "id": 20,
       "type": "table",
       "title": "省份 × 运营商",
-      "description": "过去 1 小时，按省份和运营商；平均不到 3 个页面的格子不显示。点表头排序。",
+      "description": "过去 24 小时，按省份和运营商；不设门槛，有上报就显示，人少时一格可能只对应个别玩家。「页面·小时」是这 24 小时在线页面上报的总时长。点表头排序。",
       "datasource": {
         "type": "prometheus",
         "uid": "sp-prometheus"
@@ -2706,7 +2707,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "(sp:netq_province_online_seconds:rate1h) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "expr": "(sp:netq_province_online_seconds:rate24h * 24) and on (province, isp) (sp:netq_province_online_seconds:rate24h > 0)",
           "format": "table",
           "range": false,
           "instant": true
@@ -2717,7 +2718,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "(histogram_quantile(0.5, sp:netq_province_rtt_bucket:rate1h)) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "expr": "(histogram_quantile(0.5, sp:netq_province_rtt_bucket:rate24h)) and on (province, isp) (sp:netq_province_online_seconds:rate24h > 0)",
           "format": "table",
           "range": false,
           "instant": true
@@ -2728,7 +2729,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "(histogram_quantile(0.9, sp:netq_province_rtt_bucket:rate1h)) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "expr": "(histogram_quantile(0.9, sp:netq_province_rtt_bucket:rate24h)) and on (province, isp) (sp:netq_province_online_seconds:rate24h > 0)",
           "format": "table",
           "range": false,
           "instant": true
@@ -2739,7 +2740,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "(1 - sum without (le) (sp:netq_province_copy_late_bucket:rate1h{le=\"300\"}) / clamp_min(sum without (le) (sp:netq_province_copy_late_bucket:rate1h{le=\"+Inf\"}), 1e-9)) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "expr": "(1 - sum without (le) (sp:netq_province_copy_late_bucket:rate24h{le=\"300\"}) / clamp_min(sum without (le) (sp:netq_province_copy_late_bucket:rate24h{le=\"+Inf\"}), 1e-9)) and on (province, isp) (sp:netq_province_online_seconds:rate24h > 0)",
           "format": "table",
           "range": false,
           "instant": true
@@ -2750,7 +2751,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "(sp:netq_province_reconnects:rate1h / clamp_min(sp:netq_province_online_seconds:rate1h, 1e-9) * 3600) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "expr": "(sp:netq_province_reconnects:rate24h / clamp_min(sp:netq_province_online_seconds:rate24h, 1e-9) * 3600) and on (province, isp) (sp:netq_province_online_seconds:rate24h > 0)",
           "format": "table",
           "range": false,
           "instant": true
@@ -2761,7 +2762,7 @@
             "type": "prometheus",
             "uid": "sp-prometheus"
           },
-          "expr": "(sp:netq_province_offline_seconds:rate1h / clamp_min(sp:netq_province_online_seconds:rate1h + sp:netq_province_offline_seconds:rate1h, 1e-9)) and on (province, isp) (sp:netq_province_online_seconds:rate1h >= 3)",
+          "expr": "(sp:netq_province_offline_seconds:rate24h / clamp_min(sp:netq_province_online_seconds:rate24h + sp:netq_province_offline_seconds:rate24h, 1e-9)) and on (province, isp) (sp:netq_province_online_seconds:rate24h > 0)",
           "format": "table",
           "range": false,
           "instant": true
@@ -2781,7 +2782,7 @@
             "renameByName": {
               "province": "省份",
               "isp": "运营商",
-              "Value #A": "在报告的页面",
+              "Value #A": "页面·小时",
               "Value #B": "RTT p50",
               "Value #C": "RTT p90",
               "Value #D": "单条连接晚到>300ms",
@@ -2953,7 +2954,7 @@
                         "index": 30
                       },
                       "xx": {
-                        "text": "未识别",
+                        "text": "未定位（多为 IPv6）",
                         "index": 31
                       }
                     }
@@ -3007,7 +3008,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "在报告的页面"
+              "options": "页面·小时"
             },
             "properties": [
               {

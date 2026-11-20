@@ -59,14 +59,20 @@ groups:
         expr: sum by (isp) (rate(sp_netq_offline_seconds_total{job="collector"}[1h]))
       - record: sp:netq_lane_events:rate1h
         expr: sum by (event) (rate(sp_netq_lane_events_total{job="collector"}[1h]))
-      # per province (GB/T 2260 code) × ISP over an hour: provinces have few players a minute
-      - record: sp:netq_province_rtt_bucket:rate1h
-        expr: sum by (province, isp, le) (rate(sp_netq_province_rtt_le_total{job="collector"}[1h]))
-      - record: sp:netq_province_copy_late_bucket:rate1h
-        expr: sum by (province, isp, le) (rate(sp_netq_province_copy_late_le_total{job="collector"}[1h]))
-      - record: sp:netq_province_online_seconds:rate1h
-        expr: sum by (province, isp) (rate(sp_netq_province_seconds_total{job="collector"}[1h]))
-      - record: sp:netq_province_reconnects:rate1h
-        expr: sum by (province, isp) (rate(sp_netq_province_reconnects_total{job="collector"}[1h]))
-      - record: sp:netq_province_offline_seconds:rate1h
-        expr: sum by (province, isp) (rate(sp_netq_province_offline_seconds_total{job="collector"}[1h]))
+
+  # Per province (GB/T 2260 code) × ISP over the last 24 h: a province has a few players a day, rarely 3 pages in the same
+  # hour. The board shows every province / cell with a report in that window (no floor). A 24 h window does not need the
+  # 15 s evaluation: once a minute (well inside the 5 min lookback).
+  - name: sp_netq_province
+    interval: 1m
+    rules:
+      - record: sp:netq_province_rtt_bucket:rate24h
+        expr: sum by (province, isp, le) (rate(sp_netq_province_rtt_le_total{job="collector"}[24h]))
+      - record: sp:netq_province_copy_late_bucket:rate24h
+        expr: sum by (province, isp, le) (rate(sp_netq_province_copy_late_le_total{job="collector"}[24h]))
+      - record: sp:netq_province_online_seconds:rate24h
+        expr: sum by (province, isp) (rate(sp_netq_province_seconds_total{job="collector"}[24h]))
+      - record: sp:netq_province_reconnects:rate24h
+        expr: sum by (province, isp) (rate(sp_netq_province_reconnects_total{job="collector"}[24h]))
+      - record: sp:netq_province_offline_seconds:rate24h
+        expr: sum by (province, isp) (rate(sp_netq_province_offline_seconds_total{job="collector"}[24h]))

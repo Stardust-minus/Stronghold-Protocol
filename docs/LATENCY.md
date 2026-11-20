@@ -104,8 +104,9 @@ alone would have added), lanes lost / replaced as stalled / refused, reconnects 
   No address, session, name or city is kept, and the label sets are fixed (36 and at most 192 groups).
 - The monitoring collector exports them as `sp_netq_*` counters (buckets with `le` in ms); the public dashboard
   `stronghold-netq.json` (uid `sp-netq`, `/monitor/net`) shows them per ISP, per lane count and per province next to
-  the entry's TCP retransmission ratio (node-exporter netstat). A province (× ISP) averaging under 3 reporting pages
-  over the hour is not shown, so no cell stands for one player.
+  the entry's TCP retransmission ratio (node-exporter netstat). Provinces are counted over the last 24 h and shown as
+  soon as they have a report: there is no floor (the owner's choice, 2026-11-20 — in the week before, no province
+  reached 3 page-hours in any day), so while players are few a province (× ISP) cell can stand for one or two players.
 - Limits: the copy delay is relative to the first copy, so it underestimates a single connection when both copies are
   late (a join's first seconds) and needs lanes — a single-lane page reports round trips and reconnects only. Provinces
   are partial (an address in no list is `xx`; ip2region's IPv6 rows that only say "in China" — 北京市, China Mobile's

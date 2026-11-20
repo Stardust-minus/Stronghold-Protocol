@@ -148,8 +148,31 @@ test('network-quality board: public-dashboard-compatible, known series only (rec
   const data = netqBoard.panels.filter((p) => p.type !== 'row' && p.type !== 'text');
   assert.ok(data.length >= 10);
   assert.ok(data.some((p) => p.type === 'table' && p.title === '省份 × 运营商'), 'the province × ISP table');
-  for (const p of data.filter((x) => /province/.test(JSON.stringify(x.targets)))) {
-    for (const t of targets(p)) assert.match(t.expr, /sp:netq_province_online_seconds:rate1h\) >= 3|sp:netq_province_online_seconds:rate1h >= 3/, `${p.title}: cells under 3 pages hidden`);
+  // Provinces have a few players a day (2026-11-20: none reached even 3 page-hours a day in a week), so the province
+  // panels read the 24 h rules and, by the owner's choice, have no floor: every province / cell with a report shows
+  // (online_seconds:rate24h > 0, which drops series idle for the whole day), and the descriptions say a cell can stand
+  // for one or two players.
+  const provincePanels = data.filter((x) => /province/.test(JSON.stringify(x.targets)));
+  assert.deepEqual(provincePanels.map((p) => p.id), [18, 19, 20]);
+  for (const p of provincePanels) {
+    for (const t of targets(p)) {
+      assert.match(t.expr, /sp:netq_province_online_seconds:rate24h\)?(?: \* 24)? > 0\)+$/, `${p.title}: rows with a report in 24 h (${t.expr})`);
+      assert.doesNotMatch(t.expr, />=|> *(?!0\))[0-9]/, `${p.title}: no floor`);
+      assert.doesNotMatch(t.expr, /:rate1h\b/, `${p.title}: one window, 24 h`);
+    }
+    assert.match(p.description, /^过去 24 小时.*不设门槛，有上报就显示，人少时.*个别玩家/, `${p.title}: says the window and that there is no floor`);
+    // province xx = no province for the address (the province list is IPv4 only, so mostly IPv6)
+    const xx = p.fieldConfig.overrides.flatMap((o) => o.matcher.options === 'xx' ? o.properties.map((x) => x.value)
+      : o.properties.filter((x) => x.id === 'mappings').flatMap((x) => x.value.map((m) => m.options?.xx?.text).filter(Boolean)));
+    assert.deepEqual(xx, ['未定位（多为 IPv6）'], `${p.title}: province xx`);
+  }
+  assert.equal(netqBoard.panels.find((p) => p.id === 17).title, '按省份（过去 24 小时）');
+  assert.match(netqBoard.panels[0].options.content, /按省份的数据是过去 24 小时，不设门槛.*个别玩家/);
+  const provinceRules = rules.filter((r) => r.record.startsWith('sp:netq_province_'));
+  assert.equal(provinceRules.length, 5);
+  for (const { record, expr } of provinceRules) {
+    assert.match(record, /:rate24h$/);
+    assert.match(expr, /^sum by \(province, isp(?:, le)?\) \(rate\(sp_netq_province_[a-z_]+_total\{job="collector"\}\[24h\]\)\)$/, record);
   }
   for (const p of data) {
     assert.ok(['timeseries', 'bargauge', 'table'].includes(p.type), p.title);
