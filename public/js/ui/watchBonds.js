@@ -150,6 +150,28 @@ export function withLiveLayers(bonds, live, uncapped = false) {
 }
 
 /**
+ * Temporary layers are displayed separately and never written into the permanent count. `uncapped`: the room's
+ * experimental disableLayerCap (as withLiveLayers) — the permanent base then stops at BOND_LAYER_SAFE_MAX, not the 999 cap.
+ */
+function withTemporaryLayers(bonds, temporary, ownerId, live, uncapped = false) {
+  const layers = temporary?.[ownerId];
+  if (!layers) return bonds;
+  const list = bonds.slice();
+  for (const [bondId, n] of Object.entries(layers)) {
+    if (Number.isFinite(n) && n > 0 && !list.some(b => b.bondId === bondId)) {
+      list.push({ bondId, count: 0, active: false, tier: 0, layers: 0 });
+    }
+  }
+  return list.map(b => {
+    const amount = Number(layers[b.bondId]);
+    const tempLayers = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+    const base = live?.[ownerId]?.[b.bondId];
+    const cap = uncapped ? BOND_LAYER_SAFE_MAX : BOND_LAYER_CAP > 0 ? BOND_LAYER_CAP : Infinity;
+    return { ...b, ...(tempLayers > 0 && Number.isFinite(base) ? { layers: Math.max(0, Math.min(cap, base)) } : {}), tempLayers };
+  });
+}
+
+/**
  * A teammate's board as far as the screen shows it, in the m.private shape the bond popup's member list reads
  * (gameLogic bondMembers): their operators on the field meta on screen (the prep scouting board, a server-run battle
  * field's units) and, under client-side combat, the battle on screen's (`extra` = battle/runner.js ownerOps: the meta
@@ -183,14 +205,15 @@ export function ownerBoard(field, ownerId, extra = null) {
 /**
  * Everything the strip needs: whose bonds, their name (null for your own) and the list with the live layers laid over.
  * @param {{ pub: any, priv?: any, myId: string, fieldId?: string|null, field?: any, layer?: 'L'|'ALL'|'R', halves?: boolean,
- *   watched?: string|null, live?: Record<string, Record<string, number>>|null }} o — live: the runner's bondLayers (null
+ *   watched?: string|null, temporary?: Record<string, Record<string, number>>|null, live?: Record<string, Record<string, number>>|null }} o — live: the runner's bondLayers (null
  *   outside a battle)
  * @returns {{ ownerId: string, self: boolean, name: string|null, bonds: any[] }}
  */
-export function stripView({ pub, priv = null, myId, fieldId = null, field = null, layer = 'ALL', halves = false, watched = null, live = null }) {
+export function stripView({ pub, priv = null, myId, fieldId = null, field = null, layer = 'ALL', halves = false, watched = null, live = null, temporary = null }) {
   const ownerId = bondOwnerId({ pub, myId, fieldId, field, layer, halves, watched });
   const self = ownerId === myId;
-  const bonds = withLiveLayers(ownerBonds({ pub, priv, myId, ownerId }), isObj(live) ? live[ownerId] : null, pub?.experimental?.disableLayerCap === true);
+  const uncapped = pub?.experimental?.disableLayerCap === true;
+  const bonds = withTemporaryLayers(withLiveLayers(ownerBonds({ pub, priv, myId, ownerId }), isObj(live) ? live[ownerId] : null, uncapped), temporary, ownerId, live, uncapped);
   return { ownerId, self, name: self ? null : nameOf(pub, ownerId), bonds };
 }
 
@@ -200,25 +223,26 @@ export function stripView({ pub, priv = null, myId, fieldId = null, field = null
  * @param {{ pub: any, priv?: any, myId: string, combat?: boolean, settle?: boolean, watchingOther?: boolean,
  *   watching?: string|null, home?: string|null, battleFieldId?: string|null, field?: any, layers?: any[],
  *   layer?: 'L'|'ALL'|'R', who?: { fieldId?: string, playerId?: string }|null,
- *   bondLayers?: Record<string, Record<string, number>>|null }} o — layers: the ‹ › pill's layers on offer
+ *   bondTempLayers?: Record<string, Record<string, number>>|null, bondLayers?: Record<string, Record<string, number>>|null }} o — layers: the ‹ › pill's layers on offer
  *   (battle/observe.js cameraLayers of `field`, [] when not offered); bondLayers: the runner's state().bondLayers
  * @returns {{ fieldId: string|null, ownerId: string, self: boolean, name: string|null, bonds: any[] }}
  */
 export function screenStrip({ pub, priv = null, myId, combat = false, settle = false, watchingOther = false, watching = null, home = null,
-  battleFieldId = null, field = null, layers = [], layer = 'ALL', who = null, bondLayers = null }) {
+  battleFieldId = null, field = null, layers = [], layer = 'ALL', who = null, bondLayers = null, bondTempLayers = null }) {
   const fieldId = screenFieldId({ combat, settle, watchingOther, watching, home, battleFieldId });
   const halves = Array.isArray(layers) && layers.length > 0 && isObj(field) && field.fieldId === fieldId;
   const live = (combat || settle) && isObj(bondLayers) ? bondLayers : null;
   const watched = watchingOther ? watchedPlayer(who, watching) : null;
-  return { fieldId, ...stripView({ pub, priv, myId, fieldId, field, layer, halves, watched, live }) };
+  return { fieldId, ...stripView({ pub, priv, myId, fieldId, field, layer, halves, watched, live, temporary: (combat || settle) && fieldId === battleFieldId ? bondTempLayers : null }) };
 }
 
 /**
  * The bonds of any player with the live layers laid over (the detail card's bond chips of a teammate's unit).
- * @param {{ pub: any, priv?: any, myId: string, ownerId: string, live?: Record<string, Record<string, number>>|null }} o
+ * @param {{ pub: any, priv?: any, myId: string, ownerId: string, temporary?: Record<string, Record<string, number>>|null, live?: Record<string, Record<string, number>>|null }} o
  */
-export function playerBonds({ pub, priv = null, myId, ownerId, live = null }) {
-  return withLiveLayers(ownerBonds({ pub, priv, myId, ownerId }), isObj(live) ? live[ownerId] : null, pub?.experimental?.disableLayerCap === true);
+export function playerBonds({ pub, priv = null, myId, ownerId, live = null, temporary = null }) {
+  const uncapped = pub?.experimental?.disableLayerCap === true;
+  return withTemporaryLayers(withLiveLayers(ownerBonds({ pub, priv, myId, ownerId }), isObj(live) ? live[ownerId] : null, uncapped), temporary, ownerId, live, uncapped);
 }
 
 /**
@@ -256,15 +280,15 @@ export function toggleBond(open, id, ownerId, from) {
  * opens THAT player's bond): their entry with the live layers (as the strip and the chips show it), the member list's
  * board (your pieces, or their operators on the field on screen — ownerBoard) and their name (null for your own).
  * @param {{ open: { id: string, ownerId?: string }|null, pub: any, priv?: any, myId: string, field?: any,
- *   units?: any[]|null, live?: Record<string, Record<string, number>>|null }} o — units: the owner's operators in the
+ *   units?: any[]|null, temporary?: Record<string, Record<string, number>>|null, live?: Record<string, Record<string, number>>|null }} o — units: the owner's operators in the
  *   battle on screen (battle/runner.js ownerOps; null outside client-side combat); live: the runner's bondLayers (null
  *   outside a battle)
  * @returns {{ bondId: string, ownerId: string, self: boolean, name: string|null, entry: any, priv: any }|null}
  */
-export function popupView({ open, pub, priv = null, myId, field = null, units = null, live = null }) {
+export function popupView({ open, pub, priv = null, myId, field = null, units = null, live = null, temporary = null }) {
   if (!isObj(open) || typeof open.id !== 'string' || !open.id) return null;
   const ownerId = typeof open.ownerId === 'string' && open.ownerId ? open.ownerId : myId;
   const self = ownerId === myId;
-  const entry = playerBonds({ pub, priv, myId, ownerId, live }).find((b) => isObj(b) && b.bondId === open.id) || null;
+  const entry = playerBonds({ pub, priv, myId, ownerId, live, temporary }).find((b) => isObj(b) && b.bondId === open.id) || null;
   return { bondId: open.id, ownerId, self, name: self ? null : nameOf(pub, ownerId), entry, priv: self ? priv : ownerBoard(field, ownerId, units) };
 }

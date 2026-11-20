@@ -1,6 +1,5 @@
 // Bond strip (active-bond discs under the top bar) and the bond detail popup: the key facts first (user playtest #2
-// item 9: name, members in play / next threshold, layers, reached tier and its threshold row, the current effect with
-// layer-resolved numbers), then the full description and the member list with owned / on-board state — operators that
+// item 9: name, members in play / next threshold, layers and reached tier), then the full description and the member list with owned / on-board state — operators that
 // are members through 变形同构体 included (tagged 同构, gameLogic bondMembers; such a row opens the wearer's card with its
 // items: the pair and the granted chip), so the list's count agrees with 在场 (a bond the mode never activates says
 // 本局禁用 — gameLogic modeOffBonds). A core bond whose count holds 调和's +1 (the view entry's `harmony`, sent by the
@@ -32,22 +31,41 @@
 // 预计叠层 (GitHub feedback #25; server/match/layerForecast.js, the own m.private.layerForecast in PREP): a disc whose bond
 // the player's own <休整期结束时> effects will add layers to carries a +n badge, and its popup a 预计叠层 block naming the
 // sources; random sources are not counted (「含随机来源，未计入」) and neither are plugins (「插件效果未计入」).
+// Round 83 (upstream PR #923, merged 2026-11-19): the official card layout — the strip's disc on the bond board sprite with
+// the stage numeral over it (BondStage) and the stack count normal + temporary (a temporary +N turns the count gold), an
+// inactive disc showing its members toward activation (components.js BOND_INACTIVE_PROGRESS, the one switch for it); the
+// card with the disc, 在场 n/next, 阶段, 层数 and +N 临时 in its head, one description with the layers resolved, square
+// portraits, and ‹ › between the strip's bonds. This fork keeps on it: the 预计叠层 badge and block, the 服主 mark, the
+// catalogue skins' portraits, 卡池剩余 under a member, and the card's banned members (BOND_CARD_BANNED_MEMBERS below).
 
 import { cloneElement } from '../../vendor/preact.module.js';
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { html, BondDisc, Icon, MicroLabel, Tooltip } from './components.js';
-import { RichText, UnitThumb, BondGlyph, GIcon } from './gameComponents.js';
-import { sortBonds, bondMembers, nextThreshold, bondTier, harmonyMembers, HARMONY_BOND, memberHeadCount, briefingBondTip, diyGetter, diyRecordFor, memberStandIn, standInForText } from './gameLogic.js';
+import { html, BondDisc, BOND_INACTIVE_PROGRESS, Icon, MicroLabel, Tooltip } from './components.js';
+import { RichText, BondGlyph, GIcon, Sprite, Img, SquareOperatorThumb } from './gameComponents.js';
+import { sortBonds, bondMembers, nextThreshold, bondTier, harmonyMembers, HARMONY_BOND, briefingBondTip, diyGetter, diyRecordFor, memberStandIn, standInForText } from './gameLogic.js';
+import { bondIconUrl, uiUrl } from './assetUrls.js';
 import { formatBondEffect } from './richText.js';
 import { bondEffectRecord } from './bondEffect.js';
-import { bondIconUrl } from './assetUrls.js';
 import { data } from '../data.js';
 import { appearanceRecord, ownAppearance } from './skinAssets.js';
-import { t, tc, tParts, tName } from '../../../shared/i18n.js';
+import { t, tParts, tName } from '../../../shared/i18n.js';
 import { OwnerMark } from './ownerName.js';
 import { poolLeftOf, PoolTag } from './poolCount.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
+
+/**
+ * The card's members who cannot appear this match (pub.bannedChess; 待用户定 at the round-83 merge, 2026-11-19): true (this
+ * fork, as before PR #923) lists them dimmed with the red ✕ and 「（本局禁用）」, so a disc's red 无法出现干员数 count
+ * (ui/matchInfo.js bondCell) and the card it opens name the same operators; false (upstream PR #923) leaves them out.
+ */
+export const BOND_CARD_BANNED_MEMBERS = true;
+
+// Missing manifest entries must not produce guessed asset requests.
+function uiBackground(key) {
+  const url = uiUrl(data.get('assets'), key);
+  return url ? `url("${url}")` : 'none';
+}
 
 /** The "👁 name" tag of a teammate's strip (DESIGN §20.15). */
 function OwnerTag({ owner, ownerId = null }) {
@@ -175,6 +193,37 @@ function BondScroller({ count, children }) {
   </div>`;
 }
 
+/** Use the original III sprite; crop out five-pixel stroke periods for I and II. */
+function BondStage({ tier }) {
+  const [badSrc, setBadSrc] = useState(null);
+  if (!(tier > 0)) return null;
+  const numeral = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ'][tier - 1] || tier;
+  const label = t('阶段 {tier}', { tier: numeral });
+  const src = uiUrl(data.get('assets'), 'hudBondItem/bond_level_3');
+  if (tier > 3 || !src || badSrc === src) return html`<span class="bslot__stage" aria-label=${label}>${numeral}</span>`;
+  const left = tier === 1 ? .09 : tier === 2 ? .14 : .24;
+  return html`<span class="bslot__stage" aria-label=${label} title=${label}>
+    <span class="bslot__stage-sprite" style=${`--stage-left: ${left}rem; --stage-width: ${tier === 3 ? .24 : left + .05}rem`} aria-hidden="true">
+      <span class="bslot__stage-left"><img src=${src} alt="" draggable=${false} onError=${() => setBadSrc(src)} /></span>
+      ${tier < 3 ? html`<span class="bslot__stage-right"><img src=${src} alt="" draggable=${false} onError=${() => setBadSrc(src)} /></span>` : null}
+    </span>
+  </span>`;
+}
+
+function bondDisplay(bondId, entry) {
+  const base = data.lookup('bonds', bondId);
+  const count = entry?.count ?? 0;
+  const layers = entry?.layers ?? 0;
+  const tempLayers = entry?.tempLayers ?? 0;
+  const total = layers + tempLayers;
+  const effectId = entry?.effectId;
+  const record = bondEffectRecord(base, data.lookup('effects', effectId || base?.effectId), total);
+  const thresholds = !effectId && Array.isArray(entry?.thresholds) && entry.thresholds.length
+    ? entry.thresholds : record?.thresholds || [];
+  const tier = !effectId && entry?.tier != null ? entry.tier : bondTier(count, thresholds, record?.maxCount);
+  return { record, count, thresholds, tier, layers, tempLayers, total };
+}
+
 /**
  * @param {{ bonds: any[], layersDisabled?: boolean, onOpen:(bondId:string)=>void, openId?: string|null,
  *   owner?: string|null, forecast?: any }} props — owner: the watched teammate's name (null = your own bonds); forecast:
@@ -194,31 +243,32 @@ export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null
       aria-label=${owner ? t('{owner} 的盟约', { owner }) : t('我的盟约')} data-owner=${owner || null}>
     ${owner ? html`<${OwnerTag} owner=${owner} ownerId=${ownerId} />` : null}
     ${shown.map((b) => {
-      const base = data.lookup('bonds', b.bondId);
-      const rec = bondEffectRecord(base, data.lookup('effects', b.effectId || base?.effectId), b.layers ?? 0);
-      const th = b.effectId ? rec?.thresholds || [] : Array.isArray(b.thresholds) && b.thresholds.length ? b.thresholds : rec?.thresholds || [];
+      const { record: rec, thresholds: th, count, tier, tempLayers, total } = bondDisplay(b.bondId, b);
+      const segments = Math.max(1, Math.min(4, th.length));
+      const reached = b.active && !b.off ? Math.max(1, Math.min(segments, tier)) : 0;
+      const frameStyle = `--bond-frame-size: ${reached === segments ? '.815' : '.688'}rem; --bond-rim-top: ${reached === segments ? 13 / 77 : 8 / 65}`;
       if (b.off) {
         // a bond the mode never activates, with members: the briefing's grey ✕ disc, no stack count, 本局禁用 under it
         const name = rec?.name || b.bondId;
         return html`<div key=${b.bondId} role="listitem" data-bond=${b.bondId} data-off="1"
-            class=${cx('bslot', 'is-off', openId === b.bondId && 'is-open')}>
+            class=${cx('bslot', 'is-off', openId === b.bondId && 'is-open')} style=${frameStyle}>
           <${BondDisc} name=${name} icon=${bondIconUrl(m, b.bondId)} tier=${0} maxTier=${Math.max(1, th.length)} active=${false}
             disabled=${true} size="sm" showName=${true} layersDisabled=${layersDisabled} onClick=${() => onOpen(b.bondId)}
-            title=${t('{tip} · {n} 名成员', { tip: briefingBondTip(name, 'off'), n: b.count ?? 0 })} />
+            title=${t('{tip} · {n} 名成员', { tip: briefingBondTip(name, 'off'), n: count })} />
           <span class="bslot__count bslot__off">${t('本局禁用')}</span>
         </div>`;
       }
-      const next = nextThreshold(b.count ?? 0, th);
+      const next = nextThreshold(count, th);
       const fc = rec?.noStack || owner ? 0 : forecastOf(forecast, b.bondId);
-      const tier = b.effectId ? bondTier(b.count ?? 0, th, rec?.maxCount) : b.tier ?? 0;
       return html`<div key=${b.bondId} role="listitem" data-bond=${b.bondId} data-harmony=${b.harmony > 0 ? b.harmony : null}
-          class=${cx('bslot', b.active && 'is-active', openId === b.bondId && 'is-open')}>
-        <${BondDisc} name=${rec?.name || b.bondId} icon=${bondIconUrl(m, b.bondId)} layers=${rec?.noStack ? undefined : b.layers ?? 0}
-          tier=${tier} maxTier=${Math.max(1, th.length)} active=${!!b.active} size="sm" showName=${true}
+          class=${cx('bslot', b.active && 'is-active', tempLayers > 0 && 'has-temp-layers', reached === segments && 'is-full', openId === b.bondId && 'is-open')} style=${frameStyle}>
+        <${BondDisc} name=${rec?.name || b.bondId} icon=${bondIconUrl(m, b.bondId)} layers=${rec?.noStack ? undefined : total}
+          tier=${tier} maxTier=${Math.max(1, th.length)} members=${count} minCount=${th[0] ?? 0} active=${!!b.active} size="sm" showName=${true}
           layersDisabled=${layersDisabled} onClick=${() => onOpen(b.bondId)}
-          title=${`${rec?.name || b.bondId} ${b.count ?? 0}/${next ?? th[th.length - 1] ?? '-'}${b.harmony > 0 ? t('（含调和 +{harmony}）', { harmony: b.harmony }) : ''}`} />
+          title=${`${rec?.name || b.bondId} ${count}/${next ?? th[th.length - 1] ?? '-'}${b.harmony > 0 ? t('（含调和 +{harmony}）', { harmony: b.harmony }) : ''}`} />
         ${fc ? html`<span class="bslot__fc num" data-forecast=${fc} title=${t('休整期结束时预计 +{n} 层', { n: fc })}>+${fc}</span>` : null}
-        <span class=${cx('bslot__count', 'num', next == null && 'is-max')}>${b.count ?? 0}<small>/${next ?? th[th.length - 1] ?? '-'}</small></span>
+        ${BOND_INACTIVE_PROGRESS ? null : html`<span class=${cx('bslot__count', 'num', next == null && 'is-max')}>${count}<small>/${next ?? th[th.length - 1] ?? '-'}</small></span>`}
+        <${BondStage} tier=${b.active ? tier : 0} />
       </div>`;
     })}
   </div>`;
@@ -229,8 +279,9 @@ export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null
 /**
  * Bond detail popup.
  * @param {{ bondId: string, entry?: any, priv?: any, banned?: string[], onClose: Function,
+ *   onPrevious?: (()=>void)|null, onNext?: (()=>void)|null,
  *   onMember?: (chessId:string, items?:string[]|null, standInFor?:string|null, diy?:any)=>void,
- *   place?: 'left'|'beside'|'besideR'|'right'|null, over?: boolean, beside?: 'left'|'right'|null, owner?: string|null, ownerId?: string|null, off?: boolean, morphMode?: string, modal?: boolean }} props —
+ *   place?: 'left'|'beside'|'besideR'|'right'|'center'|null, over?: boolean, beside?: 'left'|'right'|'center'|null, owner?: string|null, ownerId?: string|null, off?: boolean, morphMode?: string, modal?: boolean }} props —
  *   `place`: where it opens (gameLogic bondPopupPlace; `beside: 'left'` = the older spelling of 'beside'); `over`: above the
  *   detail card; `owner`: the watched teammate's name (`entry` / `priv` are then theirs: ui/watchBonds.js); `onMember`
  *   gets a 变形同构体 row's item ids too (its card shows the pair and the granted chip), null for a plain member, and a
@@ -243,21 +294,18 @@ export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null
  *   activates). It keeps the effect and the members, and says 「{name}：该核心盟约的干员无法出现，同属其他亮着的核心盟约的除外」.
  *   An add-on stays on `off`.
  *   `entry.harmony` (the server's bond views: the +1 调和 added to `count`): 在场 n（含调和 +1） and the 调和 row;
+ *   `entry.tempLayers` (the battle's temporary layers, ui/watchBonds.js): +N beside 层数, the description resolved at the total;
+ *   `onPrevious` / `onNext` (a card opened from the strip): the ‹ › arrows around it;
  *   `forecast`: the own m.private.layerForecast in PREP (the 预计叠层 block), else null;
  *   `poolCounts`: 设置「显示卡池剩余张数」 — each member's copies left in the own shared stock (m.private poolLeft, ui/poolCount.js)
  *   under its portrait, never on a watched teammate's card
  */
-export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember, place = null, over = false, beside = null, owner = null, off = false, coreAbsent = false, forecast = null, morphMode = 'official', modal = false, poolCounts = false }) {
-  const base = data.lookup('bonds', bondId);
-  const b = bondEffectRecord(base, data.lookup('effects', entry?.effectId || base?.effectId), entry?.layers ?? 0);
+export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember, place = null, over = false, beside = null, owner = null, off = false, coreAbsent = false, forecast = null, morphMode = 'official', modal = false, poolCounts = false, onPrevious = null, onNext = null }) {
+  const { record: b, count, thresholds: th, tier: reachedTier, layers, tempLayers, total } = bondDisplay(bondId, entry);
   if (!b) return null;
-  // A greyed regulation core must not use `off`: that sentence is the opposite of "its operators cannot appear".
-  // [ASSUMED] the card still shows 当前效果, 在场 and 成员; only the note changes. No official card settles the rest.
+  // A greyed regulation core has its own explanation, distinct from a mode-disabled bond.
   const modeOff = !!off && !coreAbsent;
-  const count = entry?.count ?? 0;
-  const layers = entry?.layers ?? 0;
-  const th = entry?.effectId ? b.thresholds || [] : Array.isArray(entry?.thresholds) && entry.thresholds.length ? entry.thresholds : b.thresholds || [];
-  const tier = modeOff ? 0 : entry?.effectId ? bondTier(count, th, b.maxCount) : entry?.tier ?? bondTier(count, th, b.maxCount);
+  const tier = modeOff ? 0 : reachedTier;
   const active = !modeOff && (entry ? !!entry.active : tier > 0);
   // (自选 pieces are their operators: the own ones by m.private.diy, a watched teammate's by the pick its unit carries)
   const dd = { chess: data.get('chess'), backups: data.get('backups') };
@@ -269,7 +317,6 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
   const siOf = (mb) => (mb.diy || mb.rec ? null : memberStandIn(priv, rawChess(mb.id), data.get('backups'), rawChess));
   const countsHand = entry?.countsHand ?? b.countsHand;
   const next = nextThreshold(count, th);
-  const hasNow = !modeOff && !!(b.effectDescRaw || b.effectDesc);
   const at = place || (beside === 'left' ? 'beside' : 'left');
   // 调和's +1 in this count (the server's word), and the 调和 operators on that board who give it
   const harmony = !modeOff && Number.isInteger(entry?.harmony) && entry.harmony > 0 ? entry.harmony : 0;
@@ -280,26 +327,36 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
   const harmonyName = data.lookup('bonds', HARMONY_BOND)?.name || tName('调和');
   const harmonyText = harmonyBy.length ? t('{names} 在场：核心盟约激活人数 +{harmony}', { names: harmonyBy.map((x) => x.name), harmony })
     : t('{harmonyName}已激活：核心盟约激活人数 +{harmony}', { harmonyName, harmony });
-  return html`<div class=${cx('bpop', 'brackets', `bpop--${at}`, over && 'is-over', owner && 'is-other')} data-place=${at} data-owner=${owner || null}
+  const card = html`<div class=${cx('bpop', 'brackets', `bpop--${at}`, over && 'is-over', owner && 'is-other')} data-place=${at} data-owner=${owner || null}
       role="dialog" aria-modal=${modal || undefined} aria-label=${owner ? t('{owner} 的盟约：{name}', { owner, name: b.name }) : t('盟约：{name}', { name: b.name })}>
-    <button type="button" class="bpop__close" aria-label=${t('关闭')} onClick=${onClose}><${Icon} name="close" /></button>
-    <header class="bpop__head">
-      <div class=${cx('bpop__disc', active && 'is-active')}><${BondGlyph} bondId=${bondId} /></div>
-      <div class="bpop__titles">
-        <span class="sw-sec__name bpop__kind"><i>[</i> ${b.isCore ? t('CORE BOND // 核心盟约') : t('ADD-ON BOND // 附加盟约')} <i>]</i></span>
-        ${owner ? html`<span class="bpop__owner"><${GIcon} name="eye" />${tParts('{owner} 的盟约', { owner: html`<b>${owner}</b>` })}</span>` : null}
-        <h3 class="bpop__name">${b.name}</h3>
-        <div class="bpop__facts">
-          ${modeOff ? null : html`<span>${t('在场')} <b class="num">${count}</b>${next != null ? html`<small class="num">/${next}</small>` : null}${countsHand ? html`<small>${t('（含整备区）')}</small>` : null}${harmony ? html`<small class="bpop__hnote" data-harmony=${harmony}>${t('（含{harmonyName} +{harmony}）', { harmonyName, harmony })}</small>` : null}</span>`}
-          ${b.noStack ? html`<span>${t('层数不显示')}</span>` : html`<span>${t('层数')} <b class="num t-mint">${layers}</b></span>`}
-          <span class=${active ? 't-mint' : 't-lo'}>${active ? (th.length > 1 ? t('已激活 · {tier} 阶', { tier }) : t('已激活')) : modeOff ? t('本局禁用') : t('未激活')}</span>
-        </div>
-      </div>
-    </header>
-    ${coreAbsent ? html`<p class="bpop__off" role="note">${briefingBondTip(b.name, 'off', 0, true)}</p>` : modeOff ? html`<p class="bpop__off" role="note">${t('本模式下该盟约不会激活（其干员仍可能因所属的其他盟约出现）')}</p>` : null}
-    <div class="bpop__tiers">
-      ${th.map((n, i) => html`<span key=${i} class=${cx('bpop__tier', i < tier && 'is-on')}><b class="num">${n}</b><small>${b.maxCount != null ? t('名及以下') : tc('bond-threshold', '名')}</small></span>`)}
+  ${active ? html`<${Img} class="bpop__stack-deco" src=${uiUrl(data.get('assets'), 'bondDetail/active_stack_deco')} />` : null}
+  ${modal ? html`<button type="button" class="bpop__close" aria-label=${t('关闭')} onClick=${onClose}><${Icon} name="close" /></button>` : null}
+  <header class=${cx('bpop__head', active && 'is-active')}>
+    <div class="bpop__disc">
+      <${BondDisc} name=${b.name} icon=${bondIconUrl(data.get('assets'), bondId)} tier=${tier}
+        maxTier=${Math.max(1, th.length)} members=${count} minCount=${th[0] ?? 0} active=${active} disabled=${modeOff || coreAbsent} showName=${false} />
     </div>
+    <div class="bpop__titles">
+      ${owner ? html`<span class="bpop__owner"><${GIcon} name="eye" />${tParts('{owner} 的盟约', { owner: html`<b>${owner}</b>` })}</span>` : null}
+      <h3 class="bpop__name">${b.name}</h3>
+      <div class="bpop__facts">
+        ${modeOff ? null : html`<span class=${cx('bpop__population', !active && 'is-inactive')} style=${!active ? `--bpop-inactive-bg: ${uiBackground('bondDetail/bond_inactive_bg')}` : null}>
+          <${Icon} name="users" /><span class="sr-only">${t('在场')}</span>
+          <b class="num">${count}</b><span class="num">/${next ?? th[th.length - 1] ?? '-'}</span>
+          ${active ? html`<span class="bpop__check" aria-label=${t('已激活')}><${Icon} name="check" /></span>` : html`<span class="bpop__stage bpop__inactive">${t('尚未激活')}</span>`}
+        </span>`}
+        ${countsHand && !modeOff ? html`<small>${t('（含整备区）')}</small>` : null}
+        ${harmony ? html`<small class="bpop__hnote" data-harmony=${harmony}>${t('（含{harmonyName} +{harmony}）', { harmonyName, harmony })}</small>` : null}
+        ${active || modeOff ? html`<span class=${cx('bpop__stage', active && 'is-active')} title=${active ? t('已激活 · {tier} 阶', { tier }) : null}>${active ? t('阶段 {tier}', { tier: ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ'][tier - 1] || tier }) : t('本局禁用')}</span>` : null}
+      </div>
+    </div>
+    ${b.noStack ? null : html`<div class="bpop__layers" aria-label=${t('层数')}>
+      <span style=${`--bpop-layer-bg: ${uiBackground('bondDetail/bond_active_bg')}`}>${t('层数')} <b class="num t-mint">${layers}</b></span>
+      ${tempLayers > 0 ? html`<span class="bpop__temporary num">+${tempLayers}</span>` : null}
+    </div>`}
+  </header>
+  <div class="bpop__body">
+  ${coreAbsent ? html`<p class="bpop__off" role="note">${briefingBondTip(b.name, 'off', 0, true)}</p>` : modeOff ? html`<p class="bpop__off" role="note">${t('本模式下该盟约不会激活（其干员仍可能因所属的其他盟约出现）')}</p>` : null}
     ${forecast && !modeOff && !b.noStack && (forecastOf(forecast, bondId) || forecast.random || forecast.partial) ? html`<section class="bpop__sec bpop__fc" data-forecast=${forecastOf(forecast, bondId)}>
       <h4>${t('预计叠层')} <small>${t('休整期结束时')}</small></h4>
       ${forecastOf(forecast, bondId) ? html`<p><b class="num t-mint">+${forecastOf(forecast, bondId)}</b> ${t('层')} · ${forecast.bonds[bondId].sources.map((x) => `${forecastSourceName(x)} +${x.n}`).join('、')}</p>`
@@ -307,23 +364,17 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
       ${forecast.random ? html`<small class="bpop__fcnote">${t('含随机来源，未计入')}</small>` : null}
       ${forecast.partial ? html`<small class="bpop__fcnote">${t('插件效果未计入')}</small>` : null}
     </section>` : null}
-    ${hasNow ? html`<section class="bpop__sec bpop__sec--now">
-      <h4><span class="sw-sec__name"><i>[</i> ${t('当前效果')} <i>]</i></span> ${b.noStack ? null : html`<small class="num">${t('（{layers} 层）', { layers })}</small>`}</h4>
-      <${RichText} as="p" text=${formatBondEffect(b, layers)} class="bpop__desc" />
-    </section>` : null}
     <section class="bpop__sec">
-      <h4><span class="sw-sec__name"><i>[</i> ${t('盟约效果')} <i>]</i></span></h4>
-      <${RichText} as="p" text=${b.descRaw || b.desc} class="bpop__desc" />
+      <${RichText} as="p" text=${formatBondEffect(b, total)} class="bpop__desc" />
     </section>
     <section class="bpop__sec">
-      <h4><span class="sw-sec__name"><i>[</i> ${t('成员')} <i>]</i></span> <small>${memberHeadCount(members, countsHand)}/${members.length}</small></h4>
       ${harmony ? (harmonyBy.length
         ? html`<button type="button" class="bpop__harmony" data-harmony=${harmony} title=${harmonyText} onClick=${() => onMember?.(harmonyBy[0].id, null)}>
           <${BondGlyph} bondId=${HARMONY_BOND} /><b>${harmonyName} +${harmony}</b><span>${harmonyText}</span></button>`
         : html`<div class="bpop__harmony" role="note" data-harmony=${harmony} title=${harmonyText}>
           <${BondGlyph} bondId=${HARMONY_BOND} /><b>${harmonyName} +${harmony}</b><span>${harmonyText}</span></div>`) : null}
-      <div class="bpop__members">
-        ${members.map((mb) => {
+      <div class="bpop__members" style=${`--bpop-inactive-border: ${uiBackground('bondChar/avatar_border')}`}>
+        ${(BOND_CARD_BANNED_MEMBERS ? members : members.filter(mb => !mb.banned)).map((mb) => {
           const si = siOf(mb);
           const name = si ? si.name : mb.name;
           const items = mb.granted && Array.isArray(mb.items) ? mb.items : null;
@@ -339,8 +390,8 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
               onClick=${openMember}
               data-granted=${mb.granted ? '1' : null} data-standin=${si ? si.charId : null} data-diy=${mb.diy ? mb.rec?.charId || '1' : null}
               title=${`${name}${si ? t('（{note}）', { note: standInForText(mb.name) }) : ''}${mb.granted ? t('（变形同构体：视为本盟约成员）') : ''}${mb.banned ? t('（本局禁用）') : mb.onBoard ? t('（在场）') : mb.owned ? t('（整备区）') : ''}`}>
-            <${UnitThumb} kind="chess" id=${mb.id} size="sm" dim=${!mb.owned || mb.banned} rec=${art} title=${name} />
-            <${PoolTag} n=${left} where="member" />
+            <span class="bpop__mart"><${SquareOperatorThumb} id=${mb.id} ownerId=${null} dim=${!mb.owned || mb.banned} rec=${art} title=${name} />
+              <${PoolTag} n=${left} where="member" /></span>
             <span class="bpop__mname">${name}</span>
             ${mb.banned ? html`<span class="bpop__ban"><${Icon} name="close" /></span>` : null}
             ${mb.granted ? html`<span class="bpop__iso" aria-hidden="true">${t('同构')}</span>` : null}
@@ -349,5 +400,12 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
         })}
       </div>
     </section>
+  </div>
+  </div>`;
+  if (!onPrevious && !onNext) return card;
+  return html`<div class="bpop-nav">
+    <button type="button" class="bpop-nav__arrow bpop-nav__arrow--prev" aria-label=${t('上一个盟约')} disabled=${!onPrevious} onClick=${onPrevious}><${Sprite} k="bondDetail/arrow" class="bpop-nav__image" fallback=${html`<${Icon} name="chevronRight" class="bpop-nav__image" />`} /></button>
+    ${card}
+    <button type="button" class="bpop-nav__arrow bpop-nav__arrow--next" aria-label=${t('下一个盟约')} disabled=${!onNext} onClick=${onNext}><${Sprite} k="bondDetail/arrow" class="bpop-nav__image" fallback=${html`<${Icon} name="chevronRight" class="bpop-nav__image" />`} /></button>
   </div>`;
 }

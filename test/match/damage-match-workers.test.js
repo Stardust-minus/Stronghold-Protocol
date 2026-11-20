@@ -138,7 +138,10 @@ for (const hidden of [false, true]) test(`actual ${hidden ? 'hidden' : 'boss'} M
   // the pair is the match's random draw (0.2.5); the board lists its owners in seat order
   const ownIds = [...own.players].sort();
   assert.deepEqual(h.last('p0').owners.map((o) => o.playerId).sort(), ownIds);
-  assert.equal(m.handle('p0', { t: 'g.watch', fieldId: other.fieldId }).error, 'BAD_TARGET');
+  // round 83 (PR #971): a fighting player may watch the other group's boss field; the damage board stays its own group's
+  assert.equal(m.handle('p0', { t: 'g.watch', fieldId: other.fieldId }).error, undefined);
+  assert.deepEqual(h.last('p0').owners.map((o) => o.playerId).sort(), ownIds, 'watching the other group keeps the own damage board');
+  assert.equal(m.handle('p0', { t: 'g.watch', fieldId: own.fieldId }).error, undefined);
   m.onReconnect('p0'); assert.deepEqual(h.last('p0').owners.map((o) => o.playerId).sort(), ownIds);
   m.addSpectator('observer'); assert.equal(h.last('observer').owners.length, 4);
   m.order[3].alive = false; m._sendDamageTo('p3'); assert.equal(h.last('p3').owners.length, 4);

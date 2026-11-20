@@ -8,6 +8,7 @@
 
 import { boardOrder, pieceDir } from '../board.js';
 import { equippedItemProgress } from '../itemProgress.js';
+import { garrisonShowTags } from '../showTags.js';
 import { syncCommand, commandBattleInput, keepsFunds } from '../bandCommands.js';
 import { computeBonds, bondSnapshot, activatedLayers, bondsWithGains } from '../bondsMeta.js';
 
@@ -56,6 +57,7 @@ export class PlayerRound {
   // flagged afterElimination — GitHub #86); nothing else of an eliminated player is dispatched.
   eliminate(round) {
     this.pendingDeath = false;
+    delete this.tempLayers;
     this.alive = false;
     this.ready = false;
     this.eliminatedRound = round;
@@ -141,6 +143,8 @@ export class PlayerRound {
         const u = { uid: piece.uid, kind: 'chess', chessId: piece.id, row: r, col: c, dir: pieceDir(piece), items: (piece.items || []).map((i) => i.id) };
         const progress = equippedItemProgress(this, piece);
         if (progress) u.itemProgress = progress;
+        const tags = garrisonShowTags(this, piece);
+        if (tags) u.garrisonTags = tags;
         const pick = this.diyPickOf(piece.id);
         if (pick) {
           // 0.2.0 自选编队: a slotted DIY slot fights as its pick (sim getChess(id, { diy }): the operator's body, the pick's
@@ -227,6 +231,8 @@ function regulationBench(ps) {
     };
     const progress = equippedItemProgress(ps, piece);
     if (progress) u.itemProgress = progress;
+    const tags = garrisonShowTags(ps, piece);
+    if (tags) u.garrisonTags = tags;
     const pick = ps.diyPickOf(piece.id);
     if (pick) {
       u.diy = { charId: pick.charId, skillIndex: pick.skillIndex, uniEquipId: pick.uniEquipId };

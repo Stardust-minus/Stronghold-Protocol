@@ -70,6 +70,7 @@ import { data } from '../data.js';
 import { askPersistStorage, importSupport, storagePersisted } from '../assetCache.js';
 import { assetImport, pruneImportedAssets } from '../assetPack.js';
 import { cosmetics } from '../cosmetics.js';
+import { applyCursor } from './cursor.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -117,6 +118,7 @@ settingsStore.subscribe((s) => {
   audio.setVoiceNative(s.voiceNative);
   applyTextSize(s.textSize);
   applyUiScale(s.uiScale);
+  applyCursor(s.arknightsCursor);
   applyUiTheme(s.uiTheme);
   syncThemeVoiceVolume();
 });
@@ -131,6 +133,7 @@ applyUiScale(settingsStore.get().uiScale);
 voiceLanguageStore.subscribe(({ language }) => {
   if (settingsStore.get().voiceLang !== language) settingsStore.set({ voiceLang: language });
 });
+applyCursor(settingsStore.get().arknightsCursor);
 
 /** @param {Partial<ReturnType<typeof sanitizeSettings>>} patch */
 export function updateSettings(patch) {
@@ -159,10 +162,10 @@ function Slider({ label, micro, value, onInput, icon }) {
   </label>`;
 }
 
-function Toggle({ label, micro, value, onChange }) {
+function Toggle({ label, micro, value, onChange, testId }) {
   return html`<div class="set-row">
     <span class="set-row__label">${label}<${MicroLabel}>${micro}<//></span>
-    <button type="button" class=${`set-toggle${value ? ' is-on' : ''}`} role="switch" aria-checked=${value ? 'true' : 'false'} aria-label=${label}
+    <button type="button" class=${`set-toggle${value ? ' is-on' : ''}`} role="switch" data-testid=${testId} aria-checked=${value ? 'true' : 'false'} aria-label=${label}
       onClick=${() => onChange(!value)}><i></i><span>${value ? tc('toggle', '开启') : tc('toggle', '关闭')}</span></button>
   </div>`;
 }
@@ -526,7 +529,7 @@ function pageLabel(id, skinsOnly) {
   }
 }
 
-/** 游戏: what a match shows beyond the official interface, each switch with its note. */
+/** 游戏: what a match shows beyond the official interface, each switch with its note; last 作战中查看队友 (upstream PR #971). */
 function GamePage({ s }) {
   return html`
     <div class="set-item"><${Toggle} label=${t('显示伤害数字')} micro="DAMAGE NUMBERS" value=${s.damageNumbers} onChange=${(v) => updateSettings({ damageNumbers: v })} /></div>
@@ -541,7 +544,9 @@ function GamePage({ s }) {
     <div class="set-item"><${Toggle} label=${t('商店标出队友的预选盟约')} micro="TEAM PLANS" value=${s.planMarkMates} onChange=${(v) => updateSettings({ planMarkMates: v })} />
       <p class="set-hint">${t('共用卡池的队友预选的盟约，在干员卡上显示为蓝色虚线框加同盟图标。')}</p></div>
     <div class="set-item"><${Toggle} label=${t('显示卡池剩余张数')} micro="POOL COUNT" value=${s.poolCount} onChange=${(v) => updateSettings({ poolCount: v })} />
-      <p class="set-hint">${t('和队友共用卡池时，在商店卡牌的价格右侧、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。')}</p></div>`;
+      <p class="set-hint">${t('和队友共用卡池时，在商店卡牌的价格右侧、盟约详情的成员头像上显示该干员或装备在卡池里还剩几张。官方界面没有这些数字。')}</p></div>
+    <div class="set-item"><${Toggle} label=${t('作战中查看队友')} micro="WATCH IN BATTLE" value=${s.watchDuringBattle} testId="watch-during-battle" onChange=${(v) => updateSettings({ watchDuringBattle: v })} />
+      <p class="set-hint">${t('打开后，自己的作战还没结束时也能点队友前往查看，最终攻势和隐秘核心里也能看另一组。查看时本机要多演算一场战斗，较慢的设备可能卡顿。')}</p></div>`;
 }
 
 /**
@@ -619,11 +624,13 @@ function LanguagePage({ s }) {
       <p class="set-hint">${t('有本土语言配音时使用')}</p></div>`;
 }
 
-/** 操作: 部署时按格子吸附, the shortcut keys, and how a unit's details open on this device. */
+/** 操作: 部署时按格子吸附, 骷髅手指光标 (upstream PR #948, ui/cursor.js), the shortcut keys, and how a unit's details open on this device. */
 function ControlsPage({ s, touchUi }) {
   return html`
     <div class="set-item"><${Toggle} label=${t('部署时按格子吸附')} micro="SNAP TO TILE" value=${s.deploySnap} onChange=${(v) => updateSettings({ deploySnap: v })} />
       <p class="set-hint">${t('拖动干员时，干员站在目标格子上逐格移动，松手就落在这一格。关闭时干员跟随手指或鼠标自由移动。')}</p></div>
+    <div class="set-item"><${Toggle} label=${t('骷髅手指光标')} micro="PRTS CURSOR" value=${s.arknightsCursor} testId="arknights-cursor" onChange=${(v) => updateSettings({ arknightsCursor: v })} />
+      <p class="set-hint">${t('使用明日方舟的骷髅手指光标；文字输入、拖动和缩放仍保留系统光标。')}</p></div>
     <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
     <p class="set-hint set-controls-tip">${touchUi ? t('触屏操作：点击单位选中（撤退 / 出售）· 长按单位或卡牌查看详情 · 拖动部署后滑动选择朝向') : t('右键查看详情')}</p>`;
 }

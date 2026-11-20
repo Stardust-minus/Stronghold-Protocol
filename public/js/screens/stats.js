@@ -57,7 +57,7 @@ import { t, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { VersionTag } from '../ui/pluginTag.js';
 import { useRecordLookups, useTitleTable } from '../ui/recordLookups.js';
-import { contentSet, retryContentSet } from '../content.js';
+import { contentSet, lobbyPreview, retryContentSet } from '../content.js';
 import { DEFAULT_VERSION, roomPluginCs, shownVersion, seasonOf, versionContentStatus, versionLabel, welcomeVersion } from '../versions.js';
 import { VERSIONS } from '../../../shared/versions.js';
 
@@ -629,8 +629,10 @@ function Replay({ rec, onBack }) {
   const res = useMemo(() => recordToResult(rec), [rec]);
   const version = recordVersion(rec);
   const inRoom = useStore((s) => !!s.room);
-  // the default data: any set but another version's; another version: its own set or the room's plugin set on it (§37.210)
-  const roomCs = useStore(roomPluginCs);
+  // the default data: any set but another version's; another version: its own set or the room's / lobby preview's plugin set on it (§37.210)
+  const activeCs = useStore(roomPluginCs);
+  const previewCs = useStore((p) => ((!p.version || p.version === version) && p.content?.vanilla === false ? p.content.cs : null), Object.is, lobbyPreview);
+  const roomCs = inRoom ? activeCs : previewCs;
   const versionState = useStore((c) => (version === DEFAULT_VERSION ? (c.kind === 'version' ? 'loading' : 'ready') : versionContentStatus(c, version, roomCs)), Object.is, contentSet);
   const versionReady = versionState === 'ready';
   const failed = version !== DEFAULT_VERSION && versionState === 'failed';

@@ -96,7 +96,8 @@ for (const [engine, executablePath] of [
     await page.waitForFunction(id => window.__MOCK__.store.get().match.field?.fieldId === `n:${id}`, {}, mate.id);
     await page.click('[data-testid="check-player"]'); await showCard(chip);
     assert.equal(await page.$eval(card, e => e.dataset.owner), mate.name);
-    assert.match(await page.$eval(`${card} .bpop__facts`, e => e.textContent), /43/);
+    // round 83 (PR #923): 层数 moved out of the facts row into the head's .bpop__layers
+    assert.match(await page.$eval(`${card} .bpop__layers`, e => e.textContent), /43/);
     await page.screenshot({ path: path.join(out, `${engine}-watched.png`) });
     await page.keyboard.press('Escape'); await page.waitForSelector(card, { hidden: true });
 
@@ -152,7 +153,8 @@ for (const [engine, executablePath] of [
       return page.$eval(card, e => e.textContent);
     };
     const before = await openDisc('.brief-bond[data-bond="yanShip"] button.bond');
-    assert.match(before, /当前效果/);
+    // round 83 (PR #923): the card shows one description with the layers resolved, no 「当前效果」 heading
+    assert.match(before, /【炎】干员攻击力/);
     assert.doesNotMatch(before, /本模式下该盟约不会激活|仍可能因所属的其他盟约出现|该核心盟约的干员无法出现/);
     await page.keyboard.press('Escape'); await page.waitForSelector(card, { hidden: true });
     await page.evaluate(() => {

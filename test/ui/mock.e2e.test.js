@@ -1124,15 +1124,16 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
     await page.close();
   });
 
-  test('watch: the other pair of the Final Assault is refused and the eye stays put', async () => {
+  // round 83 (PR #971): a fighting player may watch the other pair's boss field, whatever 「作战中查看队友」 says in
+  // server-run combat (the owner's decision of 2026-11-20: as upstream; the damage board stays the own group's)
+  test('watch: the other pair of the Final Assault can be watched', async () => {
     const { page, problems } = await open('phase=FINAL_ASSAULT');
     const rows = await page.$$('.team__row');
     await (await rows[2].$('.team__btn')).click(); // P3: the other pair (field b2)
     await sleep(500);
     const watched = await page.$$eval('.team__row.is-watched .team__name', (els) => els.map((e) => e.textContent));
-    assert.ok(!watched.includes('Doctor·B') && !watched.includes('灰烬'), `other pair not marked watched (${watched})`);
-    assert.match(await page.$eval('.toast', (el) => el.textContent), /另一组/);
-    assert.equal(await page.$eval('.vswitch__label', (el) => el.textContent), '全景');
+    assert.ok(watched.includes('Doctor·B') || watched.includes('灰烬'), `other pair marked watched (${watched})`);
+    assert.doesNotMatch(await page.$eval('.toast', (el) => el.textContent).catch(() => ''), /另一组/);
     assert.deepEqual(problems, []);
     await page.close();
   });

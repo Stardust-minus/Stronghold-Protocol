@@ -16,6 +16,7 @@ import { BoardScene, sceneGroupVisible, LIGHTING, sceneBackdropPlan, planarUvFit
 import { parseObj } from '../../public/js/render/board3d/obj.js';
 import { TILE_H } from '../../public/js/render/style.js';
 import { AREAS } from '../../public/js/render/board3d/layout.js';
+import { arenaField } from '../../public/js/render/arenaView.js';
 import { resolveUvTable } from '../../public/js/render/board3d/atlas.js';
 import { presetCamera } from '../../public/js/render/projection.js';
 import { sceneMaterial, sceneWaterMaterial, sceneBlend, sceneEnvTexture, focusUniforms, SCENE_LIGHT, waterMaterial, applyWaterMaterial, WATER_DEFAULTS, SCENE_WATER_DEFAULTS, WATER_TUNING, boardMaterial, glassMaterial, trapMaterial } from '../../public/js/render/board3d/materials.js';
@@ -122,7 +123,7 @@ describe('scenes.py (no UnityPy needed)', { skip: !PY && 'no python3' }, () => {
     const { scenes } = JSON.parse(r.stdout);
     assert.equal(scenes.sub, 'scene');
     assert.equal(scenes.tex, SCENE_TEX_GROUP);
-    assert.equal(scenes.version, 4, 'manifest scene-record version; scene.json stays SCENE_VERSION');
+    assert.equal(scenes.version, 5, 'manifest scene-record version; scene.json stays SCENE_VERSION');
     const ids = scenes.stages.map((x) => x.id);
     const battlefields = Object.keys(stages).filter((id) => /^act\dautochess_m\d+$/.test(id)).sort();
     assert.deepEqual([...ids].sort(), battlefields, 'every battlefield has a scene');
@@ -144,37 +145,30 @@ print(json.dumps({'all': len(e.scene_ids([])), 'scene': len(e.scene_ids(['scene'
     assert.deepEqual(out, { all: 11, scene: 11, one: ['act2autochess_m02'], other: [], missing: true });
   });
 
-  test('规程 row moves follow layouts.mjs; unborrowed rows and foreign cells drop', () => {
-    const out = py(`import regulation_scenes as r
-table = r.stage_row_table()
-def tri(piece, x, y):
-    return r.place_triangle(piece, [x - 0.2, x + 0.2, x], [y - 0.2, y - 0.2, y + 0.2])
-print(json.dumps({
-  'n': len(table), 'boards': [t[0] for t in table],
-  'pins': [list(table[i]) for i in (0, 7, 8, 9, 13, 14, 18)],
-  'd': {
-    'p1y0': r.regulation_delta(1, 4, 0), 'p1y1': r.regulation_delta(1, 4, 1), 'p1y3': r.regulation_delta(1, 4, 3),
-    'pen': r.regulation_delta(1, 15, 1), 'y149': r.regulation_delta(1, 4, 1.49), 'y15': r.regulation_delta(1, 4, 1.5),
-    'below': r.regulation_delta(1, 4, -0.8), 'lip': r.regulation_delta(1, 4, -0.2),
-    'p2r0': r.regulation_delta(2, 4, 0), 'p2r1': r.regulation_delta(2, 4, 1), 'p2hi': r.regulation_delta(2, 4, 5.8),
-    'p3r0': r.regulation_delta(3, 10, 0), 'p3r7': r.regulation_delta(3, 8, 7), 'p3r12': r.regulation_delta(3, 8, 12),
-    'p3lo': r.regulation_delta(3, 10, -1),
-  },
-  'own': {'8,15': r.owner_of(8, 15), '8,20': r.owner_of(8, 20), '6,10': r.owner_of(6, 10), '10,0': r.owner_of(10, 0)},
-  'g': {'left': tri(2, 4, 2), 'right': tri(2, 16, 2), 'boss': tri(3, 10, 2), 'pen': tri(3, 8, 9),
-        'stick': r.place_triangle(3, [10, 11, 10.5], [4.5, 4.5, 6.6])},
-}))`);
-    assert.equal(out.n, 19);
-    assert.deepEqual(out.boards, [...Array(19).keys()]);
-    assert.deepEqual(out.pins, [[0, 3, 0, 0], [7, 1, 0, 7], [8, 1, 1, 7], [9, 2, 1, 8], [13, 2, 5, 8], [14, 3, 7, 7], [18, 3, 11, 7]]);
-    assert.deepEqual(out.d, {
-      p1y0: 7, p1y1: 7, p1y3: null, pen: 7, y149: 7, y15: null, below: null, lip: 7,
-      p2r0: null, p2r1: 8, p2hi: null, p3r0: 0, p3r7: 7, p3r12: null, p3lo: 0,
-    });
-    assert.deepEqual(out.own, { '8,15': 1, '8,20': null, '6,10': 3, '10,0': 2 });
-    assert.deepEqual(out.g, {
-      left: [8, 'HIDDEN@1'], right: [8, 'HIDDEN@2'], boss: [0, 'HIDDEN@3'], pen: [7, ''], stick: [0, ''],
-    });
+  test('规程 pieces are written whole: one group per prefab, unshifted; scene.json says layout "pieces" and each grid', { skip: !HAS_PIL && 'no Pillow' }, () => {
+    // regulation_scenes.py cuts and moves nothing: the client draws the one piece a view shows (render/arenaView.js)
+    const out = py(`import tempfile
+from pathlib import Path
+import regulation_scenes as r
+def tri(x, y):
+    return {'pos': [(x, y, 0.0), (x + 1, y, 0.0), (x, y + 1, -0.4)], 'uv': [(0, 0)] * 3, 'uv1': [(0, 0)] * 3,
+            'nrm': [(0, 0, -1)] * 3, 'col': [(1, 1, 1, 1)] * 3, 'idx': [0, 1, 2]}
+chunks = {('M', 0, 'sub_03'): tri(10, 11), ('M', 0, 'sub_01'): tri(4, 2), ('M', 0, 'sub_02'): tri(-3, -5), ('M', 0, 'sub_09'): {'pos': [], 'idx': []}}
+manifest = {}
+with tempfile.TemporaryDirectory() as tmp:
+    n = r._write('act3autochess_m01', chunks, {'M': {'kind': 'lit'}}, {}, None, [], tmp, manifest, lambda *_a, **_k: None)
+    doc = json.loads((Path(tmp) / 'scene' / 'act3autochess_m01' / 'scene.json').read_text(encoding='utf-8'))
+print(json.dumps({'n': n, 'layout': doc['layout'], 'grid': doc['pieceGrid'], 'pieces': len(doc['pieces']),
+  'groups': [c['group'] for c in doc['chunks']], 'bounds': [c['bounds'] for c in doc['chunks']],
+  'record': manifest['scene/act3autochess_m01']['scene'], 'table': r.PIECE_GROUPS}))`);
+    assert.equal(out.n, 2, 'scene.bin + scene.json');
+    assert.equal(out.layout, 'pieces');
+    assert.deepEqual(out.grid, { sub_01: [7, 20], sub_02: [6, 21], sub_03: [13, 21] });
+    assert.equal(out.pieces, 3);
+    assert.deepEqual(out.table, { 1: 'sub_01', 2: 'sub_02', 3: 'sub_03' });
+    assert.deepEqual(out.groups, ['sub_01', 'sub_02', 'sub_03'], 'one group per piece; an empty chunk is not written');
+    assert.deepEqual(out.bounds, [[4, 2, -0.4, 5, 3, 0], [-3, -5, -0.4, -2, -4, 0], [10, 11, -0.4, 11, 12, 0]], 'piece-local, unshifted');
+    assert.deepEqual(out.record, { path: '/assets/local/scene/act3autochess_m01/scene.json', kind: 'Scene', chunks: 3, version: 5 });
   });
 
   test('规程 lightmap atlas: three pages share one 2 × 2 atlas (row 0 at the bottom, flipY), page UVs land inside their cell', () => {
@@ -185,134 +179,6 @@ print(json.dumps({
 }))`);
     assert.deepEqual(out.slots, [[0, 0, 1008, 2048], [1, 0, 1008, 2048], [0, 1, 1008, 2048]]);
     assert.deepEqual(out.uv, [[8 / 2048, 8 / 2048], [1016 / 2048, 1016 / 2048], [1032 / 2048, 8 / 2048], [512 / 2048, 1536 / 2048]]);
-  });
-
-  test('规程 water is one quad of the shifted sheets; low ground outside a piece is kept, a dune is not', () => {
-    // m01's three StylizedWater quads (piece-local AABBs measured from the prefabs). Rows the piece does not
-    // lend are omitted; WATER_GAP then joins the three into one board quad so the alpha cannot stack.
-    const out = py(`import regulation_scenes as r
-quads = [(1, -3.73, 16.52, -8.50, 4.97), (2, -0.57, 19.67, -8.81, 4.65), (3, 0.46, 20.70, -0.60, 12.86)]
-xs, ys, zs = [3.8, 4.2, 4.0], [-0.2, -0.2, 0.2], [-1, -1, -1]
-outside = ([9.8, 10.2, 10.0], [-4.2, -4.2, -3.8])
-merged = {}
-n = r._emit_water(merged, [(*q, -0.86, 'MT_AutochessSand_water') for q in quads], lambda *_a, **_k: None, 'act3autochess_m01')
-key = next(iter(merged))
-chunk = merged[key]
-print(json.dumps({
-  'water': r.water_sheet_quads(quads),
-  'quads': n, 'key': list(key), 'verts': len(chunk['pos']), 'idx': chunk['idx'], 'z': chunk['pos'][0][2],
-  'borrowed': r.place_floor_triangle(1, xs, ys, zs),
-  'borrowed_strict': r.place_triangle(1, xs, ys),
-  'outside': r.place_floor_triangle(3, outside[0], outside[1], [-1, -1, -1]),
-  'dune': r.place_floor_triangle(3, outside[0], outside[1], [1, 1, 1]),
-  'foreign': r.place_floor_triangle(1, [3.8, 4.2, 4.0], [-8.2, -8.2, -7.8], [-1, -1, -1]),
-  'span': r.place_floor_triangle(3, [-5, 25, 10], [1, 1, 4], [-1, -1, -1]),
-  'span_strict': r.place_triangle(3, [-5, 25, 10], [1, 1, 4]),
-  'bridge': r._merge_rects([(0, 0, 1, 1), (3.2, 0, 4.2, 1), (1.2, 0, 2.8, 1)], 0.5),
-  'sheet': r._is_water_sheet('MT_AutochessSand_water', 'Torappu/Scene/StylizedWater', 20, 0),
-  'named': r._is_water_sheet('MT_AutochessSand_water', '', 20, 0),
-  'decal': r._is_water_sheet('platform_water', 'Torappu/Scene/DynamicWaterTile', 20, 0),
-  'small': r._is_water_sheet('MT_AutochessSand_water', 'Torappu/Scene/StylizedWater', 4, 0),
-  'bumpy': r._is_water_sheet('MT_AutochessSand_water', 'Torappu/Scene/StylizedWater', 20, 1),
-  'tess': r._is_water_sheet('MT_church_tower_water', 'Torappu/Scene/StylizedWater', 20, 0, 95),
-  'river': r._is_water_surface('MT_church_tower_water', 'Torappu/Scene/StylizedWater'),
-  'bg': r._is_background_sheet('lit', 20, 30),
-  'bg_water': r._is_background_sheet('water', 20, 30),
-  'bg_few': r._is_background_sheet('lit', 20, 10),
-}))`);
-    assert.deepEqual(out.water, [[-3.73, -1.5, 20.7, 19.86]]);
-    assert.equal(out.quads, 1);
-    assert.deepEqual(out.key, ['MT_AutochessSand_water', -1, '']);
-    assert.equal(out.verts, 4);
-    assert.deepEqual(out.idx, [0, 1, 2, 0, 2, 3]);
-    assert.equal(out.z, -0.86);
-    assert.deepEqual(out.borrowed, [7, '']);
-    assert.deepEqual(out.borrowed, out.borrowed_strict);
-    assert.deepEqual(out.outside, [0, '']);
-    assert.equal(out.dune, null);
-    assert.equal(out.foreign, null);
-    assert.deepEqual(out.span, [0, 'HIDDEN@3']);
-    assert.equal(out.span_strict, null);
-    assert.deepEqual(out.bridge, [[0, 0, 4.2, 1]]);
-    assert.equal(out.sheet, true);
-    assert.equal(out.named, true);
-    assert.equal(out.decal, false);
-    assert.equal(out.small, false);
-    assert.equal(out.bumpy, false);
-    assert.equal(out.tess, false);
-    assert.equal(out.river, true);
-    assert.equal(out.bg, true);
-    assert.equal(out.bg_water, false);
-    assert.equal(out.bg_few, false);
-  });
-
-  test('规程 backdrop: one copy of each background plane stretched over the board, the terrain cut to each piece\'s rows (2026-11-16 背景重导)', () => {
-    // the official sizes (regulation_scenes.py module docstring): S_Background_common 79.6 cells, 2 tris, z −2.24;
-    // land_base 72.6, 8 tris, z −0.34; BG_church_tower 130.4, 2 tris, z −19.52; a Syracuse street floor 28.6, 14 tris,
-    // baked; background_sand 41.9, 393 tris; a rock 13.1, 442 tris
-    const out = py(`import regulation_scenes as r, tempfile, os
-from pathlib import Path
-V = lambda x, y, z: ((x, y, z), (0.0, 0.0), (0.5, 0.5), (0.0, 0.0, 1.0), (1.0, 1.0, 1.0, 1.0))
-low = [V(-5, -2, -1), V(25, -2, -1), V(10, 20, -1)]
-high = [V(-5, -2, 0.5), V(25, -2, 0.5), V(10, 20, 0.5)]
-area = lambda parts: round(sum(r._area2(p) for _d, p in parts) / 2, 6)
-cut3 = r.backdrop_ground_pieces(3, high)
-back = {}
-planes = {('MT_x_BG', (-27.6, -29.9, -2.2, 52.1, 49.7)): (3, [([(-27.55, -29.94, -2.24), (52.09, -29.94, -2.24), (52.09, 49.7, -2.24)],
-          [(1, 0), (1, 1), (0, 1)], None, [(0, 0, 1)] * 3, [(1, 1, 1, 1)] * 3)])}
-n = r._emit_planes(back, planes, lambda *_a, **_k: None, 'act3autochess_m05')
-ys = sorted({round(p[1], 2) for p in back[('MT_x_BG', -1, '')]['pos']})
-manifest = {}
-with tempfile.TemporaryDirectory() as tmp:
-    w = r._write_backdrop('act3autochess_m05', back, {'MT_x_BG': {'kind': 'lit', 'map': 'TX_BG'}}, None, 1, tmp, manifest, lambda *_a, **_k: None)
-    doc = json.loads((Path(tmp) / 'scene/act3autochess_m05/backdrop.json').read_text())
-    size = os.path.getsize(Path(tmp) / 'scene/act3autochess_m05/backdrop.bin')
-    none = r._write_backdrop('act3autochess_m01', {}, {}, None, 1, tmp, {}, lambda *_a, **_k: None)
-print(json.dumps({
-  'bands': {p: [[None if abs(v) == float('inf') else v for v in b] for b in r.backdrop_bands(p)] for p in (1, 2, 3)},
-  'delta': [r.backdrop_vertex_delta(3, y) for y in (-29.94, -3.58, 6.4, 6.6, 9.98, 49.7)],
-  'plane': [r._is_backdrop_plane('lit', 79.6, 0, 2), r._is_backdrop_plane('lit', 72.6, 0, 8), r._is_backdrop_plane('lit', 130.4, 0, 2, -1),
-            r._is_backdrop_plane('lit', 28.6, 0, 14, 0), r._is_backdrop_plane('water', 79.6, 0, 2), r._is_backdrop_plane('lit', 20, 0, 2)],
-  'ground': [r._is_ground_sheet('lit', 41.9, 393, 5.06, 0), r._is_ground_sheet('lit', 28.6, 14, 0, 0), r._is_ground_sheet('lit', 13.1, 442, 4.9, 0),
-             r._is_ground_sheet('lit', 79.6, 2, 0, -1), r._is_ground_sheet('water', 41.9, 393, 0, 0)],
-  'tri': round(r._area2(low) / 2, 6),
-  'low': [area(r.backdrop_ground_pieces(p, low)) for p in (1, 2, 3)],
-  'lowy': {p: [round(min(v[0][1] for _d, q in r.backdrop_ground_pieces(p, low) for v in q), 3), round(max(v[0][1] for _d, q in r.backdrop_ground_pieces(p, low) for v in q), 3)] for p in (1, 2)},
-  'low3mid': any(6.5 + 1e-6 < v[0][1] < 13.5 - 1e-6 for _d, q in r.backdrop_ground_pieces(3, low) for v in q),
-  'high': [area(r.backdrop_ground_pieces(p, high)) for p in (1, 2, 3)],
-  'high3': sorted({d for d, _p in cut3}),
-  'high3_inside': any(-0.5 < sum(v[0][0] for v in p) / len(p) < 20.5 and -0.5 < sum(v[0][1] for v in p) / len(p) < 18.5 for _d, p in cut3),
-  'n': n, 'ys': ys, 'w': w, 'none': none, 'size': size,
-  'doc': {k: doc[k] for k in ('version', 'kind', 'stage', 'lightmaps', 'groups', 'binBytes')},
-  'chunk': {k: doc['chunks'][0][k] for k in ('material', 'lightmap', 'group', 'verts', 'tris', 'offset')},
-  'mat': doc['materials'], 'manifest': manifest,
-}))`);
-    assert.deepEqual(out.bands, { 1: [[-0.5, 1.5, 7]], 2: [[0.5, 5.5, 8]], 3: [[null, 6.5, 0], [6.5, null, 7]] });
-    assert.deepEqual(out.delta, [0, 0, 0, 7, 7, 7]);
-    assert.deepEqual(out.plane, [true, true, true, false, false, false], 'the three background planes; not a baked floor, water or a narrow quad');
-    assert.deepEqual(out.ground, [true, true, false, false, false], 'terrain and street floors; not a rock, a plane or water');
-    // a low sheet is kept whole by sub_03 (its two bands cover every piece-local row) but lands outside board rows
-    // 6.5–13.5, which sub_01 (rows 7–8) and sub_02 (rows 9–13) fill from their own sheets: no gap, no overlap
-    assert.equal(out.low[2], out.tri);
-    assert.equal(out.low3mid, false);
-    assert.deepEqual(out.lowy, { 1: [6.5, 8.5], 2: [8.5, 13.5] });
-    assert.ok(out.low.every((a) => a > 0), JSON.stringify(out.low));
-    // above the deck it is kept only outside the board's cells
-    assert.ok(out.high.every((a, i) => a < out.low[i]), JSON.stringify(out.high));
-    assert.deepEqual(out.high3, [0, 7]);
-    assert.equal(out.high3_inside, false);
-    // one plane copy, its far corners moved with sub_03's rows 7–11
-    assert.equal(out.n, 1);
-    assert.deepEqual(out.ys, [-29.94, 56.7]);
-    assert.equal(out.w, 2);
-    assert.equal(out.none, 0, 'nothing to draw: no file');
-    assert.deepEqual(out.doc, { version: 1, kind: 'backdrop', stage: 'act3autochess_m05', lightmaps: 1, groups: [''], binBytes: out.size });
-    assert.deepEqual(out.chunk, { material: 'MT_x_BG', lightmap: -1, group: '', verts: 3, tris: 1, offset: 0 });
-    assert.deepEqual(out.mat, { MT_x_BG: { kind: 'lit', map: 'TX_BG' } });
-    assert.deepEqual(out.manifest, { 'scene/act3autochess_m05': {
-      backdropBin: { path: '/assets/local/scene/act3autochess_m05/backdrop.bin', kind: 'SceneData', bytes: out.size },
-      backdrop: { path: '/assets/local/scene/act3autochess_m05/backdrop.json', kind: 'SceneBackdrop', chunks: 1, version: out.manifest['scene/act3autochess_m05'].backdrop.version },
-    } });
   });
 
   test('规程 lightmap resize keeps indirect RGB where the shadowmask alpha is 0', { skip: !HAS_PIL && 'no Pillow' }, () => {
@@ -477,7 +343,7 @@ print(json.dumps({
   'lossless': lossless.get('webp'), 'lossy': lossy.get('webp'), 'match': match,
 }))`);
     assert.equal(out.mesh, SCENE_VERSION);
-    assert.equal(out.ver, 4);
+    assert.equal(out.ver, 5);
     assert.deepEqual(out.metro, ['map', 'normalMap', 'glossMap', 'emissionMap']);
     assert.deepEqual(out.floor, ['map', 'normalMap', 'glossMap']);
     assert.deepEqual(out.cut, ['map', 'normalMap', 'glossMap', 'emissionMap']);
@@ -754,6 +620,37 @@ describe('scene backdrop (load.js, 2026-11-16 背景重导)', () => {
     board.setScenePack(stage.id, { ...pack(parseSceneBackdrop(ring.doc, ring.bin)), key: 'bd-ring', doc: docRing });
     assert.equal(board.meshes.backdrop?.material.uniforms.uMap.value ?? null, null, 'the land colour, no picture');
     assert.ok(board.meshes.backdrop, 'the stand-in under a ring');
+    board.destroy();
+  });
+
+  test('BoardScene (#977): a pieces scene draws the piece of the view alone, shifted, without the backdrop or a stand-in; a cut scene under a piece is not drawn', () => {
+    const { doc, bin } = fakeScene([
+      { material: 'M', x0: 2, y0: 2, group: 'sub_01' }, { material: 'M', x0: 3, y0: 2, group: 'sub_02' }, { material: 'Cut', x0: 4, y0: 2, group: 'sub_03' },
+    ]);
+    doc.layout = 'pieces';
+    doc.materials.MT_x_BG = { shader: 'Torappu/Scene/Unlit Texture', keywords: [], colors: {}, floats: {}, textures: {}, kind: 'lit', map: 'TX_BG' };
+    const chunks = parseSceneChunks(doc, bin);
+    const img = { width: 4, height: 4 };
+    const base = stages.act2autochess_m02;
+    const back = fakeBackdrop();
+    const board = new BoardScene(THREE, fakePack(), { renderer: stubRenderer() });
+    board.setStage(base);
+    board.setScenePack(base.id, { key: 'pieces', stage: base.id, doc, chunks, groups: sceneGroupRects(chunks), images: { tex: { TX_A: img, TX_BG: img }, lm: [img] }, backdrop: parseSceneBackdrop(back.doc, back.bin) });
+    assert.equal(sceneMeshes(board).length, 0, 'the composed stage does not draw a pieces scene');
+    board.setStage({ ...base, scenePiece: { group: 'sub_02', dr: 8, dc: 0 } });
+    const meshes = sceneMeshes(board);
+    assert.equal(meshes.length, 1, 'sub_02 alone; the backdrop file is not merged in');
+    assert.deepEqual([meshes[0].position.x, meshes[0].position.y], [0, 8], 'shifted to the piece\'s rows');
+    assert.equal(board.meshes.backdrop, undefined, 'no stand-in under a pieces scene (PIECES_BACKDROP off)');
+    // an older cut scene (this fork's 11-16 extract) under a stage that names a piece: the procedural board
+    board.setScenePack(base.id, fakeScenePack());
+    board.setStage({ ...base, scenePiece: { group: 'sub_01', dr: 7, dc: 0 } });
+    assert.equal(sceneMeshes(board).length, 0);
+    assert.equal(board.official, null);
+    // …and the same cut scene on a stage without an arena keeps drawing
+    board.setStage(base);
+    assert.ok(sceneMeshes(board).length > 0);
+    assert.ok(board.official);
     board.destroy();
   });
 
@@ -1537,7 +1434,9 @@ describe('extracted scenes (when scene bundles were extracted here)', { skip: !O
       assert.equal(doc.binBytes, bin.length);
       const chunks = parseSceneChunks(doc, bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.length));
       assert.ok(chunks && chunks.length === doc.chunks.length && chunks.length > 0);
-      assert.ok(chunks.some((c) => !c.group), 'a base part');
+      // a 规程 scene (layout 'pieces') is its three prefabs whole, each one group; another scene has a base part
+      if (doc.layout === 'pieces') assert.ok(chunks.every((c) => doc.pieceGrid?.[c.group]), 'every chunk in a piece');
+      else assert.ok(chunks.some((c) => !c.group), 'a base part');
       for (const c of chunks) {
         let max = 0;
         for (const i of c.index) if (i > max) max = i;
@@ -1598,10 +1497,15 @@ describe('extracted scenes (when scene bundles were extracted here)', { skip: !O
       const stage = allStages[doc.stage];
       const board = new BoardScene(THREE, fakePack(), { renderer: stubRenderer() });
       board.setScenePack(doc.stage, { key: g, stage: doc.stage, doc, chunks, groups: rects, images: { tex: {}, lm: [] } });
+      // 规程: each view draws the stage of its piece (render/arenaView.js), and that piece's group alone
+      const pieces = doc.layout === 'pieces';
       board.setStage(stage);
+      if (pieces) assert.equal(sceneMeshes(board).length, 0, `${doc.stage}: the composed stage does not draw a pieces scene`);
       for (const [name, area] of views) {
         board.setArea(area);
-        const shown = chunks.filter((c) => sceneGroupVisible(c.group ? rects[c.group] : null, area, c.group));
+        if (pieces) board.setStage(arenaField(stage, name));
+        const piece = pieces ? board.stage.scenePiece : null;
+        const shown = chunks.filter((c) => (piece ? c.group === piece.group : sceneGroupVisible(c.group ? rects[c.group] : null, area, c.group)));
         const keys = new Set(shown.map((c) => sceneMaterialKey(c, doc.materials[c.material])));
         const meshes = sceneMeshes(board);
         assert.equal(meshes.length, keys.size, `${doc.stage} ${name}: ${shown.length} chunks → ${keys.size} meshes`);

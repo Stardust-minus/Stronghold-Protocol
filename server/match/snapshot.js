@@ -147,6 +147,9 @@ export const PLAYER_FIELDS = Object.freeze({
     'command', 'commandMarks', 'commandDrafts', 'commandDiscounts', 'diyBring', '_botFaHunt', '_botPager', '_botPagerHunt',
     // an eliminated human's 个人战报 (feedback #111, m.private `out`): built as it went out, kept for its page
     'outResult',
+    // round 83 (#923): temporary layers a battle granted, kept from SETTLE until the next prep converts them (common.js
+    // applyTempLayers / prep.js); a checkpoint without it has none
+    'tempLayers',
   ]),
   special: Object.freeze(['ready', 'connected', 'loadout', 'ops', 'skins', 'diyStock']),
   derived: Object.freeze([

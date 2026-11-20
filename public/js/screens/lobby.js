@@ -58,8 +58,8 @@ import { AnnouncementBoard, announcementRevision, announcementDismissed, dismiss
 import { ServerStatusModal } from '../ui/serverStatus.js';
 import { SiteBoards } from '../ui/siteBoards.js';
 import { VersionPicker, VersionSwitch } from '../ui/versionPicker.js';
-import { contentSet, retryContentSet } from '../content.js';
-import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, ladderModes, ladderPick, seasonOf, serverDefaultVersion, setLobbyVersion, soloTimedOf, versionLabel, versionQueueable, REGULATION_SEASON } from '../versions.js';
+import { activeLobbyPlugins, contentSet, installedCount, lobbyPreview, retryContentSet } from '../content.js';
+import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, ladderModes, ladderPick, seasonOf, serverDefaultVersion, setLobbyVersion, soloTimedOf, versionContentStatus, versionLabel, versionQueueable, REGULATION_SEASON } from '../versions.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { openStats } from './stats.js';
@@ -85,6 +85,7 @@ import { queueCancellation } from '../queueCancellation.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { NoticesButton } from '../ui/notices.js';
+import { LobbyPluginTag } from '../ui/pluginTag.js';
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
 export const MODE_TEXT = {
@@ -382,6 +383,18 @@ function NoticeCard({ value, unread, status, onOpen }) {
       ? html`<b>${top.title}</b>${top.date ? html`<small class="num">${top.date}</small>` : null}`
       : html`<span class="t-dim">${status === 'missing' ? t('暂无公告') : status === 'error' ? t('公告加载失败，点击重试') : t('正在加载公告…')}</span>`}</span>
   </button>`;
+}
+
+/**
+ * Upstream #949's lobby room-plugin tag (ui/pluginTag.js LobbyPluginTag: pick the next room's plugins in the lobby), shown
+ * only where rooms may use plugins: installed ones, and the server's policy (content.js lobbyPreview, from
+ * plugins.preview) known and not `off`. This fork runs SP_PLUGINS=off (插件房不上线), so the top bar has no entry there.
+ */
+function LobbyPlugins() {
+  const installed = useStore(installedCount);
+  const rooms = useStore((p) => p.policy?.rooms || null, Object.is, lobbyPreview);
+  if (!installed || !rooms || rooms === 'off') return null;
+  return html`<${LobbyPluginTag} />`;
 }
 
 /**
@@ -939,9 +952,16 @@ export function LobbyScreen() {
   // one, or the server's fallback when the version lacks it (the pref is only overwritten when the player picks)
   const versions = useStore((s) => s.versions);
   const version = useStore(lobbyVersion);
-  const versionLoading = useStore((c) => version !== DEFAULT_VERSION && (c.kind !== 'version' || c.version !== version || c.status !== 'ready'), Object.is, contentSet);
-  // its set failed to load or its check (the chip's 重试 sits under the dialog): 选择模拟协议 says so and offers 重试 too
-  const versionFailed = useStore((c) => version !== DEFAULT_VERSION && c.kind === 'version' && c.version === version && c.status === 'failed', Object.is, contentSet);
+  // its set (or, on a server with plugins, the lobby preview's plugin set — upstream #949) failed to load or its check
+  // (the chip's 重试 sits under the dialog): 选择模拟协议 says so and offers 重试 too
+  const preview = useStore((s) => s, Object.is, lobbyPreview);
+  const previewCs = (!preview.version || preview.version === version) && preview.content?.vanilla === false ? preview.content.cs : null;
+  const previewFailed = preview.status === 'failed' && (!preview.version || preview.version === version);
+  const activeState = useStore((c) => (version !== DEFAULT_VERSION
+    ? versionContentStatus(c, version, previewCs)
+    : (previewCs ? (c.kind === 'plugins' && c.cs === previewCs ? c.status : 'loading') : 'ready')), Object.is, contentSet);
+  const versionFailed = activeState === 'failed' || (previewFailed && !previewCs);
+  const versionLoading = !versionFailed && activeState !== 'ready';
   const cfg = getConfig();
   // null while that version's data is not on screen: the dialog hides the switch
   const soloTimed = soloTimedOf(versionLoading ? null : cfg, version);
@@ -1003,12 +1023,16 @@ export function LobbyScreen() {
   const [allyOpen, setAllyOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);          // 公开同盟, over 选择同盟方式 (ui/roomList.js)
   const [joinOpen, setJoinOpen] = useState(false);
+  // the lobby's room plugins (upstream #949; undefined — nothing sent — without installed plugins or unless the server's
+  // policy lets a host choose: this fork runs SP_PLUGINS=off)
+  const lobbyRoomPlugins = activeLobbyPlugins(versions ? version : DEFAULT_VERSION);
   // `version`: the lobby's, only when welcome.versions is present (protocol §4; omitted when the server offers 第二期下半 alone)
   const create = (roomMode) => run('create', () => net.request('room.create', {
     mode: roomMode, difficulty: roomMode === 'solo' ? shownSolo : shownCoop, ...(versions ? { version } : {}),
     ...(roomMode === 'solo' && soloFree && soloTimed === true ? { soloUnlimited: true } : {}),
     // a laddered version's solo (规程): the official mode picked in 选择模拟协议 (server/lobby.js ladderMode)
     ...(roomMode === 'solo' && shownMode ? { modeId: shownMode } : {}),
+    ...(lobbyRoomPlugins !== undefined ? { plugins: lobbyRoomPlugins } : {}),
   }));
   // 多人匹配 waits in every picked difficulty (feedback #87) the lobby version's co-op offers (the header: its pool); the
   // picture shows the one pressed last, and it is the first
@@ -1125,6 +1149,7 @@ export function LobbyScreen() {
         <span class="hub-online" title=${t('按已连接的玩家会话计数，不含机器人、离线保留局和未进入的连接；不等于去重自然人数。')}>
           <span class="online-pill__dot"></span>${Number.isInteger(presence?.online) && conn.status === 'online'
             ? html`<span class="num">${presence.online}</span><span class="online-word">${t('名博士在线')}</span>` : html`<span>${t('在线人数 —')}</span>`}</span>
+        <${LobbyPlugins} />
         <${VersionSwitch} />
         <${ResumeMatchButton} />
         <${Button} variant="secondary" size="sm" square=${true} icon="edit" class="me-rename" onClick=${rename} title=${t('修改博士代号')} aria-label=${t('修改博士代号')} />

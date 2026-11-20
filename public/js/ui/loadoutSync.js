@@ -586,7 +586,7 @@ function installPrefSync({ net, timers, target, notify, key, stateKey, msgType, 
     if (code === roomCode) return;
     roomCode = code;
     // at once, not debounced: 开始模拟 right after the room appears must not overtake it (same socket ⇒ ordered)
-    if (code && gated) { revision++; lastSent = null; T.clearTimeout(timer); timer = null; void flush(); }
+    if (code && (gated || timer != null || (seatBound && s?.room?.content?.vanilla === false))) { revision++; lastSent = null; T.clearTimeout(timer); timer = null; void flush(); }
   }) : null;
   // `resendOn(appState)`: a value of the room that changes what the server keeps of the same payload (the 自选 picks:
   // 联动干员, which the server checks against the room) — sent again when it changes

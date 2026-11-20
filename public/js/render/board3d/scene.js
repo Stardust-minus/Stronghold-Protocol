@@ -102,6 +102,13 @@ export function sceneGroupVisible(rect, areas, group = '') {
  */
 export const SCENE_BACKDROP_FRAME = Object.freeze({ x0: -27.55, x1: 52.09, y0: -29.94, y1: 49.7, z: -2.26 });
 
+/**
+ * Whether a 规程 pieces scene (upstream #977, scene.json layout 'pieces') also gets sceneBackdropPlan's stand-in under it.
+ * Off: the piece is drawn as upstream draws it. On: the plan's picture / land colour (when the pieces' scene.json names
+ * an unused one) fills what is left round the piece, as it did under this fork's cut scenes (the owner 2026-11-16).
+ */
+export const PIECES_BACKDROP = false;
+
 /** A chunk record whose bounds already reach past the frame a camera can show (the act2 m01 square). */
 const coversFrame = (b) => Array.isArray(b) && b.length >= 6 && b[0] <= -15 && b[1] <= -15 && b[3] >= 35 && b[4] >= 34;
 
@@ -463,7 +470,7 @@ export class BoardScene {
   setStage(stage) {
     if (this.destroyed) return;
     const official = stage ? this.scenePacks.get(stage.id) || null : null;
-    const key = stage ? `${stage.id || ''}|${official ? official.key : ''}|${(stage.rows || []).join('/')}|${JSON.stringify((stage.devices || []).map((d) => [d.key, d.pos, d.active, d.dir]))}` : '';
+    const key = stage ? `${stage.id || ''}|${official ? official.key : ''}|${stage.scenePiece?.group || ''}|${(stage.rows || []).join('/')}|${JSON.stringify((stage.devices || []).map((d) => [d.key, d.pos, d.active, d.dir]))}` : '';
     if (key === this.stageKey) return;
     this.stageKey = key;
     this.stage = stage || null;
@@ -471,7 +478,8 @@ export class BoardScene {
     this.sceneWater = [];
     this.official = null;
     if (!stage) { applyWaterMaterial(this.mat.water, null); return; }
-    const board = buildBoard(stage, { uv: this.pack?.uv || null, area: this.area, platformMesh: !!this.platformGeometry() });
+    // a 规程 view's stage (render/arenaView.js) holds one piece in a void grid: all of it is built, whatever the area
+    const board = buildBoard(stage, { uv: this.pack?.uv || null, area: stage.scenePiece ? null : this.area, platformMesh: !!this.platformGeometry() });
     this.board = board;
     const M = this.meshes = {};
     this.official = official && this._buildScene(official) ? official : null;
@@ -543,9 +551,18 @@ export class BoardScene {
   _buildScene(pack) {
     const T = this.THREE;
     const res = this._sceneResources(pack);
-    // The backdrop (load.js parseSceneBackdrop: group '' only) shares the scene's buckets: its terrain joins the scene
-    // mesh of the same material and lightmap page, a background plane is one more draw.
-    const back = Array.isArray(pack.backdrop?.chunks) ? pack.backdrop.chunks : [];
+    // 规程's scene is its three pieces whole (regulation_scenes.py layout 'pieces', upstream #977): the stage a view draws
+    // names the one piece it shows and where that piece's cells are in the grid (render/arenaView.js scenePiece). A pieces
+    // scene without that, or a stage with it on a scene cut before (an older extract: this fork's 11-16 cut scenes with
+    // their backdrop), is not drawn: the procedural board shows.
+    const pieces = pack.doc?.layout === 'pieces';
+    const piece = this.stage?.scenePiece || null;
+    if (pieces !== !!piece) return false;
+    // The backdrop (load.js parseSceneBackdrop: group '' only; this fork's 2026-11-16 extract of the cut scenes) shares
+    // the scene's buckets: its terrain joins the scene mesh of the same material and lightmap page, a background plane is
+    // one more draw. It is laid out on the stitched 19 × 21 board of a cut scene, so a pieces scene leaves it out (the
+    // version-5 extract writes none).
+    const back = !pieces && Array.isArray(pack.backdrop?.chunks) ? pack.backdrop.chunks : [];
     const infos = { ...(pack.backdrop?.doc?.materials || {}), ...(pack.doc?.materials || {}) };
     const all = back.length ? [...(pack.chunks || []), ...back] : pack.chunks || [];
     this.sceneWater = [];
@@ -554,7 +571,7 @@ export class BoardScene {
       // The extractor keeps disabled, ungrouped objects as 'inactive' (tools/local-extract/scenes.py). Their bounds can
       // overlap the boss area (its untextured survival-shadow planes): a camera switch must never show them.
       if (c.group === 'inactive') continue;
-      if (c.group && !sceneGroupVisible(pack.groups?.[c.group], this.area, c.group)) continue;
+      if (pieces ? c.group !== piece.group : c.group && !sceneGroupVisible(pack.groups?.[c.group], this.area, c.group)) continue;
       const info = infos[c.material] || null;
       const mk = sceneMaterialKey(c, info);
       let bucket = buckets.get(mk);
@@ -594,13 +611,15 @@ export class BoardScene {
       const mesh = new T.Mesh(g, mat);
       mesh.castShadow = false; mesh.receiveShadow = false;
       mesh.renderOrder = water ? 1 : mat.userData.blend === 'blend' ? 2 : mat.userData.blend === 'cutout' ? -3 : -4;
+      if (piece) mesh.position.set(piece.dc || 0, piece.dr || 0, 0);
       mesh.matrixAutoUpdate = false; mesh.updateMatrix();
       this.root.add(mesh);
       this.meshes[`scene${n++}`] = mesh;
     }
     // A background plane with a hole (m09 / m11 land_base: the piece's own ground fills it) does not cover what a switched-off
     // field leaves open in the stitched board: the stand-in stays under it.
-    if (n > 0) this._buildSceneBackdrop(pack, res, back.length ? [...(pack.chunks || []), ...back.filter((c) => !(c.lightmap < 0) || planeCoversBoard(c))] : all);
+    // A pieces scene draws no stand-in either (upstream's arena as it is) unless PIECES_BACKDROP is turned on.
+    if (n > 0 && (!pieces || PIECES_BACKDROP)) this._buildSceneBackdrop(pack, res, back.length ? [...(pack.chunks || []), ...back.filter((c) => !(c.lightmap < 0) || planeCoversBoard(c))] : all);
     return n > 0;
   }
 
@@ -665,7 +684,7 @@ export class BoardScene {
       if (d.kind === 'crate') this.staticCrates.push(d);
       else if (d.kind === 'platform' && plat) platforms.push(placeMesh(plat, { x: d.c, y: d.r, z: d.z0 }));
       else if (d.kind === 'blower' && wind && this.mat.wind) blowers.push(placeMesh(wind, { x: d.c, y: d.r, z: d.z0 + 0.078, rot: DIR_TURNS[d.dir] ?? 0 }));
-      else if (d.kind === 'blower' || d.kind === 'turret') crates.push(placeMesh(boxWithTop(this.pack?.uv, d.kind), { x: d.c, y: d.r, z: d.z0 }));
+      else if (d.kind === 'blower' || d.kind === 'turret' || d.kind === 'cannon') crates.push(placeMesh(boxWithTop(this.pack?.uv, d.kind), { x: d.c, y: d.r, z: d.z0 }));
       else if (d.kind === 'mound') crates.push(placeMesh(this.boxGeometry(), { x: d.c, y: d.r, z: d.z0, s: 0.95, sz: 0.55 }));
       else if (d.kind === 'bush') crates.push(placeMesh(bushData(), { x: d.c, y: d.r, z: d.z0 }));
     }
@@ -992,7 +1011,8 @@ export function boxData(size, height) {
 
 /** Device box with an atlas top (blower fallback ▶▶ hatch, turret target plate) and grey sides. */
 function boxWithTop(uvTable, kind) {
-  const size = kind === 'turret' ? 0.72 : 0.86, h = kind === 'turret' ? 0.34 : DEVICE_H.platform;
+  const size = kind === 'turret' ? 0.72 : kind === 'cannon' ? 0.55 : 0.86;
+  const h = kind === 'turret' ? 0.34 : kind === 'cannon' ? 0.62 : DEVICE_H.platform;
   const b = boxData(size, h);
   const top = surfaceUV(uvTable?.mech || { src: 'D', rect: [1088, 708, 356, 310] });
   const side = surfaceUV(uvTable?.graySide || { src: 'D', rect: [272, 1664, 272, 120] });

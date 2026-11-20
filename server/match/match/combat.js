@@ -9,7 +9,7 @@ import { deriveSeed } from '../../sim/rng.js';
 import { withBounties } from '../waves.js';
 import { planUnite } from '../unite.js';
 import { FieldRunner, DeadBattle } from '../fields.js';
-import { DELAYS } from './common.js';
+import { DELAYS, applyTempLayers } from './common.js';
 import { previewPlayer } from '../preview.js';
 import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { reconcileCommandChests } from '../bandCommands.js';
@@ -217,7 +217,11 @@ export class MatchCombat {
         this.lastResults.set(pid, res.synthetic || !pp ? { ...normalResult, synthetic: true } : normalResult);
         // Keep only a legacy/reference result's uncredited remainder as an overlay; live gains must not show twice.
         const ps = this.players.get(pid);
-        if (ps) reconcileCommandChests(ps, pp);
+        if (ps) {
+          reconcileCommandChests(ps, pp);
+          applyTempLayers(this.gd, ps, pp);
+          ps.dirty();
+        }
         const gains = pp && pp.layerGains && typeof pp.layerGains === 'object' ? pp.layerGains : null;
         if (ps && gains) {
           const pending = Object.fromEntries(Object.entries(gains)

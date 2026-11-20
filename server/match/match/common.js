@@ -91,3 +91,14 @@ export const REVIVAL_WINDOW_SECONDS = 15;
 export const REVIVAL_UNAVAILABLE_REASONS = Object.freeze([
   'disabled', 'no-helper', 'donor-lp', 'window-expired', 'window-closed', 'already-used', 'left', 'match-ended',
 ]);
+
+/** Replace the round's temporary balance with a detached, bounded copy of the own-field result. */
+export function applyTempLayers(gd, ps, result) {
+  const balance = {};
+  for (const [id, amount] of Object.entries(result?.tempLayerGains ?? {})) {
+    if (!gd.bond(id) || !Number.isFinite(amount) || amount < 1) continue;
+    balance[id] = Math.min(10000, Math.floor(amount));
+  }
+  if (Object.keys(balance).length) ps.tempLayers = balance;
+  else delete ps.tempLayers;
+}

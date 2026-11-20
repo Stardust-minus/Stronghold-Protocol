@@ -447,9 +447,11 @@ export function DiyPanel(props) {
 /**
  * The tab's view (no hooks: the tests draw it): `picking` = the position being filled, or null; `off` = the match's banned
  * bonds when the tab is opened during a match (ui/diyModel.js diyMatchOff), else null; `held` = position → the collab pick
- * a room without 联动干员 does not field (feedback #128: ui/diyModel.js diyCollabHeld; `picks` are then the ones it fields).
+ * a room without 联动干员 does not field (feedback #128: ui/diyModel.js diyCollabHeld; `picks` are then the ones it fields);
+ * `pluginControl` = the lobby's plugin tag (upstream #949, 大厅 → 干员调配 only; ui/pluginTag.js LobbyPluginTag draws
+ * nothing while the server offers no plugins — this fork's plugin rooms stay off).
  */
-export function DiyPanelView({ m, picks, legal, kitted, collab = false, onSet, picking, onPicking: setPicking, skins = {}, skinSync = 'idle', onSkins, ops = {}, onOps = null, off = null, held = {} }) {
+export function DiyPanelView({ m, picks, legal, kitted, collab = false, onSet, picking, onPicking: setPicking, skins = {}, skinSync = 'idle', onSkins, ops = {}, onOps = null, off = null, held = {}, pluginControl = null }) {
   const slots = diyPositions(diyData());
   const slot = picking ? slots.find((s) => s.slotId === picking) : null;
   const tiers = [...new Set(slots.map((s) => s.tier))];
@@ -469,6 +471,7 @@ export function DiyPanelView({ m, picks, legal, kitted, collab = false, onSet, p
         ? html`<p class="own__lead">${t('5阶与6阶各有 {slots} 个自选名额。进入模拟时每阶至多带入 {n} 名，未选择的干员不会进入本次模拟。', { slots: 6, n: cap5 })}</p>`
         : html`<p class="own__lead">${t('5阶与6阶每局各有两名自选干员上场：可选持有的 6★ 干员（任选技能与模组）或原型干员（技能锁定）。自选干员只出现在你自己的商店里，调度中心达到该阶等级后才会刷新，价格与同阶干员相同；盟约按干员实际所属阵营分配，没有特质。')}</p>
       <p class="own__lead diy__poslead">${t('每阶可放四名：开局确认本局信息时（看到本局禁用的盟约后）从中任选两名上场；不选的话，由排在前面、盟约没有全部被禁用的两名上场。')}</p>`}
+      ${pluginControl ? html`<div class="diy__plug">${pluginControl}</div>` : null}
     </div>
     <div class="diy__body">
       ${tiers.map((tier) => html`<section key=${tier} class="own-tier diy-tier" data-tier=${tier} aria-label=${t('{tier}阶', { tier })}>

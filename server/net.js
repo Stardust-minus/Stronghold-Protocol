@@ -105,7 +105,7 @@ export const NET_DEFAULTS = Object.freeze({
  * room.proposeVersion (DESIGN §35.23) stays host-proposed: an accepted proposal by a lone human switches the room's
  * version — every page then downloads that version's data.
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.skins', 'room.card', 'queue.join', 'room.list', 'room.spectate', 'room.setPlugins', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.skins', 'room.card', 'queue.join', 'room.list', 'room.spectate', 'room.setPlugins', 'plugins.preview', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -842,9 +842,13 @@ export class Network {
     const respond = res => {
       if (this.closed || conn.closing || conn.session !== session || session.ws !== conn.ws) return;
       if (res && res.error) {
+        // fire-and-forget battle progress (no rid) that reached no running match — the match just ended, the room went
+        // back to the lobby — is stale, not a client mistake: never answered (DESIGN §14; a rid-less error frame would
+        // surface as an error toast in the browser)
         if (msg.t === 'b.progress' && !validRid(rid)) return;
         this.reply(conn, errorMsg(isErrCode(res.error) ? res.error : ERR.INTERNAL, rid, res.detail));
-      } else if (validRid(rid)) this.reply(conn, { ...res?.reply, t: 'ok', rid });
+        // a handler's `reply` object (the cluster's remote starts, plugins.preview) rides on the ok
+      } else if (validRid(rid)) this.reply(conn, res && typeof res === 'object' && res.reply && typeof res.reply === 'object' ? { ...res.reply, t: 'ok', rid } : { t: 'ok', rid });
     };
     const t0 = this.metrics.start();
     // A client that asks for a full frame (shared/stateDelta.js): dropping the baseline makes the next frame of every

@@ -28,7 +28,7 @@ function sizeCalls(line) {
 }
 /** The stylesheets of the match screen whose pixel floors follow --ui. */
 const MATCH_CSS = ['devices.css', 'components.css', 'emotes.css', 'screens/game.css', 'screens/game-shop.css', 'screens/team.css',
-  'screens/game-panels.css', 'screens/damage-board.css'].map((f) => `public/css/${f}`);
+  'screens/game-panels.css', 'screens/bond.css', 'screens/damage-board.css'].map((f) => `public/css/${f}`);
 
 describe('界面大小: the settings value', () => {
   test('steps, default and sanitising', () => {

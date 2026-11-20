@@ -104,7 +104,8 @@ export class MatchExtensions {
   }
 
   _damageView(ps, packet) {
-    // Same restriction as watch(): fighting boss players may never see the other group's operator statistics.
+    // Fighting boss players see only their own group's operator statistics, also while they watch the other group's
+    // field (allowed since round 83, PR #971: the display, not the statistics).
     // A frozen score remains restricted while boss fields are displayed; no-field PREP follows prep scouting rules.
     if (ps.alive && (this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE)) {
       const own = this.fields.find((f) => f.players.includes(ps.playerId));

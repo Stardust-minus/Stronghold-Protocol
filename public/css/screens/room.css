@@ -318,7 +318,7 @@
 .dpick__opt .icon { width: .2rem; height: .2rem; color: var(--d-color); opacity: .55; transition: opacity var(--t-fast); }
 .dpick__opt:hover:not(:disabled) { color: var(--text-hi); background: rgba(255, 255, 255, .03); }
 .dpick__opt:hover:not(:disabled) .icon { opacity: 1; }
-.dpick__opt:disabled { cursor: default; }
+.dpick__opt:disabled { cursor: var(--sp-cursor-default, default); }
 .dpick__opt.is-active {
   color: var(--d-color);
   background: transparent; background: color-mix(in srgb, var(--d-color) 17%, transparent);
@@ -410,12 +410,12 @@
 .seat__band .icon { width: .14rem; height: .14rem; flex: none; }
 .seat__band-k { color: var(--ice); font-weight: 700; }
 .seat__band-name { max-width: 1.6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-hi); }
-.seat__band.is-editable { cursor: pointer; }
+.seat__band.is-editable { cursor: var(--sp-cursor-pointer, pointer); }
 .seat__band.is-editable:hover { border-color: var(--ice); }
-.seat__band.is-editable:disabled { cursor: default; opacity: .7; }
+.seat__band.is-editable:disabled { cursor: var(--sp-cursor-default, default); opacity: .7; }
 .botband-dlg__tip { margin: 0 0 .12rem; font-size: max(calc(.13 * var(--t)), 12px); }
 .botband-dlg__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(1.4rem, 1fr)); gap: .08rem; }
-.botband { display: flex; flex-direction: column; align-items: center; gap: .04rem; padding: .08rem .06rem; cursor: pointer;
+.botband { display: flex; flex-direction: column; align-items: center; gap: .04rem; padding: .08rem .06rem; cursor: var(--sp-cursor-pointer, pointer);
   background: rgba(12, 15, 14, .82); border: 1px solid var(--line); color: var(--text-md); }
 .botband:hover:not(:disabled) { border-color: var(--line-3); }
 .botband .bandicon { --bi: .7rem; border: 1px solid var(--line-2); }

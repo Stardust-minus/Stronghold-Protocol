@@ -30,10 +30,10 @@ import { AiTakeoverPanel } from '../ui/aiTakeover.js';
 // version vote (ui/versionVote.js), so a doctor still reading the result can vote.
 // Client-side combat (DESIGN §14, m.public.combatMode 'client'): battles are simulated in this browser by
 // battle/runner.js, which publishes the battle's field meta into store.match.field and feeds the view the same b.snap /
-// b.ev frames the server used to stream. Observing follows research 09 §3.1 (battle/observe.js): no looking elsewhere
-// while the own normal battle runs; afterwards a teammate row → 前往查看 → a local replica, 返回战场 goes back; in
-// 联防 / 最终攻势 the ‹ › pill switches the camera between the field's halves and 全景, and so does a tap on the avatar of
-// a player on a half (again: 全景; battle/observe.js avatarLayer).
+// b.ev frames the server used to stream. Observing rules live in battle/observe.js: a teammate row → 前往查看 → a
+// display replica (while the own battle keeps running only with 设置「作战中查看队友」, #971), 返回战场 goes back. Boss /
+// hidden fields support the other group; 联防 / 最终攻势 / 隐秘核心 use ‹ › to switch the visible field between its halves
+// and 全景, and so does a tap on the avatar of a player on a half (again: 全景; battle/observe.js avatarLayer).
 // Enemy preview pen (research 09 §2 / §6.2 item 3): in 休整期 the next round's enemies stand in the pen at the top right
 // of the prep view (render/app.js: the prep camera shows it, the battle cameras do not — the maintainer's decision of
 // 2026-10-15); the right HUD 🔍▶▶ pans the camera to the pen (view.setCamera('pen')); the left button turns into 🔍◀◀
@@ -139,7 +139,7 @@ import {
   terrainInfo, deviceInfo, deviceTipAt, noteDeviceUnits, deviceUnitsForEntry,
   countdownState, shopBlockReason, stageOverrides, effectiveStage, watchTarget, dropFailureReason,
   previewEnemyKey, prepCamera, prepCameraFor, foldCamera, deployFieldOf, fieldTile, panelSide, panelSlots, PANEL_RIGHT_MIN_PX, bondPopupPlace, unitLoadout, deployedRecord,
-  mergeTarget, mergeProgress, modeOffBonds, readyFundsPrompt, readyCommandPrompt, readyPrompt, readyShopFold, ownerBandId, ownDiyRecord, ownStandIn, roundStartReplay, heldDraftPub,
+  mergeTarget, mergeProgress, sortBonds, modeOffBonds, readyFundsPrompt, readyCommandPrompt, readyPrompt, readyShopFold, ownerBandId, ownDiyRecord, ownStandIn, roundStartReplay, heldDraftPub,
 } from '../ui/gameLogic.js';
 import { toast } from '../ui/toasts.js';
 import { LoadoutButton } from './loadout.js';
@@ -1325,8 +1325,8 @@ function MatchScreen() {
     return false;
   }, []);
 
-  // The watched field only changes once the server accepted g.watch: a refused target (an eliminated teammate, the
-  // other pair's boss field) must not move the eye icon / switcher label away from what is actually on screen.
+  // A refused target (an eliminated teammate or a missing field) restores the eye icon / switcher label
+  // to what is actually on screen.
   // `playerId`: the teammate picked (a team row) — a shared field shows two players, the strip follows the picked one
   // (DESIGN §20.15); null for a field picked as such (the legacy switcher).
   const requestWatch = useCallback(async (fid, playerId = null) => {
@@ -1364,7 +1364,7 @@ function MatchScreen() {
     const L = live.current;
     if (isClientCombat(L.pub)) {
       const observing = !!L.watching && L.watching !== L.home && L.watching !== ownFieldId(L.myId);
-      const t = observeTarget(p, L.pub, L.myId, { observing, ownDone: L.localDone });
+      const t = observeTarget(p, L.pub, L.myId, { observing, ownDone: !!L.localDone, liveWatch: !!L.liveWatch });
       if (t.back) { backHome(); return; }
       if (t.reason) { toast(t.reason, 'warn'); audio.sfx('error', { volume: 0.5 }); return; }
       if (t.fieldId) requestWatch(t.fieldId, p.playerId);
@@ -1611,7 +1611,7 @@ function MatchScreen() {
     const screen = hudElRef.current?.parentElement;
     if (!screen) return undefined;
     const onDown = (e) => {
-      if (!live.current.bondOpen || e.target?.closest?.('.bpop, .bslot, .dbond, .ibond, .ibonds [data-bond]')) return;
+      if (!live.current.bondOpen || e.target?.closest?.('.bpop, .bpop-nav__arrow, .bslot, .dbond, .ibond, .ibonds [data-bond]')) return;
       setBondOpen(null);
     };
     screen.addEventListener('pointerdown', onDown, true);
@@ -1951,6 +1951,7 @@ function MatchScreen() {
   // (client-side combat: only in 各自行动 — 联防 observers just watch the 联防 field, research 09 §3.1)
   const myDone = combat && (cc ? phase === PHASE.COMBAT && (meP?.status === 'done' || localDone) : meP?.status === 'done');
   live.current.localDone = localDone;
+  live.current.liveWatch = playerSettings.watchDuringBattle === true;
   // the solo pause button: only while the own battle still runs (the server refuses it afterwards)
   const canPause = pauseAvailable(pub, { solo, alive, done: meP?.status === 'done' || localDone });
   live.current.canPause = canPause;
@@ -1977,12 +1978,13 @@ function MatchScreen() {
   const strip = screenStrip({
     pub, priv, myId, combat, settle: settleMode, watchingOther, watching, home,
     battleFieldId: cc ? (battleState?.fieldId || null) : (combat || settleMode ? lastFieldRef.current : null),
-    field, layers, layer, who: watchWho, bondLayers: battleState?.bondLayers || null,
+    field, layers, layer, who: watchWho, bondLayers: battleState?.bondLayers || null, bondTempLayers: battleState?.bondTempLayers || null,
   });
   const stripFid = strip.fieldId;
   const damage = useStore((s) => s.match.damage);
   const uniteOwners = useMemo(() => uniteDamageOwners({ pub, fieldId: stripFid, field }), [pub, stripFid, field]);
   const bossOwners = useMemo(() => bossDamageOwners({ pub, fieldId: stripFid }), [pub, stripFid]);
+  const tempLayersSnapshot = (combat || settleMode) && battleState?.fieldId === stripFid ? battleState?.bondTempLayers : null;
   const liveLayers = (combat || settleMode) && battleState?.bondLayers ? battleState.bondLayers : null;
   // the observing pill names the player whose bonds the strip shows (the same teammate as the strip's "👁 name" tag)
   const observingName = cc && combat && watchedFid ? (!strip.self && stripFid === watchedFid ? strip.name : (players.find((p) => p.fieldId === watchedFid || ownFieldId(p.playerId) === watchedFid)?.name || t('队友'))) : null;
@@ -2007,8 +2009,16 @@ function MatchScreen() {
   const popOps = cc && battleRunner && field?.local && bondOpen && bondOpen.ownerId !== myId ? battleRunner.ownerOps(bondOpen.ownerId, field.fieldId) : null;
   const spawnedOps = (evBufRef.current.get(field?.fieldId) || []).filter(e => e?.[0] === 'spawn' && e[1]?.kind === 'op').map(e => e[1]);
   const shownOps = [...(field?.units || []), ...spawnedOps];
-  const bondPop = popupView({ open: bondOpen, pub, priv, myId, field, units: popOps || spawnedOps, live: liveLayers });
+  const bondPop = popupView({ open: bondOpen, pub, priv, myId, field, units: popOps || spawnedOps, live: liveLayers, temporary: tempLayersSnapshot });
   const openBond = (id, ownerId, from) => { setBondOpen((b) => toggleBond(b, id, ownerId, from)); audio.sfx('click', { volume: 0.4 }); };
+  const popupBondIds = sortBonds(stripBonds, id => data.lookup('bonds', id)).map(b => b.bondId);
+  const switchBond = direction => {
+    if (!bondOpen || bondOpen.from !== 'strip' || popupBondIds.length < 2) return;
+    const index = popupBondIds.indexOf(bondOpen.id);
+    const id = popupBondIds[(index + direction + popupBondIds.length) % popupBondIds.length];
+    openBond(id, strip.ownerId, 'strip');
+  };
+  const bondNavigation = bondOpen?.from === 'strip' && popupBondIds.length > 1;
   const watchingNow = combat ? (watching || field?.fieldId || home) : watching;
   const shopOpen = showShop && !collapsed;
   const ufShown = !!(selEntry && editable && !facing && !drag && showPrep && ufGeo);
@@ -2044,6 +2054,7 @@ function MatchScreen() {
   // the bond popup: next to the card, never over the selected unit's underframe when a place is free (bondPopupPlace)
   const bpPlace = (() => {
     if (!bondOpen) return 'left';
+    if (bondOpen.from === 'strip') return 'center';
     const { rem, vp } = panelFrame();
     return bondPopupPlace(ufShown ? underframeRect(ufGeo, rem) : null, vp, rem, resolved ? dSide : null, { corner });
   })();
@@ -2134,7 +2145,7 @@ function MatchScreen() {
       <${TeamPanel} pub=${pub} myId=${myId} watching=${watchingNow} roster=${roster} emoteTtl=${bubbleMs} onWatch=${watchPlayer} cap=${gd.config?.lpCapPerRound ?? 10} uniteLocal=${uniteLocal}
         spMarks=${sp ? spMarks(sp, { solo }) : null}
         self=${Number.isFinite(priv?.lp) ? { lp: priv.lp, pending: liveLpNow.pending, unite: liveLpNow.unite, left: liveLpNow.left } : null}
-        observe=${cc ? { canObserve: (p) => observeTarget(p, pub, myId, { observing: watchingOther, ownDone: localDone }), observing: watchingOther, onBack: backHome } : null}
+        observe=${cc ? { canObserve: (p) => observeTarget(p, pub, myId, { observing: watchingOther, ownDone: localDone, liveWatch: playerSettings.watchDuringBattle === true }), observing: watchingOther, onBack: backHome } : null}
         halves=${layers.length ? { half: avatarHalf, onHalf: avatarPick } : null} plan=${canPlan ? { onOpen: () => setPlanOpen(true) } : null}
         badges=${teamBadges} />
 
@@ -2205,6 +2216,7 @@ function MatchScreen() {
       ${bondPop ? html`<${bondOpen?.from === 'info' ? MatchBondDialog : BondPopup} bondId=${bondPop.bondId} entry=${bondPop.entry} priv=${bondPop.priv} banned=${pub?.bannedChess || []} owner=${bondPop.name} ownerId=${bondPop.ownerId}
         off=${offBonds.has(bondPop.bondId)} coreAbsent=${regulationCoreAbsent(bondInfo, bondPop.bondId)} forecast=${bondPop.ownerId === myId ? ownForecast : null} morphMode=${morphMode}
         poolCounts=${playerSettings.poolCount !== false && bondPop.ownerId === myId}
+        onPrevious=${bondNavigation ? () => switchBond(-1) : null} onNext=${bondNavigation ? () => switchBond(1) : null}
         place=${bpPlace} over=${!!resolved && bpPlace === dSide}
         onClose=${() => setBondOpen(null)} onMember=${(id, items, standInFor, diy, skinId) => {
           if (bondOpen?.from === 'info') { setBondOpen(null); setDrawer(null); }

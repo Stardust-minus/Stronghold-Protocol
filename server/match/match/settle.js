@@ -7,7 +7,7 @@ import { PHASE } from '../../../shared/constants.js';
 import { REVIVAL_WINDOW_SECONDS } from './common.js';
 import { uniteSurvivors } from '../unite.js';
 import { buildResult } from '../results.js';
-import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
+import { FLOW_TICKER_PRIORITY, DELAYS, applyTempLayers } from './common.js';
 import { msg } from '../../../shared/i18n.js';
 import { onSettle, resetRoundCounters } from '../botEmotes.js';
 import { creditedKillsOf } from '../../sim/spec.js';
@@ -82,21 +82,9 @@ export class MatchSettle {
       // repeated results or a cap reached during combat must not award layers or milestone rewards again.
       this._applyBattleLayerGains(ps, r.layerGains);
       this._charDamageTickers(ps, r);
-      // 规程: temporary layers exist only for this dispatch. Converters read and consume them; they are not stored.
-      if (r.tempLayerGains && typeof r.tempLayerGains === 'object') {
-        const bag = {};
-        for (const [bondId, n] of Object.entries(r.tempLayerGains)) {
-          if (!this.gd.bond(bondId) || !(typeof n === 'number' && n > 0)) continue;
-          const add = Math.min(1e4, Math.floor(n));
-          if (add > 0) bag[bondId] = add;
-        }
-        if (Object.keys(bag).length) ps.tempLayers = bag;
-      }
-      try {
-        this.dispatch(ps, 'onBattleResult', { result: r, lpLoss: loss, perfect: counted === 0 && r.perfect !== false, unite: combinedUnite || null });
-      } finally {
-        delete ps.tempLayers;
-      }
+      // Preserve the own-battle pool through SETTLE. Conversion runs when the next prep actually opens.
+      applyTempLayers(this.gd, ps, r);
+      this.dispatch(ps, 'onBattleResult', { result: r, lpLoss: loss, perfect: counted === 0 && r.perfect !== false, unite: combinedUnite || null });
       ps.recompute();
     }
     this._revival = { round: this.round, eligible, windowOpen: false, deadline: 0 };
