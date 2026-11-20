@@ -31,6 +31,7 @@
 import { PHASE } from '../../shared/constants.js';
 import { SharedPool, createItemPools } from './pool.js';
 import { setTilt, tiltOf } from './tilt.js';
+import { isMatchSecret } from './secret.js';
 
 /**
  * Checkpoint layout version. A document of another version is refused (the match is dropped, server/persist/).
@@ -39,7 +40,7 @@ import { setTilt, tiltOf } from './tilt.js';
 export const SNAPSHOT_VERSION = 2;
 // (卡池静态初始化, 2026-11-20: `poolSplit` is additive — written only for a match with the room's staticPoolSplit, which
 // a server without it refuses as an unknown option — so v2 stays; any other checkpoint is unchanged and loads as before.
-// ELO, §37.275: `eloSecret` the same way — only for a match with the room's elo.)
+// ELO, §37.275: `matchSecret` the same way — only for a match with the room's elo.)
 
 /** Phases whose state is fully serializable (see the header). */
 export const SNAPSHOT_PHASES = Object.freeze([PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.SP_DRAFT, PHASE.ROUND_START, PHASE.PREP]);
@@ -82,9 +83,10 @@ export const MATCH_FIELDS = Object.freeze({
   special: Object.freeze([
     'phase', 'round', 'deadline', 'startedAt', '_battleSeq', 'damageBoard', 'poolGroups', 'playerItemPools',
     ...RNG_NAMES,
-    // ELO (tilt.js eloSeed, §37.275): the match's own secret, only in a match with the option (`eloSecret` of the document;
-    // null otherwise and not written) — the checkpoint stays on the server (server/persist/, a match host's IPC)
-    'eloSecret',
+    // ELO (secret.js, tilt.js eloSeed, §37.275): the match's private secret, only in a match with the option (`matchSecret`
+    // of the document; null otherwise and not written) — the checkpoint stays on the server (server/persist/, a match
+    // host's IPC), never a page
+    'matchSecret',
   ]),
   derived: Object.freeze([
     'opts', 'roomCode', 'mode', 'difficulty', 'modeId', 'seed', 'log', 'sendFn', 'broadcastFn', 'onEndFn', 'data', 'cs', 'vs',
@@ -376,7 +378,7 @@ function buildSnapshot(m) {
     ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}),
     rng: Object.fromEntries(RNG_NAMES.map((n) => [n, m[n].state() >>> 0])),
     // ELO (additive like poolSplit): the secret of the tilted streams, which a restore needs for the ones it derives anew
-    ...(m.eloSecret != null ? { eloSecret: m.eloSecret >>> 0 } : {}),
+    ...(m.matchSecret != null ? { matchSecret: m.matchSecret } : {}),
     damageBoard: encodeValue({ ...m.damageBoard }),
   };
   // a vote in INFO_CHECK is dropped on restore: keep its paused confirmation budget instead of a zero deadline
@@ -453,7 +455,7 @@ export function checkSnapshot(m, doc) {
   if (players.length !== m.players.size || players.some((p) => !m.players.has(p?.playerId))) return 'seats';
   if (!Array.isArray(doc.pools) || !doc.match || typeof doc.match !== 'object' || !doc.rng) return 'shape';
   // an ELO match goes on with its own secret only (tilt.js eloSeed)
-  if (m.elo && !Number.isInteger(doc.eloSecret)) return 'elo';
+  if (m.elo && !isMatchSecret(doc.matchSecret)) return 'secret';
   return null;
 }
 
@@ -485,7 +487,7 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
     const state = doc.rng[name];
     if (Number.isInteger(state)) m[name] = createRngFromState(state >>> 0);
   }
-  if (m.elo) m.eloSecret = doc.eloSecret >>> 0;
+  if (m.elo) m.matchSecret = doc.matchSecret;
   if (doc.damageBoard && typeof doc.damageBoard === 'object') Object.assign(m.damageBoard, decodeValue(doc.damageBoard));
   m.stage = m.stageId ? m.gd.stage(m.stageId) : null;
   // the game data a release ships may have dropped what the checkpoint holds: such a match does not come back
@@ -687,5 +689,5 @@ export function matchState(m) {
     players[ps.playerId] = p;
   }
   return { phase: m.phase, round: m.round, match, pools, ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}), rng,
-    ...(m.eloSecret != null ? { eloSecret: m.eloSecret } : {}), players };
+    ...(m.matchSecret != null ? { matchSecret: m.matchSecret } : {}), players };
 }

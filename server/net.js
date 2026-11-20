@@ -94,7 +94,7 @@ export const NET_DEFAULTS = Object.freeze({
 /**
  * Intents that also draw from the per-connection heavy bucket: g.watch (its reply is a large state resend, m.field),
  * room.loadout (a ≤ 160-entry map and ≤ 256 operator settings validated against the game data; the client debounces its
- * edits), room.ownership (a ≤ 160-id list), room.diy (≤ 12 自选 picks: 规程 takes 6 + 6), room.elo (≤ 8 pairs, ELO §37.275), room.skins (whitelisted display choices), room.spectate
+ * edits), room.ownership (a ≤ 160-id list), room.diy (≤ 12 自选 picks: 规程 takes 6 + 6), room.elo (≤ 8 lists of ≤ 30 matches, ELO §37.275), room.skins (whitelisted display choices), room.spectate
  * (taking a spectator seat in a running match resends its state like a watcher's g.watch — server/lobby.js spectate) and
  * room.setPlugins (a new visual set: every member downloads its art manifest — server/plugins/visualSet.js).
  * room.skins (docs/SKINS.md) is a small `{ [charId]: skinId }` map, sent on every edit of the appearance; a changed map
@@ -165,7 +165,7 @@ export class Session {
     this.notOwned = null;
     /** @type {Readonly<Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>> | null} checked 自选 picks (lobby-owned, 0.2.0 自选编队) */
     this.diy = null;
-    /** @type {Readonly<Record<string, readonly number[]>> | null} own recent [wins, games] per mode:difficulty (lobby-owned, room.elo §37.275; never shown, never persisted) */
+    /** @type {Readonly<Record<string, readonly (readonly number[])[]>> | null} own recent matches [won, roundsPassed] per mode:difficulty (lobby-owned, room.elo §37.275; never shown, never persisted) */
     this.elo = null;
     /** @type {Readonly<Record<string, string>>} display-only skin choices (lobby-owned) */
     this.skins = Object.freeze({});

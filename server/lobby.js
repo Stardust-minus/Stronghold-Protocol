@@ -141,12 +141,13 @@
 //   * ELO (the owner's decisions of 2026-11-20, docs/history/0.4.0.md §37.275): `experimental.elo` — like collabOps, set by
 //     the host of a private room with room.setExperimental only (the page shows its 「此功能仅为娱乐」 reminder first),
 //     never at room.create, never in a matchmade room, and a room with it never enters matchmaking (isEloRoom: nobody is
-//     tilted in a room they did not choose). room.elo { rec } — the player's own recent [wins, games] per mode and
-//     difficulty (shared/protocol.js isEloRecords; its page sends it only in such a room) — is stored on the session and
-//     the seat like the not-owned list, never in room.state, a view or the persisted lobby state; a match of a room with
-//     the option receives seats[].elo, the pair of the room's mode and difficulty (eloPairOf; null without one, absent
-//     on every AI seat and in every other room), and keeps it for its whole length (a new one is for the next match:
-//     ROOM_STARTED 'stored for the next match').
+//     tilted in a room they did not choose). room.elo { rec } — the player's own recent matches per mode and difficulty,
+//     `[won, roundsPassed]` newest first (shared/elo.js isEloRecords; its page sends it only in such a room) — is stored on
+//     the session and the seat like the not-owned list, never in room.state, a view or the persisted lobby state; a match
+//     of a room with the option receives seats[].elo, the matches of the room's mode and difficulty (eloEntriesOf; null
+//     without any, absent on every AI seat and in every other room), runs shared/elo.js eloSummary on them and keeps the
+//     tilt for its whole length (a new list is for the next match: ROOM_STARTED 'stored for the next match'). The list
+//     is the page's own claim: ELO does not ship before server-signed match receipts replace it (a later step).
 //   * Content identity (DESIGN §32, the plugin system's first step): the lobby is given the server's vanilla content
 //     (server/plugins/identity.js; none in unit tests that build a Lobby without it). Every `welcome` carries
 //     `content: { vanilla: <cs> }` — and `plugins: <n>` when this server has n > 0 unofficial plugins (every class but a
@@ -297,7 +298,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, ROOM_LIST_MAX, ROOM_LIST_MIN_CAPACITY, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, isOfficialAvatar } from '../shared/protocol.js';
-import { eloPairOf } from '../shared/elo.js';
+import { eloEntriesOf } from '../shared/elo.js';
 import { isSkinChoices, skinFor } from '../shared/skins.js';
 import { CARD_ROSTER } from '../shared/card-roster.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isCollabRoom, isConsoleRoom, isEloRoom, isExperimental, sameExperimental } from '../shared/experimental.js';
@@ -418,7 +419,7 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
  *             notOwned?: readonly string[] | null, diy?: Readonly<Record<string, DiyLoadout>> | null,
  *             skins?: Readonly<Record<string, string>>, band?: string | null, card?: Card | null, owner?: boolean,
  *             content?: 'ready' | 'failed' | null, contentGen?: number, loadoutCs?: string | null, notOwnedCs?: string | null,
- *             diyCs?: string | null, consentCs?: string | null, elo?: Readonly<Record<string, readonly number[]>> | null }} Seat
+ *             diyCs?: string | null, consentCs?: string | null, elo?: Readonly<Record<string, readonly (readonly number[])[]>> | null }} Seat
  *   (`band`: AI seats only — the strategy room.setBotBand designated, null = the AI picks by itself; `card` / `owner`:
  *   human seats only, display only — room.card and the 服主 mark; `elo`: human seats only, never shown — room.elo)
  *   content: a room with gameplay plugins — whether the player's page loaded and checked its content (header "Gameplay
@@ -2737,13 +2738,13 @@ export class Lobby {
   }
 
   /**
-   * room.elo (§37.275, header "ELO"): the player's own recent results, stored on the session and the seat. A running match
-   * never takes them: it keeps the pair its seat had at its start.
+   * room.elo (§37.275, header "ELO"): the player's own recent matches, stored on the session and the seat. A running match
+   * never takes them: it keeps the tilt its seat had at its start.
    */
   elo(session, { rec }) {
     // the same counts again keep the stored object (a start being prepared is not invalidated by a resend: ClusterLobby)
     const kept = isDeepStrictEqual(session.elo, rec) ? session.elo
-      : Object.freeze(Object.fromEntries(Object.entries(rec).map(([k, v]) => [k, Object.freeze([v[0], v[1]])])));
+      : Object.freeze(Object.fromEntries(Object.entries(rec).map(([k, list]) => [k, Object.freeze(list.map((e) => Object.freeze([e[0], e[1]])))])));
     session.elo = kept;
     const room = this.roomOf(session);
     const seat = room ? room.seatOf(session.playerId) : null;
@@ -3054,8 +3055,8 @@ export class Lobby {
         notOwned: own ? own.notOwned : null,
         // 0.2.0 自选编队: the human's checked DIY picks (bots field no 自选 piece [ASSUMED])
         diy: own ? own.diy : null,
-        // ELO (header): the human's own [wins, games] of the room's mode and difficulty — only in a room with the option
-        ...(own && isEloRoom(room.experimental) ? { elo: eloPairOf(s.elo, room.mode, room.difficulty) } : {}),
+        // ELO (header): the human's own recent matches of the room's mode and difficulty — only in a room with the option
+        ...(own && isEloRoom(room.experimental) ? { elo: eloEntriesOf(s.elo, room.mode, room.difficulty) } : {}),
         skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }),
         // room.setBotBand: an AI seat's designated strategy (absent when it picks by itself)
         ...(s.isBot && s.band ? { band: s.band } : {}),

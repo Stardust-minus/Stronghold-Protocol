@@ -2,7 +2,7 @@
 // host turns it on from the room settings — first the reminder, 此功能仅为娱乐, with the host's own panel —; every other
 // seated player meets it once in a dialog with their own panel; the room's notice and the rule list's 浮窗 show each
 // reader's own level only. Three browsers with seeded local records: a strong host (压), a weak guest (帮) and a guest
-// with too few records (不调). Each page sends its own counts (room.elo), and nobody's page holds another's.
+// with too few records (不调). Each page sends its own matches (room.elo), and nobody's page holds another's.
 //
 //   SP_E2E=1 node --test test/ui/elo-room.e2e.test.js
 //
@@ -23,7 +23,7 @@ const fontCss = FONT ? [400, 500, 700].map((w) => {
   return `@font-face{font-family:'Noto Sans SC';font-style:normal;font-weight:${w};font-display:block;src:url(data:font/woff2;base64,${b64}) format('woff2');}`;
 }).join('\n') : '';
 
-/** A local stats envelope (ui/stats.js, sp.pref.stats): `wins` of `games` settled records per mode of 终极模拟. */
+/** A local stats envelope (ui/stats.js, sp.pref.stats): `wins` of `games` settled records per mode of 终极模拟, every loss after 9 rounds. */
 function stats(wins, games) {
   const records = [];
   for (const roomMode of ['coop', 'solo']) {
@@ -38,8 +38,9 @@ function stats(wins, games) {
 }
 const prefs = (wins, games) => ({ 'loadout.view': 'list', stats: stats(wins, games) });
 
-async function shot(c, name) {
+async function shot(c, name, { hover = false } = {}) {
   await c.page.waitForFunction(() => !document.querySelector('.pbanner--overlay'), { timeout: 10000 }).catch(() => {});
+  if (!hover) await c.page.mouse.move(2, 2); // the page's own cursor sprite stays off the text
   if (!SHOTS) return c.shot(name);
   await c.page.addStyleTag({ content: NO_ANIM });
   await sleep(300);
@@ -119,13 +120,13 @@ describe('ELO (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public
       await host.page.waitForSelector('[data-testid="elo-notice"]', { visible: true, timeout: 8000 });
       assert.equal(await host.exists('[data-testid="elo-panel"]'), false, 'the host saw it in the reminder: no second dialog');
       await host.page.waitForFunction(() => (window.__ELO_SENT__ || []).length > 0, { timeout: 8000 });
-      assert.deepEqual((await sentElo(host)).at(-1)['coop:ABYSS'], [30, 30], 'the host\'s own counts went to the server');
+      assert.deepEqual((await sentElo(host)).at(-1)['coop:ABYSS'], Array.from({ length: 30 }, () => [1, 14]), 'the host\'s own matches went to the server');
       await host.page.waitForFunction(async () => (await import('/js/ui/loadoutSync.js')).eloStore.get().eloSync === 'synced', { timeout: 8000 });
       assert.match(await host.page.$eval('[data-testid="elo-notice-brief"]', (e) => e.textContent), /压 · 4 级/);
       await shot(host, 'elo-3-host-room-notice');
 
       // the guests: each meets it in a dialog with the own panel, the notice and the rule list say their own level
-      for (const [c, name, dir, re, file] of [[weak, '新手队友', 'help', /帮 · 3 级/, 'elo-4-guest-helped'], [fresh, '新来的队友', 'none', /记录不足 5 局，暂不调整/, 'elo-5-guest-neutral']]) {
+      for (const [c, name, dir, re, file] of [[weak, '新手队友', 'help', /按 27.2 局计.*帮 · 3 级/, 'elo-4-guest-helped'], [fresh, '新来的队友', 'none', /按 2.9 局计.*折算后不足 5 局，暂不调整/, 'elo-5-guest-neutral']]) {
         await open(c, name);
         await c.click('.hub-tile', '密钥加入');
         await c.click('.hub-dialog .join-row input');
@@ -143,13 +144,13 @@ describe('ELO (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public
         await c.page.waitForSelector('[data-testid="elo-panel"]', { hidden: true, timeout: 5000 });
         await c.page.waitForFunction(() => (window.__ELO_SENT__ || []).length > 0, { timeout: 8000 });
       }
-      assert.deepEqual((await sentElo(weak)).at(-1)['coop:ABYSS'], [2, 30]);
-      assert.deepEqual((await sentElo(fresh)).at(-1)['coop:ABYSS'], [2, 3]);
+      assert.deepEqual((await sentElo(weak)).at(-1)['coop:ABYSS'], [[1, 14], [1, 14], ...Array.from({ length: 28 }, () => [0, 9])]);
+      assert.deepEqual((await sentElo(fresh)).at(-1)['coop:ABYSS'], [[1, 14], [1, 14], [0, 9]]);
       const pop = await badge(weak);
       assert.match(pop, /特殊功能.*ELO/);
       assert.match(pop, /帮 · 3 级/);
       assert.doesNotMatch(pop, /压 · 4 级/);
-      await shot(weak, 'elo-6-guest-rule-list');
+      await shot(weak, 'elo-6-guest-rule-list', { hover: true });
       await weak.page.mouse.move(2, 2);
       await shot(fresh, 'elo-7-guest-room-notice-neutral');
       // 详情 opens the own panel again

@@ -20,7 +20,7 @@
 //                            ops?: { [charId]: { potential: 1–6, cultivate: 0–3 } } | null,
 //                            notOwned?: string[] | null,
 //                            diy?: { [slotBaseId]: { charId, skillIndex, uniEquipId } } | null,
-//                            elo?: [wins, games] | null,
+//                            elo?: [won, roundsPassed][] | null,
 //                            band?: bandId | null }>
 //                    sorted by seat, ordinary 1–4 entries; opt-in friend-room capacity up to 20. Solo stays one seat.
 //                    Bot playerIds start with 'ai_'. Seat indexes may have gaps (e.g. seats 0 and 2).
@@ -34,8 +34,8 @@
 //                    `diy` (0.2.0 自选编队, optional): the human's 自选 picks (shared/protocol.js checkDiyPicks) — fixed for
 //                    the match; the slotted operators join the human's own shop (PlayerState setDiy / initDiyStock).
 //                    `elo` (optional, human seats of an ELO room only; server/lobby.js header "ELO"): the player's own
-//                    [wins, games] of the room's mode and difficulty — its tilt for the match (tilt.js eloTilt); ignored
-//                    for bots and without the room's option.
+//                    recent matches of the room's mode and difficulty, newest first — its tilt for the match
+//                    (shared/elo.js eloTilt / eloSummary); ignored for bots and without the room's option.
 //                    `band` (optional, AI seats only; room.setBotBand): the strategy the host designated for the AI
 //                    seat — co-op only, and only a band the mode offers (gd.bandAllowed), one AI seat per band (the
 //                    lowest seat keeps a repeated one). The draft holds it for that seat until it picks: nobody else can
@@ -52,9 +52,9 @@
 //                                              bot layout rehearsal is delegated to (DESIGN §14, botRehearsalDelegate);
 //                                              setHost follows a migration while the match runs
 //   opts.seed        uint32                     master seed for all match randomness
-//   opts.eloSecret   uint32 (optional)          an ELO room's own secret (tools and tests; a crypto draw otherwise): the
-//                                              seed of every stream a tilt draws from (tilt.js eloSeed); ignored without
-//                                              the room's option
+//   opts.matchSecret string (optional)         an ELO room's private match secret (64 hex digits, secret.js; tools and
+//                                              tests — a fresh random one otherwise): the seed of every stream a tilt
+//                                              draws from (tilt.js eloSeed); ignored without the room's option
 //   opts.matchNo     integer ≥ 1 (optional)     the room's match number (lobby: room.matchCount + 1); with the seed it
 //                                              makes this match's battleIds unique within the room (DESIGN §14)
 //   opts.cs          string (optional)          the content hash of the room's content set (DESIGN §32,
@@ -297,8 +297,8 @@ import { DEFAULT_VERSION, versionById } from '../../shared/versions.js';
 import { Battle } from '../sim/Battle.js';
 import { DataSource } from '../sim/simdata.js';
 import { createRng, deriveSeed } from '../sim/rng.js';
-import { randomInt } from 'node:crypto';
 import { eloTilt, setTilt } from './tilt.js';
+import { isMatchSecret, newMatchSecret, secretSeed } from './secret.js';
 import { GameData } from './gamedata.js';
 import { RealScheduler } from './scheduler.js';
 import { SharedPool, createItemPools, drawDisabledBonds } from './pool.js';
@@ -580,12 +580,13 @@ export class Match {
     this.uniteHumansFirst = this.experimental.uniteHumansFirst === true;
     /**
      * ELO (shared/experimental.js isEloRoom, tilt.js): every human seat's own tilt from its seats[].elo, and the match's
-     * own secret — the seed of the shop's, the 机变 draft's and the meta grants' streams below and of every other draw a
-     * tilt reads (tilt.js eloSeed): the seed reaches every page, the secret never leaves the server (the checkpoint keeps
-     * it, snapshot.js). null without the option: every stream is the seed's.
+     * private secret (secret.js: 256 random bits, never derived from the seed) — through HMAC the seed of the shop's, the
+     * 机变 draft's and the meta grants' streams below and of every other draw a tilt reads (tilt.js eloSeed): the seed
+     * reaches every page, the secret never leaves the server (the checkpoint keeps it, snapshot.js). null without the
+     * option: every stream is the seed's.
      */
     this.elo = isEloRoom(this.experimental);
-    this.eloSecret = this.elo ? (Number.isInteger(opts.eloSecret) ? opts.eloSecret >>> 0 : randomInt(2 ** 32)) : null;
+    this.matchSecret = this.elo ? (isMatchSecret(opts.matchSecret) ? opts.matchSecret : newMatchSecret()) : null;
     /**
      * the room's enemy multipliers (1 = none): spec flags too, and the leader pool's size (bossRounds.js). enemyHpMul is the
      * single multiplier (1 under a by-round plan, experimental.enemyHpPlan): a round's own is enemyHpMulAt().
@@ -604,7 +605,7 @@ export class Match {
 
     const rng = (name) => createRng(deriveSeed(this.seed, name));
     // the streams an ELO tilt draws from: the match's own secret in an ELO room (above), the seed's otherwise
-    const own = (name) => (this.eloSecret != null ? createRng(deriveSeed(this.eloSecret, name)) : rng(name));
+    const own = (name) => (this.matchSecret != null ? createRng(secretSeed(this.matchSecret, name)) : rng(name));
     this.rngSetup = rng('setup');
     this.rngShop = own('shop');
     this.rngWaves = rng('waves');

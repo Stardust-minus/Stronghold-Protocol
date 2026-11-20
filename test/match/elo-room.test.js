@@ -1,14 +1,16 @@
-// Experimental ELO, step 2 (§37.275, server/match/tilt.js ELO_MAP): in a room with `experimental.elo` every human seat is
-// tilted by its own [wins, games] (seats[].elo), AI seats never; the streams a tilt draws from come from the match's own
-// secret (the seed reaches every page), which the checkpoint keeps; an AI teammate's rescue of a hindered human is a
-// draw of that secret. Without the option nothing of it exists: the same streams, no field, no secret.
+// Experimental ELO, step 2 (§37.275, shared/elo.js ELO_MAP / eloSummary): in a room with `experimental.elo` every human
+// seat is tilted by its own recent matches (seats[].elo, [won, roundsPassed]; a quick loss weighs little), AI seats never;
+// the streams a tilt draws from come from the match's private secret (server/match/secret.js: the seed reaches every page),
+// which the checkpoint keeps; an AI teammate's rescue of a hindered human is a draw of that secret. Without the option
+// nothing of it exists: the same streams, no field, no secret.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../../server/match/Match.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { makeMatch, DATA, give, chessOfTier, legalTileFor } from './harness.js';
 import { FakeBattle } from './fakeBattle.js';
-import { ELO_MAP, eloRate, eloTilt, eloTiltAt, eloSeed, eloWillRescue, setTilt, tiltOf, tiltFactor } from '../../server/match/tilt.js';
+import { ELO_MAP, eloSummary, eloTilt, eloTiltAt, eloSeed, eloWillRescue, setTilt, tiltOf, tiltFactor } from '../../server/match/tilt.js';
+import { isMatchSecret, secretSeed } from '../../server/match/secret.js';
 import { canSnapshot, snapshotMatch, restoreMatch, checkSnapshot } from '../../server/match/snapshot.js';
 import { createRng, createRngFromState, deriveSeed } from '../../server/sim/rng.js';
 import { EXPERIMENTAL_DEFAULTS } from '../../shared/experimental.js';
@@ -16,17 +18,32 @@ import { PHASE } from '../../shared/constants.js';
 
 const QUIET = { warn() {}, info() {}, error() {} };
 const ELO = Object.freeze({ ...EXPERIMENTAL_DEFAULTS, elo: true });
-const seatsOf = (pairs, bots = 0) => [
-  ...pairs.map((elo, seat) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected: true, ...(elo !== undefined ? { elo } : {}) })),
-  ...Array.from({ length: bots }, (_, i) => ({ seat: pairs.length + i, playerId: `ai_${i}`, name: `AI${i}`, isBot: true, connected: true, elo: [30, 30] })),
+/** `wins` wins and `losses` losses on the wire (newest first), each loss after `rounds` rounds (14: a full loss). */
+const ent = (wins, losses, rounds = 14) => [...Array.from({ length: wins }, () => [1, 14]), ...Array.from({ length: losses }, () => [0, rounds])];
+const S1 = 'ab'.repeat(32), S2 = '0f'.repeat(32);
+const seatsOf = (lists, bots = 0) => [
+  ...lists.map((elo, seat) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected: true, ...(elo !== undefined ? { elo } : {}) })),
+  ...Array.from({ length: bots }, (_, i) => ({ seat: lists.length + i, playerId: `ai_${i}`, name: `AI${i}`, isBot: true, connected: true, elo: ent(30, 0) })),
 ];
 
-test('ELO_MAP: fewer than 5 games or 50 % → no tilt; help to s = +1 by w 0.3 (M 8); hinder to −1 by w 0.9 (M 4), the floor from 0.8', () => {
+test('ELO_MAP: fewer than 5 weighted games or 50 % → no tilt; help to s = +1 by w 0.3 (M 8); hinder to −1 by w 0.9 (M 4), the floor from 0.8', () => {
   assert.equal(eloTilt(null), null);
-  assert.equal(eloTilt([4, 4]), null, 'fewer than minGames');
-  assert.equal(eloTilt([3, 2]), null, 'malformed');
-  assert.equal(eloTilt([15, 30]), null, 'exactly 50 %');
-  assert.equal(eloRate([0, 30]), 2 / 34);
+  assert.equal(eloTilt([]), null);
+  assert.equal(eloTilt(ent(4, 0)), null, 'fewer than minGames');
+  assert.equal(eloTilt(ent(15, 15)), null, 'exactly 50 %');
+  assert.equal(eloSummary(ent(0, 30)).w, 2 / 34);
+  // a quick loss weighs roundsPassed / 10 (the owner: five quick losses must not mean full help)
+  assert.equal(ELO_MAP.lossRounds, 10);
+  assert.deepEqual(eloSummary(ent(0, 5, 2)), { n: 5, wins: 0, losses: 5, games: 1, w: null, s: 0, tilt: null });
+  assert.equal(eloSummary(ent(0, 10, 5)).games, 5, 'ten losses after 5 rounds: 5 games');
+  assert.equal(eloSummary(ent(18, 12, 7)).games, 26.4);
+  assert.equal(eloSummary([...ent(1, 0), [0, 30]]).games, 2, 'a loss never weighs more than 1');
+  // the owner's shape: { victory, roundsPassed, mode, difficulty } entries, filtered by the room's mode and difficulty
+  const objs = [{ victory: true, roundsPassed: 14, mode: 'solo', difficulty: 'ABYSS' }, { victory: false, roundsPassed: 4, mode: 'solo', difficulty: 'ABYSS' },
+    { victory: false, roundsPassed: 14, mode: 'coop', difficulty: 'ABYSS' }];
+  assert.deepEqual(eloSummary(objs, { mode: 'solo', difficulty: 'ABYSS' }), { n: 2, wins: 1, losses: 1, games: 1.4, w: null, s: 0, tilt: null });
+  assert.equal(eloSummary(objs).n, 3);
+  assert.equal(eloSummary(ent(40, 0)).n, 30, 'the newest 30 only');
   assert.deepEqual(eloTiltAt(0.3), { s: 1, m: 8 });
   assert.deepEqual(eloTiltAt(0.1), { s: 1, m: 8 });
   assert.deepEqual(eloTiltAt(0.4), { s: 0.5, m: 8 });
@@ -39,7 +56,7 @@ test('ELO_MAP: fewer than 5 games or 50 % → no tilt; help to s = +1 by w 0.3 (
   // over a full window the strength never rises with a win, and a key card's weight never rises either
   let last = Infinity, lastKey = Infinity;
   for (let w = 0; w <= 30; w++) {
-    const o = eloTilt([w, 30]);
+    const o = eloTilt(ent(w, 30 - w));
     const s = o ? o.s : 0;
     assert.ok(s <= last, `s at ${w}/30`);
     const t = o ? { cut: 0.5, core: true, floor: null, ...o } : null;
@@ -47,8 +64,8 @@ test('ELO_MAP: fewer than 5 games or 50 % → no tilt; help to s = +1 by w 0.3 (
     assert.ok(key <= lastKey + 1e-12, `key-card weight at ${w}/30`);
     last = s; lastKey = key;
   }
-  assert.equal(tiltFactor({ cut: 0.5, core: true, ...eloTilt([30, 30]) }, 0.7), 0, 'w 0.94: a key card is never dealt');
-  assert.ok(tiltFactor({ cut: 0.5, core: true, ...eloTilt([30, 30]) }, 0.35) > 0, 'below the cut: M^(s·r)');
+  assert.equal(tiltFactor({ cut: 0.5, core: true, ...eloTilt(ent(30, 0)) }, 0.7), 0, 'w 0.94: a key card is never dealt');
+  assert.ok(tiltFactor({ cut: 0.5, core: true, ...eloTilt(ent(30, 0)) }, 0.35) > 0, 'below the cut: M^(s·r)');
 });
 
 test('setTilt keeps `mix` only with a floor; the floor share is mix (step 1: |s|)', () => {
@@ -63,33 +80,37 @@ test('setTilt keeps `mix` only with a floor; the floor share is mix (step 1: |s|
   h.m.dispose();
 });
 
-test('an ELO room tilts every human by its own pair and no AI; without the option nothing is set and the streams are the seed\'s', () => {
-  const on = makeMatch({ seats: seatsOf([[25, 30], [5, 30], [2, 3]], 1), seed: 11, experimental: ELO, eloSecret: 99, fake: true });
+test('an ELO room tilts every human by its own matches and no AI; without the option nothing is set and the streams are the seed\'s', () => {
+  const on = makeMatch({ seats: seatsOf([ent(25, 5), ent(5, 25), ent(2, 1)], 1), seed: 11, experimental: ELO, matchSecret: S1, fake: true });
   const p = (h, id) => h.m.players.get(id);
   assert.deepEqual(tiltOf(p(on, 'p_0')), { s: -0.735, m: 4, floor: null, cut: 0.5, tier: 0, core: true }, '25 of 30: w 0.794');
   assert.equal(tiltOf(p(on, 'p_1')).s, 1, '5 of 30: w 0.206');
   for (const id of ['p_2', 'ai_0']) assert.equal(Object.hasOwn(p(on, id), 'tilt'), false, id);
-  const none = makeMatch({ seats: seatsOf([null, undefined]), seed: 11, experimental: ELO, eloSecret: 99, fake: true });
-  for (const id of ['p_0', 'p_1']) assert.equal(Object.hasOwn(p(none, id), 'tilt'), false, `${id}: no pair`);
+  const none = makeMatch({ seats: seatsOf([null, undefined]), seed: 11, experimental: ELO, matchSecret: S1, fake: true });
+  for (const id of ['p_0', 'p_1']) assert.equal(Object.hasOwn(p(none, id), 'tilt'), false, `${id}: no matches`);
   none.m.dispose();
   assert.equal(on.m.elo, true);
-  assert.equal(on.m.eloSecret, 99);
-  const off = makeMatch({ seats: seatsOf([[25, 30], [5, 30]]), seed: 11, fake: true });
+  assert.equal(on.m.matchSecret, S1);
+  const off = makeMatch({ seats: seatsOf([ent(25, 5), ent(5, 25)]), seed: 11, fake: true });
   assert.equal(off.m.elo, false);
-  assert.equal(off.m.eloSecret, null);
+  assert.equal(off.m.matchSecret, null);
   for (const ps of off.m.players.values()) assert.equal(Object.hasOwn(ps, 'tilt'), false);
   // the tilted streams: the secret's in the ELO room, the seed's otherwise; the rest are the seed's in both
   for (const name of ['shop', 'draft', 'meta']) {
     const key = `rng${name[0].toUpperCase()}${name.slice(1)}`;
-    assert.equal(on.m[key].state(), createRng(deriveSeed(99, name)).state(), key);
+    assert.equal(on.m[key].state(), createRng(secretSeed(S1, name)).state(), key);
     assert.equal(off.m[key].state(), createRng(deriveSeed(11, name)).state(), key);
   }
   for (const key of ['rngSetup', 'rngWaves', 'rngBots']) assert.equal(on.m[key].state(), off.m[key].state(), key);
-  assert.equal(eloSeed(on.m, 'x'), deriveSeed(99, 'x'));
+  assert.equal(eloSeed(on.m, 'x'), secretSeed(S1, 'x'));
+  assert.notEqual(secretSeed(S1, 'x'), secretSeed(S2, 'x'));
   assert.equal(eloSeed(off.m, 'x'), deriveSeed(11, 'x'));
-  // a crypto secret without one given
+  // a fresh random secret without one given (never a function of the seed)
   const fresh = makeMatch({ mode: 'solo', seed: 11, experimental: ELO, fake: true });
-  assert.ok(Number.isInteger(fresh.m.eloSecret) && fresh.m.eloSecret >= 0 && fresh.m.eloSecret < 2 ** 32);
+  const fresh2 = makeMatch({ mode: 'solo', seed: 11, experimental: ELO, fake: true });
+  assert.ok(isMatchSecret(fresh.m.matchSecret));
+  assert.notEqual(fresh.m.matchSecret, fresh2.m.matchSecret);
+  fresh2.m.dispose();
   for (const h of [on, off, fresh]) h.m.dispose();
 });
 
@@ -98,43 +119,44 @@ test('a tilt by the test hook alone keeps the seed\'s streams; the ELO room\'s s
   setTilt(hook.m.players.get('p_0'), { s: 1 });
   assert.equal(hook.m.rngShop.state(), createRng(deriveSeed(21, 'shop')).state());
   assert.equal(eloSeed(hook.m, 'tilt-sp:3'), deriveSeed(21, 'tilt-sp:3'));
-  const room = makeMatch({ mode: 'solo', seats: seatsOf([[0, 30]]), seed: 21, experimental: ELO, eloSecret: 5, fake: true });
-  assert.equal(eloSeed(room.m, 'tilt-sp:3'), deriveSeed(5, 'tilt-sp:3'));
+  const room = makeMatch({ mode: 'solo', seats: seatsOf([ent(0, 30)]), seed: 21, experimental: ELO, matchSecret: S2, fake: true });
+  assert.equal(eloSeed(room.m, 'tilt-sp:3'), secretSeed(S2, 'tilt-sp:3'));
   for (const h of [hook, room]) h.m.dispose();
 });
 
 test('checkpoint: an ELO match keeps its secret (and every tilt); a document without it is refused; any other keeps its shape', () => {
-  const h = makeMatch({ seats: seatsOf([[28, 30], [3, 30]], 2), seed: 31, experimental: ELO, eloSecret: 1234, fake: true }).start();
+  const h = makeMatch({ seats: seatsOf([ent(28, 2), ent(3, 27)], 2), seed: 31, experimental: ELO, matchSecret: S1, fake: true }).start();
   h.drive(() => h.m.phase === PHASE.PREP && h.m.round === 2 && canSnapshot(h.m));
   const doc = JSON.parse(JSON.stringify(snapshotMatch(h.m)));
-  assert.equal(doc.eloSecret, 1234);
+  assert.equal(doc.matchSecret, S1);
   assert.equal(doc.experimental.elo, true);
-  assert.ok(doc.seats.every((s) => !Object.hasOwn(s, 'elo')), 'the seats carry no pair: the tilt travels itself');
-  // a fresh instance of the platform's (its own random secret, its seats without pairs) takes the saved ones
+  assert.ok(doc.seats.every((s) => !Object.hasOwn(s, 'elo')), 'the seats carry no matches: the tilt travels itself');
+  // a fresh instance of the platform's (its own random secret, its seats without matches) takes the saved ones
   const r = makeMatch({ seats: doc.seats, seed: doc.seed, offlineHoldMs: 0, experimental: doc.experimental });
-  assert.notEqual(r.m.eloSecret, null);
+  assert.ok(isMatchSecret(r.m.matchSecret));
   assert.equal(restoreMatch(r.m, doc, { createRngFromState, log: QUIET }), true);
-  assert.equal(r.m.eloSecret, 1234);
+  assert.equal(r.m.matchSecret, S1);
   for (const id of ['p_0', 'p_1', 'ai_0', 'ai_1']) assert.deepEqual(r.m.players.get(id).tilt, h.m.players.get(id).tilt, id);
   for (const key of ['rngShop', 'rngDraft', 'rngMeta']) assert.equal(r.m[key].state(), h.m[key].state(), key);
-  const { eloSecret, ...without } = doc;
-  void eloSecret;
+  const { matchSecret, ...without } = doc;
+  void matchSecret;
   const r2 = makeMatch({ seats: doc.seats, seed: doc.seed, offlineHoldMs: 0, experimental: doc.experimental });
-  assert.equal(checkSnapshot(r2.m, without), 'elo');
+  assert.equal(checkSnapshot(r2.m, without), 'secret');
+  assert.equal(checkSnapshot(r2.m, { ...doc, matchSecret: 1234 }), 'secret', 'a malformed secret');
   assert.equal(restoreMatch(r2.m, without, { createRngFromState, log: QUIET }), false);
   // without the option: no secret in the document, and one with a stray secret restores as before (it is not read)
   const o = makeMatch({ humans: 2, bots: 2, seed: 31, fake: true }).start();
   o.drive(() => o.m.phase === PHASE.PREP && o.m.round === 2 && canSnapshot(o.m));
   const plain = JSON.parse(JSON.stringify(snapshotMatch(o.m)));
-  assert.equal(Object.hasOwn(plain, 'eloSecret'), false);
+  assert.equal(Object.hasOwn(plain, 'matchSecret'), false);
   const r3 = makeMatch({ seats: plain.seats, seed: plain.seed, offlineHoldMs: 0, experimental: plain.experimental });
-  assert.equal(restoreMatch(r3.m, { ...plain, eloSecret: 7 }, { createRngFromState, log: QUIET }), true);
-  assert.equal(r3.m.eloSecret, null);
+  assert.equal(restoreMatch(r3.m, { ...plain, matchSecret: S2 }, { createRngFromState, log: QUIET }), true);
+  assert.equal(r3.m.matchSecret, null);
   for (const x of [h, r, r2, o, r3]) x.m.dispose();
 });
 
 test('eloWillRescue: always outside an ELO room, for an untilted or helped target; a hindered one with chance 1 + s, a pure draw', () => {
-  const h = makeMatch({ seats: seatsOf([[30, 30], [0, 30], [22, 30], null]), seed: 41, experimental: ELO, eloSecret: 77, fake: true });
+  const h = makeMatch({ seats: seatsOf([ent(30, 0), ent(0, 30), ent(22, 8), null]), seed: 41, experimental: ELO, matchSecret: S2, fake: true });
   const m = h.m, ps = (id) => m.players.get(id);
   const states = () => ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta'].map((k) => m[k].state());
   const before = states();
@@ -148,7 +170,7 @@ test('eloWillRescue: always outside an ELO room, for an untilted or helped targe
     m.round = r;
     const a = eloWillRescue(m, ps('p_2'));
     assert.equal(eloWillRescue(m, ps('p_2')), a);
-    assert.equal(a, createRng(deriveSeed(77, `rescue:${r}:2`))() < 1 + t.s);
+    assert.equal(a, createRng(secretSeed(S2, `rescue:${r}:2`))() < 1 + t.s);
     if (a) yes++;
   }
   assert.ok(Math.abs(yes / 400 - (1 + t.s)) < 0.1, `${yes} of 400`);
@@ -161,15 +183,15 @@ test('eloWillRescue: always outside an ELO room, for an untilted or helped targe
 });
 
 /** 队友复活 with AI teammates (test/match/revival.test.js scenario): p_0 at LP 1 leaks and dies as the round settles. */
-function rescueScenario(t, pair) {
+function rescueScenario(t, list) {
   const sched = new VirtualScheduler();
   FakeBattle.reset();
   FakeBattle.script = (b) => (b.kind === 'normal' ? { leaks: { p_0: 1 }, coins: {} } : { survivors: { p_0: 1 }, coins: {} });
-  const seats = [{ seat: 0, playerId: 'p_0', name: 'Target', connected: true, isBot: false, elo: pair },
+  const seats = [{ seat: 0, playerId: 'p_0', name: 'Target', connected: true, isBot: false, elo: list },
     { seat: 1, playerId: 'p_1', name: 'AI1', isBot: true }, { seat: 2, playerId: 'p_2', name: 'AI2', isBot: true }];
   const m = new Match({
     roomCode: 'ELO', mode: 'coop', difficulty: 'NORMAL', data: DATA, seats, seed: 4501, matchNo: 1,
-    experimental: { ...ELO, revivalEnabled: true }, eloSecret: 5, scheduler: sched, BattleClass: FakeBattle, clientCombat: false, botRehearsal: 0,
+    experimental: { ...ELO, revivalEnabled: true }, matchSecret: S1, scheduler: sched, BattleClass: FakeBattle, clientCombat: false, botRehearsal: 0,
     afkRemoveRounds: 0, send: () => true, broadcast: () => {}, onEnd: () => {},
   });
   t.after(() => m.dispose());
@@ -185,11 +207,11 @@ function rescueScenario(t, pair) {
 }
 
 test('in an ELO room the AI teammates rescue a helped human at once and never one at s = −1', (t) => {
-  const helped = rescueScenario(t, [0, 30]);
+  const helped = rescueScenario(t, ent(0, 30));
   assert.equal(helped.target.alive, true);
   assert.equal(helped.target.revived, true);
   assert.equal(helped.target.lp, 1);
-  const hindered = rescueScenario(t, [30, 30]);
+  const hindered = rescueScenario(t, ent(30, 0));
   assert.equal(tiltOf(hindered.target).s, -1);
   assert.equal(hindered.target.alive, false);
   assert.equal(hindered.target.revived, false);

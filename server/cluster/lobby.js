@@ -8,7 +8,7 @@ import { rebindSession, remoteAiTakeover, welcomeAgain } from '../aiTakeover.js'
 import { ERR, MAX_SEATS, MAX_SPECTATORS, MATCHMAKING_VERSION, modeIdFor } from '../../shared/constants.js';
 import { experimentalOptions, isCollabRoom, isConsoleRoom, isEloRoom, isExperimental, sameExperimental } from '../../shared/experimental.js';
 import { MAX_PLAYER_CAPACITY, roomCapacity } from '../../shared/playerCapacity.js';
-import { eloPairOf } from '../../shared/elo.js';
+import { eloEntriesOf } from '../../shared/elo.js';
 import { DEFAULT_VERSION } from '../../shared/versions.js';
 
 const OK = Object.freeze({ ok: true });
@@ -56,8 +56,8 @@ function matchDTO(room, seed, snapshotHz) {
       isBot: s.isBot, connected: s.connected, loadout: structuredClone(s.isBot ? null : s.loadout || null),
       ops: structuredClone(s.isBot ? null : s.ops || null),
       notOwned: structuredClone(s.isBot ? null : s.notOwned || null), diy: structuredClone(s.isBot ? null : s.diy || null),
-      // ELO (Lobby header "ELO"): a human's own pair of the room's mode and difficulty, only in a room with the option
-      ...(!s.isBot && isEloRoom(room.experimental) ? { elo: eloPairOf(s.elo, room.mode, room.difficulty) } : {}),
+      // ELO (Lobby header "ELO"): a human's own matches of the room's mode and difficulty, only in a room with the option
+      ...(!s.isBot && isEloRoom(room.experimental) ? { elo: eloEntriesOf(s.elo, room.mode, room.difficulty) } : {}),
       skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }), ...(s.isBot && s.band ? { band: s.band } : {}) })),
     spectators, ...(snapshotHz === undefined ? {} : { snapshotHz }), ...takenOverField(room.seats.filter(Boolean), spectators),
     // another official version (ClusterLobby header: placed on a game node, run in that node's version host)

@@ -93,8 +93,8 @@ export function makeMatch(o = {}) {
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',
     experimental: o.experimental,
-    // an ELO room's own secret (Match opts.eloSecret; a crypto draw without it)
-    eloSecret: o.eloSecret,
+    // an ELO room's private match secret (Match opts.matchSecret; a random one without it)
+    matchSecret: o.matchSecret,
     headlessSliceMs: o.headlessSliceMs,
     aiPicksLast: o.aiPicksLast,
     // the AFK rule (Match opts.afkRemoveRounds) is off unless a test asks for it: the suites' scripted humans only

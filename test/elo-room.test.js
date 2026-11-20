@@ -1,14 +1,14 @@
 // Experimental ELO, step 2 (§37.275): `experimental.elo` is an optional strict flag of a private room — never at
-// room.create, never matchmade or queued —, room.elo { rec } carries a player's own [wins, games] per mode and difficulty,
-// stored on the session and the seat and never shown, and a match of such a room gets each human's pair of the room's
-// mode and difficulty (seats[].elo) — in process and on a game node — while every other room's match options are as
-// before. No listeners.
+// room.create, never matchmade or queued —, room.elo { rec } carries a player's own recent matches per mode and
+// difficulty ([won, roundsPassed] newest first), stored on the session and the seat and never shown, and a match of such a
+// room gets each human's list of the room's mode and difficulty (seats[].elo) — in process and on a game node — while
+// every other room's match options are as before. No listeners.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EXPERIMENTAL_DEFAULTS, EXPERIMENTAL_GROUPS, QUEUE_OPTION_KEYS, experimentalKey, experimentalOptions, isEloRoom, isExperimental,
   queueOptions, sameExperimental } from '../shared/experimental.js';
 import { validateC2S } from '../shared/protocol.js';
-import { ELO_LIMITS, eloPairOf, isEloRecords } from '../shared/elo.js';
+import { ELO_LIMITS, eloEntriesOf, isEloRecords } from '../shared/elo.js';
 import { autoPoolPlan } from '../shared/poolPlan.js';
 import { Lobby } from '../server/lobby.js';
 import { HEAVY_TYPES, SessionRegistry } from '../server/net.js';
@@ -41,21 +41,22 @@ test('experimental.elo is an optional strict flag of the 特殊功能 group with
   assert.equal(experimentalOptions(all).elo, true);
 });
 
-test('room.elo: per mode:difficulty [wins, games], 0 ≤ wins ≤ games ≤ 30; the pair of a room', () => {
+test('room.elo: per mode:difficulty at most 30 matches [won, roundsPassed]; the list of a room', () => {
   assert.equal(ELO_LIMITS.last, 30);
   assert.equal(validateC2S({ t: 'room.elo', rec: {} }), null);
-  assert.equal(validateC2S({ t: 'room.elo', rec: { 'solo:ABYSS': [3, 10], 'coop:HARD': [30, 30] } }), null);
-  for (const rec of [null, [], { 'solo:ABYSS': [11, 10] }, { 'solo:ABYSS': [1, 31] }, { 'solo:ABYSS': [1.5, 3] }, { 'solo:ABYSS': [1, 3, 4] },
-    { 'solo:TRAINING': [1, 3] }, { 'duo:ABYSS': [1, 3] }, { 'solo:ABYSS': ['1', 3] }]) {
+  const thirty = Array.from({ length: 30 }, (_, i) => [i % 2, 14]);
+  assert.equal(validateC2S({ t: 'room.elo', rec: { 'solo:ABYSS': [[1, 14], [0, 3]], 'coop:HARD': thirty, 'coop:FUNNY': [] } }), null);
+  for (const rec of [null, [], { 'solo:ABYSS': [[2, 14]] }, { 'solo:ABYSS': [[1, 31]] }, { 'solo:ABYSS': [[1, 1.5]] }, { 'solo:ABYSS': [[1, 3, 4]] },
+    { 'solo:ABYSS': [...thirty, [1, 14]] }, { 'solo:TRAINING': [[1, 3]] }, { 'duo:ABYSS': [[1, 3]] }, { 'solo:ABYSS': [['1', 3]] }, { 'solo:ABYSS': [true, 3] }]) {
     assert.notEqual(validateC2S({ t: 'room.elo', rec }), null, JSON.stringify(rec));
     assert.equal(isEloRecords(rec), false);
   }
   assert.ok(HEAVY_TYPES.has('room.elo'));
-  const rec = { 'solo:ABYSS': [3, 10], 'coop:HARD': [30, 30] };
-  assert.deepEqual(eloPairOf(rec, 'solo', 'ABYSS'), [3, 10]);
-  assert.ok(Object.isFrozen(eloPairOf(rec, 'solo', 'ABYSS')));
-  assert.equal(eloPairOf(rec, 'coop', 'ABYSS'), null);
-  assert.equal(eloPairOf(null, 'solo', 'ABYSS'), null);
+  const rec = { 'solo:ABYSS': [[1, 14], [0, 3]], 'coop:HARD': thirty };
+  assert.deepEqual(eloEntriesOf(rec, 'solo', 'ABYSS'), [[1, 14], [0, 3]]);
+  assert.ok(Object.isFrozen(eloEntriesOf(rec, 'solo', 'ABYSS')) && Object.isFrozen(eloEntriesOf(rec, 'solo', 'ABYSS')[0]));
+  assert.equal(eloEntriesOf(rec, 'coop', 'ABYSS'), null);
+  assert.equal(eloEntriesOf(null, 'solo', 'ABYSS'), null);
 });
 
 function openLobby(t, extra = {}) {
@@ -90,12 +91,13 @@ test('ELO is a private room setting: never at create, never in a matchmade room,
   ok(lobby.setExperimental(solo, { experimental: ELO }));
 });
 
-test('room.elo is kept on the session and the seat, never in room.state; a match of an ELO room gets each human\'s pair', (t) => {
+test('room.elo is kept on the session and the seat, never in room.state; a match of an ELO room gets each human\'s list', (t) => {
   const seen = [];
   class Rec { constructor(opts) { seen.push(opts); } start() {} dispose() {} handle() { return { ok: true }; } }
   const { lobby, player } = openLobby(t, { MatchClass: Rec });
   const host = player('host');
-  const rec = { 'coop:NORMAL': [20, 30], 'solo:ABYSS': [1, 6] };
+  const mine = [[1, 14], [1, 14], [0, 9], [1, 14], [0, 4]];
+  const rec = { 'coop:NORMAL': mine, 'solo:ABYSS': [[0, 2]] };
   ok(lobby.onMessage(host, { t: 'room.elo', rec }));
   assert.deepEqual(host.elo, rec);
   ok(lobby.create(host, { mode: 'coop', difficulty: 'NORMAL' }));
@@ -109,32 +111,33 @@ test('room.elo is kept on the session and the seat, never in room.state; a match
   assert.equal(host.elo, stored, 'the same counts keep the stored object');
   const state = JSON.stringify(room.toState());
   assert.ok(!state.includes('"elo"') || !/"elo":\[|"elo":\{/.test(state), 'room.state carries no counts');
-  assert.ok(!state.includes('20,30'));
+  assert.ok(!state.includes('[1,14]'));
   // off: no seat of the match carries a pair
   ok(lobby.startMatch(room));
-  assert.ok(seen.at(-1).seats.every((s) => !Object.hasOwn(s, 'elo')));
+  assert.ok(seen.at(-1).seats.every((s) => !Object.hasOwn(s, 'elo')), 'off: no seat carries matches');
   room.match = null;
   ok(lobby.setExperimental(host, { experimental: ELO }));
   ok(lobby.startMatch(room));
   const seats = seen.at(-1).seats;
-  assert.deepEqual(seats.find((s) => s.playerId === host.playerId).elo, [20, 30]);
+  assert.deepEqual(seats.find((s) => s.playerId === host.playerId).elo, mine, 'the room\'s mode and difficulty only');
   assert.equal(seats.find((s) => s.playerId === friend.playerId).elo, null, 'a human without counts: null');
   assert.ok(seats.filter((s) => s.isBot).every((s) => !Object.hasOwn(s, 'elo')), 'an AI seat never has one');
   // during the match a new one is kept for the next match
-  assert.equal(lobby.onMessage(host, { t: 'room.elo', rec: { 'coop:NORMAL': [21, 30] } }).error, 'ROOM_STARTED');
-  assert.deepEqual(room.seatOf(host.playerId).elo, { 'coop:NORMAL': [21, 30] });
+  assert.equal(lobby.onMessage(host, { t: 'room.elo', rec: { 'coop:NORMAL': [[1, 14], ...mine] } }).error, 'ROOM_STARTED');
+  assert.deepEqual(room.seatOf(host.playerId).elo, { 'coop:NORMAL': [[1, 14], ...mine] });
 });
 
-test('a game node takes a human seat\'s pair only in an ELO room, never an AI seat\'s', () => {
+test('a game node takes a human seat\'s matches only in an ELO room, never an AI seat\'s', () => {
   const seat = (n, id, extra = {}) => ({ seat: n, playerId: id, name: id, isBot: id.startsWith('ai_'), connected: true, ...extra });
   const spec = (experimental, seats) => copyAssignmentSpec({ assignmentId: 'elo-a', roomCode: 'ABCD', build: 'b', protocol: 1, seed: 7, matchNo: 1,
     mode: 'coop', difficulty: 'NORMAL', modeId: 'mode_multi_normal', seats, spectators: [], experimental });
-  const s = spec(ELO, [seat(0, 'p1', { elo: [3, 10] }), seat(1, 'p2', { elo: null }), seat(2, 'ai_1')]);
+  const s = spec(ELO, [seat(0, 'p1', { elo: [[1, 14], [0, 3]] }), seat(1, 'p2', { elo: null }), seat(2, 'ai_1')]);
   assert.equal(s.experimental.elo, true);
-  assert.deepEqual(s.seats[0].elo, [3, 10]);
+  assert.deepEqual(s.seats[0].elo, [[1, 14], [0, 3]]);
   assert.equal(s.seats[1].elo, null);
   assert.equal(Object.hasOwn(s.seats[2], 'elo'), false);
-  assert.throws(() => spec(ELO, [seat(0, 'p1'), seat(1, 'ai_1', { elo: [3, 10] })]), 'an AI seat');
-  assert.throws(() => spec(EXPERIMENTAL_DEFAULTS, [seat(0, 'p1', { elo: [3, 10] })]), 'without the option');
-  assert.throws(() => spec(ELO, [seat(0, 'p1', { elo: [11, 10] })]), 'a bad pair');
+  assert.throws(() => spec(ELO, [seat(0, 'p1'), seat(1, 'ai_1', { elo: [[1, 14]] })]), 'an AI seat');
+  assert.throws(() => spec(EXPERIMENTAL_DEFAULTS, [seat(0, 'p1', { elo: [[1, 14]] })]), 'without the option');
+  assert.throws(() => spec(ELO, [seat(0, 'p1', { elo: [[2, 14]] })]), 'a bad entry');
+  assert.throws(() => spec(ELO, [seat(0, 'p1', { elo: Array.from({ length: 31 }, () => [1, 14]) })]), 'too many');
 });

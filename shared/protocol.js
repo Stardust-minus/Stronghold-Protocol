@@ -393,12 +393,13 @@ export function checkSkinSelection(skins, hasOperator) {
 }
 
 // ---- ELO (docs/history/0.4.0.md §37.275): room.elo { rec } -------------------------------------------------------
-// `room.elo { rec }`: the player's own recent results as its page counts them from its local records
-// (public/js/ui/eloRecords.js) — per `<mode>:<difficulty>` `[wins, games]` over the newest ELO_LIMITS.last records of that
-// mode and difficulty that count (shared/elo.js isEloRecords). Sent only while the page is in a room with the ELO option
-// (shared/experimental.js isEloRoom); the server keeps it on the session and the seat, passes the pair of the room's mode
-// and difficulty to a match of such a room (shared/elo.js eloPairOf → eloTilt) and never shows it to anybody. A page may
-// of course send anything: the option is for fun.
+// `room.elo { rec }`: the player's own recent matches as its page takes them from its local records
+// (public/js/ui/eloRecords.js) — per `<mode>:<difficulty>` the newest ELO_LIMITS.last that count, `[won, roundsPassed]`
+// newest first (shared/elo.js isEloRecords). Sent only while the page is in a room with the ELO option
+// (shared/experimental.js isEloRoom); the server keeps it on the session and the seat, passes the list of the room's mode
+// and difficulty to a match of such a room (shared/elo.js eloEntriesOf → eloSummary, the panel's own computation) and
+// never shows it to anybody. A page may of course send anything: ELO does not ship before server-signed match receipts
+// replace this list (a later step).
 
 // ---- operator ownership (干员持有, 0.2.0 补位): room.ownership { notOwned } -------------------------------------------
 
@@ -717,8 +718,8 @@ export const C2S = {
   // 自选编队 (0.2.0 DIY): the player's DIY slot picks; stored per session / seat like room.ownership (a match takes the
   // picks its seat had when it started; during a match they are stored for the next one: ROOM_STARTED)
   'room.diy': { picks: isDiyPicks },
-  // ELO (§37.275, ELO_LIMITS above): the player's own recent results per mode and difficulty; stored per session / seat
-  // like room.ownership (a match of an ELO room takes its seat's pair when it starts; during a match: ROOM_STARTED)
+  // ELO (§37.275, above): the player's own recent matches per mode and difficulty; stored per session / seat like
+  // room.ownership (a match of an ELO room takes its seat's list when it starts; during a match: ROOM_STARTED)
   'room.elo': { rec: isEloRecords },
   // Independent display-only choices: actual charId → admitted manifest key; accepted in INFO_CHECK only.
   'room.skins': { choices: isSkinChoices },

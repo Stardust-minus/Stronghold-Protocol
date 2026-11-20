@@ -10,22 +10,25 @@ import { useMemo } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, alertDialog } from './components.js';
 import { t } from '../../../shared/i18n.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
-import { ELO_LEVELS, ELO_MAP, eloImpact, eloPairOf } from '../../../shared/elo.js';
+import { ELO_LEVELS, ELO_MAP, eloEntriesOf, eloImpact, eloSummary } from '../../../shared/elo.js';
 import { eloRecords } from './eloRecords.js';
 import { peekStatsRecords } from './stats.js';
 
 const pct = (v) => Math.round(v * 100);
+/** A weighted count: one decimal, none when whole (26.4 / 30). */
+const num1 = (v) => String(Math.round(v * 10) / 10);
 const scopeOf = (mode, difficulty) => {
   const d = { difficulty: DIFFICULTY_NAMES[difficulty] ? t(DIFFICULTY_NAMES[difficulty]) : String(difficulty ?? '') };
   return mode === 'solo' ? t('独立·{difficulty}', d) : t('同盟·{difficulty}', d);
 };
 
 /**
- * This browser's own ELO numbers for a room of `mode` and `difficulty` (eloImpact of its own pair), with the scope.
+ * This browser's own ELO numbers for a room of `mode` and `difficulty` — eloSummary of the very list room.elo sends and
+ * the server reads (eloImpact) —, with the scope.
  * @param {string} mode @param {string} difficulty @param {() => any[]} [records]
  */
 export function eloMine(mode, difficulty, records = peekStatsRecords) {
-  const impact = eloImpact(eloPairOf(eloRecords(records()), mode, difficulty));
+  const impact = eloImpact(eloSummary(eloEntriesOf(eloRecords(records()), mode, difficulty)));
   return { ...impact, scope: scopeOf(mode, difficulty), mode, difficulty };
 }
 
@@ -49,7 +52,7 @@ export function eloEffectText(x) {
 }
 
 /** The line of the rule list (ExperimentalDetails): 你 · 胜率 60% · 压 · 2 级 / 你 · 记录不足. @param {ReturnType<typeof eloMine>} x */
-export const eloBrief = (x) => (x.key === 'few' ? t('你：记录不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })
+export const eloBrief = (x) => (x.key === 'few' ? t('你：折算后不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })
   : t('你：近期胜率 {rate}% · {level}', { rate: pct(x.raw), level: eloLevelText(x) }));
 
 /**
@@ -62,10 +65,11 @@ export function EloPanel({ mode, difficulty, revival = false, mine = null }) {
   const m = ELO_LEVELS.measured;
   return html`<div class=${`elo-panel elo-panel--${x.dir}`} data-testid="elo-panel" data-dir=${x.dir} data-level=${x.level}>
     <p class="elo-panel__fun"><${Icon} name="info" /><strong>${t('此功能仅为娱乐')}</strong></p>
-    <p class="elo-panel__rate" data-testid="elo-rate">${x.games
-      ? t('最近 {n} 局{scope}：{wins} 胜 {losses} 负，胜率 {rate}%', { n: x.games, scope: x.scope, wins: x.wins, losses: x.games - x.wins, rate: pct(x.raw) })
+    <p class="elo-panel__rate" data-testid="elo-rate">${x.n
+      ? t('最近 {n} 局{scope}：{wins} 胜 {losses} 负，胜率 {rate}%', { n: x.n, scope: x.scope, wins: x.wins, losses: x.losses, rate: pct(x.raw) })
       : t('本机还没有{scope}的对局记录', { scope: x.scope })}</p>
-    ${x.key === 'few' ? html`<p class="elo-panel__few" data-testid="elo-few">${t('记录不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })}</p>`
+    ${x.n ? html`<p class="elo-panel__shrunk" data-testid="elo-weighted">${t('早期失利按通过的回合折算（通过 {r} 回合算 1 局），按 {games} 局计', { r: ELO_MAP.lossRounds, games: num1(x.games) })}</p>` : null}
+    ${x.key === 'few' ? html`<p class="elo-panel__few" data-testid="elo-few">${t('折算后不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })}</p>`
       : html`<p class="elo-panel__shrunk">${t('按 +{k} 胜 +{k} 负向 50% 折算：{rate}%', { k: ELO_MAP.prior, rate: pct(x.w) })}</p>`}
     <p class="elo-panel__dir" data-testid="elo-level"><span>${t('预计影响')}</span><b>${eloLevelText(x)}</b></p>
     <p class="elo-panel__what">${eloEffectText(x)}</p>

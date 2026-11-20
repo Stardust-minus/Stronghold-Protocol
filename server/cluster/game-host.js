@@ -8,7 +8,7 @@
 import { Match, AFK_REMOVE_ROUNDS } from '../match/Match.js';
 import { parseOfflineHoldMinutes } from '../match/match/common.js';
 import { C2S, LOADOUT_LIMITS, OWNERSHIP_LIMITS, DIY_LIMITS, isNotOwnedList, isDiyPicks } from '../../shared/protocol.js';
-import { isEloPair } from '../../shared/elo.js';
+import { ELO_LIMITS, isEloEntries } from '../../shared/elo.js';
 import { experimentalOptions, isExperimental } from '../../shared/experimental.js';
 import { SKIN_LIMITS, isSkinChoices } from '../../shared/skins.js';
 import { DIFFICULTIES, ERR, NAME_MAX_LEN, modeIdFor } from '../../shared/constants.js';
@@ -177,10 +177,11 @@ export function copyAssignmentSpec(input, fallbackAssignmentId) {
       if (!isSkinChoices(skins)) invalid();
       seat.skins = skins;
     }
-    // ELO (server/lobby.js header): a human seat's own [wins, games], only in a room with the option (null: none)
+    // ELO (server/lobby.js header): a human seat's own recent matches, [won, roundsPassed] newest first, only in a room
+    // with the option (null: none)
     if (s.elo !== undefined) {
-      const elo = s.elo === null ? null : dataArray(s.elo, 2);
-      if (s.isBot || !experimental.elo || (elo !== null && !isEloPair(elo))) invalid();
+      const elo = s.elo === null ? null : dataArray(s.elo, ELO_LIMITS.last).map((e) => dataArray(e, 2));
+      if (s.isBot || !experimental.elo || (elo !== null && !isEloEntries(elo))) invalid();
       seat.elo = elo;
     }
     // room.setBotBand: an AI seat's designated strategy, one AI seat per strategy (the Match checks it against its mode)

@@ -31,9 +31,9 @@
 //               cards with relevance >= C, default none / 0.5), --tilt-tier X (tier lever share, <= 0.25, default 0),
 //               --tilt-core off (the tier lever alone)
 //   --split     卡池静态初始化 (the room's experimental staticPoolSplit)
-//   --elo W     the ELO room option (§37.275): on, its secret derived from the run's seed, and the seats of --tilt-seats
-//               (default every seat; AI seats stand in for humans) tilted as a player of shrunk win rate W in [0, 1]
-//               (server/match/tilt.js eloTiltAt, ELO_MAP); replaces --tilt
+//   --elo W     the ELO room option (§37.275): on, its private secret fixed per run seed (reproducible), and the seats
+//               of --tilt-seats (default every seat; AI seats stand in for humans) tilted as a player of shrunk win
+//               rate W in [0, 1] (shared/elo.js eloTiltAt, ELO_MAP); replaces --tilt
 //   --tuning off     play on the research-faithful numbers (data/tuning.json ignored; docs/BALANCE.md)
 //   --legacy-time    read combat limits as game seconds (the reading before docs/BALANCE.md §2.1)
 // Examples:
@@ -49,7 +49,7 @@ import { Battle } from '../server/sim/Battle.js';
 import { getData } from '../server/data.js';
 import { layerGainRoom } from '../shared/constants.js';
 import { eloTiltAt, setTilt } from '../server/match/tilt.js';
-import { deriveSeed } from '../server/sim/rng.js';
+import { createHash } from 'node:crypto';
 
 const argv = process.argv.slice(2);
 const opt = {};
@@ -142,7 +142,7 @@ async function runOne(seed, difficulty) {
     send: () => { frames++; return true; }, broadcast: () => {}, onEnd: (s) => { summary = s; },
     ...(opt.split || elo != null ? { experimental: { revivalEnabled: false, disableSharedPool: false, ...(opt.split ? { staticPoolSplit: true } : {}),
       ...(elo != null ? { elo: true } : {}) } } : {}),
-    ...(elo != null ? { eloSecret: deriveSeed(seed, 'elo-run') } : {}),
+    ...(elo != null ? { matchSecret: createHash('sha256').update(`elo-run:${seed}`).digest('hex') } : {}),
   });
   for (const ps of m.players.values()) if (!ps.isBot) ps.autoplay = true;
   const seatTilt = elo != null ? eloTiltAt(elo) : tilt;
