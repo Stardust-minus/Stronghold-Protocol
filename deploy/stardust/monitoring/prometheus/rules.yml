@@ -61,8 +61,8 @@ groups:
         expr: sum by (event) (rate(sp_netq_lane_events_total{job="collector"}[1h]))
 
   # Per province (GB/T 2260 code) × ISP over the last 24 h: a province has a few players a day, rarely 3 pages in the same
-  # hour. The board hides a province / cell under 3 page-hours (online_seconds:rate24h × 24 < 3). A 24 h window does not
-  # need the 15 s evaluation: once a minute (well inside the 5 min lookback).
+  # hour. The board shows every province / cell with a report in that window (no floor). A 24 h window does not need the
+  # 15 s evaluation: once a minute (well inside the 5 min lookback).
   - name: sp_netq_province
     interval: 1m
     rules:

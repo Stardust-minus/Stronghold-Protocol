@@ -142,9 +142,9 @@ recording rules（`prometheus/rules.yml`，面板只读这些和少量 gauge，�
   网卡名变了不用改配置。
 - 第二个面板 `grafana/dashboards/stronghold-netq.json`（uid `sp-netq`，「卫戍协议 · 网络质量」）也公开，入口是
   `/monitor/net`。内容是玩家每分钟上报的网络质量（按运营商、省份、设备、连接数，docs/LATENCY.md「Network quality
-  reports」）和入口 TCP 重传率。按省份的数据是过去 24 小时（规则 `sp:netq_province_*:rate24h`，每分钟算一次），上报
-  合计不到 3 页面·小时（3 个页面各在线 1 小时，或 1 个页面在线 3 小时）的省份 / 运营商不显示；查不到省份的页面（多为
-  IPv6）显示为「未定位」。按运营商和省份分需要协调器设 `SP_ISP_FILE`（docs/DEPLOY.md「多连接」）。
+  reports」）和入口 TCP 重传率。按省份的数据是过去 24 小时（规则 `sp:netq_province_*:rate24h`，每分钟算一次），不设
+  门槛，有上报的省份 / 运营商就显示，人少时可能只对应个别玩家；查不到省份的页面（多为 IPv6）显示为「未定位」。
+  按运营商和省份分需要协调器设 `SP_ISP_FILE`（docs/DEPLOY.md「多连接」）。
   发布：同样运行 `publish-dashboard.mjs`，加 `DASHBOARD_UID=sp-netq`，把输出的
   `public_path` 写成站点目录下的 `monitor-net-entry.conf`（`return 302 <public_path>;`，与 `monitor-entry.conf` 同格式），
   再重载 Nginx——这个文件不存在时 `nginx -t` 会失败。
