@@ -90,12 +90,23 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   // 2026-11-16: the owner cleared every notice but the oldest (「除了最旧的都清掉」) and asked for only the fork's own changes,
   // pointing to the original's 0.4.0 release for the rest (「只写我们的，其余的让用户去看0.4.0就行」). The interface author's
   // contact and the credits of the removed 10-18 recap move here.
-  assert.equal(entries.length, 4);
+  assert.equal(entries.length, 5);
+  // 2026-11-20 the owner asked for this release's notice to go into the repo: the experimental ELO, the match receipts, AI teammates
+  // rescuing and 卡池静态初始化 on top. To fit it the three older fork notices were condensed (the owner: 「压缩，不能删除，另外10-06的不能动」)
+  assert.equal(entries[0].title, '实验性 ELO 与卡池静态初始化、对局凭证、AI 队友会救人');
+  assert.equal(entries[0].date, '2026-11-20');
+  const notice1120 = entries[0].paragraphs.join('\n');
+  for (const phrase of ['【ELO】', '「ELO」', '默认关闭', '此功能仅为娱乐', '版本、模式、难度', '最近 30 局', '50%', '只能看到自己的', '不能组队匹配',
+    '【对局凭证】', '已核验', '5 局已核验', '本机记录只会更压', 'cookie', '不收集设备信息', '服务器也不保存你的战绩', '请勿把文件给别人',
+    '名片奖杯', '按凭证计数', '第二期照旧', '【队友复活】', '队友复活', '生命至少 11', '付 10 生命', '生命最多的出', 'AI 不救 AI', '谁救了谁',
+    '卡池静态初始化', '按阶级平分', '含 AI 队友', '「余 n」', '「我的实验性」', '每局单独生成的密钥'])
+    assert.ok(notice1120.includes(phrase), phrase);
+  assert.doesNotMatch(notice1120, /签名|nginx|WebSocket|QQ|Worker|ModelScope|OpenI|Redis|Valkey|HMAC|coordinator|ingress|\/feedback|#1[0-9]|正在修|正在处理/i);
   // 2026-11-16 the owner's 「名片为啥没办法选塔露拉」 and 「对于动态立绘能不能带上背景」: their own notice on top; rel43 never went out,
   // so on 2026-11-17 (the owner: 「全量动态背景吧」) the same notice also carries the scenes played live
-  assert.equal(entries[0].title, '名片可选精二立绘，动态立绘实时播放原作场景');
-  assert.equal(entries[0].date, '2026-11-17');
-  const rel43 = entries[0].paragraphs.join('\n');
+  assert.equal(entries[1].title, '名片可选精二立绘，动态立绘实时播放原作场景');
+  assert.equal(entries[1].date, '2026-11-17');
+  const rel43 = entries[1].paragraphs.join('\n');
   for (const phrase of ['【名片】', '默认立绘和精二立绘', '塔露拉', '在名片上播放', '按干员分组', '阿米娅', '报童', '见习联结者', '播种者',
     '于万千宇宙之中', '触及星辰', '只能用作名片', '【动态立绘】', '原作的完整场景', '「查看立绘」', '座位卡', '粒子', '实时播放',
     '97 套', '时装 71 套', '精二 26 套', '遥「常世之幻」', '重岳精二', '无缝换上', '互动动作里的特效暂不包括', 'W「恍惚」', '夕「染尘烟」', '官方的取景位置',
@@ -104,18 +115,18 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   assert.doesNotMatch(rel43, /ModelScope|OpenI|PRTS|DXBC|WebP|烘焙|签名|nginx|Worker|WebSocket|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理|QQ/i);
   // 2026-11-16 the owner's UI overhaul (「UI必须大修」) gets its own notice; the 0.4.0 notice below keeps its text,
   // less the interface author's QQ (the owner: 「删除前端反馈QQ」)
-  assert.equal(entries[1].title, '界面大修：对局界面、选择策略、成就、设置与匹配');
-  assert.equal(entries[1].date, '2026-11-16');
-  const rel42 = entries[1].paragraphs.join('\n');
+  assert.equal(entries[2].title, '界面大修：对局界面、选择策略、成就、设置与匹配');
+  assert.equal(entries[2].date, '2026-11-16');
+  const rel42 = entries[2].paragraphs.join('\n');
   for (const phrase of ['黑色缺口', '锡拉库扎城区', '「卫戍协议终端」', '🔍', '「已就绪」', '「冻结」「刷新」', '可露希尔主题的商店卡', '分为两行',
     '金色标识', '彩色', '红色角标', '拼音首字母', '「Doctor…」', '华法琳', '娜仁图雅', '按期显示', '「绝境突破」', '「已获赞」', '150 / 200 / 300',
     '18 个', '塔露拉', '27 名干员', '「查看立绘」', '双色着色', '8 页', '「素材下载」', 'github.com/Stardust-minus/Stronghold-Protocol',
     '「已开启 n 项」', '「标准规则」', '「我的实验性」', '「任意实验性」', '保留排队位置', '30 秒', '繁体中文', '运营商和省份'])
     assert.ok(rel42.includes(phrase), phrase);
   assert.doesNotMatch(rel42, /ModelScope|OpenI|签名|nginx|Worker|WebSocket|lanes|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理|QQ|Grafana|SP_ISP|coordinator/i);
-  assert.equal(entries[2].title, '版本更新：同步原作 0.4.0，按版本匹配，连接更稳定');
-  assert.equal(entries[2].date, '2026-11-16');
-  const rel40 = entries[2].paragraphs.join('\n');
+  assert.equal(entries[3].title, '版本更新：同步原作 0.4.0，按版本匹配，连接更稳定');
+  assert.equal(entries[3].date, '2026-11-16');
+  const rel40 = entries[3].paragraphs.join('\n');
   for (const phrase of ['私人运行', '待休赛期再对外开放', 'github.com/sganggs/Stronghold-Protocol/releases/tag/v0.4.0', '只列本服自己的调整',
     '「规程·序列Ⅰ」', '第二期下半', '「选择自编」', '「自选四选二」', '按版本分池', '「多人匹配」', '「组队匹配」', '3 条连接', '1.5 秒',
     '「大厅背景」', '「规程」主题', '红色的无法出现干员数', '「设置 → 界面主题」', '“全能的”可露希尔', '「更新说明」弹窗不加',
@@ -127,13 +138,14 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
     assert.ok(rel40.includes(phrase), phrase);
   assert.doesNotMatch(rel40, /ModelScope|OpenI|签名|nginx|Worker|WebSocket|lanes|\/feedback|#1[0-9]|ac_s_closur|正在修|正在处理/i);
   // the 10-06 introduction stays untouched (the owner: 「10-06的不能动」)
-  assert.equal(entries[3].title, '欢迎游玩卫戍协议！卫来！');
-  assert.equal(entries[3].date, '2026-10-06');
-  assert.match(entries[3].paragraphs.join('\n'), /纯公益.*非官方/);
-  assert.match(entries[3].paragraphs.join('\n'), /github\.com\/sganggs\/Stronghold-Protocol/);
-  assert.match(entries[3].paragraphs.join('\n'), /界面致谢：.*Bilibili@雨千代chiyo/);
-  assert.match(entries[3].paragraphs.join('\n'), /第一次来的博士：.*「玩法说明」/);
-  // condensed on 2026-10-17 (the 0.3.0 notice alone had grown past 3000): the board scrolls, but the notices stay bounded
+  assert.equal(entries[4].title, '欢迎游玩卫戍协议！卫来！');
+  assert.equal(entries[4].date, '2026-10-06');
+  assert.match(entries[4].paragraphs.join('\n'), /纯公益.*非官方/);
+  assert.match(entries[4].paragraphs.join('\n'), /github\.com\/sganggs\/Stronghold-Protocol/);
+  assert.match(entries[4].paragraphs.join('\n'), /界面致谢：.*Bilibili@雨千代chiyo/);
+  assert.match(entries[4].paragraphs.join('\n'), /第一次来的博士：.*「玩法说明」/);
+  // condensed on 2026-10-17 (the 0.3.0 notice alone had grown past 3000): the board scrolls, but the notices stay bounded;
+  // on 2026-11-20 the three older fork notices were condensed again to fit the new one
   assert.ok(entries.flatMap(entry => entry.paragraphs).join('\n').length < 4000, 'the notices stay readable');
 });
 
