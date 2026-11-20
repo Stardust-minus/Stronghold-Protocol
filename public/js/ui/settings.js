@@ -54,6 +54,8 @@ import { copyText } from './clipboard.js';
 // 异形屏适配 (ui/screenFit.js): imported here, ahead of main.js's first render, so the stored offsets are on at boot
 import { ScreenFitSection } from './screenFit.js';
 import { OwnerKeySection } from './ownerName.js';
+// 身份 (§37.276): the one line about the identity cookie (ui/receiptViews.js)
+import { IdentityNotice } from './receiptViews.js';
 import { catalog, loadCatalog, cosmeticPlugins, installedCount, isPersonalCosmetic, personal, personalApplied, personalSet, pluginName, setPersonalPlugin } from '../content.js';
 import { resolveThemeVars, themeVarsOf } from '../../../shared/plugins/theme.js';
 import { setUiPlugin, uiPluginEntries, uiPlugins } from './uiPlugins.js';
@@ -696,7 +698,7 @@ export function SettingsModal({ open, onClose, page: asked = null }) {
           : page === 'controls' ? html`<${ControlsPage} s=${s} touchUi=${touchUi} />`
             : page === 'theme' ? html`<${ThemePage} s=${s} />`
               : page === 'plugins' ? html`<${CosmeticSection} /><${UiPluginSection} />`
-                : html`<${StorageSection} /><${DiagSection} /><${OwnerKeySection} />`;
+                : html`<${StorageSection} /><${DiagSection} /><${OwnerKeySection} /><${IdentityNotice} />`;
   return html`<${Modal} open=${open} onClose=${onClose} class="setdlg" veilClass="setdlg-veil" title=${t('设置')} micro="SETTINGS"
                         actions=${html`<${Button} variant="secondary" icon="book" class="set-guide" onClick=${() => openGuide(0)}>${t('玩法说明')}<//>
                         <${Button} variant="primary" icon="check" onClick=${onClose}>${t('完成')}<//>`}>

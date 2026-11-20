@@ -6,6 +6,8 @@
 //     (server/wsCompression.js: the bounded preset and the per-type allowlist) → Network.handleConnection. Refused at
 //     the upgrade: any other path 404; per-network socket limit for internet clients (maxConnectionsPerAddr, see net.js
 //     clientAddress; local/LAN peers are exempt) 429; server full (maxConnections) or shutting down 503.
+//   * identity (server/identity.js, §37.276): the upgrade reads the identity cookie (a new identity without a valid one) and
+//     its 101 response re-sets it with a fresh expiry; the session takes it at hello.
 //   * lanes (server/wsLanes.js, shared/lanes.js): a browser that offers the lane subprotocol gets one logical socket
 //     carried by up to 3 WebSockets; Network sees that logical socket. `lanes: false` (SP_WS_LANES=0) never selects it.
 
@@ -38,7 +40,7 @@ function uncapped(n) { return n > 0 ? n : 'unlimited'; }
  * @returns {{ registry: SessionRegistry, lobby: Lobby, network: Network }}
  */
 export function createSessionStack(opts, { data, log, combatPool = null, trialPool = null, getLoadState, getLoadDetails, onlineLimit = null, ownerFile = null,
-  content = null, plugins = null, hosts = null, versions = null, versionHosts = null, simPool = null }) {
+  content = null, plugins = null, hosts = null, versions = null, versionHosts = null, simPool = null, identity = null, receipts = null }) {
   if (opts.lobbyFactory != null && typeof opts.lobbyFactory !== 'function') throw new TypeError('invalid lobby factory');
   if (opts.getClusterLoad != null && typeof opts.getClusterLoad !== 'function') throw new TypeError('invalid cluster load provider');
   const netOptions = netOptionsFrom(opts, log);
@@ -56,7 +58,7 @@ export function createSessionStack(opts, { data, log, combatPool = null, trialPo
   // the browsers' network-quality reports (server/netQuality.js) per ISP of SP_ISP_FILE (tools/isp-table.mjs)
   const ispFile = opts.netQuality ? null : loadIspTable(opts.ispFile ?? process.env.SP_ISP_FILE, log);
   const netQuality = opts.netQuality ?? createNetQuality({ classify: ispFile.classify, province: ispFile.province });
-  const network = new Network({ registry, handler: lobby, log, options: netOptions, getLoadState, getLoadDetails, getClusterLoad: opts.getClusterLoad, onlineLimit, ownerFile, netQuality, ...metrics });
+  const network = new Network({ registry, handler: lobby, log, options: netOptions, getLoadState, getLoadDetails, getClusterLoad: opts.getClusterLoad, onlineLimit, ownerFile, netQuality, identity, ...metrics });
   // The caps in effect, printed once when the stack is built, so the deploy log states the configuration the server is
   // actually running with (0 is no cap here). `log` is the quiet-aware logger, so a test server stays silent.
   log.info(`[http] limits: rooms ${uncapped(lobby.opts.maxRooms)} (${uncapped(lobby.opts.maxRoomsPerAddr)}/network), `
@@ -64,6 +66,8 @@ export function createSessionStack(opts, { data, log, combatPool = null, trialPo
     + `sockets ${uncapped(network.opts.maxConnections)} (${uncapped(network.opts.maxConnectionsPerAddr)}/network)`);
 
   lobby.network = network;
+  // match receipts (server/resultReceipts.js, §37.276): signed at every match end; none without the authority
+  lobby.receipts = receipts;
   return { registry, lobby, network };
 }
 
@@ -95,7 +99,7 @@ function meterSocket(ws, req, traffic) {
  *   lanes: accept the lane subprotocol (default true)
  * @returns {WebSocketServer}
  */
-export function attachWebSocket(server, { network, log, wsCompression = false, traffic = null, lanes = true }) {
+export function attachWebSocket(server, { network, log, wsCompression = false, traffic = null, lanes = true, identity = null }) {
   const hub = createLaneHub({ enabled: lanes !== false });
   const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: wsCompression, clientTracking: false,
     handleProtocols: hub.handleProtocols });
@@ -106,6 +110,8 @@ export function attachWebSocket(server, { network, log, wsCompression = false, t
     network.handleConnection(ws, req);
   });
   wss.on('error', (e) => log.error('[ws] server error', e));
+  // the identity cookie, refreshed on the upgrade's own response (a lane of an existing bundle too: the same browser)
+  if (identity) wss.on('headers', (headers, req) => { if (req.spIdentity) headers.push(`Set-Cookie: ${identity.cookie(req.spIdentity.identity, req.spIdentity.secure)}`); });
 
   server.on('upgrade', (req, socket, head) => {
     socket.on('error', () => {});
@@ -117,6 +123,7 @@ export function attachWebSocket(server, { network, log, wsCompression = false, t
     const refused = network.admission(req);
     if (refused === 'per-address') { reject(429, 'Too Many Requests'); return; }
     if (refused) { reject(503, 'Service Unavailable'); return; }
+    if (identity) req.spIdentity = identity.fromRequest(req);
     try {
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
     } catch (e) {

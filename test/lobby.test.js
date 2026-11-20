@@ -1809,7 +1809,8 @@ describe('match result replay', () => {
 
   /** Frames of a resumed socket in arrival order (types + phase), after welcome. */
   // Presence/queue resyncs are independent of the room → final-public → result replay ordering.
-  const social = new Set(['welcome', 'pong', 'presence.state', 'queue.state']);
+  // (id.token, §37.276: the identity token after every welcome — independent of the replay too)
+  const social = new Set(['welcome', 'pong', 'presence.state', 'queue.state', 'id.token']);
   const order = (c) => c.log.filter((m) => !social.has(m.t)).map((m) => m.t + (m.t === 'm.public' ? `:${m.phase}` : ''));
 
   for (const unicast of [true, false]) {
@@ -1823,7 +1824,10 @@ describe('match result replay', () => {
       const res = await back.waitFor('m.result');
       if (unicast) assert.equal(res.playerId, guest.id, 'the player gets their own result');
       else assert.equal(res.reason, hostResult.reason);
-      assert.deepEqual(order(back), ['room.state', `m.public:${PHASE.RESULT}`, 'm.result']);
+      // the stub's settlement rows give the seat its match receipt (§37.276), replayed right after its m.result; the
+      // per-player stub settles no rows, so it has none
+      if (!unicast) await back.waitFor('m.receipt');
+      assert.deepEqual(order(back), ['room.state', `m.public:${PHASE.RESULT}`, 'm.result', ...(unicast ? [] : ['m.receipt'])]);
       assert.equal(back.log.find((m) => m.t === 'room.state').inMatch, false);
     });
   }

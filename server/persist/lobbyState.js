@@ -33,10 +33,12 @@ export const LOBBY_DOC_VERSION = 1;
 const ROOM_RE = new RegExp(`^[A-Z]{${ROOM_CODE_LEN}}$`);
 const ID_RE = /^[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,127}$/;
 const TOKEN_RE = /^[0-9a-f]{32}$/;
+const SUB_RE = /^[A-Za-z0-9_-]{21}[AQgw]$/;
 const plain = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const clone = (v) => (v == null ? null : structuredClone(v));
 /** A session's settings (the lobby replaces these frozen values, never mutates them: a reference compare finds a change). */
-export const SESSION_FIELDS = Object.freeze(['loadout', 'ops', 'notOwned', 'diy', 'card', 'loadoutCs', 'notOwnedCs', 'diyCs']);
+// `sub`: the session's identity (server/identity.js, §37.276) — its receipts after a restart carry it; restored only well-formed
+export const SESSION_FIELDS = Object.freeze(['loadout', 'ops', 'notOwned', 'diy', 'card', 'loadoutCs', 'notOwnedCs', 'diyCs', 'sub']);
 const SEAT_FIELDS = ['seat', 'playerId', 'name', 'isBot', 'ready', 'left', 'loadout', 'revivalVote', 'ops', 'notOwned', 'diy', 'card',
   'owner', 'loadoutCs', 'notOwnedCs', 'diyCs', 'band'];
 
@@ -140,6 +142,7 @@ export function restoreLobby({ doc, registry, lobby, now = Date.now(), log = nul
       session.notice = typeof s.notice === 'string' ? s.notice : null;
       session.skins = Object.freeze({ ...(plain(s.skins) ? s.skins : {}) });
       for (const k of SESSION_FIELDS) if (s[k] != null) session[k] = Object.freeze(clone(s[k]));
+      if (session.sub != null && !(typeof session.sub === 'string' && SUB_RE.test(session.sub))) session.sub = null;
       registry.byPlayerId.set(session.playerId, session);
       registry.byTokenMap.set(session.token, session);
       restored.set(session.playerId, session);

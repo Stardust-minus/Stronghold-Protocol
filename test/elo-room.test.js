@@ -8,7 +8,10 @@ import assert from 'node:assert/strict';
 import { EXPERIMENTAL_DEFAULTS, EXPERIMENTAL_GROUPS, QUEUE_OPTION_KEYS, experimentalKey, experimentalOptions, isEloRoom, isExperimental,
   queueOptions, sameExperimental } from '../shared/experimental.js';
 import { validateC2S } from '../shared/protocol.js';
-import { ELO_LIMITS, eloEntriesOf, isEloRecords } from '../shared/elo.js';
+import { ELO_LIMITS, eloEntriesOf, eloKey, isEloRecords } from '../shared/elo.js';
+
+// each version its own (the owner, 2026-11-20): a room of the default version reads `<mode>:<difficulty>:act2autochess`
+const K = (mode, difficulty) => eloKey(mode, difficulty, 'act2autochess');
 import { autoPoolPlan } from '../shared/poolPlan.js';
 import { Lobby } from '../server/lobby.js';
 import { HEAVY_TYPES, SessionRegistry } from '../server/net.js';
@@ -52,11 +55,13 @@ test('room.elo: per mode:difficulty at most 30 matches [won, roundsPassed]; the 
     assert.equal(isEloRecords(rec), false);
   }
   assert.ok(HEAVY_TYPES.has('room.elo'));
-  const rec = { 'solo:ABYSS': [[1, 14], [0, 3]], 'coop:HARD': thirty };
-  assert.deepEqual(eloEntriesOf(rec, 'solo', 'ABYSS'), [[1, 14], [0, 3]]);
-  assert.ok(Object.isFrozen(eloEntriesOf(rec, 'solo', 'ABYSS')) && Object.isFrozen(eloEntriesOf(rec, 'solo', 'ABYSS')[0]));
-  assert.equal(eloEntriesOf(rec, 'coop', 'ABYSS'), null);
-  assert.equal(eloEntriesOf(null, 'solo', 'ABYSS'), null);
+  const rec = { [K('solo', 'ABYSS')]: [[1, 14], [0, 3]], [K('coop', 'HARD')]: thirty };
+  assert.deepEqual(eloEntriesOf(rec, 'solo', 'ABYSS', 'act2autochess'), [[1, 14], [0, 3]]);
+  assert.ok(Object.isFrozen(eloEntriesOf(rec, 'solo', 'ABYSS', 'act2autochess')) && Object.isFrozen(eloEntriesOf(rec, 'solo', 'ABYSS', 'act2autochess')[0]));
+  assert.equal(eloEntriesOf(rec, 'coop', 'ABYSS', 'act2autochess'), null);
+  assert.equal(eloEntriesOf(rec, 'solo', 'ABYSS', 'act3autochess@V3_1'), null, 'another version: none');
+  assert.equal(eloEntriesOf({ 'solo:ABYSS': [[1, 14]] }, 'solo', 'ABYSS', 'act2autochess'), null, 'a legacy key (no version): never');
+  assert.equal(eloEntriesOf(null, 'solo', 'ABYSS', 'act2autochess'), null);
 });
 
 function openLobby(t, extra = {}) {
@@ -97,7 +102,7 @@ test('room.elo is kept on the session and the seat, never in room.state; a match
   const { lobby, player } = openLobby(t, { MatchClass: Rec });
   const host = player('host');
   const mine = [[1, 14], [1, 14], [0, 9], [1, 14], [0, 4]];
-  const rec = { 'coop:NORMAL': mine, 'solo:ABYSS': [[0, 2]] };
+  const rec = { [K('coop', 'NORMAL')]: mine, [K('solo', 'ABYSS')]: [[0, 2]] };
   ok(lobby.onMessage(host, { t: 'room.elo', rec }));
   assert.deepEqual(host.elo, rec);
   ok(lobby.create(host, { mode: 'coop', difficulty: 'NORMAL' }));
@@ -123,8 +128,8 @@ test('room.elo is kept on the session and the seat, never in room.state; a match
   assert.equal(seats.find((s) => s.playerId === friend.playerId).elo, null, 'a human without counts: null');
   assert.ok(seats.filter((s) => s.isBot).every((s) => !Object.hasOwn(s, 'elo')), 'an AI seat never has one');
   // during the match a new one is kept for the next match
-  assert.equal(lobby.onMessage(host, { t: 'room.elo', rec: { 'coop:NORMAL': [[1, 14], ...mine] } }).error, 'ROOM_STARTED');
-  assert.deepEqual(room.seatOf(host.playerId).elo, { 'coop:NORMAL': [[1, 14], ...mine] });
+  assert.equal(lobby.onMessage(host, { t: 'room.elo', rec: { [K('coop', 'NORMAL')]: [[1, 14], ...mine] } }).error, 'ROOM_STARTED');
+  assert.deepEqual(room.seatOf(host.playerId).elo, { [K('coop', 'NORMAL')]: [[1, 14], ...mine] });
 });
 
 test('a game node takes a human seat\'s matches only in an ELO room, never an AI seat\'s', () => {

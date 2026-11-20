@@ -14,6 +14,8 @@ import { C2S, validateC2S } from '../../shared/protocol.js';
 import { ERR } from '../../shared/constants.js';
 import { isCompressibleType, resolveWsCompression } from '../wsCompression.js';
 import { createLaneHub } from '../wsLanes.js';
+import { identityCookieOf } from '../identity.js';
+import { ID_COOKIE } from '../../shared/receipts.js';
 
 const safeId = v => typeof v === 'string' && v.length > 0 && v.length <= 128 && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]*(?![\s\S])/.test(v);
 const typeOf = raw => /^\s*\{\s*"t"\s*:\s*"([A-Za-z0-9_.-]{1,64})"/.exec(raw.slice(0, 256))?.[1] ?? null;
@@ -224,8 +226,11 @@ export async function startIngress({ host = '127.0.0.1', port = 0, coordinatorUr
     const address = clientAddress(req, trustProxy);
     const headers = { origin: req.headers.origin, 'x-real-ip': address.ip, 'x-forwarded-for': address.ip,
       'x-forwarded-proto': new URL(req.headers.origin).protocol.slice(0, -1) };
+    // the browser's identity cookie (server/identity.js, §37.276) and no other cookie: the coordinator verifies it
+    const secure = headers['x-forwarded-proto'] === 'https', id = identityCookieOf(req.headers.cookie, secure);
+    if (id && /^[A-Za-z0-9_.-]{1,256}$/.test(id)) headers.cookie = `${secure ? ID_COOKIE.secure : ID_COOKIE.plain}=${id}`;
     const control = linkClient
-      ? linkClient.open({ ip: address.ip, origin: headers.origin, proto: headers['x-forwarded-proto'] })
+      ? linkClient.open({ ip: address.ip, origin: headers.origin, proto: headers['x-forwarded-proto'], ...(headers.cookie ? { id } : {}) })
       : new WebSocket(controlUrl, { headers, perMessageDeflate: false, handshakeTimeout: connectMs, maxPayload: NET_DEFAULTS.hardBufferBytes });
     peer.control = control;
     peer.controlTimer = setTimeout(() => { if (!peer.controlReady) closePeer(peer); }, connectMs); peer.controlTimer.unref?.();

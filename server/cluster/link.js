@@ -4,7 +4,8 @@
 // never reused, so a late frame can never reach a newer session. Any malformed frame drops the whole link; its sessions
 // then disconnect and reconnect through the ordinary path. Nothing here logs keys, signatures or frame bodies.
 //
-//   OPEN   ingress→coordinator  JSON { ip, origin, proto }: the forwarding facts the direct path sent as headers
+//   OPEN   ingress→coordinator  JSON { ip, origin, proto, id? }: the forwarding facts the direct path sent as headers (`id`:
+//                               the browser's identity cookie value, server/identity.js §37.276; absent without one)
 //   DATA   both directions      one UTF-8 JSON text, exactly the text frame the direct path carried
 //   CLOSE  both directions      u16 code + UTF-8 reason (1006 = abnormal: refused admission, terminate, transport loss)
 //   FANOUT coordinator→ingress  [op][count u32] count × [connId u32][prefixLen u32][suffixLen u32], the prefixes and
@@ -40,9 +41,9 @@ function frame(op, connId, payload) {
 }
 const bytes = data => (Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8'));
 
-export function encodeOpen(connId, { ip, origin, proto }) {
+export function encodeOpen(connId, { ip, origin, proto, id = null }) {
   if (!connIdOk(connId)) fail('BAD_CONN');
-  return frame(OP.OPEN, connId, Buffer.from(JSON.stringify({ ip, origin, proto })));
+  return frame(OP.OPEN, connId, Buffer.from(JSON.stringify({ ip, origin, proto, ...(id ? { id } : {}) })));
 }
 export function encodeData(connId, data) {
   if (!connIdOk(connId)) fail('BAD_CONN');
@@ -106,8 +107,10 @@ export function decodeFrame(message, from) {
     if (from !== 'ingress' || payload.length > 1024) fail('BAD_OPEN');
     let info;
     try { info = JSON.parse(text(payload, 1024, 'BAD_OPEN').toString('utf8')); } catch { fail('BAD_OPEN'); }
-    if (!plain(info) || Object.keys(info).length !== 3 || typeof info.ip !== 'string' || info.ip.length < 1 || info.ip.length > 64
-      || typeof info.origin !== 'string' || info.origin.length > 512 || !['http', 'https'].includes(info.proto)) fail('BAD_OPEN');
+    const keys = Object.keys(info || {});
+    if (!plain(info) || keys.length !== (Object.hasOwn(info, 'id') ? 4 : 3) || typeof info.ip !== 'string' || info.ip.length < 1 || info.ip.length > 64
+      || typeof info.origin !== 'string' || info.origin.length > 512 || !['http', 'https'].includes(info.proto)
+      || (Object.hasOwn(info, 'id') && !(typeof info.id === 'string' && /^[A-Za-z0-9_.-]{1,256}$/.test(info.id)))) fail('BAD_OPEN');
     return { op, connId: n, info };
   }
   if (op === OP.DATA) {

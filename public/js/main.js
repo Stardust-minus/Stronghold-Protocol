@@ -22,7 +22,8 @@
 // kept in sync with the server by installLoadoutSync (room.loadout after every welcome and edit), its 干员持有 tab's
 // not-owned list (0.2.0 补位) by installOwnershipSync (room.ownership, likewise), the 自选编队 picks (0.2.0 DIY) by
 // installDiySync (room.diy, likewise; it also keeps welcome.diyKitted for the picker), the ELO counts of the local records
-// by installEloSync (room.elo, only in a room with the ELO option).
+// by installEloSync (room.elo, only in a room with the ELO option); the match receipts and the identity token by
+// installReceipts (ui/receipts.js, §37.276: m.receipt onto its record, id.token for the export, room.trophies).
 // Game data: every text of the game is static data (/data/*.json) downloaded once per page; the in-match files are
 // warmed in the background as soon as the player is in a room (warmGameData), before the match needs them.
 // Language (ui/lang.js, docs/I18N.md): chosen before the first render (initLang); App re-renders on a switch (useLang).
@@ -76,7 +77,8 @@ import { LobbyPluginHost } from './ui/pluginTag.js';
 import { CoveredVersionVote } from './ui/versionVote.js';
 import { installRehearsal } from './battle/rehearsal.js';
 import { installVerify } from './battle/verify.js';
-import { recordResult, recordQuit, recordLikes, installStatsRecorder } from './ui/stats.js';
+import { recordResult, recordQuit, recordLikes, installStatsRecorder, peekStatsRecords } from './ui/stats.js';
+import { installReceipts, retryReceipts } from './ui/receipts.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync, installPlayerCardSync, installSettingsViews, installEloSync, loadoutStore } from './ui/loadoutSync.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { acceptDamageSnapshot } from './ui/damageBoard.js';
@@ -409,6 +411,8 @@ function wireNet() {
     const s = store.get();
     const version = s.room ? roomVersion(s.room) : matchFrameVersion({ result: res, public: s.match.public });
     if (s.room?.test !== true && s.match.public?.test !== true) recordResult(res, { myId: s.me.playerId, roomMode: s.room?.mode ?? null, vs: s.room?.content?.vs ?? null, content: s.room?.content ?? null, version: isDefaultVersion(version) ? null : version, now: Date.now() });
+    // a match receipt that arrived before its result (ui/receipts.js) lands on the record now
+    retryReceipts();
   });
   net.on('m.toast', (msg) => {
     const kind = ['info', 'success', 'warn', 'error'].includes(msg.kind) ? msg.kind : 'info';
@@ -636,6 +640,8 @@ async function boot() {
   installSkinsSync({ net });
   // ELO (§37.275): the own recent results, only while in a room with the option (ui/eloRecords.js)
   installEloSync({ net });
+  // match receipts and the identity token (§37.276, ui/receipts.js)
+  installReceipts({ net, records: peekStatsRecords });
   installPlayerCardSync({ net });
   // A bot prep's layout rehearsal the server offers this host's browser (DESIGN §14, SP_BOT_REHEARSAL=host on the
   // server): a same-origin module Worker simulates the candidates off the main thread and answers with its pick; a

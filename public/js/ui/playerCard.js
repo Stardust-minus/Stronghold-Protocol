@@ -6,7 +6,9 @@
 // feedback #9 / #24). All kept in the browser;
 // sent as room.card where the server takes it (shared/protocol.js) so teammates see the same card. The trophy count is
 // the player's own claim — display only, the server just bounds it — and a server without room.card (an older build)
-// leaves the card visible to its owner only.
+// leaves the card visible to its owner only. In a season the server counts from match receipts (规程, §37.276) the card's
+// trophies are those of the records' receipts (ui/receipts.js cardTrophies) — what the server shows others of them —,
+// and only there; achievements and LV keep counting every record.
 import { useEffect } from '../../vendor/hooks.module.js';
 import { createStore, loadPref, savePref, useStore, shallowEqual, store as appStore } from '../store.js';
 import { useData } from '../data.js';
@@ -16,6 +18,7 @@ import { CARD_PREF, cardAvatarUrl } from './seatArt.js';
 import { NAMECARD_PREF, NAMECARD_Y_PREF, NAMECARD_X_PREF, NAMECARD_ZOOM_PREF, namecardOf, namecardY, namecardX, namecardZoom } from './namecards.js';
 import { C2S } from '../../../shared/protocol.js';
 import { cardArt } from './dynamicFraming.js';
+import { cardTrophies, receiptRev } from './receipts.js';
 
 /** The server takes room.card (this build's protocol): teammates then see one's card. */
 export const CARD_SYNC = !!C2S && Object.hasOwn(C2S, 'room.card');
@@ -71,7 +74,7 @@ const shownSeason = (s) => seasonOf(shownVersion(s));
 /** Re-read the trophy total (a match just ended, stats were imported, the version shown changed season). */
 export function refreshTrophies(season = shownSeason(appStore.get())) {
   let n;
-  try { n = trophyTotal(peekStatsRecords(), season); } catch { n = 0; }
+  try { const records = peekStatsRecords(); n = cardTrophies(records, season) ?? trophyTotal(records, season); } catch { n = 0; }
   if (cardStore.get().trophies !== n) cardStore.set({ trophies: n });
 }
 
@@ -117,7 +120,8 @@ export function setCardBackground(bg) {
 /** One's card, the trophies re-read when a component that shows it mounts and when the season shown changes. */
 export function useMyCard() {
   const season = useStore(shownSeason);
-  useEffect(() => { refreshTrophies(season); }, [season]);
+  const rev = useStore((s) => s.rev, Object.is, receiptRev);
+  useEffect(() => { refreshTrophies(season); }, [season, rev]);
   return useStore((s) => s, shallowEqual, cardStore);
 }
 

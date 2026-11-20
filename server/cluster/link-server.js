@@ -7,6 +7,7 @@
 import { EventEmitter } from 'node:events';
 import { WebSocketServer } from 'ws';
 import { ABNORMAL, LINK_PATH, MAX_LINK_FRAME, OP, createLinkAuthenticator, decodeFrame, encodeClose, encodeData, encodeFanout } from './link.js';
+import { ID_COOKIE } from '../../shared/receipts.js';
 
 const OPEN = 1, CLOSING = 2, CLOSED = 3;
 /** A link whose unsent queue exceeds this is not being read: drop it (the direct path's per-socket bound is 16 MiB). */
@@ -152,7 +153,9 @@ export function createLinkServer({ network, ingresses, now = Date.now, pingMs = 
     open(link, connId, info) {
       // The same facts, and so the same clientAddress/admission result, as the direct path's upgrade headers.
       const req = { url: '/ws', socket: { remoteAddress: link.remoteAddress },
-        headers: { origin: info.origin, 'x-real-ip': info.ip, 'x-forwarded-for': info.ip, 'x-forwarded-proto': info.proto } };
+        headers: { origin: info.origin, 'x-real-ip': info.ip, 'x-forwarded-for': info.ip, 'x-forwarded-proto': info.proto,
+          // the identity cookie the ingress forwarded (server/identity.js), as the direct path's Cookie header
+          ...(info.id ? { cookie: `${info.proto === 'https' ? ID_COOKIE.secure : ID_COOKIE.plain}=${info.id}` } : {}) } };
       if (server.closed || network.admission(req)) { link.ws.send(encodeClose(connId, ABNORMAL, 'REFUSED'), { binary: true }); return; }
       const socket = new LinkSocket(link, connId);
       link.conns.set(connId, socket);

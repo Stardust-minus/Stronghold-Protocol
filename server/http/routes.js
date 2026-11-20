@@ -4,6 +4,7 @@
 //   * a URL longer than 4096 characters → 414; one that does not parse → 400;
 //   * /studio and /studio/… → the plugin studio (server/studio/index.js: for this machine and the local network only — any
 //     other client gets the 404 page; its API also takes POST / PUT / DELETE), when the server has one;
+//   * POST /api/identity → the identity cookie (server/identity.js handlePost, §37.276), when the server has identities;
 //   * any method but GET / HEAD → 405 with `Allow: GET, HEAD`;
 //   * GET /healthz → JSON status (protocol `version`, release `app`, uptime, the served `build`, the vanilla content
 //     hash `content.vanilla`, the modded content sets in use `content.sets` and — only when there are some — how many
@@ -17,7 +18,8 @@
 //     maintainer's decision of 2026-10-12: the figures are the host's, so any other client, also one a tunnel or proxy
 //     on this machine forwards, gets the plain report (net.js clientAddress, honouring TRUST_PROXY like the WebSocket
 //     limits);
-//   * everything else → the static files (static.js).
+//   * everything else → the static files (static.js); the page itself (`/`, `/index.html`) also sets the identity cookie
+//     with a fresh expiry (server/identity.js onPage).
 // Every response's body bytes count in the traffic counters (traffic.js meter). A route that throws is logged and
 // answers 500.
 
@@ -26,6 +28,7 @@ import { PERFORMANCE_UNAVAILABLE } from '../healthMetrics.js';
 import { setSecurityHeaders, sendError, sendJson, splitUrl } from './common.js';
 import { clientAddress, isLocalIp, netCounters } from '../net.js';
 import { stateDeltaStats } from '../stateTransport.js';
+import { IDENTITY_PATH } from '../identity.js';
 
 const MAX_URL_LENGTH = 4096;
 
@@ -57,7 +60,7 @@ function contentSets(lobby) {
  * @param {boolean} [withTraffic]
  */
 export function healthReport({ startedAt, network, registry, lobby, content = null, browserBuild, combatPool, trialPool, trialStartupFailed, getHealthMetrics,
-  traffic, assetIndex, views, trusted, persistence = null, versions = null, versionHosts = null, getVerifyStats = null }, withTraffic = false) {
+  traffic, assetIndex, views, trusted, persistence = null, versions = null, versionHosts = null, getVerifyStats = null, receipts = null }, withTraffic = false) {
   const combat = combatPool ? { backend: 'workers', scope: 'server-streaming', ...combatPool.stats() } : { backend: 'inline', workers: 0 };
   const ok = !combatPool || (combat.status === 'ready' && combat.ready > 0);
   const trial = trialPool ? { backend: 'workers', scope: 'bot-rehearsal', ...trialPool.stats() }
@@ -85,6 +88,8 @@ export function healthReport({ startedAt, network, registry, lobby, content = nu
   if (trusted && Object.keys(trusted).length) report.plugins = trusted;
   // checkpoints (SP_REDIS_URL, server/persist/): writes, failures, restores since start — absent when off
   if (persistence) { try { report.persistence = persistence(); } catch { report.persistence = null; } }
+  // identities and match receipts (server/identity.js, server/resultReceipts.js): counts since start, never a token or a sub
+  if (receipts) { try { report.receipts = receipts(); } catch { report.receipts = null; } }
   // the official versions (DESIGN §35.23): only when another one than 第二期下半 is enabled
   if (versions && versions.nonDefault.length) {
     report.versions = { enabled: [...versions.ids], default: versions.defaultId,
@@ -110,7 +115,7 @@ const wantsTraffic = (query) => /(?:^|&)traffic(?:=(?:1|true|yes))?(?:&|$)/i.tes
  *   plugin studio (server/studio/index.js), or none
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void}
  */
-export function createRequestHandler({ serveStatic, health, log, trustProxy = 'auto', studio = null, csp = null, trustedRuntime = null }) {
+export function createRequestHandler({ serveStatic, health, log, trustProxy = 'auto', studio = null, csp = null, trustedRuntime = null, identity = null }) {
   async function handleRequest(req, res) {
     const url = req.url || '/';
     if (url.length > MAX_URL_LENGTH) { sendError(req, res, 414, '请求地址过长 · URI too long'); return; }
@@ -118,6 +123,12 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
     if (!parts) { sendError(req, res, 400, '请求地址无效 · Bad request'); return; }
     if (trustedRuntime && parts.rawPath.startsWith('/x/') && await trustedRuntime.route(req,res,parts.rawPath)) return;
     if (studio && studio.handles(parts.rawPath)) { await studio.handle(req, res, parts.rawPath, parts.query); return; }
+    if (identity && parts.rawPath === IDENTITY_PATH) {
+      if (req.method === 'POST') { identity.handlePost(req, res); return; }
+      res.setHeader('Allow', 'POST');
+      sendError(req, res, 405, '不支持的请求方法 · Method not allowed');
+      return;
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.setHeader('Allow', 'GET, HEAD');
       sendError(req, res, 405, '不支持的请求方法 · Method not allowed');
@@ -133,6 +144,7 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
       sendJson(req, res, 200, { build: health.browserBuild });
       return;
     }
+    if (identity && (parts.rawPath === '/' || parts.rawPath === '/index.html')) identity.onPage(req, res);
     await serveStatic(req, res, parts.rawPath, parts.query);
   }
 

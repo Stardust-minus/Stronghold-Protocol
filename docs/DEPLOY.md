@@ -732,3 +732,20 @@ game 节点的 `status` RPC 带 `checkpoints` 计数。
 - `GET /healthz` 的 `verify` 是这些计数（集群协调器汇总各游戏节点的）；监控 collector 导出为 `sp_shadow_*` / `sp_verify_*`。
 - 其余设置见 README 的 `SP_SHADOW_VERIFY*`，细节见 docs/design/network.md「Shadow verification」。
 
+
+## 15. 对局凭证与身份 cookie（0.4.0 起）
+
+每局打到结算时，服务器给每位真人博士签一份本局凭证，浏览器存在自己的对局记录上；ELO 的「帮」、规程房间名片上的奖杯和统计页的「已核验」都看它。
+身份是服务器签发的第一方 cookie（https 上 `__Host-sp_id`，局域网 http 上 `sp_id`，HttpOnly，400 天，每次打开页面刷新），服务器不保存任何东西。
+规则见 docs/history/0.4.0.md §37.276。
+
+- 两个密钥文件：`SP_IDENTITY_KEY_FILE`（身份 token）和 `SP_RESULT_KEY_FILE`（凭证）。绝对路径、只有运行服务器的用户（或 root）能读（`chmod 600`），
+  每行 `<代号> <base64 密钥>`，密钥至少 32 字节，例如 `printf 'g1 %s\n' "$(openssl rand -base64 32)" > 文件`。第一行签名，第二行是上一代、仍然接受，
+  最多两代。文件写错时服务器不启动；不设时用临时密钥（重启后所有身份和凭证作废，适合局域网和测试）。
+- 轮换：把新的一行放到最前面、旧的留在第二行，重启。身份密钥每次访问都会重签，**两次轮换至少隔 400 天**就不会让任何还在用的 cookie 失效；
+  凭证密钥轮换两次后，更早的凭证失效（ELO 只看最近 30 局）。
+- 集群：只有协调器需要这两个文件（它发页面、接 `/ws`、在对局结束时签发）；游戏节点和入口不需要。入口只把身份 cookie 转给协调器，入口和协调器要
+  用同一版本一起更新（多路复用链路的 OPEN 多了一个可选字段）。
+- 反向代理：`/ws` 和页面要转发 Cookie 请求头并透传上游的 Set-Cookie（nginx 默认如此，不要 `proxy_hide_header Set-Cookie`）；`POST /api/identity`
+  走普通的业务路径（同源、JSON、≤ 1 KB）。
+- `GET /healthz` 的 `receipts` 只有计数（签发、验证、失败，密钥来自文件还是临时），没有 token、sub 和凭证；日志同样只写计数。

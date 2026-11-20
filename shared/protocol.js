@@ -5,6 +5,7 @@ import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, BOND_PLAN_SUB_M
 import { MAX_PLAYER_CAPACITY, MAX_DRAFT_CARDS, PLAYER_CAPACITIES, isPlayerCapacity } from './playerCapacity.js';
 import { isExperimental, queueOptions } from './experimental.js';
 import { isEloRecords } from './elo.js';
+import { RECEIPT_LIMITS, isReceiptList } from './receipts.js';
 import { isSkinChoices } from './skins.js';
 
 /** Public response-pressure hint; never carries raw host/process diagnostics. */
@@ -398,8 +399,17 @@ export function checkSkinSelection(skins, hasOperator) {
 // newest first (shared/elo.js isEloRecords). Sent only while the page is in a room with the ELO option
 // (shared/experimental.js isEloRoom); the server keeps it on the session and the seat, passes the list of the room's mode
 // and difficulty to a match of such a room (shared/elo.js eloEntriesOf → eloSummary, the panel's own computation) and
-// never shows it to anybody. A page may of course send anything: ELO does not ship before server-signed match receipts
-// replace this list (a later step).
+// never shows it to anybody. A page may of course send anything: so `rc` (§37.276) carries the server-signed receipts of
+// the room's mode and difficulty (shared/receipts.js, at most RECEIPT_LIMITS.elo, newest first) — help comes only from the
+// receipts of the session's own identity, the page's own list may only make it harder (shared/elo.js eloTrusted).
+
+// ---- match receipts (docs/history/0.4.0.md §37.276; server/resultReceipts.js) ----------------------------------------
+// S→C m.receipt { rc } — the player's own receipt of the match that just ended (also in the result replay), after its
+// m.result · id.token { token, fresh? } — after every welcome, to that socket only: the browser's identity token (its
+// cookie's value) for the stats export; `fresh`: the socket came without a valid cookie, the page may store this one
+// (POST /api/identity). C→S room.trophies { rc } — receipts of the 规程 season (RECEIPT_TROPHY_SEASONS): the server
+// counts the 名片 trophies its room.state shows in such a room from them alone · rc.verify { rc } — answered on its ok
+// with { valid: [0 | 1, …] } in the same order (the 已核验 mark). Nothing is stored.
 
 // ---- operator ownership (干员持有, 0.2.0 补位): room.ownership { notOwned } -------------------------------------------
 
@@ -720,7 +730,10 @@ export const C2S = {
   'room.diy': { picks: isDiyPicks },
   // ELO (§37.275, above): the player's own recent matches per mode and difficulty; stored per session / seat like
   // room.ownership (a match of an ELO room takes its seat's list when it starts; during a match: ROOM_STARTED)
-  'room.elo': { rec: isEloRecords },
+  'room.elo': { rec: isEloRecords, rc: isReceiptList(RECEIPT_LIMITS.elo), $optional: ['rc'] },
+  // match receipts (§37.276, above): the 规程 名片 trophies' receipts, and which receipts verify (answered on its ok)
+  'room.trophies': { rc: isReceiptList(RECEIPT_LIMITS.trophies) },
+  'rc.verify': { rc: isReceiptList(RECEIPT_LIMITS.verify) },
   // Independent display-only choices: actual charId → admitted manifest key; accepted in INFO_CHECK only.
   'room.skins': { choices: isSkinChoices },
   // the display card (CARD_LIMITS above; server/lobby.js setCard): stored per session, copied to the player's seat
@@ -918,6 +931,8 @@ export const S2C = [
   // retain completed { round, fieldId, battleId, helpers, through } rows. Current field helpers <=2,
   // final uniteResult.helpers aggregates <=4 actual participants; b.result limits remain unchanged.
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
+  // match receipts (§37.276, above): the player's own receipt of a match end · the browser's identity token after welcome
+  'm.receipt', 'id.token',
   // m.state — m.public / m.private on a socket whose hello said stateDelta: 1 (shared/stateDelta.js):
   // { kind, seq, full } or { kind, seq, base, patch }; the browser decodes it back before dispatch
   'm.state',
