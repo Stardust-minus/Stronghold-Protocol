@@ -8,31 +8,39 @@
 
 import { DIFFICULTIES } from './constants.js';
 import { N_ } from './i18n.js';
-import { DEFAULT_VERSION } from './versions.js';
+import { DEFAULT_VERSION, VERSIONS } from './versions.js';
 
 /**
- * room.elo: per mode and difficulty the newest `last` matches that count; `rounds`: the largest roundsPassed an entry may
- * carry; `keys`: one list per mode and difficulty at most.
+ * room.elo: per mode, difficulty and version the newest `last` matches that count; `rounds`: the largest roundsPassed an
+ * entry may carry; `keys`: at most this many lists (a page sends its room's one).
  */
 export const ELO_LIMITS = Object.freeze({ last: 30, keys: 2 * DIFFICULTIES.length, rounds: 30 });
-/** `<mode>:<difficulty>` of a room (the key of room.elo `rec`). @param {string} mode @param {string} difficulty */
-export const eloKey = (mode, difficulty) => `${mode}:${difficulty}`;
-const ELO_KEYS = new Set(['solo', 'coop'].flatMap((mode) => DIFFICULTIES.map((d) => eloKey(mode, d))));
+/**
+ * `<mode>:<difficulty>:<version>` of a room (the key of room.elo `rec`): the owner's decision of 2026-11-20 — each official
+ * version (shared/versions.js id: 第二期下半, 规程·序列Ⅰ …) has its own win rate, no fallback across versions, difficulties
+ * or modes. @param {string} mode @param {string} difficulty @param {string} version
+ */
+export const eloKey = (mode, difficulty, version) => `${mode}:${difficulty}:${version}`;
+const ELO_KEYS = new Set(['solo', 'coop'].flatMap((mode) => DIFFICULTIES.flatMap((d) => VERSIONS.map((v) => eloKey(mode, d, v.id)))));
+// a page of the build before (no version in its keys): accepted, never counted — its matches' version is unknown
+const LEGACY_KEYS = new Set(['solo', 'coop'].flatMap((mode) => DIFFICULTIES.map((d) => `${mode}:${d}`)));
 const isPlain = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
 const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 /** One match on the wire: `[won (1 | 0), roundsPassed]`. */
 export const isEloEntry = (v) => Array.isArray(v) && v.length === 2 && (v[0] === 0 || v[0] === 1) && isInt(v[1], 0, ELO_LIMITS.rounds);
 /** One mode and difficulty's matches on the wire, newest first: at most ELO_LIMITS.last entries. */
 export const isEloEntries = (v) => Array.isArray(v) && v.length <= ELO_LIMITS.last && v.every(isEloEntry);
-/** Structural check of room.elo `rec`: `{ '<mode>:<difficulty>': [[won, roundsPassed], …] }`. */
+/** Structural check of room.elo `rec`: `{ '<mode>:<difficulty>:<version>': [[won, roundsPassed], …] }` (a legacy key too). */
 export const isEloRecords = (v) => isPlain(v) && Object.keys(v).length <= ELO_LIMITS.keys
-  && Object.entries(v).every(([k, list]) => ELO_KEYS.has(k) && isEloEntries(list));
+  && Object.entries(v).every(([k, list]) => (ELO_KEYS.has(k) || LEGACY_KEYS.has(k)) && isEloEntries(list));
+/** A key that names its version (a legacy one does not: its matches never count). @param {string} key */
+export const isEloKey = (key) => ELO_KEYS.has(key);
 /**
- * The matches a match of a room of `mode` and `difficulty` takes from a seat's `rec` (a frozen copy), null when it has
- * none. @param {any} rec @param {string} mode @param {string} difficulty
+ * The matches a match of a room of `mode`, `difficulty` and `version` takes from a seat's `rec` (a frozen copy), null
+ * when it has none. @param {any} rec @param {string} mode @param {string} difficulty @param {string} version
  */
-export function eloEntriesOf(rec, mode, difficulty) {
-  const list = isEloRecords(rec) ? rec[eloKey(mode, difficulty)] : undefined;
+export function eloEntriesOf(rec, mode, difficulty, version) {
+  const list = isEloRecords(rec) ? rec[eloKey(mode, difficulty, version)] : undefined;
   return list ? Object.freeze(list.map((e) => Object.freeze([e[0], e[1]]))) : null;
 }
 
@@ -181,4 +189,20 @@ export function eloImpact(summary) {
   const mix = /** @type {{ mix?: number }} */ (tilt).mix ?? 0;
   const row = dir === 'hinder' && mix >= 1 ? rows[3] : rows.find((r) => mag <= r.upTo + 1e-9) ?? rows[rows.length - 1];
   return { ...base, dir, level: row.level, key: dir, rescue: dir === 'help' ? 1 : round3(1 + tilt.s) };
+}
+
+/**
+ * Receipts (docs/history/0.4.0.md §37.276; the owner's decision of 2026-11-20: help only from server-signed match receipts,
+ * a page's own matches may only make it harder — the minimum of the two): the list of one mode and difficulty a match
+ * takes — `signed` (the entries of the verified receipts of the player's own identity, shared/receipts.js
+ * eloReceiptEntries) unless `own` (the page's own records, legacy ones included) gives a stronger hindrance (s < 0 below
+ * the receipts'). The server (server/resultReceipts.js eloTrustedRec) and the panel (ui/eloPanel.js) both choose here.
+ * `verified`: how many receipt matches there were.
+ * @param {any[]} own @param {any[]} signed
+ * @returns {{ entries: any[], summary: ReturnType<typeof eloSummary>, source: 'receipts' | 'own', verified: number }}
+ */
+export function eloTrusted(own, signed) {
+  const o = eloSummary(own), r = eloSummary(signed);
+  const useOwn = o.s < 0 && o.s < r.s;
+  return { entries: useOwn ? own : signed, summary: useOwn ? o : r, source: useOwn ? 'own' : 'receipts', verified: r.n };
 }

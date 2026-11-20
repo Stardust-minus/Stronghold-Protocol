@@ -57,7 +57,7 @@ function matchDTO(room, seed, snapshotHz) {
       ops: structuredClone(s.isBot ? null : s.ops || null),
       notOwned: structuredClone(s.isBot ? null : s.notOwned || null), diy: structuredClone(s.isBot ? null : s.diy || null),
       // ELO (Lobby header "ELO"): a human's own matches of the room's mode and difficulty, only in a room with the option
-      ...(!s.isBot && isEloRoom(room.experimental) ? { elo: eloEntriesOf(s.elo, room.mode, room.difficulty) } : {}),
+      ...(!s.isBot && isEloRoom(room.experimental) ? { elo: eloEntriesOf(s.elo, room.mode, room.difficulty, room.version) } : {}),
       skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }), ...(s.isBot && s.band ? { band: s.band } : {}) })),
     spectators, ...(snapshotHz === undefined ? {} : { snapshotHz }), ...takenOverField(room.seats.filter(Boolean), spectators),
     // another official version (ClusterLobby header: placed on a game node, run in that node's version host)
@@ -83,9 +83,9 @@ function optsDTO(opts) {
   if (typeof opts.version === 'string' && opts.version !== DEFAULT_VERSION) dto.version = opts.version;
   return dto;
 }
-// The display-only member fields (room.card's `card`, the 服主 `owner` mark) never reach the match (matchDTO): a change
-// while a start is being prepared does not invalidate it.
-const stampMember = member => { if (!member) return member; const { card, owner, ...rest } = member; return rest; };
+// The display-only member fields (room.card's `card`, the 服主 `owner` mark, the receipts' 规程 trophies `rcTrophies`) never
+// reach the match (matchDTO): a change while a start is being prepared does not invalidate it.
+const stampMember = member => { if (!member) return member; const { card, owner, rcTrophies, ...rest } = member; return rest; };
 function roomStamp(room) {
   return structuredClone({ hostId: room.hostId, mode: room.mode, difficulty: room.difficulty, matchCount: room.matchCount,
     source: room.source, experimental: room.experimental, aiPicksLast: room.aiPicksLast, ownerKey: room.ownerKey, ownerKeys: room.ownerKeys ? [...room.ownerKeys].sort() : null,

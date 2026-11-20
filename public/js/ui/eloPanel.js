@@ -6,14 +6,21 @@
 // version's row of shared/elo.js ELO_MEASURED. Shown in the host's reminder as the option goes on (ui/experimental.js
 // confirmElo), once to every other seated player as they meet the option in a room (screens/room.js EloNotice), and in
 // short in the room's rule list (ExperimentalDetails, eloBrief). Styles: the elo-* rules of css/components.css.
+// Receipts (§37.276): the numbers are those of the list the server takes — shared/elo.js eloTrusted over this identity's
+// receipts (ui/receipts.js) and the local records: help only from receipts, the local records only make it harder —, and
+// one line says which. Every place shows the same rate: the round-weighted, shrunk one of the room's version the tilt
+// uses (eloSummary `w`), never the raw wins / games.
 
 import { useMemo } from '../../vendor/hooks.module.js';
+import { useStore, store } from '../store.js';
+import { roomVersion, shownVersion, versionLabel } from '../versions.js';
 import { html, Button, Icon, Tooltip, alertDialog } from './components.js';
 import { t, tParts } from '../../../shared/i18n.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
-import { versionById } from '../../../shared/versions.js';
-import { ELO_MAP, eloEntriesOf, eloImpact, eloMeasured, eloSummary } from '../../../shared/elo.js';
+import { ELO_MAP, eloEntriesOf, eloImpact, eloMeasured, eloSummary, eloTrusted } from '../../../shared/elo.js';
 import { eloRecords } from './eloRecords.js';
+import { eloReceiptList, receiptRev } from './receipts.js';
+import { InfoTip } from './receiptViews.js';
 import { peekStatsRecords } from './stats.js';
 
 const pct = (v) => Math.round(v * 100);
@@ -28,12 +35,18 @@ const scopeOf = (mode, difficulty) => {
 
 /**
  * This browser's own ELO numbers for a room of `mode` and `difficulty` — eloSummary of the very list room.elo sends and
- * the server reads (eloImpact) —, with the scope.
- * @param {string} mode @param {string} difficulty @param {() => any[]} [records]
+ * the server reads (eloImpact) —, with the scope (the version's name first).
+ * @param {string} mode @param {string} difficulty @param {() => any[]} [records] @param {string | null} [sub] @param {string} [version]
  */
-export function eloMine(mode, difficulty, records = peekStatsRecords) {
-  const impact = eloImpact(eloSummary(eloEntriesOf(eloRecords(records()), mode, difficulty)));
-  return { ...impact, scope: scopeOf(mode, difficulty), mode, difficulty };
+export function eloMine(mode, difficulty, records = peekStatsRecords, sub = undefined, version = shownVersion(store.get())) {
+  const recs = records();
+  // each official version its own (the owner, 2026-11-20): the room's — the version shown — and no other
+  const own = eloEntriesOf(eloRecords(recs), mode, difficulty, version) || [];
+  // receipts (§37.276): the list the server takes — this identity's receipts, or the local records when they hinder more
+  const trusted = eloTrusted(own, eloReceiptList(recs, mode, difficulty, version, sub));
+  const impact = eloImpact(trusted.summary);
+  return { ...impact, scope: t('{version}·{scope}', { version: versionLabel(version), scope: scopeOf(mode, difficulty) }), mode, difficulty, version,
+    source: trusted.source, verified: trusted.verified, ownN: eloSummary(own).n };
 }
 
 /** 帮 · 2 级 / 不调 / 压 · 3 级. @param {{ dir: string, level: number }} x */
@@ -58,7 +71,7 @@ export function eloEffectLines(x) {
 }
 
 /** The line of the rule list (ExperimentalDetails): 你：近期胜率 60% · 压 · 2 级 / 你：记录不足. @param {ReturnType<typeof eloMine>} x */
-export const eloBrief = (x) => (x.key !== 'few' ? t('你：近期胜率 {rate}% · {level}', { rate: pct(x.raw), level: eloLevelText(x) })
+export const eloBrief = (x) => (x.key !== 'few' ? t('你：近期胜率 {rate}% · {level}', { rate: pct(x.w), level: eloLevelText(x) })
   : x.n < ELO_MAP.minGames ? t('你：记录不足 {n} 局，暂不调整', { n: ELO_MAP.minGames }) : t('你：折算后不足 {n} 局，暂不调整', { n: ELO_MAP.minGames }));
 
 /**
@@ -83,23 +96,25 @@ const Detail = ({ text, testid }) => html`<${Tooltip} tap=${true} placement="bot
  * @param {{ mode: string, difficulty: string, version?: string|null, revival?: boolean, mine?: ReturnType<typeof eloMine> }} props
  */
 export function EloPanel({ mode, difficulty, version = null, revival = false, mine = null }) {
-  const x = mine || eloMine(mode, difficulty);
+  const x = mine || eloMine(mode, difficulty, undefined, undefined, version || undefined);
   const few = x.key === 'few';
   const r = { scope: x.scope, n: x.n, wins: x.wins, losses: x.losses };
   // the ⓘ explains the line: the weighting and the shrink; it stays with the rate the server uses (→ 66%), never alone
   const why = x.n ? html`<${Detail} testid="elo-rate-i" text=${t('早期失利按通过的回合折算（通过 {r} 回合算 1 局），共按 {games} 局计；折算后满 {min} 局才调整，胜率再加 {k} 胜 {k} 负向 50% 拉近。', {
     r: ELO_MAP.lossRounds, games: num1(x.games), min: ELO_MAP.minGames, k: ELO_MAP.prior })} />` : null;
   const w = few ? null : html`<span class="elo-panel__w">→ ${pct(x.w)}% ${why}</span>`;
-  const rate = !x.n ? t('{scope}：本机还没有记录', r)
+  const rate = !x.n ? (x.ownN ? t('还没有已核验的{scope}对局', r) : t('{scope}：本机还没有记录', r))
     : few ? [t('{scope} 最近 {n} 局：{wins} 胜 {losses} 负', r), ' ', why]
     : x.games < x.n ? tParts('{scope} 最近 {n} 局：{wins} 胜 {losses} 负（早期失利按回合折算）{rate}', { ...r, rate: w })
     : tParts('{scope} 最近 {n} 局：{wins} 胜 {losses} 负 {rate}', { ...r, rate: w });
-  const est = few ? null : eloMeasured(version, x.dir, x.level);
+  const est = few ? null : eloMeasured(x.version ?? version, x.dir, x.level);
   return html`<div class=${`elo-panel elo-panel--${x.dir}`} data-testid="elo-panel" data-dir=${x.dir} data-level=${x.level}>
     <p class="elo-panel__fun"><${Icon} name="info" /><strong>${t('此功能仅为娱乐')}</strong></p>
     <h5 class="elo-panel__h">${t('近期胜率')}</h5>
     <ul class="elo-panel__list">
       <li data-testid="elo-rate">${rate}</li>
+      ${x.source ? html`<li class="elo-panel__src" data-testid="elo-source">${x.source === 'own' ? t('按本机记录计：本机记录只会让调整更压')
+        : t('按已核验的对局计：帮助只看已核验的对局')}<${InfoTip} id="elo-verified-tip" text=${t('已核验：对局结束时服务器签发了凭证的对局。导入的对局要身份相同才计入。')} /></li>` : null}
       ${few ? html`<li class="elo-panel__few" data-testid="elo-few">${x.n < ELO_MAP.minGames ? t('记录不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })
         : t('折算后不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })}</li>` : null}
     </ul>
@@ -110,7 +125,7 @@ export function EloPanel({ mode, difficulty, version = null, revival = false, mi
         ? t('AI 队友不一定救你（约 {p}%）', { p: pct(x.rescue) }) : t('AI 队友不会救你')}</li>` : null}
       ${est ? html`<li class="elo-panel__est" data-testid="elo-estimate">${estimateText(est, mode)} <${Detail} testid="elo-estimate-i"
         text=${t('{version}·{where}，AI 代打 {games} 局：不开 ELO 胜率 {off}%，此级 {at}%（变化的 95% 区间 {lo}…{hi}）', {
-        version: t(versionById(est.version)?.label ?? est.version), where: t(est.where), games: est.games, off: est.off, at: est.at, lo: signed(est.lo), hi: signed(est.hi) })} /></li>` : null}
+        version: versionLabel(est.version), where: t(est.where), games: est.games, off: est.off, at: est.at, lo: signed(est.lo), hi: signed(est.hi) })} /></li>` : null}
     </ul>`}
     <p class="elo-panel__note">${t('计入成就 · 每局结束后更新')}</p>
   </div>`;
@@ -135,8 +150,9 @@ export const eloSeen = (code) => !!code && seen.has(code);
  */
 export function EloNotice({ room, seated = true }) {
   const revival = room?.experimental?.revivalEnabled === true;
-  // the local records change only as a match ends: read again then (not at every room.state)
-  const x = useMemo(() => (seated ? eloMine(room.mode, room.difficulty) : null), [seated, room.mode, room.difficulty, room.inMatch, room.code]);
+  // the local records change only as a match ends: read again then (not at every room.state), and when the receipts do
+  const rev = useStore((s) => s.rev, Object.is, receiptRev);
+  const x = useMemo(() => (seated ? eloMine(room.mode, room.difficulty, undefined, undefined, roomVersion(room)) : null), [seated, room.mode, room.difficulty, roomVersion(room), room.inMatch, room.code, rev]);
   return html`<div class="elo-notice" role="note" data-testid="elo-notice">
     <${Icon} name="info" class="elo-notice__icon" />
     <span><strong>${t('本房间已开启 ELO · 此功能仅为娱乐')}</strong>

@@ -42,7 +42,9 @@ import { data, useData } from '../data.js';
 import { fmtNum, diyRecordFor, cardStandIn } from '../ui/gameLogic.js';
 import { useDocClass } from '../ui/device.js';
 import { uiUrl, chessAvatarUrl, portraitChain, itemIconUrl, medalIconUrl } from '../ui/assetUrls.js';
-import { identity } from '../net.js';
+import { identity, net } from '../net.js';
+import { adoptIdentity, bumpReceipts, idStore, otherIdentity, verifyReceipts } from '../ui/receipts.js';
+import { InfoTip, VerifiedMark, confirmExport, confirmSwitch } from '../ui/receiptViews.js';
 import { TITLE_FULL_COUNT, hexWedges, titleSectorClip, titleTableFamily } from '../ui/titleHexagon.js';
 import { store, createStore, useStore, selectRoute } from '../store.js';
 import { ResultView } from './result.js';
@@ -574,7 +576,8 @@ function HistoryRow({ rec, gd, onOpen }) {
     <td class="st-res">${quit ? html`<span class="t-quit">${t('中途退出')}</span>` : html`<span class=${won ? 't-win' : 't-lose'}>${won ? t('胜') : t('负')}</span>`}
       ${!counted ? html`<em class="st-chip">${t('不计入统计')}</em>` : null}
       ${isModdedRecord(rec) ? html`<em class="st-chip is-modded" title=${(rec.content.plugins || []).join(', ')}>${t('非官方')}</em>` : null}
-      <${VersionTag} version=${rec.version ?? null} compact=${true} class="st-chip" /></td>
+      <${VersionTag} version=${rec.version ?? null} compact=${true} class="st-chip" />
+      <${VerifiedMark} rc=${rec.rc} /></td>
     <td class="num">${known ? fmtNum(rounds) : '—'}</td>
     <td class="st-go" aria-hidden="true">${view ? html`<${Icon} name="chevronRight" />` : null}</td>
   </tr>`;
@@ -584,13 +587,18 @@ function HistoryRow({ rec, gd, onOpen }) {
 function History({ records, gd, onOpen }) {
   const [shown, setShown] = useState(HISTORY_PAGE);
   const rows = records.slice(0, shown);
+  // the 已核验 mark (§37.276, ui/receipts.js): the server is asked about the receipts on screen
+  const asked = rows.map((r) => r.rc).filter(Boolean);
+  useEffect(() => { void verifyReceipts(net, asked); }, [asked.join('|')]);
   return html`<${Section} title=${t('对局记录')} micro=${`HISTORY · ${records.length}`}>
     ${rows.length ? html`<div class="st-tablewrap"><table class="st-table st-table--history">
       <thead><tr><th>${t('时间')}</th><th>${t('难度')}</th><th>${t('模式')}</th><th>${t('策略')}</th><th>${t('结果')}</th><th class="num">${t('回合')}</th><th aria-hidden="true"></th></tr></thead>
       <tbody>${rows.map((r) => html`<${HistoryRow} key=${r.id} rec=${r} gd=${gd} onOpen=${onOpen} />`)}</tbody>
     </table></div>
     ${records.length > shown ? html`<div class="st-more"><${Button} size="sm" variant="secondary" onClick=${() => setShown(shown + HISTORY_PAGE)}>${t('显示更多（还有 {n} 局）', { n: records.length - shown })}<//></div>` : null}
-    <p class="st-hint">${t('点击一行，回看该局结算；中途退出的对局只留记录。')} ${t('最多保留最近 {max} 局，最新的 {full} 局及盟约最高叠加战绩能回看结算。', { max: MAX_RECORDS, full: FULL_KEEP })}</p>`
+    <p class="st-hint">${t('点击一行，回看该局结算；中途退出的对局只留记录。')} ${t('最多保留最近 {max} 局，最新的 {full} 局及盟约最高叠加战绩能回看结算。', { max: MAX_RECORDS, full: FULL_KEEP })}</p>
+    <p class="st-hint" data-testid="rc-verified-hint">${t('「已核验」：服务器核对过这局的凭证。')}<${InfoTip} id="rc-verified-tip"
+      text=${t('对局结束时，服务器给每位玩家签发一份凭证。成就和等级仍按本机记录计算。')} /></p>`
       : html`<p class="st-empty">${t('还没有记录 —— 完成一局对局后，这里会开始积累。')}</p>`}
   <//>`;
 }
@@ -703,9 +711,12 @@ function StatsScreen({ tab }) {
   useEffect(() => clearReplayVersion, []);
   const reload = () => setStats(loadStats());
 
-  const doExport = () => {
+  const doExport = async () => {
+    // the file carries this browser's identity (§37.276): said plainly before it is written
+    const token = idStore.get().token;
+    if (token && !(await confirmExport())) return;
     try {
-      const payload = exportStats(stats);
+      const payload = exportStats(stats, token);
       downloadText(exportFilename(), JSON.stringify(payload));
       toast(t('已导出 {n} 条对局记录', { n: payload.records.length }), 'success');
     } catch (err) {
@@ -719,8 +730,9 @@ function StatsScreen({ tab }) {
     if (file.size > IMPORT_MAX_CHARS) { toast(t('文件过大，无法导入'), 'error'); return; }
     try {
       const raw = JSON.parse(await readFileText(file));
-      const { stats: merged, added, skipped, dropped, name } = importStats(raw, loadStats());
+      const { stats: merged, added, skipped, dropped, name, identity: fileIdentity } = importStats(raw, loadStats());
       if (added && !saveStats(merged)) { toast(t('无法写入本机存储，可能已满'), 'error'); return; }
+      if (added) bumpReceipts();
       if (!store.get().me.name && name) {
         identity.saveName(name);
         store.patch('me', { name });
@@ -728,6 +740,11 @@ function StatsScreen({ tab }) {
       reload();
       const tail = (skipped ? t('（跳过重复 {skipped} 条）', { skipped }) : '') + (dropped ? t('（{n} 条无法读取）', { n: dropped }) : '');
       toast(added ? t('已导入 {added} 条记录{tail}', { added, tail }) : t('没有新记录（全部与现有数据重复）'), 'success');
+      // the file's identity (§37.276): the player decides whether this browser takes it (no merging of identities)
+      if (fileIdentity && otherIdentity(fileIdentity) && (await confirmSwitch())) {
+        const ok = await adoptIdentity(net, fileIdentity);
+        toast(ok ? t('已换成文件里的身份') : t('身份切换失败：服务器不认这份文件里的身份'), ok ? 'success' : 'error');
+      }
     } catch (err) {
       toast(err?.code === 'stats-newer-version' ? t('导入失败：这份文件由更新版本的客户端导出，请先升级客户端') : t('导入失败：不是有效的统计导出文件'), 'error');
     }

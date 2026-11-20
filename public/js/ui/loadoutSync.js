@@ -45,7 +45,7 @@ import { OWNERSHIP_PREF, parseStoredOwnership, parseStoredOwnershipChars, toStor
 import { parseStoredDiy, parseStoredDiyFallback, toStoredDiy, cleanPicks, sanitizeDiyPicks, diyPrefKey, diyPicksFor, dropForeignBench } from './diyModel.js';
 import { cardStore, CARD_KEY, CARD_SYNC_KEY, cardOperators } from './seatArt.js';
 import { cardStore as playerCardStore, cardMessage, refreshTrophies } from './playerCard.js';
-import { needsContent, serverDefaultVersion } from '../versions.js';
+import { needsContent, roomVersion, serverDefaultVersion } from '../versions.js';
 import { DEFAULT_VERSION } from '../../../shared/versions.js';
 import { toast } from './toasts.js';
 import { cleanSkinChoices } from '../../../shared/skins.js';
@@ -53,6 +53,8 @@ import { SKINS_PREF, parseStoredSkins, toStoredSkins } from './skinsModel.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { prepareOperatorPreset } from './operatorPresetModel.js';
 import { eloRecords } from './eloRecords.js';
+import { eloReceipts, receiptRev } from './receipts.js';
+import { eloKey } from '../../../shared/elo.js';
 import { peekStatsRecords } from './stats.js';
 
 export const SYNC_DEBOUNCE_MS = 500;
@@ -828,7 +830,9 @@ export const eloStore = createStore({ eloSync: 'idle', eloRev: 0 });
  * browser's newest records per mode and difficulty — only while the page is in a room with the ELO option (`gate`): on
  * entering such a room, when its host turns the option on, after every welcome there and whenever a match of the room
  * ends (a new record). Out of such a room nothing is sent. The server keeps it on the session and the seat and
- * never shows it to anybody; during a match it is stored for the next one (ROOM_STARTED → 'locked').
+ * never shows it to anybody; during a match it is stored for the next one (ROOM_STARTED → 'locked'). With it `rc`
+ * (§37.276, ui/receipts.js eloReceipts): this identity's receipts of the room's mode and difficulty — sent again when
+ * those change or the receipts do (a receipt stored, an import, another identity).
  * @param {{ net: any, timers?: { setTimeout: Function, clearTimeout: Function }, target?: ReturnType<typeof createStore>,
  *   app?: any, records?: () => any[] }} deps
  */
@@ -839,12 +843,20 @@ export function installEloSync({ net, timers, target = eloStore, app = store, re
     const inMatch = s?.room?.inMatch === true;
     if (playing && !inMatch) ends++;
     playing = inMatch;
-    return `${isEloRoom(s?.room?.experimental)}|${ends}`;
+    return `${isEloRoom(s?.room?.experimental)}|${s?.room?.mode}|${s?.room?.difficulty}|${roomVersion(s?.room)}|${ends}`;
   };
-  return installPrefSync({
-    net, timers, target, key: 'eloRev', stateKey: 'eloSync', msgType: 'room.elo', field: 'rec', tag: 'elo',
+  const offReceipts = receiptRev.subscribe(() => target.set({ eloRev: target.get().eloRev + 1 }));
+  const sync = installPrefSync({
+    net, timers, target, key: 'eloRev', stateKey: 'eloSync', msgType: 'room.elo', field: null, tag: 'elo',
     lockedText: null, content: null, app, seatBound: false, resendOn,
     gate: () => isEloRoom(app?.get?.()?.room?.experimental),
-    prepare: async () => eloRecords(records()),
+    prepare: async () => {
+      // only the room's mode, difficulty and version (each version its own win rate: the owner, 2026-11-20)
+      const room = app?.get?.()?.room;
+      if (!room) return { rec: {}, rc: [] };
+      const recs = records(), key = eloKey(room.mode, room.difficulty, roomVersion(room)), own = eloRecords(recs)[key];
+      return { rec: own ? { [key]: own } : {}, rc: eloReceipts(recs, room.mode, room.difficulty, roomVersion(room)) };
+    },
   });
+  return { ...sync, dispose() { offReceipts(); sync.dispose(); } };
 }

@@ -144,10 +144,20 @@
 //     tilted in a room they did not choose). room.elo { rec } — the player's own recent matches per mode and difficulty,
 //     `[won, roundsPassed]` newest first (shared/elo.js isEloRecords; its page sends it only in such a room) — is stored on
 //     the session and the seat like the not-owned list, never in room.state, a view or the persisted lobby state; a match
-//     of a room with the option receives seats[].elo, the matches of the room's mode and difficulty (eloEntriesOf; null
+//     of a room with the option receives seats[].elo, the matches of the room's mode, difficulty and version (eloEntriesOf: each
+//     version its own, the owner's decision of 2026-11-20; null
 //     without any, absent on every AI seat and in every other room), runs shared/elo.js eloSummary on them and keeps the
 //     tilt for its whole length (a new list is for the next match: ROOM_STARTED 'stored for the next match'). The list
-//     is the page's own claim: ELO does not ship before server-signed match receipts replace it (a later step).
+//     is the page's own claim: with receipts (next item) only a stronger hindrance is taken from it.
+//   * Match receipts (the owner's decisions of 2026-11-20, docs/history/0.4.0.md §37.276; server/resultReceipts.js,
+//     server/identity.js): at every match end each human seat still in the room whose session has an identity (net.js
+//     session.sub, from its socket's cookie) gets `m.receipt { rc }` — its own row signed (sendReceipts) — after its
+//     m.result, never for a test match or a seat that left; the receipt is kept in the result replay. room.elo `rc` (the
+//     receipts of the room's mode and difficulty): the session keeps, per mode and difficulty, the verified receipts of its
+//     own identity as the list — or its page's own list when that one hinders more (eloTrustedRec, shared/elo.js
+//     eloTrusted) —, so help comes from receipts alone. room.trophies `rc`: the 规程 名片 trophies are counted from the
+//     verified receipts (any identity, one per match) and shown on the seat's card in a room of that season (Room.cardOf)
+//     instead of the page's own number; other seasons show room.card as sent. rc.verify: which receipts verify.
 //   * Content identity (DESIGN §32, the plugin system's first step): the lobby is given the server's vanilla content
 //     (server/plugins/identity.js; none in unit tests that build a Lobby without it). Every `welcome` carries
 //     `content: { vanilla: <cs> }` — and `plugins: <n>` when this server has n > 0 unofficial plugins (every class but a
@@ -299,6 +309,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, ROOM_LIST_MAX, ROOM_LIST_MIN_CAPACITY, MATCHMAKING_VERSION, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, isOfficialAvatar } from '../shared/protocol.js';
 import { eloEntriesOf } from '../shared/elo.js';
+import { RECEIPT_TROPHY_SEASONS, receiptTrophies } from '../shared/receipts.js';
+import { eloTrustedRec, matchReceipts } from './resultReceipts.js';
 import { isSkinChoices, skinFor } from '../shared/skins.js';
 import { CARD_ROSTER } from '../shared/card-roster.js';
 import { EXPERIMENTAL_DEFAULTS, experimentalOptions, isCollabRoom, isConsoleRoom, isEloRoom, isExperimental, sameExperimental } from '../shared/experimental.js';
@@ -319,7 +331,7 @@ const VANILLA_KITTED = new Set(KITTED_CHARS);
 import { isContentHash } from '../shared/plugins/identity.js';
 import { ruleOption } from '../shared/plugins/rules.js';
 import { msg, wireMessage } from '../shared/i18n.js';
-import { DEFAULT_VERSION } from '../shared/versions.js';
+import { DEFAULT_VERSION, versionById } from '../shared/versions.js';
 import { parseTestModeEnv, testModeGate, unrecognizedTestMode } from './testMode.js';
 
 /** Room code alphabet: uppercase letters without I and O (and no digits, so no 0/1). */
@@ -419,9 +431,11 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
  *             notOwned?: readonly string[] | null, diy?: Readonly<Record<string, DiyLoadout>> | null,
  *             skins?: Readonly<Record<string, string>>, band?: string | null, card?: Card | null, owner?: boolean,
  *             content?: 'ready' | 'failed' | null, contentGen?: number, loadoutCs?: string | null, notOwnedCs?: string | null,
- *             diyCs?: string | null, consentCs?: string | null, elo?: Readonly<Record<string, readonly (readonly number[])[]>> | null }} Seat
+ *             diyCs?: string | null, consentCs?: string | null, elo?: Readonly<Record<string, readonly (readonly number[])[]>> | null,
+ *             rcTrophies?: number }} Seat
  *   (`band`: AI seats only — the strategy room.setBotBand designated, null = the AI picks by itself; `card` / `owner`:
- *   human seats only, display only — room.card and the 服主 mark; `elo`: human seats only, never shown — room.elo)
+ *   human seats only, display only — room.card and the 服主 mark; `elo`: human seats only, never shown — room.elo;
+ *   `rcTrophies`: human seats only — the 规程 名片 trophies counted from receipts, header "Match receipts")
  *   content: a room with gameplay plugins — whether the player's page loaded and checked its content (header "Gameplay
  *   plugins"; null = still loading); contentGen: counts the seat's disconnects (a queued room.contentReady of an earlier
  *   page no longer counts); loadoutCs / notOwnedCs / diyCs: the content its settings were checked for
@@ -576,7 +590,8 @@ export class Room {
     this.lastSummary = null;
     /**
      * Frames of the last match's end, replayed on resync to humans who have not moved on yet.
-     * @type {{ publicFrame: string | null, frames: Map<string, string>, pending: Set<string> } | null}
+     * `receipts`: each player's m.receipt (header "Match receipts"), replayed after its m.result.
+     * @type {{ publicFrame: string | null, frames: Map<string, string>, pending: Set<string>, receipts?: Map<string, string> } | null}
      */
     this.replay = null;
     /**
@@ -639,6 +654,24 @@ export class Room {
       && this.seats.every((seat, index) => !seat || (this.admitsSeat(index) && seat.seat === index));
   }
 
+  /** Does room.state show the 名片 trophies counted from receipts (header "Match receipts": a 规程 room)? */
+  receiptTrophies() {
+    return RECEIPT_TROPHY_SEASONS.has(versionById(this.version)?.season ?? '');
+  }
+
+  /**
+   * A human seat's card as room.state shows it: room.card as sent, except in a room of a season whose trophies the
+   * server counts (receiptTrophies) — there the trophies are the ones counted from the receipts the page presented
+   * (room.trophies), never the page's own number. @param {Seat} s
+   */
+  cardOf(s) {
+    if (!this.receiptTrophies()) return s.card;
+    const { trophies, ...rest } = /** @type {any} */ (s.card || {});
+    void trophies;
+    const card = s.rcTrophies > 0 ? { ...rest, trophies: s.rcTrophies } : rest;
+    return Object.keys(card).length ? card : null;
+  }
+
   /** Humans that have not departed, in seat order. @returns {Seat[]} */
   activeHumans() { return this.seats.filter((s) => s && !s.isBot && !s.left); }
 
@@ -667,11 +700,11 @@ export class Room {
           // an AI seat's designated strategy (room.setBotBand; null = it picks by itself)
           ...(s.isBot ? { band: s.band ?? null } : {}),
           // display only: the player's room.card and the 服主 mark (absent when none)
-          ...(!s.isBot && s.card ? { card: s.card } : {}), ...(!s.isBot && s.owner ? { owner: true } : {}),
+          ...(!s.isBot && this.cardOf(s) ? { card: this.cardOf(s) } : {}), ...(!s.isBot && s.owner ? { owner: true } : {}),
           // a room with gameplay plugins (header "Gameplay plugins"): has this player's page loaded and checked its content?
           ...(this.needsContent && !s.isBot ? { content: s.content || 'loading' } : {}),
           // 名片干员 (room.card): only a human seat with a card carries the key
-          ...(!s.isBot && s.card ? { card: s.card } : {}),
+          ...(!s.isBot && this.cardOf(s) ? { card: this.cardOf(s) } : {}),
           }
         : null)),
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected, ...(s.owner ? { owner: true } : {}),
@@ -746,6 +779,8 @@ export class Lobby {
     this.simPool = simPool;
     /** room.list's shared answer: { at, rooms } (roomList) */
     this.roomListCache = null;
+    /** match receipts (server/resultReceipts.js, header "Match receipts"; set by the session stack), or null: none */
+    this.receipts = null;
     this.log = log;
     this.MatchClass = MatchClass;
     this.getData = getData;
@@ -1204,6 +1239,8 @@ export class Lobby {
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
       case 'room.elo': return this.elo(session, msg);
+      case 'room.trophies': return this.trophies(session, msg);
+      case 'rc.verify': return this.verifyReceipts(msg);
       case 'room.skins': return this.skins(session, msg);
       case 'room.card': return this.setCard(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
@@ -2741,7 +2778,10 @@ export class Lobby {
    * room.elo (§37.275, header "ELO"): the player's own recent matches, stored on the session and the seat. A running match
    * never takes them: it keeps the tilt its seat had at its start.
    */
-  elo(session, { rec }) {
+  elo(session, { rec, rc }) {
+    // receipts (header "Match receipts"): help only from the verified receipts of the session's own identity, the page's
+    // own lists only make it harder — what the session keeps (and a match takes) is that choice per mode and difficulty
+    if (this.receipts) rec = eloTrustedRec(rec, this.receipts.verifyAll(rc), session.sub);
     // the same counts again keep the stored object (a start being prepared is not invalidated by a resend: ClusterLobby)
     const kept = isDeepStrictEqual(session.elo, rec) ? session.elo
       : Object.freeze(Object.fromEntries(Object.entries(rec).map(([k, list]) => [k, Object.freeze(list.map((e) => Object.freeze([e[0], e[1]])))])));
@@ -2751,6 +2791,32 @@ export class Lobby {
     if (seat) seat.elo = kept;
     if (room?.match && seat) return fail(ERR.ROOM_STARTED, 'stored for the next match');
     return OK;
+  }
+
+  /**
+   * room.trophies (header "Match receipts"): the 规程 名片 trophies counted from the receipts the page presents (verified,
+   * any identity, one per match) — what room.state shows on the player's seat card in a room of that season. Kept on the
+   * session (it follows the player into every room) and the seat; the room hears a change.
+   */
+  trophies(session, { rc }) {
+    if (!this.receipts) return OK;
+    const seasons = [...RECEIPT_TROPHY_SEASONS];
+    const verified = this.receipts.verifyAll(rc);
+    const n = seasons.reduce((sum, season) => sum + receiptTrophies(verified, season), 0);
+    session.rcTrophies = n;
+    const room = this.roomOf(session);
+    const seat = room ? room.seatOf(session.playerId) : null;
+    if (seat && seat.rcTrophies !== n) {
+      seat.rcTrophies = n;
+      if (room.receiptTrophies()) this.broadcastState(room);
+    }
+    return OK;
+  }
+
+  /** rc.verify (header "Match receipts"): which of the receipts verify, answered on the ok (the 已核验 mark). */
+  verifyReceipts({ rc }) {
+    if (!this.receipts) return { ok: true, reply: { valid: rc.map(() => 0) } };
+    return { ok: true, reply: { valid: rc.map((r) => (this.receipts.verify(r) ? 1 : 0)) } };
   }
 
   /**
@@ -3056,7 +3122,7 @@ export class Lobby {
         // 0.2.0 自选编队: the human's checked DIY picks (bots field no 自选 piece [ASSUMED])
         diy: own ? own.diy : null,
         // ELO (header): the human's own recent matches of the room's mode and difficulty — only in a room with the option
-        ...(own && isEloRoom(room.experimental) ? { elo: eloEntriesOf(s.elo, room.mode, room.difficulty) } : {}),
+        ...(own && isEloRoom(room.experimental) ? { elo: eloEntriesOf(s.elo, room.mode, room.difficulty, room.version) } : {}),
         skins: Object.freeze({ ...(s.isBot ? {} : s.skins || {}) }),
         // room.setBotBand: an AI seat's designated strategy (absent when it picks by itself)
         ...(s.isBot && s.band ? { band: s.band } : {}),
@@ -3209,6 +3275,8 @@ export class Lobby {
     room.matchKeys = null;
     room.revivalLocked = null;
     room.replay = this.buildReplay(room, ctx);
+    // match receipts (header "Match receipts"): each human seat's own, after its m.result, and in the replay
+    this.sendReceipts(room, summary);
     room.likes = likesOf(summary, room.matchCount);
     setImmediate(() => this.disposeMatchCtx(ctx));
     // a match of gameplay plugins, or of an official version, whose match host stopped (header "Gameplay plugins",
@@ -3232,6 +3300,28 @@ export class Lobby {
       // its plugins changed on disk during the match: the host can apply them again now
       if (room.pluginsChanged) this.tellPluginsChanged(room);
     }
+  }
+
+  /**
+   * The match receipts of a match end (server/resultReceipts.js matchReceipts): `m.receipt { rc }` to each player it is
+   * for (that player alone), kept in the room's replay next to its m.result.
+   * @param {Room} room @param {any} summary
+   */
+  sendReceipts(room, summary) {
+    let issued;
+    try {
+      issued = matchReceipts(this.receipts, { summary, room, subOf: (id) => this.registry.byId(id)?.sub ?? null });
+    } catch (e) { this.log.error(`[lobby] ${room.code} match receipts failed`, e); return; }
+    if (!issued.size) return;
+    const frames = new Map();
+    for (const [playerId, rc] of issued) {
+      const frame = encode({ t: 'm.receipt', rc });
+      if (frame == null) continue;
+      frames.set(playerId, frame);
+      const session = this.registry.byId(playerId);
+      if (session?.connected && session.roomCode === room.code) sendRaw(session.ws, frame);
+    }
+    if (room.replay) room.replay.receipts = frames;
   }
 
   /** Match unicast; m.result frames are also kept for the replay. */
@@ -3272,7 +3362,7 @@ export class Lobby {
   replayFor(room, playerId) {
     const r = room.replay;
     if (!r || !r.pending.has(playerId)) return null;
-    return [r.publicFrame, r.frames.get(playerId)].filter(Boolean);
+    return [r.publicFrame, r.frames.get(playerId), r.receipts?.get(playerId)].filter(Boolean);
   }
 
   /**
@@ -3512,6 +3602,8 @@ export class Lobby {
       elo: session.elo || null,
       skins: Object.freeze({ ...(session.skins || {}) }),
       card: session.card || null,
+      // the 规程 名片 trophies counted from receipts (room.trophies; header "Match receipts")
+      rcTrophies: session.rcTrophies || 0,
       owner: session.owner === true,
       // the content each was checked for (header "Gameplay plugins": filtered at the match start when it is another)
       loadoutCs: session.loadoutCs ?? null,

@@ -1463,3 +1463,14 @@
   .set-tab__micro.micro { display: none; }
   .modal__box.setdlg .set-page { padding: 10px 16px 14px; }
 }
+
+/* ---- match receipts and the identity cookie (ui/receiptViews.js, §37.276): the ⓘ, the one-line facts, 已核验 ---- */
+.rc-tip { display: inline-flex; align-items: center; vertical-align: middle; margin-left: .04rem; padding: 0; border: 0; background: none; color: var(--text-lo); cursor: help; }
+.rc-tip .icon { width: 1em; height: 1em; }
+.rc-tip:hover, .rc-tip:focus-visible { color: var(--mint-400); }
+.rc-lines { margin: 0; padding-left: 1.1em; display: grid; gap: .04rem; line-height: 1.6; color: var(--text-md); }
+.rc-lines strong { color: var(--text-hi); }
+.set-identity { display: flex; flex-direction: column; gap: .08rem; padding-top: .1rem; border-top: 1px solid var(--line); }
+.set-identity .rc-lines { font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); }
+.elo-panel__src { color: var(--text-md); font-size: max(calc(.15 * var(--t)), calc(12px * var(--ui))); }
+.st-chip.is-verified { color: var(--mint-400); border-color: var(--mint-500); }

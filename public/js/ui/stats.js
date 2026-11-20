@@ -49,6 +49,12 @@
 // 已获赞 (the owner's decision of 2026-11-16): a settled row keeps `likes`, the 点赞 that player got on that match's settlement
 // (room.likes counts, ui/likes.js — the server keeps them in the room's memory only), written into my own row as they arrive
 // (recordLikes). An optional row field like `damage`: no envelope version, and a record without it reads as none.
+// Match receipts (docs/history/0.4.0.md §37.276, ui/receipts.js): a settled record of a match the server signed a receipt
+// for keeps it as `rc` (shared/receipts.js; recordReceipt matches it to its record) — an optional frame field like `damage`:
+// no envelope version, a record without one reads as none, and a compacted record keeps it. The 已核验 mark, the 规程 名片
+// trophies and the ELO option read it; achievements and LV do not (they stay this browser's own numbers). An export
+// carries the browser's identity token (`identity`, exportStats) — the file says who played —, an import reads it back
+// (importStats `identity`) for the page to offer switching to it.
 // Test matches (DESIGN §34.8) never create local records, including quits. Server awards are
 // zero; a live marker latches until the next match. Legacy marked imports are dropped on load
 // and merge, and pure aggregates/badge helpers exclude them even if handed a raw record.
@@ -67,6 +73,7 @@ import { MAX_PLAYER_CAPACITY } from '../../../shared/playerCapacity.js';
 import { sanitizeName } from './playerName.js';
 import { DEFAULT_VERSION, versionById } from '../../../shared/versions.js';
 import { normalizeBossDamage } from './bossDamage.js';
+import { parseIdToken, parseReceipt } from '../../../shared/receipts.js';
 
 /** Current record-envelope version (bump + add a MIGRATIONS step when the record shape changes). */
 export const STATS_VERSION = 3;
@@ -309,6 +316,8 @@ export function normalizeRecord(raw) {
     content: contentOf(r.content),
     // the official version it played (see the header): a registry id other than 第二期下半, else left out
     ...(versionOf(r.version) ? { version: versionOf(r.version) } : {}),
+    // the server's receipt of the match (see the header): only a well-formed one, on a settled record
+    ...(!quit && parseReceipt(r.rc) ? { rc: r.rc } : {}),
     players,
   };
   // Only the literal true. A hand-edited string cannot mark a real match as a test, and a missing key leaves
@@ -318,7 +327,7 @@ export function normalizeRecord(raw) {
   if (r.compact === true) rec.compact = true;
   // an id-less (hand-made) record gets a content id, so both copies of it land on the same key (`vs` and `content` left
   // out: the id of a record from before 0.3.0 stays the same)
-  if (!rec.id) rec.id = `c.${fnv1a(JSON.stringify({ ...rec, vs: undefined, content: undefined, version: undefined }))}`;
+  if (!rec.id) rec.id = `c.${fnv1a(JSON.stringify({ ...rec, vs: undefined, content: undefined, version: undefined, rc: undefined }))}`;
   return rec;
 }
 
@@ -419,7 +428,7 @@ export function peekStatsRecords() {
 // ---- compaction + the storage budget ---------------------------------------------------------------------------
 
 const COMPACT_FRAME = ['id', 'v', 't', 'end', 'victory', 'roundsPassed', 'lastRound', 'hiddenReached', 'hiddenCleared', 'reason', 'modeId',
-  'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content', 'version', 'test', 'testActions'];
+  'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content', 'version', 'test', 'testActions', 'rc'];
 
 /**
  * The compact form of a record: the frame and the player's OWN row without lineup, bonds and name — everything the
@@ -786,6 +795,38 @@ export function recordLikes(res, myId, count) {
 }
 
 /**
+ * Does a receipt (parsed) describe this record — its mode, difficulty, version, my own row's outcome, rounds and trophies?
+ * @param {any} rec @param {NonNullable<ReturnType<typeof parseReceipt>>} r
+ */
+export function receiptFits(rec, r) {
+  const self = selfRowOf(rec);
+  return !!self && rec.end === 'settled' && rec.roomMode === r.mode && rec.difficulty === r.diff && recordVersion(rec) === r.ver
+    && (self.victory === true ? 1 : 0) === r.w && int(self.roundsPassed, -1) === r.rp && int(self.trophies, 0) === r.tr;
+}
+
+/**
+ * A receipt of the server (m.receipt, see the header) onto the stored record of its match: the newest of the latest
+ * RECEIPT_LOOKBACK settled records without one that fits it (receiptFits — two records alike in all of that are alike
+ * for everything a receipt counts). False when none does (its m.result not recorded yet: ui/receipts.js tries again),
+ * a test match is on, or the store is newer; true also when that record already has it.
+ * @param {unknown} rc @returns {boolean}
+ */
+export function recordReceipt(rc) {
+  const r = parseReceipt(rc);
+  if (!r || liveMatch.test === true) return false;
+  const stats = loadStats();
+  if (stats.newer || stats.damaged) return false;
+  const recent = stats.records.slice(0, RECEIPT_LOOKBACK);
+  if (recent.some((rec) => rec.rc === rc)) return true;
+  const rec = recent.find((x) => !x.rc && receiptFits(x, r));
+  if (!rec) return false;
+  rec.rc = rc;
+  return saveStats({ v: STATS_VERSION, records: stats.records });
+}
+/** How many of the newest records a receipt may land on (recordReceipt). */
+export const RECEIPT_LOOKBACK = 20;
+
+/**
  * Merge two envelopes (import into existing): union by record id, newest first, capped.
  * @param {{ records: any[] }} a current (wins ties)
  * @param {{ records: any[] }} b incoming
@@ -795,7 +836,8 @@ export function mergeStats(a, b) {
   const byId = new Map();
   for (const r of [...(Array.isArray(b?.records) ? b.records : []), ...(Array.isArray(a?.records) ? a.records : [])]) {
     const rec = normalizeRecord(r);
-    if (rec && rec.test !== true) byId.set(rec.id, rec);
+    // a receipt one copy has survives the other copy winning (see the header)
+    if (rec && rec.test !== true) byId.set(rec.id, !rec.rc && byId.get(rec.id)?.rc ? { ...rec, rc: byId.get(rec.id).rc } : rec);
   }
   const records = [...byId.values()].sort(newestFirst).slice(0, MAX_RECORDS);
   return { v: STATS_VERSION, records };
@@ -805,9 +847,10 @@ export function mergeStats(a, b) {
  * Parse + migrate + merge an exported / pasted payload into the current data.
  * @param {any} raw parsed JSON of the imported file
  * @param {{ records: any[] }} current current envelope
- * @returns {{ stats: { v: number, records: any[] }, added: number, skipped: number, dropped: number, name: string }}
+ * @returns {{ stats: { v: number, records: any[] }, added: number, skipped: number, dropped: number, name: string, identity: string | null }}
  *   added = records new to this device; skipped = duplicates of records it has; dropped = rows of the file that could
- *   not be read; name = newest usable imported self nickname (the caller only adopts it when its current name is empty)
+ *   not be read; name = newest usable imported self nickname (the caller only adopts it when its current name is empty);
+ *   identity = the file's identity token (see the header; well-formed — the server checks it when the player switches)
  */
 export function importStats(raw, current) {
   if (isObj(raw) && raw.kind != null && raw.kind !== 'local-stats') {
@@ -831,20 +874,23 @@ export function importStats(raw, current) {
   const added = incoming.records.filter((r) => !have.has(r.id)).length;
   // Incoming rows are newest first; compacted or unnamed rows cannot restore a nickname.
   const name = incoming.records.map((rec) => sanitizeName(selfRowOf(rec)?.name)).find(Boolean) || '';
-  return { stats: merged, added, skipped: incoming.records.length - added, dropped, name };
+  const identity = isObj(raw) && parseIdToken(raw.identity) ? raw.identity : null;
+  return { stats: merged, added, skipped: incoming.records.length - added, dropped, name, identity };
 }
 
 /**
- * The payload the export button downloads (envelope + a little provenance).
- * @param {{ records: any[] }} stats
- * @returns {{ app: string, kind: string, v: number, exportedAt: string, records: any[] }}
+ * The payload the export button downloads (envelope + a little provenance; `identity`: the browser's identity token, see
+ * the header — left out without one).
+ * @param {{ records: any[] }} stats @param {string | null} [identity]
+ * @returns {{ app: string, kind: string, v: number, exportedAt: string, identity?: string, records: any[] }}
  */
-export function exportStats(stats) {
+export function exportStats(stats, identity = null) {
   return {
     app: 'stronghold-protocol',
     kind: 'local-stats',
     v: STATS_VERSION,
     exportedAt: new Date().toISOString(),
+    ...(parseIdToken(identity) ? { identity: /** @type {string} */ (identity) } : {}),
     records: fitToBudget(Array.isArray(stats?.records) ? stats.records : []),
   };
 }

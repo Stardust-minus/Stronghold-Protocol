@@ -105,7 +105,7 @@ export const NET_DEFAULTS = Object.freeze({
  * room.proposeVersion (DESIGN §35.23) stays host-proposed: an accepted proposal by a lone human switches the room's
  * version — every page then downloads that version's data.
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.elo', 'room.skins', 'room.card', 'queue.join', 'room.list', 'room.spectate', 'room.setPlugins', 'plugins.preview', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.elo', 'room.trophies', 'rc.verify', 'room.skins', 'room.card', 'queue.join', 'room.list', 'room.spectate', 'room.setPlugins', 'plugins.preview', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -173,6 +173,13 @@ export class Session {
     this.card = null;
     /** @type {boolean} the latest hello carried the owner's key (服主, server/ownerFile.js); decided again on every hello */
     this.owner = false;
+    /**
+     * @type {string | null} the identity of the latest hello's socket (its cookie, server/identity.js; §37.276): the pseudonym
+     * the match receipts carry — never the id or the token, never logged. Persisted with the session (lobbyState.js).
+     */
+    this.sub = null;
+    /** @type {number} the 规程 名片 trophies the server counted from the receipts the page presented (room.trophies; lobby-owned) */
+    this.rcTrophies = 0;
     /** @type {string} client address of the latest connection (logging) */
     this.addr = '?';
     /** @type {string | null} per-network limit key of the latest connection (null = not limited), see clientAddress */
@@ -638,6 +645,10 @@ class Connection {
     this.closing = false;
     /** heartbeat slice index (Network.heartbeatSlices) */
     this.slice = 0;
+    /** @type {import('./identity.js').Identity | null} the browser's identity (its cookie, else a new one: server/identity.js) */
+    this.identity = null;
+    /** the socket came without a valid identity cookie: `identity` is a new one */
+    this.identityFresh = false;
   }
 
   /** Server-initiated close (never throws). Later frames from this socket are ignored. */
@@ -666,8 +677,10 @@ export class Network {
    * }} opts
    */
   constructor({ registry, handler, log = noopLog, now = Date.now, getLoadState = null, getLoadDetails = null, getClusterLoad = null, options = {},
-    metrics = NO_PHASES, onlineLimit = null, ownerFile = null, netQuality = null }) {
+    metrics = NO_PHASES, onlineLimit = null, ownerFile = null, netQuality = null, identity = null }) {
     this.registry = registry;
+    /** server/identity.js: the identity cookie each socket's upgrade carries (§37.276), or null (no identities, no receipts) */
+    this.identity = identity;
     /** server/netQuality.js: the browsers' net.q reports (at most one per socket per NETQ_MIN_GAP_MS, after hello) */
     this.netQuality = netQuality;
     this.handler = handler;
@@ -738,6 +751,9 @@ export class Network {
   handleConnection(ws, req) {
     if (this.closed) { try { ws.close(CLOSE.SHUTDOWN, 'server shutdown'); } catch { /* ignore */ } return; }
     const conn = new Connection(ws, clientAddress(req, this.opts.trustProxy), this.now(), this.opts);
+    // the identity cookie (server/identity.js): the upgrade's own reading (websocket.js), else read here (a cluster link)
+    const who = req?.spIdentity ?? (this.identity ? this.identity.fromRequest(req) : null);
+    if (who) { conn.identity = who.identity; conn.identityFresh = who.fresh; }
     this.conns.set(ws, conn);
     conn.slice = this.heartbeatAssign++ % this.heartbeatSlices.length;
     this.heartbeatSlices[conn.slice].add(conn);
@@ -967,6 +983,8 @@ export class Network {
     }
     session.name = name;
     session.owner = owner;
+    // the socket's identity (§37.276): what this session's receipts carry from now on
+    if (conn.identity) session.sub = conn.identity.sub;
     session.lastSeen = now;
     session.addr = conn.ip;
     session.limitKey = conn.key;
@@ -992,6 +1010,8 @@ export class Network {
     if (session.aiTakeoverFrom) { welcome.takeoverFrom = session.aiTakeoverFrom; session.aiTakeoverFrom = null; }
     if (validRid(rid)) welcome.rid = rid;
     this.reply(conn, welcome);
+    // the browser's own identity token (§37.276), to this socket only: the page writes it into a stats export
+    if (conn.identity) this.reply(conn, { t: 'id.token', token: conn.identity.token, ...(conn.identityFresh ? { fresh: true } : {}) });
     try {
       this.handler.onHello?.(session, { resumed, repeat });
     } catch (e) {

@@ -51,6 +51,8 @@ import { createOwnerFile } from './ownerFile.js';
 import { parseSnapshotHz } from './match/fields.js';
 import { createPersistence } from './persist/index.js';
 import { processVerifyHub } from './match/verify/hub.js';
+import { createIdentity, loadKeyring } from './identity.js';
+import { createReceipts } from './resultReceipts.js';
 
 export {
   ROOT, WS_MAX_PAYLOAD, DATA_SHIM_JS, MIME, COMPRESSIBLE, BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag,
@@ -165,7 +167,7 @@ export async function startServer(opts = {}) {
   const scriptMode = process.env.SP_PLUGIN_SCRIPTS;
   let registry, lobby, network, packs, serveStatic, browserBuild, assetIndex = null, views = null;
   let content = null, visual = null, contents = null, hosts = null, studio = null, trustedRuntime = null, persistence = null;
-  let versions = null, versionHosts = null, simPool = null, eventLoop = null;
+  let versions = null, versionHosts = null, simPool = null, eventLoop = null, identity = null, receipts = null;
   const startedAt = Date.now();
   // The online cap and the lobby's room / AI caps (server/onlineLimit.js): a JSON file re-read while the server runs; none = no cap.
   const onlineLimit = createOnlineLimit({ file: opts.onlineLimitFile ?? process.env.SP_ONLINE_LIMIT_FILE ?? null, log });
@@ -211,8 +213,15 @@ export async function startServer(opts = {}) {
       : null;
     log.info(`[versions] enabled: ${versions.ids.map((id) => `${id} (${t(/** @type {any} */ (versionById(id)).label)}${id === versions.defaultId ? ', default' : ''})`).join(', ')}`);
     simPool = createRoomWorkerPool({ data });
+    // the identity cookie and the match receipts (server/identity.js, server/resultReceipts.js; §37.276): their key files
+    // (SP_IDENTITY_KEY_FILE, SP_RESULT_KEY_FILE; unset: ephemeral keys), read before any socket; `receipts: false` = none
+    if (opts.receipts !== false) {
+      identity = createIdentity({ keys: await loadKeyring(opts.identityKeyFile ?? process.env.SP_IDENTITY_KEY_FILE ?? null, { what: 'identity', log }),
+        trustProxy: opts.trustProxy ?? parseTrustProxy(process.env.TRUST_PROXY) });
+      receipts = createReceipts({ keys: await loadKeyring(opts.resultKeyFile ?? process.env.SP_RESULT_KEY_FILE ?? null, { what: 'receipts', log }) });
+    }
     ({ registry, lobby, network } = createSessionStack({ ...opts, snapshotHz }, {
-      data, log, combatPool, trialPool, onlineLimit, ownerFile, content, plugins: roomSets, hosts, versions, versionHosts, simPool,
+      data, log, combatPool, trialPool, onlineLimit, ownerFile, content, plugins: roomSets, hosts, versions, versionHosts, simPool, identity, receipts,
       getLoadState: () => serverLoadState(healthMetrics?.snapshot?.()),
       getLoadDetails: () => publicLoadDetails(healthMetrics?.snapshot?.()),
     }));
@@ -264,13 +273,15 @@ export async function startServer(opts = {}) {
   const health = { startedAt, network, registry, lobby, content, browserBuild, combatPool, trialPool, trialStartupFailed,
     getHealthMetrics: () => healthMetrics, traffic, assetIndex, views, trusted: trustedRuntime?.health, versions, versionHosts,
     persistence: persistence ? () => persistence.snapshot() : null,
+    // identities and receipts (§37.276): aggregate counts only
+    receipts: identity && receipts ? () => ({ identity: identity.stats(), receipts: receipts.stats() }) : null,
     getVerifyStats: opts.getVerifyStats ?? (() => verifyHub?.snapshot() ?? null) };
   // the "same network" exclusion of shadow verification: this process has the client addresses (a coordinator's matches)
   verifyHub?.setAddressResolver((playerId) => registry.byPlayerId?.get(playerId)?.addr ?? null);
   const server = http.createServer(createRequestHandler({ serveStatic, csp: process.env.SP_CSP === 'off' ? null : siteCsp(publicDir), health, log,
-    trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
+    trustProxy: network.opts.trustProxy, studio, trustedRuntime, identity }));
   server.on('clientError', answerClientError);
-  const wss = attachWebSocket(server, { network, log, wsCompression, traffic, lanes: opts.wsLanes ?? process.env.SP_WS_LANES !== '0' });
+  const wss = attachWebSocket(server, { network, log, wsCompression, traffic, lanes: opts.wsLanes ?? process.env.SP_WS_LANES !== '0', identity });
 
   // The address actually bound. The default may fall back to IPv4; the returned host and url follow that.
   let boundHost;
