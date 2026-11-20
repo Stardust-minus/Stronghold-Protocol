@@ -533,7 +533,7 @@ export function RoomScreen() {
   useEffect(() => {
     if (!eloOn || eloSeen(room.code)) return;
     markEloSeen(room.code);
-    showEloPanel({ mode: room.mode, difficulty: room.difficulty, revival: room.experimental?.revivalEnabled === true });
+    showEloPanel({ mode: room.mode, difficulty: room.difficulty, version: room.version ?? null, revival: room.experimental?.revivalEnabled === true });
   }, [eloOn, room?.code]);
 
   if (!room) return null;

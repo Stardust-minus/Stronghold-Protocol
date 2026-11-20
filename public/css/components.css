@@ -1304,21 +1304,28 @@
 @media (max-height: 520px) { .rs-collab .collab-notice small { display: none; } }
 
 /* ---- ELO (ui/eloPanel.js): the player's own panel (the host's reminder, the dialog a joiner gets), the room's notice ---- */
-.elo-panel { display: grid; gap: .06rem; }
-.elo-panel p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.elo-panel { display: grid; gap: .05rem; }
+.elo-panel p, .elo-panel ul, .elo-panel h5 { margin: 0; }
+.elo-panel p, .elo-panel li { line-height: 1.55; overflow-wrap: anywhere; }
 .elo-panel__fun { display: flex; align-items: center; gap: .06rem; color: var(--amber); }
 .elo-panel__fun .icon { flex: none; width: 1.15em; height: 1.15em; }
-.elo-panel__rate { color: var(--text-hi); font-weight: 600; }
-.elo-panel__shrunk, .elo-panel__few, .elo-panel__est, .elo-panel__note { color: var(--text-md); font-size: max(calc(.15 * var(--t)), calc(12px * var(--ui))); }
-.elo-panel__dir { display: flex; align-items: baseline; gap: .1rem; padding: .05rem .1rem; border-left: 3px solid var(--line-3); background: var(--bg-2); }
+.elo-panel__h { margin-top: .02rem; font-size: max(calc(.15 * var(--t)), calc(12px * var(--ui))); font-weight: 600; color: var(--text-md); }
+.elo-panel__list { display: grid; gap: .02rem; padding: 0; list-style: none; color: var(--text-hi); }
+.elo-panel__list li { position: relative; padding-left: 1em; }
+.elo-panel__list li::before { content: '·'; position: absolute; left: .3em; color: var(--text-lo); }
+.elo-panel__few, .elo-panel__est { color: var(--text-md); }
+.elo-panel__w { white-space: nowrap; }
+.elo-panel__i { display: inline-flex; align-items: center; padding: 0; border: 0; background: none; color: var(--text-lo); vertical-align: -.12em; cursor: help; }
+.elo-panel__i .icon { width: 1.05em; height: 1.05em; }
+.elo-panel__i:hover, .elo-panel__i:focus-visible { color: var(--mint-400); }
+.elo-panel__dir { display: flex; align-items: baseline; gap: .1rem; margin-top: .02rem; padding: .04rem .1rem; border-left: 3px solid var(--line-3); background: var(--bg-2); }
 .elo-panel__dir span { color: var(--text-md); }
 .elo-panel__dir b { font-weight: 700; color: var(--text-hi); }
 .elo-panel--help .elo-panel__dir { border-left-color: var(--mint-500); background: var(--mint-a10); }
 .elo-panel--help .elo-panel__dir b { color: var(--mint-400); }
 .elo-panel--hinder .elo-panel__dir { border-left-color: var(--orange); background: var(--orange-a20); }
 .elo-panel--hinder .elo-panel__dir b { color: var(--orange-hi); }
-.elo-panel__what { color: var(--text-hi); }
-.elo-panel__note { padding-top: .04rem; border-top: 1px solid var(--line); }
+.elo-panel__note { margin-top: .02rem; padding-top: .04rem; border-top: 1px solid var(--line); color: var(--text-lo); font-size: max(calc(.14 * var(--t)), calc(12px * var(--ui))); }
 .elo-notice { display: flex; align-items: center; gap: .1rem; padding: .06rem .14rem; color: var(--text-hi); background: var(--amber-a20); border: 1px solid var(--amber); }
 .elo-notice__icon { flex: none; width: 1.3em; height: 1.3em; color: var(--amber); }
 .elo-notice > span { display: grid; gap: .02rem; flex: 1; min-width: 0; }

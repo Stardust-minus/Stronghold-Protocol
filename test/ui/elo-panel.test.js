@@ -1,16 +1,18 @@
 // ELO on the page (docs/history/0.4.0.md §37.275): the counts of the local records (ui/eloRecords.js) — the very counts
 // room.elo sends, and only from a room with the option (ui/loadoutSync.js installEloSync) —, the player's own panel
-// (ui/eloPanel.js: 此功能仅为娱乐, the own rate, its shrunk value or 记录不足, 帮 / 不调 / 压 and its level, what changes, the
-// measured estimate, that it counts and updates), read through shared/elo.js eloImpact — the server's tilt's own mapping —,
+// (ui/eloPanel.js: 此功能仅为娱乐, the own rate on one line or 记录不足, 帮 / 不调 / 压 and its level, what changes, the room's
+// own version's measured change in points — shared/elo.js ELO_MEASURED —, that it counts and updates), read through
+// shared/elo.js eloImpact — the server's tilt's own mapping —,
 // and the host's switch (ui/experimental.js eloRow: the reminder with the panel first). The browser: elo-room e2e shots.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { eloRecords } from '../../public/js/ui/eloRecords.js';
-import { EloPanel, eloBrief, eloEffectText, eloLevelText, eloMine } from '../../public/js/ui/eloPanel.js';
+import { EloPanel, eloBrief, eloEffectLines, eloLevelText, eloMine } from '../../public/js/ui/eloPanel.js';
 import { ExperimentalDetails, eloRow, experimentalItems, experimentalOptions, groupRows, queueConfig } from '../../public/js/ui/experimental.js';
 import { installEloSync, SYNC_DEBOUNCE_MS } from '../../public/js/ui/loadoutSync.js';
 import { createStore } from '../../public/js/store.js';
-import { ELO_LEVELS, eloImpact, eloSummary, eloTilt } from '../../shared/elo.js';
+import { ELO_LEVELS, ELO_MEASURED, eloImpact, eloMeasured, eloSummary, eloTilt, eloTiltAt } from '../../shared/elo.js';
+import { versionById } from '../../shared/versions.js';
 import { eloTilt as serverTilt } from '../../server/match/tilt.js';
 
 const walk = (node) => (Array.isArray(node) ? node.flatMap(walk) : node?.props ? [node, ...walk(node.props.children)] : []);
@@ -46,41 +48,84 @@ test('the panel and the server run one computation; a few or quick records → �
   assert.equal(eloLevelText(few), '不调');
   const fewText = text(EloPanel({ mode: 'solo', difficulty: 'ABYSS', mine: few }));
   assert.match(fewText, /此功能仅为娱乐/);
-  assert.match(fewText, /最近 4 局独立·终极模拟：3 胜 1 负，胜率 75%/);
-  assert.match(fewText, /按 4 局计/);
-  assert.match(fewText, /折算后不足 5 局，暂不调整/);
-  assert.match(fewText, /计入成就；胜率在每局结束后/);
-  assert.doesNotMatch(fewText, /按实测/);
+  assert.match(fewText, /独立·终极模拟 最近 4 局：3 胜 1 负/);
+  assert.match(fewText, /记录不足 5 局，暂不调整/);
+  assert.match(fewText, /计入成就 · 每局结束后更新/);
+  assert.doesNotMatch(fewText, /预计影响|实测|→/, 'too few: no impact section');
   // the owner's case: five quick losses are not full help — they weigh 2 of 10 rounds each
   const quick = eloMine('solo', 'ABYSS', () => many(0, 5, undefined, 2));
   assert.equal(quick.key, 'few');
-  assert.match(text(EloPanel({ mode: 'solo', difficulty: 'ABYSS', mine: quick })), /0 胜 5 负.*按 1 局计/);
+  const quickText = text(EloPanel({ mode: 'solo', difficulty: 'ABYSS', mine: quick }));
+  assert.match(quickText, /0 胜 5 负/);
+  assert.match(quickText, /折算后不足 5 局，暂不调整/);
   const strong = eloMine('solo', 'ABYSS', () => many(18, 30, undefined, 7));
   assert.equal(strong.games, 26.4);
   assert.equal(strong.dir, 'hinder');
   assert.equal(eloLevelText(strong), '压 · 2 级', 'w (18+2)/(26.4+4) = 0.658: s −0.395');
   const s = text(EloPanel({ mode: 'solo', difficulty: 'ABYSS', mine: strong }));
-  assert.match(s, /最近 30 局独立·终极模拟：18 胜 12 负，胜率 60%/);
-  assert.match(s, /早期失利按通过的回合折算（通过 10 回合算 1 局），按 26.4 局计/);
-  assert.match(s, /按 \+2 胜 \+2 负向 50% 折算：66%/);
-  assert.match(s, /更难刷到/);
+  assert.match(s, /独立·终极模拟 最近 30 局：18 胜 12 负（早期失利按回合折算）→ 66%/, 'one line: the counts and the rate the server uses');
+  assert.doesNotMatch(s, /按 \+2 胜/, 'the shrink is in the line\'s ⓘ, not a line of its own');
+  const tips = walk(EloPanel({ mode: 'solo', difficulty: 'ABYSS', mine: strong })).filter((n) => typeof n.props.text === 'string').map((n) => n.props.text);
+  assert.ok(tips.some((x) => /通过 10 回合算 1 局），共按 26.4 局计；折算后满 5 局才调整，胜率再加 2 胜 2 负/.test(x)), 'the ⓘ explains the rate');
+  assert.match(s, /^[^]*更难刷到：凑精锐的第三张/);
+  assert.match(s, /机变和随机赠送也偏向不利/);
+  // every loss after 10 rounds: no weighting, no note
+  assert.match(text(EloPanel({ mode: 'solo', difficulty: 'ABYSS', mine: eloMine('solo', 'ABYSS', () => many(18, 30, undefined, 12)) })), /18 胜 12 负 → 59%/);
   const top = eloMine('coop', 'HARD', () => many(30, 30, { roomMode: 'coop', difficulty: 'HARD' }));
   assert.equal(eloLevelText(top), '压 · 4 级');
-  assert.match(eloEffectText(top), /几乎刷不到/);
+  assert.match(eloEffectLines(top).join('|'), /^几乎刷不到：.*\|其他相关的牌也更难刷到\|机变和随机赠送也偏向不利$/);
   const coop = text(EloPanel({ mode: 'coop', difficulty: 'HARD', revival: true, mine: top }));
-  assert.match(coop, /取决于队友/);
   assert.match(coop, /AI 队友不会救你/);
   assert.match(text(EloPanel({ mode: 'coop', difficulty: 'HARD', revival: true, mine: eloMine('coop', 'HARD', () => many(22, 30, { roomMode: 'coop', difficulty: 'HARD' }, 14)) })),
-    /AI 队友约有 49% 的可能救你/, '22 of 30, every loss full: s −0.515');
-  assert.match(coop, new RegExp(`胜率约 ${ELO_LEVELS.measured.off}% → ${ELO_LEVELS.hinder[3].at}%`));
+    /AI 队友不一定救你（约 49%）/, '22 of 30, every loss full: s −0.515');
+  // the measured change: the room's own version's row, in percentage points (no version: 第二期下半)
+  const a2 = ELO_MEASURED.act2autochess, a3 = ELO_MEASURED['act3autochess@V3_1'];
+  const pts = (v) => (v > 0 ? `\\+${v}` : v < 0 ? `−${-v}` : '±0');
+  assert.match(coop, new RegExp(`实测：胜率约 ${pts(Math.round(a2.hinder[3].at - a2.off))} 个百分点（AI 代打独立模拟，同盟另看队友）`));
+  const coop3 = text(EloPanel({ mode: 'coop', difficulty: 'HARD', version: 'act3autochess@V3_1', revival: true, mine: top }));
+  assert.match(coop3, new RegExp(`实测：胜率约 ${pts(Math.round(a3.hinder[3].at - a3.off))} 个百分点`));
+  // a change whose interval holds 0 says so: 第二期下半's 压 1 级 measured +0.7 (−5.7…+7.1)
+  const mild = eloMine('solo', 'ABYSS', () => many(17, 30, undefined, 12));
+  assert.equal(eloLevelText(mild), '压 · 1 级');
+  assert.match(text(EloPanel({ mode: 'solo', difficulty: 'ABYSS', mine: mild })), /实测：胜率约 \+1 个百分点，在误差内（AI 代打）/);
+  assert.match(text(EloPanel({ mode: 'solo', difficulty: 'ABYSS', version: 'act3autochess@V3_1', mine: mild })), /实测：胜率约 −4 个百分点，在误差内（AI 代打）/);
+  assert.doesNotMatch(coop3, /29\.3%/, 'never the AI\'s own rate on the panel itself (that is the ⓘ\'s)');
+  assert.equal(walk(EloPanel({ mode: 'coop', difficulty: 'HARD', version: 'act1autochess', mine: top })).some((n) => n.props['data-testid'] === 'elo-estimate'), false,
+    'a version without measurements: no measured line');
   const weak = eloMine('solo', 'ABYSS', () => many(2, 30));
   assert.equal(eloLevelText(weak), '帮 · 3 级');
-  assert.match(eloEffectText(weak), /明显更容易刷到/);
+  assert.match(eloEffectLines(weak)[0], /^明显更容易刷到：/);
+  assert.match(text(EloPanel({ mode: 'solo', difficulty: 'ABYSS', mine: weak })), new RegExp(`实测：胜率约 ${pts(Math.round(a2.help[2].at - a2.off))} 个百分点（AI 代打）`));
   assert.equal(eloBrief(weak), '你：近期胜率 7% · 帮 · 3 级');
-  assert.equal(eloBrief(few), '你：折算后不足 5 局，暂不调整');
+  assert.equal(eloBrief(few), '你：记录不足 5 局，暂不调整');
+  assert.equal(eloBrief(quick), '你：折算后不足 5 局，暂不调整');
   const none = text(EloPanel({ mode: 'solo', difficulty: 'NORMAL', mine: eloMine('solo', 'NORMAL', () => []) }));
-  assert.match(none, /本机还没有独立·险境模拟的对局记录/);
+  assert.match(none, /独立·险境模拟：本机还没有记录/);
   assert.equal(eloImpact(eloSummary([])).key, 'few');
+});
+
+test('the measurements: one row per measured version, a number for every level, each level measured at its own tilt', () => {
+  assert.ok(Object.keys(ELO_MEASURED).length >= 2);
+  for (const [id, row] of Object.entries(ELO_MEASURED)) {
+    assert.ok(versionById(id), id);
+    assert.equal(row.help.length, ELO_LEVELS.help.length, id);
+    assert.equal(row.hinder.length, ELO_LEVELS.hinder.length, id);
+    for (const v of [row.off, ...[...row.help, ...row.hinder].map((x) => x.at)]) assert.ok(Number.isFinite(v) && v >= 0 && v <= 100, `${id} ${v}`);
+    for (const x of [...row.help, ...row.hinder]) assert.ok(x.lo <= x.at - row.off + 0.1 && x.at - row.off - 0.1 <= x.hi, `${id} ${x.at}: the change inside its interval`);
+    assert.equal(eloMeasured(id, 'hinder', 4).pp, Math.round(row.hinder[3].at - row.off));
+    assert.equal(eloMeasured(id, 'hinder', 4).noise, false);
+  }
+  assert.deepEqual(eloMeasured(null, 'help', 1), eloMeasured('act2autochess', 'help', 1), 'a room without a version plays 第二期下半');
+  assert.equal(eloMeasured('act1autochess', 'help', 1), null);
+  assert.equal(eloMeasured('act2autochess', 'none', 0), null);
+  assert.equal(eloMeasured('__proto__', 'help', 1), null);
+  // the arms the table was measured with (docs/history/0.4.0.md §37.275): the tilt the mapping gives at each level's w
+  assert.deepEqual(ELO_LEVELS.help.map((r) => eloTiltAt(r.w)), [{ s: 0.165, m: 8 }, { s: 0.5, m: 8 }, { s: 1, m: 8 }]);
+  assert.deepEqual(ELO_LEVELS.hinder.map((r) => eloTiltAt(r.w)), [{ s: -0.167, m: 4 }, { s: -0.5, m: 4 }, { s: -0.875, m: 4, floor: 0, mix: 0.5 }, { s: -1, m: 4, floor: 0, mix: 1 }]);
+  // each level's w lands on its own level
+  for (const dir of ['help', 'hinder']) {
+    for (const r of ELO_LEVELS[dir]) assert.equal(eloImpact({ n: 30, wins: 0, games: 30, w: r.w, tilt: eloTiltAt(r.w) }).level, r.level, `${dir} ${r.level}`);
+  }
 });
 
 test('ELO on the page: the 特殊功能 row of a private room, named in the rule list, never a ticket\'s', () => {
@@ -107,7 +152,7 @@ test('the host\'s switch: off → on only after the reminder with the own panel;
   const input = { checked: true };
   row(rules()).props.onChange({ currentTarget: input });
   await Promise.resolve(); await Promise.resolve();
-  assert.deepEqual(asked, { mode: 'solo', difficulty: 'ABYSS', revival: false });
+  assert.deepEqual(asked, { mode: 'solo', difficulty: 'ABYSS', version: null, revival: false });
   assert.equal(input.checked, false, 'off until confirmed');
   assert.deepEqual(sent, [], 'cancelled: nothing sent');
   answer = true;

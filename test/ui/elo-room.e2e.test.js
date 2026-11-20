@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { Client, ROOT, sleep, hasChrome, startRealServer } from '../e2e/client.mjs';
+import { ELO_MEASURED } from '../../shared/elo.js';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome() && existsSync(path.join(ROOT, 'public/assets'));
 const SHOTS = process.env.SP_ELO_SHOTS || null;
@@ -75,8 +76,9 @@ const group = (c, id) => c.click(`[data-testid="exp-group-${id}"]`);
 const panelText = (c) => c.page.$eval('[data-testid="elo-panel"]', (e) => ({ text: e.textContent, dir: e.dataset.dir, level: Number(e.dataset.level) }));
 async function badge(c) {
   await c.page.mouse.move(2, 2);
-  const pt = await c.point('[data-testid="room-experimental"]');
-  await c.page.mouse.move(pt.x, pt.y);
+  // the badge's top right corner: the page's cursor sprite (drawn down and right of the pointer) stays off its text
+  const r = await c.page.$eval('[data-testid="room-experimental"]', (e) => { const b = e.getBoundingClientRect(); return { x: b.right - 4, y: b.top + 4 }; });
+  await c.page.mouse.move(r.x, r.y);
   await c.page.waitForSelector('[data-testid="room-experimental-pop"]', { visible: true, timeout: 5000 });
   return c.page.$eval('[data-testid="room-experimental-pop"]', (e) => e.textContent);
 }
@@ -109,10 +111,19 @@ describe('ELO (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public
       assert.equal(mine.dir, 'hinder');
       assert.equal(mine.level, 4);
       assert.match(mine.text, /此功能仅为娱乐/);
-      assert.match(mine.text, /最近 30 局同盟·终极模拟：30 胜 0 负，胜率 100%/);
+      assert.match(mine.text, /同盟·终极模拟 最近 30 局：30 胜 0 负 → 94%/);
       assert.match(mine.text, /几乎刷不到/);
       assert.match(mine.text, /计入成就/);
+      // the room's own version (第二期下半): its measured change in points, the AI's own rates only in the ⓘ
+      const a2 = ELO_MEASURED.act2autochess, pp = Math.round(a2.hinder[3].at - a2.off);
+      assert.match(mine.text, new RegExp(`实测：胜率约 ${pp < 0 ? `−${-pp}` : `\\+${pp}`} 个百分点`));
       await shot(host, 'elo-2-host-reminder-hindered');
+      const tipAt = await host.point('[data-testid="elo-estimate-i"]');
+      await host.page.mouse.move(tipAt.x, tipAt.y);
+      await host.page.waitForSelector('.tooltip.is-shown', { visible: true, timeout: 5000 });
+      assert.match(await host.page.$eval('.tooltip.is-shown', (e) => e.textContent), new RegExp(`第二期下半·独立·终极模拟，AI 代打 300 局：不开 ELO 胜率 ${a2.off}%，此级 ${a2.hinder[3].at}%`));
+      await host.shot('tip-estimate');
+      await host.page.mouse.move(2, 2);
       await host.click('.modal__actions .btn--primary', '开启');
       await host.page.waitForFunction(() => globalThis.__SP__.store.get().room?.experimental?.elo === true, { timeout: 8000 });
       await host.click('.room-settings-modal .modal__actions button', '完成');
@@ -126,7 +137,7 @@ describe('ELO (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public
       await shot(host, 'elo-3-host-room-notice');
 
       // the guests: each meets it in a dialog with the own panel, the notice and the rule list say their own level
-      for (const [c, name, dir, re, file] of [[weak, '新手队友', 'help', /按 27.2 局计.*帮 · 3 级/, 'elo-4-guest-helped'], [fresh, '新来的队友', 'none', /按 2.9 局计.*折算后不足 5 局，暂不调整/, 'elo-5-guest-neutral']]) {
+      for (const [c, name, dir, re, file] of [[weak, '新手队友', 'help', /2 胜 28 负（早期失利按回合折算）→ 13%.*帮 · 3 级/, 'elo-4-guest-helped'], [fresh, '新来的队友', 'none', /2 胜 1 负\s*记录不足 5 局，暂不调整/, 'elo-5-guest-neutral']]) {
         await open(c, name);
         await c.click('.hub-tile', '密钥加入');
         await c.click('.hub-dialog .join-row input');

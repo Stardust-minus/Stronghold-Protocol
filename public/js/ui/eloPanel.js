@@ -1,22 +1,26 @@
 // ui/eloPanel.js — ELO's own panel (docs/history/0.4.0.md §37.275, the owner 2026-11-20: every player sees their own
-// win rate and the expected impact before ELO affects them; nobody sees anybody else's). Everything here is this
-// browser's: the counts ui/eloRecords.js takes from the local records — the very counts room.elo sends — go through
-// shared/elo.js eloImpact, the function the server's tilt reads too (server/match/tilt.js), so the panel says what the
-// server does. Shown in the host's reminder as the option goes on (ui/experimental.js confirmElo), once to every other
-// seated player as they meet the option in a room (screens/room.js EloNotice), and in short in the room's rule list
-// (ExperimentalDetails, eloBrief). Styles: the elo-* rules of css/components.css.
+// win rate and the expected impact before ELO affects them; nobody sees anybody else's; 「文字太多，需要精简，分段分点」:
+// one short line per fact, in two sections). Everything here is this browser's: the counts ui/eloRecords.js takes from
+// the local records — the very counts room.elo sends — go through shared/elo.js eloImpact, the function the server's
+// tilt reads too (server/match/tilt.js), so the panel says what the server does; the measured change is the room's own
+// version's row of shared/elo.js ELO_MEASURED. Shown in the host's reminder as the option goes on (ui/experimental.js
+// confirmElo), once to every other seated player as they meet the option in a room (screens/room.js EloNotice), and in
+// short in the room's rule list (ExperimentalDetails, eloBrief). Styles: the elo-* rules of css/components.css.
 
 import { useMemo } from '../../vendor/hooks.module.js';
-import { html, Button, Icon, alertDialog } from './components.js';
-import { t } from '../../../shared/i18n.js';
+import { html, Button, Icon, Tooltip, alertDialog } from './components.js';
+import { t, tParts } from '../../../shared/i18n.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
-import { ELO_LEVELS, ELO_MAP, eloEntriesOf, eloImpact, eloSummary } from '../../../shared/elo.js';
+import { versionById } from '../../../shared/versions.js';
+import { ELO_MAP, eloEntriesOf, eloImpact, eloMeasured, eloSummary } from '../../../shared/elo.js';
 import { eloRecords } from './eloRecords.js';
 import { peekStatsRecords } from './stats.js';
 
 const pct = (v) => Math.round(v * 100);
 /** A weighted count: one decimal, none when whole (26.4 / 30). */
 const num1 = (v) => String(Math.round(v * 10) / 10);
+/** Percentage points with their sign: +5 / −9.4 / ±0. @param {number} v */
+const signed = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '±0');
 const scopeOf = (mode, difficulty) => {
   const d = { difficulty: DIFFICULTY_NAMES[difficulty] ? t(DIFFICULTY_NAMES[difficulty]) : String(difficulty ?? '') };
   return mode === 'solo' ? t('独立·{difficulty}', d) : t('同盟·{difficulty}', d);
@@ -35,58 +39,86 @@ export function eloMine(mode, difficulty, records = peekStatsRecords) {
 /** 帮 · 2 级 / 不调 / 压 · 3 级. @param {{ dir: string, level: number }} x */
 export const eloLevelText = (x) => (x.dir === 'help' ? t('帮 · {n} 级', { n: x.level }) : x.dir === 'hinder' ? t('压 · {n} 级', { n: x.level }) : t('不调'));
 
-/** What changes for the player, in plain words (no per-draw odds). @param {{ dir: string, level: number }} x */
-export function eloEffectText(x) {
+/** What changes for the player, in plain words (no per-draw odds): one short line each. @param {{ dir: string, level: number }} x */
+export function eloEffectLines(x) {
   if (x.dir === 'help') {
-    return [t('凑精锐的第三张、差一两名就升档的盟约成员、本命盟约成员和转职装备会略微更容易刷到。'),
-      t('凑精锐的第三张、差一两名就升档的盟约成员、本命盟约成员和转职装备会更容易刷到。'),
-      t('凑精锐的第三张、差一两名就升档的盟约成员、本命盟约成员和转职装备会明显更容易刷到。')][x.level - 1];
+    return [[t('略微更容易刷到：凑精锐的第三张、快升档的盟约成员、本命盟约成员、转职装备'),
+      t('更容易刷到：凑精锐的第三张、快升档的盟约成员、本命盟约成员、转职装备'),
+      t('明显更容易刷到：凑精锐的第三张、快升档的盟约成员、本命盟约成员、转职装备')][x.level - 1],
+    t('机变和随机赠送也偏向有利')];
   }
   if (x.dir === 'hinder') {
-    return [t('凑精锐的第三张、差一两名就升档的盟约成员、本命盟约成员和转职装备会略微更难刷到。'),
-      t('凑精锐的第三张、差一两名就升档的盟约成员、本命盟约成员和转职装备会更难刷到。'),
-      t('凑精锐的第三张、差一两名就升档的盟约成员、本命盟约成员和转职装备会明显更难刷到。'),
-      t('凑精锐的第三张、差一名就升档的盟约成员、本命盟约成员和转职装备几乎刷不到，其他相关的牌也更难刷到。')][x.level - 1];
+    return [...[[t('略微更难刷到：凑精锐的第三张、快升档的盟约成员、本命盟约成员、转职装备')],
+      [t('更难刷到：凑精锐的第三张、快升档的盟约成员、本命盟约成员、转职装备')],
+      [t('明显更难刷到：凑精锐的第三张、快升档的盟约成员、本命盟约成员、转职装备')],
+      [t('几乎刷不到：凑精锐的第三张、差一名就升档的盟约成员、本命盟约成员、转职装备'), t('其他相关的牌也更难刷到')]][x.level - 1],
+    t('机变和随机赠送也偏向不利')];
   }
-  return t('你的商店与卡池照常，不做调整。');
+  return [t('商店与卡池照常')];
 }
 
-/** The line of the rule list (ExperimentalDetails): 你 · 胜率 60% · 压 · 2 级 / 你 · 记录不足. @param {ReturnType<typeof eloMine>} x */
-export const eloBrief = (x) => (x.key === 'few' ? t('你：折算后不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })
-  : t('你：近期胜率 {rate}% · {level}', { rate: pct(x.raw), level: eloLevelText(x) }));
+/** The line of the rule list (ExperimentalDetails): 你：近期胜率 60% · 压 · 2 级 / 你：记录不足. @param {ReturnType<typeof eloMine>} x */
+export const eloBrief = (x) => (x.key !== 'few' ? t('你：近期胜率 {rate}% · {level}', { rate: pct(x.raw), level: eloLevelText(x) })
+  : x.n < ELO_MAP.minGames ? t('你：记录不足 {n} 局，暂不调整', { n: ELO_MAP.minGames }) : t('你：折算后不足 {n} 局，暂不调整', { n: ELO_MAP.minGames }));
 
 /**
- * The panel: 此功能仅为娱乐, the own record and rate (shrunk), the direction and level, what changes, the measured estimate,
- * the co-op and rescue notes, and that it counts and updates.
- * @param {{ mode: string, difficulty: string, revival?: boolean, mine?: ReturnType<typeof eloMine> }} props
+ * The measured line (eloMeasured): the change in points, 在误差内 when its interval holds 0; a co-op room's note that it is
+ * the solo measurement. @param {NonNullable<ReturnType<typeof eloMeasured>>} est @param {string} mode
  */
-export function EloPanel({ mode, difficulty, revival = false, mine = null }) {
+function estimateText(est, mode) {
+  const pp = { pp: signed(est.pp) };
+  if (mode === 'solo') return est.noise ? t('实测：胜率约 {pp} 个百分点，在误差内（AI 代打）', pp) : t('实测：胜率约 {pp} 个百分点（AI 代打）', pp);
+  return est.noise ? t('实测：胜率约 {pp} 个百分点，在误差内（AI 代打独立模拟，同盟另看队友）', pp) : t('实测：胜率约 {pp} 个百分点（AI 代打独立模拟，同盟另看队友）', pp);
+}
+
+/** An ⓘ whose tooltip (hover, or a tap) carries the detail of a line. @param {{ text: string, testid: string }} props */
+const Detail = ({ text, testid }) => html`<${Tooltip} tap=${true} placement="bottom" within=".modal__box" text=${text}>
+  <button type="button" class="elo-panel__i" data-testid=${testid} aria-label=${text}><${Icon} name="info" /></button>
+<//>`;
+
+/**
+ * The panel, in two sections of short lines: 此功能仅为娱乐; 近期胜率 (the own record and the rate the server uses, or 记录不足
+ * and nothing more); 预计影响 and its level, what changes, the rescue (队友复活 on, hindered) and the measured change of the
+ * room's own version (ELO_MEASURED, in percentage points); a one-line footer.
+ * @param {{ mode: string, difficulty: string, version?: string|null, revival?: boolean, mine?: ReturnType<typeof eloMine> }} props
+ */
+export function EloPanel({ mode, difficulty, version = null, revival = false, mine = null }) {
   const x = mine || eloMine(mode, difficulty);
-  const m = ELO_LEVELS.measured;
+  const few = x.key === 'few';
+  const r = { scope: x.scope, n: x.n, wins: x.wins, losses: x.losses };
+  // the ⓘ explains the line: the weighting and the shrink; it stays with the rate the server uses (→ 66%), never alone
+  const why = x.n ? html`<${Detail} testid="elo-rate-i" text=${t('早期失利按通过的回合折算（通过 {r} 回合算 1 局），共按 {games} 局计；折算后满 {min} 局才调整，胜率再加 {k} 胜 {k} 负向 50% 拉近。', {
+    r: ELO_MAP.lossRounds, games: num1(x.games), min: ELO_MAP.minGames, k: ELO_MAP.prior })} />` : null;
+  const w = few ? null : html`<span class="elo-panel__w">→ ${pct(x.w)}% ${why}</span>`;
+  const rate = !x.n ? t('{scope}：本机还没有记录', r)
+    : few ? [t('{scope} 最近 {n} 局：{wins} 胜 {losses} 负', r), ' ', why]
+    : x.games < x.n ? tParts('{scope} 最近 {n} 局：{wins} 胜 {losses} 负（早期失利按回合折算）{rate}', { ...r, rate: w })
+    : tParts('{scope} 最近 {n} 局：{wins} 胜 {losses} 负 {rate}', { ...r, rate: w });
+  const est = few ? null : eloMeasured(version, x.dir, x.level);
   return html`<div class=${`elo-panel elo-panel--${x.dir}`} data-testid="elo-panel" data-dir=${x.dir} data-level=${x.level}>
     <p class="elo-panel__fun"><${Icon} name="info" /><strong>${t('此功能仅为娱乐')}</strong></p>
-    <p class="elo-panel__rate" data-testid="elo-rate">${x.n
-      ? t('最近 {n} 局{scope}：{wins} 胜 {losses} 负，胜率 {rate}%', { n: x.n, scope: x.scope, wins: x.wins, losses: x.losses, rate: pct(x.raw) })
-      : t('本机还没有{scope}的对局记录', { scope: x.scope })}</p>
-    ${x.n ? html`<p class="elo-panel__shrunk" data-testid="elo-weighted">${t('早期失利按通过的回合折算（通过 {r} 回合算 1 局），按 {games} 局计', { r: ELO_MAP.lossRounds, games: num1(x.games) })}</p>` : null}
-    ${x.key === 'few' ? html`<p class="elo-panel__few" data-testid="elo-few">${t('折算后不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })}</p>`
-      : html`<p class="elo-panel__shrunk">${t('按 +{k} 胜 +{k} 负向 50% 折算：{rate}%', { k: ELO_MAP.prior, rate: pct(x.w) })}</p>`}
-    <p class="elo-panel__dir" data-testid="elo-level"><span>${t('预计影响')}</span><b>${eloLevelText(x)}</b></p>
-    <p class="elo-panel__what">${eloEffectText(x)}</p>
-    ${x.dir !== 'none' ? html`<p class="elo-panel__what">${x.dir === 'help' ? t('机变超时自动选卡、独立模拟的机变卡组和随机赠送也会偏向对你有利的一方。')
-      : t('机变超时自动选卡、独立模拟的机变卡组和随机赠送也会偏向对你不利的一方。')}</p>` : null}
-    ${x.dir !== 'none' && x.measured.at != null ? html`<p class="elo-panel__est" data-testid="elo-estimate">${t('按实测（{scope}，AI 代打 {games} 局）：胜率约 {from}% → {to}%。', {
-      scope: t(m.label), games: m.games, from: m.off, to: x.measured.at })}</p>` : null}
-    ${mode !== 'solo' && x.dir !== 'none' ? html`<p class="elo-panel__est">${t('同盟中的胜负还取决于队友，实际影响因队伍而异。')}</p>` : null}
-    ${mode !== 'solo' && revival && x.dir === 'hinder' ? html`<p class="elo-panel__est" data-testid="elo-rescue">${x.rescue > 0
-      ? t('队友复活：AI 队友约有 {p}% 的可能救你。', { p: pct(x.rescue) }) : t('队友复活：AI 队友不会救你。')}</p>` : null}
-    <p class="elo-panel__note">${t('开启 ELO 的对局照常计入成就；胜率在每局结束后按本机记录更新。')}</p>
+    <h5 class="elo-panel__h">${t('近期胜率')}</h5>
+    <ul class="elo-panel__list">
+      <li data-testid="elo-rate">${rate}</li>
+      ${few ? html`<li class="elo-panel__few" data-testid="elo-few">${x.n < ELO_MAP.minGames ? t('记录不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })
+        : t('折算后不足 {n} 局，暂不调整', { n: ELO_MAP.minGames })}</li>` : null}
+    </ul>
+    ${few ? null : html`<p class="elo-panel__dir" data-testid="elo-level"><span>${t('预计影响')}</span><b>${eloLevelText(x)}</b></p>
+    <ul class="elo-panel__list">
+      ${eloEffectLines(x).map((line) => html`<li>${line}</li>`)}
+      ${mode !== 'solo' && revival && x.dir === 'hinder' ? html`<li data-testid="elo-rescue">${x.rescue > 0
+        ? t('AI 队友不一定救你（约 {p}%）', { p: pct(x.rescue) }) : t('AI 队友不会救你')}</li>` : null}
+      ${est ? html`<li class="elo-panel__est" data-testid="elo-estimate">${estimateText(est, mode)} <${Detail} testid="elo-estimate-i"
+        text=${t('{version}·{where}，AI 代打 {games} 局：不开 ELO 胜率 {off}%，此级 {at}%（变化的 95% 区间 {lo}…{hi}）', {
+        version: t(versionById(est.version)?.label ?? est.version), where: t(est.where), games: est.games, off: est.off, at: est.at, lo: signed(est.lo), hi: signed(est.hi) })} /></li>` : null}
+    </ul>`}
+    <p class="elo-panel__note">${t('计入成就 · 每局结束后更新')}</p>
   </div>`;
 }
 
 /** The full panel in a dialog (screens/room.js: a player who meets the option in a room; 详情). */
-export function showEloPanel({ mode, difficulty, revival = false }, dialog = alertDialog) {
-  return dialog({ title: t('ELO：你的情况'), micro: 'ELO', text: html`<${EloPanel} mode=${mode} difficulty=${difficulty} revival=${revival} />`, okText: t('知道了') });
+export function showEloPanel({ mode, difficulty, version = null, revival = false }, dialog = alertDialog) {
+  return dialog({ title: t('ELO：你的情况'), micro: 'ELO', text: html`<${EloPanel} mode=${mode} difficulty=${difficulty} version=${version} revival=${revival} />`, okText: t('知道了') });
 }
 
 /** Room codes whose panel this page has shown (the host's reminder, a joiner's dialog): shown once per room. */
@@ -110,6 +142,6 @@ export function EloNotice({ room, seated = true }) {
     <span><strong>${t('本房间已开启 ELO · 此功能仅为娱乐')}</strong>
       <small data-testid="elo-notice-brief">${x ? eloBrief(x) : t('每位博士按自己的近期胜率调整，各自只看得到自己的情况。')}</small></span>
     ${x ? html`<${Button} size="sm" variant="ghost" class="elo-notice__more" data-testid="elo-notice-more"
-      onClick=${() => showEloPanel({ mode: room.mode, difficulty: room.difficulty, revival })}>${t('详情')}<//>` : null}
+      onClick=${() => showEloPanel({ mode: room.mode, difficulty: room.difficulty, version: room.version ?? null, revival })}>${t('详情')}<//>` : null}
   </div>`;
 }

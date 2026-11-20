@@ -15,7 +15,7 @@ import { t } from '../../../shared/i18n.js';
 /** What the rows of a room's groups read (ui/experimental.js groupRows). */
 const rowProps = (room, rest = {}) => ({ value: room?.experimental, mode: room?.mode, source: room?.source, seats: takenSeats(room),
   // ELO's reminder shows the host's own panel for the room (ui/eloPanel.js)
-  difficulty: room?.difficulty ?? null, roomCode: room?.code ?? null, ...rest });
+  difficulty: room?.difficulty ?? null, roomVersion: room?.version ?? null, roomCode: room?.code ?? null, ...rest });
 
 /** The experimental groups a room has, in order (a matchmade room: no seat count, no 特殊功能; a solo room: no teammates, no pools). */
 export const roomGroups = (room) => optionGroups(rowProps(room));

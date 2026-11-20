@@ -8,6 +8,7 @@
 
 import { DIFFICULTIES } from './constants.js';
 import { N_ } from './i18n.js';
+import { DEFAULT_VERSION } from './versions.js';
 
 /**
  * room.elo: per mode and difficulty the newest `last` matches that count; `rounds`: the largest roundsPassed an entry may
@@ -111,46 +112,73 @@ export const eloTilt = (entries) => eloSummary(entries).tilt;
 
 /**
  * The levels a player is shown (eloImpact): help 1–3 and hinder 1–3 by |s| in thirds, hinder 4 once the key cards are
- * floored all of the way (mix 1: 「几乎刷不到」). `measured`: the solo win rate of the bot standing in for a player
- * (the headless matches of tools/matchrun.mjs, `games` paired seeds) without the tilt (`off`) and at the level's
- * representative tilt (`at`, %: the tilt eloTiltAt gives at `w`); `label` names the version and mode it was measured on
- * (the panel prints it). The help side saturates (the bot cannot use more cards: its three levels differ within the
- * noise of 300 games, ±5 points); the hinder side is strong — at level 4 the key cards are never dealt and the bot does
- * not win (docs/history/0.4.0.md §37.275).
+ * floored all of the way (mix 1: 「几乎刷不到」). `w`: the level's representative shrunk rate — a measurement of the level
+ * (ELO_MEASURED) plays the tilt eloTiltAt gives at it.
  */
 export const ELO_LEVELS = Object.freeze({
-  // 2026-11-20: the bot (legacy strategy) on 规程·序列Ⅰ's 规程等级 15 (终极, the 规程 lobby's first 终极 level), seeds 1–300
-  measured: Object.freeze({ label: N_('规程·序列Ⅰ·独立·规程等级 15（终极）'), version: 'act3autochess@V3_1', modeId: 'mode_single_15', games: 300, off: 29.3 }),
   help: Object.freeze([
-    Object.freeze({ level: 1, upTo: 1 / 3, w: 0.467, at: 30.7 }),
-    Object.freeze({ level: 2, upTo: 2 / 3, w: 0.4, at: 34.0 }),
-    Object.freeze({ level: 3, upTo: 1, w: 0.3, at: 32.3 }),
+    Object.freeze({ level: 1, upTo: 1 / 3, w: 0.467 }),
+    Object.freeze({ level: 2, upTo: 2 / 3, w: 0.4 }),
+    Object.freeze({ level: 3, upTo: 1, w: 0.3 }),
   ]),
   hinder: Object.freeze([
-    Object.freeze({ level: 1, upTo: 1 / 3, w: 0.567, at: 25.0 }),
-    Object.freeze({ level: 2, upTo: 2 / 3, w: 0.7, at: 22.3 }),
-    Object.freeze({ level: 3, upTo: 1, w: 0.85, at: 14.7 }),
-    Object.freeze({ level: 4, upTo: 1, w: 0.9, at: 0.0 }),
+    Object.freeze({ level: 1, upTo: 1 / 3, w: 0.567 }),
+    Object.freeze({ level: 2, upTo: 2 / 3, w: 0.7 }),
+    Object.freeze({ level: 3, upTo: 1, w: 0.85 }),
+    Object.freeze({ level: 4, upTo: 1, w: 0.9 }),
   ]),
 });
+
+/** One measured level: the win rate `at` (%) and the paired 95 % interval [lo, hi] of at − off (points). */
+const arm = (at, lo, hi) => Object.freeze({ at, lo, hi });
+/**
+ * THE measurements, per version (docs/history/0.4.0.md §37.275; the only place the panel takes a measured number from:
+ * eloMeasured): the solo win rate (%) of the bot standing in for a player — headless matches of the match engine (the
+ * legacy strategy), seeds 1–`games`, every arm on the same seeds — on `modeId` (`where` names it) without the tilt (`off`)
+ * and at each level's representative tilt (`help[level − 1]`, `hinder[level − 1]`: eloTiltAt(ELO_LEVELS[dir][i].w), set
+ * with the test hook on the seed's streams so the arms stay paired), each with the paired 95 % interval of its change.
+ * ±5–7 points is the noise of 300 games: the help side saturates (the bot cannot use more cards), the hinder side is
+ * strong — at level 4 the key cards are never dealt and the bot does not win. A version without a row has no measured line.
+ */
+export const ELO_MEASURED = Object.freeze({
+  // 2026-11-20: 第二期下半, solo 终极
+  act2autochess: Object.freeze({ modeId: 'mode_single_abyss', where: N_('独立·终极模拟'), games: 300, off: 37.7,
+    help: Object.freeze([arm(44.3, -0.3, 13.6), arm(39.7, -5.2, 9.2), arm(47.3, 2.7, 16.6)]),
+    hinder: Object.freeze([arm(38.3, -5.7, 7.1), arm(27.7, -16.6, -3.4), arm(14.7, -29.2, -16.8), arm(0, -43.2, -32.2)]) }),
+  // 2026-11-20: 规程·序列Ⅰ, 规程等级 15 (the solo ladder's first 终极 level)
+  'act3autochess@V3_1': Object.freeze({ modeId: 'mode_single_15', where: N_('独立·规程等级 15（终极）'), games: 300, off: 29.3,
+    help: Object.freeze([arm(30.7, -4.7, 7.4), arm(34.0, -1.9, 11.3), arm(32.3, -3.4, 9.4)]),
+    hinder: Object.freeze([arm(25.0, -9.7, 1.0), arm(22.3, -12.8, -1.2), arm(14.7, -20.4, -8.9), arm(0, -34.5, -24.2)]) }),
+});
+
+/**
+ * The measured change of a level on a version (ELO_MEASURED; a room without a version plays DEFAULT_VERSION): `{ version,
+ * where, games, off, at, lo, hi, pp, noise }` — `pp` the change in whole percentage points (at − off), `noise` true when
+ * its interval holds 0 —, null without a row or a level.
+ * @param {string|null|undefined} version @param {string} dir 'help' | 'hinder' @param {number} level
+ */
+export function eloMeasured(version, dir, level) {
+  const id = typeof version === 'string' && version ? version : DEFAULT_VERSION;
+  const row = Object.hasOwn(ELO_MEASURED, id) ? ELO_MEASURED[/** @type {keyof typeof ELO_MEASURED} */ (id)] : null;
+  const x = row && (dir === 'help' || dir === 'hinder') ? row[dir][level - 1] : undefined;
+  if (!row || !x) return null;
+  return { version: id, where: row.where, games: row.games, off: row.off, ...x, pp: Math.round(x.at - row.off), noise: x.lo <= 0 && x.hi >= 0 };
+}
 
 /**
  * What the ELO option does to a player (eloSummary's result — or its matches, summed here): the summary with `raw` (wins /
  * n, null without matches), `dir` 'help' | 'none' | 'hinder', `level` (0 when none), `key` ('few' | 'even' | 'help' |
- * 'hinder'), `rescue` (an AI teammate's chance to rescue the player, 0 … 1) and `measured` ({ off, at } of the level).
+ * 'hinder') and `rescue` (an AI teammate's chance to rescue the player, 0 … 1). The measured change: eloMeasured.
  * @param {any} summary
  */
 export function eloImpact(summary) {
   const x = summary && !Array.isArray(summary) && typeof summary === 'object' && 'games' in summary ? summary : eloSummary(summary);
   const { tilt } = x;
   const base = { ...x, raw: x.n ? x.wins / x.n : null };
-  if (!tilt) {
-    return { ...base, dir: 'none', level: 0, key: x.w == null ? 'few' : 'even', rescue: 1, measured: { off: ELO_LEVELS.measured.off, at: ELO_LEVELS.measured.off } };
-  }
+  if (!tilt) return { ...base, dir: 'none', level: 0, key: x.w == null ? 'few' : 'even', rescue: 1 };
   const dir = tilt.s > 0 ? 'help' : 'hinder';
   const rows = ELO_LEVELS[dir], mag = Math.abs(tilt.s);
   const mix = /** @type {{ mix?: number }} */ (tilt).mix ?? 0;
   const row = dir === 'hinder' && mix >= 1 ? rows[3] : rows.find((r) => mag <= r.upTo + 1e-9) ?? rows[rows.length - 1];
-  return { ...base, dir, level: row.level, key: dir, rescue: dir === 'help' ? 1 : round3(1 + tilt.s),
-    measured: { off: ELO_LEVELS.measured.off, at: row.at } };
+  return { ...base, dir, level: row.level, key: dir, rescue: dir === 'help' ? 1 : round3(1 + tilt.s) };
 }

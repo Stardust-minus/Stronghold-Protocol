@@ -326,7 +326,7 @@ export function consoleRow({ value, source = 'private', ...rest }) {
  * the host the reminder 「此功能仅为娱乐」 once (confirmElo, no wait); the switch stays off until it is confirmed, and on a
  * cancel; on → off at once.
  */
-export function eloRow({ value, source = 'private', mode = 'coop', difficulty = null, roomCode = null, confirm = confirmElo, ...rest }) {
+export function eloRow({ value, source = 'private', mode = 'coop', difficulty = null, roomVersion = null, roomCode = null, confirm = confirmElo, ...rest }) {
   const { options, locked, send } = optionsEditor({ value, ...rest });
   if (source !== 'private') return null;
   const on = options.elo === true;
@@ -335,7 +335,7 @@ export function eloRow({ value, source = 'private', mode = 'coop', difficulty = 
     onChange: (next, e) => {
       if (!next) { const { elo, ...rules } = options; send(rules); return; }
       if (e?.currentTarget) e.currentTarget.checked = on; // off until the reminder is confirmed
-      confirm({ mode, difficulty, revival: options.revivalEnabled === true }).then((ok) => {
+      confirm({ mode, difficulty, version: roomVersion, revival: options.revivalEnabled === true }).then((ok) => {
         if (!ok) return;
         markEloSeen(roomCode); // the host has seen the own panel (no second dialog as the room turns it on)
         send({ ...options, elo: true });
@@ -344,15 +344,16 @@ export function eloRow({ value, source = 'private', mode = 'coop', difficulty = 
 }
 
 /**
- * The reminder the host confirms as ELO goes on (eloRow): what it does, then the host's own panel for this room's mode and
- * difficulty (ui/eloPanel.js EloPanel: 此功能仅为娱乐, the own rate and the expected impact); resolves true on 开启.
- * @param {{ mode?: string, difficulty?: string|null, revival?: boolean }} [room] @param {(opts: any) => Promise<boolean>} [dialog] the confirm dialog (tests)
+ * The reminder the host confirms as ELO goes on (eloRow): one sentence of what it does, then the host's own panel for this
+ * room's mode, difficulty and version (ui/eloPanel.js EloPanel: 此功能仅为娱乐, the own rate and the expected impact);
+ * resolves true on 开启.
+ * @param {{ mode?: string, difficulty?: string|null, version?: string|null, revival?: boolean }} [room] @param {(opts: any) => Promise<boolean>} [dialog] the confirm dialog (tests)
  */
-export function confirmElo({ mode = 'coop', difficulty = null, revival = false } = {}, dialog = confirmDialog) {
+export function confirmElo({ mode = 'coop', difficulty = null, version = null, revival = false } = {}, dialog = confirmDialog) {
   return dialog({ title: t('开启 ELO'), micro: 'ELO',
     text: html`<div class="elo-note" data-testid="elo-reminder">
-      <p class="modal__text">${t('开启后，每位博士按自己浏览器里记录的近期胜率得到不同的运气：胜率高时更难抽到需要的干员和装备，低时更容易；AI 队友是否救援也会参考。AI 座位本身不受影响，对局照常计入战绩与成就。')}</p>
-      ${difficulty ? html`<${EloPanel} mode=${mode} difficulty=${difficulty} revival=${revival} />`
+      <p class="modal__text">${t('每位博士的商店与卡池按其近期胜率调整，向 50% 靠拢；AI 座位不调。')}</p>
+      ${difficulty ? html`<${EloPanel} mode=${mode} difficulty=${difficulty} version=${version} revival=${revival} />`
         : html`<p class="modal__text"><strong>${t('此功能仅为娱乐')}</strong></p>`}
     </div>`,
     okText: t('开启'), cancelText: t('不开启') });
