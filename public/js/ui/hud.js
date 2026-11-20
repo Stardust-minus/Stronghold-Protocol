@@ -40,7 +40,7 @@ import { isCombatPhase, isBossPhase, prepCapsuleLabel, bossFrac, bossPctText, fm
 import { battleSpeedScale, overtimeState, overtimeDrainPerSec, remainAt, speedVoteState } from './matchStatus.js';
 import { hotkeyLabelOf, useSettings, settingsStore } from './settings.js';
 import { usePrefabPack } from './prefab/view.js';
-import { RegHudBand, RegCountdown, RegReadyFace, packHud, cornerOffset, readyCountPlate } from './prefab/hud.js';
+import { RegHudBand, RegCountdown, RegReadyFace, packHud, cornerOffset, cornerLift, readyCountPlate } from './prefab/hud.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { uniteRelayRound } from '../battle/observe.js';
 import { UnofficialMark, ruleLine } from './pluginTag.js';
@@ -590,6 +590,7 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
   // hand-made countdown (user playtest #4 item 3)
   const pfClock = pc.countdown && (pfRemain != null || (phase === PHASE.PREP && (playerCount ?? 1) <= 1));
   const corner = useMemo(() => (pc.countdown && pc.ready ? cornerOffset(cpack) : null), [cpack, pc.countdown, pc.ready]);
+  const lift = useMemo(() => (pc.countdown ? cornerLift(cpack) : ''), [cpack, pc.countdown]);
   // whose corner sits top right (css: the EFFECTS column, the right card and the bond popup docked right start under it;
   // ui/regHud.js cornerKind, ui/gameLogic/panel.js CORNER_TOP): the pack's, or the hand-made countdown's
   const cornerKind = corner ? String(cpack?.group || '').replace(/^themes\//, '') || 'hand' : 'hand';
@@ -654,7 +655,7 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
     </div>
 
     <div class="gtop__right">
-      <div class=${cx('gtop__clock', pc.countdown && 'gtop__clock--pf')} style=${corner ? { '--pf-rx': corner.x, '--pf-ry': corner.y } : null}>
+      <div class=${cx('gtop__clock', pc.countdown && 'gtop__clock--pf')} style=${corner || lift ? { ...(corner ? { '--pf-rx': corner.x, '--pf-ry': corner.y } : {}), ...(lift ? { '--pf-up': lift } : {}) } : null}>
         ${pc.countdown
           ? (pfClock ? html`<div class="pfclock" role="timer" aria-label=${pfRemain == null ? t('无倒计时') : t('剩余{remain}秒', { remain: pfRemain })}>
               <${RegCountdown} pack=${cpack} remain=${pfRemain} total=${total ?? null} ready=${showReady && !!priv?.ready} still=${!settings?.themeMotion} />

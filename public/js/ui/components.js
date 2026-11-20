@@ -223,9 +223,9 @@ export function TierChip({ tier, golden = false, size = 'md', class: cls, overla
 /**
  * 未激活人数进度 (upstream c06d73f9, PR #923; the one switch for it — 待用户定 at the round-83 merge, 2026-11-19): a disc that is
  * neither active nor disabled and is given `minCount` (the in-match strip, ui/bondStrip.js BondStrip, and the bond card's
- * head, BondPopup) draws its frame as `minCount` segments with one lit per member (`members`) toward activation, and the
- * strip drops this fork's 「n/next」 count badge (.bslot__count) for it. false: such a disc keeps the unlit frame
- * (bondBoardIcon/1_0) and the strip shows the count badge again, as before PR #923. The discs of the briefing, the 选择策略
+ * head, BondPopup) draws its frame as `minCount` segments with one lit per member (`members`) toward activation. false:
+ * such a disc keeps the unlit frame (bondBoardIcon/1_0). Either way the strip shows this fork's 「n/next」 count badge
+ * (.bslot__count; dropped with PR #923, back by the owner's word of 2026-11-21). The discs of the briefing, the 选择策略
  * 本局信息 dialog and the in-game 本局信息 tab (ui/matchInfo.js bondCell, with this fork's red 无法出现干员数 count) pass no
  * `minCount`, so this never touches them.
  */

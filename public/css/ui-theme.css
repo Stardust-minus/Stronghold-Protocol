@@ -320,12 +320,8 @@ html[data-sp-slot~="chess_level_icon_5"] .tier--5::after,
 html[data-sp-slot~="chess_level_icon_6"] .tier--6::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; background-position: center; background-size: contain; background-repeat: no-repeat;
 }
-html[data-sp-slot~="chess_level_icon_1"] .tier--1,
-html[data-sp-slot~="chess_level_icon_2"] .tier--2,
-html[data-sp-slot~="chess_level_icon_3"] .tier--3,
-html[data-sp-slot~="chess_level_icon_4"] .tier--4,
-html[data-sp-slot~="chess_level_icon_5"] .tier--5,
-html[data-sp-slot~="chess_level_icon_6"] .tier--6 { position: relative; }
+/* (no `position: relative` here: .tier is relative already, and this selector outweighed the chips placed absolutely —
+   道具补给's .spcard__tier fell under the description, the owner 2026-11-21) */
 html[data-sp-slot~="chess_level_icon_1"] .tier--1::after { background-image: var(--sp-img-chess_level_icon_1); }
 html[data-sp-slot~="chess_level_icon_2"] .tier--2::after { background-image: var(--sp-img-chess_level_icon_2); }
 html[data-sp-slot~="chess_level_icon_3"] .tier--3::after { background-image: var(--sp-img-chess_level_icon_3); }
@@ -363,6 +359,10 @@ html[data-sp-slot~="chess_level_icon_1"] .uthumb--xs .uthumb__tier { --tier-h: m
 html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_level_icon_1"] .uthumb .uthumb__tier { --tier-h: max(.42rem, calc(26px * var(--ui))); left: -.11rem; top: -.12rem; }
 html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_level_icon_1"] .uthumb--xs .uthumb__tier { --tier-h: max(.3rem, calc(19px * var(--ui))); left: -.08rem; top: -.09rem; }
 html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_level_icon_1"] .uthumb .uthumb__tier { --tier-h: max(.2rem, calc(13px * var(--ui))); width: calc(var(--tier-h) * 59 / 34); }
+/* 道具补给 / 机密商店's item cards (.spcard__tier, game-panels.css), likewise a size up. */
+html[data-sp-slot~="chess_level_icon_1"] .spcard__tier { --tier-h: .34rem; }
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_level_icon_1"] .spcard__tier { --tier-h: .42rem; left: .02rem; top: .02rem; }
+html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_level_icon_1"] .spcard__tier { --tier-h: .25rem; width: .44rem; }
 /* The detail card's chip beside the name, likewise. */
 html[data-sp-slot~="chess_level_icon_1"] .dhead .tier { --tier-h: .36rem; }
 html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_level_icon_1"] .dhead .tier { --tier-h: .44rem; margin: -.06rem 0; }

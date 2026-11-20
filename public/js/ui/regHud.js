@@ -59,13 +59,15 @@ function charBackdrop(groups, themeId, plateUrl) {
 
 // The freeze button's states as the panel_shop_main prefabs switch them: group_lock (the shop is not frozen, it reads
 // 冻结) is frozen_bg_normal; group_unlock (frozen, it reads 解冻) is frozen_bg_unselect (ac_n_initial) or
-// frozen_bg_unlock (乌萨斯齐心团, 可露希尔); group_disable is bg_lock or frozen_bg_disable.
+// frozen_bg_unlock (乌萨斯齐心团, 可露希尔); group_disable is bg_lock or frozen_bg_disable. A button's own lock plate comes
+// before bg_lock: ac_n_initial's bg_lock is the shared button plate, but 可露希尔's is the 176×200 closed-shop card
+// (its buttons lock to refresh_bg_lock and frozen_bg_disable).
 const CHROME_SPRITES = Object.freeze({
   refresh: Object.freeze(['sprites/refresh_bg_normal.webp']),
-  refreshLock: Object.freeze(['sprites/bg_lock.webp', 'sprites/refresh_bg_lock.webp', 'sprites/refresh_bg_disable.webp']),
+  refreshLock: Object.freeze(['sprites/refresh_bg_lock.webp', 'sprites/refresh_bg_disable.webp', 'sprites/bg_lock.webp']),
   frozen: Object.freeze(['sprites/frozen_bg_normal.webp']),
   frozenOn: Object.freeze(['sprites/frozen_bg_unselect.webp', 'sprites/frozen_bg_unlock.webp']),
-  frozenLock: Object.freeze(['sprites/bg_lock.webp', 'sprites/frozen_bg_disable.webp']),
+  frozenLock: Object.freeze(['sprites/frozen_bg_disable.webp', 'sprites/bg_lock.webp']),
   money: Object.freeze(['sprites/bg_money.webp']),
   costFree: Object.freeze(['sprites/cost_free.webp']),
 });

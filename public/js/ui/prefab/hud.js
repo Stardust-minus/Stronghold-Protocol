@@ -212,6 +212,23 @@ export function cornerOffset(pack) {
 }
 
 /**
+ * How far the countdown's drawing reaches above its holder's top edge, in rem at OFFICIAL_SCALE ('' when it does not). The
+ * official anchors view_holder to the screen's top-right corner and lets the rest leave the screen: 可露希尔's TV stands
+ * 27 units above its backdrop (img_bg), whose top row is the screen's top edge in the pack's preview. PrefabView draws a
+ * zero-size root's whole bounds, so the corner is lifted by this much (css .gtop__clock--pf --pf-up), or the backdrop sat
+ * ~.39 rem low (the owner 2026-11-21 「右上角又不贴合了」).
+ * @param {any} pack
+ */
+export function cornerLift(pack) {
+  const cd = pack?.doc?.prefabs?.panel_countdown;
+  if (!cd) return '';
+  const la = layoutPrefab(cd, { skip: (n) => !!n.fx, pose: buildPose(pack, cd, { status: countdownStatus({ remain: 1, ready: false }), hide: CD_HIDE }) });
+  if (la.box.w > 0 && la.box.h > 0) return '';
+  const up = la.box.top - la.bounds.top;
+  return up > 0 ? `${Number(((up * OFFICIAL_SCALE) / 100).toFixed(4))}rem` : '';
+}
+
+/**
  * A countdown that follows a server deadline by itself (the 机变 pick's): ticks every second.
  * @param {{ pack: any, deadline?: number|null, total?: number|null, still?: boolean, prefabKey?: string }} props
  */

@@ -3,7 +3,7 @@
    from them wins over the version left there. Copies of rules those sheets still hold were dropped or brought in line
    (.ibond chips, the strip scroller's scrollbar), this fork's versions of the moved rules are the ones here (the --ui
    floors of 界面大小, .dbond-times__row), and its additions sit with them: the 预计叠层 badge (.bslot__fc) and block
-   (.bpop__fc), the strip's n/next badge (.bslot__count, components.js BOND_INACTIVE_PROGRESS false), 卡池剩余 on a member,
+   (.bpop__fc), the strip's n/next badge (.bslot__count), 卡池剩余 on a member,
    the card's banned members (bondStrip.js BOND_CARD_BANNED_MEMBERS) and the card's px floors for phones. */
 
 /* Shared bond glyphs and detail/info chips; original rule order retained. */
@@ -146,8 +146,8 @@
 .bslot .bond { --disc: .52rem; }
 .bslot .bond__name { font-size: .14rem; font-weight: 500; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
 .bslot.is-open .bond__core { box-shadow: 0 0 0 2px var(--mint-400), 0 0 .2rem rgba(23, 249, 183, .6); }
-/* 「n/next」 over the disc's top-right (this fork's strip before PR #923): drawn only while components.js
-   BOND_INACTIVE_PROGRESS is false — upstream's inactive-progress segments replace it */
+/* 「n/next」 over the disc's top-right (this fork's strip before PR #923; back beside upstream's inactive-progress
+   segments, the owner 2026-11-21) */
 .bslot__count {
   position: absolute; top: -.04rem; right: .02rem; font-size: .13rem; font-weight: 700; color: var(--text-hi);
   background: rgba(8, 11, 10, .92); border: 1px solid var(--line-2); padding: 0 .04rem; line-height: 1.35;

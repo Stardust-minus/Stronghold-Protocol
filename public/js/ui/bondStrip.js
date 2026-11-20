@@ -33,14 +33,15 @@
 // sources; random sources are not counted (「含随机来源，未计入」) and neither are plugins (「插件效果未计入」).
 // Round 83 (upstream PR #923, merged 2026-11-19): the official card layout — the strip's disc on the bond board sprite with
 // the stage numeral over it (BondStage) and the stack count normal + temporary (a temporary +N turns the count gold), an
-// inactive disc showing its members toward activation (components.js BOND_INACTIVE_PROGRESS, the one switch for it); the
+// inactive disc showing its members toward activation (components.js BOND_INACTIVE_PROGRESS, the one switch for it; the
+// strip keeps this fork's 「n/next」 badge beside it, the owner 2026-11-21 「把盟约之前的数字显示也加回来」); the
 // card with the disc, 在场 n/next, 阶段, 层数 and +N 临时 in its head, one description with the layers resolved, square
 // portraits, and ‹ › between the strip's bonds. This fork keeps on it: the 预计叠层 badge and block, the 服主 mark, the
 // catalogue skins' portraits, 卡池剩余 under a member, and the card's banned members (BOND_CARD_BANNED_MEMBERS below).
 
 import { cloneElement } from '../../vendor/preact.module.js';
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { html, BondDisc, BOND_INACTIVE_PROGRESS, Icon, MicroLabel, Tooltip } from './components.js';
+import { html, BondDisc, Icon, MicroLabel, Tooltip } from './components.js';
 import { RichText, BondGlyph, GIcon, Sprite, Img, SquareOperatorThumb } from './gameComponents.js';
 import { sortBonds, bondMembers, nextThreshold, bondTier, harmonyMembers, HARMONY_BOND, briefingBondTip, diyGetter, diyRecordFor, memberStandIn, standInForText } from './gameLogic.js';
 import { bondIconUrl, uiUrl } from './assetUrls.js';
@@ -267,7 +268,7 @@ export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null
           layersDisabled=${layersDisabled} onClick=${() => onOpen(b.bondId)}
           title=${`${rec?.name || b.bondId} ${count}/${next ?? th[th.length - 1] ?? '-'}${b.harmony > 0 ? t('（含调和 +{harmony}）', { harmony: b.harmony }) : ''}`} />
         ${fc ? html`<span class="bslot__fc num" data-forecast=${fc} title=${t('休整期结束时预计 +{n} 层', { n: fc })}>+${fc}</span>` : null}
-        ${BOND_INACTIVE_PROGRESS ? null : html`<span class=${cx('bslot__count', 'num', next == null && 'is-max')}>${count}<small>/${next ?? th[th.length - 1] ?? '-'}</small></span>`}
+        <span class=${cx('bslot__count', 'num', next == null && 'is-max')}>${count}<small>/${next ?? th[th.length - 1] ?? '-'}</small></span>
         <${BondStage} tier=${b.active ? tier : 0} />
       </div>`;
     })}

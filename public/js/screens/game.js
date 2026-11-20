@@ -129,7 +129,7 @@ import { Underframe, underframeRect, TempRowNotice } from '../ui/underframe.js';
 import { StandInTags } from './game/standInTags.js';
 import { needsFacing, facingIntent, previewGrid, previewRecord, pieceDir, underframeActions, retreatSlot, itemDestroyable } from '../ui/facing.js';
 import { EquipReplaceDialog, replaceRequest, replaceIntent } from '../ui/equipReplace.js';
-import { pauseAvailable, isPaused, frozenNow } from '../ui/matchStatus.js';
+import { pauseAvailable, isPaused, frozenNow, speedVoteState } from '../ui/matchStatus.js';
 import { pieceTile } from '../render/drag.js';
 import { FOLD_CAMERA_MS } from '../render/app/tune.js';
 import {
@@ -2103,7 +2103,10 @@ function MatchScreen() {
     bonds: data.list('bonds'), chess: (id) => data.lookup('chess', id), mode: getMode(pub?.modeId),
   }) : null;
 
-  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, regView && 'gm--reg', isBossPhase(phase) && 'is-boss', pub?.playerCapacity > 4 && 'gm--expanded', drag && 'is-dragging', collapsed && 'is-collapsed', ((sp && !spHidden) || (hasPersonalChoice && !personalHidden) || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && !spHidden && 'has-spdraft', (spHidden || personalHidden || commandHidden) && 'is-peek', pen && 'is-pen', readyWhy && 'has-readywhy')}
+  // the 2 倍速 vote under the corner (ui/hud.js SpeedVote, shown on the same terms): the EFFECTS column starts below it
+  const speedVote = speedVoteState(pub, myId);
+  const hasSpeedVote = !!speedVote && (!spectator || speedVote.status === 'on' || speedVote.status === 'ending');
+  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, regView && 'gm--reg', isBossPhase(phase) && 'is-boss', pub?.playerCapacity > 4 && 'gm--expanded', drag && 'is-dragging', collapsed && 'is-collapsed', ((sp && !spHidden) || (hasPersonalChoice && !personalHidden) || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && !spHidden && 'has-spdraft', (spHidden || personalHidden || commandHidden) && 'is-peek', pen && 'is-pen', readyWhy && 'has-readywhy', hasSpeedVote && 'has-speedvote')}
       data-camera=${pen ? 'pen' : camKind}>
     <div class="gm__field" ref=${hostRef} onContextMenu=${(e) => e.preventDefault()}></div>
     ${viewKind === 'loading' ? html`<div class="gm__loading"><${Spinner} label="LOADING FIELD" /></div>` : null}

@@ -161,6 +161,8 @@
   width: .58rem; height: .58rem;
   background: var(--reg-refresh-icon, none) center / .48rem .48rem no-repeat, var(--reg-refresh-icon-bg, none) center / contain no-repeat;
 }
+/* locked, the prefab shows group_lock alone: refresh_bg_lock has its grey icon drawn in */
+.shopbar--reg[data-reg-theme="ac_s_closur"] .toolbtn--amber:disabled > .toolbtn__ticon { display: none; }
 .shopbar--reg[data-reg-theme="ac_s_closur"] .toolbtn--ice { width: 1.72rem; height: .76rem; --lbl-x: .27rem; --lbl-y: .02rem; color: #e8e8e8; }
 
 /* 升级 is the drawn pack's group_upgrade (ui/regHud.js regUpgradeModel): a 112×190 stage whose layers are absolute
@@ -438,6 +440,19 @@
   transform: translateX(-50%);
 }
 
+/* 晋升奖励 in the 规程 row: its tag (game-shop.css .rwtag: crown, the vertical title, PROMOTION, 免费选择 1 名, 稍后) was
+   ~2.5rem tall against the cards' 1.87rem and stretched the gold-framed block ~.6rem above the level and funds cards (the
+   owner 2026-11-21 「晋升奖励UI明显越界过高」, every theme, 4K). Here it is laid out to the cards' height: the block is as
+   tall as a card, the tag's parts a size down and centred. */
+.shopbar--reg .shopbar__reward { align-items: center; }
+.shopbar--reg .shopbar__rwcards { align-self: stretch; align-items: center; }
+.shopbar--reg .rwtag { align-self: stretch; box-sizing: border-box; max-height: 1.87rem; gap: .03rem; padding: .04rem .03rem; }
+.shopbar--reg .rwtag__icon { width: .24rem; height: .24rem; flex: none; }
+.shopbar--reg .rwtag__title { font-size: .19rem; letter-spacing: .06em; }
+.shopbar--reg .rwtag__micro { font-size: .08rem; }
+.shopbar--reg .rwtag__sub { font-size: .115rem; line-height: 1.2; }
+.shopbar--reg .rwtag__later { margin-top: .01rem; padding: .01rem .06rem; font-size: .12rem; }
+
 /* Narrow or short screens: no growth past the prefab size; useRegFit shrinks the one row to the room right of the corner
    (it used to wrap and scroll inside 46vh, and still slid under the corner buttons). */
 @media (max-width: 900px), (max-height: 430px) {
@@ -466,6 +481,10 @@
   .gm .scard.scard--reg .scard__bond { font-size: max(.105rem, calc(8px * var(--ui))); }
   .gm .scard.scard--reg .scard__bond .bglyph { width: max(.13rem, calc(9px * var(--ui))); height: max(.13rem, calc(9px * var(--ui))); }
   .gm .scard.scard--reg .scard__bonds { overflow: visible; }
+  /* the tag at the phone's floors (devices.css: a 44 px 稍后) still fits the card's height: no PROMOTION, a smaller title */
+  .gm .shopbar--reg .rwtag__micro { display: none; }
+  .gm .shopbar--reg .rwtag__title { font-size: .16rem; letter-spacing: 0; }
+  .gm .shopbar--reg .rwtag__later { min-height: 0; padding: 0 .04rem; }
 }
 .sp-coarse .shopbar--reg .toolbtn,
 .sp-coarse .shopbar--reg .funds__collapse,
@@ -507,7 +526,8 @@
 /* The pack's countdown (view_holder) and ready button (btn_ready) are anchored to the holder's top-right corner at (0, 0)
    in the official HUD: the TV / the tubes sit in the screen's corner (themes/<id>/preview.webp), not inside the bar's
    padding (the owner 2026-11-16 「可露希尔的右上角准备没有紧贴右上角」). The HUD layer is already inside the safe area. */
-.gtop__clock--pf { margin-top: calc(-1 * var(--gtop-pt, .2rem)); margin-right: calc(-1 * var(--gtop-pr, .3rem)); }
+.gtop__clock--pf { margin-top: calc(-1 * var(--gtop-pt, .2rem) - var(--pf-up, 0rem)); margin-right: calc(-1 * var(--gtop-pr, .3rem)); }
+/* --pf-up (ui/prefab/hud.js cornerLift): what of the corner stands above its backdrop leaves the screen, as in the official */
 /* The hand-made countdown (the default look, a custom theme, a package without the packs) hugs the corner too (the owner
    2026-11-16 「默认主题也改成贴角」): out of the bar's padding, keeping a hair of its own for its glow; the ready button and
    the 已就绪 count follow it up, at the bar's right inset. */
@@ -525,6 +545,9 @@
 /* 可露希尔's 已就绪 line on its plate ends just under 3rem (a phone's type floor: ~3.1rem): the column starts a little lower. */
 .gtop[data-corner="ac_s_closur"] ~ .gm__effects { top: calc(2.8rem + max(.3rem, calc(20px * var(--ui)))); }
 .gm.has-readywhy .gtop[data-corner="ac_s_closur"] ~ .gm__effects { top: calc(2.8rem + max(.3rem, calc(20px * var(--ui))) + max(.3rem, calc(16px * var(--ui)))); }
+/* the 2 倍速 vote (.speedvote, .38rem tall, in .gtop__right under the corner) sat over the column's first icons (the owner
+   2026-11-21 「二倍速也和指令重叠了」): with it shown, every corner's column starts that much lower */
+.gm.has-speedvote .gm__effects { margin-top: .46rem; }
 /* 卫戍协议终端's corner (its own panel_countdown and panel_prep_ready since the 2026-11-16 overhaul, under the hand-made top
    bar): the 已就绪 line ends about 2.4rem down (a phone's type floor: ~2.6rem); the EFFECTS column, the right card and the
    bond popup docked right start under it (ui/gameLogic/panel.js CORNER_TOP 2.6). */

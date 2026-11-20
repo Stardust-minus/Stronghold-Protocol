@@ -76,7 +76,8 @@ test('a 规程 card\'s portrait sits in a clipping box, right of centre as the p
 
 test('the pack\'s countdown and ready button sit in the top-right corner; the EFFECTS column starts under them', () => {
   assert.match(block(read('public/css/screens/game.css'), '.gtop'), /--gtop-pt:\s*\.2rem;\s*--gtop-pr:\s*\.3rem;\s*padding:\s*var\(--gtop-pt\) var\(--gtop-pr\)/);
-  assert.match(reg, /\.gtop__clock--pf \{ margin-top: calc\(-1 \* var\(--gtop-pt, \.2rem\)\); margin-right: calc\(-1 \* var\(--gtop-pr, \.3rem\)\); \}/);
+  // …and lifted by what of it stands above its backdrop (ui/prefab/hud.js cornerLift; 2026-11-21 「右上角又不贴合了」)
+  assert.match(reg, /\.gtop__clock--pf \{ margin-top: calc\(-1 \* var\(--gtop-pt, \.2rem\) - var\(--pf-up, 0rem\)\); margin-right: calc\(-1 \* var\(--gtop-pr, \.3rem\)\); \}/);
   assert.match(reg, /\.gtop--pf ~ \.gm__effects \{ top: 3rem; \}/);
   assert.match(reg, /\.gtop--pf ~ \.dpanel--right, \.gtop--pf ~ \.bpop--right \{ top: 3rem; \}/, 'the right detail card no longer covers the TV and the ready button');
 });

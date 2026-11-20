@@ -163,6 +163,7 @@ test('chrome sprites prefer the active official pack, then ac_n_initial, and ski
     'themes/ac_s_closur': group('ac_s_closur', [
       'sprites/closure_back_active.webp', 'sprites/bg_open.webp', 'sprites/refresh_bg_normal.webp', 'sprites/frozen_bg_unlock.webp',
       'sprites/frozen_bg_disable.webp', 'sprites/refresh_icon.webp', 'sprites/refresh_icon_bg.webp',
+      'sprites/bg_lock.webp', 'sprites/refresh_bg_lock.webp',
     ]),
   };
   const initial = regChromeUrls(groups, {});
@@ -200,7 +201,9 @@ test('chrome sprites prefer the active official pack, then ac_n_initial, and ski
   assert.deepEqual([backStyle['--reg-char-back-w'], backStyle['--reg-char-back-h'], backStyle['--reg-char-back-b']], ['1.2891', '1.32584', '0.04494']);
   assert.deepEqual([backStyle['--reg-char-base'], backStyle['--reg-char-bg']], ['none', 'transparent'], 'no dark green under it');
   assert.equal(regChromeStyle(iron)['--reg-char-back'], undefined);
+  // 可露希尔's bg_lock is the closed-shop card, not a button plate: each button locks to its own plate
   assert.equal(closur.frozenLock, '/assets/local/themes/ac_s_closur/sprites/frozen_bg_disable.webp');
+  assert.equal(closur.refreshLock, '/assets/local/themes/ac_s_closur/sprites/refresh_bg_lock.webp');
   assert.equal(closur.refreshIcon, '/assets/local/themes/ac_s_closur/sprites/refresh_icon.webp');
   assert.equal(closur.refreshIconBg, '/assets/local/themes/ac_s_closur/sprites/refresh_icon_bg.webp');
   assert.equal(closur.frozenIcon, '');
