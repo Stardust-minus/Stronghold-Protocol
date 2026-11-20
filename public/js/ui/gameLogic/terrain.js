@@ -1,6 +1,6 @@
 // ui/gameLogic/terrain.js — the tips of a tap on the ground: special terrain tiles (GitHub issue #184: 特殊地形的单击信息
 // 提示) and, in the same place, stage devices (阻隔工事 / “双眼皮” / 射击台 / 气流: GitHub #228, PR #229 by @rickylxw —
-// deviceInfo / deviceTipAt below). Re-exported from ../gameLogic.js.
+// deviceInfo / deviceTipAt below; 规程's 盐坨子炮 too). Re-exported from ../gameLogic.js.
 //
 // The words go through t() (docs/I18N.md: the Chinese text is the msgid, public/i18n/en.json the English): the name /
 // tag / fact tables are marked N_() and translated where terrainInfo hands them out, the mechanism lines are built
@@ -136,13 +136,49 @@ export function terrainInfo(stage, row, col) {
 // ---- stage device tips (GitHub #228, PR #229 by @rickylxw: the stage DEVICES, not only the tiles) ---------------------
 
 /** The device roles a tap explains; the rest is invisible (盟约寒风, the 沼泽 / 涨潮 controllers) or not fielded this season. */
-const DEVICE_TIP_ROLES = Object.freeze(['crate', 'turret', 'platform', 'blower']);
-/** Roles the battle spawns as device UNITS (Battle._spawnStageDevices, devices.js spawnTurret): in a battle a tap finds them by unit. */
-const DEVICE_UNIT_ROLES = Object.freeze(['crate', 'turret']);
+const DEVICE_TIP_ROLES = Object.freeze(['crate', 'turret', 'platform', 'blower', 'cannon']);
+/**
+ * Roles the battle spawns as device UNITS (Battle._spawnStageDevices, devices.js spawnTurret / spawnCannon): in a battle a
+ * tap finds them by unit.
+ */
+const DEVICE_UNIT_ROLES = Object.freeze(['crate', 'turret', 'cannon']);
 const TIP_TAG = N_('场地装置');
 const DIR_NAME = Object.freeze({ UP: N_('上'), DOWN: N_('下'), LEFT: N_('左'), RIGHT: N_('右') });
 
 const round1 = (v) => Math.round(v * 10) / 10;
+
+/** sktok_cnnon: 6 SP, one per second (devices.js CANNON_SP; the stage entry keeps no SP block). */
+const CANNON_SP = 6;
+/**
+ * The 盐坨子炮 (trap_196_cnnon) as the battle fields it — server/sim/content/devices.js spawnCannon / cannonRunes /
+ * cannonImpact, kept in step by test/ui/device-tip.test.js: the stage's runes naming the cannon (its alias or the bare id;
+ * each distinct effect once) add to its HP / ATK and multiply its 6 s shot interval; the shell lands on the far tile of
+ * its range, else 4 tiles ahead.
+ * @returns {{ hp: number, atk: number, def: number, sec: number, reach: number }}
+ */
+function cannonNumbers(stage, d) {
+  const names = new Set(['trap_196_cnnon', d.key, d.alias].filter(Boolean));
+  const seen = new Set();
+  let atk = 0, hp = 0, cdMul = 1;
+  for (const r of Array.isArray(stage?.runes) ? stage.runes : []) {
+    const filter = String(r?.bbStr?.char ?? '').split('|').map((x) => x.trim()).filter(Boolean);
+    if (!filter.some((n) => names.has(n))) continue;
+    const sig = `${r.key}:${JSON.stringify(r.bb ?? {})}`;
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    if (r.key === 'char_attribute_add') { atk += param(r.bb?.ATK, 0); hp += param(r.bb?.MAX_HP, 0); }
+    else if (r.key === 'char_skill_cd_mul' && param(r.bb?.scale, 0) > 0) cdMul *= param(r.bb.scale, 1);
+  }
+  const s = isObj(d.stats) ? d.stats : {};
+  let reach = 0;
+  for (const p of Array.isArray(d.rangeTiles) ? d.rangeTiles : []) {
+    if (Array.isArray(p) && Array.isArray(d.pos)) reach = Math.max(reach, Math.abs(p[0] - d.pos[0]) + Math.abs(p[1] - d.pos[1]));
+  }
+  return {
+    hp: Math.max(1, param(s.maxHp, 30000) + hp), atk: Math.max(0, param(s.atk, 1200) + atk), def: param(s.def, 3000),
+    sec: CANNON_SP * cdMul, reach: reach > 0 ? reach : 4,
+  };
+}
 
 /**
  * What tapping a stage device says — the same contract as TERRAIN_TIPS, but `lines` read the device's own stage entry
@@ -218,17 +254,33 @@ const DEVICE_TIPS = Object.freeze({
     },
     facts: () => [t(BUILDABILITY.NONE)],
   },
+  // 规程 盐坨子炮 on the wall row above a field (devices.js spawnCannon); character_table 不容易受到我方单位的攻击 (嘲讽等级 −1)
+  cannon: {
+    lines: (st, d, stage) => {
+      const c = cannonNumbers(stage, d);
+      return [
+        t('敌方装置：每 {sec} 秒向前方第 {n} 格发射一枚炮弹，落点上的我方单位受到 {atk} 点物理伤害', { sec: round1(c.sec), n: c.reach, atk: c.atk }),
+        t('开炮时把炮身周围 1 名重量不超过 3 的地面敌人传送到落点'),
+        t('我方干员可以攻击它；射程内有敌人时，干员会先攻击敌人'),
+      ];
+    },
+    stats: (st, d, stage) => {
+      const c = cannonNumbers(stage, d);
+      return [{ k: t('生命上限'), v: c.hp }, { k: t('攻击'), v: c.atk }, { k: t('防御'), v: c.def }];
+    },
+    facts: () => [t(BUILDABILITY.NONE)],
+  },
 });
 const round2 = (v) => Math.round(v * 100) / 100;
 
 /** A stage device entry is drawn: `active` when it carries it, else not `hidden` (render/tiles.js _stageDevices, board3d/layout.js stageDevices). */
 const deviceDrawn = (d) => (typeof d.active === 'boolean' ? d.active : !d.hidden);
 
-/** The card of stage device `d` standing at (row, col) — `tip` is DEVICE_TIPS[d.role]. */
+/** The card of stage device `d` standing at (row, col) — `tip` is DEVICE_TIPS[d.role] (the cannon also reads the stage's runes). */
 function deviceCard(stage, d, row, col) {
   const tip = DEVICE_TIPS[d.role];
-  const lines = tip.lines(stage.special, d).filter((s) => typeof s === 'string' && s);
-  const stats = typeof tip.stats === 'function' ? tip.stats(stage.special, d) : null;
+  const lines = tip.lines(stage.special, d, stage).filter((s) => typeof s === 'string' && s);
+  const stats = typeof tip.stats === 'function' ? tip.stats(stage.special, d, stage) : null;
   const name = typeof d.name === 'string' && d.name ? d.name : String(d.role);
   return {
     key: d.role, name, tag: t(TIP_TAG), row, col, lines, facts: tip.facts(stage.special, d).filter(Boolean),
@@ -261,8 +313,8 @@ export function deviceInfo(stage, row, col, { roles = DEVICE_TIP_ROLES } = {}) {
 }
 
 /**
- * The tip of a tap on (row, col) while a BATTLE shows the field — the live counterpart of `deviceInfo`: crates and “双眼皮”
- * turrets are device UNITS there (kind 'device', one per drawn stage device, `defId` = the device key), so they are
+ * The tip of a tap on (row, col) while a BATTLE shows the field — the live counterpart of `deviceInfo`: crates, “双眼皮”
+ * turrets and 盐坨子炮 are device UNITS there (kind 'device', one per drawn stage device, `defId` = the device key), so they are
  * found by the unit standing on the tile — a turret outside the battle's rect stands on another tile than its stage `pos`
  * (devices.js deviceTile) — and what the card says comes from the stage entry of that key. The platforms and blowers are no
  * units: they answer by their stage `pos`, as in the prep.
