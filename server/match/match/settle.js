@@ -88,16 +88,19 @@ export class MatchSettle {
       ps.recompute();
     }
     this._revival = { round: this.round, eligible, windowOpen: false, deadline: 0 };
-    const canRescue = this.revivalEnabled && this.teamLp == null && this.order.some((ps) => this.revivalDonorEligible(ps));
+    // a death is put off when a donor may pay for it (extensions.js _revivalRescuable: an AI only for a human, §37.274)
     for (const ps of alive) {
       if (ps.lp <= 0) {
-        if (canRescue && ps.alive && !ps.revived && !ps.left) this._deferDeath(ps);
+        if (ps.alive && !ps.revived && !ps.left && this._revivalRescuable(ps)) this._deferDeath(ps);
         else this._finalizeDeath(ps);
       }
     }
     this.fields = [];
     this.watchers.clear();
-    const rescue = canRescue && this.order.some((ps) => this.revivalTargetEligible(ps));
+    // the AI teammates pay at once, as the window opens (§37.274); a death no human can cancel any more is final here
+    if (this.order.some((ps) => ps.pendingDeath)) this._aiRescues();
+    for (const ps of this.order) if (ps.pendingDeath) this.toast(ps, 'warn', msg('你的目标生命值耗尽，等待救援'));
+    const rescue = this.order.some((ps) => this.revivalTargetEligible(ps));
     this.setDeadline(rescue ? REVIVAL_WINDOW_SECONDS : DELAYS.SETTLE / 1000, () => this.afterSettle({ reason: 'window-expired' }), { silent: !rescue && this.soloUntimed });
     if (rescue) { this._revival.windowOpen = true; this._revival.deadline = this.deadline; }
     this.markPublic();

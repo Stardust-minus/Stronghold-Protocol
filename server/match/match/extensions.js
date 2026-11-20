@@ -173,18 +173,21 @@ export class MatchExtensions {
   }
 
   /**
-   * The rescue donors of this SETTLE (rel35, the owner: 「队友复活移除不漏怪的要求」): every human teammate still in the
-   * match as the round settles — a leaker, a 联防 helper or neither, in a round with or without a 联防 (an all-leak round
-   * settles straight from COMBAT). Whether one can pay is decided at the request (revivalDonorEligible: alive, not left,
-   * LP >= 11 after this round's loss). Until rel34 only the round's leak-free 联防 helpers who fought on the field
-   * qualified — and a helper is leak-free by definition (unite.js planUnite), so dropping only the leak condition would
-   * have changed nothing. The Set keeps its checkpoint shape: a rel34 build restoring a rel35 SETTLE honours the list.
+   * The rescue donors of this SETTLE (rel35, the owner: 「队友复活移除不漏怪的要求」): every teammate still in the match as
+   * the round settles — a leaker, a 联防 helper or neither, in a round with or without a 联防 (an all-leak round settles
+   * straight from COMBAT). Whether one can pay is decided later (revivalDonorEligible: alive, not left, LP >= 11 after this
+   * round's loss). Until rel34 only the round's leak-free 联防 helpers who fought on the field qualified — and a helper is
+   * leak-free by definition (unite.js planUnite), so dropping only the leak condition would have changed nothing. Since
+   * §37.274 (the owner, 2026-11-20: AI teammates rescue too) the AI seats are in it as well: an AI pays for a human
+   * teammate on its own as the window opens (_aiRescues), never for another AI (revivalDonorFor), and only a human sends
+   * g.revive. The Set keeps its checkpoint shape: an older build restoring this SETTLE skips the AI ids (its own
+   * revivalDonorEligible refuses AI seats).
    */
   _revivalDonors() {
     const donors = new Set();
     if (!this.revivalEnabled) return donors;
     for (const ps of this.order) {
-      if (this.players.get(ps.playerId) === ps && !ps.isBot && !ps.left && ps.alive) donors.add(ps.playerId);
+      if (this.players.get(ps.playerId) === ps && !ps.left && ps.alive) donors.add(ps.playerId);
     }
     return donors;
   }
@@ -195,12 +198,22 @@ export class MatchExtensions {
       && this.teamLp == null && state && state.windowOpen && state.round === this.round && this.sched.now() < state.deadline);
   }
 
+  /** The rule's own terms of a donor, human or AI: alive, not left, LP >= 11 after this round's loss, a donor of this SETTLE. */
   revivalDonorEligible(ps) {
-    return !!(ps && !ps.isBot && !ps.left && ps.alive && Number.isFinite(ps.lp) && ps.lp >= REVIVAL_MIN_DONOR_LP
+    return !!(ps && !ps.left && ps.alive && Number.isFinite(ps.lp) && ps.lp >= REVIVAL_MIN_DONOR_LP
       && this._revival?.round === this.round && this._revival.eligible.has(ps.playerId));
   }
 
+  /** Who may pay for whom (§37.274): a human for any teammate, an AI for a human teammate only — no AI rescues an AI. */
+  revivalDonorFor(donor, target) { return !!(donor && target && donor !== target && (!donor.isBot || !target.isBot)); }
+
   revivalTargetEligible(ps) { return !!(ps && ps.pendingDeath && !ps.alive && !ps.left && !ps.revived); }
+
+  /** Whether the death of `ps` (LP just ran out) can be put off for a rescue: some donor of this SETTLE may pay for it. */
+  _revivalRescuable(ps) {
+    return !!(this.revivalEnabled && this.teamLp == null
+      && this.order.some((p) => this.revivalDonorFor(p, ps) && this.revivalDonorEligible(p)));
+  }
 
   _revivalDeathReason(ps) {
     if (ps.left) return 'left';
@@ -208,19 +221,45 @@ export class MatchExtensions {
     if (!this.revivalEnabled) return 'disabled';
     if (this.teamLp != null || this.ended || this.disposed) return 'match-ended';
     // a teammate whose LP ran out in the same settlement is no donor (still `alive` until its own death is handled)
-    const helpers = this.order.filter((p) => p !== ps && this.players.get(p.playerId) === p && !p.isBot && !p.left && p.alive
+    const helpers = this.order.filter((p) => this.revivalDonorFor(p, ps) && this.players.get(p.playerId) === p && !p.left && p.alive
       && !(p.lp <= 0) && this._revival?.round === this.round && this._revival.eligible.has(p.playerId));
     if (!helpers.length) return 'no-helper';
     return helpers.every((p) => Number.isFinite(p.lp) && p.lp < REVIVAL_MIN_DONOR_LP) ? 'donor-lp' : 'window-closed';
   }
 
+  /** Put the death off for the rescue window; settle tells the player once the AI rescues are done (settle.js). */
   _deferDeath(ps) {
     ps.revivalUnavailableReason = null;
     ps.lp = 0;
     ps.alive = false;
     ps.pendingDeath = true;
     ps.dirty();
-    this.toast(ps, 'warn', msg('你的目标生命值耗尽，等待救援'));
+  }
+
+  /**
+   * THE decision hook of an AI rescue (§37.274): whether the AI `bot` pays for the pending human `target` now. Asked only
+   * once the rule's terms hold (bot: alive, not left, LP >= 11; target: pending, never rescued), in the order the AIs would
+   * pay (most LP first, ties by seat), until one says yes. true by default — every AI rescues; a later feature (ELO) may
+   * replace it to decide per target. Must not change any state: it may be asked about several AIs for one target.
+   */
+  aiWillRescue(_bot, _target) { return true; }
+
+  /**
+   * The AI teammates' rescues (§37.274, the owner 2026-11-20), as the SETTLE window opens: every pending human, in seat
+   * order, is rescued by the AI with the most LP that may pay (ties: the lower seat) and that aiWillRescue lets. A death a
+   * human could still cancel waits for the window; when no human can pay, what is still pending is final now (its reason
+   * as an immediate death's) and no window opens. Called by settle only.
+   */
+  _aiRescues() {
+    for (const target of this.order) {
+      if (target.isBot || !this.revivalTargetEligible(target)) continue;
+      const donors = this.order.filter((p) => p.isBot && this.revivalDonorFor(p, target) && this.revivalDonorEligible(p))
+        .sort((a, b) => b.lp - a.lp || a.seat - b.seat);
+      const donor = donors.find((p) => this.aiWillRescue(p, target) === true);
+      if (donor) this._rescue(donor, target);
+    }
+    if (this.order.some((p) => !p.isBot && this.revivalDonorEligible(p))) return;
+    for (const ps of this.order) if (ps.pendingDeath) this._finalizeDeath(ps);
   }
 
   _finalizeDeath(ps, { round = this.round, notify = true, reason = this._revivalDeathReason(ps) } = {}) {
@@ -259,19 +298,30 @@ export class MatchExtensions {
     const target = this.players.get(msg.playerId);
     if (target && !target.alive && !target.pendingDeath && !target.left && !target.revived) return fail(ERR.BAD_TARGET, 'revival-target-finalized');
     if (target === ps || !this.revivalTargetEligible(target)) return fail(ERR.BAD_TARGET, 'revival-target-ineligible');
+    this._rescue(ps, target);
+    return OK;
+  }
+
+  /**
+   * One rescue, a human's g.revive or an AI's (_aiRescues): `donor` pays REVIVAL_COST, `target` comes back at LP 1 with
+   * everything it held. The callers have checked both. The rescued player's toast and everyone's ticker line name the
+   * donor (§37.274: who rescued, a human or an AI — there was no such notice before).
+   */
+  _rescue(donor, target) {
     // Claim usage before any updates/hooks/views: another donor's duplicate request cannot spend twice.
     target.revived = true;
     target.alive = true;
     target.pendingDeath = false;
     target.revivalUnavailableReason = null;
     target.lp = 1;
-    ps.lp -= REVIVAL_COST; // >=11 before payment: the donor always keeps at least 1 LP
-    ps.stats.lpLost += REVIVAL_COST;
+    donor.lp -= REVIVAL_COST; // >=11 before payment: the donor always keeps at least 1 LP
+    donor.stats.lpLost += REVIVAL_COST;
     // Bonds depend on the unchanged holdings; teammate effects read alivePlayers dynamically. No reset/reroll/hooks.
     target.dirty();
-    ps.dirty();
+    donor.dirty();
     this.markPublic();
-    return OK;
+    this.toast(target, 'success', msg('{name}博士支付 10 点生命救下了你，你回到 1 点生命', { name: donor.name }));
+    this.tickerText(msg('{donor}博士支付 10 点生命，救下了{target}博士', { donor: donor.name, target: target.name }), FLOW_TICKER_PRIORITY);
   }
 
 }

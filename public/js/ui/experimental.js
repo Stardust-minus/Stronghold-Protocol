@@ -353,7 +353,7 @@ function ruleRowMap({ value, mode = 'coop', source = 'private', ...rest }) {
     </div>`;
   };
   return {
-    revival: mode === 'solo' ? null : switchRow({ id: 'experimental-revival', title: t('队友复活'), note: t('队友生命耗尽时，任意存活队友可支付 10 生命抵消这次死亡（自己至少要有 11 生命），每人每局最多被救一次。'), checked: options.revivalEnabled,
+    revival: mode === 'solo' ? null : switchRow({ id: 'experimental-revival', title: t('队友复活'), note: t('队友生命耗尽时，任意存活队友可支付 10 生命抵消这次死亡（自己至少要有 11 生命），每人每局最多被救一次。AI 队友会立即自动救援真人队友。'), checked: options.revivalEnabled,
       disabled: locked, onChange: on => send({ ...options, revivalEnabled: on }) }),
     layerCap: switchRow({ id: 'experimental-layer-cap', title: t('禁用层数上限'), note: t('盟约层数不再停在 999 层。'), checked: options.disableLayerCap === true,
       disabled: locked, onChange: on => send({ ...options, disableLayerCap: on }) }),
