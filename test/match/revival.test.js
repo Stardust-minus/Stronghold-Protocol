@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match, DELAYS } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { collectViolations } from '../../server/match/invariants.js';
 import { ERR, PHASE } from '../../shared/constants.js';
@@ -27,7 +28,7 @@ function scenario(t, o = {}) {
     return o.uniteFailure ? { throwInCtor: true } : { survivors: o.survivors || { p_0: 1 }, coins: { p_1: 2 } };
   };
   const m = new Match({
-    roomCode: 'REVIVAL', mode: 'coop', difficulty: 'NORMAL', data: DATA, seats, seed: 4501, matchNo: o.matchNo ?? 1,
+    roomCode: 'REVIVAL', mode: 'coop', difficulty: 'NORMAL', data: DATA, seats, seed: 4501, matchSecret: seedSecret(4501), matchNo: o.matchNo ?? 1,
     revivalEnabled: o.enabled ?? true, scheduler: sched, timerScale: o.timerScale,
     BattleClass: FakeBattle, clientCombat: false, botRehearsal: 0,
     // the scripted humans only ready: the AFK rule would remove them as the second prep ends (test/match/afk.test.js)

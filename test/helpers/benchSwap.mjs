@@ -12,7 +12,7 @@ const { createRegistry } = await import('../../server/match/effectsMeta.js');
 const OP = 'chess_char_1_10_a'; // 古米: ground operator in all four versions, no summon cards.
 
 function fixture() {
-  const h = makeMatch({ data, mode: 'solo', fake: true, seed: 53, registry: createRegistry() }).start().toPrep();
+  const h = makeMatch({ data, mode: 'solo', fake: true, seed: 3, registry: createRegistry() }).start().toPrep();
   const ps = h.ps('p_0');
   for (const p of ps.allChess()) ps.returnCopies(p);
   ps.board.clear(); ps.hand.fill(null); ps.temp.fill(null); ps.recompute();

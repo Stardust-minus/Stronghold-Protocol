@@ -22,14 +22,13 @@
 //     whose every card was floored to 0 keeps its untilted weights. `tier` (the tier lever, off by default) instead
 //     moves up to that share of every tier's mass one tier up (s > 0) or down (s < 0) in the shop's own rolls.
 //   * no tilt (absent, s = 0) → the callers take their untouched code path: the same draws, the same results.
-//   * the match seed reaches every page (battle ids, m.result), so in an ELO room every stream a tilt draws from — the
-//     shop's, the 机变 draft's, the meta grants', the solo draft's second set, the rescue's — comes from the match's
-//     private secret (Match.matchSecret, secret.js, eloSeed; saved in the checkpoint, never sent): a page cannot compute
-//     it from anything it is sent. A tilt set by the test hook alone keeps the seed's streams.
+//   * every stream a tilt draws from — the shop's, the 机变 draft's, the meta grants', the solo draft's second set, the
+//     rescue's — comes from the match's private secret like every other stream of the match (Match.matchSecret,
+//     secret.js, Match.streamSeed / eloSeed, §37.277; saved in the checkpoint, never sent): a page cannot compute it from
+//     anything it is sent, so it cannot see the untilted draws either.
 
 import { computeBonds, thresholdsOf } from './bondsMeta.js';
-import { createRng, deriveSeed } from '../sim/rng.js';
-import { secretSeed } from './secret.js';
+import { createRng } from '../sim/rng.js';
 
 /** Default weight base M. */
 export const TILT_BASE = 2;
@@ -119,12 +118,12 @@ export function setTilt(ps, opts) {
 export { ELO_MAP, eloSummary, eloTilt, eloTiltAt } from '../../shared/elo.js';
 
 /**
- * A seed of the ELO match's private secret (Match.matchSecret, secret.js secretSeed: never sent, saved in the checkpoint)
- * — the streams a tilt draws from in such a match; the match seed without one (a tilt by the test hook).
+ * A seed of the match's private secret (Match.streamSeed, secret.js secretSeed: never sent, saved in the checkpoint) — the
+ * streams a tilt draws from beyond the match's own six (the solo draft's second set, the rescue's draw).
  * @param {any} m @param {string} salt
  */
 export function eloSeed(m, salt) {
-  return m.matchSecret != null ? secretSeed(m.matchSecret, salt) : deriveSeed(m.seed, salt);
+  return m.streamSeed(salt);
 }
 
 /**

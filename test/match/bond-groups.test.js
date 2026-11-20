@@ -202,8 +202,8 @@ test('a lit core bond never loses a member, in solo groups and co-op draws (owne
   }
 });
 
-test('a 自选 piece of two core bonds stays while one of them is lit (seed 21 splits 炎 / 维多利亚)', t => {
-  const h = make(t, { modeId: 'mode_single_12', seed: 21 }), m = h.m, ps = h.ps('p_0');
+test('a 自选 piece of two core bonds stays while one of them is lit (seed 1 splits 炎 / 维多利亚)', t => {
+  const h = make(t, { modeId: 'mode_single_12', seed: 1 }), m = h.m, ps = h.ps('p_0');
   const slot = 'chess_char_5_diy1_a', charId = 'char_017_huang';
   assert.equal(ps.setDiy({ [slot]: { charId, skillIndex: 0 } }, { kitted: [charId] }), true);
   ps.diyBring = Object.freeze([slot]);
@@ -219,7 +219,7 @@ test('a 自选 piece of two core bonds stays while one of them is lit (seed 21 s
 
 test('pick rebuilds 自选 stock, shop, promotion rewards, named pools and direct grants respect exclusion', t => {
   const custom = structuredClone(data);
-  const h = make(t, { data: custom, modeId: 'mode_single_12', seed: 22 }), m = h.m, ps = h.ps('p_0');
+  const h = make(t, { data: custom, modeId: 'mode_single_12', seed: 2 }), m = h.m, ps = h.ps('p_0');
   const slot = 'chess_char_5_diy1_a', charId = 'char_017_huang';
   assert.equal(ps.setDiy({ [slot]: { charId, skillIndex: 0 } }, { kitted: [charId] }), true);
   ps.initDiyStock(new Set());

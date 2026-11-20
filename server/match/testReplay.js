@@ -7,6 +7,7 @@
 // kits and items without an error.
 import { Match } from './Match.js';
 import { TEST_INPUT_METHODS } from './testTrace.js';
+import { seedSecret } from './secret.js';
 import { getData } from '../data.js';
 import { DEFAULT_VERSION, versionOfData } from '../../shared/versions.js';
 
@@ -31,7 +32,8 @@ export function replayTestMatch(data, entries, { send = () => {}, broadcast = ()
   // journal:false — replaying must not log again, and must not wrap timers a second time.
   // Old journals predate selectable bots. Neither old nor new recordings read the replay host's environment.
   // Journals before 2026-11-11 predate the offline hold: they replay without one (offlineHoldMs 0).
-  const m = new Match({ ...init.options, botStrategy: init.options.botStrategy ?? 'legacy',
+  // a test match's private secret is its seed's (testTrace.js; §37.277): derived again, never read from the journal
+  const m = new Match({ ...init.options, matchSecret: seedSecret(init.options.seed), botStrategy: init.options.botStrategy ?? 'legacy',
     botStrategySeats: init.options.botStrategySeats ?? {}, offlineHoldMs: init.options.offlineHoldMs ?? 0, journal: false,
     externalReplay: true, data, scheduler, send, broadcast, onEnd, registry, BattleClass });
   for (const e of entries.slice(1)) {

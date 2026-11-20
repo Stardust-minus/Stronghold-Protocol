@@ -69,7 +69,7 @@ async function scenario(t, options = {}) {
     settle(plan, result) { this.settlements++; this.rawUnite = structuredClone(result); return super.settle(plan, result); }
   }
   const errors = [];
-  const srv = await startServer({ host: '127.0.0.1', port: 0, combatWorkers: 6, MatchClass: Checkpoint, seedFn: () => 20261005,
+  const srv = await startServer({ host: '127.0.0.1', port: 0, combatWorkers: 6, MatchClass: Checkpoint, seedFn: () => 18,
     log: { ...quiet, error: (...args) => errors.push(args.map(String).join(' ')) } });
   const clients = []; let closed = false;
   const close = async () => { if (closed) return; closed = true; await Promise.all(clients.map((c) => c.terminate())); await srv.close(); };

@@ -4,8 +4,8 @@
 //
 // Per match (setupMatchWaves):
 //   * stage: weighted (stages[id].weight) among mode.stages that are active with weight > 0 — official mode data:
-//     标准 (FUNNY) / 入门 = 战场#01 only, 险境 = 8 stages, 绝境 / 终极 = 7 (no 战场#01), weight 50 each, so the match seed
-//     picks uniformly (test/match/stagepick.test.js)
+//     标准 (FUNNY) / 入门 = 战场#01 only, 险境 = 8 stages, 绝境 / 终极 = 7 (no 战场#01), weight 50 each, so the match's setup
+//     stream picks uniformly (test/match/stagepick.test.js)
 //   * factions: `specialEnemyNum` (3) distinct types among the involveRandom ones (FLY/TIMES/ELEMENT/DOT/INVISIBLE/
 //     REFLECTION), uniform (shuffle, take 3). Solo (GameData.isSolo) with a positive `specialEnemyNumSingle` keeps
 //     that many types instead, and a positive `types[t].countSingle` is that type's slot count (规程). Multi, and any

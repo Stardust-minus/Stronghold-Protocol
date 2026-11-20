@@ -3,7 +3,7 @@
 // Strict majority resolves the rest with that fallback. quorum:none never gates the phase.
 import { ERR } from '../../../shared/constants.js';
 import { offerAt, offersAt } from '../../../shared/plugins/offers.js';
-import { createRng, deriveSeed } from '../../sim/rng.js';
+import { createRng } from '../../sim/rng.js';
 import { OK, fail } from './common.js';
 
 export const OFFER_CLOSED = Object.freeze(['settled', 'timeout', 'none']);
@@ -36,7 +36,7 @@ export class MatchOffers {
   }
 
   _offerRng(w, ps, salt = 'initial') {
-    return createRng(deriveSeed(this.seed, `offer:${w.pluginId}:${w.id}:${w.at}:${w.round}:${w.seq}:${ps.seat}:${salt}`));
+    return createRng(this.streamSeed(`offer:${w.pluginId}:${w.id}:${w.at}:${w.round}:${w.seq}:${ps.seat}:${salt}`));
   }
 
   _offerOptions(w, ps) {

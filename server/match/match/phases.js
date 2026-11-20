@@ -10,7 +10,7 @@
 import { PHASE, ERR } from '../../../shared/constants.js';
 import { buildNormalWave, buildBossWave } from '../waves.js';
 import { pairPlayers, bossPairSalt } from '../finalAssault.js';
-import { createRng, deriveSeed } from '../../sim/rng.js';
+import { createRng } from '../../sim/rng.js';
 import { OK, fail, DELAYS, BAND_TURN_SECONDS } from './common.js';
 import { SharedPool, bannedChessForBonds, createItemPools } from '../pool.js';
 import { botPickBondGroup } from '../botBondGroups.js';
@@ -755,7 +755,7 @@ export class MatchPhases {
     // maps are identical). Only the round's first plan draws anew: a re-plan after a departure in its round start, 机变
     // draft or prep (platform.js _quit) keeps the intact pairs and re-pairs the orphan, as the Final Assault does.
     const fresh = hidden && this.bossPairsRound !== r;
-    const groups = pairPlayers(this.alivePlayers(), createRng(deriveSeed(this.seed, bossPairSalt(this.gd, r))), fresh ? null : this.bossPairs);
+    const groups = pairPlayers(this.alivePlayers(), createRng(this.streamSeed(bossPairSalt(this.gd, r))), fresh ? null : this.bossPairs);
     this.bossPairs = groups.map(g => g.map(p => p.playerId));
     this.bossPairsRound = r;
     this.bossWaves = groups.map((g) => ({

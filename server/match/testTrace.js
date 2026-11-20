@@ -6,6 +6,7 @@
 // puts on one record. Hitting it marks the match not replayable and appends one capped marker
 // instead of truncating a record in place. No record buffer grows with the duration of a match.
 import { guardTestMessage } from '../../shared/testMode.js';
+import { seedSecret } from './secret.js';
 
 export const TEST_INPUT_METHODS = Object.freeze([
   'start', 'handle', 'setLoadout', 'onDisconnect', 'onReconnect', 'onLeave', 'setHost',
@@ -94,6 +95,9 @@ export function installTestTrace(m, opts) {
   const seatIds = Object.entries(m.seatBots).map(([seat, strategy]) => [seat, strategy.id]);
   if (seatIds.length) options.botStrategySeats = Object.fromEntries(seatIds);
   if (m.externalAI) options.externalAI = m.externalAI.journalConfig();
+  // the match's private secret is never journalled (§37.277): a test room's is its seed's (Lobby.startMatch), which the
+  // replay derives again (testReplay.js); a test match given any other secret cannot be replayed from its journal
+  if (m.matchSecret !== seedSecret(m.seed)) m.testReplayable = false;
   emit({ version: 1, kind: 'init', at: m.startedAt, options, virtual: scheduler.virtual, instant: scheduler.instant });
   const register = (method, fn, ms) => {
     const id = ++seq;

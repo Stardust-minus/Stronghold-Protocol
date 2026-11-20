@@ -25,9 +25,9 @@ const members = (m, ps) => new Set(ps.allChess().filter((p) => isMember(m, p.id)
 
 /**
  * A solo match at the prep of round `r`, its AI seat on `band` with an empty board and hand and a shop of `level` (a
- * 寻呼模块 offers chess up to the shop level; seed 1: the drawn bans leave 谢拉格 in the pool).
+ * 寻呼模块 offers chess up to the shop level; seed 2: the drawn bans leave 谢拉格 in the pool).
  */
-function prepAt(r, { difficulty = 'ABYSS', band = PAGER_BAND, seed = 1, level = 3 } = {}) {
+function prepAt(r, { difficulty = 'ABYSS', band = PAGER_BAND, seed = 2, level = 3 } = {}) {
   const h = makeMatch({ mode: 'solo', difficulty, seats: seat(), seed }).start().toPrep();
   const m = h.m, ps = m.order[0];
   m.startRound(r);
@@ -50,12 +50,12 @@ function tryRemove(ps, p) {
 }
 
 test('§37.69: the solo 终极 AI seat drafts 杰西卡 while the pool can supply 6 谢拉格', () => {
-  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: seat(), seed: 1 });
+  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: seat(), seed: 2 });
   try {
     const { m } = h;
     const ps = m.order[0];
     assert.ok(m.gd.bandIds().includes(PAGER_BAND));
-    assert.ok(reach(m) >= 6, `seed 1 leaves ${reach(m)} members`);
+    assert.ok(reach(m) >= 6, `seed 2 leaves ${reach(m)} members`);
     for (let i = 0; i < 40; i++) assert.equal(botPickBand(m, ps), PAGER_BAND);
     // fewer than 6 left (a drawn 本局禁用 谢拉格 bans the single-bond ones): the weights decide, and they rarely take it
     const live = [...m.pool.entries].filter(([id, e]) => e.left > 0 && e.tier <= 5 && isMember(m, id));

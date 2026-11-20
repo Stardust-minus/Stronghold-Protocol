@@ -22,7 +22,7 @@ export class MatchSpDraft {
     const draftOpts = { stageId: this.stageId, bondAvailable: (bondId) => this.bondLive(bondId), itemAvailable: id => this.spItemAvailable(id) };
     let draft = generateDraft(this.gd, this.rngDraft, this.round, draftOpts);
     // ELO tilt (server/match/tilt.js, §37.273): a solo seat's own card set may be a second draft of the same round, built
-    // from its own stream (never rngDraft) — in an ELO room the match's own secret's (tilt.js eloSeed, §37.275)
+    // from its own stream (never rngDraft) — the match secret's like every stream (tilt.js eloSeed, §37.277)
     const solo = this.isSolo && alive.length === 1 ? alive[0] : null;
     if (draft && solo && tiltOf(solo)) {
       const alt = createRng(eloSeed(this, `tilt-sp:${this.round}`));

@@ -11,6 +11,7 @@ import { PHASE } from '../../shared/constants.js';
 import { DATA, makeMatch, give, legalTileFor } from './harness.js';
 import { FakeBattle } from './fakeBattle.js';
 import { Battle } from '../../server/sim/Battle.js';
+import { seedSecret } from '../../server/match/secret.js';
 
 const BAND = 'band_ducklord';
 const PARAMS = DATA.bands[BAND].buffs.find((b) => b.key === 'round_start_all_player_change_enemy_2');
@@ -34,18 +35,19 @@ function soloAt(r, seed) {
 
 /**
  * The player's normal-battle options until the band swapped a `key` into the real wave (the real onBattleStart path).
- * The swaps are one draw per round from the match seed (GitHub #839), so each try reads them under another match seed.
+ * The swaps are one draw per round from the match's secret (GitHub #839, §37.277), so each try reads them under another
+ * match's secret.
  */
 function optsWith(m, ps, key, tries = 400) {
-  const seed = m.seed;
+  const seed = m.seed, secret = m.matchSecret;
   try {
     for (let i = 0; i < tries; i++) {
-      m.seed = seed + i;
+      m.matchSecret = seedSecret(seed + i);
       const opts = m._normalOpts(ps);
       const spec = opts.spawns.find((s) => s.enemyKey === key);
       if (spec) return { opts, spec };
     }
-  } finally { m.seed = seed; }
+  } finally { m.matchSecret = secret; }
   assert.fail(`no ${key} in ${tries} battles`);
 }
 

@@ -1,8 +1,8 @@
 // Experimental ELO, step 2 (§37.275, shared/elo.js ELO_MAP / eloSummary): in a room with `experimental.elo` every human
 // seat is tilted by its own recent matches (seats[].elo, [won, roundsPassed]; a quick loss weighs little), AI seats never;
-// the streams a tilt draws from come from the match's private secret (server/match/secret.js: the seed reaches every page),
-// which the checkpoint keeps; an AI teammate's rescue of a hindered human is a draw of that secret. Without the option
-// nothing of it exists: the same streams, no field, no secret.
+// the streams a tilt draws from come from the match's private secret like every stream of every match (server/match/
+// secret.js, §37.277), which the checkpoint keeps; an AI teammate's rescue of a hindered human is a draw of that secret.
+// Without the option nothing of it exists: the same streams, no field.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../../server/match/Match.js';
@@ -10,9 +10,9 @@ import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { makeMatch, DATA, give, chessOfTier, legalTileFor } from './harness.js';
 import { FakeBattle } from './fakeBattle.js';
 import { ELO_MAP, eloSummary, eloTilt, eloTiltAt, eloSeed, eloWillRescue, setTilt, tiltOf, tiltFactor } from '../../server/match/tilt.js';
-import { isMatchSecret, secretSeed } from '../../server/match/secret.js';
+import { isMatchSecret, secretSeed, seedSecret } from '../../server/match/secret.js';
 import { canSnapshot, snapshotMatch, restoreMatch, checkSnapshot } from '../../server/match/snapshot.js';
-import { createRng, createRngFromState, deriveSeed } from '../../server/sim/rng.js';
+import { createRng, createRngFromState } from '../../server/sim/rng.js';
 import { EXPERIMENTAL_DEFAULTS } from '../../shared/experimental.js';
 import { PHASE } from '../../shared/constants.js';
 
@@ -80,7 +80,7 @@ test('setTilt keeps `mix` only with a floor; the floor share is mix (step 1: |s|
   h.m.dispose();
 });
 
-test('an ELO room tilts every human by its own matches and no AI; without the option nothing is set and the streams are the seed\'s', () => {
+test('an ELO room tilts every human by its own matches and no AI; without the option nothing is set; every stream is the secret\'s', () => {
   const on = makeMatch({ seats: seatsOf([ent(25, 5), ent(5, 25), ent(2, 1)], 1), seed: 11, experimental: ELO, matchSecret: S1, fake: true });
   const p = (h, id) => h.m.players.get(id);
   assert.deepEqual(tiltOf(p(on, 'p_0')), { s: -0.735, m: 4, floor: null, cut: 0.5, tier: 0, core: true }, '25 of 30: w 0.794');
@@ -93,66 +93,71 @@ test('an ELO room tilts every human by its own matches and no AI; without the op
   assert.equal(on.m.matchSecret, S1);
   const off = makeMatch({ seats: seatsOf([ent(25, 5), ent(5, 25)]), seed: 11, fake: true });
   assert.equal(off.m.elo, false);
-  assert.equal(off.m.matchSecret, null);
+  assert.equal(off.m.matchSecret, seedSecret(11), 'the harness fixes the secret by the seed');
   for (const ps of off.m.players.values()) assert.equal(Object.hasOwn(ps, 'tilt'), false);
-  // the tilted streams: the secret's in the ELO room, the seed's otherwise; the rest are the seed's in both
+  // every stream is the match secret's (§37.277), with the option or without: the tilted ones untouched yet, and the
+  // setup's, the waves' and the bots' (drawn by the constructor) the same for another seed with the same secret
   for (const name of ['shop', 'draft', 'meta']) {
     const key = `rng${name[0].toUpperCase()}${name.slice(1)}`;
     assert.equal(on.m[key].state(), createRng(secretSeed(S1, name)).state(), key);
-    assert.equal(off.m[key].state(), createRng(deriveSeed(11, name)).state(), key);
+    assert.equal(off.m[key].state(), createRng(secretSeed(seedSecret(11), name)).state(), key);
   }
-  for (const key of ['rngSetup', 'rngWaves', 'rngBots']) assert.equal(on.m[key].state(), off.m[key].state(), key);
+  const twin = makeMatch({ seats: seatsOf([ent(25, 5), ent(5, 25)]), seed: 9999, matchSecret: seedSecret(11), fake: true });
+  for (const key of ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta']) assert.equal(twin.m[key].state(), off.m[key].state(), key);
+  twin.m.dispose();
   assert.equal(eloSeed(on.m, 'x'), secretSeed(S1, 'x'));
   assert.notEqual(secretSeed(S1, 'x'), secretSeed(S2, 'x'));
-  assert.equal(eloSeed(off.m, 'x'), deriveSeed(11, 'x'));
+  assert.equal(eloSeed(off.m, 'x'), secretSeed(seedSecret(11), 'x'));
   // a fresh random secret without one given (never a function of the seed)
-  const fresh = makeMatch({ mode: 'solo', seed: 11, experimental: ELO, fake: true });
-  const fresh2 = makeMatch({ mode: 'solo', seed: 11, experimental: ELO, fake: true });
+  const fresh = makeMatch({ mode: 'solo', seed: 11, experimental: ELO, fake: true, randomSecret: true });
+  const fresh2 = makeMatch({ mode: 'solo', seed: 11, experimental: ELO, fake: true, randomSecret: true });
   assert.ok(isMatchSecret(fresh.m.matchSecret));
   assert.notEqual(fresh.m.matchSecret, fresh2.m.matchSecret);
   fresh2.m.dispose();
   for (const h of [on, off, fresh]) h.m.dispose();
 });
 
-test('a tilt by the test hook alone keeps the seed\'s streams; the ELO room\'s solo second draft comes from the secret', () => {
+test('a tilt by the test hook alone draws from the match secret\'s streams too; so does the ELO room\'s solo second draft', () => {
   const hook = makeMatch({ mode: 'solo', seed: 21, fake: true });
   setTilt(hook.m.players.get('p_0'), { s: 1 });
-  assert.equal(hook.m.rngShop.state(), createRng(deriveSeed(21, 'shop')).state());
-  assert.equal(eloSeed(hook.m, 'tilt-sp:3'), deriveSeed(21, 'tilt-sp:3'));
+  assert.equal(hook.m.rngShop.state(), createRng(secretSeed(seedSecret(21), 'shop')).state());
+  assert.equal(eloSeed(hook.m, 'tilt-sp:3'), secretSeed(seedSecret(21), 'tilt-sp:3'));
   const room = makeMatch({ mode: 'solo', seats: seatsOf([ent(0, 30)]), seed: 21, experimental: ELO, matchSecret: S2, fake: true });
   assert.equal(eloSeed(room.m, 'tilt-sp:3'), secretSeed(S2, 'tilt-sp:3'));
   for (const h of [hook, room]) h.m.dispose();
 });
 
-test('checkpoint: an ELO match keeps its secret (and every tilt); a document without it is refused; any other keeps its shape', () => {
+test('checkpoint: an ELO match keeps its secret (and every tilt); a document without it, or of another secret, is refused', () => {
   const h = makeMatch({ seats: seatsOf([ent(28, 2), ent(3, 27)], 2), seed: 31, experimental: ELO, matchSecret: S1, fake: true }).start();
   h.drive(() => h.m.phase === PHASE.PREP && h.m.round === 2 && canSnapshot(h.m));
   const doc = JSON.parse(JSON.stringify(snapshotMatch(h.m)));
   assert.equal(doc.matchSecret, S1);
   assert.equal(doc.experimental.elo, true);
   assert.ok(doc.seats.every((s) => !Object.hasOwn(s, 'elo')), 'the seats carry no matches: the tilt travels itself');
-  // a fresh instance of the platform's (its own random secret, its seats without matches) takes the saved ones
-  const r = makeMatch({ seats: doc.seats, seed: doc.seed, offlineHoldMs: 0, experimental: doc.experimental });
-  assert.ok(isMatchSecret(r.m.matchSecret));
+  // a fresh instance of the platform's (built with the saved secret, §37.277; its seats without matches) takes the saved
+  // tilts and streams
+  const r = makeMatch({ seats: doc.seats, seed: doc.seed, offlineHoldMs: 0, experimental: doc.experimental, matchSecret: doc.matchSecret });
   assert.equal(restoreMatch(r.m, doc, { createRngFromState, log: QUIET }), true);
   assert.equal(r.m.matchSecret, S1);
   for (const id of ['p_0', 'p_1', 'ai_0', 'ai_1']) assert.deepEqual(r.m.players.get(id).tilt, h.m.players.get(id).tilt, id);
   for (const key of ['rngShop', 'rngDraft', 'rngMeta']) assert.equal(r.m[key].state(), h.m[key].state(), key);
   const { matchSecret, ...without } = doc;
   void matchSecret;
-  const r2 = makeMatch({ seats: doc.seats, seed: doc.seed, offlineHoldMs: 0, experimental: doc.experimental });
+  const r2 = makeMatch({ seats: doc.seats, seed: doc.seed, offlineHoldMs: 0, experimental: doc.experimental, matchSecret: doc.matchSecret });
   assert.equal(checkSnapshot(r2.m, without), 'secret');
   assert.equal(checkSnapshot(r2.m, { ...doc, matchSecret: 1234 }), 'secret', 'a malformed secret');
+  assert.equal(checkSnapshot(r2.m, { ...doc, matchSecret: S2 }), 'secret', 'another secret than the match was built with');
   assert.equal(restoreMatch(r2.m, without, { createRngFromState, log: QUIET }), false);
-  // without the option: no secret in the document, and one with a stray secret restores as before (it is not read)
+  // a match built with its own random secret cannot take the document either (a restore must pass the saved one)
+  const r3 = makeMatch({ seats: doc.seats, seed: doc.seed, offlineHoldMs: 0, experimental: doc.experimental, randomSecret: true });
+  assert.ok(isMatchSecret(r3.m.matchSecret));
+  assert.equal(restoreMatch(r3.m, doc, { createRngFromState, log: QUIET }), false);
+  // without the option the document carries the match's secret just the same
   const o = makeMatch({ humans: 2, bots: 2, seed: 31, fake: true }).start();
   o.drive(() => o.m.phase === PHASE.PREP && o.m.round === 2 && canSnapshot(o.m));
   const plain = JSON.parse(JSON.stringify(snapshotMatch(o.m)));
-  assert.equal(Object.hasOwn(plain, 'matchSecret'), false);
-  const r3 = makeMatch({ seats: plain.seats, seed: plain.seed, offlineHoldMs: 0, experimental: plain.experimental });
-  assert.equal(restoreMatch(r3.m, { ...plain, matchSecret: S2 }, { createRngFromState, log: QUIET }), true);
-  assert.equal(r3.m.matchSecret, null);
-  for (const x of [h, r, r2, o, r3]) x.m.dispose();
+  assert.equal(plain.matchSecret, seedSecret(31));
+  for (const x of [h, r, r2, r3, o]) x.m.dispose();
 });
 
 test('eloWillRescue: always outside an ELO room, for an untilted or helped target; a hindered one with chance 1 + s, a pure draw', () => {

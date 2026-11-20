@@ -47,6 +47,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { Match } from '../server/match/Match.js';
+import { seedSecret } from '../server/match/secret.js';
 import { VirtualScheduler } from '../server/match/scheduler.js';
 import { getData } from '../server/data.js';
 import { buildNormalWave, buildBossWave } from '../server/match/waves.js';
@@ -108,7 +109,7 @@ export function makeMatch({ data, mode, difficulty, seed, players = 1, rehearsal
   const seats = [];
   for (let i = 0; i < players; i++) seats.push({ seat: i, playerId: `p${i}`, name: `P${i + 1}`, isBot: false, connected: true });
   const m = new Match({
-    roomCode: 'BAL', mode, difficulty, seats, seed, data, log: QUIET_LOG, scheduler: new VirtualScheduler(),
+    roomCode: 'BAL', mode, difficulty, seats, seed, matchSecret: seedSecret(seed), data, log: QUIET_LOG, scheduler: new VirtualScheduler(),
     send: () => true, broadcast: () => {}, onEnd: () => {}, botRehearsal: rehearsal,
   });
   return m;
@@ -334,7 +335,7 @@ export function runRound({ data, mode, difficulty, round, seed, rehearsal = 5, p
     const limit = m.wave.timeLimit;
     const { wave, players: inputs } = uniteBattleOpts(m, plan, limit);
     const b = m.newBattle({
-      seed: deriveSeed(m.seed, `u:${round}`), kind: 'unite', modeId: m.modeId, round, stageId: m.stageId, rect: { ...GEO.UNITE_RECT },
+      seed: m.streamSeed(`u:${round}`), kind: 'unite', modeId: m.modeId, round, stageId: m.stageId, rect: { ...GEO.UNITE_RECT },
       timeLimit: limit, players: inputs, spawns: m._sanitizeSpawns(wave.spawns), routes: wave.routes, sharedBoss: null,
       flags: { layerGainsEnabled: false, ...m.gd.dp }, fieldId: 'u', enemyOverrides: m.wave.overrides || {}, waveId: wave.templateId,
     });
@@ -396,7 +397,7 @@ export function runBoss({ data, mode, difficulty, round, seed, profile = 1, boss
     });
     const fieldId = `b${i + 1}`;
     const b = m.newBattle({
-      seed: deriveSeed(m.seed, `${fieldId}:${round}`), kind: hidden ? 'hidden' : 'boss', modeId: m.modeId, round, stageId: m.stageId,
+      seed: m.streamSeed(`${fieldId}:${round}`), kind: hidden ? 'hidden' : 'boss', modeId: m.modeId, round, stageId: m.stageId,
       rect: { ...GEO.BOSS_RECT }, timeLimit: Infinity, players: inputs, spawns: m._sanitizeSpawns(spawns), routes: wave.routes,
       sharedBoss: pool, flags: { layerGainsEnabled: false, ...gd.dp, enemyScale: gd.enemyScale(round) }, fieldId, enemyOverrides: wave.overrides, waveId: wave.templateId, bossId: id,
     });
@@ -518,7 +519,7 @@ export function runBots({ data, mode, difficulty, seeds = 10, seed = 1, rehearsa
     const seats = [];
     for (let k = 0; k < players; k++) seats.push({ seat: k, playerId: `ai_${k}`, name: `AI-${k + 1}`, isBot: true, connected: true });
     const m = new Match({
-      roomCode: 'BOT', mode: mode === 'solo' ? 'solo' : 'coop', difficulty, seats, seed: seed + i, data, log: QUIET_LOG, scheduler: sched,
+      roomCode: 'BOT', mode: mode === 'solo' ? 'solo' : 'coop', difficulty, seats, seed: seed + i, matchSecret: seedSecret(seed + i), data, log: QUIET_LOG, scheduler: sched,
       botRehearsal: rehearsal, send: () => true, broadcast: () => {}, onEnd: (s) => { summary = s; },
     });
     m.start();

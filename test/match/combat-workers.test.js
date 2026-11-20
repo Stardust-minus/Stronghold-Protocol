@@ -8,6 +8,7 @@ import { startServer, parseCombatWorkers, parseTrialWorkers } from '../../server
 import { Lobby } from '../../server/lobby.js';
 import { NET_DEFAULTS } from '../../server/net.js';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { FieldRunner, emptyPerPlayer } from '../../server/match/fields.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { buildNormalWave } from '../../server/match/waves.js';
@@ -57,7 +58,7 @@ function fixture(t, { pool = null, humans = 4, mode = 'coop', speed = 200, ...op
   const sent = [], bc = [], ended = [];
   const logs = captureLog();
   const m = new Match({
-    roomCode: 'WORK', mode, difficulty: 'NORMAL', seed: 731, data: DATA,
+    roomCode: 'WORK', mode, difficulty: 'NORMAL', seed: 731, matchSecret: seedSecret(731), data: DATA,
     seats: Array.from({ length: humans }, (_, seat) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected: true })),
     send: (pid, msg) => { sent.push([pid, clone(msg)]); return true; },
     broadcast: (msg) => bc.push(clone(msg)), onEnd: (s) => ended.push(clone(s)),

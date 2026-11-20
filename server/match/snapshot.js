@@ -13,10 +13,11 @@
 // round, operators, items, economy, LP, pools and RNG positions, the round's battle fought again under a fresh battleId
 // (RESTORE_SEQ_GAP).
 //
-// ON RESTORE (restoreMatch, into a fresh Match built from the same seats and seed — the constructor redraws the same
-// setup) the saved fields replace the constructor's, the pools are rebuilt from the saved bans and given their saved
-// copies, every human seat is offline (the platform rebinds it when its player comes back) and the phase is entered
-// again: a phase clock restarts from the remaining time the checkpoint recorded, a prep gets at least
+// ON RESTORE (restoreMatch, into a fresh Match built from the same seats, seed and private secret — the constructor
+// redraws the same setup; §37.277: the secret seeds every stream, so a match built with another one is refused) the
+// saved fields replace the constructor's, the pools are rebuilt from the saved bans and given their saved copies, every
+// human seat is offline (the platform rebinds it when its player comes back) and the phase is entered again: a phase
+// clock restarts from the remaining time the checkpoint recorded, a prep gets at least
 // MIN_RECOVER_PREP_SEC and its humans are not Ready (they come back to their board first), a draft starts its current
 // turn (a concurrent draft: its one countdown) over, a setup vote is dropped. A solo pause does not survive.
 // A checkpoint written as the prep ended (its envelope's reason CHECKPOINT_PREP_END) means the match was past that
@@ -37,10 +38,10 @@ import { isMatchSecret } from './secret.js';
  * Checkpoint layout version. A document of another version is refused (the match is dropped, server/persist/).
  * Raise it whenever a saved field is added, removed or changes its meaning, or the restore rules below change.
  */
-export const SNAPSHOT_VERSION = 2;
+export const SNAPSHOT_VERSION = 3;
 // (卡池静态初始化, 2026-11-20: `poolSplit` is additive — written only for a match with the room's staticPoolSplit, which
-// a server without it refuses as an unknown option — so v2 stays; any other checkpoint is unchanged and loads as before.
-// ELO, §37.275: `matchSecret` the same way — only for a match with the room's elo.)
+// a server without it refuses as an unknown option. v3, §37.277: every match's `matchSecret` — the seed of all its
+// streams, no longer the match seed's — and a restore builds the match with it; a v2 document has no secret to go on with.)
 
 /** Phases whose state is fully serializable (see the header). */
 export const SNAPSHOT_PHASES = Object.freeze([PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.SP_DRAFT, PHASE.ROUND_START, PHASE.PREP]);
@@ -83,9 +84,9 @@ export const MATCH_FIELDS = Object.freeze({
   special: Object.freeze([
     'phase', 'round', 'deadline', 'startedAt', '_battleSeq', 'damageBoard', 'poolGroups', 'playerItemPools',
     ...RNG_NAMES,
-    // ELO (secret.js, tilt.js eloSeed, §37.275): the match's private secret, only in a match with the option (`matchSecret`
-    // of the document; null otherwise and not written) — the checkpoint stays on the server (server/persist/, a match
-    // host's IPC), never a page
+    // the match's private secret (secret.js, Match.streamSeed, §37.277): `matchSecret` of the document — the fresh Match of a
+    // restore is built with it (checkSnapshot refuses another); the checkpoint stays on the server (server/persist/, a
+    // match host's IPC, a game node's store), never a page
     'matchSecret',
   ]),
   derived: Object.freeze([
@@ -108,7 +109,7 @@ export const MATCH_FIELDS = Object.freeze({
     'verifyHub',
     // 0.4.0: the per-seat bot strategies (opts / SP_BOT_STRATEGY_SEATS); a modded room's content list and rules (opts)
     'seatBots', 'diyKitted', 'rules',
-    // the ELO room option (from opts.experimental; its secret is `special`)
+    // the ELO room option (from opts.experimental)
     'elo',
   ]),
   transient: Object.freeze([
@@ -377,8 +378,8 @@ function buildSnapshot(m) {
     // shares — per seat its chess [cap, left], its equipment caps and debt (pool.js splitPoolGroup)
     ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}),
     rng: Object.fromEntries(RNG_NAMES.map((n) => [n, m[n].state() >>> 0])),
-    // ELO (additive like poolSplit): the secret of the tilted streams, which a restore needs for the ones it derives anew
-    ...(m.matchSecret != null ? { matchSecret: m.matchSecret } : {}),
+    // the secret of every stream (§37.277): a restore builds the match with it and derives the later seeds from it
+    matchSecret: m.matchSecret,
     damageBoard: encodeValue({ ...m.damageBoard }),
   };
   // a vote in INFO_CHECK is dropped on restore: keep its paused confirmation budget instead of a zero deadline
@@ -442,26 +443,27 @@ function applyPoolSplit(poolGroups, saved) {
 // ---------------------------------------------------------------------------------------------------
 
 /**
- * Whether a checkpoint can be applied to `m` (a fresh Match built from doc.seats with doc.seed): version, phase, seed,
- * battleId prefix and the exact seat roster. @returns {string | null} the reason it cannot, null when it can
+ * Whether a checkpoint can be applied to `m` (a fresh Match built from doc.seats with doc.seed and doc.matchSecret):
+ * version, phase, secret, seed, battleId prefix and the exact seat roster. @returns {string | null} the reason it cannot,
+ * null when it can
  */
 export function checkSnapshot(m, doc) {
   if (!m || !doc || typeof doc !== 'object') return 'empty';
   if (doc.v !== SNAPSHOT_VERSION) return `version ${doc.v}`;
   if (!SNAPSHOT_PHASES.includes(doc.phase)) return `phase ${doc.phase}`;
+  // the secret seeds every stream (§37.277): the match must have been built with the document's
+  if (!isMatchSecret(doc.matchSecret) || doc.matchSecret !== m.matchSecret) return 'secret';
   if ((Number(doc.seed) >>> 0) !== m.seed || doc.battlePrefix !== m.battlePrefix) return 'seed';
   if (!m.sched || typeof m.sched.now !== 'function' || !Array.isArray(m.poolGroups)) return 'engine';
   const players = Array.isArray(doc.players) ? doc.players : [];
   if (players.length !== m.players.size || players.some((p) => !m.players.has(p?.playerId))) return 'seats';
   if (!Array.isArray(doc.pools) || !doc.match || typeof doc.match !== 'object' || !doc.rng) return 'shape';
-  // an ELO match goes on with its own secret only (tilt.js eloSeed)
-  if (m.elo && !isMatchSecret(doc.matchSecret)) return 'secret';
   return null;
 }
 
 /**
- * Apply a checkpoint to a fresh Match instance — built with the checkpoint's seats (matchSeats), seed, mode, difficulty
- * and experimental options, NOT started — and re-enter its phase (the header). A human's 自选 slots are taken from the
+ * Apply a checkpoint to a fresh Match instance — built with the checkpoint's seats (matchSeats), seed, secret
+ * (`matchSecret`), mode, difficulty and experimental options, NOT started — and re-enter its phase (the header). A human's 自选 slots are taken from the
  * checkpoint's seat even when the instance was built from other seats (the cluster: its assignment's). Nothing is dispatched again: income,
  * round-start hooks and prep-start effects already ran before the checkpoint was taken.
  * @param {import('./Match.js').Match} m fresh instance
@@ -487,7 +489,6 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
     const state = doc.rng[name];
     if (Number.isInteger(state)) m[name] = createRngFromState(state >>> 0);
   }
-  if (m.elo) m.matchSecret = doc.matchSecret;
   if (doc.damageBoard && typeof doc.damageBoard === 'object') Object.assign(m.damageBoard, decodeValue(doc.damageBoard));
   m.stage = m.stageId ? m.gd.stage(m.stageId) : null;
   // the game data a release ships may have dropped what the checkpoint holds: such a match does not come back
@@ -689,5 +690,5 @@ export function matchState(m) {
     players[ps.playerId] = p;
   }
   return { phase: m.phase, round: m.round, match, pools, ...(m.staticPoolSplit ? { poolSplit: poolSplitState(m) } : {}), rng,
-    ...(m.matchSecret != null ? { matchSecret: m.matchSecret } : {}), players };
+    matchSecret: m.matchSecret, players };
 }

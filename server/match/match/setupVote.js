@@ -13,7 +13,7 @@
 // same setup); no cap per match (feedback #93: the owner dropped the 3 of 0.3.0, setupRevision still counts them).
 // The vote and the proposal marks are transient: a checkpoint restore drops them (server/match/snapshot.js).
 import { PHASE, ERR } from '../../../shared/constants.js';
-import { createRng, deriveSeed } from '../../sim/rng.js';
+import { createRng } from '../../sim/rng.js';
 import { setupMatchWaves } from '../waves.js';
 import { drawDisabledBonds, SharedPool, createItemPools } from '../pool.js';
 import { OK, fail } from './common.js';
@@ -137,7 +137,7 @@ export class MatchSetupVote {
   completeSetupReroll() {
     let prepared;
     try {
-      const rng = createRng(deriveSeed(this.seed, `reroll-setup:${this.setupRevision + 1}`));
+      const rng = createRng(this.streamSeed(`reroll-setup:${this.setupRevision + 1}`));
       const setup = setupMatchWaves(this.gd, rng);
       const stage = setup.stageId ? this.gd.stage(setup.stageId) : null;
       const bans = drawDisabledBonds(this.gd, rng);

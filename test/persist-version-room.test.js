@@ -68,8 +68,9 @@ test('(a) a version host posts checkpoints; a match from a mid-match one plays t
       const mid = a.out.cps.find((c) => c.reason === 'prep-end' && c.doc.round >= 3);
       assert.ok(mid, `${version}: a prep-end checkpoint of round 3+`);
       assert.equal(mid.doc.phase, 'PREP');
-      // a match back from it in the host: the round's battle fought again, then on to the end
-      const b = run(mid.doc.seats);
+      // a match back from it in the host: the round's battle fought again, then on to the end; built with the checkpoint's
+      // private secret, as the lobby's restore does (§37.277: a match of another secret refuses the checkpoint)
+      const b = run(mid.doc.seats, { matchSecret: mid.doc.matchSecret });
       assert.equal(await b.p.restore(mid.doc, { replay: true }), true, `${version}: restored`);
       const again = await b.out.end;
       assert.ok(again.roundsPassed >= mid.doc.round, `${version}: ${again.roundsPassed} rounds after a restore at ${mid.doc.round}`);
@@ -78,8 +79,8 @@ test('(a) a version host posts checkpoints; a match from a mid-match one plays t
       assert.equal(d.version, version);
       assert.ok(b.out.cps.some((c) => c.doc.round > mid.doc.round), `${version}: the restored match checkpoints again`);
       b.p.dispose();
-      // another seed: refused, the match ends as a failed start
-      const c = run(mid.doc.seats);
+      // another seed (the same secret): refused, the match ends as a failed start
+      const c = run(mid.doc.seats, { matchSecret: mid.doc.matchSecret });
       assert.equal(await c.p.restore({ ...mid.doc, seed: 12 }), false);
       const refused = await c.out.end;
       assert.equal(refused.reason, 'version-start');

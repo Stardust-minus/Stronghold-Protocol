@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { DamageBoard } from '../../server/match/damageBoard.js';
 import { operatorDamageKey } from '../../server/sim/damageBoard.js';
@@ -69,7 +70,7 @@ test('bossDamageRows: rounded, sorted, capped, drawn like the lineup; nothing fo
 
 test('a real Final Assault: every row of the settlement lists its own operators\' boss damage and its battle time', (t) => {
   const scheduler = new VirtualScheduler({ instantCombat: false });
-  const m = new Match({ roomCode: 'BDMG', matchNo: 9, mode: 'coop', difficulty: 'NORMAL', seed: 731, data: DATA,
+  const m = new Match({ roomCode: 'BDMG', matchNo: 9, mode: 'coop', difficulty: 'NORMAL', seed: 731, matchSecret: seedSecret(731), data: DATA,
     seats: [0, 1].map((seat) => ({ seat, playerId: `p${seat}`, name: `Boss ${seat}`, isBot: false, connected: true })),
     send() { return true; }, broadcast() {}, onEnd() {}, log: quiet, scheduler, clientCombat: false, verify: 'off', combatSpeed: 2,
     timerScale: 0.02, botRehearsal: 0 });

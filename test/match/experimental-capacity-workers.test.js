@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { CombatEngine } from '../../server/match/combat/engine.js';
 import { WorkerFieldRunner } from '../../server/match/combat/runner.js';
@@ -75,7 +76,7 @@ async function bossFixture(t, count, { hidden = false, smallPool = false, speed 
   const pool = new CombatWorkerPool({ size: 1, data: DATA, log });
   let m; t.after(async () => { m?.dispose(); await pool.close(); });
   await pool.start();
-  m = new Match({ roomCode: 'CAPW', mode: 'coop', difficulty: 'NORMAL', seed: 731, data: DATA,
+  m = new Match({ roomCode: 'CAPW', mode: 'coop', difficulty: 'NORMAL', seed: 701, matchSecret: seedSecret(701), data: DATA,
     seats: seats(count), spectators: ['observer'], experimental: experiment,
     send() { return true; }, broadcast() {}, onEnd: result => ended.push(result), log,
     combatPool: pool, clientCombat: false, verify: 'off', combatSpeed: speed, timerScale: 0.02, botRehearsal: 0 });

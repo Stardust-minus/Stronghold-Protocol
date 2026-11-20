@@ -10,7 +10,7 @@ import { makeMatch } from './harness.js';
 const SLICE_MS = 0.000001;
 
 function combat(t, verify = 'all', options = {}) {
-  const h = makeMatch({ mode: 'coop', humans: 1, bots: 0, seed: 345, clientCombat: true,
+  const h = makeMatch({ mode: 'coop', humans: 1, bots: 0, seed: 8, clientCombat: true,
     clients: false, verify, headlessSliceMs: SLICE_MS, timerScale: 0, ...options });
   t.after(() => h.m.dispose());
   h.start();
@@ -82,7 +82,7 @@ test('all verification yields between slices and settles with the synchronous se
 
 for (const verify of ['all', 'sample']) {
   test(`${verify} verification lets an unrelated real timer run between battle slices`, async (t) => {
-    const h = makeMatch({ mode: 'coop', humans: 1, bots: 0, seed: 345, clientCombat: true,
+    const h = makeMatch({ mode: 'coop', humans: 1, bots: 0, seed: 8, clientCombat: true,
       clients: false, verify, headlessSliceMs: SLICE_MS, timerScale: 0 });
     const m = h.m;
     // Install the real scheduler before start, while the harness has no queued timers.

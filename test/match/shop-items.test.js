@@ -19,7 +19,7 @@ const MLYSS = 'chess_char_6_11_a'; // 缪尔赛思 (调和)
 const bots = [{ seat: 0, playerId: 'ai_0', name: 'AI-1', isBot: true, connected: true }];
 
 function setup(t, round = 9) {
-  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seed: 5, seats: bots }).start().toPrep();
+  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seed: 1, seats: bots }).start().toPrep();
   t.after(() => h.dispose?.());
   const m = h.m, ps = m.order[0];
   ps.hand.fill(null);

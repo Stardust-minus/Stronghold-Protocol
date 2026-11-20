@@ -67,7 +67,9 @@ for (const clientCombat of [false, true]) {
     assert.equal(m.round, 3);
     assert.equal(m.sp.family, 'bounty');
     assert.equal(m.spTurn(), 'p_0');
-    assert.equal(m.sp.cards[0].name, '悬赏·持续III');
+    // the server's own first card: its name and enemy are what the choice adds to every watcher's view
+    const card = m.sp.cards[0];
+    assert.ok(card.name && m.gd.enemy(card.enemyKey), 'precondition: the first card is a bounty naming a real enemy');
     for (const pid of ['p_1', S]) assert.deepEqual(m.handle(pid, { t: 'g.watch', fieldId: 'n:p_0' }), { ok: true });
     h.flushAll();
     const before = h.lastTo(S, 'm.field');
@@ -80,8 +82,8 @@ for (const clientCombat of [false, true]) {
       assert.equal(fields.length, count + 1, `${pid}: the choice pushes one updated scout view`);
       const after = fields.at(-1);
       assert.deepEqual(after.units, before.units, 'no board, hand or temp piece changed');
-      assert.deepEqual(after.effects.map((e) => e.name), [...before.effects.map((e) => e.name), '悬赏·持续III']);
-      assert.deepEqual(after.nextEnemies.filter((e) => e.tag === 'bounty').map((e) => [e.enemyKey, e.count]), [['enemy_1272_nhtank', 1]]);
+      assert.deepEqual(after.effects.map((e) => e.name), [...before.effects.map((e) => e.name), card.name]);
+      assert.deepEqual(after.nextEnemies.filter((e) => e.tag === 'bounty').map((e) => [e.enemyKey, e.count]), [[card.enemyKey, card.count]]);
       assert.deepEqual(after.nextEnemies.filter((e) => e.tag !== 'bounty'), before.nextEnemies);
       assert.deepEqual(after, m.prepFieldMeta(h.ps('p_0')), 'the watcher receives the current public view');
       assert.equal(Object.hasOwn(after, 'funds'), false);
@@ -117,6 +119,8 @@ for (const field of ['effects', 'nextEnemies']) {
     const m = h.m;
     t.after(() => m.dispose());
     assert.ok(h.drive(() => m.phase === PHASE.SP_DRAFT));
+    const card = m.sp.cards[0]; // the server's own card: its enemy is the bounty's
+    assert.ok(m.gd.enemy(card.enemyKey), 'precondition: the first card is a bounty naming a real enemy');
     assert.deepEqual(m.handle('p_0', { t: 'g.choice', idx: 0 }), { ok: true });
     assert.deepEqual(m.handle('s_spec', { t: 'g.watch', fieldId: 'n:p_0' }), { ok: true });
     h.flushAll();
@@ -137,7 +141,7 @@ for (const field of ['effects', 'nextEnemies']) {
       assert.deepEqual(after.nextEnemies, before.nextEnemies);
     } else {
       const enemies = after.nextEnemies.filter((e) => e.tag === 'bounty');
-      assert.ok(enemies.every((e) => e.enemyKey === 'enemy_1272_nhtank'));
+      assert.ok(enemies.every((e) => e.enemyKey === card.enemyKey));
       assert.equal(enemies.reduce((n, e) => n + e.count, 0), 2, 'both bounty enemies reach the preview');
       assert.deepEqual(after.effects, before.effects);
     }

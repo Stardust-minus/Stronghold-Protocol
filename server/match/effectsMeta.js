@@ -51,7 +51,6 @@ import { msg, dn } from '../../shared/i18n.js';
 import { onGiftTicker } from './botEmotes.js';
 import { previewContext } from './preview.js';
 import { LayerLedger } from './layerForecast.js';
-import { deriveSeed } from '../sim/rng.js';
 import { commandMetaHandler, openSkillChangeDraft } from './bandCommands.js';
 import { chessTilt, itemTilt, tiltedInt } from './tilt.js';
 
@@ -563,10 +562,11 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     gd,
     rng,
     /**
-     * A uint32 derived from the match seed and `salt`: the same for every player, dispatch and preview, consuming no
-     * stream — for a draw that every player of a round must share (鸭爵's swaps, GitHub #839: createRng(seedFor(…))).
+     * A uint32 derived from the match's private secret and `salt` (Match.streamSeed, §37.277): the same for every player,
+     * dispatch and preview, consuming no stream — for a draw that every player of a round must share (鸭爵's swaps,
+     * GitHub #839: createRng(seedFor(…))).
      */
-    seedFor: (salt) => deriveSeed(m.seed, `meta:${String(salt)}`),
+    seedFor: (salt) => m.streamSeed(`meta:${String(salt)}`),
     log: (msg) => m.log.info?.(`[meta ${m.roomCode}] ${ps.playerId}: ${msg}`),
 
     // ---- reads

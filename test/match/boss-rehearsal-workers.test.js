@@ -5,6 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { TrialEngine, snapshotTrialInput, beatsCandidate, bestOf, NO_BEST } from '../../server/match/combat/trial.js';
 import { RehearsalScore, FA_LEAK_SECONDS } from '../../server/sim/rehearsal.js';
@@ -150,7 +151,7 @@ test('a boss / hidden trial candidate carries its pool as data, never a live poo
 // The actual prep driver (real scheduler) of an AI-托管 seat in a Final Assault prep, with and without the trial pool.
 function driverFixture(t, { trialPool = null, seed, round, bot = false }) {
   const errors = [], warnings = [];
-  const m = new Match({ roomCode: 'BOSSR', mode: 'coop', difficulty: 'HARD', seed, data: DATA,
+  const m = new Match({ roomCode: 'BOSSR', mode: 'coop', difficulty: 'HARD', seed, matchSecret: seedSecret(seed), data: DATA,
     seats: [0, 1].map((seat) => ({ seat, playerId: `p${seat}`, name: `P${seat}`, isBot: bot && seat === 0, connected: true })),
     send: () => true, broadcast() {}, onEnd() {},
     log: { ...QUIET, warn: (s) => warnings.push(s), error: (s) => errors.push(s) },

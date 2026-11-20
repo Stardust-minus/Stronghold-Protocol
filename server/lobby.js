@@ -90,8 +90,10 @@
 //     room.closed {reason:'afk' | 'kicked'} on its next resume.
 //   * All other 'g.*' messages go to room.match.handle(playerId, msg); its {ok}/{error} becomes the reply.
 //   * Match lifecycle: room.start → new Match({...}) → room.state (inMatch=true) → match.start(). The match gets
-//     `matchNo` = the room's match number (1, 2, …): with the seed it keeps battleIds unique across the room's
-//     matches, so a late b.progress / b.result of the previous match is ignored by the next one (DESIGN §14).
+//     `matchNo` = the room's match number (1, 2, …) and its own private secret (`matchSecret`, a fresh random one;
+//     §37.277: the seed of every stream, never sent): battleIds are unique across the room's matches, so a late
+//     b.progress / b.result of the previous match is ignored by the next one (DESIGN §14). A lobby given a `seedFn`
+//     (tests) and a test room fix the secret by the seed instead (server/match/secret.js seedSecret): such a match repeats.
 //     onEnd(summary) → room back to LOBBY (departed seats freed, humans un-readied, disconnected humans
 //     get the lobby grace), dispose() on the next macrotask. Players can start again.
 //   * room.closed reasons: 'timeout' (removed after lobby grace), 'kicked' (room.kick, room.removeSpectator, a passed
@@ -307,6 +309,7 @@ import { encode, isErrCode, sendEncodedMany, sendMessage, sendRaw, sendSession, 
 import { isCompressibleType } from './wsCompression.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch, AFK_REMOVE_ROUNDS } from './match/Match.js';
+import { newMatchSecret, seedSecret } from './match/secret.js';
 import { parseOfflineHoldMinutes } from './match/match/common.js';
 import { GameData } from './match/gamedata.js';
 import { ASKED_RULES, Matchmaking } from './matchmaking.js';
@@ -751,6 +754,8 @@ export class Lobby {
     this.getData = getData;
     this.now = now;
     this.seedFn = seedFn || (() => randomInt(2 ** 32));
+    /** a seedFn given (tests only): the seed also fixes each match's private secret (startMatch, §37.277) */
+    this.fixedSeeds = typeof seedFn === 'function';
     const testModeOpt = options.testMode;
     const testHostOpt = options.testHost;
     if (Object.hasOwn(options, 'testMode') || Object.hasOwn(options, 'testHost')) {
@@ -3041,8 +3046,8 @@ export class Lobby {
     if (host) host.ready = true;
     // the room's data: its content set's in a room with gameplay plugins (header "Gameplay plugins")
     const data = this.dataFor(room);
-    // `restore` (server/persist/persister.js): a match coming back from its checkpoint — its own seats, seed and number,
-    // and `apply(match)` instead of start()
+    // `restore` (server/persist/persister.js): a match coming back from its checkpoint — its own seats, seed, secret and
+    // number, and `apply(match)` instead of start()
     const seats = restore ? restore.seats : room.seats.filter(Boolean).map((s) => {
       // a setting checked for another content is filtered to this room's data (header "Gameplay plugins")
       const own = s.isBot ? null : this.seatSettings(room, s, data);
@@ -3100,7 +3105,12 @@ export class Lobby {
         // only a room created as a test room; a normal match opts object does not grow a test key
         ...(room.test === true ? { test: true } : {}),
         seed,
-        // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
+        // the match's private secret (server/match/secret.js, §37.277): a restore's is its checkpoint's; a test room's
+        // (its journal replays from the seed: testReplay.js) and a lobby with a fixed seedFn's (tests) are the seed's;
+        // every other match draws its own
+        matchSecret: restore ? restore.matchSecret
+          : room.test === true || this.fixedSeeds ? seedSecret(seed) : newMatchSecret(),
+        // the room's match number: the suffix of the battleIds' prefix (DESIGN §14)
         matchNo: restore ? restore.matchNo : room.matchCount + 1,
         // the room's content hash (header "Content identity"): copied into every BattleSpec; its visual set too (a
         // replay names the art), and with gameplay plugins a b.result must name the room's cs (header "Gameplay plugins")

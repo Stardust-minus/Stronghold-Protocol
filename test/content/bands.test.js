@@ -10,6 +10,7 @@ import { hasBattlePart, amedicCharsFor, PRIO_BAND_REVIVE } from '../../server/si
 import { bandMetaHandler, duckReplace } from '../../server/sim/content/bands/meta.js';
 import { PRIO_RESPAWN } from '../../server/sim/content/items/battle.js';
 import * as bands from '../../server/sim/content/bands.js';
+import { seedSecret } from '../../server/match/secret.js';
 
 const QUIET = { warn() {}, error() {}, info() {} };
 const REG = createRegistry({ log: QUIET });
@@ -132,7 +133,7 @@ test('杜遥夜 广交豪杰: the first 2 manual refreshes of a round show ≥ 1
 });
 
 test('梓兰 猎头顾问: every manual refresh copies the highest-tier shop operator into another slot and freezes the copy; R10 寻呼模块', () => {
-  const { m, ps, prepStart } = setup({ band: 'band_orchid', seed: 12 });
+  const { m, ps, prepStart } = setup({ band: 'band_orchid', seed: 1 });
   ps.shop.level = 4;
   for (let i = 0; i < 4; i++) {
     assert.deepEqual(m.handle('p_0', { t: 'g.refresh' }), OK);
@@ -389,7 +390,7 @@ test('鸭爵 “神秘顾客”: from R5, 0–2 ground enemies in the last 40 % 
   const counts = {};
   for (let k = 0; k < 30; k++) {
     m.round = 5;
-    m.seed = 4 + k; // one draw per round from the match seed (GitHub #839): another seed, another draw
+    m.matchSecret = seedSecret(4 + k); // one draw per round from the match's secret (GitHub #839, §37.277): another match, another draw
     const ev = { input: p0.battleInput({ side: 'L', colOffset: 0 }), kind: 'normal', round: 5, spawns: wave() };
     m.dispatch(p0, 'onBattleStart', ev);
     const dk = ev.spawns.filter((sp) => ducks.includes(sp.enemyKey));

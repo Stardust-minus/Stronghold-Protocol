@@ -242,7 +242,7 @@ test('summons: the copies\' placed summons and stacks are removed; the elite on 
 
 test('loadout: the deployed elite\'s summon card and battle unit follow the player\'s loadout (赫默 S2 default → drone card, S1 → none)', () => {
   for (const [label, loadout, drone] of [['default S2', null, true], ['S1', checkLoadout({ [SILENCE]: { skill: 0 } }, chess).loadout, false]]) {
-    const { m, ps } = prep({ seed: 47, loadout });
+    const { m, ps } = prep({ seed: 1, loadout });
     assert.ok(m.pool.has(SILENCE), '赫默 is in this match\'s pool');
     const a = deploy(m, ps, SILENCE, 'LEFT');
     const tile = keyOf(ps, a);
@@ -343,7 +343,7 @@ test('after the prep: a SETTLE grant completing a merge puts the elite on the de
 
 test('boss-field prep (R14, act2 m01): the elite takes a copy\'s tile that is legal only on the player\'s boss half', () => {
   const STAGE = 'act2autochess_m01';
-  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 2, seed: 21, fake: true }).start();
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 2, seed: 1, fake: true }).start();
   h.setStage(STAGE);
   h.toPrep(14);
   const m = h.m;

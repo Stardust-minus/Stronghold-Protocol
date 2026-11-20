@@ -493,7 +493,7 @@ test('#4 strategy 昆图斯 end to end: the R3 cell survives its first transform
 // §37.45 [ASSUMED]: the cell comes back after every transformation, so its carrier is the highest-tier single (a 5阶
 // becomes a random 6阶, more than a 1阶 becoming a 2阶 by the bot's TIER_POWER); a member of the focus bond goes last.
 test('§37.45 昆图斯: the cell goes to the highest-tier single normal operator, a member of the focus bond last', () => {
-  const { m, ps } = setup({ seed: 24 });
+  const { m, ps } = setup({ seed: 1 });
   const SIRA = 'siracusaShip';
   const outside = (tier) => plainOf(m, tier).find((id) => !m.gd.chess(id).bonds.includes(SIRA));
   const low = give(m, ps, outside(1), 'hand');

@@ -219,7 +219,7 @@ test('#4 E2E: a multi-round card lasts two battles like the "两场作战" cards
   // "我不记得有过多轮悬赏" (user, after playtest #6): choices.js MULTI_ROUND_BOUNTY_BATTLES = 2; null restores 每场. No
   // official draft shows a multi-round card (player feedback #2); 教鞭's 法术大师A2·多轮战术特训 is one
   assert.equal(MULTI_ROUND_BOUNTY_BATTLES, 2);
-  const h = makeMatch({ mode: 'coop', difficulty: 'HARD', humans: 1, bots: 1, seed: 701, fake: true }).start();
+  const h = makeMatch({ mode: 'coop', difficulty: 'HARD', humans: 1, bots: 1, seed: 1, fake: true }).start();
   const m = h.m;
   h.toPrep(4);
   const ps = h.ps('p_0');

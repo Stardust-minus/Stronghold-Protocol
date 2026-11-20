@@ -54,7 +54,7 @@ test('#9 effect rolls (ctx.rollChess, any tier / bond filter) draw the player\'s
 });
 
 test('#9 reward pools (ctx.rollPool: a shared-pool chess pool) and the 维多利亚驰援 card draw it too', () => {
-  const { m, p0, p1 } = prep(910);
+  const { m, p0, p1 } = prep(1);
   drain(m, (id, e) => e.tier === 5);
   const c0 = makeCtx(m, p0, { key: 'test' }, 'onTest');
   const c1 = makeCtx(m, p1, { key: 'test' }, 'onTest');

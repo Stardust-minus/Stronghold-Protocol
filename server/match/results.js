@@ -290,7 +290,9 @@ export function buildResult(m, outcome) {
     ...(m.version ? { version: m.version } : {}),
     bossId: m.bossId,
     hiddenBossId: m.hiddenBossId,
-    seed: m.seed,
+    // the match's opaque id (Match.battlePrefix, the m.public `matchId`; §37.277): an HMAC of its private secret, never the
+    // seed — the page's record id (ui/stats.js recordId)
+    matchId: m.battlePrefix,
     durationMs: Math.max(0, m.sched.now() - m.startedAt),
     players: rows,
   };
@@ -331,7 +333,7 @@ export function buildOutResult(m, ps, round) {
     ...(m.version ? { version: m.version } : {}),
     bossId: m.bossId,
     hiddenBossId: m.hiddenBossId,
-    seed: m.seed,
+    matchId: m.battlePrefix,
     durationMs: Math.max(0, m.sched.now() - m.startedAt),
     players: [row],
   };

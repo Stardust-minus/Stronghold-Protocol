@@ -42,6 +42,7 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { traceLayers } from './ai/layer-trace.mjs';
 import { runMatch, strategyMetrics, aggregateStrategies } from './ai/run-match.mjs';
 import { Match } from '../server/match/Match.js';
+import { seedSecret } from '../server/match/secret.js';
 import { defineBotStrategy } from '../server/match/botStrategyContract.js';
 import { VirtualScheduler } from '../server/match/scheduler.js';
 import { getData } from '../server/data.js';
@@ -92,7 +93,7 @@ async function runOne(cfg, seed) {
   if (!modeId) throw new RangeError(`${cfg.name}: no ${cfg.mode} mode ${cfg.difficulty} in ${toolVersion}`);
   const difficulty = data.config.modes[modeId].difficulty;
   const m = new Match({
-    roomCode: 'BENCH', mode: cfg.mode, difficulty, modeId, seats, seed, data, log, scheduler: sched, botRehearsal: rehearsal,
+    roomCode: 'BENCH', mode: cfg.mode, difficulty, modeId, seats, seed, matchSecret: seedSecret(seed), data, log, scheduler: sched, botRehearsal: rehearsal,
     botStrategy: opt.bot || 'legacy', botStrategySeats: {},
     send: () => true, broadcast: () => {}, onEnd: (s) => { summary = s; },
   });

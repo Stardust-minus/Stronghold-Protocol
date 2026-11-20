@@ -845,7 +845,7 @@ test('塞雷娅 99 / 白面鸮 86: the copier runs the front operator\'s prep-en
 for (const targetId of ['chess_char_4_12_a', 'chess_char_6_03_a']) {
   for (const ownRow of [false, true]) for (const sourceRow of [false, true]) {
     test(`白面 copies ${targetId} gift without either row condition (own=${ownRow}, source=${sourceRow})`, () => {
-      const s = setup(11);
+      const s = setup(2);
       const white = give(s.m, s.ps, 'chess_char_4_21_a', 'board', [11, 4]); white.dir = 'DOWN';
       give(s.m, s.ps, targetId, 'board', [10, 4]);
       const fillers = plain(c => c.position === 'RANGED').slice(0, 4); let filler = 0;

@@ -7,7 +7,7 @@ import { buildBattleSpec } from '../../sim/spec.js';
 import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { RemoteBattle } from '../combat/runner.js';
 import { createPoolGroups, dealChessShares, dealItemShares, poolGroupOf, splitPoolGroup } from '../pool.js';
-import { createRng, deriveSeed } from '../../sim/rng.js';
+import { createRng } from '../../sim/rng.js';
 import { REVIVAL_COST, REVIVAL_MIN_DONOR_LP, REVIVAL_UNAVAILABLE_REASONS, FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 import { buildOutResult } from '../results.js';
 import { eloWillRescue } from '../tilt.js';
@@ -25,7 +25,7 @@ export class MatchExtensions {
     const groups = createPoolGroups(this.gd, this.order, { banned, experimental: this.capacityExperiment, independent: this.disableSharedPool,
       fixedChunks: this.twentyPlayerMode, legacySix, plan: this.poolPlan });
     if (this.staticPoolSplit) {
-      const rng = deal ? createRng(deriveSeed(this.seed, `pool-split:${revision}`)) : null;
+      const rng = deal ? createRng(this.streamSeed(`pool-split:${revision}`)) : null;
       for (const g of groups) splitPoolGroup(this.gd, g, rng);
     }
     return groups;
@@ -51,7 +51,7 @@ export class MatchExtensions {
     if (!g?.shares) return;
     const seats = g.playerIds.filter((id) => { const p = this.players.get(id); return !!p && (p.alive || p.pendingDeath === true); });
     if (!seats.length) return;
-    const rng = createRng(deriveSeed(this.seed, `pool-redeal:${this.round}:${ps.playerId}`));
+    const rng = createRng(this.streamSeed(`pool-redeal:${this.round}:${ps.playerId}`));
     dealChessShares(g, seats, rng);
     dealItemShares(this.gd, g, seats, rng, (id) => this.playerItemPools.get(id));
     for (const id of seats) this.players.get(id)?.dirty();

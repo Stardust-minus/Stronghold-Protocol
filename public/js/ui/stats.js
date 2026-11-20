@@ -6,8 +6,8 @@
 //
 // Two kinds of record (`end`):
 //   'settled'  the match reached its settlement: m.result arrived (server/match/results.js buildResult). The record
-//              keeps what the settlement offers — the match frame (difficulty, mode, boss, seed, duration, hidden-core
-//              outcome, reason) and one row per player (band, title, lineup, bonds, the stat block) — so the page can
+//              keeps what the settlement offers — the match frame (difficulty, mode, boss, the match id, duration,
+//              hidden-core outcome, reason) and one row per player (band, title, lineup, bonds, the stat block) — so the page can
 //              re-view the settlement screen (recordToResult).
 //   'quit'     the player gave up (放弃模拟) before the settlement; the server sends a leaver nothing, so the record is
 //              built from what the client knew at that moment (buildQuitRecord): the frame, the player's own row, the
@@ -146,6 +146,11 @@ const num = (v) => (Number.isFinite(v) ? v : null);
 const bool = (v, d = false) => (typeof v === 'boolean' ? v : d);
 /** A non-empty string, cut to `max` characters. */
 const str = (v, max = 64) => (typeof v === 'string' && v.length ? v.slice(0, max) : null);
+/**
+ * The match's opaque id (m.result `matchId`, §37.277: an HMAC of the server's private match secret, never the seed — a
+ * protocol id), or null: a record from before it keeps the `seed` the settlement carried then.
+ */
+const matchIdOf = (v) => (typeof v === 'string' && /^[A-Za-z0-9_\-.:]{1,64}$/.test(v) ? v : null);
 
 // per-record bounds (an imported file is foreign data: nothing a row holds may grow without limit)
 const MAX_PLAYERS = MAX_PLAYER_CAPACITY; // preserve every supported seat, still bounded for foreign records
@@ -190,16 +195,18 @@ function fnv1a(s) {
 
 /**
  * The record's dedupe id, from match facts the server replays byte-identically on reconnect / reload
- * (server/lobby.js result replay): seed + duration + mode + rounds + outcome + who I was. Two distinct
+ * (server/lobby.js result replay): match id + duration + mode + rounds + outcome + who I was. Two distinct
  * matches colliding on all of these is not a real scenario; a replayed m.result hits the same id and is
- * dropped, which is the point (recording happens on every m.result arrival, replays included).
+ * dropped, which is the point (recording happens on every m.result arrival, replays included). The match id is the
+ * opaque `matchId` (§37.277); a settlement from before it carried the `seed` there instead, and a record keeps the id it
+ * was given, so an older record (stored or imported) still lands on its own key.
  * @param {any} res raw m.result payload
  * @param {string|null|undefined} myId the local player's id at that moment
  * @returns {string}
  */
 export function recordId(res, myId) {
   const r = isObj(res) ? res : {};
-  const parts = [r.seed ?? '-', r.durationMs ?? '-', r.modeId ?? '-', r.roundsPassed ?? '-', r.victory ? 1 : 0, myId ?? '-'];
+  const parts = [matchIdOf(r.matchId) ?? r.seed ?? '-', r.durationMs ?? '-', r.modeId ?? '-', r.roundsPassed ?? '-', r.victory ? 1 : 0, myId ?? '-'];
   // A test result must not collide with a real match of the same seed. The suffix is absent otherwise, so a
   // normal id stays byte-identical.
   if (r.test === true) parts.push('test');
@@ -299,6 +306,9 @@ export function normalizeRecord(raw) {
     bossId: str(r.bossId),
     hiddenBossId: str(r.hiddenBossId),
     seed: num(r.seed),
+    // the match's opaque id (§37.277; matchIdOf): only on a record of a settlement that carried one, so an older record —
+    // and the content id of an id-less one below — keeps its shape (no format version)
+    ...(matchIdOf(r.matchId) ? { matchId: matchIdOf(r.matchId) } : {}),
     durationMs: num(r.durationMs),
     teamLp: num(r.teamLp),
     roomMode: r.roomMode === 'solo' || r.roomMode === 'coop' ? r.roomMode : null,
@@ -562,6 +572,7 @@ export function buildRecord(res, ctx = {}) {
     bossId: str(r.bossId),
     hiddenBossId: str(r.hiddenBossId),
     seed: num(r.seed),
+    matchId: r.matchId,
     durationMs: num(r.durationMs),
     teamLp: num(r.teamLp),
     roomMode: roomModeOf(str(r.modeId), ctx.roomMode),
@@ -707,6 +718,7 @@ export function recordToResult(rec) {
     bossId: r.bossId,
     hiddenBossId: r.hiddenBossId,
     seed: r.seed,
+    ...(r.matchId ? { matchId: r.matchId } : {}),
     durationMs: r.durationMs,
     teamLp: r.teamLp,
     players: r.players,

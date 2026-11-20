@@ -215,7 +215,10 @@ const CROSSES = [[930, 240], [845, 640]];
  * the rays to the lineup. Stage coordinates (1920×1080), drawn wider so a wide screen's margins are covered.
  */
 function SettleMap({ lose, seed }) {
-  const s = Math.abs(Math.trunc(Number(seed) || 7)) % 997;
+  // `seed`: the match's opaque id (m.result matchId, §37.277), or the seed a settlement from before it carried — only the
+  // terrain's look follows it
+  const s = (typeof seed === 'string' ? [...seed].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7)
+    : Math.abs(Math.trunc(Number(seed) || 7))) % 997;
   const id = useMemo(() => `sm${Math.random().toString(36).slice(2, 8)}`, []);
   // the hillshade (a lit height noise) tinted: teal land and an orange zone, or slate and red for 模拟中断
   const land = lose ? '.12 0 0 0 .02  .26 0 0 0 .05  .27 0 0 0 .06  0 0 0 0 1' : '.1 0 0 0 0  .56 0 0 0 .05  .5 0 0 0 .06  0 0 0 0 1';
@@ -650,7 +653,7 @@ export function SettleFlow({ res, pub = null, myId = null, backLabel, onBack, ve
   const lose = self ? !rowCleared(rawSelf, self, r.victory) : !r.victory;
   return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', `settle--${page}`)} data-testid="settle">
     ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${lose} onDone=${() => setPage('self')} />` : null}
-    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${ctx.prog} seed=${res?.seed} version=${version} onNext=${() => setPage('team')} onDetail=${() => setDetail(true)} />` : null}
+    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${ctx.prog} seed=${res?.matchId ?? res?.seed} version=${version} onNext=${() => setPage('team')} onDetail=${() => setDetail(true)} />` : null}
     ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} />` : null}
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
       <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} version=${version} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
@@ -686,7 +689,7 @@ export function OutReport({ res, pub = null, myId, version = null, onClose }) {
   if (!self) return null;
   return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', 'settle--out', `settle--${page}`)} data-testid="settle-out" role="dialog" aria-modal="true">
     ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${true} onDone=${() => setPage('self')} />` : null}
-    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${prog} seed=${res?.seed} version=${version} nextLabel=${t('继续观战')} onNext=${onClose} />` : null}
+    ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${prog} seed=${res?.matchId ?? res?.seed} version=${version} nextLabel=${t('继续观战')} onNext=${onClose} />` : null}
   </div>`;
 }
 

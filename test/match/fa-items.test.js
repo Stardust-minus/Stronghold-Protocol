@@ -41,7 +41,7 @@ test('§37.67: faItemMods reads an item\'s damage from its blackboards, in every
 });
 
 function bossRound(bossId, round = null) {
-  const h = makeMatch({ mode: 'solo', difficulty: 'HARD', seats: SEAT, seed: 7, botRehearsal: 3 }).start().toPrep();
+  const h = makeMatch({ mode: 'solo', difficulty: 'HARD', seats: SEAT, seed: 1, botRehearsal: 3 }).start().toPrep();
   const m = h.m, ps = m.order[0];
   m.bossId = bossId;
   m.startRound(round ?? m.gd.bossRound);

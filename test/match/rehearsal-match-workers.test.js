@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { Battle } from '../../server/sim/Battle.js';
@@ -28,7 +29,7 @@ async function pool(t, options = {}) {
 }
 function fixture(t, { combatPool = null, trialPool = null, seed = 4, scheduler, BattleClass, clientCombat = false, botSliceMs = 2 } = {}) {
   const warnings = [], errors = [], sent = [];
-  const m = new Match({ roomCode: 'TRIAL', mode: 'coop', difficulty: 'NORMAL', seed, data: DATA,
+  const m = new Match({ roomCode: 'TRIAL', mode: 'coop', difficulty: 'NORMAL', seed, matchSecret: seedSecret(seed), data: DATA,
     seats: [0, 1].map((seat) => ({ seat, playerId: `p${seat}`, name: `P${seat}`, isBot: false, connected: true })),
     send: (pid, msg) => { sent.push([pid, clone(msg)]); return true; }, broadcast() {}, onEnd() {},
     log: { ...QUIET, warn: (s) => warnings.push(s), error: (s) => errors.push(s) },

@@ -43,7 +43,8 @@
 // path browsers and the server's headless fields use) with every option explicit — every operator the player owns at
 // the default player's settings, 潜能 6 and 练度 精英2 Lv.60 (PlayerBattleInput `potential` / `cultivate`, as
 // PlayerState.battleInput states them, 0.2.2; a stand-in and a prototype 自选 pick neither); matches construct Match directly
-// with a VirtualScheduler (as tools/botbench.mjs) — test-harness defaults never move a digest.
+// with a VirtualScheduler (as tools/botbench.mjs) and the private secret of their seed (server/match/secret.js seedSecret,
+// §37.277) — test-harness defaults never move a digest.
 //
 // Digest (battle): end time, ticks, reason, kills / total / leaks, per player (kills, leaks, coins, damage, boss
 // damage, healing, deaths, layer gains), per ally unit (player, board uid or `~n` for units created in battle, def id,
@@ -76,6 +77,7 @@ import { setupMatchWaves, buildNormalWave, buildBossWave, buildUniteWave, isFlyK
 import { buildDeployMap, positionClass, canPlace, ownerRangeKeys, tileKey } from '../server/match/board.js';
 import { computeBonds, bondSnapshot } from '../server/match/bondsMeta.js';
 import { Match } from '../server/match/Match.js';
+import { seedSecret } from '../server/match/secret.js';
 import { VirtualScheduler } from '../server/match/scheduler.js';
 import { resolveRecordLoadout, loadoutRecord, attackRangeGrid } from '../shared/loadoutRecord.js';
 import { diyRecordOf, DIY_TIERS } from '../shared/diy.js';
@@ -813,7 +815,8 @@ export function runMatch(cfg) {
   const logged = [];
   const log = { info() {}, debug() {}, warn() {}, error: (...a) => logged.push(a.map(String).join(' ').slice(0, 120)) };
   const m = new OfficialReferenceMatch({
-    roomCode: 'GOLD', mode: cfg.mode, difficulty: cfg.difficulty, seats, seed: cfg.seed, data, log, scheduler: sched,
+    // the private match secret fixed by the scenario's seed (§37.277): every stream and battle seed is its HMAC
+    roomCode: 'GOLD', mode: cfg.mode, difficulty: cfg.difficulty, seats, seed: cfg.seed, matchSecret: seedSecret(cfg.seed), data, log, scheduler: sched,
     send: () => true, broadcast: () => {}, onEnd: (s) => { summary = s; },
     clientCombat: cfg.clientCombat !== false, verify: 'off',
   });
@@ -889,7 +892,7 @@ export function runMatch(cfg) {
   }, { maxSteps: 5e6 });
   const rng = {};
   for (const [name, key] of [['setup', 'rngSetup'], ['shop', 'rngShop'], ['waves', 'rngWaves'], ['draft', 'rngDraft'], ['bots', 'rngBots'], ['meta', 'rngMeta']]) {
-    rng[name] = m[key] && typeof m[key].state === 'function' ? rngDraws(deriveSeed(m.seed, name), m[key].state()) : null;
+    rng[name] = m[key] && typeof m[key].state === 'function' ? rngDraws(m.streamSeed(name), m[key].state()) : null;
   }
   const s = summary || {};
   const players = {};

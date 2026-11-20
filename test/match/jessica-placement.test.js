@@ -16,7 +16,7 @@ const ctx = (h, ps) => placementContext({ priv: ps.privateView(), stage: h.m.sta
   getChess: (id) => ps.gd.chess(id), getToken: (id) => ps.gd.token(id), backups: ps.gd.raw.backups });
 
 function prep(t, { row = 10, col = 4, skillIndex = 0, uniEquipId = null } = {}) {
-  const h = makeMatch({ mode: 'solo', seed: 11, seats: [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false,
+  const h = makeMatch({ mode: 'solo', seed: 2, seats: [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false,
     connected: true, diy: { [SLOT]: { charId: JESCA, skillIndex, uniEquipId } } }] }).start();
   t.after(() => h.m.dispose());
   h.toPrep(1);

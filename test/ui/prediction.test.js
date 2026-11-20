@@ -382,7 +382,7 @@ function claimed(v, map = new Map(), { slots = true } = {}) {
 
 describe('parity with the real PlayerState', () => {
   test('a seeded random prep: every predicted intent ends where the server puts it', (t) => {
-    const { h, m, ps } = prepMatch(t, 4242);
+    const { h, m, ps } = prepMatch(t, 4201);
     const R = rng(9);
     const stats = { predicted: 0, declined: 0, refusedButPredicted: 0, steps: 0 };
     const bad = [];

@@ -26,6 +26,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { runMatch } from './ai/run-match.mjs';
 import { Match } from '../server/match/Match.js';
+import { seedSecret } from '../server/match/secret.js';
 import { VirtualScheduler } from '../server/match/scheduler.js';
 import { getData } from '../server/data.js';
 import { regulationValues } from '../server/match/results.js';
@@ -96,7 +97,7 @@ async function runOne(cfg, seed) {
   if (!modeId) throw new RangeError(`${cfg.name}: no ${cfg.mode} mode ${cfg.difficulty} in ${toolVersion}`);
   let summary = null;
   const m = new Match({
-    roomCode: 'TITLES', mode: cfg.mode, difficulty: data.config.modes[modeId].difficulty, modeId, seats, seed, data, scheduler: sched,
+    roomCode: 'TITLES', mode: cfg.mode, difficulty: data.config.modes[modeId].difficulty, modeId, seats, seed, matchSecret: seedSecret(seed), data, scheduler: sched,
     log: { info() {}, debug() {}, warn() {}, error() {} }, botStrategy: 'legacy', botStrategySeats: {},
     send: () => true, broadcast: () => {}, onEnd: (s) => { summary = s; },
   });

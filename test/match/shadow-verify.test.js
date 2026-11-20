@@ -12,6 +12,7 @@ import { createBattleFromSpec, resultCanonicalJson } from '../../server/sim/spec
 import { DataSource } from '../../server/sim/simdata.js';
 import { resultHashOf } from '../../shared/resultHash.js';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { CombatWorkerPool } from '../../server/match/combat/pool.js';
 import { buildNormalWave } from '../../server/match/waves.js';
 import { DATA, give, legalTileFor } from './harness.js';
@@ -247,7 +248,7 @@ async function until(predicate, label, ms = 20_000) {
 }
 function soloMatch(t, { pool, hub, code, pid, seed }) {
   const sent = [];
-  const m = new Match({ roomCode: code, mode: 'solo', difficulty: 'NORMAL', seed, data: DATA,
+  const m = new Match({ roomCode: code, mode: 'solo', difficulty: 'NORMAL', seed, matchSecret: seedSecret(seed), data: DATA,
     seats: [{ seat: 0, playerId: pid, name: pid, isBot: false, connected: true }],
     send: (to, msg) => { sent.push([to, structuredClone(msg)]); return true; }, broadcast() {}, onEnd() {},
     log: quiet, timerScale: 0.02, combatSpeed: 200, botRehearsal: 0, clientCombat: false, verify: 'off', combatPool: pool, verifyHub: hub });

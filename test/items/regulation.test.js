@@ -937,7 +937,7 @@ test('prep: passbook, dice, documents, dolls, letter, identity, pager, beacon, m
     assert.ok(ps.find(beacon.uid));
     assert.ok(ps.find(diy.uid));
   });
-  withPrep(22, ({ m, ps, equip }) => {
+  withPrep(1, ({ m, ps, equip }) => {
     const a = give(m, ps, XIA, 'board', [10, 5]);
     const b = give(m, ps, XIA, 'board', [10, 6]);
     assert.deepEqual(equip(giveItem(m, ps, A('5_03')), a), OK);

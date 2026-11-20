@@ -17,6 +17,7 @@ import { ItemForm } from '../../public/studio/js/editors/item.js';
 import { getData, setData } from '../../server/data.js';
 import { createRegistry } from '../../server/match/effectsMeta.js';
 import { Match } from '../../server/match/Match.js';
+import { seedSecret } from '../../server/match/secret.js';
 import { VirtualScheduler } from '../../server/match/scheduler.js';
 import { PHASE } from '../../shared/constants.js';
 
@@ -121,7 +122,7 @@ test('review: edited item buffs rebuild first-occurrence params and grant the ed
   const id = 'item_x_review_item_a'; assert.equal(set.data.items[id].params.layer, 1);
   const original = getData(); setData(set.data); t.after(() => setData(original));
   const scheduler = new VirtualScheduler();
-  const m = new Match({ data: set.data, mode: 'solo', modeId: 'mode_single_normal', seed: 1, scheduler, registry: createRegistry(),
+  const m = new Match({ data: set.data, mode: 'solo', modeId: 'mode_single_normal', seed: 1, matchSecret: seedSecret(1), scheduler, registry: createRegistry(),
     seats: [{ playerId: 'p', seat: 0, name: 'P', isBot: false }], send: () => true, broadcast() {}, onEnd() {} });
   t.after(() => { m.dispose(); scheduler.dispose(); });
   m.phase = PHASE.PREP; m.round = 1;

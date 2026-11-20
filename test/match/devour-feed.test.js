@@ -15,7 +15,7 @@ const run = (gen) => { let r; for (;;) { r = gen.next(); if (r.done) return r.va
 
 /** A solo 终极 prep of round `round` ('boss': the Final Assault) with these chess in the hand (none on the board). */
 function prep(round, names) {
-  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: SEAT, seed: 3 }).start().toPrep();
+  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: SEAT, seed: 2 }).start().toPrep();
   const m = h.m, ps = m.order[0];
   m.startRound(round === 'boss' ? m.gd.bossRound : round);
   ps.hand.fill(null);
@@ -190,7 +190,7 @@ test('the rating weighs the transfer against the victim: its redeploy time of th
 });
 
 test('a 鼓舞 holder counts by its skill: fed, 浊心斯卡蒂 raises the true damage and the dealers in her range', () => {
-  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: SEAT, seed: 3 }).start().toPrep();
+  const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: SEAT, seed: 2 }).start().toPrep();
   try {
     const m = h.m, ps = m.order[0];
     m.bossId = 'boss_3';

@@ -1,13 +1,22 @@
 // server/match/match/infra.js — Match methods: infrastructure — error isolation (guard, reportError), timers tracked
-// for dispose (later, cancel, scaled) and the phase deadline (setDeadline), soloUntimed, uids, the player lists
-// (alivePlayers, humans), a seat's bot strategy (botFor), the bonds this match's pool holds (bondInPool, bondLive), a
-// player's boss-round group, deploy field and deploy map, and the guarded meta dispatch (dispatch, dispatchItem →
-// effectsMeta.js EffectDispatcher).
+// for dispose (later, cancel, scaled) and the phase deadline (setDeadline), the streams' seeds (streamSeed), soloUntimed,
+// uids, the player lists (alivePlayers, humans), a seat's bot strategy (botFor), the bonds this match's pool holds
+// (bondInPool, bondLive), a player's boss-round group, deploy field and deploy map, and the guarded meta dispatch
+// (dispatch, dispatchItem → effectsMeta.js EffectDispatcher).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { buildDeployMap } from '../board.js';
+import { secretSeed } from '../secret.js';
 
 export class MatchInfra {
+  /**
+   * The uint32 seed of the stream or battle `salt` (§37.277): an HMAC of the match's private secret (secret.js secretSeed),
+   * so a seed a page is sent (a battle's) tells nothing of the secret or of any other stream. Every draw of the match
+   * seeds from here — never from the match seed (server/sim/rng.js deriveSeed is reversible).
+   * @param {string} salt
+   */
+  streamSeed(salt) { return secretSeed(this.matchSecret, salt); }
+
   /** Run a callback with error isolation, then flush the views. */
   guard(fn) {
     if (this.disposed) return;

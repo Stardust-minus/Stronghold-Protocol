@@ -356,7 +356,7 @@ test('a merge completed during SETTLE (突变细胞) keeps its reward offer for 
   // where the carrier of 突变细胞 and the two copies of X are: hand/hand, board/hand, board/board
   for (const [carrierAt, copiesAt] of [['hand', 'hand'], ['board', 'hand'], ['board', 'board']]) {
     const label = `carrier ${carrierAt}, copies ${copiesAt}`;
-    const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 1, seed: 3, fake: true }).start();
+    const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 1, seed: 1, fake: true }).start();
     const m = h.m;
     h.toPrep(1);
     const ps = h.ps('p_0');
