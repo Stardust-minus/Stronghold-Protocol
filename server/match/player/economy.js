@@ -10,6 +10,7 @@ import { freeSlot } from '../board.js';
 import { computeBonds } from '../bondsMeta.js';
 import { OK, fail } from './common.js';
 import { syncCommand } from '../bandCommands.js';
+import { chessTilt, itemTilt, itemTierTilt } from '../tilt.js';
 
 export class PlayerEconomy {
   addFunds(n, { reason = '' } = {}) {
@@ -70,8 +71,10 @@ export class PlayerEconomy {
   }
 
   _rollChessSlot() {
-    // the slotted 自选 pieces join the draw once the 调度中心 reaches their slot's level (player/diy.js diyRollEntries)
-    const id = this.pool.roll(this.m.rngShop, { maxTier: this.shop.level, extra: this.diyRollEntries() });
+    // the slotted 自选 pieces join the draw once the 调度中心 reaches their slot's level (player/diy.js diyRollEntries);
+    // a seat with an ELO tilt (tilt.js, §37.273) reweights the same draw, the tier lever included
+    const tilt = chessTilt(this, { shop: true });
+    const id = this.pool.roll(this.m.rngShop, { maxTier: this.shop.level, extra: this.diyRollEntries(), ...(tilt ? { tilt } : {}) });
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
   }
 
@@ -85,7 +88,10 @@ export class PlayerEconomy {
       bias = new Set();
       for (const [id, st] of Object.entries(bonds)) if (st && st.active) bias.add(id);
     }
-    const id = this.pool.rollItem(this.m.rngShop, this.shop.level, this.itemPool, bias);
+    // an ELO tilt (tilt.js): the pick within the drawn tier, and the tier lever's shares — the same two draws
+    const weights = itemTilt(this), shares = itemTierTilt(this);
+    const tilt = weights || shares ? { weights, shares } : null;
+    const id = this.pool.rollItem(this.m.rngShop, this.shop.level, this.itemPool, bias, tilt);
     return id ? { kind: 'item', id, basePrice: this.gd.itemPrice(id), frozen: false, sold: false } : null;
   }
 
@@ -137,6 +143,8 @@ export class PlayerEconomy {
     let found = 0;
     for (let i = 0; i < nChess; i++) if (hasBond(this.shop.slots[i])) found++;
     if (found >= need) return;
+    // an ELO tilt (tilt.js) picks among the bond's members; the guaranteed count is the same
+    const tilt = chessTilt(this);
     for (let i = nChess - 1; i >= 0 && found < need; i--) {
       if (!fresh.has(i)) continue;
       const cur = this.shop.slots[i];
@@ -149,6 +157,7 @@ export class PlayerEconomy {
           return !!(rec && Array.isArray(rec.bonds) && rec.bonds.includes(job.bond));
         },
         extra: this.diyRollEntries(),
+        ...(tilt ? { tilt } : {}),
       });
       if (!id) continue;
       this.shop.slots[i] = { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false };

@@ -961,6 +961,15 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   the sum of its shares. An elimination or a departure (not an AI 托管) returns the seat's pieces, then deals what the group
   has left again among its remaining seats (`Match._redealPools`; a share's deficit stays with it). Equipment is dealt by
   shop tier the same way, one `SharedItemPool` per seat (`caps`).
+  ELO tilt (experimental, the owner 2026-11-20, docs/history/0.4.0.md §37.273; step 1: server only, set by a test hook —
+  `tools/matchrun.mjs --tilt`, `server/match/tilt.js setTilt`): a seat's `PlayerState.tilt` (`s` in [-1, 1], absent = off)
+  reweights that seat's own draws inside the same single draw — shop chess slots, the promotion reward, the special bond
+  refresh, `ctx.rollChess` grants, the shop item slot and 凯瑟琳 / 娜仁图亚's free item offers — by `M^(s·r)` of each
+  candidate's relevance r (merge-completing copies, bonds one or two short, 预选盟约 / home bond, 转职装备, item pairs; a
+  strategy's key cards from `STRATEGY_TAGS`), every tier rescaled to its untilted total. Hindering may floor a relevant
+  card to 0 for that seat (it stays in the pool, 「余 n」 is unchanged); a card without stock never gets weight. Optional
+  tier lever (`tier`): the shop's own tier shares move up / down one tier by at most 25 %. Without it every path is the
+  untouched one; the checkpoint carries `players[].tilt` only when set.
   The client sees the counts of a shared group (two or more seats) in `m.private.poolLeft` (`pool.js poolCountsView`: every
   chess of the group's pool and every capped shop equipment, docs/design/network.md §8.3; feedback #160, §36.24).
 * **自选编队 (0.2.0, `player/diy.js`; research 0.2.0 §2, the owner's decisions of 2026-10-05)**: a human's `seat.diy`

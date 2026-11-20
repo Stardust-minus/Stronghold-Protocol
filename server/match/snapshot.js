@@ -30,6 +30,7 @@
 
 import { PHASE } from '../../shared/constants.js';
 import { SharedPool, createItemPools } from './pool.js';
+import { setTilt, tiltOf } from './tilt.js';
 
 /**
  * Checkpoint layout version. A document of another version is refused (the match is dropped, server/persist/).
@@ -153,7 +154,9 @@ export const PLAYER_FIELDS = Object.freeze({
     // applyTempLayers / prep.js); a checkpoint without it has none
     'tempLayers',
   ]),
-  special: Object.freeze(['ready', 'connected', 'loadout', 'ops', 'skins', 'diyStock']),
+  // `tilt` (the ELO tilt, tilt.js, §37.273): absent on every seat without one, so it travels only when set (`p.tilt`) and
+  // every other checkpoint keeps its shape; a server without it ignores the key, a checkpoint without it has none
+  special: Object.freeze(['ready', 'connected', 'loadout', 'ops', 'skins', 'diyStock', 'tilt']),
   derived: Object.freeze([
     'm', 'gd', 'playerId', 'seat', 'name', 'isBot', 'standIns', '_standInSet', 'diy', '_diyRecords', 'diyBanned', 'bonds',
     'diyPreset',
@@ -377,6 +380,7 @@ function buildSnapshot(m) {
       lastEmoteAgoMs: Number.isFinite(ps.lastEmoteAt) ? Math.max(0, clock - ps.lastEmoteAt) : null,
       diyStock: Object.fromEntries([...ps.diyStock.entries].map(([id, e]) => [id, e.left])), f: {} };
     for (const k of PLAYER_FIELDS.saved) p.f[k] = encodeValue(ps[k]);
+    if (tiltOf(ps)) p.tilt = { ...ps.tilt };
     doc.players.push(p);
   }
   // JSON-safe as it stands (encodeValue): the caller serializes it once
@@ -534,6 +538,8 @@ export function restoreMatch(m, doc, { createRngFromState, log = null, replay = 
     const ps = m.players.get(p.playerId);
     for (const k of PLAYER_FIELDS.saved) if (Object.hasOwn(p.f, k)) ps[k] = decodeValue(p.f[k]);
     if (Number.isFinite(p.lastEmoteAgoMs)) ps.lastEmoteAt = now - p.lastEmoteAgoMs;
+    // the ELO tilt, normalized again (setTilt); none in the checkpoint → none
+    setTilt(ps, p.tilt && typeof p.tilt === 'object' ? p.tilt : null);
     if (!ps.isBot) {
       ps.loadout = deepFreeze(decodeValue(p.loadout) || {});
       ps.ops = deepFreeze(decodeValue(p.ops) || {});
@@ -665,6 +671,7 @@ export function matchState(m) {
   for (const ps of m.order) {
     const p = { loadout: ps.loadout, ops: ps.ops, skins: ps.skins, diyStock: Object.fromEntries([...ps.diyStock.entries].map(([id, e]) => [id, e.left])) };
     for (const k of PLAYER_FIELDS.saved) p[k] = encodeValue(ps[k]);
+    if (tiltOf(ps)) p.tilt = { ...ps.tilt };
     p.lastEmoteAt = encodeValue(Number.isFinite(ps.lastEmoteAt) ? m.sched.now() - ps.lastEmoteAt : ps.lastEmoteAt);
     players[ps.playerId] = p;
   }

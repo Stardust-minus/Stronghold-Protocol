@@ -10,6 +10,7 @@ import { hasTraitFor } from '../operatorTraits.js';
 import { pieceDir, parseDir, mergeTile } from '../board.js';
 import { MAX_OFFER_SLOTS } from './common.js';
 import { onMerge } from '../botEmotes.js';
+import { chessTilt } from '../tilt.js';
 
 /**
  * 精英化 keeps the sale price (the owner, 2026-11-14: 「精英化应该继承售价的」, DESIGN §37.209): the elite takes the highest
@@ -236,9 +237,11 @@ export class PlayerAcquire {
     if (!list) {
       list = [];
       const fresh = (id) => !list.includes(id);
+      // an ELO tilt (tilt.js, §37.273) reweights each draw of the offer
+      const tilt = chessTilt(this);
       for (let i = 0; i < ro.count; i++) { // loop-cap: rewardOffer().count ≤ MAX_OFFER_SLOTS
         let id = null;
-        for (let tt = t; tt >= 1 && !id; tt--) id = this.pool.roll(this.m.rngShop, { tier: tt, filter: fresh, extra: this.diyStockEntries() });
+        for (let tt = t; tt >= 1 && !id; tt--) id = this.pool.roll(this.m.rngShop, { tier: tt, filter: fresh, extra: this.diyStockEntries(), ...(tilt ? { tilt } : {}) });
         if (id) list.push(id);
       }
     }

@@ -74,6 +74,7 @@ function sample(arr, n, rng) {
 }
 
 import { MAX_PLAYER_CAPACITY } from '../../shared/playerCapacity.js';
+import { weightedPickOf } from './tilt.js';
 import { autoPoolSizes, poolScale } from '../../shared/poolPlan.js';
 
 /** Every seat of the largest room in one pool (poolScale). */
@@ -165,7 +166,7 @@ export class SharedPool {
         if (!ignoreCounts && e.left <= 0) continue;
         if (tier != null ? e.tier !== tier : e.tier > maxTier && !(extraEntries && e.tierExempt === true)) continue;
         if (filter && !filter(id, e)) continue;
-        out.push([id, ignoreCounts ? 1 : e.left]);
+        out.push([id, ignoreCounts ? 1 : e.left, e.tier]);
       }
     };
     scan(this.entries);
@@ -175,18 +176,32 @@ export class SharedPool {
 
   /**
    * Copy-weighted roll: one copy uniformly among remaining copies of eligible chess. Returns a base id or null.
+   * `tilt` (the drawing seat's ELO tilt, tilt.js chessTilt; absent without one): reweights the eligible copies inside the
+   * same single draw — every tier keeps its total, a candidate without stock is never eligible.
    * @param {Function} rng
    * @param {{ maxTier?: number, tier?: number|null, filter?: (id: string, e: object) => boolean,
-   *   extra?: Iterable<[string, { left: number, tier: number, tierExempt?: boolean }]>|null }} [opts]
+   *   extra?: Iterable<[string, { left: number, tier: number, tierExempt?: boolean }]>|null,
+   *   tilt?: ((el: Array<[string, number, number]>) => Array<[string, number]>)|null }} [opts]
    */
   roll(rng, opts = {}) {
     const el = this._eligible(opts);
+    if (opts.tilt && el.length) return this._tiltedRoll(rng, opts.tilt(/** @type {any} */ (el)));
     let total = 0;
     for (const [, n] of el) total += n;
     if (total <= 0) return null;
     let r = rng() * total;
     for (const [id, n] of el) { r -= n; if (r < 0) return id; }
     return el[el.length - 1][0];
+  }
+
+  /** roll's draw over tilted weights: one rng() as before, never a 0-weight candidate. */
+  _tiltedRoll(rng, el) {
+    let total = 0;
+    for (const [, w] of el) total += w;
+    if (!(total > 0)) return null;
+    let r = rng() * total, last = null;
+    for (const [id, w] of el) if (w > 0) { last = id; r -= w; if (r < 0) return id; }
+    return last;
   }
 
   /** Tier shares of a copy-weighted roll at shop level `maxTier` (current remaining copies). */
@@ -209,9 +224,11 @@ export class SharedPool {
    * `bias` (shopBias bondBias): a Set of active bond ids. A tier is drawn from items whose giveBondId is in that set
    * when any remain after the stock gate; an empty filtered tier falls back to the official list of that tier.
    * null or an empty Set keeps today's rng (one draw for the tier, one for the pick). Bias never grants an item.
+   * `tilt` (the drawing seat's ELO tilt, tilt.js; null without one): `weights` reweights the pick within the drawn tier,
+   * `shares` the tier lever's shift of the tier shares — the same two draws.
    */
-  rollItem(rng, maxTier, stock = null, bias = null) {
-    const shares = this.tierShares(maxTier);
+  rollItem(rng, maxTier, stock = null, bias = null, tilt = null) {
+    const shares = tilt?.shares ? tilt.shares(this.tierShares(maxTier)) : this.tierShares(maxTier);
     const tiers = Object.keys(shares).map(Number).sort((a, b) => a - b);
     let tier = null;
     if (tiers.length) {
@@ -223,7 +240,9 @@ export class SharedPool {
     }
     const useBias = bias instanceof Set && bias.size > 0;
     const gated = (t) => (this.gd.shopItemsByTier[t] || []).filter((id) => !stock || stock.canGain(id));
-    const pick = (list) => (stock ? stock.pick(rng, list) : list[Math.floor(rng() * list.length)]);
+    const pick = tilt?.weights
+      ? (list) => (stock ? stock.pick(rng, list, tilt.weights(list)) : weightedPickOf(rng, list, tilt.weights(list)))
+      : (list) => (stock ? stock.pick(rng, list) : list[Math.floor(rng() * list.length)]);
     const choose = (t) => {
       const list = gated(t);
       if (!list.length) return null;

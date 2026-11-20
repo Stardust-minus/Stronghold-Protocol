@@ -53,6 +53,7 @@ import { previewContext } from './preview.js';
 import { LayerLedger } from './layerForecast.js';
 import { deriveSeed } from '../sim/rng.js';
 import { commandMetaHandler, openSkillChangeDraft } from './bandCommands.js';
+import { chessTilt, offerTilt } from './tilt.js';
 
 export const HOOKS = Object.freeze([
   'onRoundStart', 'onIncome', 'onPrepStart', 'onPrepEnd', 'onGain', 'onSold', 'onRefresh', 'onPrice', 'onBuy',
@@ -726,7 +727,10 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
         }
         if (exempt.length) extra = [...(extra || []), ...exempt];
       }
-      return ps.pool.roll(rng, { maxTier: Number.isInteger(opts.maxTier) ? opts.maxTier : 6, tier: Number.isInteger(opts.tier) ? opts.tier : null, filter: f, extra, ignoreCounts: opts.ignoreCounts === true });
+      // an ELO tilt (tilt.js, §37.273) reweights a stock draw of this seat's own grant; not a 机变 card's (step 1) and
+      // not an ignoreCounts draw (it reads no stock)
+      const tilt = opts.ignoreCounts === true || source?.kind === 'choice' ? null : chessTilt(ps);
+      return ps.pool.roll(rng, { maxTier: Number.isInteger(opts.maxTier) ? opts.maxTier : 6, tier: Number.isInteger(opts.tier) ? opts.tier : null, filter: f, extra, ignoreCounts: opts.ignoreCounts === true, ...(tilt ? { tilt } : {}) });
     },
     rollItem: (opts = {}) => rolls.rollItemId({ ...opts, player: ps }),
     /** Whether the shared shop stock has room for one more `itemId` (always true for an uncapped item). */
@@ -740,6 +744,8 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
       // a shared-pool draw also takes the player's 自选 stock, its bonds read through the player's view (rollChess)
       extra: typeof ps.diyStockEntries === 'function' ? ps.diyStockEntries() : null, chessOf: (id) => gd.chess(id),
       ...opts, player: ps,
+      // an ELO tilt (tilt.js) of a strategy's free equipment offer (凯瑟琳 定向投放, 娜仁图亚 见者有份); null otherwise
+      tilt: offerTilt(ps, source, poolId),
     }),
     /**
      * Run another owned chess's 特质 of `eventType` now (SERVER_GAIN / SERVER_PREP_START / SERVER_PREP_FIN /

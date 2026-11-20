@@ -26,6 +26,11 @@
 //               (+ unit) with occurrence and battle counts, meta handler errors by registry key, match engine errors
 //   --odds      shop tier distribution of rolled chess slots per shop level (all runs)
 //   --json      print machine-readable results
+//   --tilt S    experimental ELO tilt (server/match/tilt.js, §37.273): strength S in [-1, 1] on the seats of --tilt-seats
+//               (default every seat); --tilt-m M (base, default 2), --tilt-floor F and --tilt-cut C (hindering floor of the
+//               cards with relevance >= C, default none / 0.5), --tilt-tier X (tier lever share, <= 0.25, default 0),
+//               --tilt-core off (the tier lever alone)
+//   --split     卡池静态初始化 (the room's experimental staticPoolSplit)
 //   --tuning off     play on the research-faithful numbers (data/tuning.json ignored; docs/BALANCE.md)
 //   --legacy-time    read combat limits as game seconds (the reading before docs/BALANCE.md §2.1)
 // Examples:
@@ -40,6 +45,7 @@ import { attachAudit } from '../server/match/audit.js';
 import { Battle } from '../server/sim/Battle.js';
 import { getData } from '../server/data.js';
 import { layerGainRoom } from '../shared/constants.js';
+import { setTilt } from '../server/match/tilt.js';
 
 const argv = process.argv.slice(2);
 const opt = {};
@@ -67,6 +73,12 @@ const lpOverride = Number(opt.lp) > 0 ? Number(opt.lp) : null;
 const layerBoost = Number(opt.layers) > 0 ? Math.floor(Number(opt.layers)) : null;
 const quiet = !!opt.quiet || seeds > 1 || difficulties.length > 1;
 const rehearsal = opt.rehearsal != null && opt.rehearsal !== true ? Math.max(0, Math.floor(Number(opt.rehearsal) || 0)) : undefined;
+const num = (v) => (v == null || v === true ? undefined : Number(v));
+const tilt = opt.tilt != null && opt.tilt !== true ? {
+  s: Number(opt.tilt), m: num(opt['tilt-m']), floor: num(opt['tilt-floor']) ?? null, cut: num(opt['tilt-cut']), tier: num(opt['tilt-tier']),
+  core: opt['tilt-core'] !== 'off',
+} : null;
+const tiltSeats = opt['tilt-seats'] != null && opt['tilt-seats'] !== true ? new Set(String(opt['tilt-seats']).split(',').map(Number)) : null;
 let data = getData({ log: { warn() {}, error() {}, info() {} } });
 if (opt.tuning === 'off') { const { tuning, ...rest } = data; void tuning; data = Object.freeze(rest); }
 if (opt['legacy-time']) data = Object.freeze({ ...data, config: { ...data.config, combatTimeScale: 1 } });
@@ -123,8 +135,10 @@ async function runOne(seed, difficulty) {
     botStrategy: opt.bot || 'legacy', botStrategySeats: {},
     BattleClass: opt.errors && canCount ? CountingBattle : undefined,
     send: () => { frames++; return true; }, broadcast: () => {}, onEnd: (s) => { summary = s; },
+    ...(opt.split ? { experimental: { revivalEnabled: false, disableSharedPool: false, staticPoolSplit: true } } : {}),
   });
   for (const ps of m.players.values()) if (!ps.isBot) ps.autoplay = true;
+  if (tilt) for (const ps of m.players.values()) if (!tiltSeats || tiltSeats.has(ps.seat)) setTilt(ps, tilt);
   const audit = opt.check || opt.odds ? attachAudit(m, { invariants: !!opt.check }) : null;
   const rounds = [];
   let last = '';
