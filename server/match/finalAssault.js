@@ -111,6 +111,8 @@ export function bossPoolHp(gd, bossId, aliveCount, { experimental = false, hpMul
 /**
  * The one HP pool every boss field damages. `damage(playerId, amount)` is called by the sim (server-run fields) and by
  * Match._creditBoss (client reports, per player); the hit that would leave less than BOSS_POOL_MIN_HP takes the rest.
+ * A hit no player owns (`playerId` null: 无来源 damage with no credit, e.g. 深水 on a downed boss_8 part passed on to 胄)
+ * debits the pool like any other and is counted in `unowned`, never in `byPlayer`: Σ byPlayer + unowned = maxHp − hp.
  */
 export class SharedBossPool {
   constructor(hp, { onHit = null } = {}) {
@@ -118,6 +120,8 @@ export class SharedBossPool {
     this.hp = this.maxHp;
     /** playerId → damage dealt to this pool (this boss round only; the BOSS_HIT tickers' share) */
     this.byPlayer = new Map();
+    /** damage to this pool no player owns (playerId null) — credited to nobody, counted so the tally stays complete */
+    this.unowned = 0;
     this.onHit = onHit;
   }
 
@@ -127,6 +131,7 @@ export class SharedBossPool {
     const dealt = this.hp - a < BOSS_POOL_MIN_HP ? this.hp : a;
     this.hp -= dealt; // exactly 0 when the rest is taken (x − x): no float dust
     if (playerId != null) this.byPlayer.set(playerId, (this.byPlayer.get(playerId) || 0) + dealt);
+    else this.unowned += dealt;
     if (this.onHit) {
       try { this.onHit(playerId, dealt); } catch { /* reported by the caller */ }
     }
