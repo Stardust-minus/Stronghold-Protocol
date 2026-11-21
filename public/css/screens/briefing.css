@@ -406,11 +406,13 @@
 .reg-group__on .icon { width: .22rem; height: .22rem; }
 
 /* ---- 本局禁用干员 (ui/matchInfo.js BannedByBond): each bond that lost members — its disc, then its banned portraits with the
-   official 禁用 corner (ui/outer img_chess_banned) and the tier mark — the groups flowing side by side and wrapping (more
-   compact than the official one group a row: the old briefing's density, the owner's 2026-11-21 request) ---- */
-.reg-banned__groups { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .1rem .3rem; padding: .1rem .14rem .08rem; }
-.reg-banned__group { display: flex; align-items: flex-start; gap: .12rem; min-width: 0; flex: 0 1 auto; }
-.reg-banned__disc { flex: none; padding-top: .04rem; }
+   official 禁用 corner (ui/outer img_chess_banned) and the tier mark — one bond a row like the official screen (the owner
+   2026-11-21: 「每个一行，现在过于紧凑了」; the groups flowing side by side before), the discs in one column; the banned
+   operators of no bond of the match last, on their own rows ---- */
+.reg-banned__groups { display: flex; flex-direction: column; align-items: stretch; gap: .08rem; padding: .1rem .14rem .08rem; }
+.reg-banned__group { display: flex; align-items: center; gap: .16rem; min-width: 0; }
+.reg-banned__group + .reg-banned__group, .reg-banned__group + .reg-banned__rest { padding-top: .08rem; border-top: 1px solid rgba(255, 255, 255, .06); }
+.reg-banned__disc { flex: none; width: .84rem; display: flex; justify-content: center; }
 .reg-banned__disc .bond { --disc: .5rem; }
 .reg-banned__disc .bond__name { font-size: calc(.14 * var(--t)); }
 .reg-banned__ops, .reg-banned__rest {

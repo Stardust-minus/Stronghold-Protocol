@@ -165,11 +165,12 @@ test('a banned operator is the official grey portrait with the 禁用 corner; a 
   assert.equal(byName.extra.cross, true);
   assert.equal(byName.extra.tag, null);
   assert.equal(byName.yan.cross, false);
-  // the CSS: the groups flowing side by side (more compact than the official one group a row, 2026-11-21), tier mark
-  // bottom-left, the corner on the top-right
+  // the CSS: one bond a row like the official screen (the owner 2026-11-21: side by side was too compact), the discs in one
+  // column, tier mark bottom-left, the corner on the top-right
   const css = readFileSync(path.join(ROOT, 'public/css/screens/briefing.css'), 'utf8');
   assert.match(css, /--ban-ut: \.72rem/);
-  assert.match(css, /\n\.reg-banned__groups \{ display: flex; flex-wrap: wrap;/);
+  assert.match(css, /\n\.reg-banned__groups \{ display: flex; flex-direction: column;/);
+  assert.match(css, /\n\.reg-banned__disc \{ flex: none; width: [^;]+;/);
   assert.match(css, /\.reg-banned \.uthumb\.uthumb--banned \.uthumb__tier \{ top: auto; bottom:/);
   assert.match(css, /\.uthumb__ban \{[^}]*top: 1px; right: 1px; width: 34%/);
 });

@@ -17,7 +17,7 @@ import { roomVersion, shownVersion, versionLabel } from '../versions.js';
 import { html, Button, Icon, Tooltip, alertDialog } from './components.js';
 import { t, tParts } from '../../../shared/i18n.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
-import { ELO_MAP, eloEntriesOf, eloImpact, eloMeasured, eloSummary, eloTrusted } from '../../../shared/elo.js';
+import { ELO_MAP, eloImpact, eloKey, eloMeasured, eloSummary, eloTrusted } from '../../../shared/elo.js';
 import { eloRecords } from './eloRecords.js';
 import { eloReceiptList, receiptRev } from './receipts.js';
 import { InfoTip } from './receiptViews.js';
@@ -40,8 +40,11 @@ const scopeOf = (mode, difficulty) => {
  */
 export function eloMine(mode, difficulty, records = peekStatsRecords, sub = undefined, version = shownVersion(store.get())) {
   const recs = records();
-  // each official version its own (the owner, 2026-11-20): the room's — the version shown — and no other
-  const own = eloEntriesOf(eloRecords(recs), mode, difficulty, version) || [];
+  // each official version its own (the owner, 2026-11-20): the room's — the version shown — and no other; the room's one
+  // list taken directly, as room.elo sends it (ui/loadoutSync.js installEloSync) — eloEntriesOf checks the whole object
+  // against room.elo's ELO_LIMITS.keys, and a browser with records in more mode × difficulty × version lists than that
+  // got 「记录不足」 here while the server tilted it (the owner, 2026-11-21: 修)
+  const own = eloRecords(recs)[eloKey(mode, difficulty, version)] || [];
   // receipts (§37.276): the list the server takes — this identity's receipts, or the local records when they hinder more
   const trusted = eloTrusted(own, eloReceiptList(recs, mode, difficulty, version, sub));
   const impact = eloImpact(trusted.summary);

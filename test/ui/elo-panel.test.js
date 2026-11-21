@@ -50,6 +50,17 @@ test('the lists: per mode:difficulty the newest 30 that count, [won, roundsPasse
   assert.deepEqual(eloRecords([rec(false, { victory: true, players: [{ playerId: 'me', victory: false, roundsPassed: 9 }, { playerId: 'x', victory: true }] })]), { [K('solo', 'ABYSS')]: [[0, 9]] });
 });
 
+test('the panel reads the room\'s own list however many other mode × difficulty × version lists the browser has (2026-11-21)', () => {
+  const V3 = 'act3autochess@V3_1';
+  // records in every list of every version: more than room.elo's ELO_LIMITS.keys — the panel used to see none of them
+  const all = ['act2autochess', 'act2autochess@V2_1', 'act1autochess', 'act1autochess@V1_1', V3].flatMap((version) => ['solo', 'coop']
+    .flatMap((roomMode) => ['FUNNY', 'NORMAL', 'HARD', 'ABYSS'].map((difficulty) => rec(true, { roomMode, difficulty, ...(version === 'act2autochess' ? {} : { version }) }))));
+  const mine = eloMine('solo', 'ABYSS', () => [...many(5, 5, { version: V3 }), ...all], SUB, V3);
+  assert.equal(mine.ownN, 6, 'the 规程 solo 终极 list: five wins and the one of the spread');
+  assert.deepEqual([mine.dir, mine.level], ['hinder', 3]);
+  assert.deepEqual(mine.tilt, serverTilt(eloTrusted(eloRecords([...many(5, 5, { version: V3 }), ...all])[eloKey('solo', 'ABYSS', V3)], []).entries), 'what the server takes');
+});
+
 test('the panel and the server run one computation; a few or quick records → 不调, a strong player → 压, a weak one → 帮', () => {
   for (let w = 0; w <= 30; w++) {
     const list = eloRecords(many(w, 30))[K('solo', 'ABYSS')];
