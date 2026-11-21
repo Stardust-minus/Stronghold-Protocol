@@ -97,7 +97,7 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   assert.equal(entries[0].date, '2026-11-21');
   const notice1121 = entries[0].paragraphs.join('\n');
   for (const phrase of ['【一套界面】', '盟约各期', '盟约条居中', '阵营水印', '「目前资金」', '效果说明', 'S.W.E.E.P.', '【开局】', '一种布局', '实景渲染',
-    '「或本模式禁用」', '【自选】', '6 个名额', '「确定自选编队」', '至多带入 2 名', '3、4 号', 'AI 队友也会带自选', '【修复】'])
+    '「或本模式禁用」', '【自选】', '6 个名额', '「确定自选编队」', '至多带入 2 名', '3、4 号', 'AI 队友也会带自选', '【修复】', '阶级图错乱', '难度格子'])
     assert.ok(notice1121.includes(phrase), phrase);
   assert.doesNotMatch(notice1121, /ModelScope|OpenI|签名|nginx|Worker|WebSocket|CUSTOM_CHECK|forkDiy|\/feedback|#1[0-9]|正在修|正在处理|QQ/i);
   const all = entries.slice();

@@ -312,41 +312,41 @@ html[data-sp-slot~="round_result"]:not([data-sp-slice~="round_result"]) .rdialog
 }
 
 /* Level icons sit over the chip. The official <img> stays, so a failed overlay is not an empty chip. */
-html[data-sp-slot~="chess_level_icon_1"] .tier--1::after,
-html[data-sp-slot~="chess_level_icon_2"] .tier--2::after,
-html[data-sp-slot~="chess_level_icon_3"] .tier--3::after,
-html[data-sp-slot~="chess_level_icon_4"] .tier--4::after,
-html[data-sp-slot~="chess_level_icon_5"] .tier--5::after,
-html[data-sp-slot~="chess_level_icon_6"] .tier--6::after {
+html[data-sp-slot~="chess_level_icon_1"] .tier.tier--1::after,
+html[data-sp-slot~="chess_level_icon_2"] .tier.tier--2::after,
+html[data-sp-slot~="chess_level_icon_3"] .tier.tier--3::after,
+html[data-sp-slot~="chess_level_icon_4"] .tier.tier--4::after,
+html[data-sp-slot~="chess_level_icon_5"] .tier.tier--5::after,
+html[data-sp-slot~="chess_level_icon_6"] .tier.tier--6::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; background-position: center; background-size: contain; background-repeat: no-repeat;
 }
 /* (no `position: relative` here: .tier is relative already, and this selector outweighed the chips placed absolutely —
    道具补给's .spcard__tier fell under the description, the owner 2026-11-21) */
-html[data-sp-slot~="chess_level_icon_1"] .tier--1::after { background-image: var(--sp-img-chess_level_icon_1); }
-html[data-sp-slot~="chess_level_icon_2"] .tier--2::after { background-image: var(--sp-img-chess_level_icon_2); }
-html[data-sp-slot~="chess_level_icon_3"] .tier--3::after { background-image: var(--sp-img-chess_level_icon_3); }
-html[data-sp-slot~="chess_level_icon_4"] .tier--4::after { background-image: var(--sp-img-chess_level_icon_4); }
-html[data-sp-slot~="chess_level_icon_5"] .tier--5::after { background-image: var(--sp-img-chess_level_icon_5); }
-html[data-sp-slot~="chess_level_icon_6"] .tier--6::after { background-image: var(--sp-img-chess_level_icon_6); }
+html[data-sp-slot~="chess_level_icon_1"] .tier.tier--1::after { background-image: var(--sp-img-chess_level_icon_1); }
+html[data-sp-slot~="chess_level_icon_2"] .tier.tier--2::after { background-image: var(--sp-img-chess_level_icon_2); }
+html[data-sp-slot~="chess_level_icon_3"] .tier.tier--3::after { background-image: var(--sp-img-chess_level_icon_3); }
+html[data-sp-slot~="chess_level_icon_4"] .tier.tier--4::after { background-image: var(--sp-img-chess_level_icon_4); }
+html[data-sp-slot~="chess_level_icon_5"] .tier.tier--5::after { background-image: var(--sp-img-chess_level_icon_5); }
+html[data-sp-slot~="chess_level_icon_6"] .tier.tier--6::after { background-image: var(--sp-img-chess_level_icon_6); }
 /* The icon replaces the chip: the octagon and its numeral would show around a slanted icon (乌萨斯齐心团, 可露希尔). */
-html[data-sp-slot~="chess_level_icon_1"] .tier--1 > img,
-html[data-sp-slot~="chess_level_icon_2"] .tier--2 > img,
-html[data-sp-slot~="chess_level_icon_3"] .tier--3 > img,
-html[data-sp-slot~="chess_level_icon_4"] .tier--4 > img,
-html[data-sp-slot~="chess_level_icon_5"] .tier--5 > img,
-html[data-sp-slot~="chess_level_icon_6"] .tier--6 > img { visibility: hidden; }
-html[data-sp-slot~="chess_level_icon_1"] .tier--1,
-html[data-sp-slot~="chess_level_icon_2"] .tier--2,
-html[data-sp-slot~="chess_level_icon_3"] .tier--3,
-html[data-sp-slot~="chess_level_icon_4"] .tier--4,
-html[data-sp-slot~="chess_level_icon_5"] .tier--5,
-html[data-sp-slot~="chess_level_icon_6"] .tier--6 { background: none; clip-path: none; color: transparent; }
-html[data-sp-slot~="chess_level_icon_1"] .tier--1::before,
-html[data-sp-slot~="chess_level_icon_2"] .tier--2::before,
-html[data-sp-slot~="chess_level_icon_3"] .tier--3::before,
-html[data-sp-slot~="chess_level_icon_4"] .tier--4::before,
-html[data-sp-slot~="chess_level_icon_5"] .tier--5::before,
-html[data-sp-slot~="chess_level_icon_6"] .tier--6::before { content: none; }
+html[data-sp-slot~="chess_level_icon_1"] .tier.tier--1 > img,
+html[data-sp-slot~="chess_level_icon_2"] .tier.tier--2 > img,
+html[data-sp-slot~="chess_level_icon_3"] .tier.tier--3 > img,
+html[data-sp-slot~="chess_level_icon_4"] .tier.tier--4 > img,
+html[data-sp-slot~="chess_level_icon_5"] .tier.tier--5 > img,
+html[data-sp-slot~="chess_level_icon_6"] .tier.tier--6 > img { visibility: hidden; }
+html[data-sp-slot~="chess_level_icon_1"] .tier.tier--1,
+html[data-sp-slot~="chess_level_icon_2"] .tier.tier--2,
+html[data-sp-slot~="chess_level_icon_3"] .tier.tier--3,
+html[data-sp-slot~="chess_level_icon_4"] .tier.tier--4,
+html[data-sp-slot~="chess_level_icon_5"] .tier.tier--5,
+html[data-sp-slot~="chess_level_icon_6"] .tier.tier--6 { background: none; clip-path: none; color: transparent; }
+html[data-sp-slot~="chess_level_icon_1"] .tier.tier--1::before,
+html[data-sp-slot~="chess_level_icon_2"] .tier.tier--2::before,
+html[data-sp-slot~="chess_level_icon_3"] .tier.tier--3::before,
+html[data-sp-slot~="chess_level_icon_4"] .tier.tier--4::before,
+html[data-sp-slot~="chess_level_icon_5"] .tier.tier--5::before,
+html[data-sp-slot~="chess_level_icon_6"] .tier.tier--6::before { content: none; }
 /* The 盟约 card corner chip is .28rem: a theme's level icon there gets a readable size (可露希尔's 64×64 icon is a smaller
    tilted box inside its margins, 乌萨斯齐心团's is a 59×34 plate). */
 html[data-sp-slot~="chess_level_icon_1"] .scard:not(.scard--reg) .scard__top .tier { --tier-h: .4rem; }
@@ -368,7 +368,7 @@ html[data-sp-slot~="chess_level_icon_1"] .dhead .tier { --tier-h: .36rem; }
 html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_level_icon_1"] .dhead .tier { --tier-h: .44rem; margin: -.06rem 0; }
 html[data-sp-theme="ac_n_iron"][data-sp-slot~="chess_level_icon_1"] .dhead .tier { --tier-h: .27rem; width: .47rem; }
 /* 可露希尔's tier VI plate has no numeral (its prefab chess_level_6_obj draws the glyph separately): the pink VI. */
-html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_level_icon_6"] .tier--6::before {
+html[data-sp-theme="ac_s_closur"][data-sp-slot~="chess_level_icon_6"] .tier.tier--6::before {
   content: "VI"; position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding-bottom: 6%;
   background: none; clip-path: none; color: #f0508a; font-family: var(--font-num); font-weight: 900; font-size: calc(var(--tier-h) * .34);
   letter-spacing: -.02em; transform: rotate(-7deg); text-shadow: 0 0 calc(var(--tier-h) * .05) #39f6ff;

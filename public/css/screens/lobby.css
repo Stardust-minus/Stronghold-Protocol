@@ -2036,6 +2036,9 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: var(--
 .proto-stage, .ally-stage { animation: tr-zoom 480ms var(--tr-ease) 190ms backwards; }
 .proto-list .pcard { animation: tr-right 400ms var(--tr-ease) backwards; animation-delay: calc(240ms + var(--n, 0) * 60ms); }
 .proto-list .pcard:nth-child(2) { --n: 1; } .proto-list .pcard:nth-child(3) { --n: 2; } .proto-list .pcard:nth-child(4) { --n: 3; } .proto-list .pcard:nth-child(5) { --n: 4; }
+/* 规程's 规程等级 1–20 (lobby.js LadderList) comes in with the cards, after 极速模拟 — it is no .pcard, and stood there from
+   the first frame while the rest of the screen faded in (the owner 2026-11-21) */
+.proto-list .ladder__grid { --n: 1; animation: tr-right 400ms var(--tr-ease) backwards; animation-delay: calc(240ms + var(--n) * 60ms); }
 .proto-foot { animation: tr-rise 400ms var(--tr-ease) 440ms backwards; }
 .ally-card--create { animation: tr-right 420ms var(--tr-ease) 240ms backwards; }
 .ally-links { animation: tr-right 420ms var(--tr-ease) 310ms backwards; }
@@ -2114,7 +2117,7 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: var(--
 .rs-proto { animation: tr-veil 160ms linear backwards; }
 .rs-proto__scene { animation: tr-fade 360ms ease-out 100ms backwards; }
 .rs-proto__side { animation: tr-right 380ms var(--tr-ease) 60ms backwards; }
-.rs-proto .proto-list .pcard { animation-delay: calc(110ms + var(--n, 0) * 50ms); }
+.rs-proto .proto-list .pcard, .rs-proto .proto-list .ladder__grid { animation-delay: calc(110ms + var(--n, 0) * 50ms); }
 .rs-proto.is-leaving { pointer-events: none; animation: tr-lift 200ms linear forwards; }
 .rs-proto.is-leaving > * { animation: tr-slide-out 200ms ease-in forwards; }
 @keyframes tr-slide-out { to { opacity: 0; transform: translateX(.36rem); } }
