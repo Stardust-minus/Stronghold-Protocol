@@ -931,6 +931,8 @@ export function runMatch(cfg) {
 // family: diy (自选 pieces: a DIY slot fielded with its `diy` pick — simdata getDiy, shared/diy.js)
 
 const DIY_SLOTS = data.backups?.diy?.slots ?? {};
+/** The slots a tier's diy battles rotate on: 规程's six, a 盟约 version's official two (diyScenarios). */
+const DIY_ROTATION = versionById(toolVersion)?.family === 'regulation' ? Infinity : 2;
 /** The slot record of a tier's first slot, normal or elite (the forms every slot of the tier shares). */
 const diySlotRec = (tier, elite) => {
   const base = Object.keys(DIY_SLOTS).find((id) => DIY_SLOTS[id].tier === tier);
@@ -1004,7 +1006,7 @@ function diyLayout(stageId, wanted) {
 }
 
 /**
- * The diy family: the configurations (diyConfigs) 12 per battle, each on the next of its tier's two slots (the elite
+ * The diy family: the configurations (diyConfigs) 12 per battle, each on the next of its tier's slots (DIY_ROTATION; the elite
  * twin for an elite form); a real stage and mode in turn, the round of the strongest piece (BAND_ROUND), the round's
  * real wave three times over, no bonds / items / band (the 自选 bonds come with the per-player roster). `pass` 0 = the
  * first battle of each group (operator kits, prototypes): the fast subset.
@@ -1020,7 +1022,9 @@ export function diyScenarios() {
     const gd = gdFor(modeId);
     const turn = {};
     const wanted = chunk.map((c) => {
-      const ids = Object.keys(DIY_SLOTS).filter((id) => DIY_SLOTS[id].tier === c.tier);
+      // 盟约's official tables have two slots a tier: slots 3–6 (tools/versions/forkDiy.mjs, 2026-11-21) are copies of
+      // slot 1, so a 盟约 version rotates on its official two and its battles stay what they were
+      const ids = Object.keys(DIY_SLOTS).filter((id) => DIY_SLOTS[id].tier === c.tier).slice(0, DIY_ROTATION);
       turn[c.tier] = (turn[c.tier] ?? -1) + 1;
       const base = ids[turn[c.tier] % ids.length];
       const chessId = c.elite ? DIY_SLOTS[base].goldenId : base;

@@ -138,6 +138,30 @@ export function diyBenchSize(data) {
 /** The bench key `n` (1-based) of `tier`. @param {number} tier @param {number} n */
 export const diyBenchId = (tier, n) => `diyBench_${tier}_${n}`;
 
+/**
+ * A 盟约 preset stored before the 盟约 versions took 规程's twelve slots (the owner's decision of 2026-11-21,
+ * tools/versions/forkDiy.mjs): its 候补 keys move to the tier's slots 3 and 4 (`diyBench_<tier>_<n>` → the tier's slot
+ * DIY_BENCH_SIZE + n), where the slot is empty, so its four candidates per tier stay in the player's order. Data that
+ * still has a bench (diyBenchSize > 0), or a key without such a slot, leaves the map as it is (an unknown key is dropped
+ * downstream). Returns the same object when nothing moves.
+ * @template T @param {Record<string, T>|null|undefined} picks @param {DiyData} data
+ */
+export function promoteDiyBench(picks, data) {
+  if (!isObj(picks) || !diyOf(data) || diyBenchSize(data) > 0) return picks;
+  let out = null;
+  for (const key of Object.keys(picks)) {
+    const m = BENCH_ID.exec(key);
+    if (!m) continue;
+    const target = diyTierSlotIds(Number(m[1]), data)[DIY_BENCH_SIZE + Number(m[2]) - 1];
+    if (!target || Number(m[2]) < 1 || Number(m[2]) > DIY_BENCH_SIZE) continue;
+    out ??= { ...picks };
+    const pick = out[key];
+    delete out[key];
+    if (out[target] == null && pick != null) out[target] = pick;
+  }
+  return out ?? picks;
+}
+
 /** The tiers that have 自选 slots in the data, in data order (5, then 6). @param {DiyData} data @returns {number[]} */
 export function diyTiers(data) {
   const out = [];

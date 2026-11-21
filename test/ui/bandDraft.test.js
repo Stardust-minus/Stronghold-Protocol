@@ -85,7 +85,7 @@ describe('server: no duplicate strategies in the co-op draft', () => {
     const picks = Object.values(m.publicView().draft?.picks || m.draft.picks);
     assert.equal(new Set(picks).size, picks.length, 'all different');
     h.sched.advance(1);
-    assert.equal(m.phase, PHASE.BATTLE_CHECK);
+    assert.equal(m.phase, PHASE.CUSTOM_CHECK); // the draft is over: 选择自编 follows (every version since 2026-11-21)
     m.dispose();
   });
 
@@ -211,7 +211,7 @@ describe('server: automatic assignments never duplicate a teammate\'s strategy',
     const h = draftOf({ humans: 4, seed: 9 });
     const m = h.m;
     h.run(() => m.phase !== PHASE.BAND_DRAFT, { maxTime: 4 * TURN_MS + 1 });
-    assert.equal(m.phase, PHASE.BATTLE_CHECK);
+    assert.equal(m.phase, PHASE.CUSTOM_CHECK); // the draft is over: 选择自编 follows (every version since 2026-11-21)
     const ids = distinct(m);
     assert.ok(ids.includes('band_bldsk'), 'the first idle player still gets the official default');
     for (const ps of m.players.values()) assert.equal(ps.lp, DATA.bands[ps.bandId].totalHp, `${ps.playerId} LP follows its strategy`);
@@ -225,7 +225,7 @@ describe('server: automatic assignments never duplicate a teammate\'s strategy',
     assert.deepEqual(m.handle(first, { t: 'g.band', bandId: 'band_bldsk' }), { ok: true });
     m.finishBandDraft(true);
     distinct(m);
-    assert.equal(m.phase, PHASE.BATTLE_CHECK);
+    assert.equal(m.phase, PHASE.CUSTOM_CHECK); // the draft is over: 选择自编 follows (every version since 2026-11-21)
     m.dispose();
   });
 

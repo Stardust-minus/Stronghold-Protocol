@@ -65,7 +65,11 @@ test('room.diy: structural wire check; checkDiyPicks keeps the legal picks, drop
   assert.equal(r3.dropped, 1);
 });
 
-/** A co-op match: p_0 slots 推进之王 + Sharp (×2 tiers) + junk, p_1 slots 推进之王 in the same slot, the bot nothing. */
+/**
+ * A co-op match: p_0 slots 推进之王 + Sharp (×2 tiers) + junk, p_1 slots 推进之王 in the same slot, the bot nothing from the
+ * lobby (选择自编 synthesizes its own squad: every version since 2026-11-21). The harness's h.toPrep confirms each human's
+ * default bring (the first legal slots, two a tier): p_0 brings all three of its slots.
+ */
 function diyMatch(extra = {}) {
   const seats = [
     { seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true, diy: { ...PICKS, [T6B]: { charId: SIEGE, skillIndex: 1 }, junk: null } },
@@ -134,7 +138,18 @@ test('per-player stock: 8 at tier 5, 5 at tier 6 doubled in co-op (16 / 10, #650
   assert.deepEqual(seen(p0, 4), [], 'level 4: no tier-5 slot yet');
   assert.deepEqual(seen(p0, 5), [T5A, T5B], 'level 5: the tier-5 slots');
   assert.deepEqual(seen(p0, 6, 600), [T5A, T5B, T6A], 'level 6: both tiers');
-  assert.deepEqual(seen(h.ps('ai_0'), 6), [], 'the bot\'s shop never sells another player\'s 自选 piece');
+  // 选择自编 (every version since 2026-11-21): the bot brought a squad of its own (player/diy.js synthesizeBotRoster) — its
+  // shop sells its own stock, its data view names its own operators, never a human's pick
+  const bot = h.ps('ai_0');
+  assert.ok(bot.diyBring.length > 0 && bot.diyStock !== p0.diyStock);
+  assert.deepEqual([...bot.diyStock.entries.keys()].sort(), [...bot.diyBring].sort());
+  const botSeen = seen(bot, 6, 600);
+  assert.deepEqual(botSeen, [...bot.diyBring].sort(), 'the bot\'s shop sells its own 自选 pieces only');
+  for (const id of botSeen) {
+    assert.equal(bot.gd.chess(id).charId, bot.diy[id].charId, `${id}: the bot's own operator`);
+    if (p0.diy[id]) assert.notEqual(bot.gd.chess(id), p0.gd.chess(id), `${id}: not p_0's record`);
+  }
+  assert.deepEqual(p0.diyStock.snapshot(), { [T5A]: 16, [T5B]: 16, [T6A]: 10 }, 'the bot draws nothing from a human\'s stock');
   // the price of any chess of the tier
   const slot = p0.shop.slots.find((s) => s && s.id === T6A) || { kind: 'chess', id: T6A, basePrice: m.gd.chessPrice(T6A), frozen: false, sold: false };
   assert.equal(slot.basePrice, 4);
@@ -247,9 +262,13 @@ test('bans: a 自选 piece whose every bond is off this match has no stock (out 
   const p0 = h.ps('p_0');
   assert.deepEqual([...p0.diyBanned], [T5A]);
   assert.ok(!p0.diyStock.has(T5A));
-  assert.deepEqual(Object.keys(p0.diyStock.snapshot()).sort(), [T5B, T6A], 'the prototypes (协防) stay');
   assert.ok(!h.m.disabledBonds.includes('emptyShip'));
+  // 选择自编 (every version since 2026-11-21): the banned slot cannot be brought; the default bring takes the others
+  assert.ok(h.drive(() => h.m.phase === 'CUSTOM_CHECK'));
+  assert.equal(h.m.handle('p_0', { t: 'g.diyBring', slots: [T5A] }).error, 'BAD_TARGET');
   h.toPrep(1);
+  assert.deepEqual([...p0.diyBring].sort(), [T5B, T6A]);
+  assert.deepEqual(Object.keys(p0.diyStock.snapshot()).sort(), [T5B, T6A], 'the prototypes (协防) stay');
   p0.shop.level = 5;
   for (let i = 0; i < 300; i++) { p0.rollShop(); assert.ok(!p0.shop.slots.some((s) => s && s.id === T5A)); }
   p0.shop.level = 4;

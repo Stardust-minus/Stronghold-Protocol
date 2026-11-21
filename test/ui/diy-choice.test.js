@@ -3,6 +3,8 @@
 // the cards read as picks of their tier), the banned-bond hints once a match's bans are known (diyMatchOff / diyBanHint),
 // and the briefing's 自选上场 section (ui/diyChoice.js: m.private.diyChoice, a draft per tier sent as g.diyChoose once
 // complete; a candidate with banned bonds names them, every bond banned marked more strongly than some).
+// Since 2026-11-21 no version has 候补 (the 盟约 versions took 规程's twelve slots and 选择自编, tools/versions/forkDiy.mjs):
+// the 候补 code is tested here on the 盟约 data cut back to its official two slots a tier (the page's backups.json too).
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,11 +12,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+/** backups.json with two 自选 slots a tier: the official 盟约 tables (slots 3–6 are tools/versions/forkDiy.mjs's) */
+const twoSlots = (backups) => ({ ...backups, diy: { ...backups.diy, slots: Object.fromEntries(Object.entries(backups.diy.slots).filter(([id]) => /_diy[12]_a$/.test(id))) } });
 globalThis.fetch = async (url) => {
   const name = String(url).split('/').pop();
   try {
     const body = readFileSync(path.join(ROOT, 'data', name), 'utf8');
-    return { ok: true, status: 200, json: async () => JSON.parse(body) };
+    return { ok: true, status: 200, json: async () => (name === 'backups.json' ? twoSlots(JSON.parse(body)) : JSON.parse(body)) };
   } catch {
     return { ok: false, status: 404, json: async () => ({}) };
   }
@@ -30,7 +34,8 @@ const { diyBenchId } = await import('../../shared/diy.js');
 
 await data.loadAll('chess', 'bonds', 'assets', 'backups');
 
-const D = { chess: DATA.chess, backups: DATA.backups };
+const D = { chess: DATA.chess, backups: twoSlots(DATA.backups) };
+const FULL = { chess: DATA.chess, backups: DATA.backups }; // the 盟约 data as it is: twelve slots, no 候补
 const KIT = [...KITTED_CHARS];
 const T5A = 'chess_char_5_diy1_a', T6A = 'chess_char_6_diy1_a';
 const B51 = diyBenchId(5, 1), B52 = diyBenchId(5, 2), B61 = diyBenchId(6, 1), B62 = diyBenchId(6, 2);
@@ -72,11 +77,20 @@ describe('four equal positions per tier in the 自选编队 tab', () => {
     assert.deepEqual(pos.map((s) => [s.tier, s.n]), [5, 6].flatMap((tier) => [1, 2, 3, 4, 5, 6].map((n) => [tier, n])));
     assert.ok(pos.every((s) => !/^diyBench_/.test(s.slotId)), 'every position is a slot of the data');
     assert.equal(M.diyCapacity(R), 12);
-    // a 候补 key never goes out for 规程 (the server refuses it); the 盟约 data keeps its own; no data loaded: as stored
+    // a 候补 key never goes out where the data has none (the server refuses it): it moves to its tier's slot 3 / 4
+    // (shared/diy.js promoteDiyBench); data with a bench keeps it; no data loaded: as stored
     const picks = { chess_char_5_diy1_a: own(SIEGE), [B51]: own(KALTS) };
-    assert.deepEqual(Object.keys(M.dropForeignBench(picks, R)), ['chess_char_5_diy1_a']);
+    assert.deepEqual(M.dropForeignBench(picks, R), { chess_char_5_diy1_a: own(SIEGE), chess_char_5_diy3_a: own(KALTS) });
     assert.deepEqual(Object.keys(M.dropForeignBench(picks, D)), ['chess_char_5_diy1_a', B51]);
     assert.deepEqual(Object.keys(M.dropForeignBench(picks, { chess: null, backups: null })), ['chess_char_5_diy1_a', B51]);
+  });
+
+  test('盟约 since 2026-11-21: twelve positions like 规程, no 候补; an old preset\'s 候补 become slots 3 and 4', () => {
+    assert.deepEqual(M.diyBenchList(FULL), []);
+    assert.equal(M.diyCapacity(FULL), 12);
+    const old = { [T5A]: own(SIEGE), chess_char_5_diy2_a: own(CHEN), [B51]: own(KALTS), [B52]: own(IFRIT), [B62]: own(MGLLAN) };
+    assert.deepEqual(M.dropForeignBench(old, FULL), { [T5A]: own(SIEGE), chess_char_5_diy2_a: own(CHEN), chess_char_5_diy3_a: own(KALTS),
+      chess_char_5_diy4_a: own(IFRIT), chess_char_6_diy4_a: own(MGLLAN) });
   });
 
   test('the bans of a match: none outside one; drawn and the mode\'s static ones in one; a pick\'s off bonds, all or some', () => {

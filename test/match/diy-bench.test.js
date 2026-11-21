@@ -4,16 +4,27 @@
 // default skips a pick whose bonds are all banned, and from the strategy draft on the slots are fixed. A checkpoint's
 // seat carries the slots as they are plus the other candidates as bench keys, `diyChoice` is saved: a restore fields
 // the same slots, in the briefing and after it; a rel25 checkpoint (no bench, no choice) restores as before.
+// Since 2026-11-21 the 盟约 versions have 规程's twelve slots and 选择自编 (tools/versions/forkDiy.mjs: 「盟约也换成6-6
+// 选2+2」), so no version has a bench: the 候补 rules run here on TWO, the 盟约 data as it was before (two slots a tier, no
+// CUSTOM_CHECK step), and the last test shows the real data moving an old preset's bench to slots 3 and 4.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeMatch, DATA } from './harness.js';
+import { makeMatch, DATA as FULL } from './harness.js';
 import { PHASE, ERR } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
-import { diyBenchId, diyPickOff, checkDiyPick } from '../../shared/diy.js';
+import { diyBenchId, diyPickOff, checkDiyPick, diyBenchSize } from '../../shared/diy.js';
 import { snapshotMatch, restoreMatch, canSnapshot } from '../../server/match/snapshot.js';
 import { createRngFromState } from '../../server/sim/rng.js';
 import { KITTED_CHARS } from '../../server/sim/content/kits/index.js';
 
+/** The 盟约 data before 2026-11-21: two 自选 slots a tier (diyBenchSize 2) and no 选择自编 (no diyBringLimits / CUSTOM_CHECK). */
+const DATA = (() => {
+  const { diyBringLimits, ...config } = FULL.config;
+  void diyBringLimits;
+  const slots = Object.fromEntries(Object.entries(FULL.backups.diy.slots).filter(([id]) => /_diy[12]_a$/.test(id)));
+  return { ...FULL, backups: { ...FULL.backups, diy: { ...FULL.backups.diy, slots } },
+    config: { ...config, timers: { ...config.timers, enterSteps: config.timers.enterSteps.filter((x) => x.step !== 'CUSTOM_CHECK') } } };
+})();
 const T5A = 'chess_char_5_diy1_a', T5B = 'chess_char_5_diy2_a', T6A = 'chess_char_6_diy1_a';
 const B51 = diyBenchId(5, 1), B52 = diyBenchId(5, 2);
 const own = (charId) => ({ charId, skillIndex: 2, uniEquipId: null });
@@ -29,7 +40,7 @@ const charsOf = (diy) => Object.fromEntries(Object.entries(diy).map(([k, p]) => 
 /** `seats`: the seats the fresh match is built from — the checkpoint's (local persister), else the platform's (cluster). */
 function restored(doc, seats = null) {
   const json = JSON.parse(JSON.stringify(doc));
-  const r = makeMatch({ mode: 'coop', seats: seats ?? json.seats, seed: json.seed });
+  const r = makeMatch({ data: DATA, mode: 'coop', seats: seats ?? json.seats, seed: json.seed });
   assert.equal(restoreMatch(r.m, json, { createRngFromState, log: { warn() {} } }), true);
   return r;
 }
@@ -42,7 +53,7 @@ test('g.diyChoose on the wire: a tier and up to four ids', () => {
 });
 
 test('the briefing lists the candidates; a choice fields them and rebuilds the stock; the slots are fixed after the briefing', (t) => {
-  const h = makeMatch({ mode: 'coop', seats: seatsWith(PRESET), seed: 7 }).start();
+  const h = makeMatch({ data: DATA, mode: 'coop', seats: seatsWith(PRESET), seed: 7 }).start();
   t.after(() => h.m.dispose());
   const m = h.m, ps = h.ps('p_0');
   assert.equal(m.phase, PHASE.INFO_CHECK);
@@ -76,14 +87,14 @@ test('the default fields a 候补 for a slotted pick whose bonds are all banned 
   const pool = (DATA.backups.diy.ownedPool || []).filter((id) => KITTED_CHARS.includes(id) && id !== KALTS && id !== IFRIT && 'ok' in checkDiyPick(T5A, own(id), DATA));
   let seed = 0, dead = null;
   for (let s = 1; s <= 80 && !dead; s++) {
-    const probe = makeMatch({ mode: 'coop', seats: seatsWith(null), seed: s });
+    const probe = makeMatch({ data: DATA, mode: 'coop', seats: seatsWith(null), seed: s });
     const off = probe.m.diyOff();
     dead = pool.find((id) => diyPickOff(DATA, id, off)) ?? null;
     if (dead) seed = s;
     probe.m.dispose();
   }
   assert.ok(dead, 'some seed bans every bond of an owned pick');
-  const h = makeMatch({ mode: 'coop', seats: seatsWith({ [T5A]: own(dead), [T5B]: own(KALTS), [B51]: own(IFRIT) }), seed }).start();
+  const h = makeMatch({ data: DATA, mode: 'coop', seats: seatsWith({ [T5A]: own(dead), [T5B]: own(KALTS), [B51]: own(IFRIT) }), seed }).start();
   t.after(() => h.m.dispose());
   const ps = h.ps('p_0');
   assert.deepEqual(charsOf(ps.diy), { [T5A]: IFRIT, [T5B]: KALTS }, `${dead} is out, 伊芙利特 takes its slot`);
@@ -100,7 +111,7 @@ test('the default fields a 候补 for a slotted pick whose bonds are all banned 
 });
 
 test('checkpoints: the briefing with a choice, a later prep, and a rel25 document without 候补 restore the same slots', (t) => {
-  const h = makeMatch({ mode: 'coop', seats: seatsWith(PRESET), seed: 7 }).start();
+  const h = makeMatch({ data: DATA, mode: 'coop', seats: seatsWith(PRESET), seed: 7 }).start();
   t.after(() => h.m.dispose());
   assert.deepEqual(h.m.handle('p_0', { t: 'g.diyChoose', tier: 5, charIds: [IFRIT, MGLLAN] }), { ok: true });
   const ps = h.ps('p_0');
@@ -156,7 +167,7 @@ test('checkpoints: the briefing with a choice, a later prep, and a rel25 documen
 });
 
 test('重刷本局 keeps an explicit choice and reads the default again against the new bans', (t) => {
-  const h = makeMatch({ mode: 'coop', humans: 1, seats: seatsWith(PRESET), seed: 7 }).start();
+  const h = makeMatch({ data: DATA, mode: 'coop', humans: 1, seats: seatsWith(PRESET), seed: 7 }).start();
   t.after(() => h.m.dispose());
   const m = h.m, ps = h.ps('p_0');
   assert.deepEqual(m.handle('p_0', { t: 'g.diyChoose', tier: 5, charIds: [SHINING, IFRIT] }), { ok: true });
@@ -166,4 +177,22 @@ test('重刷本局 keeps an explicit choice and reads the default again against 
   assert.equal(m.phase, PHASE.INFO_CHECK);
   assert.deepEqual(charsOf(ps.diy), { [T5A]: IFRIT, [T5B]: SHINING, [T6A]: AMGOAT });
   assert.deepEqual([...ps.diyStock.entries.keys()].sort(), [T5A, T5B, T6A].sort());
+});
+
+test('the real 盟约 data (2026-11-21): no bench — an old preset\'s 候补 keys fill slots 3 and 4, no choice in the briefing', (t) => {
+  assert.equal(diyBenchSize(FULL), 0);
+  assert.equal(diyBenchSize(DATA), 2, 'TWO keeps the bench');
+  const h = makeMatch({ mode: 'coop', seats: seatsWith(PRESET), seed: 7 }).start();
+  t.after(() => h.m.dispose());
+  const ps = h.ps('p_0');
+  assert.deepEqual(charsOf(ps.diy), { [T5A]: KALTS, [T5B]: SHINING, chess_char_5_diy3_a: IFRIT, chess_char_5_diy4_a: MGLLAN, [T6A]: AMGOAT });
+  assert.equal(ps.hasDiyChoice(), false);
+  assert.equal(h.lastTo('p_0', 'm.private').diyChoice, undefined);
+  assert.equal(h.m.handle('p_0', { t: 'g.diyChoose', tier: 5, charIds: [IFRIT, MGLLAN] }).error, ERR.BAD_TARGET);
+  // 选择自编 brings two of the four a tier
+  assert.ok(h.drive(() => h.m.phase === PHASE.CUSTOM_CHECK));
+  assert.deepEqual(h.m.handle('p_0', { t: 'g.diyBring', slots: ['chess_char_5_diy3_a', 'chess_char_5_diy4_a'] }), { ok: true });
+  h.sched.advance(0);
+  assert.equal(h.m.phase, PHASE.BATTLE_CHECK);
+  assert.deepEqual([...ps.diyStock.entries.keys()].sort(), ['chess_char_5_diy3_a', 'chess_char_5_diy4_a']);
 });

@@ -148,7 +148,7 @@ test('the theme\'s pack loads in every version: bond rings, avatar badges and (�
   assert.match(game, /const pfBanners = packBanners\(pfPack\);/);
 });
 
-test('the 规程 look in 盟约 too (§37.206): a 规程 version, or 乌萨斯齐心团 / 可露希尔 installed — shop, top bar, banners, layout', async () => {
+test('one look (2026-11-21; §37.206 before): the 规程 shop, top bar, banners and layout in every version and look', async () => {
   const { regLook, prefabTheme, regulationFamily } = await import('../../public/js/ui/regHud.js');
   const groups = {
     'themes/ac_s_closur': { 'prefabs.json': 'p1', 'theme.json': 't1' },
@@ -163,7 +163,8 @@ test('the 规程 look in 盟约 too (§37.206): a 规程 version, or 乌萨斯�
   assert.equal(prefabTheme({ 'themes/ac_s_closur': { 'theme.json': 't1' } }, 'ac_s_closur'), false, 'a pack extracted before 0.4.0 (no prefabs.json)');
   assert.equal(prefabTheme(groups, ''), false);
   assert.equal(regLook(cov, groups, 'ac_s_closur'), true);
-  assert.equal(regLook(cov, groups, ''), false);
+  assert.equal(regLook(cov, groups, ''), true, '盟约 with the default look too');
+  assert.equal(regLook(cov, null, ''), true, 'without the theme packs: the CSS fallbacks');
   assert.equal(regLook(reg, null, ''), true);
   assert.equal(regulationFamily(cov), false, 'the rules stay with the version');
   // the switches read it: the shop and the layout; the HUD and the 轮到你选 banner load the pack in every version

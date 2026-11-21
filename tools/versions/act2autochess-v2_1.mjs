@@ -30,6 +30,8 @@
 export default Object.freeze({
   id: 'act2autochess@V2_1',
   season: 'act2autochess',
+  // 规程's 自选 rule: six slots a tier, 选择自编 brings 0–2 of each (tools/versions/forkDiy.mjs; the owner's decision of 2026-11-21)
+  forkDiy: true,
   pins: Object.freeze({
     default: '1457587e48fe65361f523821d24e6d14c3b91713',
   }),

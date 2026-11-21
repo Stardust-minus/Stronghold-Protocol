@@ -734,21 +734,23 @@ function LoadoutScreen({ st, leaving = false }) {
   const ownRoster = useOwnershipRoster(ready);
   const nNotOwned = notOwnedCount(st.notOwned, ownRoster);
   // 自选编队 (0.2.0 DIY): the stored picks, those the server would keep (the kit list of the last welcome)
-  const nDiy = diyCount(ready ? dropForeignBench(st.diy, diyData()) : st.diy); // (规程: no 候补 key counts)
-  // the slots and the 候补 (feedback #114): 8 with the 盟约 data; 规程's 12 slots, no 候补 (「已选 n/12」)
-  const diyCap = (ready && diyCapacity(diyData())) || 8;
+  const nDiy = diyCount(ready ? dropForeignBench(st.diy, diyData()) : st.diy); // (no 候补 key counts; an old 盟约 one is slot 3 / 4)
+  // the slots: twelve in every version since 2026-11-21 (「已选 n/12」; tools/versions/forkDiy.mjs)
+  const diyCap = (ready && diyCapacity(diyData())) || 12;
   // 联动干员: in a room with it on, the collab 6★ are picks too (the server keeps them only there)
   const collabRoom = useStore((s) => isCollabRoom(s.room?.experimental));
   // feedback #128: where 联动干员 is off a collab pick's position shows (and sends) the pick it replaced (diyModel.js diyPicksFor)
-  const diyShown = ready ? diyPicksFor(dropForeignBench(st.diy, diyData()), st.diyFallback, diyData(), { collab: collabRoom }) : st.diy || {};
-  const diyHeld = ready ? diyCollabHeld(st.diy, diyData(), { collab: collabRoom }) : {};
+  const diyShown = ready ? diyPicksFor(dropForeignBench(st.diy, diyData()), dropForeignBench(st.diyFallback, diyData()), diyData(), { collab: collabRoom }) : st.diy || {};
+  const diyHeld = ready ? diyCollabHeld(dropForeignBench(st.diy, diyData()), diyData(), { collab: collabRoom }) : {};
   const diyLegal = ready ? sanitizeDiyPicks(diyShown, diyData(), st.diyKitted || [], { collab: collabRoom }) : {};
   // 自选候补 (feedback #114): opened during a match, whose bans are known, the 自选编队 cards name the bonds that are off
   const matchPub = useStore((s) => (s.room?.inMatch ? s.match?.public ?? null : null));
   const diyOff = ready ? diyMatchOff(matchPub, data.get('config')) : null;
   const setDiySlot = (slotId, pick) => {
     const cur = loadoutStore.get();
-    const next = setPickKeepingFallback(cur.diy, cur.diyFallback, slotId, pick, diyData());
+    const D = diyData();
+    // an old 盟约 preset's 候补 keys become slots 3 / 4 for good with the first edit (diyModel.js dropForeignBench)
+    const next = setPickKeepingFallback(dropForeignBench(cur.diy, D), dropForeignBench(cur.diyFallback, D), slotId, pick, D);
     setDiyPicks(next.picks, next.fallback);
   };
   const clearDiy = async () => {

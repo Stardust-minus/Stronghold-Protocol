@@ -221,6 +221,7 @@ for (const wsCompression of ['off', 'on']) {
     await ok(c, { t: 'g.infoReady' });
     await c.waitFor('m.public', (m) => m.phase === 'BAND_DRAFT');
     await ok(c, { t: 'g.band', bandId: 'band_bldsk' });
+    await c.diyBring(); // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — solo is untimed: bring none
     await c.waitFor('m.public', (m) => m.phase === 'PREP');
     const match = server.lobby.getRoom(room.code).match;
     assert.equal(match.snapshotHz, 10);

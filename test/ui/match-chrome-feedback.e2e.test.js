@@ -91,16 +91,18 @@ describe('match chrome feedback', { skip: !ENABLED && 'set SP_E2E=1 with Chrome'
     } finally { await page.close(); }
   });
 
-  test('#65 the strategy draft shows this match\'s battlefield: its name, the mode\'s pool and the tile map', async () => {
+  test('#65 the strategy draft shows this match\'s battlefield: its name, the mode\'s pool and its picture', async () => {
     const page = await load('phase=BAND_DRAFT');
     try {
       await page.waitForSelector('[data-testid="draft-map"]');
       const info = await page.$eval('[data-testid="draft-map"]', (el) => ({ name: el.querySelector('b').textContent, pool: el.querySelector('small')?.textContent || '',
-        gates: el.querySelectorAll('.stagemap__t--gate').length, goals: el.querySelectorAll('.stagemap__t--goal').length, w: el.querySelector('svg').getBoundingClientRect().width }));
+        preview: el.querySelector('.reg-map')?.getAttribute('data-preview') || '', w: el.querySelector('.reg-map').getBoundingClientRect().width,
+        h: el.querySelector('.reg-map').getBoundingClientRect().height, drawn: el.querySelectorAll('svg rect, .reg-map__cell').length }));
       assert.match(info.name, /战场#05/);
       assert.match(info.pool, /战场随机/);
-      assert.ok(info.gates >= 1 && info.goals >= 1, JSON.stringify(info));
-      assert.ok(info.w > 60 && info.w < 400, JSON.stringify(info));
+      assert.ok(['render', 'none', 'picture'].includes(info.preview), JSON.stringify(info));
+      assert.equal(info.drawn, 0, 'no drawn tile map');
+      assert.ok(info.w > 60 && info.w < 400 && Math.abs(info.w / info.h - 16 / 9) < 0.05, JSON.stringify(info));
     } finally { await page.close(); }
   });
 

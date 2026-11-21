@@ -68,6 +68,10 @@ test.describe('AI handover in an official version host', { concurrency: 1 }, () 
     assert.equal((await mate.request({ t: 'g.infoReady' }, SLOW)).t, 'ok');
     await host.waitFor('m.public', (m) => m.phase === 'BAND_DRAFT', SLOW);
     assert.equal((await host.request({ t: 'g.test', cmd: 'phase', args: { name: 'battleCheck' } }, SLOW)).t, 'ok');
+    // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 (盟约 too) — the command lands there; both humans bring none
+    await host.diyBring([], SLOW);
+    await mate.diyBring([], SLOW);
+    await host.waitFor('m.public', (m) => m.phase === 'BATTLE_CHECK', SLOW);
     assert.equal((await host.request({ t: 'g.test', cmd: 'phase', args: { name: 'advance' } }, SLOW)).t, 'ok');
     const prep = await host.request({ t: 'g.test', cmd: 'phase', args: { name: 'prep' } }, SLOW);
     assert.equal(prep.t, 'ok', JSON.stringify(prep));

@@ -108,7 +108,7 @@ test('g.sim crosses ingress → game node: b.start { local } + b.sync with the r
   await wait(() => reply(p1, declared));
   assert.equal(reply(p1, declared).t, 'ok');
 
-  // through the opening: briefing, the strategy draft, then a prep both players ready at once
+  // through the opening: briefing, the strategy draft, 选择自编, then a prep both players ready at once
   for (const c of [p1, p2]) c.ask({ t: 'g.infoReady', setupRevision: lastPublic(c).setupRevision ?? 0 });
   const bands = new GameData(data, modeId).bandIds();
   await wait(() => {
@@ -119,6 +119,8 @@ test('g.sim crosses ingress → game node: b.start { local } + b.sync with the r
         c.ask({ t: 'g.band', bandId: bands.find(b => !Object.values(pub.draft.picks).includes(b)) });
       }
       if (pub?.phase === 'BAND_DRAFT' && pub.draft?.turn !== id) c.asked = false;
+      // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — both bring none rather than wait out its 30 s
+      if (pub?.phase === 'CUSTOM_CHECK' && !c.brought) { c.brought = true; c.ask({ t: 'g.diyBring', slots: [] }); }
     }
     return lastPublic(p1)?.phase === 'PREP';
   }, 60_000, 'prep');

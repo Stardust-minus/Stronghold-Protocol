@@ -143,6 +143,19 @@ export class TestClient {
     return reply;
   }
 
+  /**
+   * 选择自编 (CUSTOM_CHECK: every version since 2026-11-21, tools/versions/forkDiy.mjs): wait for the step and confirm
+   * `slots` (default: bring none). Solo and a lone human are untimed there, so a test that plays past the strategy
+   * draft answers it. Resolves with the `ok` reply (rejects on anything else).
+   * @param {string[]} [slots] @param {number} [timeout]
+   */
+  async diyBring(slots = [], timeout = 10000) {
+    await this.waitFor('m.public', (p) => p.phase === 'CUSTOM_CHECK', timeout);
+    const reply = await this.request({ t: 'g.diyBring', slots }, timeout);
+    if (reply.t !== 'ok') throw new Error(`g.diyBring failed: ${JSON.stringify(reply)}`);
+    return reply;
+  }
+
   /** Drop every unconsumed frame. */
   clearInbox() { this.inbox.length = 0; }
 

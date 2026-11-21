@@ -5,9 +5,9 @@
 // The mock harness swaps in 规程 config + stages (?version=regulation) and opens INFO_CHECK.
 // Headless Chrome is often a software GPU, which webgl2Available refuses unless ?board=3d
 // (the same allowSlow the match uses for an explicit 3D opt-in). Without that flag the preview
-// stays on the cell crop — that fallback is intended.
+// stays an empty frame — that fallback is intended.
 // m01 is the desert board, m05 the Syracuse metro board. A stage with no scene group
-// (act3autochess_escaped_single) stays on the cells. Screenshots: test/e2e/out/stage-thumb-*.png.
+// (act3autochess_escaped_single) keeps an empty frame (no drawn map since 2026-11-21). Screenshots: test/e2e/out/stage-thumb-*.png.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -50,7 +50,7 @@ describe('规程 briefing map is a 3D render of the stage', { skip: !ENABLED && 
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     await page.goto(url(stage), { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForSelector('[data-layout="regulation"] .reg-preview', { timeout: 20000 });
+    await page.waitForSelector('[data-layout="one"] .reg-preview', { timeout: 20000 });
     return { page, problems };
   }
 
@@ -90,9 +90,9 @@ describe('规程 briefing map is a 3D render of the stage', { skip: !ENABLED && 
         preview: document.querySelector('.reg-preview [data-preview]')?.getAttribute('data-preview'),
         go: !!document.querySelector('.brief-go'),
       }));
-      assert.equal(painted.layout, 'regulation');
+      assert.equal(painted.layout, 'one');
       assert.equal(painted.go, true);
-      assert.ok(painted.preview === 'cells' || painted.preview === 'render');
+      assert.ok(painted.preview === 'none' || painted.preview === 'render');
       await page.waitForFunction(() => {
         const img = document.querySelector('[data-preview="render"] img');
         return img && img.complete && img.naturalWidth >= 320 && img.naturalHeight >= 180;
@@ -144,9 +144,9 @@ describe('规程 briefing map is a 3D render of the stage', { skip: !ENABLED && 
     await page.close();
   });
 
-  test('a stage with no scene group keeps the cell thumbnail', { timeout: 120000 }, async () => {
+  test('a stage with no scene group keeps an empty frame', { timeout: 120000 }, async () => {
     const { page, problems } = await open('act3autochess_escaped_single', 1280, 720);
-    await page.waitForSelector('[data-preview="cells"]', { timeout: 20000 });
+    await page.waitForSelector('[data-preview="none"]', { timeout: 20000 });
     await new Promise((r) => setTimeout(r, 1500));
     const kind = await page.evaluate(() => ({
       preview: document.querySelector('.reg-preview [data-preview]')?.getAttribute('data-preview'),
@@ -154,10 +154,10 @@ describe('规程 briefing map is a 3D render of the stage', { skip: !ENABLED && 
       cells: document.querySelectorAll('.reg-preview .reg-map__cell').length,
       render: document.querySelectorAll('[data-preview="render"]').length,
     }));
-    assert.equal(kind.preview, 'cells');
+    assert.equal(kind.preview, 'none');
     assert.equal(kind.pending, '');
     assert.equal(kind.render, 0);
-    assert.ok(kind.cells > 0);
+    assert.equal(kind.cells, 0);
     await page.screenshot({ path: path.join(OUT, 'stage-thumb-no-scene.png') });
     assert.deepEqual(problems, []);
     await page.close();

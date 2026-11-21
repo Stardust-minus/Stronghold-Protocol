@@ -27,12 +27,16 @@ const COLLAB = ['char_456_ash', 'char_1029_yato2', 'char_1048_orchd2', 'char_412
 const SIEGE = 'char_112_siege';
 const T5 = 'chess_char_5_diy1_a', T5B = 'chess_char_5_diy2_a', T6 = 'chess_char_6_diy1_a', T6B = 'chess_char_6_diy2_a';
 
-test('slots: two per tier (5, 6), each with its elite twin', () => {
+// (2026-11-21) six per tier: the 盟约 data has 规程's twelve slots (tools/versions/forkDiy.mjs, 「盟约也换成6-6 选2+2」)
+const SLOTS = (t) => [1, 2, 3, 4, 5, 6].map((n) => `chess_char_${t}_diy${n}_a`);
+test('slots: six per tier (5, 6), each with its elite twin', () => {
   assert.deepEqual(DIY_TIERS, [5, 6]);
-  assert.deepEqual(diySlotIds(DATA), [T5, T5B, T6, T6B]);
+  assert.deepEqual(diySlotIds(DATA), [...SLOTS(5), ...SLOTS(6)]);
+  assert.deepEqual(diySlotIds(DATA).slice(0, 2).concat(diySlotIds(DATA).slice(6, 8)), [T5, T5B, T6, T6B]);
   assert.deepEqual(diySlot('chess_char_6_diy2_b', DATA) && { ...diySlot('chess_char_6_diy2_b', DATA), normal: undefined, golden: undefined },
     { baseId: T6B, goldenId: 'chess_char_6_diy2_b', tier: 6, shopLevel: 6, elite: true, normal: undefined, golden: undefined });
-  assert.deepEqual([T5, T5B, T6, T6B].map((id) => diySlot(id, DATA).shopLevel), [5, 5, 6, 6], 'shopLevelDisplayDataDict: the 调度中心 level that lists the slot');
+  assert.deepEqual(diySlotIds(DATA).map((id) => diySlot(id, DATA).shopLevel), [5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6], 'shopLevelDisplayDataDict: the 调度中心 level that lists the slot');
+  for (const id of diySlotIds(DATA)) assert.ok(diySlot(id.replace(/_a$/, '_b'), DATA)?.elite, `${id}: its elite twin`);
   assert.equal(diySlot('chess_char_5_01_a', DATA), null, 'not a slot');
   assert.equal(diyTokenOwner(SIEGE, chess.chess_char_6_diy1_b.status), 'char_112_siege@2/60/7/3');
 });

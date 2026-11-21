@@ -76,6 +76,8 @@ for (const capacity of [4, 8, 12, 16, 20]) for (const family of capacity === 4 ?
       selections++;
     }
     assert.equal(selections, capacity); assert.equal(new Set(match.order.map(ps => ps.bandId)).size, repeat ? 1 : capacity);
+    // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — every human brings none rather than wait out its 30 s
+    await Promise.all(members.map(c => c.diyBring([], 6000)));
     const sp = await members[0].waitFor('m.public', m => m.phase === 'SP_DRAFT', 6000);
     assert.equal(sp.sp.allowRepeat === true, repeat); assert.equal(sp.sp.cards.length, 6); assert.equal(sp.sp.family, family);
     const draft = match.sp, firstCard = draft.cards[0];

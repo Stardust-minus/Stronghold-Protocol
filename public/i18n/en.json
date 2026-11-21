@@ -442,6 +442,7 @@
   "华法琳": "Warfarin",
   "选择策略": "Choose Strategy",
   "选择自编": "Choose Custom Squad",
+  "确定自选编队": "Confirm Custom Squad",
   "每阶至多带入 {n} 名，未选择的干员不会进入本次模拟": "Bring at most {n} per tier. Operators you leave out do not enter this simulation.",
   "超时未确认时，按槽位顺序自动带入": "If the timer runs out, the first open slots of each tier are brought in.",
   "核心盟约已禁用": "Core Alliance disabled",

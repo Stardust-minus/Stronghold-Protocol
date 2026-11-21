@@ -24,7 +24,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-const { matchInfoModel, bondCell, MatchBondGroups, MatchBondRow, MatchLegend, BannedOperators, BannedNamesByBond, MatchInfo, MatchInfoDialog, regulationCoreAbsent, BondLackTag } = await import('../../public/js/ui/matchInfo.js');
+const { matchInfoModel, bondCell, MatchBondGroups, MatchBondRow, MatchLegend, BannedOperators, BannedNamesByBond, BannedByBond, RegulationHead, MatchInfo, MatchInfoDialog, regulationCoreAbsent, BondLackTag } = await import('../../public/js/ui/matchInfo.js');
 const { BondPopup } = await import('../../public/js/ui/bondStrip.js');
 const { MatchEnemies, factionDescId, leaderBlockOf } = await import('../../public/js/ui/matchEnemies.js');
 const { briefingBondTip } = await import('../../public/js/ui/gameLogic.js');
@@ -197,8 +197,14 @@ test('#4 the in-game 本局信息 lists every bond on its own, the briefing\'s d
 test('MatchInfoDialog retains the briefing bonds, enemy information, 关闭 and the status line', () => {
   const m = model();
   const parts = MatchInfo({ model: m }).filter((v) => v && typeof v === 'object');
-  assert.deepEqual(parts.map((v) => v.type), [MatchBondRow, MatchBondRow, MatchLegend, BannedOperators]);
-  assert.deepEqual(parts.slice(0, 2).map((v) => [v.props.title, v.props.bonds]), [['核心盟约', m.core], ['附加盟约', m.addon]]);
+  // the briefing's own blocks (one look since 2026-11-21): the core groups panelled (read-only), the add-on row with the
+  // legend chip, the banned grouped by bond
+  assert.deepEqual(parts.map((v) => v.type), [MatchBondGroups, MatchBondRow, BannedByBond]);
+  assert.equal(parts[0].props.panels, true);
+  assert.equal(parts[0].props.disabled, true);
+  assert.deepEqual([parts[1].props.title, parts[1].props.bonds], ['附加盟约', m.addon]);
+  assert.equal(parts[1].props.head.type, RegulationHead);
+  assert.equal(parts[1].props.head.props.legend, true);
   assert.ok(parts.every((v) => v.props.model === m));
   const onClose = () => {};
   const enemies = MatchEnemies({ pub: PUB, gd: makeLookups() });
@@ -409,20 +415,21 @@ test('the briefing, the strategy draft and the in-game 本局信息 tab all read
   // card from every disc and its 核心盟约 note — whatever else this fork's briefing imports)
   const imp = brief.match(/import \{([^}]+)\} from '\.\.\/ui\/matchInfo\.js';/);
   assert.ok(imp, 'briefing.js reads ui/matchInfo.js');
-  for (const name of ['MatchBondGroups', 'MatchBondRow', 'MatchLegend', 'BannedOperators', 'matchInfoModel', 'MatchBondDialog', 'regulationCoreAbsent']) {
+  // (2026-11-21: one layout for every version — the groups panelled, the add-on header's legend chip, the banned grouped by bond)
+  for (const name of ['MatchBondGroups', 'MatchBondRow', 'BannedByBond', 'matchInfoModel', 'MatchBondDialog', 'regulationCoreAbsent', 'RegulationHead']) {
     assert.match(imp[1], new RegExp(`\\b${name}\\b`), name);
   }
-  assert.match(brief, /<\$\{MatchBondGroups\} model=\$\{info\} onPick=\$\{pickGroup\} onBond=\$\{setBondId\}/);
+  assert.match(brief, /<\$\{MatchBondGroups\} panels=\$\{true\} model=\$\{info\} onPick=\$\{pickGroup\} onBond=\$\{setBondId\}/);
   assert.match(brief, /coreAbsent=\$\{regulationCoreAbsent\(info, bondId\)\}/);
   const game = read('public/js/screens/game.js');
   assert.match(game, /coreAbsent=\$\{regulationCoreAbsent\(bondInfo, bondPop\.bondId\)\}/);
-  assert.match(brief, /<\$\{MatchBondRow\} title=\$\{t\('附加盟约'\)\} micro="ADD-ON BONDS" bonds=\$\{info\.addon\} model=\$\{info\} onBond=\$\{setBondId\} \/>\s*<\$\{MatchLegend\} model=\$\{info\} \/>/);
-  assert.match(brief, /<\$\{BannedOperators\} model=\$\{info\} \/>/);
+  assert.match(brief, /<\$\{MatchBondRow\} title=\$\{t\('附加盟约'\)\} micro="ADD-ON BONDS" bonds=\$\{info\.addon\} model=\$\{info\} onBond=\$\{setBondId\}\s*head=\$\{html`<\$\{RegulationHead\} title=\$\{t\('附加盟约'\)\} model=\$\{info\} legend=\$\{true\} \/>`\} \/>/);
+  assert.match(brief, /<\$\{BannedByBond\} model=\$\{info\} onBond=\$\{setBondId\} \/>/);
   // (+ the viewer's 自选 pieces out of the shop: priv / diyData, 0.2.0 WE2)
   assert.match(brief, /const info = matchInfoModel\(pub, \{ bonds: gd\.list\('bonds'\), chess: gd\.chess, mode, priv, diyData: \{ chess: data\.get\('chess'\), backups: data\.get\('backups'\) \} \}\);/);
   assert.doesNotMatch(brief, /brief-legend|brief-banned|function BondRow|bannedPerBond|disabledBondSets/, 'no own copy of the blocks');
-  // (#484 / §35.6: the 本局遭遇敌方 section is ui/matchEnemies.js, also the draft dialog's enemy column)
-  assert.match(brief, /<section class="brief-sec brief-sec--enemy" style="--i:1">\s*<\$\{MatchEnemies\} pub=\$\{pub\} gd=\$\{gd\} \/>\s*<\/section>/);
+  // (#484 / §35.6: the enemy block is ui/matchEnemies.js, also the draft dialog's enemy column — the right column's layout)
+  assert.match(brief, /<\$\{MatchEnemies\} pub=\$\{pub\} gd=\$\{gd\} layout="regulation" \/>/);
   assert.doesNotMatch(brief, /enemyIconUrl|factionIconUrl|brief-boss|brief-faction/, 'no own copy of the enemy section');
   const draft = read('public/js/screens/bandDraft.js');
   assert.match(draft, /import \{ MatchInfoDialog, matchInfoModel, MatchBondDialog, regulationCoreAbsent \} from '\.\.\/ui\/matchInfo\.js';/);

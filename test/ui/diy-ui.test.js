@@ -80,8 +80,10 @@ describe('自选编队 model (ui/diyModel.js)', () => {
     assert.deepEqual(M.setPick({}, T6A, { charId: SHARP }), { [T6A]: { charId: SHARP } });
   });
 
-  test('the four slots by tier, with the 调度中心 level that sells them', () => {
-    assert.deepEqual(M.diySlotList(D).map((s) => [s.slotId, s.tier, s.shopLevel]), [[T5A, 5, 5], [T5B, 5, 5], [T6A, 6, 6], [T6B, 6, 6]]);
+  // six a tier since 2026-11-21 (规程's rule, tools/versions/forkDiy.mjs: 「都走这个，盟约也换成6-6 选2+2这样」)
+  test('the twelve slots by tier, with the 调度中心 level that sells them', () => {
+    assert.deepEqual(M.diySlotList(D).map((s) => [s.slotId, s.tier, s.shopLevel]),
+      [5, 6].flatMap((t) => [1, 2, 3, 4, 5, 6].map((n) => [`chess_char_${t}_diy${n}_a`, t, t])));
   });
 
   test('the picker lists only kitted operators (prototypes first), marks one another slot holds', () => {
@@ -279,12 +281,12 @@ describe('自选编队 tab (screens/diy.js)', () => {
     }
   }
 
-  test('four slots by tier: an empty slot to fill, a filled one shows the operator, its tag, skill and module', () => {
+  test('six slots by tier: an empty slot to fill, a filled one shows the operator, its tag, skill and module', () => {
     const tree = expand(DiyPanelView({ m: data.get('assets'), picks: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } }, legal: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } }, kitted: KIT, onSet() {}, picking: null, onPicking() {} }));
-    // four equal positions per tier (自选候补, feedback #114: positions 3–4 are diyBench_ keys; test/ui/diy-choice.test.js)
+    // six slots a tier and no 候补 since 2026-11-21 (the 候补 positions: test/ui/diy-choice.test.js, on the two-slot data)
     const all = [...walk(tree)].filter((v) => hasClass(v, 'diy-slot'));
-    assert.deepEqual(all.map((v) => v.props['data-slot']), [T5A, T5B, 'diyBench_5_1', 'diyBench_5_2', T6A, T6B, 'diyBench_6_1', 'diyBench_6_2']);
-    const slots = all.filter((v) => !String(v.props['data-slot']).startsWith('diyBench_'));
+    assert.deepEqual(all.map((v) => v.props['data-slot']), [5, 6].flatMap((t) => [1, 2, 3, 4, 5, 6].map((n) => `chess_char_${t}_diy${n}_a`)));
+    const slots = [all[0], all[1], all[6]];
     const siege = slots[0];
     assert.equal(siege.props['data-char'], SIEGE);
     const txt = textOf(siege);

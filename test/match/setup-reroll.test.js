@@ -91,7 +91,8 @@ test('three of four humans (ceil 0.75 n) reroll the entire official setup and st
   const off = new Set([...bans.drawn, ...bans.staticOff]);
   const diy = p0.gd.chess('chess_char_5_diy1_a');
   assert.equal(p0.diyBanned.includes(diy.chessId), diy.bonds.every((b) => off.has(b)));
-  assert.equal(p0.diyStock.has(diy.chessId), !p0.diyBanned.includes(diy.chessId));
+  // 选择自编 (CUSTOM_CHECK, every version since 2026-11-21): nothing is stocked before the bring confirms a slot (below)
+  assert.equal(p0.diyStock.entries.size, 0);
   for (const [r, state] of rngs) assert.equal(r.state(), state);
   for (const id of m.gd.visibleChess) assert.equal(m.pool.has(id), !bans.banned.includes(id));
   assert.ok(m.order.every((p) => !p.infoReady));
@@ -101,6 +102,14 @@ test('three of four humans (ceil 0.75 n) reroll the entire official setup and st
   for (const p of m.order) assert.deepEqual(m.handle(p.playerId, { t: 'g.infoReady', setupRevision: 1 }), { ok: true });
   h.sched.advance(0);
   assert.equal(m.phase, PHASE.BAND_DRAFT);
+  // the rerolled stock: p_0 brings its slot at 选择自编 unless the new bans exclude it; the stock follows the new bans
+  assert.ok(h.drive(() => m.phase === PHASE.CUSTOM_CHECK));
+  const banned = p0.diyBanned.includes(diy.chessId);
+  assert.deepEqual(m.handle('p_0', { t: 'g.diyBring', slots: banned ? [] : [diy.chessId] }), { ok: true });
+  for (const p of m.order.slice(1)) assert.deepEqual(m.handle(p.playerId, { t: 'g.diyBring', slots: [] }), { ok: true });
+  h.sched.advance(0);
+  assert.equal(m.phase, PHASE.BATTLE_CHECK);
+  assert.equal(p0.diyStock.has(diy.chessId), !banned);
 });
 
 for (const capacity of [4, 8, 12, 16, 20]) for (const independent of [false, true]) {

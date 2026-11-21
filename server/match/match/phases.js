@@ -627,7 +627,9 @@ export class MatchPhases {
     this.setDeadline(this.soloUntimed ? 0 : this.gd.customCheckSeconds(), () => this.finishCustomCheck(true));
     this.markPublic();
     for (const ps of this.order) this.markPrivate(ps);
-    this.flush(true);
+    // not forced: the strategy draft's last m.public went out moments ago, and m.public stays within its 10/s (docs/META.md;
+    // a forced frame here came 19–32 ms after it once every version took this step, 2026-11-21)
+    this.flush();
     this.maybeEndCustom();
   }
 

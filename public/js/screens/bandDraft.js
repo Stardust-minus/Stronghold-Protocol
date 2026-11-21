@@ -73,7 +73,7 @@ import { cardOperators, seatPortrait } from '../ui/seatArt.js';
 import { rosterPools } from '../ui/teamLayout.js';
 import { useMyCard } from '../ui/playerCard.js';
 import { MatchEnemies, stagePoolLine } from '../ui/matchEnemies.js';
-import { StageMiniMap } from '../ui/stagePreview.js';
+import { StageShot } from '../ui/stagePreview.js';
 import { actions, act } from '../ui/gameActions.js';
 import { normalizeDraft, sortedPlayers, draftMyTurn, pregameStepCount, pregameStepIndex } from '../ui/gameLogic.js';
 import { useStore } from '../store.js';
@@ -624,6 +624,7 @@ export function BandDraftScreen({ held = null } = {}) {
   // this match's battlefield: which strategy suits it depends on its lanes (#65)
   const stage = pub?.stageId ? gd.stage(pub.stageId) : null;
   const stagePool = stagePoolLine(mode);
+  const mySeat = players.find((p) => p.playerId === myId)?.seat ?? null; // the briefing's render (same cache key)
   // an experimental room's chess pools, already here rather than only once the match starts (#66)
   const pools = solo ? null : rosterPools(pub, rows, myId);
   const orderRow = (p) => {
@@ -703,7 +704,7 @@ export function BandDraftScreen({ held = null } = {}) {
       <aside class="draft-order">
         <div class="draft-order__deco" aria-hidden="true"><i></i><i></i><span>STRONGHOLD PROTOCOL<br />${solo ? 'SINGLE OPERATOR' : 'COLLABORATIVE SYSTEM'}</span></div>
         ${stage ? html`<div class="draft-map" data-testid="draft-map" title=${stage.name}>
-          <${StageMiniMap} stage=${stage} />
+          <${StageShot} stage=${stage} stageId=${pub.stageId} localGroups=${data.get('local')?.groups || null} ui=${gd.m?.ui || null} seat=${mySeat} />
           <div class="draft-map__text">
             <span class="draft-tag">BATTLEFIELD</span>
             <b>${stage.name}</b>

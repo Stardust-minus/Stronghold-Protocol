@@ -42,23 +42,18 @@
 /* the rows take the height that shows them all (bandDraft.js DRAFT_ROW_REM, ui/fitGrid.js: --drh, 1.26rem at most, .96 at
    least — the owner, 2026-11-05: 「尽量不用滚动」); past that (an expanded room's 8–20 seats) the list scrolls */
 .draft-order__rows { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .16rem; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: .06rem .5rem .08rem .3rem; scrollbar-width: none; }
-/* this match's battlefield (#65): the tile map of ui/stagePreview.js and its name */
+/* centred in the column when they fit, so the bracket beside the wall points at them (the official 2/3 and 3/3,
+   2026-11-21); auto margins give way to the scroll when they do not */
+.draft-order__rows > :first-child { margin-top: auto; }
+.draft-order__rows > :last-child { margin-bottom: auto; }
+/* this match's battlefield (#65): the render of the stage (ui/stagePreview.js StageShot, the briefing's picture — no drawn
+   map since 2026-11-21) and its name */
 .draft-map { flex: none; display: flex; align-items: center; gap: .16rem; min-width: 0; margin-right: .5rem; padding: .08rem .12rem; background: rgba(6, 12, 10, .55); box-shadow: inset 0 0 0 1px rgba(120, 240, 205, .16); }
 .draft--detail .draft-map { margin-right: .12rem; }
 .draft-map__text { display: flex; flex-direction: column; gap: .02rem; min-width: 0; }
 .draft-map__text b { font-size: calc(.18 * var(--t)); line-height: 1.25; color: var(--text-hi); overflow-wrap: anywhere; }
 .draft-map__text small { font-size: calc(.13 * var(--t)); color: var(--text-dim); }
-.stagemap { flex: none; display: block; width: 2.42rem; height: .88rem; }
-.stagemap__t { fill: #38423e; }
-.stagemap__t--road { fill: #8e9e98; }
-.stagemap__t--high { fill: #4fbf9f; }
-.stagemap__t--gate { fill: #ff4a2e; }
-.stagemap__t--goal { fill: #4ab0ff; }
-.stagemap__t--mire { fill: #8a7344; }
-.stagemap__t--smog { fill: #77778a; }
-.stagemap__t--deep { fill: #2f6a96; }
-.stagemap__t--infect { fill: #9a4a70; }
-.stagemap__t--duel-grass { fill: #5a8a8f; } /* 隐匿地块 (tile_duel_grassland, 规程 MAP09), as the DOM board's .ff-tile--duel-grass */
+.draft-map .reg-map--shot { flex: none; width: 2.42rem; box-shadow: 0 0 0 1px rgba(255, 255, 255, .12); }
 /* an experimental room's chess pools (#66) */
 .draft-pool { flex: none; display: flex; flex-direction: column; gap: .12rem; padding-left: .12rem; border-left: .03rem solid var(--line-2); }
 .draft-pool.is-mine { border-left-color: var(--mint-500); }

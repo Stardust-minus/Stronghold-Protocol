@@ -808,14 +808,14 @@ export function installDiySync({ net, timers, target = loadoutStore, notify, con
       if (!collab && Object.keys(cleanPicks(s.diyFallback)).length && data.status('backups') !== 'ready') {
         try { await data.loadAll('chess', 'backups'); } catch { /* missing: the stored picks go, the server drops a collab one */ }
       }
-      // 规程 has no 候补 (shared/diy.js diyBenchSize 0): a bench key never goes out there — the server refuses it — so a
-      // preset holding one waits for backups.json, which tells the versions apart (diyModel.js dropForeignBench)
+      // no version has 候补 since 2026-11-21 (shared/diy.js diyBenchSize 0): a bench key never goes out — an old 盟约
+      // preset's moves to slot 3 / 4 —, so a preset holding one waits for backups.json (diyModel.js dropForeignBench)
       if (Object.keys(cleanPicks(s.diy)).some((k) => k.startsWith('diyBench_')) && data.status('backups') !== 'ready') {
         try { await data.loadAll('chess', 'backups'); } catch { /* missing: as stored */ }
       }
       const cur = target.get();
       const D = { chess: data.get('chess'), backups: data.get('backups') };
-      return cleanPicks(diyPicksFor(dropForeignBench(cur.diy, D), cur.diyFallback, D, { collab }));
+      return cleanPicks(diyPicksFor(dropForeignBench(cur.diy, D), dropForeignBench(cur.diyFallback, D), D, { collab }));
     },
   });
   return { flush: sync.flush, dispose() { offKit?.(); offKitContent?.(); sync.dispose(); } };

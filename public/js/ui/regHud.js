@@ -108,13 +108,14 @@ export function cornerKind(groups, themeId) {
 }
 
 /**
- * The 规程 look — its shop, top bar, banners and layout: a 规程 version, or any version with such a theme (the owner,
- * 2026-11-14: 「规程版本官方出的那几个主题全量覆盖到盟约版本」, §37.206). The rules stay with regulationFamily (the commands,
- * the core groups, the briefing, the sweep's fourth tab).
- * @param {any} config @param {Record<string, any>|null|undefined} groups @param {string|null|undefined} themeId
+ * The 规程 look — its shop, top bar, banners and layout: every version and every look since the owner's 2026-11-21
+ * decision (one interface: the official shop with this fork's card details; before, a 规程 version or a theme with
+ * prefabs, §37.206). Without a theme pack the shop draws its CSS fallbacks. The rules stay with regulationFamily (the
+ * commands, the core groups). The arguments stay for the callers.
+ * @returns {boolean}
  */
-export function regLook(config, groups, themeId) {
-  return regulationFamily(config) || prefabTheme(groups, themeId);
+export function regLook() {
+  return true;
 }
 
 /**

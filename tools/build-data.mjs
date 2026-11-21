@@ -57,6 +57,7 @@ import { itemTextForbidsDiy } from '../shared/itemRules.js';
 import { loadProfile, pinnedShaOf, tableSpecError, TABLE_NAMES } from './versions/profiles.mjs';
 import { applyAdapters } from './versions/adapters.mjs';
 import { normalizeMirror, sourceOfProfile, SOURCES } from './versions/sources.mjs';
+import { forkDiyChess, forkDiyBackups, forkDiyConfig } from './versions/forkDiy.mjs';
 import { composeRegulationStage, placeRegulationTemplate, regulationArena } from './versions/layouts.mjs';
 
 // ===== CLI & IO ==================================================================================
@@ -3945,7 +3946,10 @@ async function main() {
   for (let r = 0; r <= FULL_RANK; r++) {
     const pctx = { ...ctx, potRank: r };
     const built = buildChess(pctx);
-    passes.push({ ctx: pctx, chess: built.chess, tokenOwners: built.tokenOwners, backups: buildBackups(pctx, built.chess) });
+    const backups = buildBackups(pctx, built.chess);
+    // a 盟约 profile with `forkDiy`: 规程's twelve 自选 slots (tools/versions/forkDiy.mjs; the owner's decision of 2026-11-21)
+    const chess = PROFILE.forkDiy ? forkDiyChess(built.chess) : built.chess;
+    passes.push({ ctx: pctx, chess, tokenOwners: built.tokenOwners, backups: PROFILE.forkDiy ? forkDiyBackups(backups, chess) : backups });
   }
   const { chess, backups } = passes[FULL_RANK];
   const effects = buildEffects(ctx);
@@ -3973,6 +3977,7 @@ async function main() {
     delete b.relateBondIds;
   }
   const config = buildConfig(ctx, waves, stages, bands, chess, items);
+  if (PROFILE.forkDiy) forkDiyConfig(config); // diyBringLimits + the CUSTOM_CHECK step (tools/versions/forkDiy.mjs)
   const files = { config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves, stages, bosses, tokens, backups };
 
   // the unit forms rebuild every PRESET chess at every rank (before the annotation: each pass as built)

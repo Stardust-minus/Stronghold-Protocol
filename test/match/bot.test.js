@@ -437,6 +437,12 @@ test('bench management: stale low-tier singles are sold at a high shop level; pa
   const m = h.m;
   const ps = m.order[0];
   ps.lp = 999;
+  // 选择自编 (CUSTOM_CHECK, every version since 2026-11-21): the bot brought its synthesized 自选 squad; this seat brings
+  // none (禁用自选), so its shop and bench are the ordinary pool's, as the rule is about
+  h.run(() => m.phase === PHASE.BATTLE_CHECK);
+  assert.ok(ps.diyStock.entries.size > 0, 'a bot brings 自选 by default');
+  ps.diyBring = Object.freeze([]); ps.initDiyStock(new Set([...m.disabledBonds, ...m.staticInactiveBonds]));
+  assert.equal(ps.diyStock.entries.size, 0);
   h.run(() => m.phase === PHASE.ROUND_START && m.round === 7);
   // a crowded bench of tier-I singles at shop level 5, plus a live pair of a tier-V chess
   ps.shop.level = 5;

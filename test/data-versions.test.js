@@ -36,12 +36,14 @@ const REBUILD_ALL = `rebuild every version: ${VERSIONS.map((v) => `node tools/bu
  * 120 chess (119 visible with the 4 DIY slots), no 终极 mode (it opened with V2_2): activity_table @1457587e. The 功勋
  * levels: 35 at a launch (levels 36–60 open with the second sub-version, adapter launchMilestones), 60 in V1_2. 规程·序列Ⅰ:
  * 61 strategies, 310 chess (141 visible), 116 items, 465 effects, no 功勋 levels (its milestoneList is empty; 卫戍认证 go
- * to the 功勋兑换处 instead): Kengxxiao @6f63c14e, CN data 79.2.0.
+ * to the 功勋兑换处 instead): Kengxxiao @6f63c14e, CN data 79.2.0. Since 2026-11-21 the 盟约 versions have 规程's twelve 自选
+ * slots (tools/versions/forkDiy.mjs: 「盟约也换成6-6 选2+2」): 16 chess records more each (8 slots × normal + elite), the
+ * visible count unchanged.
  */
 const PINNED = Object.freeze({
-  'act2autochess@V2_1': { bonds: 23, bands: 36, visibleNonDiy: 115, chess: 240, items: 115, effects: 361, hiddenCore: [350, 1200], milestones: 35 },
-  act1autochess: { bonds: 18, bands: 30, visibleNonDiy: 95, chess: 200, items: 89, effects: 281, hiddenCore: [300, 1000], milestones: 60 },
-  'act1autochess@V1_1': { bonds: 18, bands: 20, visibleNonDiy: 95, chess: 200, items: 89, effects: 281, hiddenCore: [300, 1000], milestones: 35 },
+  'act2autochess@V2_1': { bonds: 23, bands: 36, visibleNonDiy: 115, chess: 256, items: 115, effects: 361, hiddenCore: [350, 1200], milestones: 35 },
+  act1autochess: { bonds: 18, bands: 30, visibleNonDiy: 95, chess: 216, items: 89, effects: 281, hiddenCore: [300, 1000], milestones: 60 },
+  'act1autochess@V1_1': { bonds: 18, bands: 20, visibleNonDiy: 95, chess: 216, items: 89, effects: 281, hiddenCore: [300, 1000], milestones: 35 },
   'act3autochess@V3_1': { bonds: 26, bands: 61, visibleNonDiy: 141, chess: 310, items: 116, effects: 465, hiddenCore: [350, 1200], milestones: 0 },
 });
 

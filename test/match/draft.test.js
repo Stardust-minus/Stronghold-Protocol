@@ -65,7 +65,7 @@ test('band draft (co-op): random order, one pick per turn, NOT_YOUR_TURN, one sk
   assert.deepEqual(m.handle(first, { t: 'g.band', bandId: 'band_lisa' }), { ok: true });
   assert.equal(h.ps(first).lp, 20);
   h.sched.advance(1);
-  assert.equal(m.phase, PHASE.BATTLE_CHECK);
+  assert.equal(m.phase, PHASE.CUSTOM_CHECK, 'the draft is over: 选择自编 follows (every version since 2026-11-21)');
   m.dispose();
 });
 
@@ -81,7 +81,7 @@ test('band draft timers (user playtest #4 item 4): one countdown of BAND_TURN_SE
   const seen = [];
   h.onBroadcast.push((msg) => { if (msg.t === 'm.public' && msg.phase === PHASE.BAND_DRAFT && msg.draft) seen.push(msg); });
   h.run(() => m.phase !== PHASE.BAND_DRAFT, { maxTime: 10 * TURN_MS });
-  assert.equal(m.phase, PHASE.BATTLE_CHECK);
+  assert.equal(m.phase, PHASE.CUSTOM_CHECK, 'the draft is over: 选择自编 follows (every version since 2026-11-21)');
   const took = h.sched.now() - t0;
   assert.ok(took >= 2 * TURN_MS - 5 && took <= 2 * TURN_MS + 50, `two human turns of ${BAND_TURN_SECONDS} s each (${took} ms)`);
   // every published draft view: the step's deadline IS the current turn's
@@ -265,7 +265,10 @@ test('a single human (a 同盟 room started alone or with AI teammates only) is 
     assert.equal(m.phase, PHASE.PREP, 'prep waits');
     assert.ok(h.drive(() => m.phase === PHASE.PREP && m.round === 4), 'past the R3 机变');
     h.flushAll();
-    for (const ph of [PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.BATTLE_CHECK, PHASE.ROUND_START, PHASE.SP_DRAFT, PHASE.PREP, PHASE.SETTLE]) {
+    // (选择自编, CUSTOM_CHECK: every version since 2026-11-21 — untimed for a single human too, test/match/diy-bring.test.js; its
+    // m.public is throttled like any, so a step the driver answers at once may fold into the next frame: checked when seen)
+    for (const ph of [PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.CUSTOM_CHECK, PHASE.BATTLE_CHECK, PHASE.ROUND_START, PHASE.SP_DRAFT, PHASE.PREP, PHASE.SETTLE]) {
+      if (ph === PHASE.CUSTOM_CHECK && !seen.has(ph)) continue;
       assert.ok(seen.has(ph), `saw ${ph}`);
       assert.ok(seen.get(ph).every((d) => d === 0), `${ph}: no countdown with a single human (${bots} AI): ${seen.get(ph)}`);
     }

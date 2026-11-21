@@ -12,7 +12,7 @@ import { isSkinChoices } from './skins.js';
 export const SERVER_LOAD_STATES = Object.freeze(['unknown', 'normal', 'busy', 'overloaded']);
 export const normalizeServerLoad = value => typeof value === 'string' && SERVER_LOAD_STATES.includes(value) ? value : 'unknown';
 import { isDroppableChess } from './standIn.js';
-import { diySlotIds, diyBenchIds, validateDiyPicks } from './diy.js';
+import { diySlotIds, diyBenchIds, validateDiyPicks, promoteDiyBench } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT, hasPotentialData } from './potential.js';
 import { isContentHash } from './plugins/identity.js';
 import { isPluginId } from './plugins/manifest.js';
@@ -447,13 +447,15 @@ export function checkNotOwned(list, getChess) {
 
 /**
  * `room.diy { picks }`: the player's 自选编队 — `{ [slotBaseId]: { charId, skillIndex?, uniEquipId? } | null }` for the
- * DIY slots (data/backups.json `diy.slots`: 盟约 is two at tier 5 and two at tier 6; 规程 is six at each. shared/diy.js).
+ * DIY slots (data/backups.json `diy.slots`: six at tier 5 and six at tier 6 — 规程's, and the 盟约 versions' since 2026-11-21,
+ * tools/versions/forkDiy.mjs. shared/diy.js).
  * An out-of-match setting like 干员持有: stored per session / seat, a match takes the picks its seat had at its start.
  * Structural limit below (12: the 规程 roster); the semantic check (`checkDiyPicks`) is LENIENT, like checkNotOwned: an
  * illegal pick — not a pick of the slot's tier, an operator without a kit, a prototype off its locked skill, an unknown
  * skill / module, the same operator twice in a tier, an owned operator in a second slot, an unknown slot — is dropped,
  * never the whole roster; only malformed input is BAD_MSG. The map also carries the 候补 (feedback #114: `diyBench_<tier>_<n>`
- * keys, shared/diy.js DIY_BENCH_SIZE): four slots + four bench keys fill the limit.
+ * keys, shared/diy.js DIY_BENCH_SIZE) where the data still has one — since 2026-11-21 none does: every version has twelve
+ * slots, and an old 盟约 preset's bench keys move to slots 3 and 4 (shared/diy.js promoteDiyBench).
  */
 export const DIY_LIMITS = Object.freeze({ slots: 12 });
 const isDiyPickWire = (p) => p === null || (isPlain(p) && isId(p.charId)
@@ -477,6 +479,7 @@ export const isDiyPicks = (v) => isMap(v, DIY_LIMITS.slots, isId, isDiyPickWire)
  */
 export function checkDiyPicks(picks, { data, kitted = null, collab = false } = { data: null }) {
   if (!isDiyPicks(picks)) return { error: 'BAD_MSG', detail: 'bad 自选 picks' };
+  picks = promoteDiyBench(picks, data); // a 盟约 preset's 候补 from before its twelve slots (2026-11-21): slots 3 and 4
   const slots = [...diySlotIds(data), ...diyBenchIds(data)];
   /** @type {Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>} */
   const kept = {};

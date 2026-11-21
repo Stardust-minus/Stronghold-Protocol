@@ -9,7 +9,9 @@ import { useStore } from '../store.js';
 import { t } from '../../../shared/i18n.js';
 import { MatchName } from './ownerName.js';
 
-export function SetupReroll({ pub }) {
+// `compact` (the briefing's dock, 2026-11-21): one row — the title and its line, the line cut with an ellipsis; a vote
+// still shows everything (the voters and their answers).
+export function SetupReroll({ pub, compact = false }) {
   const myId = useStore((s) => s.me.playerId);
   const hostId = useStore((s) => s.room?.hostId);
   const online = useStore((s) => s.connection.status === 'online');
@@ -33,11 +35,14 @@ export function SetupReroll({ pub }) {
   if (!vote && !me) return null;
   const need = vote ? vote.need ?? vote.voters.length : 0;
   const answer = (id) => vote.agreed.includes(id) ? ['is-agreed', t('已同意')] : vote.rejected?.includes(id) ? ['is-rejected', t('已拒绝')] : ['', t('待表态')];
-  return html`<section class="brief-reroll" aria-label=${t('重刷本局')} aria-live="polite">
+  return html`<section class=${['brief-reroll', compact && 'brief-reroll--compact', vote && 'is-vote'].filter(Boolean).join(' ')} aria-label=${t('重刷本局')} aria-live="polite">
     <div class="brief-reroll__text">
       <strong>${vote ? t('重刷本局投票：{agreed}/{need}', { agreed: vote.agreed.length, need }) : t('重刷本局')}</strong>
-      <span>${vote ? t('{need} 人同意即可重新随机战场、领袖、特训敌人和禁用（在线玩家的 3/4）；确认倒计时已暂停。', { need })
-        : t('保留房间和个人配置，重新随机全部开局信息；需 3/4 在线玩家同意。')}</span>
+      ${(() => {
+        const line = vote ? t('{need} 人同意即可重新随机战场、领袖、特训敌人和禁用（在线玩家的 3/4）；确认倒计时已暂停。', { need })
+          : t('保留房间和个人配置，重新随机全部开局信息；需 3/4 在线玩家同意。');
+        return html`<span title=${compact && !vote ? line : undefined}>${line}</span>`;
+      })()}
       ${vote ? html`<div class="brief-reroll__players">${vote.voters.map((id) => {
         const p = players.find((p) => p.playerId === id);
         const [cls, text] = answer(id);

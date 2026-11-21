@@ -23,6 +23,16 @@ const enterBand = h => {
   h.start(); for (const ps of h.m.order) if (!ps.isBot) assert.deepEqual(h.m.handle(ps.playerId, { t: 'g.infoReady' }), { ok: true });
   h.sched.advance(0); assert.equal(h.m.phase, 'BAND_DRAFT');
 };
+// 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 follows the strategy draft — AI seats confirm at once, several
+// humans under one countdown (customCheckSeconds). `bring` confirms every human (none); otherwise the countdown runs out.
+const passCustom = (h, { bring = true } = {}) => {
+  const m = h.m; assert.equal(m.phase, 'CUSTOM_CHECK'); assert.ok(m.deadline > 0, 'several humans: timed');
+  assert.ok(m.order.filter(ps => ps.isBot).every(ps => ps.diyBring != null), 'AI seats confirm at once');
+  if (bring) { for (const ps of m.order) if (!ps.isBot && !ps.left) assert.deepEqual(m.handle(ps.playerId, { t: 'g.diyBring', slots: [] }), { ok: true }); }
+  else h.sched.advance(m.scaled(m.gd.customCheckSeconds() * 1000));
+  h.sched.advance(0); assert.equal(m.phase, 'BATTLE_CHECK');
+  assert.ok(m.order.every(ps => ps.left || ps.diyBring != null), 'every seat has its bring');
+};
 
 for (let count = 1; count <= 20; count++) test(`twenty target with ${count} participants keeps consecutive four-seat chunks at ordinary copy caps`, t => {
   const h = make(t, count), m = h.m;
@@ -131,7 +141,7 @@ for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode humans may all ch
     assert.equal(m.statusOf(ps), 'ready');
     if (Object.keys(m.draft.picks).length < capacity) assert.equal(m.deadline, deadline);
   }
-  h.sched.advance(0); assert.equal(m.phase, 'BATTLE_CHECK');
+  h.sched.advance(0); passCustom(h);
   assert.equal(Object.keys(m.draft.picks).length, capacity); assert.equal(new Set(Object.values(m.draft.picks)).size, 1);
   assert.ok(m.order.every(ps => ps.bandId === 'band_bldsk' && ps.lp === m.gd.startLp('band_bldsk')));
   assert.equal(new Set(m.order.map(ps => ps.counters)).size, capacity); assert.deepEqual(audit.violations, []);
@@ -144,7 +154,7 @@ for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode repeated timeout 
   for (const pid of m.draft.order) assert.equal(m.defaultBand(pid), 'band_bldsk');
   // the step's one countdown gives every seat still deciding its default at once
   h.sched.advance(m.bandTurnMs()); h.sched.advance(0);
-  assert.equal(m.phase, 'BATTLE_CHECK'); assert.equal(Object.keys(m.draft.picks).length, 5);
+  passCustom(h, { bring: false }); assert.equal(Object.keys(m.draft.picks).length, 5);
   assert.equal(new Set(Object.values(m.draft.picks)).size, 1);
   m.round = 1;
   m.dispatch(m.order[0], 'onRoundStart', { round: 1 });
@@ -243,7 +253,7 @@ for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode AI seats repeat t
   assert.deepEqual(m.pickBand(humans[1], band), { ok: true }); h.sched.advance(0);
   assert.deepEqual(Object.keys(m.draft.picks), [humans[1].playerId]);
   assert.deepEqual(m.pickBand(humans[0], band), { ok: true });
-  h.sched.advance(0); assert.equal(m.phase, 'BATTLE_CHECK');
+  h.sched.advance(0); passCustom(h);
   assert.ok(Object.values(m.draft.picks).every(id => id === band));
   m.setDeadline(0); m.round = 3; m.enterSpDraft(); const draft = m.sp;
   const source = draft.cards[0]; draft.cards = draft.cards.map((card, idx) => ({ ...source, idx }));
@@ -305,7 +315,7 @@ for (const capacity of [8, 12, 16, 20]) test(`${capacity}-mode timeout focus, a 
   assert.equal(m.phase, 'BAND_DRAFT', 'a departure leaves the others deciding');
   h.sched.advance(m.bandTurnMs());
   for (const ps of focusing) assert.equal(m.draft.picks[ps.playerId], focused);
-  h.sched.advance(0); assert.equal(m.phase, 'BATTLE_CHECK');
+  h.sched.advance(0); passCustom(h, { bring: false });
   const rest = m.order.filter(ps => ![m.draft.order[0], m.draft.order[1], departing.playerId].includes(ps.playerId));
   assert.equal(rest.length, 2);
   assert.ok(rest.every(ps => ps.bandId === m.gd.bandDraft.timeoutBandId));

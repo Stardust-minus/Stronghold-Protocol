@@ -22,7 +22,9 @@
 // are known, a card names the bonds of its operator that are off (diyMatchOff / diyBanHint).
 // 规程·序列Ⅰ has no 候补 (the owner, 2026-11-15: a 规程 room plays upstream's 选择自编 only): its six slots a tier are the
 // positions, 12 in all, and the match brings 0–2 a tier at CUSTOM_CHECK (screens/diyCheck.js); shared/diy.js diyBenchSize
-// reads it from the slots, as the server does.
+// reads it from the slots, as the server does. Since 2026-11-21 the 盟约 versions have the same twelve slots and step (the
+// owner: 「都走这个，盟约也换成6-6 选2+2这样」, tools/versions/forkDiy.mjs), so no version has 候补 any more; an old 盟约
+// preset's bench keys become slots 3 and 4 (dropForeignBench).
 // 联动干员的回退 (feedback #128, planned by the owner on 2026-11-03: 「在禁用联动干员的时候应该fallback到之前选用的自选干员，
 // 而不是继续保留无法使用的联动干员」): a collab 6★ put over a position's own pick keeps that pick as the position's fallback
 // (`sp.pref.diy` { v, picks, fallback }; setPickKeepingFallback); wherever 联动干员 is off — every room without the host's
@@ -33,7 +35,7 @@
 
 import { DIY_LIMITS, checkDiyPicks } from '../../../shared/protocol.js';
 import { diySlotIds, diySlot, diyPool, isPrototypePick, isCollabPick, lockedSelection, isDiyModule, diyRecord, diyTiers,
-  diyTierSlotIds, diyBenchId, diyBenchSize, diyBenchTier, diyKeySlotId, diyKeyTier } from '../../../shared/diy.js';
+  diyTierSlotIds, diyBenchId, diyBenchSize, diyBenchTier, diyKeySlotId, diyKeyTier, promoteDiyBench } from '../../../shared/diy.js';
 import { unitForm } from '../../../shared/standIn.js';
 import { N_ } from '../../../shared/i18n.js';
 import { DEFAULT_VERSION, versionById, versionSlug } from '../../../shared/versions.js';
@@ -73,13 +75,15 @@ export function cleanPicks(raw) {
 }
 
 /**
- * The picks without the 候补 keys the data has none of (规程: shared/diy.js diyBenchSize 0 — the server refuses such a key,
- * BAD_TARGET; a 12-slot roster plus one is BAD_MSG): what the sync sends and the tab counts. Before backups.json is loaded
- * nothing tells them apart, so the map stays as it is.
+ * The picks without the 候补 keys the data has none of (every version since 2026-11-21: shared/diy.js diyBenchSize 0 — the
+ * server refuses such a key, BAD_TARGET; a 12-slot roster plus one is BAD_MSG): what the sync sends and the tab counts. An
+ * old 盟约 preset's bench keys move to the tier's slots 3 and 4 first (shared/diy.js promoteDiyBench), so its four
+ * candidates stay. Before backups.json is loaded nothing tells them apart, so the map stays as it is.
  * @param {any} picks @param {any} data `{ chess, backups }`
  */
 export function dropForeignBench(picks, data) {
   if (!isObj(picks) || !isObj(backupsOf(data)?.diy)) return cleanPicks(picks);
+  picks = promoteDiyBench(picks, data); // an old 盟约 preset's 候补 → slots 3 and 4 (shared/diy.js)
   const kept = {};
   for (const [key, p] of Object.entries(picks)) if (!BENCH_KEY.test(key) || diyBenchTier(key, data) != null) kept[key] = p;
   return cleanPicks(kept);

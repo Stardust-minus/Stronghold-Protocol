@@ -1,5 +1,6 @@
 // 规程 选择自编: per-tier cap, banned cores refused, bring-none, the timeout default, bot synthesis,
-// setup reroll leaving stock empty, and a covenant match that never enters the step.
+// setup reroll leaving stock empty, and (since 2026-11-21, tools/versions/forkDiy.mjs: 「盟约也换成6-6 选2+2」) a covenant
+// match that enters the step like 规程.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -74,12 +75,19 @@ function toCustom(h) {
   assert.equal(m.phase, 'CUSTOM_CHECK');
 }
 
-test('diyBringLimitsOf needs both the enter step and the map; act3 is 2 and 2', () => {
+test('diyBringLimitsOf needs both the enter step and the map; act3 and (since 2026-11-21) every 盟约 version are 2 and 2', () => {
   const cfg = JSON.parse(readFileSync(path.join(ROOT, 'data/versions/act3autochess-v3_1/config.json'), 'utf8'));
   const def = JSON.parse(readFileSync(path.join(ROOT, 'data/config.json'), 'utf8'));
   assert.deepEqual(diyBringLimitsOf(cfg), { 5: 2, 6: 2 });
   assert.equal(Object.keys(cfg).at(-1), 'version');
-  assert.equal(diyBringLimitsOf(def), null);
+  // the 盟约 versions (tools/versions/forkDiy.mjs): the same map and a CUSTOM_CHECK step of 30 s before BATTLE_CHECK
+  for (const dir of ['', 'versions/act1autochess', 'versions/act1autochess-v1_1', 'versions/act2autochess-v2_1']) {
+    const c = dir ? JSON.parse(readFileSync(path.join(ROOT, 'data', dir, 'config.json'), 'utf8')) : def;
+    assert.deepEqual(diyBringLimitsOf(c), { 5: 2, 6: 2 }, dir || 'data/');
+    const steps = c.timers.enterSteps.map((x) => x.step);
+    assert.equal(steps.indexOf('CUSTOM_CHECK'), steps.indexOf('BATTLE_CHECK') - 1, dir || 'data/');
+    assert.equal(c.timers.enterSteps.find((x) => x.step === 'CUSTOM_CHECK').time, 30, dir || 'data/');
+  }
   assert.equal(diyBringLimitsOf({ timers: { enterSteps: [{ step: 'CUSTOM_CHECK', time: 30 }] } }), null);
   assert.equal(diyBringLimitsOf({ diyBringLimits: { 5: 2, 6: 2 } }), null);
   assert.equal(diyBringLimitsOf({ timers: { enterSteps: [{ step: 'CUSTOM_CHECK' }] }, diyBringLimits: { no: 2, 5: 2.5, 9: -1 } }), null);
@@ -272,7 +280,7 @@ test('规程 选择自编: 托管 confirms a seat at once (solo is untimed); the
   assert.notEqual(duo.m.phase, 'CUSTOM_CHECK');
 });
 
-test('a covenant match stocks the lobby roster at the start and never enters 选择自编', (t) => {
+test('a covenant match enters 选择自编 too (2026-11-21): nothing stocked before it, only the confirmed slots after', (t) => {
   const { picks, chars } = protoPicks(DATA, 2, 2);
   const h = makeMatch({
     mode: 'solo', difficulty: 'FUNNY', seed: 3, kitted: chars,
@@ -280,16 +288,27 @@ test('a covenant match stocks the lobby roster at the start and never enters 选
   });
   t.after(() => h.m.dispose());
   const m = h.m;
-  assert.equal(m.gd.diyBringLimits, null);
+  assert.deepEqual(m.gd.diyBringLimits, { 5: 2, 6: 2 });
+  assert.equal(m.gd.customCheckSeconds(), 30);
   h.start();
   const ps = h.ps('p');
   assert.equal(Object.keys(ps.diy).length, 4);
-  assert.ok(ps.diyStock.entries.size > 0);
-  assert.equal(Object.hasOwn(ps.privateView(), 'diyBring'), false);
+  assert.equal(ps.diyStock.entries.size, 0, 'no stock before 选择自编');
+  assert.equal(ps.privateView().diyBring, null);
   m.handle('p', { t: 'g.infoReady' });
   assert.equal(h.run(() => m.phase === 'BAND_DRAFT'), true);
   const band = m.gd.bandIds().find((b) => m.gd.bandAllowed(b));
   assert.equal(m.handle('p', { t: 'g.band', bandId: band }).ok, true);
+  assert.equal(h.run(() => m.phase === 'CUSTOM_CHECK'), true);
+  // solo is untimed: the step waits for the confirm
+  assert.equal(m.deadline, 0);
+  assert.equal(m.publicView().diyCheck.untimed, true);
+  h.sched.advance(10 * 60_000);
+  assert.equal(m.phase, 'CUSTOM_CHECK');
+  const [t5] = Object.keys(picks).filter((id) => diySlot(id, DATA).tier === 5);
+  const [t6] = Object.keys(picks).filter((id) => diySlot(id, DATA).tier === 6);
+  assert.equal(m.handle('p', { t: 'g.diyBring', slots: [t5, t6] }).ok, true);
   assert.equal(h.run(() => m.phase === 'BATTLE_CHECK'), true);
-  assert.notEqual(m.phase, 'CUSTOM_CHECK');
+  assert.deepEqual(ps.privateView().diyBring, [t5, t6]);
+  assert.deepEqual([...ps.diyStock.entries.keys()].sort(), [t5, t6].sort(), 'only the brought slots are stocked');
 });

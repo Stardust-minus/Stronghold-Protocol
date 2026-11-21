@@ -199,6 +199,9 @@ test('the isolated match host takes prep rules from the verified content set rat
   assert.deepEqual(await proxy.handle('p_0', { t: 'g.infoReady' }), { ok: true });
   await until('BAND_DRAFT');
   assert.deepEqual(await proxy.handle('p_0', { t: 'g.band', bandId: 'band_bldsk' }), { ok: true });
+  // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — solo is untimed there: bring none
+  await until('CUSTOM_CHECK');
+  assert.deepEqual(await proxy.handle('p_0', { t: 'g.diyBring', slots: [] }), { ok: true });
   await until('PREP');
   assert.deepEqual(await proxy.setLoadout('p_0', { chess_char_1_01_a: { skill: 0 } }), { ok: true });
   proxy.dispose();

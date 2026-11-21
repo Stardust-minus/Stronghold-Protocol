@@ -199,7 +199,8 @@ describe('0.2.0 自选编队 — a slotted operator in the own shop and battle (
       await c.click('.lo .lo-tab[data-tab="diy"]');
       await c.page.waitForSelector(`.diy-slot[data-slot="${SLOT}"] .diy-slot__fill`, { visible: true, timeout: 15000 });
       const slots = await c.page.evaluate(() => [...document.querySelectorAll('.diy-slot')].map((el) => el.dataset.slot));
-      assert.deepEqual(slots, ['chess_char_5_diy1_a', 'chess_char_5_diy2_a', 'diyBench_5_1', 'diyBench_5_2', 'chess_char_6_diy1_a', 'chess_char_6_diy2_a', 'diyBench_6_1', 'diyBench_6_2']);
+      // six slots a tier and no 候补 since 2026-11-21 (规程's rule, tools/versions/forkDiy.mjs)
+      assert.deepEqual(slots, [5, 6].flatMap((t) => [1, 2, 3, 4, 5, 6].map((n) => `chess_char_${t}_diy${n}_a`)));
       await c.shot('tab');
       await c.click(`.diy-slot[data-slot="${SLOT}"] .diy-slot__fill`);
       await c.page.waitForSelector(`[data-testid="diy-picker"] .diy-opt[data-char="${SIEGE}"]`, { visible: true, timeout: 8000 });

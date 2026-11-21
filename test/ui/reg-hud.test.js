@@ -545,13 +545,16 @@ test('regulation card faces follow each theme prefab, including star angles and 
   const tierChip = chessNodes.find((node) => node.type?.name === 'TierChip');
   assert.equal(tierChip?.props.overlay?.type, 'i');
   assert.equal(hasClass(tierChip?.props.overlay, 'tier__prefab-vi'), true);
-  assert.equal(chessNodes.some((node) => hasClass(node, 'scard__class')), false, 'the face shows profession mark and name only');
+  // the official frame with this fork's details (the owner, 2026-11-21): the class line (icon + 子职业) and the bonds row
+  // above the name bar, the name alone in the bar (the class icon only on 可露希尔's mark plate, css)
+  assert.equal(chessNodes.some((node) => hasClass(node, 'scard__class')), true, 'the class line');
+  assert.equal(chessNodes.some((node) => hasClass(node, 'scard__info')), true, 'the details block');
   const itemCard = ItemCard({ slot: { kind: 'item', id: 'item_x', price: 2 }, idx: 0, reg: true,
     faceModel: item, facePack: pack, onBuy() {}, onDetail() {} });
   const itemNodes = [...walk(itemCard)];
   assert.ok(itemNodes.some((node) => hasClass(node, 'scard__prefab-layer--deco_item')));
   assert.ok(itemNodes.some((node) => hasClass(node, 'scard__itemart')));
-  assert.equal(itemNodes.some((node) => hasClass(node, 'scard__idesc')), false, 'the shop face leaves effect text to detail');
+  assert.equal(itemNodes.some((node) => hasClass(node, 'scard__idesc')), true, 'the effect, as on the old card (2026-11-21: 装备卡添加说明)');
 });
 
 test('a 规程 slot without a card shows the pack\'s empty card in its prefab box (§37.236)', () => {

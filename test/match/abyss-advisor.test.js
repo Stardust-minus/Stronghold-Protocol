@@ -10,7 +10,7 @@ import { buildPlaybook } from '../../server/ai/playbook.js';
 import { strategyCandidates } from '../../server/ai/strategy.js';
 import { carryPlan } from '../../server/match/externalAI.js';
 import { planProtected } from '../../server/match/aiEconomy.js';
-import { sellWeakestHand, buyLoopSteps, levelUp } from '../../server/match/bot.js';
+import { sellWeakestHand, buyLoopSteps, levelUp, diyOpensAt } from '../../server/match/bot.js';
 import { DATA, makeMatch, give, legalTileFor } from './harness.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
@@ -131,18 +131,23 @@ test('a crowded R9+ bench frees keep-listed low tiers, and a full keep-listed ha
 });
 
 const run = gen => { for (const step of gen) void step; };
-function legacySeat(t) {
+// 选择自编 (CUSTOM_CHECK, every version since 2026-11-21): a bot brings its synthesized 自选 squad (player/diy.js
+// synthesizeBotRoster) and levels toward its slots (bot.js diyOpensAt). `bring` replaces that bring — [] is a seat that
+// brought none (禁用自选), the bot §37.38's level cap is about.
+function legacySeat(t, { bring = null } = {}) {
   const h = makeMatch({ mode: 'solo', difficulty: 'ABYSS', seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], seed: 1 });
   t.after(() => h.m.dispose()); h.start().toPrep();
   const m = h.m, ps = m.order[0];
+  if (bring) { ps.diyBring = Object.freeze([...bring]); ps.initDiyStock(new Set([...m.disabledBonds, ...m.staticInactiveBonds])); }
   for (const p of ps.allChess()) ps.sell(p.uid);
   ps.funds = 0; ps.shop.freeRefreshes = 0; ps.shop.frozen = false;
   for (const slot of ps.shop.slots) if (slot) slot.sold = true;
   return { m, ps };
 }
 
-test('bots aim for level 5 at round 9 and stay there (§37.38: no level 6)', t => {
-  const { m, ps } = legacySeat(t);
+test('bots aim for level 5 at round 9 and stay there (§37.38: no level 6) — a bot that brought no 自选', t => {
+  const { m, ps } = legacySeat(t, { bring: [] });
+  assert.equal(ps.diyStock.entries.size, 0, 'no 自选 stock');
   const ids = DATA.chess ? Object.values(DATA.chess).filter(c => c.visible && !c.isGolden && c.tier <= 2).map(c => c.chessId) : [];
   for (const id of ids.slice(0, ps.deployCap)) give(m, ps, id, 'hand');
   for (const [round, from, to] of [[9, 4, 5], [11, 5, 5], [13, 5, 5], [8, 4, 4]]) {
@@ -153,6 +158,29 @@ test('bots aim for level 5 at round 9 and stay there (§37.38: no level 6)', t =
   m.round = 12; ps.shop.level = 5; ps.shop.upgradePrice = 5; ps.funds = 100;
   levelUp(m, ps);
   assert.equal(ps.shop.level, 5, 'rich at level 5: still no level 6');
+});
+
+test('a bot with its 自选 levels toward its slots: level 5 a round early, past §37.38\'s cap to a tier-6 slot\'s level 6', t => {
+  const { m, ps } = legacySeat(t);
+  const tiers = [...ps.diyStock.entries.values()].map(e => e.tier);
+  assert.ok(tiers.includes(5) && tiers.includes(6), `the bot brought 自选 of both tiers (${JSON.stringify(ps.diyBring)})`);
+  assert.ok(diyOpensAt(ps, 5) && diyOpensAt(ps, 6) && !diyOpensAt(ps, 4));
+  const ids = DATA.chess ? Object.values(DATA.chess).filter(c => c.visible && !c.isGolden && c.tier <= 2).map(c => c.chessId) : [];
+  for (const id of ids.slice(0, ps.deployCap)) give(m, ps, id, 'hand');
+  // one round early only (R8, not R7); not rich at level 5: it stays there
+  for (const [round, from, to] of [[8, 4, 5], [9, 4, 5], [11, 5, 5], [13, 5, 5], [7, 4, 4]]) {
+    m.round = round; ps.shop.level = from; ps.shop.upgradePrice = 5; ps.funds = 6;
+    levelUp(m, ps);
+    assert.equal(ps.shop.level, to, `R${round}: level ${from} → ${to}`);
+  }
+  m.round = 12; ps.shop.level = 5; ps.shop.upgradePrice = 5; ps.funds = 100;
+  levelUp(m, ps);
+  assert.equal(ps.shop.level, 6, 'rich at level 5: on to its tier-6 slots');
+  // once its tier-6 slots have no copies left the cap holds again
+  for (const e of ps.diyStock.entries.values()) if (e.tier === 6) e.left = 0;
+  ps.shop.level = 5; ps.shop.upgradePrice = 5; ps.funds = 100;
+  levelUp(m, ps);
+  assert.equal(ps.shop.level, 5, 'no tier-6 copies left: no level 6');
 });
 
 test('the layer trade buys a 获得时 layer unit of two active bonds and sells it again when the lineup does not take it', t => {

@@ -56,21 +56,12 @@ test('grades rise with the stat (the attack interval the other way) and say — 
 
 const TIER4 = ['寻呼模块', '蜂鸣器', '伪装服', '卡西米尔竞技旗', '灼燃维式重锤', '护盾无人机', 'M3茧甲', '莱塔尼亚小鼓', '谢拉格不融冰', '可靠怀表', '一次性促销券', '驱逐者警棍', '动能单手弩', '汲取者之喙'];
 
-test('equipReportOn: 装备报告 only when config.version.family is regulation', () => {
-  const reg = JSON.parse(read('data/versions/act3autochess-v3_1/config.json'));
-  const act1 = JSON.parse(read('data/versions/act1autochess/config.json'));
-  const def = JSON.parse(read('data/config.json'));
-  assert.equal(reg.version.family, 'regulation');
-  assert.equal(equipReportOn(reg), true);
-  assert.equal(act1.version.family, 'covenant');
-  assert.equal(equipReportOn(act1), false);
-  assert.equal(def.version, undefined);
-  assert.equal(equipReportOn(def), false);
-  assert.equal(equipReportOn(null), false);
-  assert.equal(equipReportOn({}), false);
-  assert.equal(equipReportOn({ version: { family: 'covenant' } }), false);
-  assert.equal(equipReportOn({ version: { id: 'act3autochess@V3_1' } }), false, 'the id alone is not the gate');
-  assert.equal(equipReportOn({ version: { family: 'regulation' } }), true);
+test('equipReportOn: 装备报告 on every version (the owner, 2026-11-21: 盟约 too)', () => {
+  for (const f of ['data/versions/act3autochess-v3_1/config.json', 'data/versions/act1autochess/config.json', 'data/config.json']) {
+    assert.equal(equipReportOn(JSON.parse(read(f))), true, f);
+  }
+  assert.equal(equipReportOn(null), true);
+  assert.equal(equipReportOn({ version: { family: 'covenant' } }), true);
 });
 
 test('equipReportGroups: 规程 base EQUIP, tiers 1–6, shopSortId, golden pairing; an absent golden record is null', () => {
@@ -133,7 +124,7 @@ test('equipReportGroups: drops golden, non-EQUIP and tiers outside 1–6; missin
   assert.deepEqual(groups[2].items.map((r) => r.item.id), ['c']);
 });
 
-test('装备报告 is appended only for 规程; the three 盟约 tabs stay the base list (source contract)', () => {
+test('装备报告 is appended to the three base tabs on every version (source contract)', () => {
   const src = read('public/js/screens/sweep.js');
   const base = src.slice(src.indexOf('const REPORT_TABS'), src.indexOf('const EQUIP_TAB'));
   assert.match(base, /盟约报告/);
@@ -142,7 +133,7 @@ test('装备报告 is appended only for 规程; the three 盟约 tabs stay the b
   assert.doesNotMatch(base, /装备报告/);
   assert.match(src, /const EQUIP_TAB = \{ id: 'equip', name: N_\('装备报告'\)/);
   assert.match(src, /name="shield"/);
-  assert.match(src, /equipOn \? \[\.\.\.REPORT_TABS, EQUIP_TAB\] : REPORT_TABS/);
+  assert.match(src, /equipReportOn\(\) \? \[\.\.\.REPORT_TABS, EQUIP_TAB\] : REPORT_TABS/);
   assert.match(src, /t\('基础效果'\)/);
   assert.match(src, /t\('进阶效果'\)/);
   assert.match(src, /itemIconUrl\(m, item\)/);

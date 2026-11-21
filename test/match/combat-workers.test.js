@@ -1074,6 +1074,7 @@ test('workers: a real WS spectator receives encoded live/resync frames without p
   await ok(host, { t: 'g.infoReady' });
   await host.waitFor('m.public', (m) => m.phase === 'BAND_DRAFT');
   await ok(host, { t: 'g.band', bandId: 'band_bldsk' });
+  await host.diyBring(); // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — a lone human is untimed: bring none
   await host.waitFor('m.public', (m) => m.phase === 'PREP');
   const room = srv.lobby.getRoom(roomState.code), m = room.match;
   assert.equal(m.order.length, 1);
@@ -1139,6 +1140,7 @@ test('workers: real WS streaming, dynamic metadata reconnect, pause, room shutdo
   await ok(a, { t: 'g.infoReady' });
   await a.waitFor('m.public', (p) => p.phase === 'BAND_DRAFT');
   await ok(a, { t: 'g.band', bandId: 'band_bldsk' });
+  await a.diyBring(); // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — solo is untimed: bring none
   await a.waitFor('m.public', (p) => p.phase === 'PREP');
   const m = srv.lobby.rooms.get(room.code).match;
   assert.equal(m.combatPool, srv.combatPool, 'lobby injects the process-shared pool');

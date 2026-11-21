@@ -1,7 +1,7 @@
 // S.W.E.E.P.报告 (2026-10-13, the owner's request: the event's report screen, laid out after the video 2:17–3:03; every
 // drawing here is original, the art is the game's own icons): a full-screen overlay opened from the lobby's plate, three tabs
-// on 盟约, and a fourth on 规程 (config.version.family === 'regulation'; upstream 0.4.0: the official report's 装备报告,
-// capture BV11NW869ELq) —
+// and a fourth, 装备报告 (upstream 0.4.0: 规程's, after the official report's, capture BV11NW869ELq; on every version since
+// the owner's 2026-11-21 request — 盟约's items.json carries the same EQUIP records) —
 //   盟约报告 — 核心盟约 / 附加盟约 tiles (bonds.json isCore); the left panel: the glyph, the name, 激活所需人数 and the
 //              thresholds, the description, 对应干员 (visibleMembers by tier; 替补 on an operator marked 未持有 in 干员持有;
 //              a tap opens 干员调配 at the operator, over this screen);
@@ -26,7 +26,7 @@ import { attackInterval, fmtNum } from '../ui/gameLogic.js';
 import { abilityRows } from '../ui/abilityLines.js';
 import { data, useData } from '../data.js';
 import { contentSet, pageVersion, retryContentSet } from '../content.js';
-import { DEFAULT_VERSION, shownVersion, versionById } from '../versions.js';
+import { DEFAULT_VERSION, shownVersion } from '../versions.js';
 import { useStore, loadPref, savePref } from '../store.js';
 import { loadoutStore, openLoadout } from '../ui/loadoutSync.js';
 import { openGuide, guidePages, guideStore } from '../ui/guide.js';
@@ -107,13 +107,12 @@ export function bossEnemyKeys(boss) {
 }
 
 /**
- * 装备报告 is 规程's fourth tab. A covenant build, and data with no `config.version`, keep the three tabs.
- * The gate is the family, not a chess / band / bond id (seasons reuse ids).
- * @param {any} config config.json
+ * 装备报告, the fourth tab: every version (the owner, 2026-11-21: 盟约 too; upstream 0.4.0 had it on 规程 only). Its rows
+ * come from the version's items.json (equipReportGroups), which every season carries.
  * @returns {boolean}
  */
-export function equipReportOn(config) {
-  return config?.version?.family === 'regulation';
+export function equipReportOn() {
+  return true;
 }
 
 /**
@@ -496,12 +495,8 @@ export function SweepReport({ onClose }) {
     && (version === DEFAULT_VERSION || (content.version === version && content.status === 'ready'));
   const m = data.get('assets');
   const notOwned = useStore((s) => s.notOwned, Object.is, loadoutStore);
-  // 规程's fourth tab. While its data is still loading, the registry is enough to show the tab; once the set is on
-  // the page, config.version.family has to agree. A remembered 装备 stays remembered on a covenant version (the bar
-  // falls back to 盟约报告) and comes back when 规程 is shown again.
-  const askedRegulation = versionById(version)?.family === 'regulation';
-  const equipOn = askedRegulation && (!ready || equipReportOn(data.get('config')));
-  const tabs = equipOn ? [...REPORT_TABS, EQUIP_TAB] : REPORT_TABS;
+  // the fourth tab, every version (equipReportOn)
+  const tabs = equipReportOn() ? [...REPORT_TABS, EQUIP_TAB] : REPORT_TABS;
   const [tab, setTabState] = useState(() => { const v = loadPref(TAB_PREF, 'bonds'); return TAB_IDS.has(v) ? v : 'bonds'; });
   const setTab = (v) => { setTabState(v); savePref(TAB_PREF, v); };
   const tabOn = tabs.some((x) => x.id === tab) ? tab : 'bonds';

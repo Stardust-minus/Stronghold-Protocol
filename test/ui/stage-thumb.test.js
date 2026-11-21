@@ -1,6 +1,6 @@
-// 规程 briefing map: official picture, then one cached 3D render, then the cell crop.
+// Briefing / draft map: official picture, then one cached 3D render, else an empty frame (no drawn map since 2026-11-21).
 // The camera maths is the match's prep camera (render/projection.js). The drawer is injected, so a
-// thrown renderer stays on the cells and is not tried again. No Chrome here — the browser pass is
+// thrown renderer leaves the frame empty and is not tried again. No Chrome here — the browser pass is
 // test/ui/stage-thumb.e2e.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,29 +32,29 @@ function* walk(v) {
   yield* walk(v.props?.children);
 }
 
-test('choice order is picture, then a 3D render, then cells', () => {
+test('choice order is picture, then a 3D render, else none', () => {
   resetStagePreviewProbe();
   const id = 'act3autochess_m01';
   const listed = { ui: {}, localGroups: { [`scene/${id}`]: { scene: { path: '/s.json' }, bin: { path: '/s.bin' } } } };
   assert.equal(stagePreviewGlCached(false), null);
-  assert.deepEqual(stagePreviewChoice(listed, id), { kind: 'cells', assumed: true });
+  assert.deepEqual(stagePreviewChoice(listed, id), { kind: 'none' });
   assert.deepEqual(
     stagePreviewChoice({ ui: { [`stagePreview/${id}`]: '/x.png' }, localGroups: listed.localGroups }, id, { webgl2: true }),
     { kind: 'picture', url: '/x.png', key: `stagePreview/${id}` },
   );
   assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true }), { kind: 'render', stageId: id, key: `scene/${id}` });
-  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: false }), { kind: 'cells', assumed: true });
-  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true, renderer: '2d' }), { kind: 'cells', assumed: true });
-  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true, renderer: 'fallback' }), { kind: 'cells', assumed: true });
-  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true, board: '2d' }), { kind: 'cells', assumed: true });
-  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true, render: 'fallback' }), { kind: 'cells', assumed: true });
+  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: false }), { kind: 'none' });
+  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true, renderer: '2d' }), { kind: 'none' });
+  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true, renderer: 'fallback' }), { kind: 'none' });
+  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true, board: '2d' }), { kind: 'none' });
+  assert.deepEqual(stagePreviewChoice(listed, id, { webgl2: true, render: 'fallback' }), { kind: 'none' });
   assert.deepEqual(
     stagePreviewChoice({ ui: {}, localGroups: { [`scene/${id}`]: { scene: { path: '/s.json' } } } }, id, { webgl2: true }),
-    { kind: 'cells', assumed: true },
+    { kind: 'none' },
   );
   assert.equal(stagePreviewProbeGl(false), false);
   assert.equal(stagePreviewProbeGl(false), false);
-  assert.equal(stagePreviewChoice(listed, id).kind, 'cells');
+  assert.equal(stagePreviewChoice(listed, id).kind, 'none');
   assert.equal(stagePreviewRenderer({ renderer: '3d' }), '3d');
   assert.equal(stagePreviewRenderer({ board: '2d', render: 'engine' }), '2d');
   assert.equal(stagePreviewRenderer({ render: 'fallback', board: '3d' }), 'fallback');
@@ -71,8 +71,8 @@ test('the installed 规程 scenes choose the 3D render (local extraction)', { sk
   assert.equal(stageSceneListed(groups, 'act3autochess_m99'), false);
   assert.equal(stagePreviewChoice(sceneOf(id), id, { webgl2: true }).kind, 'render');
   assert.equal(stagePreviewChoice(sceneOf('act3autochess_m05'), 'act3autochess_m05', { webgl2: true }).kind, 'render');
-  assert.equal(stagePreviewChoice(sceneOf('act3autochess_escaped_single'), 'act3autochess_escaped_single', { webgl2: true }).kind, 'cells');
-  assert.equal(stagePreviewChoice(sceneOf('act3autochess_m99'), 'act3autochess_m99', { webgl2: true }).kind, 'cells');
+  assert.equal(stagePreviewChoice(sceneOf('act3autochess_escaped_single'), 'act3autochess_escaped_single', { webgl2: true }).kind, 'none');
+  assert.equal(stagePreviewChoice(sceneOf('act3autochess_m99'), 'act3autochess_m99', { webgl2: true }).kind, 'none');
   assert.equal(stagePreviewChoice({ ui: { [`stagePreview/${id}`]: '/x.png' }, localGroups: groups }, id, { webgl2: true }).kind, 'picture');
 });
 
@@ -116,16 +116,19 @@ test('thumbnail size follows the board pixel-ratio cap', () => {
   assert.equal(stagePreviewSize('low', 1).width / stagePreviewSize('low', 1).height, 320 / 180);
 });
 
-test('the map shows cells until the render exists, and the picture wins over a shot', () => {
+test('the map is an empty frame until the render exists, and the picture wins over a shot', () => {
   const stage = { rows: [], tiles: {} };
   const render = { kind: 'render', stageId: 'act3autochess_m01', key: 'scene/act3autochess_m01' };
   const pending = StageMap({ stage, choice: render, shot: null });
-  assert.equal(pending.props['data-preview'], 'cells');
+  assert.equal(pending.props['data-preview'], 'none');
   assert.equal(pending.props['data-pending'], 'render');
-  assert.equal(pending.props['data-assumed'], 'true');
+  assert.match(pending.props.class, /reg-map--empty/);
+  const waiting = StageMap({ stage, choice: render, shot: undefined });
+  assert.equal(waiting.props['data-pending'], 'render', 'before the probe answers: already waiting');
   const failed = StageMap({ stage, choice: render, shot: false });
-  assert.equal(failed.props['data-preview'], 'cells');
+  assert.equal(failed.props['data-preview'], 'none');
   assert.equal(failed.props['data-pending'], undefined);
+  assert.equal(StageMap({ stage, choice: { kind: 'none' } }).props['data-preview'], 'none');
   const ready = StageMap({ stage, choice: render, shot: { url: 'data:image/jpeg;base64,xx', renderMs: 12.4 } });
   assert.equal(ready.props['data-preview'], 'render');
   assert.equal(ready.props['data-render-ms'], '12');

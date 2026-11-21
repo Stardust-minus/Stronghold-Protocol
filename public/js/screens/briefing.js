@@ -1,32 +1,23 @@
-// Briefing — INFO_CHECK "1/2 确认本局信息" (research 06 §4.1, D1): enemy leader (silhouette, name,
-// abilities), stage (+ its pool: 战场固定 / 战场随机（共N张）), 特训敌人 factions (icon, name, description), the difficulty
-// tag, the ready count x/N with person pips, the 准备就绪 button (g.infoReady) and the countdown. The 核心盟约 / 附加盟约
-// rows of bond discs (disabled bonds greyed with the banned-member badge), the legend and the 本局禁用干员 avatars, with
-// the player's own 自选 pieces out of the shop (m.private.diyBanned), are ui/matchInfo.js MatchBondRow / MatchLegend /
-// BannedOperators, the blocks the strategy draft's 本局信息 dialog shows (screens/bandDraft.js). The enemy section is shared too:
-// ui/matchEnemies.js MatchEnemies (GitHub #484, DESIGN §35.6).
-// The event's layout (PR #643, video 6:29–7:51): one scrolling column of sections under grey header bars — 本局遭遇敌方
-// (MatchEnemies: the leader's framed portrait over 敌方领袖, its text with the battlefield, the 特训敌人 as round icons
-// with their names, the description in a tooltip — the maintainer's decision of 2026-10-22), 核心盟约, 附加盟约 (the legend
-// under it), 本局禁用干员 — with 已就绪 x/N over the person pips (已就绪 2/4 as research 06 §4.1 reads it, no colon) and
-// the big 准备就绪 in the bottom-right corner. The sections come in from the right one after another
-// (css/screens/briefing.css 开局转场). 规程 (config.version.family === 'regulation') uses ui/regulationBriefing.js
-// instead; the return below is every other version.
-// No scrolling (the owner, 2026-11-05: 「优化进入阶段…的UI大小，尽量不用滚动」): the sections sit in two columns —
-// 本局遭遇敌方 over 核心盟约, 附加盟约 over 本局禁用干员 — sized so both fit between the header and the foot; a column
-// scrolls on its own only when it still cannot (a short phone, a big 文字大小).
-// 自选上场 (feedback #114): with more 自选 candidates than slots in a tier (the 候补), the player chooses who plays this
-// match (ui/diyChoice.js; m.private.diyChoice) — since feedback #127 (the owner, 2026-11-03: the last section of the
-// column had to be scrolled to and went unnoticed) in a strip pinned beside 准备就绪 with the 重刷本局 bar (`brief__dock`,
-// the foot's left part since 2026-11-05), highlighted until the player chooses or is ready.
+// Briefing — INFO_CHECK 「确认本局信息」 (research 06 §4.1, D1), one layout for every version (the owner, 2026-11-21:
+// one UI — 规程's briefing, made more compact, for 盟约 too; the official 1/3 screenshot of 2026-11-21 as the reference).
+// Left, one scroll: 核心盟约 (solo 规程: the two groups side by side, the picked one lit), 附加盟约 (its header chip is the
+// legend: grey = 阵容不完整, the red badge = the members that cannot appear), 本局禁用干员 grouped by bond (ui/matchInfo.js
+// BannedByBond: each bond that lost members, then the banned portraits with the official 禁用 corner). Under it, pinned:
+// the dock with 自选上场 (feedback #114 / #127: 盟约's 候补, ui/diyChoice.js; 规程 never has one).
+// Right, fixed: the stage preview (ui/stagePreview.js: the 3D thumbnail, the magnifier opens the large map), 敌方领袖
+// (name; round, abilities and battlefield in its tooltip), one row per 特训敌人, 重刷本局 (consent stays visible beside the
+// information being confirmed; one line until a vote), 干员调配, 已就绪 x/N and 准备就绪.
+// The version tag and the unofficial mark sit in the step header beside the mode.
+// The bond discs, the legend and the banned blocks are the ones the strategy draft's 本局信息 dialog shows too
+// (ui/matchInfo.js), so they never drift. Styles: css/screens/briefing.css.
 
 import { useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon } from '../ui/components.js';
 import { useGameData } from '../ui/gameComponents.js';
 import { StepHeader, ExitModal } from '../ui/matchChrome.js';
-import { MatchBondGroups, MatchBondRow, MatchLegend, BannedOperators, matchInfoModel, MatchBondDialog, regulationCoreAbsent } from '../ui/matchInfo.js';
-import { MatchEnemies } from '../ui/matchEnemies.js';
-import { RegulationBriefing, regulationBriefingLayout } from '../ui/regulationBriefing.js';
+import { MatchBondGroups, MatchBondRow, BannedByBond, matchInfoModel, MatchBondDialog, regulationCoreAbsent, RegulationHead } from '../ui/matchInfo.js';
+import { MatchEnemies, stagePoolLine } from '../ui/matchEnemies.js';
+import { StagePreview, stagePreviewChoice } from '../ui/stagePreview.js';
 import { LoadoutButton } from './loadout.js';
 import { UnofficialMark, VersionTag } from '../ui/pluginTag.js';
 import { SetupReroll } from '../ui/setupReroll.js';
@@ -59,6 +50,9 @@ export function BriefingScreen() {
   const mode = gd.config?.modes?.[pub.modeId];
   // (+ the own 自选 pieces this match leaves out of the shop: m.private.diyBanned)
   const info = matchInfoModel(pub, { bonds: gd.list('bonds'), chess: gd.chess, mode, priv, diyData: { chess: data.get('chess'), backups: data.get('backups') } });
+  const stage = pub.stageId && gd.stage ? gd.stage(pub.stageId) : null;
+  const localGroups = data.get('local')?.groups || null;
+  const hold = !me || !!me.ready || !!pub.rerollVote;
 
   const ready = async () => {
     if (busy || me?.ready) return;
@@ -74,45 +68,45 @@ export function BriefingScreen() {
     finally { setBusy(false); }
   };
 
-  if (regulationBriefingLayout(gd.config)) {
-    return html`<${RegulationBriefing} pub=${pub} gd=${gd} room=${room} solo=${solo} info=${info} players=${players} me=${me}
-      readyN=${readyN} myId=${myId} exit=${exit} setExit=${setExit} busy=${busy} bondId=${bondId} setBondId=${setBondId}
-      ready=${ready} pickGroup=${pickGroup} priv=${priv} />`;
-  }
-
-  return html`<div class="screen brief">
+  const tags = html`<span class="brief__tags"><${UnofficialMark} room=${room} class="brief__modmark" /><${VersionTag} room=${room} class="brief__vertag" /></span>`;
+  return html`<div class="screen brief" data-layout="one">
     <div class="brief__bg" aria-hidden="true"></div>
     <${StepHeader} step=${pregameStepIndex(gd.config, 'INFO_CHECK')} of=${pregameStepCount(gd.config)} title=${t('确认本局信息')} micro="BRIEFING // INFO CHECK" pub=${pub}
-      total=${phaseTotalSeconds(pub, gd.config)} onExit=${() => setExit(true)} />
-    <${UnofficialMark} room=${room} class="brief__modmark" /><${VersionTag} room=${room} class="brief__vertag" />
-    <main class="brief__main">
-      <div class="brief__col brief__col--enemy">
-        <section class="brief-sec brief-sec--enemy" style="--i:1">
-          <${MatchEnemies} pub=${pub} gd=${gd} />
-        </section>
-        <section class="brief-sec brief-sec--core" style="--i:2"><${MatchBondGroups} model=${info} onPick=${pickGroup} onBond=${setBondId} disabled=${!me || !!me.ready || !!pub.rerollVote} busy=${busy} /></section>
+      total=${phaseTotalSeconds(pub, gd.config)} onExit=${() => setExit(true)} extra=${tags} />
+    <div class="brief__split">
+      <div class="brief__left">
+        <div class="brief__scroll">
+          <section class="brief-sec brief-sec--core" style="--i:1">
+            <${MatchBondGroups} panels=${true} model=${info} onPick=${pickGroup} onBond=${setBondId} disabled=${hold} busy=${busy} />
+          </section>
+          <section class="brief-sec brief-sec--addon" style="--i:2">
+            <${MatchBondRow} title=${t('附加盟约')} micro="ADD-ON BONDS" bonds=${info.addon} model=${info} onBond=${setBondId}
+              head=${html`<${RegulationHead} title=${t('附加盟约')} model=${info} legend=${true} />`} />
+          </section>
+          <section class="brief-sec brief-sec--banned" style="--i:3">
+            <${BannedByBond} model=${info} onBond=${setBondId} />
+          </section>
+        </div>
+        ${priv?.diyChoice ? html`<div class="brief__dock">
+          <${DiyChoice} priv=${priv} onChoose=${actions.diyChoose} disabled=${!me} dock=${true} ready=${!!me?.ready} />
+        </div>` : null}
       </div>
-      <div class="brief__col brief__col--bonds">
-        <section class="brief-sec brief-sec--addon" style="--i:3">
-          <${MatchBondRow} title=${t('附加盟约')} micro="ADD-ON BONDS" bonds=${info.addon} model=${info} onBond=${setBondId} />
-          <${MatchLegend} model=${info} />
-        </section>
-        <section class="brief-sec brief-sec--banned" style="--i:4"><${BannedOperators} model=${info} /></section>
-      </div>
-    </main>
-    <footer class="brief__foot">
-      <div class="brief__dock">
-        ${priv?.diyChoice ? html`<${DiyChoice} priv=${priv} onChoose=${actions.diyChoose} disabled=${!me} dock=${true} ready=${!!me?.ready} />` : null}
-        <${SetupReroll} pub=${pub} />
-      </div>
-      <${LoadoutButton} from="briefing" size="lg" class="brief-loadout" />
-      <div class="brief-ready">
-        <span class="brief-ready__txt">${t('已就绪')}<b class="num">${readyN}</b><span class="num">/${players.length}</span></span>
-        <span class="brief-ready__pips">${players.map((p) => html`<i key=${p.playerId} class=${cx(p.ready && 'on', p.playerId === myId && 'me')} title=${p.name}><${Icon} name="user" /></i>`)}</span>
-      </div>
-      <${Button} variant="primary" size="xl" class="brief-go" icon=${me?.ready ? 'check' : me ? 'play' : 'eye'} active=${!!me?.ready} loading=${busy}
-        disabled=${!!me?.ready || !me || !!pub.rerollVote || info.choice?.picked === null} onClick=${ready}>${me?.ready ? t('已就绪') : me ? t('准备就绪') : t('观战中')}<//>
-    </footer>
+      <aside class="brief__side">
+        <${StagePreview} stage=${stage} choice=${stagePreviewChoice({ ui: gd.m?.ui, localGroups }, pub.stageId)} name=${stage?.name || pub.stageId || '—'}
+          pool=${stagePoolLine(mode)} stageId=${pub.stageId || ''} localGroups=${localGroups} seat=${me?.seat ?? null} />
+        <${MatchEnemies} pub=${pub} gd=${gd} layout="regulation" />
+        <${SetupReroll} pub=${pub} compact=${true} />
+        <${LoadoutButton} from="briefing" size="md" class="brief-loadout" />
+        <div class="brief__foot">
+          <div class="brief-ready">
+            <span class="brief-ready__txt">${t('已就绪')}<b class="num">${readyN}</b><span class="num">/${players.length}</span></span>
+            <span class="brief-ready__pips">${players.map((p) => html`<i key=${p.playerId} class=${cx(p.ready && 'on', p.playerId === myId && 'me')} title=${p.name}><${Icon} name="user" /></i>`)}</span>
+          </div>
+          <${Button} variant="primary" size="xl" class="brief-go" icon=${me?.ready ? 'check' : me ? 'play' : 'eye'} active=${!!me?.ready} loading=${busy}
+            disabled=${!!me?.ready || !me || !!pub.rerollVote || info.choice?.picked === null} onClick=${ready}>${me?.ready ? t('已就绪') : me ? t('准备就绪') : t('观战中')}<//>
+        </div>
+      </aside>
+    </div>
     <${ExitModal} open=${exit} onClose=${() => setExit(false)} solo=${solo} />
     <${MatchBondDialog} bondId=${bondId} onClose=${() => setBondId(null)} priv=${priv} banned=${info.banned} off=${info.sets.off.has(bondId)} coreAbsent=${regulationCoreAbsent(info, bondId)} />
   </div>`;

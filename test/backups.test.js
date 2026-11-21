@@ -34,9 +34,10 @@ const isFiniteNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const ELITES = ['char_608_acpion', 'char_609_acguad', 'char_610_acfend', 'char_611_acnipe', 'char_612_accast', 'char_613_acmedc', 'char_614_acsupo', 'char_615_acspec', 'char_617_sharp2'];
 const RESERVES = ['char_600_cpione', 'char_601_cguard', 'char_602_cdfend', 'char_603_csnipe', 'char_604_ccast', 'char_605_cmedic', 'char_606_csuppo', 'char_607_cspec'];
 
-test('chess: 133 base chess — 74 PRESET / 55 NORMAL / 4 DIY — and every record keeps the five official backup fields', () => {
-  assert.equal(base.length, 133);
-  assert.deepEqual([ofType('PRESET').length, ofType('NORMAL').length, ofType('DIY').length], [74, 55, 4]);
+// DIY 12: the official four slots and the eight of 规程's rule (tools/versions/forkDiy.mjs, the owner's decision of 2026-11-21)
+test('chess: 141 base chess — 74 PRESET / 55 NORMAL / 12 DIY — and every record keeps the five official backup fields', () => {
+  assert.equal(base.length, 141);
+  assert.deepEqual([ofType('PRESET').length, ofType('NORMAL').length, ofType('DIY').length], [74, 55, 12]);
   for (const c of all) {
     assert.deepEqual(Object.keys(c.backup), ['charId', 'tmplId', 'skillIndex', 'uniEquipId', 'potRank'], `${c.chessId}: backup fields`);
     assert.deepEqual(c.backup, chess[c.baseId].backup, `${c.chessId}: the elite shares its base row's backup`);
@@ -57,7 +58,7 @@ test('chess: 133 base chess — 74 PRESET / 55 NORMAL / 4 DIY — and every reco
 test('chess: the backup fields are the official shop row, verbatim', { skip: !HAS_CACHE && 'no .cache/gamedata' }, () => {
   const act = raw('activity_table').activity.AUTOCHESS_SEASON.act2autochess;
   for (const c of all) {
-    const s = act.charShopChessDatas[c.baseId];
+    const s = act.charShopChessDatas[c.baseId.replace(/_diy[3-6]_a$/, '_diy1_a')]; // slots 3–6: tools/versions/forkDiy.mjs
     assert.deepEqual(c.backup, { charId: s.backupCharId, tmplId: s.backupTmplId, skillIndex: s.backupCharSkillIndex, uniEquipId: s.backupCharUniEquipId, potRank: s.backupCharPotRank }, c.chessId);
     assert.equal(c.chessType, s.chessType, c.chessId);
   }
@@ -201,9 +202,10 @@ test('backups: the stand-in numbers re-derived from the raw official tables', { 
   assert.equal(n, 110);
 });
 
-test('DIY: four slots (tiers 5, 5, 6, 6) — price 4, sell 1, TIER_6, no 特质, no bonds; listed from the matching shop level', () => {
+// the official tables have two slots a tier; slots 3–6 are 规程's rule (tools/versions/forkDiy.mjs, 2026-11-21): copies of slot 1
+test('DIY: twelve slots (six at tier 5, six at tier 6) — price 4, sell 1, TIER_6, no 特质, no bonds; listed from the matching shop level', () => {
   const slots = backups.diy.slots;
-  assert.deepEqual(Object.keys(slots), ['chess_char_5_diy1_a', 'chess_char_5_diy2_a', 'chess_char_6_diy1_a', 'chess_char_6_diy2_a']);
+  assert.deepEqual(Object.keys(slots), [5, 6].flatMap((t) => [1, 2, 3, 4, 5, 6].map((n) => `chess_char_${t}_diy${n}_a`)));
   for (const [id, s] of Object.entries(slots)) {
     assert.equal(s.goldenId, id.replace(/_a$/, '_b'));
     assert.equal(s.shopLevel, s.tier, `${id}: enters the shop at the shop level of its tier`);

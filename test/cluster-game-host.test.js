@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameHost, GameHostError } from '../server/cluster/game-host.js';
 import { Match } from '../server/match/Match.js';
+import { seedSecret } from '../server/match/secret.js';
 import { getData } from '../server/data.js';
 import { checkNotOwned } from '../shared/protocol.js';
 import { ERR, PHASE } from '../shared/constants.js';
@@ -146,13 +147,15 @@ test('0.2.0 ownership and DIY are copied, frozen and included in actor identity'
   ]) assert.throws(() => host.prepare(spec({ assignmentId: 'invalid-fields', seats: [seat(0, 'p1', fields)] })), isCode('INVALID_SPEC'));
 });
 
-test('real 0.2.0 Match consumes ownership and DIY from a prepared cluster actor', t => {
+test('real 0.2.0 Match consumes ownership and DIY from a prepared cluster actor', async t => {
   const data = getData({ log: { info() {}, warn() {}, error() {} } });
   const notOwned = Object.keys(data.chess).find(id => checkNotOwned([id], key => data.chess[key]).notOwned.length);
   assert.ok(notOwned);
   const diy = { chess_char_5_diy1_a: { charId: 'char_112_siege', skillIndex: 2, uniEquipId: 'uniequip_002_siege' } };
   let match;
-  class RecordedMatch extends Match { constructor(opts) { super(opts); match = this; } }
+  // a fixed private secret (§37.277; a new actor draws its own): the drawn bans leave 推进之王's 维多利亚 on, so the slot
+  // can be brought at 选择自编 below (a banned slot is refused there and has no stock)
+  class RecordedMatch extends Match { constructor(opts) { super({ ...opts, matchSecret: seedSecret(71) }); match = this; } }
   const host = new GameHost({ data, MatchClass: RecordedMatch });
   t.after(() => host.close());
   const prepared = host.prepare(spec({ seats: [seat(0, 'p1', { notOwned: [notOwned], diy })], spectators: [] }));
@@ -162,6 +165,17 @@ test('real 0.2.0 Match consumes ownership and DIY from a prepared cluster actor'
   assert.deepEqual(player.standIns, [notOwned]);
   assert.deepEqual(player.diy, diy);
   assert.equal(player.gd.chess('chess_char_5_diy1_a').charId, 'char_112_siege');
+  // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — a slot is stocked only once the bring confirms it. The lone
+  // human is untimed: confirm the info, take a strategy, bring the slot.
+  assert.equal(player.diyStock.cap('chess_char_5_diy1_a'), 0, 'no 自选 stock before 选择自编');
+  assert.ok(!match.disabledBonds.includes('victoriaShip') && !player.diyBanned.includes('chess_char_5_diy1_a'), 'the fixture\'s bans');
+  const reach = async phase => { for (let i = 0; i < 200 && match.phase !== phase; i++) await macrotask(); assert.equal(match.phase, phase); };
+  assert.deepEqual(match.handle('p1', { t: 'g.infoReady' }), { ok: true }, match.phase);
+  await reach(PHASE.BAND_DRAFT);
+  assert.deepEqual(match.handle('p1', { t: 'g.band', bandId: match.gd.bandIds()[0] }), { ok: true });
+  await reach(PHASE.CUSTOM_CHECK);
+  assert.deepEqual(match.handle('p1', { t: 'g.diyBring', slots: ['chess_char_5_diy1_a'] }), { ok: true });
+  assert.deepEqual(player.diyBring, ['chess_char_5_diy1_a']);
   // 0.3.0 (GitHub #650): a co-op 自选 stock doubles like the shared pool — tier 5: 8 × 2
   assert.equal(player.diyStock.cap('chess_char_5_diy1_a'), 16);
   assert.ok(transport.sent.some(frame => frame.t === 'm.private' && frame.standIns.includes(notOwned)));

@@ -149,7 +149,8 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
       leader: {
         name: scope.querySelector('.brief-boss__name')?.textContent || '',
         when: scope.querySelector('.brief-boss__when')?.textContent || '',
-        abilities: [...scope.querySelectorAll('.brief-boss__abil li')].map(el => el.textContent),
+        // (the briefing's right column keeps them in the leader's tooltip and an .sr-only copy: .reg-boss__abil)
+        abilities: [...scope.querySelectorAll('.brief-boss__abil li, .reg-boss__abil li')].map(el => el.textContent),
         icon: scope.querySelector('.brief-boss__img')?.getAttribute('src') || '',
       },
       battlefield: scope.querySelector('.brief-stage')?.textContent || '',
@@ -172,9 +173,11 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
         ban: el.querySelector('.brief-bond__ban')?.textContent.trim() || '',
       })),
       rows: [...scope.querySelectorAll('.brief-bonds .brief-h > span:first-child')].map((el) => el.textContent),
-      legend: scope.querySelector('.brief-legend')?.textContent.trim() || '',
+      // (2026-11-21, one look: the legend is the 附加盟约 header's chip — its text and, in its title, the full sentence)
+      legend: (() => { const chip = scope.querySelector('.reg-chip'); return chip ? `${chip.getAttribute('title') || ''} · ${chip.textContent.trim()}` : ''; })(),
       count: scope.querySelector('.brief-banned__n')?.textContent.trim() || '',
-      banned: [...scope.querySelectorAll('.brief-banned__grid .uthumb')].map((el) => el.getAttribute('title')),
+      // grouped by bond (a member of two bonds under each): the set of names
+      banned: [...new Set([...scope.querySelectorAll('.reg-banned .uthumb')].map((el) => el.getAttribute('title')))].sort(),
     };
   }, root);
   /** What the server says: greyed = the drawn set ∪ the mode's inactive bonds; banned names by tier. */
@@ -206,13 +209,13 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
     await page.evaluate(() => globalThis.__SP__.net.request('room.start', {}));
     const s0 = await waitSt(page, (s) => s.phase === 'INFO_CHECK', 'briefing');
     assert.equal(s0.modeId, 'mode_single_funny');
-    await page.waitForSelector('.brief__main .brief-banned', { visible: true, timeout: 15000 });
+    await page.waitForSelector('.brief__split .brief-banned', { visible: true, timeout: 15000 });
     await sleep(600);
-    const brief = await readInfo(page, '.brief__main');
+    const brief = await readInfo(page, '.brief__split');
     const want = await truth(page);
     assert.deepEqual(want.off, [...OFF_FUNNY].sort(), '标准模拟 switches the official 10 bonds off');
     assert.deepEqual(greyedOf(brief), want.greyed, 'the briefing greys D ∪ the mode\'s inactive bonds');
-    assert.deepEqual(brief.banned, want.names, 'the briefing\'s banned operators, by tier');
+    assert.deepEqual(brief.banned, [...want.names].sort(), 'the briefing\'s banned operators');
     assert.equal(brief.count, String(want.names.length));
     assert.match(brief.legend, /或本模式禁用/);
     assert.match(brief.legend, /该盟约中无法出现的干员数/, 'the legend explains the red count');
@@ -313,7 +316,7 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
     assert.deepEqual(tab.off.sort(), brief.bonds.filter((b) => b.off).map((b) => b.name).sort(), 'the same greyed bonds');
     const per = (await truth(page)).per;
     for (const [name, n] of Object.entries(tab.ban)) if (n) assert.equal(n, String(per[name] || 0), `${name}: the badge counts the server's banned members`);
-    assert.deepEqual(tab.banned, brief.banned, 'the same banned operators, in the same (tier) order');
+    assert.deepEqual([...new Set(tab.banned)].sort(), brief.banned, 'the same banned operators');
     assert.equal(tab.count, brief.count);
     await shot(page, 'solo-ingame-tab');
     // feedback #4: each bond's own disc in every language, on a phone's size too, at the largest 文字大小
@@ -355,25 +358,25 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
     await waitSt(page, s => !!s.room, 'solo room');
     await page.evaluate(() => globalThis.__SP__.net.request('room.start', {}));
     await waitSt(page, s => s.phase === 'INFO_CHECK', 'briefing');
-    await page.waitForSelector('.brief__main .brief-banned', { visible: true, timeout: 15000 });
+    await page.waitForSelector('.brief__split .brief-banned', { visible: true, timeout: 15000 });
     await sleep(500);
-    const brief = await readInfo(page, '.brief__main');
+    const brief = await readInfo(page, '.brief__split');
     assert.equal(brief.factions.length, 3, 'dire announces three special enemy types');
     // the description in the tooltip (the maintainer's decision of 2026-10-22): on hover, then on keyboard focus of the icon
     const first = brief.factions[0];
     assert.ok(first.desc && first.focusable && first.label === first.name, JSON.stringify(first));
     const tipText = () => page.$eval('.tooltip.is-shown', (el) => el.textContent);
     const noTip = () => page.waitForFunction(() => !document.querySelector('.tooltip.is-shown'), { timeout: 3000 });
-    const iconPt = await centre(page, '.brief__main .brief-faction__icon');
+    const iconPt = await centre(page, '.brief__split .brief-faction__icon');
     await page.mouse.move(iconPt.x, iconPt.y);
     await page.waitForSelector('.tooltip.is-shown', { visible: true, timeout: 3000 });
     assert.equal(await tipText(), first.desc, 'hover: the description');
     await page.mouse.move(5, 5);
     await noTip();
-    await page.$eval('.brief__main .brief-faction__icon', (el) => el.focus());
+    await page.$eval('.brief__split .brief-faction__icon', (el) => el.focus());
     await page.waitForSelector('.tooltip.is-shown', { visible: true, timeout: 3000 });
     assert.equal(await tipText(), first.desc, 'keyboard focus: the description');
-    await page.$eval('.brief__main .brief-faction__icon', (el) => el.blur());
+    await page.$eval('.brief__split .brief-faction__icon', (el) => el.blur());
     await noTip();
     await press(p, '.brief__foot .btn--primary', '准备就绪');
     await waitSt(page, s => s.phase === 'BAND_DRAFT', 'band draft');
@@ -401,7 +404,7 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
         const body = box.querySelector('.modal__body');
         const failures = [];
         if (body.scrollWidth > body.clientWidth + 1) failures.push('horizontal overflow');
-        const selectors = '.brief-boss__name, .brief-boss__when, .brief-boss__abil li, .brief-stage__name, .brief-faction__text b, .brief-bonds .brief-h, .brief-bond .bond__name, .brief-banned .brief-h, .brief-banned__grid .uthumb';
+        const selectors = '.brief-boss__name, .brief-boss__when, .brief-boss__abil li, .brief-stage__name, .brief-faction__text b, .brief-bonds .brief-h, .brief-bond .bond__name, .brief-banned .brief-h, .reg-banned .uthumb';
         for (const el of box.querySelectorAll(selectors)) {
           el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
           const r = el.getBoundingClientRect(), b = body.getBoundingClientRect();
@@ -447,17 +450,17 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
     for (const p of [a, b]) {
       const s = await waitSt(p.page, (x) => x.phase === 'INFO_CHECK', `${p.name}: briefing`);
       assert.equal(s.modeId, 'mode_multi_hard');
-      await p.page.waitForSelector('.brief__main .brief-banned', { timeout: 15000 });
+      await p.page.waitForSelector('.brief__split .brief-banned', { timeout: 15000 });
     }
     await sleep(500);
     const briefs = new Map();
-    for (const p of [a, b]) briefs.set(p, await readInfo(p.page, '.brief__main'));
+    for (const p of [a, b]) briefs.set(p, await readInfo(p.page, '.brief__split'));
     const want = await truth(a.page);
     assert.deepEqual(want.off, [], '绝境 switches no bond off');
     assert.equal(want.greyed.length, 7, '3 core + 4 add-on bonds drawn');
     for (const [p, info] of briefs) {
       assert.deepEqual(greyedOf(info), want.greyed, `${p.name}: briefing greyed`);
-      assert.deepEqual(info.banned, want.names, `${p.name}: briefing banned`);
+      assert.deepEqual(info.banned, [...want.names].sort(), `${p.name}: briefing banned`);
       assert.doesNotMatch(info.legend, /本模式禁用/);
     }
     assert.deepEqual(briefs.get(b), briefs.get(a), 'both players see the same briefing');
@@ -529,7 +532,7 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
         const vis = (sel) => { const e = boxEl.querySelector(sel).getBoundingClientRect(); return e.top >= r.top - 1 && e.bottom <= r.bottom + 1 && e.left >= r.left - 1 && e.right <= r.right + 1; };
         return {
           box: [r.left, r.top, r.right, r.bottom], vw: innerWidth, vh: innerHeight, scrolls: body.scrollHeight > body.clientHeight + 4,
-          overflow: getComputedStyle(body).overflowY, name: px('.bond__name'), legend: px('.brief-legend'), title: px('.modal__title'),
+          overflow: getComputedStyle(body).overflowY, name: px('.bond__name'), legend: px('.reg-chip__txt'), title: px('.modal__title'),
           enemyName: px('.brief-faction__text b'),
           bossName: px('.brief-boss__name'), bossAbilities: px('.brief-boss__abil'),
           horizontalOverflow: body.scrollWidth > body.clientWidth + 1,
@@ -574,7 +577,7 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
       await sleep(200);
       const bannedVisible = await ph.page.evaluate(() => {
         const body = document.querySelector('.minfo-dlg .modal__body').getBoundingClientRect();
-        const g = document.querySelector('.minfo-dlg .brief-banned__grid').getBoundingClientRect();
+        const g = document.querySelector('.minfo-dlg .reg-banned__groups').getBoundingClientRect();
         return g.top >= body.top - 1 && g.bottom <= body.bottom + 1;
       });
       assert.ok(bannedVisible, `${w}×${h}: the banned operators scrolled into view`);
@@ -619,7 +622,7 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
       page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.(googleapis|gstatic)/.test(m.location()?.url || '')) problems.push(`console: ${m.text()}`); });
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
       await page.evaluateOnNewDocument(() => { localStorage.setItem('sp.name', '凯尔希'); sessionStorage.setItem('sp.entered', '1'); });
-      for (const [phase, scope] of [['INFO_CHECK', '.brief__main'], ['BAND_DRAFT', '.minfo-dlg']]) {
+      for (const [phase, scope] of [['INFO_CHECK', '.brief__split'], ['BAND_DRAFT', '.minfo-dlg']]) {
         await skipEntryFilm(page);
         await page.goto(`${base}/dev/game-mock.html?shot=1&render=fallback&phase=${phase}`, { waitUntil: 'networkidle0', timeout: 60000 });
         if (phase === 'BAND_DRAFT') {
@@ -628,7 +631,7 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
           await sleep(300);
           await page.$eval('[data-testid="match-info-open"]', (el) => el.click());
           await page.waitForSelector('.minfo-dlg .brief-faction__icon', { visible: true, timeout: 8000 });
-        } else await page.waitForSelector('.brief__main .brief-faction__icon', { visible: true, timeout: 20000 });
+        } else await page.waitForSelector('.brief__split .brief-faction__icon', { visible: true, timeout: 20000 });
         await sleep(900);
         const n = await page.$$eval(`${scope} .brief-faction__icon`, (els) => els.length);
         assert.ok(n >= 2, `${view} ${phase}: the mock's special enemies (${n})`);

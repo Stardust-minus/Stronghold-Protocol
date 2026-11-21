@@ -461,6 +461,7 @@ test('actual WS autoplay -> dedicated rehearsal -> six-worker combat/settlement 
     await ok({ t: 'room.start' }); await ok({ t: 'g.infoReady' });
     await c.waitFor('m.public', (p) => p.phase === 'BAND_DRAFT');
     await ok({ t: 'g.band', bandId: 'band_bldsk' });
+    await c.diyBring(); // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — a lone human is untimed: bring none
     await c.waitFor('m.public', (p) => p.phase === 'PREP');
     const m = srv.lobby.getRoom(room.code).match, ps = m.order[0];
     m.stageId = 'act2autochess_m04'; m.stage = m.gd.stage(m.stageId); ps.invalidateDeployMap();

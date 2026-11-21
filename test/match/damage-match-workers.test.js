@@ -203,7 +203,9 @@ test('actual WS six-worker scoreboard delivery and spectator reconnect expose on
   await ok(observer, { t: 'room.spectate', code: room.code }); await ok(host, { t: 'room.start' });
   const info = await host.waitFor('m.public', (p) => p.phase === 'INFO_CHECK'); assert.ok(info.matchId);
   await ok(host, { t: 'g.infoReady' }); await host.waitFor('m.public', (p) => p.phase === 'BAND_DRAFT');
-  await ok(host, { t: 'g.band', bandId: 'band_bldsk' }); await host.waitFor('m.public', (p) => p.phase === 'PREP');
+  await ok(host, { t: 'g.band', bandId: 'band_bldsk' });
+  await host.diyBring(); // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — a lone human is untimed: bring none
+  await host.waitFor('m.public', (p) => p.phase === 'PREP');
   const m = srv.lobby.getRoom(room.code).match;
   deploy(m, m.order[0]); m.wave = { ...m.wave, timeLimit: 4 };
   await ok(host, { t: 'g.ready', ready: true });

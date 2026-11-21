@@ -232,6 +232,9 @@ test('test-console upgrades, strategy switches and reconnect replay the same sou
   assert.deepEqual(m.handle('p', { t: 'g.infoReady' }), OK);
   assert.ok(scheduler.runUntil(() => m.phase === 'BAND_DRAFT'));
   assert.deepEqual(m.handle('p', { t: 'g.band', bandId: 'band_cathy' }), OK);
+  // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — solo is untimed there: bring none
+  assert.ok(scheduler.runUntil(() => m.phase === 'CUSTOM_CHECK'));
+  assert.deepEqual(m.handle('p', { t: 'g.diyBring', slots: [] }), OK);
   assert.ok(scheduler.runUntil(() => m.phase === 'PREP'));
   cmd('funds', { amount: 999 }); cmd('level');
   const ps = m.players.get('p');

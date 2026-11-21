@@ -5,7 +5,8 @@
 // in an expanded-capacity room; every seat locked ends the step early; the countdown fixes every hold and gives a doctor
 // holding nothing its highlighted strategy, else the default. AI seats lock at once, with 「AI 队友最后选择」 once no human
 // is left deciding. g.band (a page that predates the flow) holds and locks at once. Checkpoints keep holds and locks; a
-// checkpoint of the turn-based draft goes on with turns.
+// checkpoint of the turn-based draft goes on with turns. The step after the draft is 选择自编 (CUSTOM_CHECK: every version
+// since 2026-11-21, tools/versions/forkDiy.mjs), so a finished draft is seen there.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ERR, PHASE } from '../../shared/constants.js';
@@ -100,7 +101,7 @@ test('hold, switch, cancel, lock: a held strategy is 队友已选 for the others
   assert.equal(m.phase, PHASE.BAND_DRAFT, 'p_2 has not locked');
   assert.deepEqual(m.handle('p_2', { t: 'g.bandLock' }), OK);
   h.sched.advance(1);
-  assert.equal(m.phase, PHASE.BATTLE_CHECK, 'every seat locked: the step ends at once');
+  assert.equal(m.phase, PHASE.CUSTOM_CHECK, 'every seat locked: the step ends at once');
   assert.ok(h.sched.now() - t0 < 1000);
   checkInvariants(m);
   m.dispose();
@@ -117,7 +118,7 @@ test('the countdown fixes every hold; a human holding nothing gets the highlight
   assert.deepEqual(m.handle('p_1', { t: 'g.bandFocus', bandId: free[0] }), OK, 'highlighting a held strategy');
   assert.deepEqual(m.handle('p_2', { t: 'g.bandFocus', bandId: free[1] }), OK);
   h.run(() => m.phase !== PHASE.BAND_DRAFT, { maxTime: 3 * TURN_MS });
-  assert.equal(m.phase, PHASE.BATTLE_CHECK);
+  assert.equal(m.phase, PHASE.CUSTOM_CHECK);
   const took = h.sched.now() - t0;
   assert.ok(took >= TURN_MS - 5 && took <= TURN_MS + 50, `one countdown (${took} ms)`);
   assert.equal(h.ps('p_0').bandId, free[0], 'the hold is fixed');
@@ -142,7 +143,7 @@ test('「AI 队友最后选择」: the AI seats lock once every human has locked
     assert.deepEqual(Object.keys(m.draft.picks), ['p_0'], 'a held, unlocked human still decides');
     assert.deepEqual(m.handle('p_1', { t: 'g.bandLock' }), OK);
     h.run(() => m.phase !== PHASE.BAND_DRAFT, { maxTime: 1000 });
-    assert.equal(m.phase, PHASE.BATTLE_CHECK, 'the AI seats locked right after, the step ended early');
+    assert.equal(m.phase, PHASE.CUSTOM_CHECK, 'the AI seats locked right after, the step ended early');
     assert.ok(h.sched.now() - t0 < 1000);
     assert.equal(new Set(Object.values(m.draft.picks)).size, 4);
     for (const id of ['ai_0', 'ai_1']) assert.ok(!['band_amiya', 'band_lisa'].includes(m.draft.picks[id]));
@@ -153,7 +154,7 @@ test('「AI 队友最后选择」: the AI seats lock once every human has locked
     const m = h.m;
     assert.deepEqual(m.handle('p_0', { t: 'g.bandHold', bandId: 'band_amiya' }), OK);
     h.run(() => m.phase !== PHASE.BAND_DRAFT, { maxTime: 3 * TURN_MS });
-    assert.equal(m.phase, PHASE.BATTLE_CHECK);
+    assert.equal(m.phase, PHASE.CUSTOM_CHECK);
     assert.equal(h.ps('p_0').bandId, 'band_amiya');
     assert.equal(h.ps('p_1').bandId, 'band_bldsk', 'the default');
     assert.equal(new Set(Object.values(m.draft.picks)).size, 4, 'the AI seats picked after the humans, nothing repeated');
@@ -171,7 +172,7 @@ test('an expanded-capacity room drafts freely too and allows repeats: the same s
   assert.deepEqual(m.handle('p_0', { t: 'g.bandLock' }), OK);
   assert.deepEqual(m.handle('p_1', { t: 'g.bandLock' }), OK);
   h.run(() => m.phase !== PHASE.BAND_DRAFT, { maxTime: 1000 });
-  assert.equal(m.phase, PHASE.BATTLE_CHECK);
+  assert.equal(m.phase, PHASE.CUSTOM_CHECK);
   assert.equal(h.ps('p_0').bandId, 'band_amiya');
   assert.equal(h.ps('p_1').bandId, 'band_amiya');
   m.dispose();
@@ -202,7 +203,7 @@ test('a departing doctor is drafted for by the team\'s rule, held strategy or no
   assert.deepEqual(m.handle('p_2', { t: 'g.bandHold', bandId: 'band_orchid' }), OK);
   assert.deepEqual(m.handle('p_2', { t: 'g.bandLock' }), OK);
   h.sched.advance(1);
-  assert.equal(m.phase, PHASE.BATTLE_CHECK);
+  assert.equal(m.phase, PHASE.CUSTOM_CHECK);
   m.dispose();
   // holding nothing: no default any more — the AI drafts for it at once by the team's rule (upstream §37.65, botPickBand's
   // departedWeight: Touch while nobody else has it, never 歌利亚); an offline doctor (no AI 托管 yet) waits for the countdown
@@ -218,7 +219,7 @@ test('a departing doctor is drafted for by the team\'s rule, held strategy or no
   g.sched.advance(1);
   assert.equal(g.m.phase, PHASE.BAND_DRAFT, 'the offline doctor is still deciding');
   g.run(() => g.m.phase !== PHASE.BAND_DRAFT, { maxTime: 3 * TURN_MS });
-  assert.equal(g.m.phase, PHASE.BATTLE_CHECK, 'the countdown fixes it');
+  assert.equal(g.m.phase, PHASE.CUSTOM_CHECK, 'the countdown fixes it');
   assert.equal(g.m.draft.picks.p_1, 'band_bldsk', 'the default, free since the departed seat took Touch');
   g.m.dispose();
 });
@@ -253,7 +254,7 @@ test('a checkpoint mid-way keeps the holds and the locks, starts the countdown o
   assert.deepEqual(r.m.handle('p_2', { t: 'g.bandHold', bandId: 'band_orchid' }), OK);
   assert.deepEqual(r.m.handle('p_2', { t: 'g.bandLock' }), OK);
   r.run(() => r.m.phase !== PHASE.BAND_DRAFT, { maxTime: 1000 });
-  assert.equal(r.m.phase, PHASE.BATTLE_CHECK);
+  assert.equal(r.m.phase, PHASE.CUSTOM_CHECK);
   assert.equal(r.ps('p_0').bandId, 'band_amiya');
   m.dispose(); r.m.dispose();
 });
@@ -278,7 +279,7 @@ test('a checkpoint of the turn-based draft (before the free draft) restores and 
   assert.ok(turn && turn !== first, 'the next turn');
   assert.equal(r.m.handle(turn, { t: 'g.bandHold', bandId: 'band_lisa' }).error, ERR.WRONG_PHASE, 'no holds there');
   r.run(() => r.m.phase !== PHASE.BAND_DRAFT, { maxTime: 3 * TURN_MS });
-  assert.equal(r.m.phase, PHASE.BATTLE_CHECK, 'the turns that run out finish it');
+  assert.equal(r.m.phase, PHASE.CUSTOM_CHECK, 'the turns that run out finish it');
   assert.equal(r.ps(first).bandId, 'band_amiya');
   assert.equal(new Set([...r.m.players.values()].map((ps) => ps.bandId)).size, 3);
   m.dispose(); r.m.dispose();

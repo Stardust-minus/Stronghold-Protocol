@@ -73,6 +73,15 @@ async function roundOneFunds(hosts, cs) {
     await delay(50);
   }
   assert.equal(band.ok, true, JSON.stringify(band));
+  // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — solo is untimed there: bring none (the band reply, too, can
+  // arrive before the step)
+  let bring = { error: 'WRONG_PHASE' };
+  for (let i = 0; i < 40 && !bring.ok; i++) {
+    bring = await m.handle('p_1', { t: 'g.diyBring', slots: [] });
+    if (bring.ok || bring.error !== 'WRONG_PHASE') break;
+    await delay(50);
+  }
+  assert.equal(bring.ok, true, JSON.stringify(bring));
   let funds = null;
   for (let i = 0; i < 80 && funds == null; i++) {
     const view = out.sent.map(([, msg]) => msg).find((msg) => msg && msg.t === 'm.private' && msg.playerId === 'p_1' && msg.funds > 0);

@@ -27,6 +27,8 @@ async function driveTo(match, pid, round) {
     const ps = match.players.get(pid);
     if (match.phase === 'INFO_CHECK' && !ps.infoReady) match.handle(pid, { t: 'g.infoReady' });
     if (match.phase === 'BAND_DRAFT' && match.draftTurn() === pid) match.handle(pid, { t: 'g.band', bandId: 'band_bldsk' });
+    // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — a lone human is untimed there: bring none
+    if (match.phase === 'CUSTOM_CHECK' && ps.diyBring == null) match.handle(pid, { t: 'g.diyBring', slots: [] });
     if (match.phase === 'SP_DRAFT' && match.spTurn() === pid) {
       const idx = match.sp.cards.find((card) => match.spCardAvailable(card, ps))?.idx;
       if (idx != null) match.handle(pid, { t: 'g.choice', idx });

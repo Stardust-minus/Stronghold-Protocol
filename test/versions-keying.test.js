@@ -386,9 +386,10 @@ for (const dir of DIRS) {
   });
 }
 
-test('kits of data/: the new lookup equals the by-id lookup for all 266 records', () => {
+// (2026-11-21) 282: the default's twelve 自选 slots (tools/versions/forkDiy.mjs) add 16 records
+test('kits of data/: the new lookup equals the by-id lookup for all 282 records', () => {
   const all = defsOf(dataOf(DEFAULT_DIR));
-  assert.equal(all.length, 266);
+  assert.equal(all.length, 282);
   for (const { id, def } of all) assert.equal(officialKitKey(def), oldKitKey(def), id);
 });
 

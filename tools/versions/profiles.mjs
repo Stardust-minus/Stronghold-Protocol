@@ -15,6 +15,8 @@
 //             commit the default reads it from, so the records match the default's; the summons those records name
 //             come along when the pin lacks them. `replace: [charId…]` (only ids of the same entry) lets an entry
 //             overwrite an operator the pin already has, modules included (麒麟R夜刀's EXE-Y)
+//   forkDiy   true or omitted — 规程's 自选 rule on a 盟约 season: six slots a tier and the 选择自编 step that brings 0–2 of
+//             each (tools/versions/forkDiy.mjs; the owner's decision of 2026-11-21)
 //   diyBonds / diyTalentNotes  { <charId>: … } or omitted — replace an entry of tools/build-data.mjs DIY_EXTRA_BONDS /
 //             DIY_TALENT_NOTES (the deliberate 自选 bonds and talent lines) where the version lacks a bond they name
 //   adapters  names in tools/versions/adapters.mjs, applied in this order to the loaded activity_table

@@ -39,6 +39,9 @@ for (const capacity of [8, 12, 16, 20]) for (const family of ['bounty', 'supply'
       assert.deepEqual(host.handle(spec.assignmentId, id, { t: 'g.band', bandId: 'band_bldsk' }, channels.get(id)), { ok: true });
       assert.equal(host.handle(spec.assignmentId, id, { t: 'g.band', bandId: 'band_bldsk' }, channels.get(id)).error, ERR.ALREADY);
     }
+    // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — every member brings none rather than wait out its 30 s
+    await until(() => match.phase === 'CUSTOM_CHECK');
+    for (const seat of spec.seats) assert.deepEqual(host.handle(spec.assignmentId, seat.playerId, { t: 'g.diyBring', slots: [] }, channels.get(seat.playerId)), { ok: true });
     await until(() => match.phase === 'BATTLE_CHECK');
     assert.equal(Object.keys(match.draft.picks).length, capacity); assert.equal(new Set(Object.values(match.draft.picks)).size, 1);
     match.setDeadline(0); match.round = 3; match.enterSpDraft(); const draft = match.sp;
@@ -120,6 +123,8 @@ for (const [capacity, count] of [[4, 4], [8, 2], [8, 5], [12, 5], [16, 5], [20, 
       assert.equal((await c.request({ t: 'g.band', bandId })).t, 'ok');
       if (Object.keys(match.draft.picks).length === 1) assert.equal((await c.request({ t: 'g.band', bandId })).code, ERR.ALREADY);
     }
+    // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — every seat brings none rather than wait out its 30 s
+    await Promise.all(spec.seats.map(seat => f.channels.get(seat.playerId).diyBring([], 6000)));
     await until(() => match.phase === 'BATTLE_CHECK'); match.setDeadline(0); match.round = 3; match.enterSpDraft();
     const draft = match.sp, firstCard = draft.cards[0];
     // equipment stock is per chess-pool group (Match itemPoolFor): each group's seats take card 0 up to its own stock

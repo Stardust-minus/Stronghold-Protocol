@@ -81,15 +81,16 @@ test('the wiring: the wall and the rows read the fitted sizes, the design sizes 
   assert.match(js, /useFitBox\(gridRef, \(el\) => fitTileBox\(el, shortScreen\(\) \? DRAFT_TILE_REM_SHORT : DRAFT_TILE_REM\)/);
 });
 
-test('the briefing: two columns that scroll on their own, never the page; the dock in the foot\'s row', () => {
+test('the briefing (one layout since 2026-11-21): the left scrolls on its own, never the page; the right column and the dock stay put', () => {
   const css = read('public/css/screens/briefing.css');
-  assert.match(css, /\n\.brief__main \{[^}]*display: grid; grid-template-columns: minmax\(7\.6rem, 8fr\) minmax\(0, 11fr\);/);
-  assert.doesNotMatch(css.match(/\n\.brief__main \{[^}]*\}/)[0], /overflow/, 'the main area itself does not scroll');
-  assert.match(css, /\n\.brief__col \{[^}]*overflow-y: auto;/);
+  assert.match(css, /\n\.brief__split \{[^}]*overflow: hidden;[^}]*display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(2\.8rem, 4\.3rem\);/);
+  assert.match(css, /\n\.brief__scroll \{[^}]*overflow-y: auto;/);
+  assert.match(css, /\n\.brief__side \{[^}]*overflow: hidden;/);
+  assert.match(css, /\n\.brief__dock \{[^}]*flex: none;/);
   const js = read('public/js/screens/briefing.js');
-  const enemy = js.indexOf('brief__col--enemy'), bonds = js.indexOf('brief__col--bonds');
-  assert.ok(enemy > 0 && bonds > enemy);
-  assert.ok(js.indexOf('brief-sec--core') > enemy && js.indexOf('brief-sec--core') < bonds, '核心盟约 under the enemies');
-  assert.ok(js.indexOf('brief-sec--addon') > bonds && js.indexOf('brief-sec--banned') > bonds, '附加盟约 and 本局禁用干员 on the right');
-  assert.ok(js.indexOf('<div class="brief__dock">') > js.indexOf('<footer class="brief__foot">'), 'the dock inside the foot');
+  const scroll = js.indexOf('<div class="brief__scroll">'), side = js.indexOf('<aside class="brief__side">');
+  assert.ok(scroll > 0 && side > scroll);
+  for (const sec of ['brief-sec--core', 'brief-sec--addon', 'brief-sec--banned']) assert.ok(js.indexOf(sec) > scroll && js.indexOf(sec) < side, sec);
+  assert.ok(js.indexOf('<div class="brief__dock">') > js.indexOf('brief-sec--banned') && js.indexOf('<div class="brief__dock">') < side, '自选上场 pinned under the scroll');
+  assert.ok(js.indexOf('<${SetupReroll}') > side && js.indexOf('<${StagePreview}') > side, '重刷本局 and the map in the right column');
 });

@@ -1,4 +1,4 @@
-// 规程 INFO_CHECK is a two-column briefing. Every other family keeps screens/briefing.js's column.
+// INFO_CHECK is one two-column briefing for every version (2026-11-21; 规程's alone before, ui/regulationBriefing.js).
 // The preview is the stage's own cells until a manifest lists a picture (ui/stagePreview.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,10 +19,9 @@ globalThis.fetch = async (url) => {
   }
 };
 
-const { regulationBriefingLayout, RegulationBriefing } = await import('../../public/js/ui/regulationBriefing.js');
-const { MatchBondGroups, MatchBondRow, BannedByBond, BannedThumb, BondLackTag, RegulationHead, matchInfoModel } = await import('../../public/js/ui/matchInfo.js');
+const { MatchBondGroups, MatchBondRow, BannedByBond, BannedThumb, BondLackTag, RegulationHead } = await import('../../public/js/ui/matchInfo.js');
 const { MatchEnemies } = await import('../../public/js/ui/matchEnemies.js');
-const { StagePreview, StageMap, stagePreviewChoice, stagePreviewCells, stagePreviewKeys, STAGE_PREVIEW_CROP, STAGE_PREVIEW_ZOOM } = await import('../../public/js/ui/stagePreview.js');
+const { StageMap, stagePreviewChoice, stagePreviewKeys, STAGE_PREVIEW_CROP, STAGE_PREVIEW_ZOOM } = await import('../../public/js/ui/stagePreview.js');
 const { Img, RichText } = await import('../../public/js/ui/gameComponents.js');
 const { Tooltip } = await import('../../public/js/ui/components.js');
 
@@ -37,47 +36,27 @@ const hasClass = (v, c) => typeof v?.props?.class === 'string' && v.props.class.
 const textOf = (v) => Array.isArray(v) ? v.map(textOf).join('')
   : typeof v === 'string' || typeof v === 'number' ? String(v) : v && typeof v === 'object' ? textOf(v.props?.children) : '';
 
-test('regulationBriefingLayout is the version family, not a bond id', () => {
-  assert.equal(regulationBriefingLayout({ version: { family: 'regulation' } }), true);
-  assert.equal(regulationBriefingLayout({ version: { family: 'regulation', id: 'act3autochess@V3_1' } }), true);
-  assert.equal(regulationBriefingLayout(null), false);
-  assert.equal(regulationBriefingLayout({}), false);
-  assert.equal(regulationBriefingLayout({ version: { family: 'covenant' } }), false);
-  assert.equal(regulationBriefingLayout({ version: null }), false);
+test('one briefing for every version: the left scroll, the right column, the dock; no version switch', () => {
+  assert.equal(existsSync(path.join(ROOT, 'public/js/ui/regulationBriefing.js')), false, 'no second layout');
   const brief = read('public/js/screens/briefing.js');
-  assert.match(brief, /regulationBriefingLayout\(gd\.config\)/);
-  assert.match(brief, /<section class="brief-sec brief-sec--enemy" style="--i:1">\s*<\$\{MatchEnemies\} pub=\$\{pub\} gd=\$\{gd\} \/>\s*<\/section>/);
+  assert.doesNotMatch(brief, /regulationBriefingLayout|version\.family|regulationFamily/);
+  assert.match(brief, /<div class="screen brief" data-layout="one">/);
+  const order = ['<div class="brief__split">', '<div class="brief__scroll">', 'brief-sec--core', 'brief-sec--addon', 'brief-sec--banned',
+    '<div class="brief__dock">', '<aside class="brief__side">', '<${StagePreview}', '<${MatchEnemies} pub=${pub} gd=${gd} layout="regulation" />',
+    '<${SetupReroll} pub=${pub} compact=${true} />', '<${LoadoutButton}', '<div class="brief__foot">', 'class="brief-go"'];
+  let at = -1;
+  for (const m of order) { const i = brief.indexOf(m, at + 1); assert.ok(i > at, m); at = i; }
+  // 自选上场 (盟约's 候补) pinned under the scroll, only with a choice to make
+  assert.match(brief, /\$\{priv\?\.diyChoice \? html`<div class="brief__dock">\s*<\$\{DiyChoice\} priv=\$\{priv\} onChoose=\$\{actions\.diyChoose\}/);
+  assert.match(brief, /stagePreviewChoice\(\{ ui: gd\.m\?\.ui, localGroups \}, pub\.stageId\)/);
+  assert.match(brief, /pool=\$\{stagePoolLine\(mode\)\}/);
   assert.doesNotMatch(brief, /enemyIconUrl|factionIconUrl|brief-boss|brief-faction/);
   assert.doesNotMatch(brief, /brief-legend|brief-banned|function BondRow|bannedPerBond|disabledBondSets/);
 });
 
-test('the 规程 screen is two columns and asks for the cell preview', () => {
-  const pub = { modeId: 'mode_single_normal', stageId: 'act3autochess_m01', bossId: null, factions: [], setupRevision: 0 };
-  const gd = {
-    config: { version: { family: 'regulation' }, modes: { mode_single_normal: { stages: ['act3autochess_m01'] } } },
-    m: { ui: {} },
-    stage: () => null,
-    list: () => [],
-  };
-  const info = matchInfoModel(pub, { bonds: [], chess: () => null });
-  const me = { playerId: 'p', ready: false, name: '博士' };
-  const tree = RegulationBriefing({
-    pub, gd, room: null, solo: true, info, players: [me], me, readyN: 0, myId: 'p',
-    exit: false, setExit() {}, busy: false, bondId: null, setBondId() {}, ready() {}, pickGroup() {}, priv: null,
-  });
-  assert.equal(tree.props['data-layout'], 'regulation');
-  assert.ok(hasClass(tree, 'brief--reg'));
-  const nodes = [...walk(tree)];
-  assert.ok(nodes.some((v) => hasClass(v, 'brief__scroll')));
-  assert.ok(nodes.some((v) => hasClass(v, 'brief__side')));
-  assert.equal(nodes.some((v) => hasClass(v, 'brief__main')), false);
-  const preview = nodes.find((v) => v.type === StagePreview);
-  assert.equal(preview.props.choice.kind, 'cells');
-  assert.equal(preview.props.choice.assumed, true);
-  assert.equal(preview.props.pool, '战场固定');
-  const enemies = nodes.find((v) => v.type === MatchEnemies);
-  assert.equal(enemies.props.layout, 'regulation');
-  assert.match(textOf(nodes.find((v) => hasClass(v, 'brief-go'))), /准备就绪/);
+test('the stage preview has no picture (none) until a manifest lists one or the render runs — never cells', () => {
+  const choice = stagePreviewChoice({ ui: {}, localGroups: null }, 'act3autochess_m01');
+  assert.deepEqual(choice, { kind: 'none' });
 });
 
 test('规程 leader shows the name only; the round, abilities and battlefield stay on a tap', () => {
@@ -137,9 +116,18 @@ test('规程 groups share one header; the covenant groups do not', () => {
   const rows = [...walk(open)].filter((v) => v.type === MatchBondRow);
   assert.ok(rows.length >= 2);
   assert.ok(rows.every((row) => row.props.head === false));
+  // the pick is final; the panels stay (the official 1/3), the picked one lit and marked 已激活, no buttons
   const settled = MatchBondGroups({ model: { ...model, choice: { ...model.choice, picked: 0 } }, panels: true, onPick() {}, onBond() {} });
-  assert.equal(settled.type, MatchBondRow);
-  assert.equal(settled.props.head.type, RegulationHead);
+  const sn = [...walk(settled)];
+  assert.equal(sn.filter((v) => v.type === RegulationHead).length, 1);
+  assert.equal(sn.filter((v) => hasClass(v, 'brief-bond-group')).length, 2);
+  assert.ok(hasClass(sn.find((v) => v.props?.['data-group'] === 0), 'is-on'));
+  assert.ok(hasClass(sn.find((v) => v.props?.['data-group'] === 1), 'is-dropped'));
+  assert.equal(sn.some((v) => v.props?.['data-testid']?.startsWith?.('bond-group-')), false);
+  assert.match(textOf(sn.find((v) => hasClass(v, 'reg-group__on'))), /已激活/);
+  const noChoice = MatchBondGroups({ model: { ...model, choice: null }, panels: true, onPick() {}, onBond() {} });
+  assert.equal(noChoice.type, MatchBondRow);
+  assert.equal(noChoice.props.head.type, RegulationHead);
   const plain = MatchBondGroups({ model, onPick() {}, onBond() {} });
   assert.equal([...walk(plain)].some((v) => v.type === RegulationHead), false);
   assert.equal([...walk(plain)].filter((v) => v.type === MatchBondRow)[0].props.head, undefined);
@@ -177,56 +165,26 @@ test('a banned operator is the official grey portrait with the 禁用 corner; a 
   assert.equal(byName.extra.cross, true);
   assert.equal(byName.extra.tag, null);
   assert.equal(byName.yan.cross, false);
-  // the CSS: portraits at the official proportions (rows of at most 7), tier mark bottom-left, the corner on the top-right
+  // the CSS: the groups flowing side by side (more compact than the official one group a row, 2026-11-21), tier mark
+  // bottom-left, the corner on the top-right
   const css = readFileSync(path.join(ROOT, 'public/css/screens/briefing.css'), 'utf8');
-  assert.match(css, /--ban-ut: 1\.3rem/);
-  assert.match(css, /max-width: calc\(7 \* var\(--ban-ut\)/);
+  assert.match(css, /--ban-ut: \.72rem/);
+  assert.match(css, /\n\.reg-banned__groups \{ display: flex; flex-wrap: wrap;/);
   assert.match(css, /\.reg-banned \.uthumb\.uthumb--banned \.uthumb__tier \{ top: auto; bottom:/);
   assert.match(css, /\.uthumb__ban \{[^}]*top: 1px; right: 1px; width: 34%/);
 });
 
-test('the preview is the stage cells until a manifest lists a picture', () => {
+// no drawn map (the owner, 2026-11-21: 「去掉CSS地图，直接用实际图片」): a picture, the render, else an empty frame
+test('the preview is a picture or the stage\'s render — never a drawn cell map', () => {
   assert.deepEqual({ ...STAGE_PREVIEW_CROP }, { r0: 7, r1: 12, c0: 0, c1: 10 });
   assert.equal(STAGE_PREVIEW_ZOOM, 'dialog');
   assert.deepEqual(stagePreviewKeys('act3autochess_m01'), [
     'stagePreview/act3autochess_m01', 'mapPreview/act3autochess_m01', 'stageMap/act3autochess_m01',
   ]);
-  assert.deepEqual(stagePreviewCells(null), []);
-  assert.deepEqual(stagePreviewCells({}), []);
-  const stage = {
-    tiles: {
-      r: { buildable: 'MELEE', height: 'LOW' },
-      S: { tileKey: 'tile_start' },
-      i: { special: 'infect', buildable: 'NONE' },
-      z: { special: 'speedup', buildable: 'MELEE' },
-    },
-    rows: Array.from({ length: 19 }, () => 'r'.repeat(21)),
-  };
-  stage.rows[6] = stage.rows[6].slice(0, 2) + 'S' + stage.rows[6].slice(3);
-  stage.rows[9] = stage.rows[9].slice(0, 2) + 'S' + stage.rows[9].slice(3);
-  stage.rows[10] = stage.rows[10].slice(0, 6) + 'i' + stage.rows[10].slice(7);
-  stage.rows[8] = stage.rows[8].slice(0, 7) + 'z' + stage.rows[8].slice(8);
-  stage.rows[11] = 'rr';
-  const cells = stagePreviewCells(stage);
-  assert.equal(cells.length, 66);
-  assert.equal(cells[0].row, 12, 'the far row is the top of the thumbnail (row 0 is the bottom of the stage)');
-  assert.equal(cells[0].col, 0);
-  assert.equal(cells.at(-1).row, 7);
-  assert.equal(cells.at(-1).col, 10);
-  assert.equal(cells.some((c) => c.row === 6), false);
-  assert.equal(cells.find((c) => c.row === 9 && c.col === 2).kind, 'gate');
-  assert.equal(cells.find((c) => c.row === 10 && c.col === 6).kind, 'infect');
-  const speed = cells.find((c) => c.row === 8 && c.col === 7);
-  assert.equal(speed.special, 'speedup');
-  assert.equal(speed.kind, 'floor');
-  assert.equal(cells.find((c) => c.row === 11 && c.col === 10).kind, 'void');
-  const map = StageMap({ stage, choice: { kind: 'cells', assumed: true } });
-  assert.equal(map.props['data-preview'], 'cells');
-  assert.equal(map.props['data-assumed'], 'true');
-  const painted = [...walk(map)].find((v) => v.props?.['data-special'] === 'speedup');
-  assert.match(painted.props.class, /reg-map__cell--speedup/);
-  assert.match(painted.props.class, /ff-tile--floor/);
-  assert.doesNotMatch(painted.props.class, /(^|\s)ff-tile(\s|$)/);
+  const stage = { tiles: { r: { buildable: 'MELEE', height: 'LOW' } }, rows: Array.from({ length: 19 }, () => 'r'.repeat(21)) };
+  const map = StageMap({ stage, choice: { kind: 'none' } });
+  assert.equal(map.props['data-preview'], 'none');
+  assert.equal([...walk(map)].some((v) => /reg-map__cell/.test(v.props?.class || '')), false, 'no cells');
   const picture = StageMap({ stage: null, choice: { kind: 'picture', url: '/m.png', key: 'stagePreview/x' } });
   assert.equal(picture.props['data-preview'], 'picture');
   assert.equal(picture.props['data-assumed'], undefined);
@@ -236,7 +194,7 @@ test('the preview is the stage cells until a manifest lists a picture', () => {
   const local = existsSync(path.join(ROOT, 'data/local-assets.json')) ? JSON.parse(read('data/local-assets.json')) : { groups: {} };
   const src = { ui: assets.ui, localGroups: local.groups };
   for (const id of ['act3autochess_m01', 'act2autochess_m01']) {
-    assert.deepEqual(stagePreviewChoice(src, id), { kind: 'cells', assumed: true });
+    assert.deepEqual(stagePreviewChoice(src, id), { kind: 'none' }, 'no picture, no probe yet: the frame waits for the render');
   }
   assert.deepEqual(
     stagePreviewChoice({ ui: { 'stagePreview/act3autochess_m01': '/x.png' }, localGroups: {} }, 'act3autochess_m01'),
@@ -249,4 +207,6 @@ test('the preview is the stage cells until a manifest lists a picture', () => {
   const srcJs = read('public/js/ui/stagePreview.js');
   assert.match(srcJs, /name="search"/);
   assert.match(srcJs, /<\$\{Modal\}/);
+  assert.doesNotMatch(srcJs, /reg-map__cell|stagePreviewCells|StageMiniMap/);
+  assert.doesNotMatch(read('public/css/screens/briefing.css'), /reg-map__cell/);
 });

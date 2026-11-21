@@ -592,6 +592,10 @@ test('test journal re-simulates real inputs, timer order, RNG, public/private vi
   ok(m.handle('p', { t: 'g.infoReady' }));
   scheduler.runUntil(() => m.phase === 'BAND_DRAFT');
   ok(m.handle('p', { t: 'g.test', cmd: 'phase', args: { name: 'battleCheck' } }));
+  // 选择自编 (CUSTOM_CHECK: every version since 2026-11-21, tools/versions/forkDiy.mjs) — solo is untimed: bring none
+  assert.equal(m.phase, 'CUSTOM_CHECK');
+  ok(m.handle('p', { t: 'g.diyBring', slots: [] }));
+  scheduler.runUntil(() => m.phase === 'BATTLE_CHECK');
   ok(m.handle('p', { t: 'g.test', cmd: 'phase', args: { name: 'advance' } }));
   ok(m.handle('p', { t: 'g.test', cmd: 'phase', args: { name: 'prep' } }));
   ok(m.handle('p', { t: 'g.test', cmd: 'funds', args: { amount: 700 } }));
@@ -685,6 +689,11 @@ test('co-op band timer is held and cannot fire a stale draft callback after a ph
   ok(h.m.handle('p_0', { t: 'g.test', cmd: 'timers', args: { on: false } }));
   h.sched.advance(60000); assert.equal(h.m.phase, 'BAND_DRAFT'); assert.equal(Object.keys(h.m.draft.picks).length, 0);
   ok(h.m.handle('p_0', { t: 'g.test', cmd: 'phase', args: { name: 'battleCheck' } }));
+  // 选择自编 (every version since 2026-11-21): its timer is held too; both humans bring none
+  assert.equal(h.m.phase, 'CUSTOM_CHECK');
+  h.sched.advance(60000); assert.equal(h.m.phase, 'CUSTOM_CHECK');
+  for (const p of h.m.order) ok(h.m.handle(p.playerId, { t: 'g.diyBring', slots: [] }));
+  h.sched.runUntil(() => h.m.phase === 'BATTLE_CHECK');
   assert.equal(h.m.phase, 'BATTLE_CHECK');
   ok(h.m.handle('p_0', { t: 'g.test', cmd: 'phase', args: { name: 'advance' } }));
   assert.equal(h.m.phase, 'ROUND_START');
@@ -995,6 +1004,7 @@ for (const botRehearsal of [0, 1]) test(`sliced bot prep and a server-run battle
       if (ps && !ps.left) {
         if (m.phase === 'INFO_CHECK' && !ps.infoReady) m.handle('p_0', { t: 'g.infoReady' });
         else if (m.phase === 'BAND_DRAFT' && m.draftTurn() === 'p_0') m.handle('p_0', { t: 'g.band', bandId: 'band_bldsk' });
+        else if (m.phase === 'CUSTOM_CHECK' && ps.diyBring == null) m.handle('p_0', { t: 'g.diyBring', slots: [] }); // 选择自编: a lone human is untimed
       }
       if (pred()) return true;
       if (!scheduler.runNext()) return !!pred();
@@ -1065,6 +1075,7 @@ test('a test journal carries the offline hold: its replay clears an all-offline 
       if (ps && !ps.left && ps.connected) {
         if (m.phase === 'INFO_CHECK' && !ps.infoReady) m.handle('p_0', { t: 'g.infoReady' });
         else if (m.phase === 'BAND_DRAFT' && m.draftTurn() === 'p_0') m.handle('p_0', { t: 'g.band', bandId: 'band_bldsk' });
+        else if (m.phase === 'CUSTOM_CHECK' && ps.diyBring == null) m.handle('p_0', { t: 'g.diyBring', slots: [] }); // 选择自编: a lone human is untimed
       }
       if (!scheduler.runNext()) return !!pred();
     }

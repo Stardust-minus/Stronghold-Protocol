@@ -14,6 +14,8 @@
 export default Object.freeze({
   id: 'act2autochess',
   season: 'act2autochess',
+  // 规程's 自选 rule: six slots a tier, 选择自编 brings 0–2 of each (tools/versions/forkDiy.mjs; the owner's decision of 2026-11-21)
+  forkDiy: true,
   pins: Object.freeze({
     default: '17759cc8cdf37388414145d16262a3a06f3ab25e',   // CN 2.7.81, 2026-10-08
     character: '08ba2aea0e8dba88eff0ec0d2c87e24b4db626f8', // CN 2.7.91, 2026-11-01: 冻河 / 国度 / 塔露拉, 4 modules

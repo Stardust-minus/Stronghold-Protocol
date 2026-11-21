@@ -40,7 +40,11 @@ async function player(name, token) {
 }
 const ok = async (c, msg) => { const r = await c.request(msg); assert.equal(r.t, 'ok', `${msg.t}: ${JSON.stringify(r)}`); return r; };
 
-/** Pick from the current public draft, including the AI's choices; never rely on a timeout after a refused pick. */
+/**
+ * Pick from the current public draft, including the AI's choices; never rely on a timeout after a refused pick. Then
+ * 选择自编 (CUSTOM_CHECK, every version since 2026-11-21): every human brings none (a lone human is untimed there).
+ * Returns the last draft frame.
+ */
 async function pickCoopBands(players) {
   const pending = new Map(players.map((c) => [c.id, c]));
   const picked = new Set();
@@ -60,6 +64,7 @@ async function pickCoopBands(players) {
     pending.delete(id);
     picked.add(id);
   }
+  for (const c of players) await c.diyBring();
   return frame;
 }
 
@@ -81,6 +86,7 @@ test('solo over websockets: briefing → band → prep → buy/place/ready → c
   await ok(c, { t: 'g.infoReady' });
   await c.waitFor('m.public', (p) => p.phase === 'BAND_DRAFT');
   await ok(c, { t: 'g.band', bandId: 'band_sarkazb' });
+  await c.diyBring(); // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — solo is untimed: bring none
   const prep = await c.waitFor('m.public', (p) => p.phase === 'PREP' && p.round === 1, 10000);
   assert.equal(prep.players[0].lp, 45);
   const priv = await c.waitFor('m.private', (p) => p.funds === 4 && p.shop.slots.length > 0);
@@ -285,6 +291,7 @@ test('server-run fallback (SP_COMBAT=server): the match simulates every field an
     await ok(c, { t: 'g.infoReady' });
     await c.waitFor('m.public', (p) => p.phase === 'BAND_DRAFT');
     await ok(c, { t: 'g.band', bandId: 'band_sarkazb' });
+    await c.diyBring(); // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — solo is untimed: bring none
     await c.waitFor('m.public', (p) => p.phase === 'PREP' && p.round === 1, 10000);
     await ok(c, { t: 'g.ready', ready: true });
     await c.waitFor('m.field', () => true, 10000);

@@ -138,18 +138,23 @@ export function bondCell({ bond: b, model, onBond, badge = true }) {
 }
 
 /**
- * 规程 header: the section title, the legend chip, and a decorative icon pair.
- * [ASSUMED] the pair does nothing (the recordings show it; no control is named). The chip's title is the longer
- * regulation legend, so that sentence stays reachable when the chip ellipsizes.
- * @param {{ title: string }} props
+ * The briefing's section header: the title and a decorative icon pair ([ASSUMED] the pair does nothing: the recordings
+ * show it, no control is named). `legend` (附加盟约's only, as the official 1/3 shows it) adds the legend chip — the grey
+ * disc 「部分盟约所含干员阵容不完整」 and the red badge 「该盟约中无法出现的干员数」 — whose title is the full legend
+ * (legendText: 规程's core-priority rule, or 盟约's), so that sentence stays reachable when the chip ellipsizes.
+ * `count` (本局禁用干员's): the number beside the title.
+ * @param {{ title: string, model?: MatchInfoModel|null, legend?: boolean, count?: number|null }} props
  */
-export function RegulationHead({ title }) {
+export function RegulationHead({ title, model = null, legend = false, count = null }) {
   return html`<h3 class="brief-h reg-h">
     <span class="reg-h__title">${title}</span>
-    <span class="reg-chip" title=${t(REGULATION_BOND_LEGEND)}>
+    ${count != null ? html`<b class="num brief-banned__n">${count}</b>` : null}
+    ${legend ? html`<span class="reg-chip" title=${model ? legendText(model) : t(REGULATION_BOND_LEGEND)}>
       <span class="brief-legend__off" aria-hidden="true"></span>
       <span class="reg-chip__txt">${t(REGULATION_LEGEND_CHIP)}</span>
-    </span>
+      <span class="brief-legend__ban" aria-hidden="true"><${Icon} name="user" /></span>
+      <span class="reg-chip__txt">${t('该盟约中无法出现的干员数')}</span>
+    </span>` : null}
     <span class="reg-htools" aria-hidden="true"><i></i><i></i></span>
   </h3>`;
 }
@@ -195,31 +200,37 @@ export function regulationCoreAbsent(model, bondId) {
 }
 
 /**
- * 规程 solo: both groups in one panel under a single 核心盟约 header, side by side when the column is wide enough.
- * [ASSUMED] the choice stays the 激活第 N 组 buttons (a recording may also accept a tap on the panel).
+ * Solo 规程: both groups in one panel under a single 核心盟约 header, side by side when the column is wide enough. Before
+ * the pick each has its 激活第 N 组 button; after it (final: server phases.js pickBondGroup) the panels stay, the picked
+ * one lit and marked 已激活, the other's discs grey (the draw adds them to the drawn set) — the official 1/3 screenshot.
+ * [ASSUMED] the choice stays the buttons (a recording may also accept a tap on the panel).
  * @param {{ model: MatchInfoModel, onPick: Function, onBond?: Function, disabled?: boolean, busy?: boolean }} o
  */
 function regulationGroupPanels({ model, onPick, onBond, disabled, busy }) {
   const grouped = new Set(model.choice.groups.flat());
   const rest = model.core.filter((b) => !grouped.has(b.bondId));
-  return html`<div class="brief-bond-groups reg-panels" data-testid="bond-groups">
+  const picked = model.choice.picked;
+  return html`<div class=${cx('brief-bond-groups', 'reg-panels', picked !== null && 'is-picked')} data-testid="bond-groups">
     <${RegulationHead} title=${t('核心盟约')} />
     <p class="brief-bond-groups__hint">${t(BOND_GROUP_HINT)}</p>
-    ${model.choice.groups.map((ids, idx) => html`<div class="brief-bond-group" key=${idx}>
+    ${model.choice.groups.map((ids, idx) => html`<div class=${cx('brief-bond-group', picked === idx && 'is-on', picked !== null && picked !== idx && 'is-dropped')} key=${idx} data-group=${idx}>
       <span class="reg-group__n">${t(N_('第 {n} 组'), { n: idx + 1 })}</span>
       <${MatchBondRow} head=${false} title="" micro="CORE BONDS"
         bonds=${ids.map((id) => model.core.find((b) => b.bondId === id)).filter(Boolean)} model=${model} onBond=${onBond} />
-      <${Button} variant="primary" disabled=${disabled || busy} loading=${busy} data-testid=${`bond-group-${idx}`}
-        onClick=${() => onPick(idx)}>${t(N_('激活第 {n} 组'), { n: idx + 1 })}<//>
+      ${picked === null ? html`<${Button} variant="primary" disabled=${disabled || busy} loading=${busy} data-testid=${`bond-group-${idx}`}
+        onClick=${() => onPick(idx)}>${t(N_('激活第 {n} 组'), { n: idx + 1 })}<//>`
+        : picked === idx ? html`<span class="reg-group__on"><${Icon} name="check" />${t('已激活')}</span>` : null}
     </div>`)}
     ${rest.length ? html`<${MatchBondRow} head=${false} title=${t('核心盟约')} micro="CORE BONDS" bonds=${rest} model=${model} onBond=${onBond} />` : null}
   </div>`;
 }
 
-/** Solo regulation's two groups; after the pick, or without a choice, the ordinary core row. `onBond` opens the card from every disc.
- * `panels` is the 规程 briefing only: one header, the groups side by side. Omitted, the markup below is unchanged.
+/** Solo regulation's two groups; without a choice the ordinary core row. `onBond` opens the card from every disc.
+ * `panels` is the briefing's: one header, the groups side by side, kept after the pick. Omitted (the 本局信息 dialog),
+ * the markup below is unchanged: after the pick the ordinary core row.
  */
 export function MatchBondGroups({ model, onPick, onBond, disabled = false, busy = false, panels = false }) {
+  if (panels && model.choice) return regulationGroupPanels({ model, onPick, onBond, disabled, busy });
   if (!model.choice || model.choice.picked !== null) {
     if (panels) {
       return html`<${MatchBondRow} title=${t('核心盟约')} micro="CORE BONDS" bonds=${model.core} model=${model} onBond=${onBond}
@@ -227,7 +238,6 @@ export function MatchBondGroups({ model, onPick, onBond, disabled = false, busy 
     }
     return html`<${MatchBondRow} title=${t('核心盟约')} micro="CORE BONDS" bonds=${model.core} model=${model} onBond=${onBond} />`;
   }
-  if (panels) return regulationGroupPanels({ model, onPick, onBond, disabled, busy });
   const grouped = new Set(model.choice.groups.flat());
   const rest = model.core.filter(b => !grouped.has(b.bondId));
   return html`<div class="brief-bond-groups" data-testid="bond-groups">
@@ -243,12 +253,22 @@ export function MatchBondGroups({ model, onPick, onBond, disabled = false, busy 
 }
 
 /**
- * The legend under the bond rows ("或本模式禁用" only when the mode switches bonds off) and the red count badge (this
- * fork's discs carry it: bondCell `badge`; the tooltip says it too).
+ * The legend's sentence: grey discs (规程: the core-priority rule; 盟约: 阵容不完整, 「，或本模式禁用」 when the mode switches
+ * bonds off — 规程 hides those discs, so its sentence never has the clause).
+ * @param {MatchInfoModel} model
+ */
+export function legendText(model) {
+  if (model.regulation) return t(REGULATION_BOND_LEGEND);
+  return t(N_('灰色：部分盟约所含干员阵容不完整（仍可通过其他盟约的干员或装备激活）')) + (model.sets.off.size ? t('，或本模式禁用') : '');
+}
+
+/**
+ * The legend under the bond rows (legendText) and the red count badge (this fork's discs carry it: bondCell `badge`;
+ * the tooltip says it too).
  * @param {{ model: MatchInfoModel }} props
  */
 export function MatchLegend({ model }) {
-  return html`<p class="brief-legend"><span class="brief-legend__off"></span>${t(model.regulation ? REGULATION_BOND_LEGEND : N_('灰色：部分盟约所含干员阵容不完整（仍可通过其他盟约的干员或装备激活）'))}${model.sets.off.size ? t('，或本模式禁用') : ''} · <span class="brief-legend__ban"><${Icon} name="user" /></span>${t('该盟约中无法出现的干员数')}</p>`;
+  return html`<p class="brief-legend"><span class="brief-legend__off"></span>${legendText(model)} · <span class="brief-legend__ban"><${Icon} name="user" /></span>${t('该盟约中无法出现的干员数')}</p>`;
 }
 
 /**
@@ -299,7 +319,8 @@ export function BannedThumb({ id }) {
  * [ASSUMED] an operator of two such bonds is listed under each. Ids in no bond's visibleMembers stay, with no invented header.
  * Each operator is a BannedThumb and a bond of the drawn set keeps the official 阵容不完整 corner here as in its row
  * (recording BV1hmWL6fEmQ 0:13; until round 83 small dim avatars with no mark under a ✕ disc — GitHub report
- * 「没有显示ban了哪些」). The flat BannedOperators grid is unchanged (the draft dialog and every other version).
+ * 「没有显示ban了哪些」). The briefing and the strategy draft's 本局信息 dialog show it (one look since 2026-11-21); the flat
+ * BannedOperators grid stays exported for tests and a caller that wants it.
  * @param {{ model: MatchInfoModel, onBond?: (id:string)=>void }} props
  */
 export function BannedByBond({ model, onBond }) {
@@ -318,7 +339,7 @@ export function BannedByBond({ model, onBond }) {
   const rest = banned.filter((id) => !claimed.has(id));
   const m = data.get('assets');
   return html`<div class="brief-banned reg-banned">
-    <${RegulationHead} title=${t('本局禁用干员')} />
+    <${RegulationHead} title=${t('本局禁用干员')} count=${banned.length} />
     ${banned.length ? html`<div class="reg-banned__groups">
       ${groups.map(({ bond, members }) => {
         const state = model.stateOf(bond.bondId);
@@ -347,14 +368,15 @@ export function BannedByBond({ model, onBond }) {
 }
 
 /**
- * The briefing's bonds and banned operators: 核心盟约, 附加盟约, the legend, 本局禁用干员.
+ * The briefing's bonds and banned operators, as the briefing draws them (one look since 2026-11-21): 核心盟约 (solo
+ * 规程's groups panelled, read-only: the pick is made by now), 附加盟约 with the legend chip, 本局禁用干员 grouped by bond.
  * @param {{ model: MatchInfoModel, onBond?: (id:string)=>void }} props
  */
 export function MatchInfo({ model, onBond }) {
-  return html`<${MatchBondRow} title=${t('核心盟约')} micro="CORE BONDS" bonds=${model.core} model=${model} onBond=${onBond} />
-    <${MatchBondRow} title=${t('附加盟约')} micro="ADD-ON BONDS" bonds=${model.addon} model=${model} onBond=${onBond} />
-    <${MatchLegend} model=${model} />
-    <${BannedOperators} model=${model} />`;
+  return html`<${MatchBondGroups} panels=${true} model=${model} onPick=${() => {}} onBond=${onBond} disabled=${true} />
+    <${MatchBondRow} title=${t('附加盟约')} micro="ADD-ON BONDS" bonds=${model.addon} model=${model} onBond=${onBond}
+      head=${html`<${RegulationHead} title=${t('附加盟约')} model=${model} legend=${true} />`} />
+    <${BannedByBond} model=${model} onBond=${onBond} />`;
 }
 
 /**

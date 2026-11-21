@@ -144,8 +144,10 @@ describe('§21.26 3 — strategies tied to a bond the mode switches off', () => 
       solo.push(botPickBand(s.m, s.m.order[0]));
       s.m.dispose();
       const c = makeMatch({ mode: 'coop', difficulty, humans: 0, bots: 4, seed, fake: true }).start();
-      c.run(() => c.m.phase !== PHASE.INFO_CHECK && c.m.phase !== PHASE.BAND_DRAFT, { maxSteps: 1e5 });
-      assert.equal(c.m.phase, PHASE.BATTLE_CHECK, `seed ${seed}: the draft ended`);
+      // (选择自编, CUSTOM_CHECK, follows the draft in every version since 2026-11-21: AI seats confirm it at once)
+      c.run(() => ![PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.CUSTOM_CHECK].includes(c.m.phase), { maxSteps: 1e5 });
+      assert.equal(c.m.phase, PHASE.BATTLE_CHECK, `seed ${seed}: the draft and 选择自编 ended`);
+      assert.ok(c.m.order.every((ps) => ps.diyBring != null), `seed ${seed}: every AI seat brought its 自选`);
       for (const ps of c.m.order) coop.push(ps.bandId);
       assert.equal(new Set(c.m.order.map((ps) => ps.bandId)).size, 4, 'no strategy twice');
       c.m.dispose();

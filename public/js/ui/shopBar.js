@@ -38,7 +38,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../ven
 import { html, Icon, HexBadge, TierChip, Tooltip, MicroLabel, Fragment } from './components.js';
 import { Img, BondGlyph, CoinGlyph, GIcon, RichText } from './gameComponents.js';
 import { priceTone, mergeProgress, mergeTarget, shopBlockReason, chessLoadout, offerHeader, briefingBondTip, ownStandIn, standInLoadout, standInLabel, standInTip, standInForText, ownDiyRecord, diyGetter } from './gameLogic.js';
-import { chessPortraitUrl, itemIconUrl, profIconUrl, profMarkUrl, uiUrl, skillIconUrl, skillRecordIconUrl, moduleTypeIconUrl } from './assetUrls.js';
+import { chessPortraitUrl, itemIconUrl, profIconUrl, uiUrl, skillIconUrl, skillRecordIconUrl, moduleTypeIconUrl } from './assetUrls.js';
 import { data, localAsset } from '../data.js';
 import { hotkeyLabelOf, useSettings } from './settings.js';
 import { themePack } from '../uiTheme.js';
@@ -117,6 +117,37 @@ function regBondLine(bonds, offBonds, style = null, maskGlyph = false, marks = n
       return html`<span key=${b} class=${cx('scard__bond', off && 'is-off', pm && `is-plan-${pm}`, mate && 'is-mate')} data-plan=${pm || undefined} title=${tip}><${BondGlyph} bondId=${b} mask=${maskGlyph} /><span>${bondName}</span>${mate ? html`<span class="scard__bmate" data-testid="shop-plan-mates" aria-label=${t('有队友预选了这个盟约')}><${Icon} name="users" /></span>` : null}</span>`;
     })}
   </span>`;
+}
+
+/**
+ * The name in the prefab's name bar from the profession mark's left edge to the name box's right one: the card shows this
+ * fork's class line (icon + 子职业) above the bar instead of the mark (the owner, 2026-11-21: the official frame, the old
+ * card's details), so the name takes the mark's room — except on a frame with a plate under the mark (可露希尔), where the
+ * class icon stays in it. Percentages of the bar (ui/regHud.js boxCss).
+ * @param {any} face regShopCardFaceModel
+ */
+export function nameFromMark(face) {
+  const n = face?.name?.style;
+  const p = face?.profession?.style;
+  if (!n) return null;
+  const pct = (v) => Number.parseFloat(v);
+  if (!p || !Number.isFinite(pct(p.left)) || !Number.isFinite(pct(n.left)) || !Number.isFinite(pct(n.width))) return { ...n };
+  const left = Math.min(pct(p.left), pct(n.left));
+  // the prefab's own box stays in --name-l0 / --name-w0: a frame that paints a plate for the mark (可露希尔) keeps the class
+  // icon there and the name where the prefab puts it (game-reghud.css)
+  return { ...n, '--name-l0': n.left, '--name-w0': n.width, left: `var(--name-l, ${left}%)`,
+    width: `var(--name-w, ${Number((pct(n.left) + pct(n.width) - left).toFixed(4))}%)` };
+}
+
+/**
+ * Where the card's info block (the bonds row, the class line) sits: on the portrait, right above the prefab's name bar —
+ * the room of the official vertical bond list (bond_list). Without the face pack, the CSS fallback places it.
+ * @param {any} face regShopCardFaceModel
+ */
+export function infoAboveBar(face) {
+  const top = Number.parseFloat(face?.namebar?.top);
+  if (!Number.isFinite(top)) return null;
+  return { bottom: `${Number((100 - top).toFixed(4))}%` };
 }
 
 /** Data lookups (merge progress / target, the loadout; shopBlockReason ignores them — a full hand refuses every purchase). */
@@ -203,6 +234,7 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
       </span>
       ${face?.layers.map((layer, i) => html`<span key=${`${layer.node.name}:${i}`} class=${cx('scard__prefab-layer', `scard__prefab-layer--${layer.node.name}`)} style=${layer.style} aria-hidden="true"><i style=${layer.image}></i></span>`)}
       ${regCost(slot, free, reason === t('资金不足'), face?.cost?.style, pool)}
+      <span class="scard__water" aria-hidden="true">${bonds[0] ? html`<${BondGlyph} bondId=${bonds[0]} />` : null}</span>
       <span class="scard__artbox" style=${face?.art} aria-hidden="true"><${Img} src=${chessPortraitUrl(m, c)} fallbackSrc=${chessPortraitUrl(m, defaultBody)} class="scard__art" /></span>
       ${prog.copies > 0 ? html`<span class="scard__pips" title=${t('已拥有 {copies}/{need}', { copies: prog.copies, need: prog.need })}>
         ${Array.from({ length: prog.need }, (_, i) => html`<i key=${i} class=${i < prog.copies ? 'on' : ''}></i>`)}
@@ -212,15 +244,19 @@ export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free
       ${lo?.skill ? html`<${SkillBadge} chess=${c} lo=${lo} standIn=${!!si} />` : null}
       ${face ? html`<span class="scard__namebar" style=${face.namebar}>
         <span class="scard__plate">
-          <${Img} src=${profMarkUrl(m, c?.profession)} class="scard__prof" fallback=${html`<span class="scard__prof is-pending" aria-hidden="true"></span>`}
-            style=${face.profession.style} />
-          <span class="scard__name" style=${{ ...face.name.style, color: face.name.color, fontSize: `${face.name.fontSize}rem` }}><span class="scard__nametxt">${c?.name || slot.id}</span></span>
+          <${Img} src=${profIconUrl(m, c?.profession)} class="scard__prof" style=${face.profession?.style} />
+          <span class="scard__name" style=${{ ...nameFromMark(face), color: face.name.color }}><span class="scard__nametxt">${c?.name || slot.id}</span></span>
         </span>
       </span>` : html`<span class="scard__namebar"><span class="scard__plate">
-        <${Img} src=${profMarkUrl(m, c?.profession)} class="scard__prof" fallback=${html`<span class="scard__prof is-pending" aria-hidden="true"></span>`} />
         <span class="scard__name">${c?.name || slot.id}</span>
       </span></span>`}
-      ${face?.bonds ? regBondLine(bonds, offBonds, face.bonds, true, marks) : regBondLine(bonds, offBonds, null, false, marks)}
+      <span class="scard__info" style=${infoAboveBar(face)}>
+        ${regBondLine(bonds, offBonds, null, false, marks)}
+        <span class="scard__class">
+          <${Img} src=${profIconUrl(m, c?.profession)} class="scard__classicon" />
+          <span>${c?.subProfessionName || ''}</span>
+        </span>
+      </span>
       ${repeatFx}
       ${willMerge ? html`<span class="scard__mergetag" title=${hint}>${t('可晋升')}</span>` : null}
       ${frozen ? html`<span class="scard__ice" aria-hidden="true"><${Icon} name="snow" /></span>` : null}
@@ -327,8 +363,9 @@ export function ItemCard({ slot, idx, frozen = false, reason = null, free = fals
         <${Img} src=${itemIconUrl(m, it)} fallback=${html`<${GIcon} name="bolt" />`} />
       </span>
       ${face?.item ? html`<span class="scard__namebar" style=${face.item.namebar}>
-        <span class="scard__name" style=${{ ...face.item.name, color: face.item.nameColor, fontSize: `${face.item.nameFontSize}rem` }}><span class="scard__nametxt">${it?.name || slot.id}</span></span>
+        <span class="scard__name" style=${{ ...face.item.name, color: face.item.nameColor }}><span class="scard__nametxt">${it?.name || slot.id}</span></span>
       </span>` : html`<span class="scard__namebar"><span class="scard__name">${it?.name || slot.id}</span></span>`}
+      <span class="scard__idesc" style=${infoAboveBar(face?.item ? { namebar: face.item.namebar } : null)}><${RichText} text=${itemText(it)} /></span>
       ${frozen ? html`<span class="scard__ice" aria-hidden="true"><${Icon} name="snow" /></span>` : null}
       ${armed ? html`<${ArmedTag} reason=${reason} free=${free} />` : null}
     </button>`;
@@ -448,11 +485,12 @@ function RegLevelCard({ shop, reason, armed = false, onTap, themeId }) {
       title=${levelTitle(reason, armed, price)} aria-disabled=${reason ? 'true' : 'false'} aria-pressed=${String(!!armed)}>
     <span class="rup">
       ${model.parts.map((p, i) => (p.kind === 'tip' ? html`<span key=${`t${i}`} class="lvcard__label rup__tip" style=${p.style}>${label}</span>`
-        : p.kind === 'num' && p.text != null ? html`<b key=${`n${i}`} class="rup__num" aria-hidden="true" style=${p.style}>${p.text}</b>`
-          : p.kind === 'text' ? html`<span key=${`x${i}`} class="rup__txt" aria-hidden="true" style=${p.style}>${p.text}</span>`
+        : p.kind === 'num' && p.text != null ? html`<b key=${`n${i}`} class="rup__num" aria-hidden="true" style=${p.style}>${lv}</b>`
+          : p.kind === 'text' ? html`<span key=${`x${i}`} class="rup__txt" aria-hidden="true" style=${p.style}>${label}</span>`
             : html`<i key=${`l${i}`} class=${p.kind === 'num' ? 'rup__l rup__nimg' : 'rup__l'} aria-hidden="true" style=${p.style}></i>`))}
       ${!max ? html`<${HexBadge} value=${price} tone=${reason ? 'dark' : 'gold'} size="sm" class="lvcard__price" />` : null}
     </span>
+    <kbd class="lvcard__key rup__key">${hotkeyLabelOf('levelUp')}</kbd>
     <span class="lvcard__frame rup__sr"><span class="lvcard__micro">LEVEL</span> <b class="lvcard__num num">${lv}</b></span>
   </button>`;
 }
@@ -765,6 +803,7 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
               <${CoinGlyph} class="funds__coin" />
               <b class="funds__num num">${funds}</b>
             </div>
+            <span class="funds__label">${t('目前资金')}</span>
             <button type="button" class="funds__collapse" onClick=${() => onCollapse(true)}><${Icon} name="close" />${t('收起')}</button>
           </div>
         </div>

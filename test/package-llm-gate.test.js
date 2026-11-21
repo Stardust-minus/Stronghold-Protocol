@@ -159,6 +159,8 @@ test('a packaged server boots and plays a bot match while ignoring external-AI s
     const draft = await client.waitFor('m.public', (p) => p.phase === 'BAND_DRAFT' && p.draft.turn === welcome.playerId, 10000);
     const taken = new Set(Object.values(draft.draft.picks));
     await request({ t: 'g.band', bandId: match.gd.bandIds().find((id) => !taken.has(id)) });
+    // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — a lone human is untimed there: bring none
+    await client.diyBring();
     await client.waitFor('m.public', (p) => p.phase === 'PREP' && p.round === 1 && p.players.some((ps) => ps.isBot && ps.ready), 10000);
     const ai = match.order.find((ps) => ps.isBot);
     assert.ok(ai.bandId && ai.ready && ai.board.size > 0, 'the built-in bot drafted, bought and deployed');

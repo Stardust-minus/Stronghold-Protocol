@@ -74,13 +74,14 @@ test('numbers: every stats/bb/enemyScale object holds only finite numbers (no nu
   assert.deepEqual(bad.slice(0, 10), [], `${bad.length} bad numeric fields`);
 });
 
-test('chess: 266 records, 112 visible non-DIY (16/17/19/22/19/19 per tier)', () => {
-  assert.equal(Object.keys(chess).length, 266);
+// (2026-11-21) the 盟约 data has 规程's twelve 自选 slots (tools/versions/forkDiy.mjs): 8 slots more, 16 records
+test('chess: 282 records, 112 visible non-DIY (16/17/19/22/19/19 per tier), 12 DIY slots', () => {
+  assert.equal(Object.keys(chess).length, 282);
   assert.equal(visible.length, 112);
   const perTier = {};
   for (const c of visible) perTier[c.tier] = (perTier[c.tier] || 0) + 1;
   assert.deepEqual(perTier, { 1: 16, 2: 17, 3: 19, 4: 22, 5: 19, 6: 19 });
-  assert.equal(normalChess.filter((c) => c.isDiy).length, 4);
+  assert.equal(normalChess.filter((c) => c.isDiy).length, 12);
   assert.equal(normalChess.filter((c) => c.isHidden).length, 17);
 });
 

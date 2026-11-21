@@ -15,7 +15,8 @@ test('matches: the 自选 match\'s human seat draws its 自选 pieces in its sho
   const [id, dg] = Object.entries(MATCHES.scenarios).find(([k]) => /-coverage-diy$/.test(k)) || [];
   assert.ok(dg, 'scenario present');
   assert.deepEqual(dg.errors, { engine: 0, logged: 0, sim: 0, dispatcher: 0 }, id);
-  assert.deepEqual(Object.keys(dg.diy.picks).sort(), Object.keys(BACKUPS.diy.slots).sort(), 'all four slots filled');
+  // the four official slots (two a tier; slots 3–6 are tools/versions/forkDiy.mjs's, 2026-11-21) — 选择自编 brings 2 + 2
+  assert.deepEqual(Object.keys(dg.diy.picks).sort(), Object.keys(BACKUPS.diy.slots).filter((id) => /_diy[12]_a$/.test(id)).sort(), 'the four official slots filled');
   assert.equal(dg.diy.picks.chess_char_5_diy1_a.charId, 'char_112_siege');
   const draws = dg.diy.rounds.flatMap(([, d]) => (d ? d.split(' ') : []));
   assert.ok(draws.length >= 2, `shop draws: ${draws.join(', ')}`);

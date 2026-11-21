@@ -39,6 +39,9 @@ function drive(h, pred, acts = () => false, { maxSteps = 3e6, bandOf = () => nul
         const band = bandOf(ps) ?? m.gd.bandIds().find((b) => m.gd.bandAllowed(b) && !m.bandTaken(b, id));
         assert.deepEqual(m.handle(id, { t: active ? 'g.band' : 'g.bandFocus', bandId: band }), { ok: true });
       }
+      // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — g.diyBring counts (AFK_ACTIONS): only an acting human
+      // confirms (brings none); an idle one waits out the step's countdown (untimed for a lone human, who acts there)
+      if (m.phase === PHASE.CUSTOM_CHECK && active && ps.diyBring == null) assert.deepEqual(m.handle(id, { t: 'g.diyBring', slots: [] }), { ok: true });
       if (m.phase === PHASE.SP_DRAFT && m.spTurn() === id && active) {
         const idx = m.sp.cards.find((c) => m.spCardAvailable(c))?.idx;
         if (idx != null) m.handle(id, { t: 'g.choice', idx });

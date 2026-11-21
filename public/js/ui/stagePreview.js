@@ -1,15 +1,14 @@
-// 规程 briefing map (round 71, round 72). Choice order: an official preview picture, then one
-// cached render of the stage's 3D board, then the stage's own cells. The picture keys are looked up
-// in data/assets.json and data/local-assets.json; none of them is installed (docs/research/07-assets.md
-// §7: the board is a 3D scene). The render is stageThumb.js (offscreen, after first paint). Cells use
-// ui/fallbackField.js fallbackTileClass.
+// The briefing map (round 71, round 72) and the strategy draft's (#65). Choice order: an official preview picture, then
+// one cached render of the stage's 3D board. The picture keys are looked up in data/assets.json and
+// data/local-assets.json; none of them is installed (docs/research/07-assets.md §7: the board is a 3D scene). The render
+// is stageThumb.js (offscreen, after first paint). No drawn map (the owner, 2026-11-21: 「去掉CSS地图，直接用实际图片」):
+// without a picture or a render — loading, no WebGL2, ?board=2d, a stage without a scene — the frame stays empty.
 // [ASSUMED] the crop, that the magnifier opens a larger copy of the same picture, and that INFO_CHECK
 // frames every seat's own left board (not the boss-right half and not the 联防 partner half).
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, Button, Modal } from './components.js';
 import { Img } from './gameComponents.js';
-import { fallbackTileClass } from './fallbackField.js';
 import { settingsStore } from './settingsStore.js';
 import { presetCamera } from '../render/projection.js';
 import { webgl2Available } from '../render/board3d/load.js';
@@ -77,28 +76,6 @@ export function stagePreviewKeys(stageId) {
   return [`stagePreview/${id}`, `mapPreview/${id}`, `stageMap/${id}`];
 }
 
-/**
- * One cell per coordinate of the crop, even when a row string is short.
- * @param {any} stage stages.json record
- * @param {{ r0: number, r1: number, c0: number, c1: number }} [crop]
- * @returns {{ row: number, col: number, kind: string, special: string|null }[]}
- */
-export function stagePreviewCells(stage, crop = STAGE_PREVIEW_CROP) {
-  if (!stage || !Array.isArray(stage.rows)) return [];
-  const cells = [];
-  // far row first: row 0 is the bottom of the stage, so the bench (r0) lands at the bottom of the grid
-  for (let row = crop.r1; row >= crop.r0; row--) {
-    for (let col = crop.c0; col <= crop.c1; col++) {
-      const line = typeof stage.rows[row] === 'string' ? stage.rows[row] : '';
-      const glyph = line[col];
-      const tile = glyph ? stage.tiles?.[glyph] : null;
-      const special = tile && typeof tile.special === 'string' && tile.special ? tile.special : null;
-      cells.push({ row, col, kind: fallbackTileClass(stage, row, col), special });
-    }
-  }
-  return cells;
-}
-
 /** A local-assets group entry: `{ path }` or a bare URL string. */
 function localPath(groups, group, name) {
   const g = groups && typeof groups === 'object' ? groups[group] : null;
@@ -110,7 +87,7 @@ function localPath(groups, group, name) {
 
 /**
  * The local-art manifest lists this stage's official scene (scene.json + scene.bin).
- * Sync, so the briefing can decide without fetching. Missing either file → the cell thumbnail.
+ * Sync, so the briefing can decide without fetching. Missing either file → no render (an empty frame).
  * @param {Record<string, any>|null|undefined} groups data/local-assets.json `groups`
  * @param {string} stageId
  */
@@ -122,7 +99,7 @@ export function stageSceneListed(groups, stageId) {
 
 /**
  * '2d' | '3d' | 'fallback' | 'auto'. `?board=2d` and `?render=fallback` (or `__SP_RENDER__ === 'fallback'`)
- * keep the cell thumbnail. `?board=3d` is the explicit WebGL opt-in (software GPUs included).
+ * take no render (an empty frame). `?board=3d` is the explicit WebGL opt-in (software GPUs included).
  * `env.renderer` wins when a test passes one. `env.board` / `env.render` stand in for the URL.
  * @param {{ renderer?: string, board?: string|null, render?: string|null }} [env]
  */
@@ -202,14 +179,15 @@ function previewQuality() {
 
 /**
  * Official picture if a manifest already lists one, otherwise a 3D render when the caller already knows
- * WebGL2 is up (`env.webgl2 === true`, or a probe that has already run), otherwise the cell drawing.
+ * WebGL2 is up (`env.webgl2 === true`, or a probe that has already run), otherwise none (yet: StagePreview / StageShot
+ * probe after first paint and switch to the render).
  * The probe is not run here: the briefing's first paint must not open a GL context.
  * @param {{ ui?: Record<string, string>|null, localGroups?: Record<string, any>|null }} src
  * @param {string} stageId
  * @param {{ webgl2?: boolean|null, renderer?: string, board?: string|null, render?: string|null, allowSlow?: boolean }} [env]
  * @returns {{ kind: 'picture', url: string, key: string }
  *   | { kind: 'render', stageId: string, key: string }
- *   | { kind: 'cells', assumed: true }}
+ *   | { kind: 'none' }}
  */
 export function stagePreviewChoice(src, stageId, env) {
   const id = String(stageId || '');
@@ -239,46 +217,36 @@ export function stagePreviewChoice(src, stageId, env) {
   if (id && renderer !== '2d' && renderer !== 'fallback' && gl === true && stageSceneListed(groups, id)) {
     return { kind: 'render', stageId: id, key: `scene/${id}` };
   }
-  return { kind: 'cells', assumed: true };
+  return { kind: 'none' };
 }
 
-function cellClass(cell) {
-  const extra = cell.special && cell.special !== cell.kind && /^[A-Za-z][A-Za-z0-9]*$/.test(cell.special)
-    ? `reg-map__cell--${cell.special}` : '';
-  return cx('reg-map__cell', `ff-tile--${cell.kind}`, extra);
-}
-
-function cellsView(cells, cols, cls, pending) {
-  return html`<div class=${cx('reg-map', cls)} data-preview="cells" data-assumed="true"
-    data-pending=${pending ? 'render' : undefined}
-    style=${`grid-template-columns:repeat(${cols},minmax(0,1fr))`}>
-    ${cells.map((c) => html`<i key=${`${c.row}-${c.col}`} class=${cellClass(c)} data-kind=${c.kind} data-row=${c.row} data-col=${c.col} data-special=${c.special || undefined}></i>`)}
-  </div>`;
+/** The 16:9 frame with no picture: `pending` while the render is on its way (a sweep), else plain. */
+function emptyView(cls, pending) {
+  return html`<div class=${cx('reg-map', 'reg-map--render', 'reg-map--empty', cls)} data-preview="none"
+    data-pending=${pending ? 'render' : undefined} aria-hidden="true"></div>`;
 }
 
 /**
- * The thumbnail. A picture uses Img and falls back to the cells when the file fails.
- * A render shows `shot.url` once stageThumb.js has one, and the cells until then (or when it fails).
+ * The thumbnail. A picture uses Img and falls back to the empty frame when the file fails.
+ * A render shows `shot.url` once stageThumb.js has one, and the empty frame until then (or when it fails).
  * Hookless: the briefing test calls this.
- * @param {{ stage: any, choice: ReturnType<typeof stagePreviewChoice>, class?: string,
+ * @param {{ stage?: any, choice: ReturnType<typeof stagePreviewChoice>, class?: string,
  *   shot?: { url: string, renderMs?: number|null }|false|null }} props
  */
-export function StageMap({ stage, choice, class: cls, shot }) {
-  const cells = stagePreviewCells(stage);
-  const cols = STAGE_PREVIEW_CROP.c1 - STAGE_PREVIEW_CROP.c0 + 1;
+export function StageMap({ choice, class: cls, shot }) {
   if (choice?.kind === 'picture' && choice.url) {
     return html`<div class=${cx('reg-map', 'reg-map--pic', cls)} data-preview="picture" data-key=${choice.key}>
-      <${Img} src=${choice.url} class="reg-map__img" alt="" fallback=${cellsView(cells, cols)} />
+      <${Img} src=${choice.url} class="reg-map__img" alt="" fallback=${emptyView()} />
     </div>`;
   }
   if (choice?.kind === 'render' && shot && shot.url) {
     const ms = Number.isFinite(shot.renderMs) ? String(Math.round(shot.renderMs)) : undefined;
     return html`<div class=${cx('reg-map', 'reg-map--pic', 'reg-map--render', cls)} data-preview="render" data-key=${choice.key}
       data-render-ms=${ms}>
-      <${Img} src=${shot.url} class="reg-map__img" alt="" fallback=${cellsView(cells, cols)} />
+      <${Img} src=${shot.url} class="reg-map__img" alt="" fallback=${emptyView()} />
     </div>`;
   }
-  return cellsView(cells, cols, cls, choice?.kind === 'render' && shot == null);
+  return emptyView(cls, choice?.kind === 'render' && shot == null);
 }
 
 /**
@@ -291,6 +259,42 @@ export function StageMap({ stage, choice, class: cls, shot }) {
  */
 export function StagePreview({ stage, choice, name, pool, stageId, localGroups, seat }) {
   const [open, setOpen] = useState(false);
+  const { effective, shot: mapShot } = useStageShot({ stage, choice, stageId, localGroups, seat });
+  const label = t('查看战场「{name}」', { name: name || '—' });
+  return html`<div class="reg-stage" data-stage=${String(stage?.id || stageId || '') || undefined}>
+    <div class="reg-preview">
+      <${StageMap} stage=${stage} choice=${effective} shot=${mapShot} />
+      <button type="button" class="reg-preview__zoom" aria-label=${label} onClick=${() => setOpen(true)}>
+        <${Icon} name="search" />
+      </button>
+    </div>
+    <${Modal} open=${open} onClose=${() => setOpen(false)} class="reg-mapdlg" title=${t('本局战场')} micro="BATTLEFIELD"
+      actions=${html`<${Button} variant="secondary" icon="close" onClick=${() => setOpen(false)}>${t('关闭')}<//>`}>
+      <p class="reg-mapdlg__name"><b>${name || '—'}</b>${pool ? html`<span>${pool}</span>` : null}</p>
+      <${StageMap} stage=${stage} choice=${effective} shot=${mapShot} class="reg-map--lg" />
+    <//>
+  </div>`;
+}
+
+/**
+ * The strategy draft's battlefield picture (#65; the owner, 2026-11-21: the actual image, no drawn map): the same
+ * cached render as the briefing's (stageThumb.js keeps one per stage and seat), no magnifier.
+ * @param {{ stage: any, stageId?: string, localGroups?: Record<string, any>|null, ui?: Record<string, string>|null,
+ *   seat?: number|null, class?: string }} props
+ */
+export function StageShot({ stage, stageId, localGroups, ui = null, seat = null, class: cls }) {
+  const id = String(stage?.id || stageId || '');
+  const choice = stagePreviewChoice({ ui, localGroups }, id);
+  const { effective, shot } = useStageShot({ stage, choice, stageId: id, localGroups, seat });
+  return html`<${StageMap} stage=${stage} choice=${effective} shot=${shot} class=${cx('reg-map--shot', cls)} />`;
+}
+
+/**
+ * The render behind a preview: probes WebGL2 after first paint, loads stageThumb.js and renders the stage once.
+ * `effective`: the choice to draw (a picture, the render, or none); `shot`: undefined before the probe, null while the
+ * render runs, false when it failed, else `{ url, renderMs }`.
+ */
+function useStageShot({ stage, choice, stageId, localGroups, seat }) {
   const [glOk, setGlOk] = useState(() => {
     const renderer = stagePreviewRenderer();
     if (renderer === '2d' || renderer === 'fallback') return false;
@@ -306,10 +310,11 @@ export function StagePreview({ stage, choice, name, pool, stageId, localGroups, 
   const listed = stageSceneListed(localGroups, id);
   const rendererNow = stagePreviewRenderer();
   const blocked = rendererNow === '2d' || rendererNow === 'fallback';
-  const showRender = choice?.kind !== 'picture' && !blocked && glOk === true && listed && !!id;
+  // before the probe has answered (glOk null) the frame already waits for the render (pending), so it does not flash empty
+  const showRender = choice?.kind !== 'picture' && !blocked && glOk !== false && listed && !!id;
   const effective = choice?.kind === 'picture' ? choice
     : showRender ? { kind: 'render', stageId: id, key: `scene/${id}` }
-    : (choice?.kind === 'cells' ? choice : { kind: 'cells', assumed: true });
+    : { kind: 'none' };
 
   useEffect(() => {
     let dead = false;
@@ -349,68 +354,5 @@ export function StagePreview({ stage, choice, name, pool, stageId, localGroups, 
     return () => { dead = true; cancel(); };
   }, [id, listed, choice?.kind]);
 
-  const label = t('查看战场「{name}」', { name: name || '—' });
-  const mapShot = effective?.kind === 'render' ? shot : undefined;
-  return html`<div class="reg-stage" data-stage=${id || undefined}>
-    <div class="reg-preview">
-      <${StageMap} stage=${stage} choice=${effective} shot=${mapShot} />
-      <button type="button" class="reg-preview__zoom" aria-label=${label} onClick=${() => setOpen(true)}>
-        <${Icon} name="search" />
-      </button>
-    </div>
-    <${Modal} open=${open} onClose=${() => setOpen(false)} class="reg-mapdlg" title=${t('本局战场')} micro="BATTLEFIELD"
-      actions=${html`<${Button} variant="secondary" icon="close" onClick=${() => setOpen(false)}>${t('关闭')}<//>`}>
-      <p class="reg-mapdlg__name"><b>${name || '—'}</b>${pool ? html`<span>${pool}</span>` : null}</p>
-      <${StageMap} stage=${stage} choice=${effective} shot=${mapShot} class="reg-map--lg" />
-    <//>
-  </div>`;
-}
-
-// ---- Strategy draft mini map (fork, #65) ----
-// The battlefield mini map of the strategy draft (#65): the field a player deploys on, drawn from the stage's own tiles
-// (data/stages.json) so every battlefield of every official version has one, with no art to fetch. Rows go bottom-up as
-// on the board: the enemy gates (red) and the protected point (blue) stand where the match will have them.
-// Styles: css/screens/draft.css (.stagemap). Used by screens/bandDraft.js; the 规程 briefing above is upstream's.
-
-/** The stage tiles of the field: GEO.FIELD's rows, from the protected point's column to the last gate's. */
-const RECT = Object.freeze({ r0: 9, r1: 12, c0: 2, c1: 12 });
-
-/**
- * The look of one tile: 'gate', 'goal', 'void', 'high' (a ranged platform) or a special ground as on the fallback board
- * ('mire', 'smog', 'deep', 'infect', 'duel-grass': 规程 MAP09's 隐匿地块),
- * else 'road' (enemies walk it) or 'fence' (low ground they do not).
- * @param {any} stage @param {number} r @param {number} c
- */
-export function miniTile(stage, r, c) {
-  const cls = fallbackTileClass(stage, r, c);
-  if (cls !== 'floor' && cls !== 'lane') return cls;
-  return stage.tiles?.[stage.rows[r][c]]?.groundPassable === false ? 'fence' : 'road';
-}
-
-/**
- * The drawn tiles (void left out), x / y in tiles from the top left.
- * @param {any} stage a data/stages.json record
- * @returns {{ w: number, h: number, tiles: Array<{ x: number, y: number, kind: string }> } | null} null without tile data
- */
-export function stagePreview(stage) {
-  if (!Array.isArray(stage?.rows) || !stage.rows[RECT.r1]) return null;
-  const tiles = [];
-  for (let r = RECT.r0; r <= RECT.r1; r++) {
-    for (let c = RECT.c0; c <= RECT.c1; c++) {
-      const kind = miniTile(stage, r, c);
-      if (kind !== 'void') tiles.push({ x: c - RECT.c0, y: RECT.r1 - r, kind });
-    }
-  }
-  return { w: RECT.c1 - RECT.c0 + 1, h: RECT.r1 - RECT.r0 + 1, tiles };
-}
-
-/**
- * @param {{ stage: any, class?: string }} props nothing without tile data
- */
-export function StageMiniMap({ stage, class: cls }) {
-  const map = stagePreview(stage);
-  if (!map) return null;
-  return html`<svg class=${cls ? `stagemap ${cls}` : 'stagemap'} viewBox=${`0 0 ${map.w} ${map.h}`} aria-hidden="true" data-testid="stage-minimap">
-    ${map.tiles.map((t) => html`<rect key=${`${t.x},${t.y}`} class=${`stagemap__t stagemap__t--${t.kind}`} x=${t.x + 0.04} y=${t.y + 0.04} width="0.92" height="0.92" />`)}
-  </svg>`;
+  return { effective, shot: effective?.kind === 'render' ? shot : undefined };
 }

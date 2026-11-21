@@ -192,14 +192,19 @@
   position: absolute; box-sizing: border-box; margin: 0; pointer-events: none;
 }
 .lvcard--up .rup__l { background-repeat: no-repeat; background-size: 100% 100%; }
+/* the numeral and the caption in the old card's type (the owner, 2026-11-21: the official frame, the old text — 「LEVEL 4」,
+   「升 级」, the hotkey; game-shop.css .lvcard__num / .lvcard__label); the prefab's boxes still place them */
 .lvcard--up .rup__num {
   display: grid; place-items: center;
-  font-family: 'Novecento Wide', var(--font-num); font-weight: 700; font-style: normal; line-height: 1;
-  letter-spacing: .03rem; text-indent: .03rem; -webkit-text-stroke: .025rem currentColor;
+  font-family: var(--font-cjk); font-weight: 700; font-style: normal; line-height: 1;
 }
 .lvcard--up .rup__txt {
-  display: grid; place-items: center;
-  font-family: var(--font-display); font-weight: 700; line-height: 1; letter-spacing: .16em; text-indent: .16em;
+  display: grid; place-items: center; white-space: nowrap;
+  font-family: var(--font-cjk); font-weight: 900; line-height: 1; letter-spacing: .3em; text-indent: .3em;
+}
+.shopbar--reg .lvcard.lvcard--up .rup__key {
+  z-index: 3; right: .06rem; bottom: .06rem; transform-origin: bottom right;
+  color: rgba(232, 255, 248, .85) !important; border-color: rgba(232, 255, 248, .4) !important; background: rgba(0, 0, 0, .4) !important;
 }
 .shopbar--reg .lvcard.lvcard--up .rup__tip {
   display: grid; place-items: center;
@@ -278,6 +283,16 @@
   mask-image: linear-gradient(180deg, #000 52%, transparent 76%);
 }
 .scard.scard--reg .scard__itemart { top: .34rem; width: .84rem; height: .84rem; }
+/* The covenant card's faction watermark (game-shop.css .scard__water: the first bond's glyph, faint, left of the portrait),
+   kept on the one shop card (the owner 2026-11-21). Percentages of the old 156×224 card, clipped to the card. */
+.scard.scard--reg .scard__water {
+  left: 0; top: 0; right: 0; bottom: 0; width: auto; height: auto; overflow: hidden; pointer-events: none;
+  clip-path: inset(var(--art-clip-t, 0) var(--art-clip-r, 0) 0 0);
+}
+.scard.scard--reg .scard__water .bglyph { position: absolute; left: -12.8%; top: 15.2%; width: 70.5%; height: auto; aspect-ratio: 1 / 1; }
+/* the light paper cards (乌萨斯齐心团, 可露希尔): the glyph dark, as faint */
+.shopbar--reg[data-reg-theme="ac_n_iron"] .scard__water .bglyph img,
+.shopbar--reg[data-reg-theme="ac_s_closur"] .scard__water .bglyph img { filter: brightness(0); }
 .scard.scard--reg .scard__namebar {
   position: absolute; z-index: 4; display: block; margin: 0; min-height: 0;
   padding: 0; background: transparent;
@@ -287,20 +302,27 @@
 .scard.scard--reg .scard__prof {
   position: absolute; object-fit: contain; max-width: none; filter: none;
 }
-/* char_name / eqiup_name are TextAnchor MiddleLeft: centred in their box's height; the inner span keeps the ellipsis */
+/* char_name / eqiup_name are TextAnchor MiddleLeft: centred in their box's height; the inner span keeps the ellipsis. The
+   old card's type (game-shop.css .scard__name: heavy, spaced), sized to the bar. */
 .scard.scard--reg .scard__name {
   position: absolute; display: flex; align-items: center; overflow: hidden;
-  line-height: 1.15; font-weight: 500; text-shadow: none;
+  line-height: 1.15; font-size: .16rem; font-weight: 900; letter-spacing: .04em; text-shadow: none;
 }
 .scard.scard--reg .scard__nametxt { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.scard.scard--reg .scard__bonds {
-  position: absolute; z-index: 3; display: flex; flex-direction: column; align-items: flex-start;
-  gap: .005rem; margin: 0; padding: 0; overflow: hidden;
+/* The card's details are this fork's (the owner, 2026-11-21: the official frame and portrait, the old card's details): on
+   the portrait right above the name bar — where the official vertical bond list sat — a row of bonds (icon in its own
+   colours, the name) and the class line (the class icon, 子职业); the name alone in the bar, in the old card's type.
+   ui/shopBar.js infoAboveBar places the block on the bar's top edge; without the face pack the fallback below does. */
+.scard.scard--reg .scard__info {
+  position: absolute; z-index: 3; left: .07rem; right: .06rem; display: flex; flex-direction: column; align-items: flex-start; gap: .01rem;
+  pointer-events: none; text-shadow: 0 1px 2px rgba(0, 0, 0, .85);
 }
-/* a bond's name and icon share one colour: 卫戍协议终端's bondColor #B7B7B7 by default (the 规程 look is that theme); an
-   installed theme's bondColor overrides it (ui-theme.css) */
-.scard.scard--reg .scard__bond { display: flex; align-items: center; min-height: 0; gap: .03rem; font-size: .105rem; line-height: 1.05; white-space: nowrap; color: #B7B7B7; }
-.scard.scard--reg .scard__bond .bglyph { width: .13rem; height: .13rem; flex: none; }
+.scard.scard--reg .scard__bonds { display: flex; flex-wrap: wrap; gap: .01rem .06rem; margin: 0; padding: 0; }
+/* the old card's bond: the glyph in its colours, the name in mint (a theme's bondColor recolours the name: ui-theme.css) */
+.scard.scard--reg .scard__bond { display: inline-flex; align-items: center; min-height: 0; gap: .02rem; font-size: .125rem; line-height: 1.2; white-space: nowrap; color: var(--mint-400); }
+.scard.scard--reg .scard__bond .bglyph { width: .16rem; height: .16rem; flex: none; }
+.scard.scard--reg .scard__class { display: flex; align-items: center; gap: .04rem; font-size: .12rem; line-height: 1.2; color: var(--text-lo); }
+.scard.scard--reg .scard__classicon { width: .15rem; height: .15rem; object-fit: contain; opacity: .9; }
 /* 预选盟约 (this fork's rel34 / rel35 marks, ui/shopBar.js regBondLine `marks`; css/screens/game-shop.css): my 主盟约 solid
    mint, a 副盟约 mint-outlined, a pool teammate's dash-outlined in ice — the icon is a mask in the text colour here, so the
    colour carries the mark (a theme's bondColor leaves these chips alone, ui-theme.css) */
@@ -309,14 +331,15 @@
 .scard.scard--reg .scard__bond.is-plan-sub { color: #fff; }
 .scard.scard--reg .scard__bond.is-mate:not(.is-plan-main):not(.is-plan-sub) { color: var(--ice); }
 .scard.scard--reg .scard__bond .scard__bmate .icon { width: .11rem; height: .11rem; }
-.scard.scard--reg .scard__class { font-size: .11rem; }
-.scard.scard--reg .scard__prof { width: .14rem; height: .14rem; }
-.scard.scard--reg .scard__idesc { -webkit-line-clamp: 2; font-size: .11rem; }
+/* an item's effect (the old card's, the owner 2026-11-21: 装备卡添加说明) above its name bar, over the lower part of the icon */
+.scard.scard--reg .scard__idesc {
+  position: absolute; z-index: 3; left: .06rem; right: .06rem; padding: .02rem .04rem;
+  -webkit-line-clamp: 3; font-size: .11rem; line-height: 1.35; color: #d2d8d6; background: rgba(8, 11, 10, .72); pointer-events: none;
+}
 .scard.scard--reg .scard__itemart { position: absolute; z-index: 2; top: auto; left: auto; width: auto; height: auto; transform: none; }
 .scard.scard--reg .scard__itemart img { width: 100%; height: 100%; object-fit: contain; }
 .scard.scard--reg.scard--item .scard__namebar { z-index: 4; }
 .scard.scard--reg.scard--item .scard__name { color: #fff; }
-.scard.scard--reg.scard--item .scard__idesc { display: none; }
 .scard.scard--reg .scard__prefab-layer { position: absolute; display: block; pointer-events: none; }
 .scard.scard--reg .scard__prefab-layer > i {
   position: absolute; inset: 0; display: block; background-position: center; background-repeat: no-repeat; background-size: 100% 100%;
@@ -364,7 +387,7 @@
   .tier__prefab-vi,
   .tier__prefab-vi::before { animation: none !important; }
 }
-.scard.scard--reg .scard__skill { top: auto; bottom: .5rem; right: .04rem; }
+.scard.scard--reg .scard__skill { top: auto; bottom: .74rem; right: .04rem; }
 .scard.scard--reg .scard__pips { position: absolute; z-index: 3; left: .04rem; top: .4rem; }
 .scard.scard--reg .scard__standin,
 .scard.scard--reg .scard__diy,
@@ -377,12 +400,16 @@
    of the skill badge. An inline style (the prefab's box) wins whenever the pack is there. */
 .scard.scard--reg .scard__tierbox:not([style]) { left: .04rem; top: .04rem; }
 .scard.scard--reg .scard__namebar:not([style]) { left: 0; right: 0; bottom: 0; height: .3rem; background: linear-gradient(0deg, rgba(8, 11, 10, .92), rgba(8, 11, 10, .55)); }
-.scard.scard--reg .scard__namebar:not([style]) .scard__prof { left: .06rem; top: 50%; transform: translateY(-50%); }
-.scard.scard--reg .scard__namebar:not([style]) .scard__name { left: .24rem; right: .05rem; top: 0; bottom: 0; font-size: .15rem; color: #fff; }
+.scard.scard--reg .scard__namebar .scard__prof { display: none; }
+/* 可露希尔's name bar paints a coloured plate under the profession mark: the old class icon fills it, the name keeps the
+   prefab's box (ui/shopBar.js nameFromMark) */
+.shopbar--reg[data-reg-theme="ac_s_closur"] .scard.scard--reg .scard__namebar[style] .scard__prof { display: block; padding: 6%; opacity: 1; filter: brightness(0) invert(1); }
+.shopbar--reg[data-reg-theme="ac_s_closur"] .scard.scard--reg .scard__name { --name-l: var(--name-l0); --name-w: var(--name-w0); }
+.scard.scard--reg .scard__namebar:not([style]) .scard__name { left: .06rem; right: .05rem; top: 0; bottom: 0; color: #fff; }
 .scard.scard--reg.scard--item .scard__namebar:not([style]) .scard__name { left: .06rem; }
-.scard.scard--reg .scard__bonds:not([style]) { left: .05rem; right: .38rem; bottom: .33rem; }
+.scard.scard--reg .scard__info:not([style]), .scard.scard--reg .scard__idesc:not([style]) { bottom: .3rem; }
 
-/* Character card: coin badge on top, portrait, 收起. No 「目前资金」 label. The plate (`--reg-char`) is drawn on the card's
+/* Character card: coin badge on top, 「目前资金」, portrait, 收起. The plate (`--reg-char`) is drawn on the card's
    box; a pack whose plate is a cut-out puts its backdrop under it (`--reg-char-back*`, ui/regHud.js regChromeStyle: 可露希尔's
    bg_open, §37.235) instead of our dark green, which its transparent parts used to show. `--fw` / `--fh` are the box; the
    backdrop overhangs it to the left and top as in the prefab, and the box clips that. */
@@ -416,14 +443,17 @@
 }
 .shopbar--reg .funds__badge .funds__coin { width: .22rem; height: .22rem; }
 .shopbar--reg .funds__badge .funds__num { font-size: .26rem; color: #fff; }
-.shopbar--reg .funds__collapse {
-  position: absolute; z-index: 2; left: 0; right: 0; bottom: .02rem;
-  justify-content: center;
-  border: 0; background: transparent;
-  color: #37e5ca; font-size: .15rem;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .9);
+/* 「目前资金」 under the badge and the boxed 收起 of the old funds column (the owner, 2026-11-21: the official card, the old
+   text), each on a dark plate over the character */
+.shopbar--reg .funds--reg .funds__label {
+  position: absolute; z-index: 2; left: 50%; top: .5rem; transform: translateX(-50%);
+  padding: .01rem .08rem; white-space: nowrap; background: rgba(8, 11, 10, .62);
 }
-.shopbar--reg .funds__collapse:hover { color: #b8fff2; }
+.shopbar--reg .funds__collapse {
+  position: absolute; z-index: 2; left: 50%; bottom: .06rem; transform: translateX(-50%);
+  justify-content: center; white-space: nowrap;
+  background: rgba(8, 11, 10, .72);
+}
 
 /* 展开 sits where the shop folded away: the right edge, as the covenant tab does. */
 
@@ -481,6 +511,8 @@
   .gm .scard.scard--reg .scard__bond { font-size: max(.105rem, calc(8px * var(--ui))); }
   .gm .scard.scard--reg .scard__bond .bglyph { width: max(.13rem, calc(9px * var(--ui))); height: max(.13rem, calc(9px * var(--ui))); }
   .gm .scard.scard--reg .scard__bonds { overflow: visible; }
+  /* the class line and 「目前资金」 give way at the phone's floors (the card's detail and the badge keep them) */
+  .gm .scard.scard--reg .scard__class, .gm .shopbar--reg .funds--reg .funds__label { display: none; }
   /* the tag at the phone's floors (devices.css: a 44 px 稍后) still fits the card's height: no PROMOTION, a smaller title */
   .gm .shopbar--reg .rwtag__micro { display: none; }
   .gm .shopbar--reg .rwtag__title { font-size: .16rem; letter-spacing: 0; }

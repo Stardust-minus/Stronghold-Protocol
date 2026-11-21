@@ -119,6 +119,13 @@ async function driveLoop(c, { skipOnce = false, until, stats }) {
         if (r.t === 'ok') stats.bands++;
         else stats.bandTimeouts++;
       }
+    } else if (pub.phase === 'CUSTOM_CHECK' && !done.has('diy')) {
+      // 选择自编 (CUSTOM_CHECK): every version since 2026-11-21 — bring none; the (scaled) countdown may have applied the
+      // default meanwhile
+      done.add('diy');
+      const r = await c.request({ t: 'g.diyBring', slots: [] });
+      if (r.t === 'ok') stats.brings++;
+      else { assert.ok(['ALREADY', 'WRONG_PHASE'].includes(r.code), `diyBring: ${JSON.stringify(r)}`); stats.bringTimeouts++; }
     } else if (pub.phase === 'SP_DRAFT' && pub.sp && pub.sp.turn === c.id) {
       const key = `sp:${pub.round}`;
       if (done.has(key)) continue;
@@ -208,7 +215,7 @@ test('real-time co-op over websockets with the real simulation: 2 humans + 2 AI 
   assert.equal((await a.request({ t: 'room.start' })).t, 'ok');
 
   const reached = (c) => { const p = latest(c, 'm.public'); return !!p && ((p.phase === 'PREP' && p.round >= 4) || p.phase === 'RESULT' || p.round > 4); };
-  const stats = { a: { skips: 0, skipTries: 0, holds: 0, switches: 0, cancels: 0, bands: 0, bandTimeouts: 0, cards: 0, buys: 0, placed: 0, readies: 0, watches: [], refused: 0 }, b: { skips: 0, skipTries: 0, holds: 0, switches: 0, cancels: 0, bands: 0, bandTimeouts: 0, cards: 0, buys: 0, placed: 0, readies: 0, watches: [], refused: 0 } };
+  const stats = { a: { skips: 0, skipTries: 0, holds: 0, switches: 0, cancels: 0, bands: 0, bandTimeouts: 0, brings: 0, bringTimeouts: 0, cards: 0, buys: 0, placed: 0, readies: 0, watches: [], refused: 0 }, b: { skips: 0, skipTries: 0, holds: 0, switches: 0, cancels: 0, bands: 0, bandTimeouts: 0, brings: 0, bringTimeouts: 0, cards: 0, buys: 0, placed: 0, readies: 0, watches: [], refused: 0 } };
   // snapshot of the prep → combat transitions the clients saw
   await Promise.all([
     drive(a, { skipOnce: true, until: () => reached(a), stats: stats.a }),
@@ -235,15 +242,16 @@ test('real-time co-op over websockets with the real simulation: 2 humans + 2 AI 
   assert.ok(stats.a.cancels + stats.b.cancels >= 1, `a human cancelled its held strategy (g.bandCancel): ${JSON.stringify([stats.a, stats.b])}`);
   for (const [c, s] of [[a, stats.a], [b, stats.b]]) {
     assert.equal(s.bands + s.bandTimeouts, 1, `${c.id} drafted a band (or its turn timed out → 华法琳)`);
+    assert.equal(s.brings + s.bringTimeouts, 1, `${c.id} confirmed 选择自编 once (or its countdown ran out)`);
     assert.ok(s.buys >= 3 && s.placed >= 3 && s.readies >= 3, `${c.id} played its preps: ${JSON.stringify(s)}`);
     // the SP round (NORMAL R3) gave every alive player a card
     assert.equal(s.cards, 1, `${c.id} picked one 机变 card`);
     const pubs = c.log.filter((x) => x.t === 'm.public');
     const phases = new Set(pubs.map((x) => x.phase));
     // (sub-100 ms presentation phases at this timer scale may fall between two throttled m.public frames)
-    for (const ph of ['INFO_CHECK', 'BAND_DRAFT', 'SP_DRAFT', 'PREP', 'COMBAT']) assert.ok(phases.has(ph), `${c.id} saw ${ph}`);
+    for (const ph of ['INFO_CHECK', 'BAND_DRAFT', 'CUSTOM_CHECK', 'SP_DRAFT', 'PREP', 'COMBAT']) assert.ok(phases.has(ph), `${c.id} saw ${ph}`);
     // m.public: throttled to ≤ 10/s (a 100 ms gap, small timer jitter tolerated)
-    for (let i = 1; i < pubs.length; i++) assert.ok(pubs[i].serverNow - pubs[i - 1].serverNow >= 95, `m.public ${pubs[i].serverNow - pubs[i - 1].serverNow} ms apart`);
+    for (let i = 1; i < pubs.length; i++) assert.ok(pubs[i].serverNow - pubs[i - 1].serverNow >= 95, `m.public ${pubs[i].serverNow - pubs[i - 1].serverNow} ms apart (${pubs[i - 1].phase} → ${pubs[i].phase})`);
     const priv = latest(c, 'm.private');
     assert.equal(priv.hand.length, 10);
     assert.equal(priv.temp.length, 5);

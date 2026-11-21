@@ -279,9 +279,12 @@ export class Client {
    * while the browser has none: a version picked in the page survives its reloads). Default: DEFAULT_VERSION, 第二期下半
    * — the suites were written on 盟约 (its difficulty names, the 4-slot 自选编队, no 选择自编 step); since 2026-11-09 a
    * fresh browser's lobby starts on 规程 upstream (LOBBY_DEFAULT_VERSION), which `null` keeps (the browser's own choice).
+   * `autoDiyBring`: since 2026-11-21 every version has the 选择自编 step (CUSTOM_CHECK, tools/versions/forkDiy.mjs) after the
+   * strategy draft, untimed in solo — a `waitFor` still pending there presses 确认编队 as a player would (the page's default
+   * bring: the first legal slots of each tier; none without picks). `false` leaves the step to the test.
    */
-  constructor(puppeteer, base, label, { w = 1920, h = 1080, prefix = 'coop', settings = null, prefs = { 'loadout.view': 'list' }, lobbyVersion = DEFAULT_VERSION } = {}) {
-    Object.assign(this, { puppeteer, base, label, w, h, prefix, settings, prefs, lobbyVersion, problems: [], log: [], shots: [] });
+  constructor(puppeteer, base, label, { w = 1920, h = 1080, prefix = 'coop', settings = null, prefs = { 'loadout.view': 'list' }, lobbyVersion = DEFAULT_VERSION, autoDiyBring = true } = {}) {
+    Object.assign(this, { puppeteer, base, label, w, h, prefix, settings, prefs, lobbyVersion, autoDiyBring, problems: [], log: [], shots: [] });
   }
 
   async open(query = '') {
@@ -347,6 +350,7 @@ export class Client {
         fields: (pub?.fields || []).map((f) => `${f.fieldId}:${f.kind}:${f.live ? 1 : 0}`),
         sp: pub?.sp ? { turn: pub.sp.turn, picked: Object.keys(pub.sp.picks || {}).length } : null,
         draft: pub?.draft ? { turn: pub.draft.turn, picks: Object.keys(pub.draft.picks || {}).length } : null,
+        diyBring: Array.isArray(priv?.diyBring),
       };
     });
   }
@@ -357,6 +361,10 @@ export class Client {
     while (Date.now() - t0 < timeout) {
       last = await this.st();
       if (pred(last)) return last;
+      // 选择自编 (see the constructor): confirm the page's default bring once its button is there
+      if (this.autoDiyBring && last.phase === 'CUSTOM_CHECK' && !last.diyBring) {
+        await this.page.evaluate(() => document.querySelector('[data-testid="diy-check-confirm"]:not([disabled])')?.click()).catch(() => {});
+      }
       await sleep(200);
     }
     throw new Error(`${this.label}: timed out waiting for ${what} (last: ${JSON.stringify(last)})`);

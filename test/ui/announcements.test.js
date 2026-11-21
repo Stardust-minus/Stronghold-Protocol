@@ -90,7 +90,18 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   // 2026-11-16: the owner cleared every notice but the oldest (「除了最旧的都清掉」) and asked for only the fork's own changes,
   // pointing to the original's 0.4.0 release for the rest (「只写我们的，其余的让用户去看0.4.0就行」). The interface author's
   // contact and the credits of the removed 10-18 recap move here.
-  assert.equal(entries.length, 5);
+  assert.equal(entries.length, 6);
+  // 2026-11-21 one interface for every version (§37.279) and 盟约's 6 + 6 自选 with 选择自编 (§37.280); the owner: 「跑完没问题就准备上线吧」
+  // — the older fork notices condensed again, every pinned phrase kept, the 10-06 one untouched
+  assert.equal(entries[0].title, '一套界面：盟约用新商店与开局界面，自选改为 6+6');
+  assert.equal(entries[0].date, '2026-11-21');
+  const notice1121 = entries[0].paragraphs.join('\n');
+  for (const phrase of ['【一套界面】', '盟约各期', '盟约条居中', '阵营水印', '「目前资金」', '效果说明', 'S.W.E.E.P.', '【开局】', '一种布局', '实景渲染',
+    '「或本模式禁用」', '【自选】', '6 个名额', '「确定自选编队」', '至多带入 2 名', '3、4 号', 'AI 队友也会带自选', '【修复】'])
+    assert.ok(notice1121.includes(phrase), phrase);
+  assert.doesNotMatch(notice1121, /ModelScope|OpenI|签名|nginx|Worker|WebSocket|CUSTOM_CHECK|forkDiy|\/feedback|#1[0-9]|正在修|正在处理|QQ/i);
+  const all = entries.slice();
+  entries.shift();
   // 2026-11-20 the owner asked for this release's notice to go into the repo: the experimental ELO, the match receipts, AI teammates
   // rescuing and 卡池静态初始化 on top. To fit it the three older fork notices were condensed (the owner: 「压缩，不能删除，另外10-06的不能动」)
   assert.equal(entries[0].title, '实验性 ELO 与卡池静态初始化、对局凭证、AI 队友会救人');
@@ -146,7 +157,7 @@ test('the notices: the 0.4.0 private-run update over the retained 10-06 introduc
   assert.match(entries[4].paragraphs.join('\n'), /第一次来的博士：.*「玩法说明」/);
   // condensed on 2026-10-17 (the 0.3.0 notice alone had grown past 3000): the board scrolls, but the notices stay bounded;
   // on 2026-11-20 the three older fork notices were condensed again to fit the new one
-  assert.ok(entries.flatMap(entry => entry.paragraphs).join('\n').length < 4000, 'the notices stay readable');
+  assert.ok(all.flatMap(entry => entry.paragraphs).join('\n').length < 4000, 'the notices stay readable');
 });
 
 test('announcements omit contacts and infrastructure', () => {

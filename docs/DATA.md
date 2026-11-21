@@ -575,7 +575,8 @@ Glyph legend (`rows`):
    `tokenKey` is remapped to the default skill's token (S2 → `…_eagle2`, `containerTokenKey` keeps the official id).
    `…_eagle1/3` stay listed (`sources:["display"]`, belong to S1/S3). With another skill selected (DESIGN §16) the
    talent follows that skill's eagle (`simdata loadoutRecord`; `variants[o].bySkill[i].sources`).
-2. **DIY chess** (`chess_char_5_diy1/2`, `chess_char_6_diy1/2`, `_a` and `_b` = 8 records): no `charId`, no stats/skill; `visible:false`,
+2. **DIY chess** (`chess_char_5_diy1…6`, `chess_char_6_diy1…6`, `_a` and `_b` = 24 records; the official tables have
+   diy1/2 — slots 3–6 are `tools/versions/forkDiy.mjs` copies of slot 1, §18): no `charId`, no stats/skill; `visible:false`,
    name placeholder `甄选干员`, not in the shop. Their picks and bond rule are in `backups.json diy` (§18); a slot fights
    only as a 自选 piece — a PlayerBattleInput entry with its `diy` pick (docs/SIM.md §12; shared/diy.js) — and a slot
    without a legal pick fields nothing. Played since 0.2.0: the player fills the slots on the 自选编队 tab (`room.diy`)
@@ -639,9 +640,9 @@ Glyph legend (`rows`):
 
 ## 16. Counts (current build)
 
-`chess 266 (112 visible; 283 selectable skills over the visible chess, 189 module choices over 129 goldens; 74 PRESET / 55 NORMAL / 4 DIY base chess)`, `bonds 23`, `garrisons 249 (43 effect keys)`, `items 115`, `bands 40`, `effects 361`,
+`chess 282 (112 visible; 283 selectable skills over the visible chess, 189 module choices over 129 goldens; 74 PRESET / 55 NORMAL / 12 DIY base chess)`, `bonds 23`, `garrisons 249 (43 effect keys)`, `items 115`, `bands 40`, `effects 361`,
 `enemies 249`, `factions 67 entries`, `waves 38`, `stages 13 (11 battle fields + 2 escaped; 8 active)`, `bosses 10`, `tokens 22`, `choice events 109`,
-`bounty cards 129`, `tactic cards 43`, `backups: 99 units (17 stand-ins, 75 owned-6★ picks, 7 collab picks; 289 forms), 39 自选 summons, 4 DIY slots, 15 / 9 prototype picks (tier 5 / 6), 75 owned-6★ picks (7 collab operators outside the pool)`, potential (§2.3): `256 chess records, 255 forms / variants with potDown; 442 + 453 + 19 chained talent entries (chess, backups, tokens)`.
+`bounty cards 129`, `tactic cards 43`, `backups: 99 units (17 stand-ins, 75 owned-6★ picks, 7 collab picks; 289 forms), 39 自选 summons, 12 DIY slots, 15 / 9 prototype picks (tier 5 / 6), 75 owned-6★ picks (7 collab operators outside the pool)`, potential (§2.3): `256 chess records, 255 forms / variants with potDown; 442 + 453 + 19 chained talent entries (chess, backups, tokens)`.
 
 ## 17. Integrity guarantees (checked by the builder and `test/data.test.js`)
 
@@ -778,8 +779,12 @@ loadout. No id is also a tokens.json record.
 
 规程·序列Ⅰ (`data/versions/act3autochess-v3_1`) lists six slots at tier 5 and six at tier 6. `config.diyBringLimits`
 is `{"5":2,"6":2}` from `constData.diyCharLimitForLevels`, and `timers.enterSteps` includes `CUSTOM_CHECK` (选择自编, 30s).
-The match stocks only the confirmed slots (0–2 per tier). The default bundle and the 盟约 versions have neither and still
-stock every legal lobby slot.
+The match stocks only the confirmed slots (0–2 per tier). Since 2026-11-21 the default bundle and the 盟约 versions play
+the same rule (the owner: 「都走这个，盟约也换成6-6 选2+2这样」): their profiles set `forkDiy`, and `tools/versions/forkDiy.mjs`
+adds slots 3–6 of each tier (copies of slot 1 under the next ids), the same `diyBringLimits` and the `CUSTOM_CHECK` step
+(30 s, hint 10) before `BATTLE_CHECK` — in tools/build-data.mjs, and on built files with
+`node tools/versions/forkDiy.mjs <data dir>…`. No version has 候补 any more (`diyBenchSize` 0); a stored 盟约 preset's bench
+keys move to slots 3 and 4 (`shared/diy.js promoteDiyBench`).
 
 Not in this data: a player's ownership roster and 自选 picks (browser settings sent with `room.ownership` / `room.diy`),
 the DIY stock (per player in the match, `PlayerState.diyStock`: `config.economy.poolCopies` of the slot's tier, doubled in
