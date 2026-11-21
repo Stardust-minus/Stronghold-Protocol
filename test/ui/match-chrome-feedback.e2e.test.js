@@ -79,14 +79,17 @@ describe('match chrome feedback', { skip: !ENABLED && 'set SP_E2E=1 with Chrome'
     const page = await open();
     try {
       await page.waitForSelector('.scard__art');
+      // every version's shop card is the 规程 one since 2026-11-21 (one interface): the portrait overflows its art box
+      // (the new framing, ~1.18× the card) and the text is the name bar along the bottom
       const cards = await page.$$eval('.scard:not(.scard--sold):not(.scard--item)', (els) => els.map((el) => {
-        const box = el.getBoundingClientRect(), art = el.querySelector('.scard__art').getBoundingClientRect(), body = el.querySelector('.scard__body').getBoundingClientRect();
-        return { zoom: art.height / box.height, text: (box.bottom - body.top) / box.height };
+        const box = el.getBoundingClientRect(), art = el.querySelector('.scard__art').getBoundingClientRect(), body = el.querySelector('.scard__namebar').getBoundingClientRect();
+        return { reg: el.classList.contains('scard--reg'), zoom: art.height / box.height, text: (box.bottom - body.top) / box.height };
       }));
       assert.ok(cards.length >= 3);
       for (const c of cards) {
-        assert.ok(c.zoom > 1.2, `zoom ${c.zoom}`);
-        assert.ok(c.text < 0.6, `text band ${c.text}`);
+        assert.ok(c.reg, 'the one shop card');
+        assert.ok(c.zoom > 1.1, `zoom ${c.zoom}`);
+        assert.ok(c.text < 0.35, `text band ${c.text}`);
       }
     } finally { await page.close(); }
   });

@@ -117,7 +117,13 @@ describe('GitHub #8 and #484: 本局信息 in the strategy draft (real server, h
   async function waitSt(page, pred, what, timeout = 30000) {
     const t0 = Date.now();
     let last = null;
-    while (Date.now() - t0 < timeout) { last = await st(page); if (pred(last)) return last; await sleep(150); }
+    while (Date.now() - t0 < timeout) {
+      last = await st(page);
+      if (pred(last)) return last;
+      // 选择自编 (CUSTOM_CHECK) follows the draft in every version since 2026-11-21: confirm its default, as test/e2e/client.mjs does
+      if (last.phase === 'CUSTOM_CHECK') await page.evaluate(() => document.querySelector('[data-testid="diy-check-confirm"]:not([disabled])')?.click()).catch(() => {});
+      await sleep(150);
+    }
     throw new Error(`timed out waiting for ${what}: ${JSON.stringify(last)}`);
   }
   const shot = (page, name) => page.screenshot({ path: path.join(OUT, `match-info-${name}.png`) });

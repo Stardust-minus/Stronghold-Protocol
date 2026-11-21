@@ -133,7 +133,7 @@ describe('自选编队 picker: reselecting retains the draft (real server, no ar
 });
 
 // GitHub #284 (idea from PR #286): Esc in the picker cancels only the picker, like its 取消, also from its search
-// field — the 干员调配 overlay and its four slots stay, and the saved picks do not change; the next Esc closes the overlay
+// field — the 干员调配 overlay and its slots stay, and the saved picks do not change; the next Esc closes the overlay
 describe('自选编队 picker: Esc closes only the picker (real server, no art needed)', { skip: !UI_ENABLED && 'set SP_E2E=1 (and have Chrome)' }, () => {
   test('5阶 / 6阶 slots: Esc cancels the picker, the overlay stays; a second Esc closes the overlay', { timeout: 90000 }, async () => {
     const srv = await startRealServer();
@@ -159,7 +159,7 @@ describe('自选编队 picker: Esc closes only the picker (real server, no art n
         await c.page.keyboard.press('Escape');
         await c.page.waitForSelector(picker, { hidden: true, timeout: 3000 });
         assert.ok(await c.page.$('.lo'), `${slot}: Esc keeps the 干员调配 overlay${search ? ' (from the search field)' : ''}`);
-        assert.equal((await c.page.$$('.diy-slot')).length, 8, `${slot}: the eight positions stay (four per tier, feedback #114)`);
+        assert.equal((await c.page.$$('.diy-slot')).length, 12, `${slot}: the twelve positions stay (six per tier: every version since 2026-11-21)`);
       }
       // an Esc pressed the moment the picker appears — before the next animation frame — closes it too: its listener comes
       // with the picker's own commit (a plain effect attached it a frame later and the overlay skipped the key: the
